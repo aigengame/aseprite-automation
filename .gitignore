@@ -1,0 +1,11 @@
+.godot/
+builds/
+.DS_Store
+__pycache__/
+*.pyc
+.runtime/
+*.tmp
+.agents/
+.claude/
+RULES.md
+skills-lock.json
