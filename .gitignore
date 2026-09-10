@@ -9,3 +9,5 @@ __pycache__/
 .claude/
 RULES.md
 skills-lock.json
+STATE.md
+*.local.md
