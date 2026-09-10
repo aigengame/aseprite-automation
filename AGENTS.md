@@ -4,6 +4,10 @@ Read @RULES.md if exists, to align communication style, collaboration specificat
 
 ## Agent skills
 
+### State and pitfalls
+
+Read @STATE.md and @PITFALLS.md if they exist.
+
 ### Issue tracker
 
 Issues and PRDs are tracked in GitHub Issues. See `docs/agents/issue-tracker.md`.
