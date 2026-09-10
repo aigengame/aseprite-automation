@@ -120,3 +120,18 @@ another environment can have different capabilities._
   install the official SSH host key through the environment's approved process. Do not
   disable strict host-key checking.
 - **Last verified:** 2026-09-10 with Git and GitHub CLI in a managed macOS environment.
+
+## Lowercase `path` is a special variable in zsh
+
+- **Applies when:** A shell script or interactive command runs under zsh and assigns a
+  scalar or array value to a variable named `path`.
+- **Symptom:** Commands that worked earlier in the same shell start failing with
+  `command not found`, including basic tools such as `git`, `awk`, or `gh`.
+- **Cause:** In zsh, the lowercase `path` array is tied to the uppercase `PATH` scalar.
+  Assigning `path` replaces the executable search path.
+- **Prevention:** Use a task-specific variable name such as `artifact_path` or
+  `spa_file`. Do not use lowercase `path` as a temporary variable in zsh commands.
+- **Recovery:** Rename the variable and run the remaining commands in a fresh shell, or
+  restore `PATH` from a known-good value before retrying. Treat the original failure as
+  shell-environment evidence rather than evidence that each missing command was removed.
+- **Last verified:** 2026-09-10 with zsh on macOS.
