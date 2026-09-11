@@ -4,7 +4,7 @@ status: accepted
 
 # Prioritize the Core Domain and let functional requirements lead architecture growth
 
-SPA's business capability is coextensive with Aseprite's: sprite creation, editing,
+SPA's business capability is equivalent to Aseprite's: sprite creation, editing,
 inspection, validation, conversion, and export. SPA adds the explicit control,
 composition, observation, and verifiable feedback that agents need to use those
 capabilities. These are functional capabilities even when Aseprite's interactive

@@ -68,6 +68,9 @@ A Layer that contains child Layers and participates in hierarchy, visibility, an
 **Background Layer**
 Aseprite's native opaque background Layer with its own Cel rules. It is not a transparent Image Layer named "Background."
 
+**Background Color**
+An explicit Color Value used when an Operation creates or fills a Background Layer or Background Cel. SPA does not obtain it from editor foreground/background state or preferences.
+
 **Tilemap Layer**
 A Layer whose Cels contain Tilemap cell data and reference one Tileset.
 
@@ -203,6 +206,9 @@ Aseprite's selected pixel area, represented by SPA as an explicit serializable v
 **Selection Mask**
 The canonical binary coverage represented by a Selection value. A preview image is derived evidence and not the mask authority.
 
+**Selection Application**
+An Operation's explicit use of a Selection value to constrain affected Canvas Pixels. An absent Selection is unrestricted, an Empty Selection affects no pixels, and an all-canvas Selection includes every Canvas Pixel.
+
 ### Slices and tiles
 
 **Slice**
@@ -300,16 +306,22 @@ The complete typed input to one Operation after public absent, null, and default
 The typed success value of one Operation, including verified domain facts and produced Artifacts.
 
 **Failure Envelope**
-The disjoint typed failure result containing a stable Failure Code, applicable Failure Details, and Diagnostics.
+The disjoint typed failure result containing a stable Failure Code, broad Failure Category, applicable Failure Details, and Diagnostics.
 
 **Failure Code**
 A stable machine-oriented identifier used for caller decisions.
+
+**Failure Category**
+A broad stable classification for process exit behavior and coarse caller policy. It does not replace the more specific Failure Code.
 
 **Failure Details**
 Code-specific structured facts needed by a caller to understand or recover from one failure.
 
 **Diagnostics**
 Human-oriented explanatory text and bounded process output. Diagnostics are not a machine contract.
+
+**Execution Kind**
+The side-effect and trust classification of an Operation: `read`, `mutation`, `export`, or `script-run`. Validation is a read purpose, not a separate Execution Kind.
 
 **Operation Determinism**
 The declared `deterministic` or `native-stochastic` classification of the result governed by an Operation.
@@ -463,9 +475,10 @@ CONTEXT + accepted ADRs also constrain implementation directly.
 README derives navigation and status from all owning artifacts.
 ```
 
-The catalog proposes territory; an issue commits a slice; source and tests implement
-it; the installed Surface Manifest reports what that concrete installation can call.
-Moving along this flow changes the form of the information, not its authority owner.
+The same capability theme becomes more specific as it moves through this flow, but each
+artifact owns only the fact dimension assigned by the matrix. The catalog proposes
+territory, an issue commits a slice, source and tests own its implementation and proof,
+and the installed Surface Manifest owns the callable facts for one installation.
 
 ### Canonical ADR set
 
@@ -473,5 +486,5 @@ The links below are navigation only; each ADR owns its named decision.
 
 - **Strategic design:** [ADR-0001](docs/adr/0001-single-sprite-automation-context.md), [ADR-0002](docs/adr/0002-operation-descriptor-authority.md), [ADR-0003](docs/adr/0003-operation-plan-boundary.md), [ADR-0006](docs/adr/0006-operation-targets-and-identity.md), [ADR-0007](docs/adr/0007-demand-driven-nfrs.md), [ADR-0008](docs/adr/0008-operation-owned-bounds.md), [ADR-0009](docs/adr/0009-command-groups-and-domain-modules.md), [ADR-0010](docs/adr/0010-lua-operation-kernel-authority.md), [ADR-0013](docs/adr/0013-result-and-failure-contract.md), and [ADR-0014](docs/adr/0014-mutation-file-semantics.md).
 - **Aseprite object and value semantics:** [ADR-0018](docs/adr/0018-raster-authoring-boundary.md), [ADR-0021](docs/adr/0021-frame-numbering.md), [ADR-0024](docs/adr/0024-color-values-and-conversion.md), [ADR-0025](docs/adr/0025-coordinate-spaces-and-rectangles.md), [ADR-0028](docs/adr/0028-background-layer-and-cels.md), [ADR-0029](docs/adr/0029-selection-as-explicit-value.md), [ADR-0033](docs/adr/0033-tag-playback-semantics.md), [ADR-0035](docs/adr/0035-palette-time-semantics.md), and [ADR-0039](docs/adr/0039-slice-model-and-addressing.md).
-- **Tile and Raster semantics:** [ADR-0041](docs/adr/0041-tileset-and-tile-identity.md), [ADR-0044](docs/adr/0044-tilemap-and-placement-semantics.md), [ADR-0047](docs/adr/0047-remove-unreferenced-tilesets.md), [ADR-0051](docs/adr/0051-shared-image-resize-transform.md), and [ADR-0057](docs/adr/0057-canonical-pixel-region-snapshot.md).
-- **Native Paint, Filter, color, and delivery boundaries:** [ADR-0060](docs/adr/0060-private-native-tool-invocation.md), [ADR-0066](docs/adr/0066-declare-native-stochastic-operations.md), [ADR-0074](docs/adr/0074-shared-native-filter-semantics.md), [ADR-0085](docs/adr/0085-stage-and-verify-explicit-export-destinations.md), [ADR-0089](docs/adr/0089-define-native-change-color-mode-contract.md), and [ADR-0094](docs/adr/0094-fix-native-export-image-operation-order.md).
+- **Tile and Raster semantics:** [ADR-0041](docs/adr/0041-tileset-and-tile-identity.md), [ADR-0044](docs/adr/0044-tilemap-and-placement-semantics.md), [ADR-0047](docs/adr/0047-preserve-tile-meaning-across-tileset-lifecycle.md), [ADR-0051](docs/adr/0051-shared-image-resize-transform.md), and [ADR-0057](docs/adr/0057-canonical-pixel-region-snapshot.md).
+- **Native Paint, Filter, color, and delivery boundaries:** [ADR-0060](docs/adr/0060-private-native-tool-invocation.md), [ADR-0066](docs/adr/0066-declare-native-stochastic-operations.md), [ADR-0074](docs/adr/0074-shared-native-filter-semantics.md), [ADR-0085](docs/adr/0085-stage-and-verify-explicit-export-destinations.md), [ADR-0089](docs/adr/0089-native-color-operation-boundaries.md), and [ADR-0094](docs/adr/0094-export-image-semantics-and-operation-order.md).

@@ -32,7 +32,7 @@ Bitmaps do not have.
 - `method` is required and accepts exactly Aseprite-aligned `nearest-neighbor`,
   `bilinear`, or `rotsprite`. Unknown values fail typed validation instead of falling
   back to nearest-neighbor.
-- The output retains the source Image Pixel Format and mask/transparent value
+- The output retains the source Image Color Mode and mask/transparent value
   semantics.
 - `nearest-neighbor` samples native stored pixel values directly. `rotsprite` uses
   Aseprite's native stored-value algorithm. For Indexed Images both operate on
@@ -54,7 +54,7 @@ Bitmaps do not have.
 - Image and Tileset resize Operations invoke this same Lua Kernel semantic.
 - Image Canvas Transform is a second pure Image-buffer semantic owned by the same fixed
   Lua Kernel. It requires exact positive target dimensions, an integer offset, and an
-  explicit Color Value compatible with the source Pixel Format.
+  explicit Color Value compatible with the source Color Mode.
 - Canvas Transform places source Image Pixel `(0,0)` at the declared offset in a filled,
   same-format target Image. It copies intersecting stored pixels 1:1, discards source
   pixels outside the target, and retains the fill in uncovered pixels.
@@ -88,7 +88,7 @@ Operation request.
 
 ### Implement separate Tile scaling
 
-Tile Images use the same Pixel Formats and resize algorithms. A second semantic
+Tile Images use the same Color Modes and resize algorithms. A second semantic
 authority would violate DRY and the Lua Kernel boundary.
 
 ### Let Image Resize Transform move a Cel

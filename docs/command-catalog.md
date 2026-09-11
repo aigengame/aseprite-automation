@@ -35,10 +35,12 @@ vertical slice produces better Aseprite-aligned evidence.
 | Candidate command | Intended meaning |
 | --- | --- |
 | `spa sprite create` | Create a Sprite at an explicit Target Sprite File. |
-| `spa sprite get` | Inspect complete requested Sprite facts and scope. |
+| `spa sprite get` | Inspect requested dimensions, Color Mode, Frames, Tags, Palettes, Layer tree, Cels, Slices, Tilesets, and metadata. |
 | `spa sprite set` | Change explicitly supported Sprite properties other than Color Mode or Color Profile. |
+| `spa sprite copy` | Copy one Source Sprite File to an explicit Target Sprite File and verify the reopened result. |
 | `spa sprite resize` | Resize the Sprite canvas with explicit scale and anchor semantics. |
 | `spa sprite crop` | Crop the Sprite canvas to an explicit Rectangle or supported content rule. |
+| `spa sprite flatten` | Apply Aseprite's native flattening behavior and report every affected Sprite structure. |
 | `spa sprite change-color-mode` | Apply native Change Color Mode with explicit mapping, Palette, and Dithering inputs. |
 | `spa sprite assign-color-profile` | Assign a native Color Profile without changing stored colors. |
 | `spa sprite convert-color-profile` | Convert applicable pixels and Palette Entries through native Color Profile behavior. |
@@ -68,6 +70,7 @@ vertical slice produces better Aseprite-aligned evidence.
 | `spa frame add` | Add an explicitly timed empty Frame. |
 | `spa frame duplicate` | Duplicate one Frame with explicit copied-or-linked Cel behavior. |
 | `spa frame set` | Set supported Frame properties. |
+| `spa frame move` | Move one exactly addressed Frame to an explicit one-based insertion position and report shifted references. |
 | `spa frame remove` | Remove exactly selected Frames and report shifted references. |
 
 ## `cel`
@@ -94,12 +97,20 @@ vertical slice produces better Aseprite-aligned evidence.
 | `spa tag set` | Set supported Tag properties and report its resulting facts. |
 | `spa tag remove` | Remove one exactly addressed Tag. |
 
+## `animation`
+
+| Candidate command | Intended meaning |
+| --- | --- |
+| `spa animation audit` | Inspect animation coverage, timing, ranges, overlaps, and declared structural constraints. |
+| `spa animation compare` | Compare bounded Frame regions and optionally publish continuity-review Preview Artifacts. |
+
 ## `image`
 
 | Candidate command | Intended meaning |
 | --- | --- |
-| `spa image get` | Read Image facts and a bounded canonical Pixel Region Snapshot. |
+| `spa image get` | Read a bounded Pixel Region Snapshot from an individual Cel Image or an explicit native Layer Composition. |
 | `spa image replace` | Replace complete Image content from a compatible Snapshot. |
+| `spa image import` | Import an external raster file into an explicit Sprite, Layer, Frame, or new native-object target. |
 | `spa image resize` | Resize an Image with explicit algorithm and Cel-position policy. |
 | `spa image crop` | Crop an Image to a contained Image Pixel Rectangle. |
 | `spa image canvas-resize` | Reframe an Image without scaling through explicit placement and fill. |
