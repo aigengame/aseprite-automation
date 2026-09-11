@@ -24,6 +24,9 @@ Mode changes.
 
 - Pixel Region Snapshot is the complete canonical Raster value for one positive
   half-open Rectangle in Image Pixel space.
+- Serialized Snapshot pixels are rebased to the local Image Pixel Rectangle
+  `(0,0,width,height)`. An Operation that reads from Canvas Pixel or another source
+  Coordinate Space reports that source space and source Rectangle separately.
 - It declares Aseprite `color_mode` and contains exactly `height` ordered rows.
 - Each row is an ordered sequence of runs. Every run has a positive `length` and one
   Color Value compatible with the declared Color Mode; lengths total `width` exactly.

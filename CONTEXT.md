@@ -388,7 +388,7 @@ An image Artifact produced for inspection. It supports visual review but does no
 The shared pixel domain used by Image observation/transformation and Paint intent. It is not a competing Image model.
 
 **Pixel Region Snapshot**
-A complete bounded raster value with explicit dimensions, Color Mode, Coordinate Space, and pixel data.
+A complete bounded raster value whose serialized pixels use local Image Pixel coordinates from `(0,0)`. An owning Result reports any different source Coordinate Space and source Rectangle separately.
 
 **Pixel Patch**
 A bounded set of explicitly addressed pixel changes that leaves unlisted pixels unchanged.
