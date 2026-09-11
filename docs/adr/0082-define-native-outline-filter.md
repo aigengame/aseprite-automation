@@ -23,15 +23,9 @@ when the requested Inside or Outside predicate matches. The Matrix center bit is
 inert: a candidate cannot simultaneously have the opposite background/foreground
 classification required for its own center to trigger the predicate.
 
-Aseprite 1.3.18.5 has two Indexed branches. Stored-Index Channels correctly treat
-the two colors as Palette Indexes. The component branch first converts the requested
-Color to a Palette Index and then reads that integer as though it were packed RGBA.
-A real headless probe against a 5-by-5 Indexed Sprite confirmed the consequence: the
-Index branch produced the expected four-pixel cross around the source pixel, while
-RGBA and Red-plus-Alpha component requests produced no outline. The same probe
-confirmed that numeric custom Matrix values reach the native path, that value 1
-places the result at the southeast Canvas position relative to the source pixel,
-value 256 places it northwest, and the center-only value 16 has no effect.
+Aseprite 1.3.18.5 has distinct Indexed stored-Index and component paths, and the
+tested component path does not preserve the declared semantics. Issue #38 owns the
+detailed probe evidence and feature delivery matrix.
 
 ## Decision
 
@@ -79,10 +73,6 @@ value 256 places it northwest, and the center-only value 16 has no effect.
   both colors, effective Channels and Palette basis, Tiled Mode, target/Selection
   facts, unique Images and all affected Cels, candidate/matched/changed counts,
   resulting bounds, and persisted before/after content.
-- Delivery requires real-runtime parity for every preset and asymmetric custom
-  Matrix, Inside/Outside, all Tiled Modes and edges, supported component and Index
-  combinations, transparent/background classification, Selection, Background and
-  linked targets, no-op Matrix, rollback, restoration, and save/reopen verification.
 
 ## Consequences
 
@@ -109,9 +99,8 @@ matrix subsystem.
 
 ### Expose the Matrix center as a normal position
 
-Source inspection and a real center-only probe show that it cannot trigger either
-native placement predicate. Treating it as effective input would create false
-semantics.
+The native algorithm cannot use it to trigger either placement predicate. Treating
+it as effective input would create false semantics.
 
 ### Inherit omitted colors, placement, Matrix, or Tiled Mode
 

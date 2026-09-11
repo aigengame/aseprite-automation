@@ -61,9 +61,8 @@ into the channel representation.
 - The fixed Lua Kernel is the authority that maps validated named channels to native
   Filter flags. Python schemas and adapters may validate and transport the public
   value but cannot define a second mapping or pass a caller-supplied raw mask.
-- Each Filter's real-runtime acceptance gate proves that every published channel
-  changes the intended native component and that every rejected channel is not
-  silently ignored.
+- Each Filter issue owns the real-runtime evidence for published and rejected
+  Channels; issue #35 establishes the shared contract.
 - This decision does not choose whether an Indexed Filter applies to pixel indexes,
   component colors, or Palette Entries, nor which Effective Palette supplies the
   component basis. Those remain a separate explicit Filter application decision.

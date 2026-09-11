@@ -44,7 +44,7 @@ object lifecycle and pixels without declaring both effects.
   empty Image content.
 - Multi-step authoring remains efficient because an Operation Plan performs both
   steps in one Aseprite process and commits one target.
-- Tests cover absent, existing, empty, and linked Cels plus standalone/Plan parity.
+- Issue #13 owns the Cel-existence delivery matrix.
 - Background Layer lifecycle follows ADR-0028 rather than being forced through
   transparent-Layer absence semantics.
 

@@ -8,7 +8,8 @@ Accepted
 
 ADR-0035 originally treated Palette Change creation and deletion as explicit SPA
 lifecycle Operations. Source and scripting API inspection of Aseprite 1.3.18.5
-invalidated the implementation premise behind that decision.
+invalidated the implementation premise behind that decision. Issue #30 owns the
+runtime evidence and delivery acceptance for this feature boundary.
 
 `Palette.frame` and `Palette.frameNumber` are read-only in Lua. `Sprite:setPalette`,
 `Palette:setColor`, `Palette:resize`, and the public palette commands modify the

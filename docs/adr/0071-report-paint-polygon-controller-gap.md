@@ -16,11 +16,9 @@ release. During that gesture the Point-by-Point Controller retains the initial P
 and replaces one provisional endpoint; it cannot receive the additional presses that
 commit intermediate vertices.
 
-A real negative probe varied intermediate vertices while preserving the endpoints.
-Both calls returned normally, both produced zero opaque pixels, and the intermediate
-vertices were not observable. Repeating the initial vertex at the end to force the
-controller's completion condition instead filled all 400 pixels of the 20-by-20 probe
-canvas. Synthetic closure is not a safe invocation protocol.
+The tested headless route could not make intermediate vertices and completion
+observable, and synthetic closure was unsafe. Issue #29 owns the detailed probe
+evidence and any future delivery acceptance.
 
 ## Decision
 
@@ -61,7 +59,7 @@ canvas. Synthetic closure is not a safe invocation protocol.
 
 ### Repeat the first vertex to signal completion
 
-The real 1.3.18.5 probe filled the entire canvas rather than the requested Polygon.
+Synthetic closure did not preserve the requested native Polygon behavior.
 
 ### Invoke `app.useTool` once per vertex
 

@@ -55,9 +55,7 @@ properties retain the meanings defined in ADR-0033 while their ranges adjust.
 - Linked-Cel behavior is caller intent rather than a hidden Layer property.
 - Background fills do not depend on the executing Aseprite profile.
 - Whole-Frame and partial-Layer workflows keep separate discoverable Operations.
-- Tests cover insertion at the beginning, middle, and end; copied and overridden
-  duration; missing Cels; Background Cels; independent and linked Images; unsupported
-  link targets; Tag Range adjustments; and save/reopen results.
+- Issue #11 owns empty-addition and duplication acceptance.
 
 ## Rejected alternatives
 

@@ -6,11 +6,9 @@ Accepted
 
 ## Context
 
-A Tilemap Layer is a native Layer that must reference one Tileset. The second
-prototype confirmed an important Aseprite lifecycle seam: native Tilemap Layer
-creation implicitly creates a Tileset. Reassigning that new Layer to a shared
-Tileset does not remove the implicit one, leaving an orphan unless SPA performs the
-cleanup.
+A Tilemap Layer is a native Layer that must reference one Tileset. Native Tilemap
+Layer creation can create a Tileset as a side effect, and rebinding does not remove
+that object. Issue #42 owns the detailed prototype evidence and lifecycle acceptance.
 
 Agents must be able to create both independent and shared-Tileset Layers without
 depending on active editor state or silently changing the Sprite's existing Layer
@@ -34,8 +32,8 @@ to the cohesive tile-authoring implementation.
   default.
 - The Sprite's existing initial Raster Layer is preserved. Removing it is the
   separate `layer remove` Operation.
-- The result and save/close/reopen verification include the Layer UUID where
-  persisted, the exact Layer-to-Tileset relationship, and the total Tileset count.
+- The result includes the Layer UUID where persisted, the exact Layer-to-Tileset
+  relationship, and the total Tileset count.
 - The public Operation remains `layer add` because it owns Layer membership. Its
   `tilemap` variant is implemented by the tile-authoring Domain Module, which owns
   the cohesive Layer/Tileset native lifecycle seam.

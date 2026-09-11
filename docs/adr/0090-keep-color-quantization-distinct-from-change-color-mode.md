@@ -24,11 +24,8 @@ The command also reads Aseprite's `experimental.new_blend` preference when rende
 the Sprite for quantization. That is a result-affecting native input, not a reason to
 build a general preference-management subsystem.
 
-A real Aseprite 1.3.18.5 headless probe set the preference to both `false` and `true`
-through `app.preferences.experimental.new_blend`, restored its original value, and
-then quantized a two-color Sprite. The operation retained one Palette Change and
-produced a Palette of size two. The native input is therefore controllable through
-the fixed Lua Kernel.
+The native input is controllable through the fixed Lua Kernel. Issue #32 owns the
+detailed probe evidence and feature acceptance.
 
 ## Decision
 
@@ -61,8 +58,8 @@ Change.
 - The Operation reports the addressed Palette Change, its Effective Frame Range,
   source rendering scope, requested and actual color counts, Alpha choice, algorithm,
   effective algorithm, New layer blending method, complete resulting Entries, and
-  every Frame whose rendering can change. Normal staged Target Commit and
-  save/close/reopen verification apply.
+  every Frame whose rendering can change. Normal staged Target Commit applies, and
+  issue #32 owns persistence acceptance.
 - When `export image` changes its disposable one-Frame Sprite to Indexed, Palette
   preparation is an explicit export step outside the shared Change Color Mode
   request. The export request can copy the selected source Frame's Effective Palette
@@ -78,12 +75,6 @@ Change.
   observations. Python neither quantizes colors nor assembles temporary Lua
   implementations. The proven preference seam is private to this operation and does
   not introduce a general preferences model or service.
-- Runtime tests cover RGB, Grayscale, and Indexed source Sprites; visible Layer and
-  Blend Mode composition; all Frames; all three requested algorithms including
-  `default` resolving to Octree; every color-count boundary; Alpha and transparency;
-  exact Palette Change targeting; multiple Palette Changes; both New layer blending
-  method values; Palette-Pick and active-Frame perturbation; no change-point creation;
-  failure restoration; export source immutability; and save/close/reopen evidence.
 
 ## Consequences
 

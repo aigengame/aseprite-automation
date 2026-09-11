@@ -7,9 +7,9 @@ Accepted
 ## Context
 
 ADR-0039 requires complete inspection of every explicit Slice Key. Aseprite 1.3.18.5
-persists that model, but its public Lua `Slice` properties expose only the first Key
-for reads. Their setters issue `SetSliceKey` for native Frame 0, and Lua exposes no
-collection that can enumerate, add, update, or remove arbitrary Slice Keys.
+persists that model, but its public Lua surface does not provide complete arbitrary
+Slice Key mutation. Issue #40 owns the runtime evidence and delivery acceptance for
+this feature boundary.
 
 The native `ExportSpriteSheet` command can emit every Slice and Key when
 `listSlices` is enabled. It is callable non-interactively from Lua and can therefore
@@ -61,8 +61,6 @@ agent could intend.
   mutations fail without a Target Commit.
 - Runtime discovery communicates the unsupported mutation surface before an agent
   constructs a Plan.
-- Tests must distinguish complete observation support from partial mutation
-  support and prove that malformed vendor output never becomes partial success.
 
 ## Rejected alternatives
 

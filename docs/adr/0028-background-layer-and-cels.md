@@ -51,9 +51,7 @@ current background color.
 - Conversion captures every destructive or normalizing effect in one typed result.
 - Background behavior is deterministic in headless execution because its fill color
   is request data rather than editor state.
-- Tests cover every Frame, missing source Cels, off-canvas Images, partial alpha,
-  position and opacity normalization, pre-existing Background rejection, supported
-  reverse conversion, and save/reopen facts.
+- Issues #10 and #13 own Background Layer feature acceptance.
 
 ## Rejected alternatives
 

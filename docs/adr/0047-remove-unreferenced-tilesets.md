@@ -29,8 +29,8 @@ then remove the old Tileset within the existing single-document Operation Plan.
   Operation Plan, which reuses the standalone handlers and commits atomically.
 - Successful removal returns the complete removed Tileset facts, the old-to-new
   Tileset Index mapping, and every surviving Tilemap Layer binding.
-- Postconditions and save/close/reopen verification prove the resulting collection,
-  indexes, and Layer relationships.
+- Postconditions report the resulting collection, indexes, and Layer relationships.
+  Issue #45 owns persistence acceptance.
 - SPA does not introduce a general orphan scanner, implicit garbage collection, or
   background cleanup policy.
 

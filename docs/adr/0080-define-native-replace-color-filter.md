@@ -78,10 +78,7 @@ stored value actually changed.
   Channels; Indexed resolved Palette colors and basis; Filter Cels Target and
   Selection facts; matched and changed counts; unique Images and all affected Cels;
   changed bounds; and persisted before/after content observations.
-- Delivery requires real-runtime parity across zero and positive Tolerance, partial
-  Channels, transparent values, every Color Mode, Indexed Index/component paths,
-  Selection, Background and linked targets, equality/normalization cases, rollback,
-  restoration, and save/close/reopen verification.
+- Issue #37 owns the feature delivery matrix and real-runtime acceptance evidence.
 
 ## Consequences
 

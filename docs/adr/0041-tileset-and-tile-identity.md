@@ -16,8 +16,8 @@ can share one Tileset.
 Within a Tileset, `Tile.index` is native and zero-based. Index 0 is the mandatory
 Empty Tile and cannot be deleted. A Tilemap Image encodes the current Tile Index plus
 X/Y/diagonal transform flags. Adding, deleting, or reordering Tiles can change later
-indexes and requires Aseprite to remap placements. The second prototype confirmed
-that a requested insertion position was not a stable save/reopen identity.
+indexes and requires Aseprite to remap placements. Issues #43 and #55 own the
+prototype evidence for this identity boundary.
 
 `Tileset.baseIndex` is persisted, but its function is presentation: Aseprite displays
 `tile_index + base_index - 1`. It does not change the index encoded in Tilemap data.
@@ -51,8 +51,8 @@ index changes.
   can report missing or duplicate Keys as Findings without making the Sprite unreadable.
 - Fixed Tile Operations preserve generic Tile user data and unrelated author or
   plugin properties when writing the SPA namespace.
-- Any Operation that changes Tile Indexes must declare and apply placement remapping,
-  then verify Key-to-Index relationships after save/close/reopen, or remain unsupported.
+- Any Operation that changes Tile Indexes must declare and apply placement remapping
+  or remain unsupported. Issue #43 owns persistence acceptance.
 
 ## Consequences
 
@@ -63,14 +63,13 @@ index changes.
 - A shared Tileset can be found through a persistent Layer UUID when a stable owning
   workflow anchor exists; orphan Tilesets require fresh collection inspection or a
   unique name.
-- Tests must prove that Base Index affects display numbering but never placement data.
 
 ## Rejected alternatives
 
 ### Treat Tile Index as persistent identity
 
-Native lifecycle operations can move indexes and remap placements. The prototype
-demonstrated that a requested insertion position did not survive reopen as identity.
+Native lifecycle operations can move indexes and remap placements. Current position
+therefore cannot satisfy persistent identity.
 
 ### Use Base Index as an address
 

@@ -80,11 +80,7 @@ explicitly where a Sprite mutation needs both.
   quantization, mapping, Dithering, transparency, and Tile Image behavior. The fixed
   Lua Kernel owns typed native mapping, invocation, observation, and shared behavior.
   Python performs no pixel or Palette conversion.
-- Delivery requires a real-runtime matrix covering every source/target pair, same-mode
-  no-op, every accepted method, rejected missing/unknown/irrelevant values, Palette
-  Changes across Frames, Alpha and Transparent Color Index, Background and transparent
-  Layers, linked Cels, Tilemap/Tileset Images, source immutability for export,
-  restoration/failure, and save/close/reopen verification.
+- Issue #33 owns the feature delivery matrix and real-runtime acceptance evidence.
 
 ## Consequences
 

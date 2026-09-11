@@ -47,8 +47,9 @@ does not add input digests, locks, or concurrency coordination to make it one.
 - Agents can copy current address facts from inspection into a mutation request.
 - Reordering or reparenting can invalidate an earlier stack path, so structural
   mutation results expose the resulting path.
-- Operations and tests must state the search scope for `layer_name` and their
-  allowed target count rather than inheriting a global selection policy.
+- Operations state the search scope for `layer_name` and their allowed target count
+  rather than inheriting a global selection policy. Issue #8 owns the first delivery
+  matrix.
 - The design remains Layer-specific and does not revive a universal Selector or
   Locator abstraction.
 

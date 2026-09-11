@@ -53,10 +53,7 @@ native choice from those implicit fallbacks before invoking Aseprite.
   Color Best Fit Criteria where applicable, exact Effective Palette facts, and the
   resulting Palette Index observations. Python does not calculate a replacement map,
   distance, Palette, or best fit.
-- Delivery tests distinguish every named choice with palettes and source colors that
-  produce different mappings. They perturb preferences to prove explicit values are
-  independent, reject omission/unknown/numeric/case variants, prove the explicit
-  `default` branches, and verify standalone, Plan, export, and save/reopen results.
+- Issue #33 owns the explicit mapping acceptance matrix.
 
 ## Consequences
 

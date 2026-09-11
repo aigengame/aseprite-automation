@@ -15,11 +15,8 @@ portion of the rendered image. The editor's Selected Canvas path obtains the cur
 Selection bounds and passes that Rectangle. Neither path applies the non-rectangular
 Selection Mask to the exported pixels.
 
-A real Aseprite 1.3.18.5 headless probe made the distinction visible. A 3-by-3 Sprite
-contained selected pixels only at opposite corners and an unselected opaque red
-center pixel. The Selection bounds covered the full canvas. Exporting with those
-bounds preserved the red center pixel, proving that the native operation cropped to
-the bounding Rectangle rather than masking pixel content.
+Issue #7 owns the detailed headless probe that distinguishes Rectangle cropping from
+Selection Mask application.
 
 SPA already defines Selection as a canonical binary Mask value. Calling a rectangular
 crop a Selection export would make that contract false and would prevent a later
@@ -67,8 +64,8 @@ true masked export from receiving explicit outside-mask semantics.
 
 ### Treat Selection bounds as Selection export
 
-The real probe preserved an unselected pixel inside the bounding Rectangle. Naming
-that behavior Selection export would contradict the canonical Selection Encoding.
+Native bounds export does not apply a Selection Mask, so naming it Selection export
+would contradict the canonical Selection Encoding.
 
 ### Apply a Selection Mask in Python
 

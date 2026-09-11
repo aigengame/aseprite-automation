@@ -43,8 +43,7 @@ second authority not stored by Aseprite.
 - Agents can verify the concrete animation traversal produced for an export.
 - Editor playback, play-once traversal, and output-format looping can differ without
   corrupting the persisted Tag model.
-- Tests cover all directions, repeat bounds, zero and one repeats, Ping-pong endpoint
-  behavior, expanded Frame sequences, and save/reopen values.
+- Issue #15 owns Tag playback acceptance.
 
 ## Rejected alternatives
 

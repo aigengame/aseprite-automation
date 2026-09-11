@@ -41,8 +41,7 @@ replace the persisted Sprite timing fact.
 - Agents can still use FPS-oriented workflows while observing the exact timeline
   that was created.
 - Export verification can distinguish source timing from encoded output timing.
-- Tests cover both bounds, invalid zero and overflow, Lua conversion, save/reopen,
-  FPS rounding, and format-specific export quantization.
+- Issue #11 owns Frame-duration acceptance; export issues own format quantization.
 
 ## Rejected alternatives
 

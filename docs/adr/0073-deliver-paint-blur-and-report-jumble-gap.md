@@ -21,10 +21,9 @@ from document state rather than a direct call argument. Aseprite exposes native 
 Mode control, so a fixed Kernel handler can set and restore it subject to a real state-
 restoration gate.
 
-A real discovery probe found that Blur changed 133 pixels and repeated with zero pixel
-difference. Jumble changed 105 pixels, and two identical calls differed at 98 pixels.
-The latter proves native stochastic execution but does not restore the missing velocity
-input.
+Discovery distinguished deterministic Blur from stochastic Jumble but
+did not restore Jumble's missing Pointer input. Issues #28 and #29 own the detailed
+probe evidence and delivery matrices.
 
 A separate state probe read the document Tiled Mode as `none`, changed it to `x`
 through Aseprite's native scripting command, and restored it to `none`. This proves the
@@ -43,12 +42,10 @@ basic control seam but not restoration across every production failure path.
   expansion, interpolation, Brush coverage, opacity blend, Color Mode mapping, and
   edge wrapping.
 - The fixed Lua Kernel sets and restores the requested document Tiled Mode around the
-  invocation. Shipping requires a real state-restoration and option-independence gate.
+  invocation.
 - Existing target, bounds, clipping, Selection Application, Background, Linked Image,
   transaction, persistence, and structured-result rules apply.
 - Indexed results include the addressed Frame's Effective Palette facts.
-- Paint Blur's discovery probe supports reachability and determinism but does not
-  replace its complete production editor-parity gate.
 - `spa paint jumble` remains an intended `native-stochastic` Aseprite capability.
 - On Aseprite 1.3.18.5 it is absent from the Surface Manifest because the scripting
   path cannot provide native Pointer velocity or direction. `spa info` reports a typed

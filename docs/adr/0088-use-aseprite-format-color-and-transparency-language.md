@@ -25,11 +25,9 @@ Color, and Convert to Background are the native concepts for making transparent 
 missing areas opaque. Treating all of these as one Alpha policy would erase important
 Color Mode differences.
 
-The native save seam is also unsafe as an implicit policy. A real 1.3.18.5 headless
-probe exported transparent and half-transparent red RGB pixels to JPEG as opaque red,
-discarding Alpha rather than compositing with a Background Color. An Indexed-to-JPEG
-request produced no file while `Sprite:saveCopyAs()` still returned `true` and the
-process exited zero.
+The native save seam is unsafe as an implicit policy because it can lose transparency
+or report success without a requested file. Issue #7 owns the detailed probe evidence
+and first File Format matrix.
 
 ## Decision
 
@@ -127,8 +125,8 @@ Index, Palette Entry alpha, and Background conversion as one mechanism.
 
 ### Let the destination extension and native warnings decide
 
-The real probe showed silent Alpha loss and truthy zero-exit failure. Those are not
-reliable agent-facing semantics.
+Native warning, return, and exit behavior do not provide a reliable agent-facing
+completion contract.
 
 ### Convert or composite in Python
 

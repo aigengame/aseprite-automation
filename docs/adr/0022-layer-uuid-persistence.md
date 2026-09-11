@@ -40,8 +40,7 @@ or targeted.
   requests a separate supported change to `useLayerUuids`.
 - Layer contracts must still define an exact non-UUID addressing form for Sprites
   whose UUID persistence is disabled.
-- Tests cover both creation settings and prove UUID behavior through save, close,
-  reopen, Layer rename, reorder, and reparent operations.
+- Issue #8 owns the Layer identity and addressing acceptance matrix.
 
 ## Rejected alternatives
 

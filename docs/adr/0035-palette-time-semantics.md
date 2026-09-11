@@ -53,8 +53,7 @@ entry within a Palette and must not be overloaded as Palette identity.
 - Common single-Palette Sprites use `palette_frame_number: 1` without a special case.
 - Frame insertion and removal can move Palette Change Frame Numbers; relevant Frame
   Operations report those native structural adjustments with their other results.
-- Tests cover change ordering, effective-range resolution, exact mutation targeting,
-  result rereads, save/reopen behavior, and the reported lifecycle Capability Gap.
+- Issue #30 owns Palette Change inspection and lifecycle acceptance.
 
 ## Rejected alternatives
 

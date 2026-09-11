@@ -52,8 +52,7 @@ inspectable target semantics without SPA creating a parallel identity system.
   first-match mutations.
 - Implementations must normalize native zero-based storage or exporter Frame
   values to public one-based Frame Numbers.
-- Tests cover key ordering, effective ranges, coordinate spaces, front insertion,
-  duplicate names, ambiguity, result rereads, and save/close/reopen behavior.
+- Issue #40 owns Slice model and addressing acceptance.
 
 ## Rejected alternatives
 

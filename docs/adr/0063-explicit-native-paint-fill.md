@@ -50,10 +50,7 @@ state into the public contract.
   effective Grid cell, requested and actual affected regions, pixels clipped or
   excluded by Selection, changed count, every affected Cel/link, and before/after
   content digest. Save/close/reopen verifies persisted facts.
-- Paint Fill is delivered after a real `aseprite --script` editor-parity gate proves
-  every mode, independence from perturbed editor preferences, and restoration on
-  success and failure. A failed proof yields its typed Capability Gap without a
-  custom Lua/Python flood-fill fallback.
+- Issue #27 owns the feature delivery matrix and real-runtime acceptance evidence.
 
 ## Consequences
 

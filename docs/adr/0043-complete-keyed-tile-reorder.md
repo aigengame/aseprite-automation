@@ -37,9 +37,7 @@ is required before SPA can claim this capability as shipped.
   affected Layers, Cels, and Tile Cells, and reread Key-to-Index relationships.
 - SPA does not infer order from names, Images, usage, Base Index, or current indexes,
   and does not expose partial before/after moves as alternate Core Operation Semantics.
-- The Operation remains a non-binding Command Catalog candidate until a real Aseprite
-  vertical slice proves lossless movement of every supported typed Property and
-  save/close/reopen preservation.
+- Issue #43 owns delivery scope and lossless-property acceptance.
 
 ## Consequences
 

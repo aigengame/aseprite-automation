@@ -47,8 +47,8 @@ modules retain ownership of operation-specific bounds, transforms, and results.
 - Agents can distinguish a valid empty observation from a write that did nothing.
 - Off-canvas native document structures remain representable without making raster
   writes silently lossy.
-- Tests cover origins, exact upper boundaries, empty dimensions, negative positions
-  where supported, incompatible Coordinate Spaces, rejection, and explicit clipping.
+- Feature issues own the acceptance matrix for each Operation's Coordinate Spaces and
+  Rectangle behavior; issue #5 owns the first raster slice.
 
 ## Rejected alternatives
 

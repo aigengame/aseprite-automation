@@ -18,10 +18,8 @@ contains a `DOTS` enum value, but the editor field marks it unavailable and the 
 API does not promise it for Contour. Headless scripting does not provide GUI Paint
 Dynamics or configurable pointer pressure, velocity, and tilt.
 
-A direct real-runtime discovery probe invoked Contour with the same five Points and a
-one-pixel circular Brush. Regular and Pixel-perfect both completed and saved, with 98
-and 97 opaque pixels respectively. This proves basic headless reachability and that
-the algorithms are semantically observable; it is not the production parity gate.
+Discovery proved basic headless reachability and distinct Regular and Pixel-perfect
+results. Issue #28 owns the detailed probe evidence and delivery acceptance.
 
 ## Decision
 
@@ -47,8 +45,7 @@ the algorithms are semantically observable; it is not the production parity gate
 - Results report exact Points, algorithm, normalized Brush/Color/Ink/opacity,
   requested and actual coverage, all affected Cels/links, changed count, and
   before/after content digest.
-- Shipping remains gated by a complete real-runtime editor-parity slice. The direct
-  discovery probe alone is insufficient acceptance evidence.
+- Issue #28 owns the complete real-runtime editor-parity gate.
 - No Lua/Python contour, closure, or polygon-fill implementation can substitute for
   native Contour.
 

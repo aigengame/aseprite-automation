@@ -38,11 +38,8 @@ Freehand Algorithm even though the public API documentation lists only values 0 
   route can explicitly supply and verify pressure, velocity, tilt, dynamic size,
   angle, gradient, and related inputs. SPA cannot inherit GUI Dynamics or simulate
   them in Python or alternate Lua drawing code.
-- Regular, Pixel-perfect, and Dots have independent real `aseprite --script`
-  editor-parity gates. Dots must prove the source-enum behavior despite its omission
-  from the public API's documented `0|1` values.
-- Failure of one algorithm returns its typed Capability Gap without hiding the
-  algorithms that passed their gates.
+- Issue #27 owns the per-algorithm delivery matrix and real-runtime acceptance
+  evidence. Failure of one algorithm does not hide algorithms that pass their gates.
 - Results return the exact input Points, Freehand Algorithm, normalized Brush/Ink/
   opacity, requested and actual native coverage, clipping and Selection counts,
   every affected Cel/link, and before/after content digest. Save/close/reopen verifies

@@ -37,8 +37,8 @@ this functional distinction.
 - Native Blur and Jumble remain `paint blur` and `paint jumble` because their business
   behavior is an explicit bounded Freehand Brush gesture.
 - Every Filter and Paint tool owns an independent Operation Descriptor, Schema, fixed
-  Lua Kernel handler, typed result or Capability Gap, version constraints, and
-  real-runtime acceptance gate.
+  Lua Kernel handler, typed result or Capability Gap, and version constraints. Its
+  feature issue owns acceptance evidence.
 - Shared Filter target, channel, Selection, Cel/Frame scope, tiled-mode, execution,
   and result components can be extracted when concrete vertical slices prove them.
 - SPA does not define a generic `effect` group, universal Effect model, Filter DSL,

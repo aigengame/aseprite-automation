@@ -43,8 +43,8 @@ standalone Operation and as a Plan step.
 - The result returns the complete source-Key to target-Key/Empty and old/new Index
   translation, all affected Cels and Cells, old/new effective Grids and Canvas
   coverage, and the final Layer-to-Tileset relationship.
-- Postconditions and save/close/reopen verification confirm every Placement,
-  relationship, and reported spatial fact.
+- Postconditions confirm every Placement, relationship, and reported spatial fact.
+  Issue #45 owns persistence acceptance.
 - The Operation can precede `tileset remove` inside one Operation Plan. Both
   standalone and Plan entrypoints invoke the same descriptor-owned Lua handler.
 - Public navigation remains under Layer lifecycle; the tile-authoring Domain Module

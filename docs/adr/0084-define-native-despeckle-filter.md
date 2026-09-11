@@ -30,11 +30,8 @@ the RGB Map. In Aseprite 1.3.18.5, however, the component branch incorrectly per
 a second Palette lookup when Green is not selected, causing the unselected Green
 component to become zero instead of preserving the candidate pixel's value.
 
-A real headless 3-by-1 Indexed probe made the defect discriminating. With Palette
-Entries chosen so correct and corrupted results had distinct exact matches, a Red-
-only request produced the corrupted Entry 5 instead of the correct Entry 4. Green-
-only produced Entry 6, RGB produced a native quantized result, Index produced the
-expected median Entry 2, and a 1-by-1 request preserved Entry 2.
+Issue #39 owns the discriminating Indexed probe evidence and feature delivery matrix
+for this defect.
 
 ## Decision
 
@@ -82,11 +79,6 @@ expected median Entry 2, and a 1-by-1 request preserved Entry 2.
   Channels and Palette basis, Tiled Mode, target/Selection facts, unique Images and
   all affected Cels, changed counts and bounds, applicable Capability Gap facts, and
   persisted before/after content.
-- Delivery requires real-runtime parity for boundary and even/odd dimensions, every
-  supported Channel combination, Index and supported Indexed component branches,
-  all Tiled Modes and edges, 1-by-1 no-op, Selection, Background and linked targets,
-  the rejected buggy combinations, rollback, restoration, and save/reopen
-  verification.
 
 ## Consequences
 

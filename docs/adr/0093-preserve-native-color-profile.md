@@ -19,14 +19,9 @@ a file. Aseprite File Formats differ in which profile forms they can encode. Exp
 can also depend on internal file-operation configuration derived from color-management
 preferences, so leaving the behavior implicit makes the output environment-dependent.
 
-A real headless Aseprite 1.3.18.5 probe changed
-`app.preferences.color.manage` to `false` and observed that value, but PNG saving still
-produced the same 87-byte file and SHA-256 as the `true` case; both contained the sRGB
-chunk. The file operation therefore did not honor that script-time preference as a
-usable export seam. In the same probe, assigning `ColorSpace()` before save produced a
-PNG without a profile chunk. Assigning and converting to a DCI-P3 ICC file each
-embedded an `iCCP` chunk, and the two PNGs had different SHA-256 values. Native Assign
-and Convert are thus both usable and observably distinct in headless execution.
+Native Assign and Convert are usable and observably distinct in headless execution,
+while script-time color-management preference changes do not provide the required
+export control. Issue #34 owns the detailed probe evidence and feature acceptance.
 
 ## Decision
 
@@ -76,12 +71,6 @@ and Convert are thus both usable and observably distinct in headless execution.
 - Results report source, requested, effective, and encoded Color Profile kind/name;
   ICC input facts where applicable; changed or unchanged Image and Palette facts;
   source immutability for export; and the final Artifact facts.
-- Delivery tests distinguish Assign from Convert with color-sensitive fixtures;
-  cover no profile, sRGB, and multiple valid ICC inputs; malformed inputs; RGB,
-  Grayscale, Indexed, Alpha, Palette Changes, linked Cels, Tilesets, and native runtime
-  coverage; standalone and Plan execution; every export branch; profile-aware and
-  profile-unaware File Formats; source immutability; failure atomicity; and
-  save/close/reopen or independent output-profile verification.
 
 ## Consequences
 
@@ -103,8 +92,8 @@ is retained where the Lua API type itself is discussed.
 
 ### Read or set the working Color Profile preference
 
-It introduces hidden environment state and the real headless probe showed that
-script-time `color.manage` mutation did not control PNG output.
+It introduces hidden environment state, and the tested runtime did not use that
+script-time preference as the required PNG output control.
 
 ### Treat Assign and Convert as one operation
 

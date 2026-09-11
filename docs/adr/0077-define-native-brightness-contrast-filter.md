@@ -60,9 +60,7 @@ gamma, pivot, curve, or alternate formula as part of this command.
   Filter Application, resolved target and Palette facts, changed Palette Entries,
   unique Images and all affected Cels, changed pixel/index counts and bounds, and
   before/after content observations applicable to the branch.
-- Delivery requires real-runtime parity across input boundaries, Color Modes,
-  Channels, Applications, Selections, Palette Changes, Background and linked targets,
-  persisted output, explicit no-op, and failure rollback.
+- Issue #35 owns the feature delivery matrix and real-runtime acceptance evidence.
 
 ## Consequences
 

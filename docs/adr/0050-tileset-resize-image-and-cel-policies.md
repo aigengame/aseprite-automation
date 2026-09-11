@@ -44,9 +44,8 @@ shared Raster Authoring semantics and retain the logical Tilemap Cells.
 - Results return every Tile Image transform, old and new Tile dimensions, all old and
   new Cel positions, effective Grids and Canvas coverage, and final
   Tileset/Tile/Placement facts.
-- `scale` cannot ship before the shared Image Resize interpolation and Indexed Color
-  semantics are accepted and implemented in the Lua Kernel. Both variants require
-  real Aseprite save/close/reopen vertical slices.
+- `scale` depends on the shared Image Resize interpolation and Indexed Color
+  semantics. Issue #45 owns feature delivery and acceptance.
 
 ## Consequences
 

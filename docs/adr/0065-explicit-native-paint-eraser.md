@@ -40,9 +40,8 @@ without exposing mutable editor state or replacing the native algorithm.
 - Fields belonging to another behavior are rejected rather than ignored.
 - Image Brush and Paint Dynamics retain their separate intended functional
   Capability Gaps.
-- Every behavior, Freehand Algorithm, Color Mode, transparent Layer, and Background
-  Layer combination has an independent real `aseprite --script` editor-parity gate.
-  Failure yields the specific typed Capability Gap.
+- Issue #27 owns the behavior and Color Mode delivery matrix and real-runtime
+  acceptance evidence. Failure yields the specific typed Capability Gap.
 - SPA never substitutes Pencil with alpha zero or implements erasure in Python or an
   alternate Lua rasterizer.
 - Results return exact Points, behavior, normalized Brush/opacity/algorithm and

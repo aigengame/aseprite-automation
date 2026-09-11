@@ -53,8 +53,7 @@ Mask behavior.
 - Empty, all-canvas, and arbitrary Mask cases are explicit without overloading an
   absent request field.
 - Large Selection transport does not require a second schema.
-- Tests cover canonical ordering and merging, tight bounds, invalid runs, inline and
-  Artifact parity, native pixel equality, and non-authoritative previews.
+- Issue #24 owns Selection encoding and operation acceptance.
 
 ## Rejected alternatives
 

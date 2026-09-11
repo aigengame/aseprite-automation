@@ -15,10 +15,9 @@ release. The Four Points Controller requires a multi-stage interaction that cann
 completed by that call shape. The Lua API does not expose a separate Curve constructor
 or a way to resume the same native Tool Loop across calls.
 
-A real negative probe submitted two four-Point requests with identical endpoints and
-materially different controls. Both vendor calls returned normally, both generated
-zero opaque pixels, and the controls were not observable. A zero process exit is not
-evidence that the Curve Operation occurred.
+The tested headless route could not make the four controller roles observable even
+when the vendor call returned normally. Issue #29 owns the detailed probe evidence
+and any future delivery acceptance.
 
 ## Decision
 

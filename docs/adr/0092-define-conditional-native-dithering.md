@@ -70,13 +70,7 @@ semantics.
 - The same descriptor definition and fixed Lua handler serve standalone
   `sprite change-color-mode`, Plan execution, and `export image.color_mode.change` on
   the disposable export Sprite.
-- Delivery tests cover all four algorithms; omitted and explicit Bayer matrices;
-  installed custom and file matrices with orientation-sensitive fixtures; Factors at
-  `0`, `1`, and representative interior values; every invalid conditional combination;
-  unknown/ambiguous/disabled IDs; missing, unreadable, and invalid files; RGB versus
-  Grayscale source behavior; preference perturbation; standalone/Plan/export parity;
-  failure atomicity; and save/close/reopen observations. Native parity tests prove SPA
-  did not reproduce the Dithering algorithms.
+- Issue #33 owns the Dithering acceptance matrix and native-parity evidence.
 
 ## Consequences
 

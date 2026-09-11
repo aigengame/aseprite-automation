@@ -66,10 +66,7 @@ and RGB Map quantization, so the operation cannot promise general two-pass rever
   applicable, Filter Cels Target and Selection facts, unique Images and all affected
   Cels, changed pixel/index counts and bounds, involution-relevant actual observations,
   and persisted before/after content.
-- Delivery requires real-runtime parity for every component, mixed Channels, Indexed
-  component and valid Index paths, Palette-size boundary cases, Selection, Background
-  and linked targets, rollback, restoration, two-pass witnesses, and save/reopen
-  verification.
+- Issue #38 owns the feature delivery matrix and real-runtime acceptance evidence.
 
 ## Consequences
 

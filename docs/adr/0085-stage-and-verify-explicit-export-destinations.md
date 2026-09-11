@@ -17,11 +17,7 @@ headless invocation can overwrite an existing file without a prompt, report a
 truthy Lua result and process exit code zero when no requested file was produced,
 or leave metadata without its failed texture counterpart.
 
-A real headless probe confirmed all three behaviors. An existing sentinel file was
-silently replaced by a PNG. Saving to the unsupported `.unsupported` format printed
-an error but `Sprite:saveCopyAs()` returned `true`, Aseprite exited zero, and no file
-existed. Exporting a Sprite Sheet with an unsupported texture destination exited
-zero and left the requested JSON metadata while producing no texture.
+Issue #7 owns the detailed headless probe evidence and first File Format acceptance.
 
 These are observable export-function semantics. SPA needs enough destination and
 completion behavior to make an agent-facing export truthful, but this does not
@@ -89,8 +85,8 @@ multi-file transaction framework.
 
 ### Trust the Aseprite process exit code or Lua return value
 
-The real 1.3.18.5 probe produced exit code zero and `true` for a failed unsupported
-save, so neither value proves that an Artifact exists or is valid.
+Aseprite process and Lua return values do not prove that an Artifact exists or is
+valid.
 
 ### Write directly to final paths
 

@@ -69,10 +69,7 @@ The active Frame must therefore become an explicit Palette basis.
   Palette basis when applicable, Filter Cels Target and Selection facts, unique Images
   and all affected Cels, changed pixel/index counts and bounds, and persisted
   before/after content observations.
-- Delivery requires real-runtime parity for constant, identity, boundary, increasing,
-  decreasing, and non-monotonic curves; component and Index paths; every Color Mode;
-  Selection, Background and linked targets; rollback; state restoration; and
-  save/close/reopen verification.
+- Issue #37 owns the feature delivery matrix and real-runtime acceptance evidence.
 
 ## Consequences
 

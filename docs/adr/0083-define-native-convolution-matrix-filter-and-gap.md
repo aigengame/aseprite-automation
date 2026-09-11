@@ -17,19 +17,14 @@ that custom in-request matrices might be supported in the future; Aseprite 1.3.1
 accepts only a named stock Resource. SPA has already rejected a generic Filter DSL,
 arbitrary convolution request, and alternate image-processing plug-in surface.
 
-Source inspection of Aseprite 1.3.18.5 found two defects at the command boundary:
+Source inspection of Aseprite 1.3.18.5 found two command-boundary defects:
 
 - the command declares `channels` but never passes it to the Filter manager;
 - an unknown `fromResource` name leaves the Filter without a Matrix and the command
   completes as an unreported no-op.
 
 The first defect also prevents headless execution from applying a Resource's default
-Channels. UI execution changes the Filter target when a Resource is selected, but
-the non-UI branch does not. A real headless probe applied the built-in `brightness`
-Resource to RGBA `(10,20,30,40)`. Requests for Red and for Alpha both returned
-`(18,28,38,48)`, proving that both the supplied Channels and the Resource's RGB
-default were ignored. A missing Resource returned the unchanged pixel with process
-success.
+Channels. Issue #39 owns the detailed source/probe evidence and delivery matrix.
 
 Publishing a fixed-all-components subset would not preserve the native Resource's
 editor meaning, would make explicit Channels false, and would repeat the partial-
@@ -74,11 +69,8 @@ command problem already rejected for other native tools.
   Resource-default, and missing-Resource evidence.
 - SPA does not publish an implicit all-component, fixed-Resource, RGB-only, or
   reported-success-no-op subset for that runtime.
-- A later runtime can publish the Operation after real headless tests prove exact and
-  missing Resource handling, every supported Channel combination, Resource default
-  independence, all Tiled Modes and edges, Filter Cels Target, Selection, supported
-  Color Modes, Indexed Palette validity, Background and Linked Images, rollback,
-  restoration, and save/reopen persistence.
+- A later runtime can publish the Operation after issue #39's native acceptance gate
+  proves the complete requested semantics.
 - A published Result reports the resolved Resource name and source, declared default
   and effective requested Channels, Tiled Mode, Palette basis where applicable,
   target/Selection and linked Image/Cel facts, changed counts and bounds, and persisted

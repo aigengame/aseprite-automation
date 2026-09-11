@@ -27,21 +27,22 @@ Maintain `docs/command-catalog.md` as an incremental, non-binding feature map.
 The project artifacts have these distinct responsibilities:
 
 - the umbrella PRD/SPEC owns product intent, scope, user outcomes, requirements, and
-  prototype evidence;
+  compressed prototype conclusions;
 - `CONTEXT.md` owns the concise ubiquitous-language glossary and bounded-context
   definitions;
 - ADRs own durable, consequential decisions and the trade-offs that explain them;
 - the command catalog owns non-binding capability territory, candidate navigation,
   and semantic notes that can seed later work;
 - feature issues own what will be built in one vertical slice, including delivery
-  priority, acceptance criteria, blockers, and milestone placement; and
+  priority, acceptance criteria, test matrices, Capability Gap evidence, tracer
+  evidence, blockers, and milestone placement; and
 - the installed Surface Manifest owns the Operations and public schemas that actually
   ship in that installation.
 
 The catalog:
 
 - records Command Group rules, candidate command spellings, intended capability
-  territory, and semantic notes learned from accepted vertical slices;
+  territory, and concise semantic notes learned from accepted vertical slices;
 - uses Aseprite's native nouns where Aseprite already defines the concept;
 - distinguishes candidate design inputs from shipped Operations;
 - contains no per-command implementation-status column;

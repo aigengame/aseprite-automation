@@ -10,10 +10,9 @@ Aseprite's Gradient tool combines ordered two-Point geometry, Gradient Ink, Line
 Radial Gradient Type, an installed Dithering Matrix, opacity, and Flood Fill matching.
 The first Point both starts the gradient axis and supplies the color-matching seed.
 
-In Aseprite 1.3.18.5, `app.useTool` does not accept Gradient Type or Dithering Matrix.
-The native Tool Loop reads both from GUI Context Bar methods whose source marks
-non-UI support as TODO. Unlike Tool Preferences, no source-evident priming route can
-supply them in headless execution.
+In Aseprite 1.3.18.5, the public headless route does not provide complete Gradient
+Type and Dithering Matrix control. Issue #29 owns the detailed runtime evidence;
+issue #28 owns the delivery matrix if a faithful route becomes available.
 
 ## Decision
 
@@ -38,9 +37,8 @@ supply them in headless execution.
 - Indexed execution uses and reports the addressed target Frame's Effective Palette.
 - Paint Gradient accepts no Brush, generic Ink, Freehand Algorithm, or seed. The
   fixed native tool selects Gradient Ink.
-- A real Aseprite 1.3.18.5 headless negative probe must verify the source-indicated
-  capability boundary and return a typed failure without hanging or corrupting the
-  caller protocol.
+- Issue #29 owns the tested capability-boundary evidence and issue #28 owns future
+  positive delivery acceptance.
 - Until an explicit native headless route proves exact editor-pixel parity, complete
   option control, state restoration, atomicity, and persistence, the Surface Manifest
   omits Paint Gradient and `spa info` reports a version-specific Capability Gap.

@@ -67,11 +67,8 @@ overlap the distinct GIF, Sheet, and Sequence operations.
 - Rendering the Frame, Layer Composition, and Export Image Area is the first step of
   the fixed `export image` order defined by ADR-0094. Later Color Profile, Palette,
   Color Mode, transparency, and encoding steps operate only on that disposable result.
-- Delivery requires real-runtime tests for each composition variant, nested Groups,
-  ambiguous names, hidden parents and children, include/exclude expansion, empty and
-  fully transparent results, Background, Tilemap, Reference, Blend Mode and opacity,
-  all Color Modes, restoration after injected failure, source-file non-mutation, and
-  save/reopen verification of the Artifact.
+- Issue #7 owns the first File Format delivery matrix and real-runtime acceptance
+  evidence; later format issues reuse this decision without inheriting support claims.
 
 ## Consequences
 

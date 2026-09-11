@@ -49,8 +49,7 @@ would generalize a problem that has a small Tag-specific solution.
   fresh inspection after structural Tag changes.
 - The public model stays aligned with Aseprite's actual persisted data and collection
   semantics.
-- Tests cover one-based bounds, unique and duplicate names, ambiguity, range-driven
-  reordering, result rereads, and save/reopen behavior.
+- Issue #15 owns Tag addressing acceptance.
 
 ## Rejected alternatives
 

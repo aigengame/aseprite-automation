@@ -39,8 +39,7 @@ SPA's Published Language uses **Frame Number** for public Frame addressing.
   translating it.
 - SPA matches the user-visible Aseprite and Lua vocabulary even when a native CLI
   option uses a different offset convention.
-- Boundary tests must cover Frame `1`, the last Frame, invalid `0`, inclusive
-  single-Frame and multi-Frame ranges, and conversion at any native CLI boundary.
+- Issue #11 owns the first complete Frame acceptance matrix.
 - Implementations may use zero-based positions internally, but public schemas,
   examples, diagnostics, and Operation Results remain one-based.
 

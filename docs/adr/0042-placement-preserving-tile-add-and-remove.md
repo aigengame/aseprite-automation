@@ -15,8 +15,7 @@ deletion through `Sprite:deleteTile()`. Source inspection shows that these Lua p
 insert or erase the Tileset entry but do not perform the complete `RemapTilemaps`
 behavior used by native editing workflows. Wrapping them directly can therefore
 leave Tilemap Images pointing at shifted indexes with different semantic Tiles.
-The second prototype also demonstrated that a requested insertion position was not
-a reliable save/reopen identity.
+Issue #43 owns the detailed prototype evidence and lifecycle acceptance.
 
 Appending does not shift existing Tile Indexes. Removal always shifts higher
 Indexes, and removing a used Tile additionally needs a caller decision about the
@@ -58,8 +57,6 @@ referencing Tilemap Layer, Frame, and Cel.
   the stable authoring intent.
 - Removal cost scales with complete Tileset usage, which is required functional work
   rather than a generalized consistency subsystem.
-- Tests must cover replacement Indexes both above and below the removed Index, because
-  the replacement's final position differs in those cases.
 
 ## Rejected alternatives
 

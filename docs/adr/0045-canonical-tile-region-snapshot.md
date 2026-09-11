@@ -6,11 +6,11 @@ Accepted
 
 ## Context
 
-ADR-0044 establishes Tile Cell space and typed Tile Placement Values. The second
-prototype showed that expanding every cell across a modest 64 by 15 map and four
-Layers already produced a 325,434-byte observation. Default inspection therefore
-cannot dump unbounded Cell arrays, but agents still need a complete reversible form
-for selected regions, writes, verification, and portable JSON Artifacts.
+ADR-0044 establishes Tile Cell space and typed Tile Placement Values. Prototype
+evidence showed that unbounded Cell expansion makes structured observations
+unusable, while agents still need a complete reversible form for selected regions,
+writes, verification, and portable JSON Artifacts. Issues #41 and #55 own the
+measurements and acceptance evidence.
 
 A dense grid makes Empty Cells expensive. A bare sparse patch is smaller but cannot
 distinguish "omitted means Empty" from "omitted means unchanged." These are different
@@ -54,8 +54,7 @@ authoring intents and must not share ambiguous semantics.
 
 ### Return every Cell by default
 
-The prototype showed unacceptable growth on a modest multi-Layer map, and larger
-documents would make structured output unusable.
+Unbounded dense output makes structured inspection unusable as maps grow.
 
 ### Use one sparse operation for both replacement and patching
 
