@@ -1,115 +1,87 @@
-# ADR-0094: Fix the native Export Image operation order
+# ADR-0094: Define Export Image semantics and operation order
 
 ## Status
 
 Accepted
 
+## Consolidates
+
+- ADR-0086: Export Image Area versus Selection Mask
+- ADR-0087: Export Image Frame and Layer Composition
+
+Issue #7 and its Operation Descriptor own exact request variants, result fields, File
+Format matrices, runtime evidence, and acceptance tests.
+
 ## Context
 
-The accepted `export image` request combines several native Aseprite capabilities on
-one disposable Sprite: Frame and Layer rendering, rectangular Export Image Area,
-Assign or Convert Color Profile, Palette preparation, Change Color Mode, Background
-behavior, and File Format encoding. These steps are not generally commutative.
+`export image` creates one static raster Artifact from a selected part of one Sprite
+Frame. It must distinguish rectangular rendering from Selection Mask application, use
+Aseprite's native Layer compositor, and compose several non-commutative native color
+operations on disposable state.
 
-Converting a Color Profile after Indexed quantization can map and dither colors in the
-wrong profile. Applying Background before the final Color Mode or Color Profile makes
-the declared Background Color ambiguous and can transform it after the caller chose
-it. Allowing the encoder to choose conversions recreates the warning-driven and
-preference-dependent behavior that the typed request is intended to remove.
-
-SPA therefore needs one operation-owned order. It does not need a configurable
-workflow engine: every accepted branch already has one defined role in producing the
-single requested static raster Artifact.
+Ambient active Frame, selected Layer, timeline Range, and Selection state cannot define
+a typed agent request. Letting the encoder or caller choose the transformation order can
+also change the requested colors, Palette, Color Profile, and transparency behavior.
 
 ## Decision
 
-- `spa export image` executes exactly these functional steps in order:
-  1. render the requested Frame, Layer Composition, and Export Image Area into one
-     disposable Sprite;
-  2. apply the declared Color Profile branch;
-  3. when Change Color Mode targets Indexed, perform the declared Palette preparation;
-  4. apply the declared Change Color Mode branch;
-  5. apply the declared transparency branch; and
-  6. invoke the declared File Format encoder.
-- Rendering establishes the exact pixel content and rectangular dimensions on which
-  every later step operates. Later steps never return to the Source Sprite or render
-  a different Layer/Frame selection.
-- `color_profile.preserve`, `omit`, and `assign` do not change pixel values.
-  `color_profile.convert` performs Aseprite's native pixel and Palette transformation
-  before any later quantization, Dithering, or grayscale mapping.
-- Palette preparation exists only when a requested Change Color Mode to Indexed needs
-  it. It observes the rendered, profile-adjusted disposable Sprite and completes
-  before the shared Change Color Mode handler consumes the resulting Palette.
-- Change Color Mode completes before transparency handling. A Background Color is
-  therefore a Color Value in the final Color Mode and effective Color Profile. SPA
-  never interprets it in the Source Sprite's representation and converts it later.
-- `transparency.preserve` verifies that the final selected pixels and declared File
-  Format can retain the applicable Alpha Channel, Transparent Color Index, and Palette
-  Entry alpha. `transparency.background` applies native Background behavior before
-  encoding. The encoder never resolves transparency by warning and continuing.
-- File Format encoding is terminal. The encoder receives the final disposable Sprite
-  and cannot perform an undeclared Color Profile, Palette, Color Mode, or Background
-  conversion on SPA's behalf.
-- The fixed sequence is an `export image` application-use-case contract. The Python
-  Application Layer validates and resolves the applicable branches, selects and
-  orders the packaged Kernel capabilities, constructs one private structured
-  execution, invokes Aseprite, and manages response, verification, and Artifact
-  publication.
-- The Lua Kernel remains the sole authority for every core step. It dispatches the
-  selected packaged handlers against the same disposable Sprite in one Aseprite
-  process and owns all native rendering, profile, Palette, Dithering, Color Mode,
-  Background, and encoder semantics. Python may schedule and compose those handlers;
-  it cannot implement their algorithms or silently change this accepted semantic
-  order. A future evidence-backed order change updates this decision, the descriptor,
-  Application Layer orchestration, Kernel bindings, and tests together.
-- This sequence is private operation structure, not a caller-configurable pipeline,
-  Operation Plan, stage registry, plug-in seam, or intermediate Artifact model. The
-  request contains semantic choices but no step list, ordering controls, repeat count,
-  conditional execution, or partial output.
-- A failure in any step prevents final Artifact publication and leaves the Source
-  Sprite unchanged under the accepted Export Destination behavior. No intermediate
-  Sprite or file becomes a returned Artifact.
-- Results report the requested and effective facts for each applicable step in this
-  order, plus the final encoded File Format facts and Artifact. An inapplicable step is
-  identified by its request branch rather than represented as an executed no-op.
-- Evidence for a File Format slice must distinguish this order from meaningful adjacent
-  swaps and independently verify the final output. The owning feature issue defines the
-  concrete acceptance matrix for that slice.
+- `export image` addresses exactly one explicit Frame and produces exactly one static
+  raster Artifact. Frame Ranges, Tags, playback, and multi-image output belong to the
+  distinct Sheet, GIF, and Sequence Export Operations.
+- Export Image Area is an explicit Canvas Rectangle, optionally resolved from a Slice
+  Key. It is not a Selection Mask. SPA never describes a bounding Rectangle as masked
+  export or applies a Selection Mask in Python.
+- Layer Composition is explicit and uses the accepted Layer addressing rules. It does
+  not inherit the active or selected Layer, CLI glob state, or `app.range`.
+- The Lua Kernel resolves the effective native Layer set, applies only the temporary
+  visibility changes needed by that composition, invokes Aseprite's renderer, and
+  restores every changed value on success and handled failure. Aseprite remains the
+  authority for stacking, Groups, Blend Modes, opacity, Background, Tilemap, Reference
+  Layer, Palette, and pixel rendering.
+- The Operation renders the requested Frame, Layer Composition, and Export Image Area
+  into one disposable Sprite, then executes these functional steps in order:
+  1. apply the declared Color Profile behavior;
+  2. prepare a Palette when an explicit Change Color Mode to Indexed requires it;
+  3. apply the declared Change Color Mode behavior;
+  4. apply the declared transparency or Background behavior; and
+  5. invoke the declared File Format encoder.
+- Later steps operate only on the rendered disposable Sprite. Color Profile conversion
+  precedes quantization and mapping; Background Color is interpreted in the final Color
+  Mode and effective Color Profile; the encoder performs no undeclared conversion.
+- This sequence is private application-use-case orchestration. Python can select and
+  order packaged Kernel capabilities, while each native step remains authoritative in
+  Lua. The caller receives semantic choices, not a configurable workflow, Plan, stage
+  registry, or intermediate Artifact model.
+- Any failure prevents publication, exposes no intermediate file or Sprite, and leaves
+  the Source Sprite unchanged. Final publication follows ADR-0085.
 
 ## Consequences
 
-- Color Profile conversion, Palette mapping, Dithering, and Background composition
-  have one reproducible interpretation.
-- Each native capability retains its own accepted contract while the Application
-  Layer composes packaged handlers through one private in-process execution.
-- Agent requests stay semantic and compact instead of encoding an execution graph.
-- File Format slices can validate one known input state at the encoder boundary.
-- Every File Format slice validates the same accepted order without inheriting another
-  format's support claims.
+- A still-image request has stable output cardinality and no dependency on editor
+  selection state.
+- Rectangle crop and true masked raster behavior cannot be confused.
+- Native Layer composition and color processing retain Aseprite semantics while their
+  effective inputs and order are explicit to the agent.
+- Sheet, GIF, and Sequence exports can define their own multi-Frame behavior without
+  inheriting this still-image contract.
 
 ## Rejected alternatives
 
-### Let the caller order export steps
+### Treat Selection bounds as Selection export
 
-It creates a workflow language, permits semantically invalid permutations, and makes
-each File Format test a combinatorial pipeline test.
+Aseprite's bounds export crops a Rectangle and does not apply the non-rectangular Mask.
 
-### Change Color Mode before Color Profile
+### Render or composite Layers in Python
 
-RGB-to-Indexed mapping and Dithering would run on values interpreted in the source
-profile instead of the requested output profile.
+That would duplicate Aseprite's native stack, Group, Blend Mode, opacity, Background,
+Tilemap, Reference Layer, Palette, and color behavior.
 
-### Apply Background before Color Profile or Color Mode
+### Let the caller or encoder choose the operation order
 
-The explicit Background Color would be interpreted in an earlier representation and
-then transformed, contradicting its final-output meaning.
+It creates invalid permutations and preference-dependent conversions, and makes the
+same semantic request produce different output.
 
-### Let the encoder perform necessary conversions
+### Model internal steps as an Operation Plan
 
-Aseprite can warn, discard information, return truthy success without a file, or read
-preferences. Those effects are not an explicit agent contract.
-
-### Model each step as an Operation Plan
-
-Export Operations are not Plan Steps, the disposable Sprite is private, and the
-caller has no need to observe or mutate intermediate state.
+The disposable Sprite is private, Export Operations are not Plan Steps, and callers do
+not need access to intermediate state.

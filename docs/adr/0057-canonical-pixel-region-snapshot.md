@@ -1,15 +1,20 @@
-# ADR-0057: Use one canonical Pixel Region Snapshot for Raster exchange
+# ADR-0057: Use canonical Snapshot and Patch values for Raster exchange
 
 ## Status
 
 Accepted
 
+## Consolidates
+
+This record consolidates ADR-0058. Image get and replace delivery is owned by issue
+#20; exact Pixel Patch application is owned by issue #5.
+
 ## Context
 
-Agents need structured, lossless Image pixel inspection and replacement. A dense
-array of tagged Color Values is verbose, while a sparse representation needs a hidden
-default. Large results also need Artifact transport without creating a second Raster
-encoding.
+Agents need a lossless complete Raster value for inspection and replacement and a
+compact sparse value for exact edits. A sparse representation cannot use one omitted-
+pixel rule for both meanings. Large payloads also need Artifact transport without
+creating a second Raster encoding.
 
 The value must preserve native Indexed pixels rather than making rendered RGBA a
 second authority, and it must distinguish pixel replacement from geometry or Color
@@ -35,30 +40,22 @@ Mode changes.
   semantic coverage checks, Color Value compatibility, canonicalization, Image reads,
   and Image writes. Python transports schema-valid JSON or Artifact references and
   does not own a second codec.
-- `spa image get` requires one positive Rectangle fully contained in an existing
-  non-Tilemap Cel Image. It returns the exact complete Snapshot plus Color Mode,
-  mask/transparent value, Layer kind, associated Cels and Image sharing, and the
-  target Frame's Effective Palette facts for Indexed content. No clipping occurs.
-- `spa image replace` accepts a Snapshot inline or from a JSON Artifact. Its Rectangle
-  must equal the current Image's full `(0,0,width,height)` bounds and its Color Mode
-  must match the target.
-- Replace changes stored pixel content without changing Image dimensions, Cel
-  positions, Color Mode, Background invariants, Reference floating-point bounds, or
-  native Image sharing. Resize, Crop, Canvas Resize, and Change Color Mode express
-  those other intents.
-- Get and Replace support existing Cels on ordinary Image, Background, and Reference
-  Layers. Tilemap Cels use Tilemap values; absent and non-Cel targets fail.
-- Selection state is not read or applied. Replacement is an all-or-nothing Mutation.
-- Replace results return input form, complete affected Cel/link facts, unchanged
-  geometry, Pixel Format, and before/after content digest. Save/close/reopen verifies
-  persisted facts.
+- Pixel Patch is the canonical sparse Raster mutation value for one declared positive
+  Rectangle. Its ordered, non-overlapping runs use absolute Image Pixel coordinates,
+  positive lengths, and compatible Color Values. Adjacent equal values are merged.
+- Listed Patch pixels receive exact stored values; omitted pixels remain unchanged. An
+  empty run list is an explicit no-op.
+- Snapshot replacement, Patch application, compositing, geometry transformation, and
+  Color Mode conversion remain distinct authoring intents. Their target, clipping,
+  Selection, Palette applicability, and result contracts belong to their feature
+  issues.
 
 ## Consequences
 
-- Agents and Artifacts exchange one lossless, inspectable Raster structure.
+- Agents and Artifacts exchange one complete and one sparse lossless Raster structure.
 - Run-length rows reduce common pixel-art repetition without an implicit fill rule.
 - Indexed round-trips preserve native Palette Indexes.
-- Pixel replacement cannot silently resize, reposition, or convert an Image.
+- Complete state and sparse change have distinct omission semantics.
 
 ## Rejected alternatives
 
@@ -71,10 +68,14 @@ They are canonical but unnecessarily repeat common pixel-art colors.
 Background Images and opaque content do not share that default, and omission would
 be ambiguous for complete replacement.
 
+### Use one representation for complete and sparse intent
+
+Omission would have to mean both a default pixel and unchanged state.
+
 ### Use a binary encoding for large Snapshots
 
 It would create a second public Raster representation instead of changing transport.
 
-### Let `image replace` change dimensions or Color Mode
+### Let transport select a different Raster model
 
-Those intents already have explicit operations and materially different invariants.
+Artifact transport changes payload location, not value semantics.

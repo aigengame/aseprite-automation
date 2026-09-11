@@ -1,6 +1,6 @@
 # Sprite Automation
 
-This document is the Ubiquitous Language and context-routing authority for Aseprite Automation. It defines shared terms and ownership boundaries. Accepted ADRs own durable decisions; feature issues own delivery scope and acceptance; the installed Surface Manifest owns shipped Operations.
+This document is the Ubiquitous Language and context-routing authority for Aseprite Automation. It defines shared terms and ownership boundaries. The [Artifact authority matrix](#artifact-authority-matrix) routes every product, design, delivery, implementation, and installed-runtime fact to one owning artifact.
 
 SPA reuses Aseprite terminology whenever Aseprite already names a concept. An SPA term exists when agent automation needs a public contract, an ownership boundary, or an explicit distinction that Aseprite's interactive editor can keep implicit.
 
@@ -101,6 +101,9 @@ Aseprite's forward, reverse, ping-pong, or ping-pong-reverse traversal behavior 
 Aseprite's RGB, Grayscale, or Indexed representation for a Sprite or Image. It is distinct from Color Profile and File Format.
 _Avoid_: Color Handling
 
+**Change Color Mode**
+Aseprite's native operation for changing a Sprite between RGB, Grayscale, and Indexed Color Modes. It is distinct from Color Quantization and from changing a Color Profile.
+
 **RGB**
 Aseprite's red, green, blue, and Alpha Channel pixel representation.
 
@@ -138,6 +141,12 @@ The Sprite-wide Palette Index used for transparent Indexed pixels. It is distinc
 **Color Profile**
 Aseprite's color-space metadata and native Assign/Convert behavior. It is independent of Color Mode.
 
+**Assign Color Profile**
+Aseprite's native operation for attaching a Color Profile interpretation without transforming stored color values.
+
+**Convert Color Profile**
+Aseprite's native operation for transforming applicable stored color values when changing the Sprite's Color Profile.
+
 **sRGB**
 Aseprite's built-in standard RGB Color Profile.
 
@@ -147,11 +156,23 @@ An exact external ICC color-profile input used by applicable native Assign or Co
 **Color Quantization**
 Aseprite's native creation of Palette colors from rendered Sprite colors. It is distinct from Change Color Mode.
 
+**RGB Map Algorithm**
+Aseprite's native choice of algorithm for mapping colors to Palette Entries.
+
+**Color Best Fit Criteria**
+Aseprite's native criterion for choosing the closest Palette Entry during applicable color mapping.
+
 **Dithering**
 Aseprite's color-conversion behavior for approximating colors through patterns or error diffusion.
 
+**Dithering Algorithm**
+Aseprite's selected native Dithering method for an applicable color operation.
+
 **Dithering Matrix**
 An Aseprite resource used by applicable ordered Dithering or Paint behavior. It is distinct from a Convolution Matrix.
+
+**Dithering Factor**
+Aseprite's strength input for an applicable Dithering Algorithm.
 
 ### Geometry and selection
 
@@ -239,6 +260,9 @@ An Aseprite batch pixel operation such as Brightness/Contrast, Outline, or Despe
 
 **Filter Channels**
 Aseprite's selection of pixel components or, when natively supported, stored Palette Index values affected by a Filter.
+
+**Filter Application**
+SPA's Filter-specific explicit choice among the native pixel, Palette Entry, or combined application paths supported by an individual Filter. It is not a generic effect destination.
 
 **Tiled Mode**
 Aseprite's horizontal and vertical wrap behavior for applicable native Paint and Filter operations.
@@ -337,6 +361,12 @@ A produced and verified file reported by the owning Operation Result with path, 
 **Export Destination**
 The explicit final path and overwrite intent for an exported Artifact.
 
+**Export Image Area**
+The Canvas Rectangle rendered by an Export Image Operation. It is distinct from a Selection Mask.
+
+**Layer Composition**
+The explicit Layer set and native stacking context rendered by an Export Operation. Aseprite remains the compositor.
+
 **Preview Artifact**
 An image Artifact produced for inspection. It supports visual review but does not prove aesthetic quality.
 
@@ -398,14 +428,50 @@ An inbound adapter that derives tools from the installed Surface Manifest and in
 **Anti-Corruption Layer (ACL)**
 The downstream-owned translation between Asset Pipeline concepts and the public SPA Published Language.
 
-## Authority index
+## Artifact authority matrix
 
-- ADR-0001: Bounded Context and external relationships.
-- ADR-0002: Operation Descriptor authority.
-- ADR-0003 through ADR-0005: Operation Plan, validation, and guard phases.
-- ADR-0006: operation-specific targets and identity.
-- ADR-0007: Core Domain priority and demand-driven supporting work.
-- ADR-0008 through ADR-0010: bounds, module ownership, and Lua Kernel authority.
-- ADR-0011 through ADR-0016: caller scripts, protocols, results, file semantics, Artifacts, and Asset Pipeline stability.
-- ADR-0017: command catalog and artifact ownership.
-- Later accepted ADRs: durable Aseprite-aligned geometry, identity, lifecycle, raster, color, Tile, Filter, and export decisions referenced by their owning feature issues.
+These artifacts form orthogonal authority dimensions. A fact is stated normatively in
+one row; other artifacts link to it or provide a clearly identified projection.
+
+| Artifact | Unique authority | Must not own | Depends on or projects |
+| --- | --- | --- | --- |
+| [PRD #1](https://github.com/aigengame/aseprite-automation/issues/1) | Product problem, definition, outcomes, user stories, product-level constraints and non-goals, and prototype provenance. | Durable architecture decisions, detailed prototype evidence, exact feature contracts, acceptance matrices, delivery status, or implementation order. | Supplies requirements to feature issues and constraints to strategic design. |
+| `CONTEXT.md` | Ubiquitous Language, Bounded Context, subdomains, context relationships, concise architecture model, and this routing matrix. | Feature acceptance, command schemas, runtime support status, or implementation detail. | Constrains ADR language, feature issues, implementation, and derived documentation. |
+| Accepted ADRs | Durable, consequential decisions, trade-offs, and cross-feature invariants. | Feature backlogs, exhaustive field contracts, test matrices, runtime probe logs, or delivery status. | Interpret the PRD and context model; constrain feature issues and implementation. |
+| [`docs/command-catalog.md`](docs/command-catalog.md) | Non-binding candidate capability territory, Command Group navigation, and candidate spellings. | Product commitments, priority, acceptance, schemas, dependencies, Capability Gap status, or shipped support. | Seeds feature planning and is revised when feature learning changes the candidate map. |
+| Feature issues | Exact vertical-slice scope, feature contract, acceptance criteria, migrated evidence, dependencies, priority, and delivery status. | Cross-feature architecture, phase grouping, or shipped-runtime truth. | Refine PRD stories under CONTEXT and ADR constraints; direct implementation. |
+| Milestones | Delivery-phase grouping and phase-level outcome. | Feature contracts, implicit dependencies, implementation truth, or architecture. | Group feature issues without replacing their own scope, dependencies, and status. |
+| Operation Descriptors, implementation, and tests | Implemented request/result/failure contract, handler binding, executable behavior, and behavior proof in source control. | Undelivered candidate territory or installed-environment claims. | Implement accepted feature issues and project the public surface. |
+| Installed Surface Manifest | Callable Operations, schemas, execution metadata, version constraints, and Capability Gaps for one installed SPA/runtime combination. | Planned scope, product priority, design rationale, or historical evidence. | Is generated from installed Operation Descriptors and observed runtime facts. |
+| `README.md` | Human onboarding and a derived project-status and architecture overview. | Independent product, architecture, feature, or runtime contracts. | Summarizes and links to the owning artifacts above. |
+
+The principal dependency and projection flow is:
+
+```text
+PRD + command catalog + CONTEXT + accepted ADRs
+                         |
+                         v
+                   feature issues
+                         |
+                         v
+          descriptors / implementation / tests
+                         |
+                         v
+                 Surface Manifest
+
+CONTEXT + accepted ADRs also constrain implementation directly.
+README derives navigation and status from all owning artifacts.
+```
+
+The catalog proposes territory; an issue commits a slice; source and tests implement
+it; the installed Surface Manifest reports what that concrete installation can call.
+Moving along this flow changes the form of the information, not its authority owner.
+
+### Canonical ADR set
+
+The links below are navigation only; each ADR owns its named decision.
+
+- **Strategic design:** [ADR-0001](docs/adr/0001-single-sprite-automation-context.md), [ADR-0002](docs/adr/0002-operation-descriptor-authority.md), [ADR-0003](docs/adr/0003-operation-plan-boundary.md), [ADR-0006](docs/adr/0006-operation-targets-and-identity.md), [ADR-0007](docs/adr/0007-demand-driven-nfrs.md), [ADR-0008](docs/adr/0008-operation-owned-bounds.md), [ADR-0009](docs/adr/0009-command-groups-and-domain-modules.md), [ADR-0010](docs/adr/0010-lua-operation-kernel-authority.md), [ADR-0013](docs/adr/0013-result-and-failure-contract.md), and [ADR-0014](docs/adr/0014-mutation-file-semantics.md).
+- **Aseprite object and value semantics:** [ADR-0018](docs/adr/0018-raster-authoring-boundary.md), [ADR-0021](docs/adr/0021-frame-numbering.md), [ADR-0024](docs/adr/0024-color-values-and-conversion.md), [ADR-0025](docs/adr/0025-coordinate-spaces-and-rectangles.md), [ADR-0028](docs/adr/0028-background-layer-and-cels.md), [ADR-0029](docs/adr/0029-selection-as-explicit-value.md), [ADR-0033](docs/adr/0033-tag-playback-semantics.md), [ADR-0035](docs/adr/0035-palette-time-semantics.md), and [ADR-0039](docs/adr/0039-slice-model-and-addressing.md).
+- **Tile and Raster semantics:** [ADR-0041](docs/adr/0041-tileset-and-tile-identity.md), [ADR-0044](docs/adr/0044-tilemap-and-placement-semantics.md), [ADR-0047](docs/adr/0047-remove-unreferenced-tilesets.md), [ADR-0051](docs/adr/0051-shared-image-resize-transform.md), and [ADR-0057](docs/adr/0057-canonical-pixel-region-snapshot.md).
+- **Native Paint, Filter, color, and delivery boundaries:** [ADR-0060](docs/adr/0060-private-native-tool-invocation.md), [ADR-0066](docs/adr/0066-declare-native-stochastic-operations.md), [ADR-0074](docs/adr/0074-shared-native-filter-semantics.md), [ADR-0085](docs/adr/0085-stage-and-verify-explicit-export-destinations.md), [ADR-0089](docs/adr/0089-define-native-change-color-mode-contract.md), and [ADR-0094](docs/adr/0094-fix-native-export-image-operation-order.md).

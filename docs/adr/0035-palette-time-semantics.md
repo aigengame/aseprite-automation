@@ -1,83 +1,55 @@
-# ADR-0035: Model Palettes as Frame-based change points
+# ADR-0035: Preserve the Palette model and mutation boundaries
 
 ## Status
 
 Accepted
 
+This ADR consolidates the durable cross-feature decisions from ADR-0036 and
+ADR-0037. Issues #30 and #31 own exact feature contracts, runtime-specific
+gaps, and acceptance.
+
 ## Context
 
-Aseprite stores `Sprite.palettes` as an ordered collection of Palettes associated
-with Frames. `Sprite:palette(frame)` resolves the latest Palette whose frame is at
-or before the requested Frame. That Palette remains effective until a later change.
-Most Sprites contain one Palette beginning at the first Frame, while imported image
-sequences and supported formats can contain later Palette Changes.
-
-Treating the collection as independent per-Frame Palette copies would misstate the
-native model. It would also hide the scope of entry mutation: editing the Effective
-Palette observed at one Frame can change the colors used by several Frames.
-
-Palette objects have process-local Aseprite object IDs, but the scripting contract
-does not expose those IDs and the `.aseprite` Palette chunk does not persist them.
-The Palette collection's current array position is unnecessary because its starting
-Frame is the native change-point fact. A Palette Index already means a zero-based
-entry within a Palette and must not be overloaded as Palette identity.
+Aseprite stores Frame-based Palette change points. An Effective Palette remains
+active until the next change. Indexed Images store Palette Indexes rather than
+resolved RGBA values, and the Transparent Color Index belongs to the Sprite.
+Changing an Entry, remapping indexes, and reordering Entries therefore have
+different effects on Images, Frames, and linked Cels.
 
 ## Decision
 
-- A **Palette Change** is a Palette stored at a one-based
-  `palette_frame_number`. Changes are ordered by that Frame Number.
-- The **Effective Palette** for `frame_number` is the latest Palette Change at or
-  before that Frame. Its inclusive effective Frame Range ends immediately before
-  the next Palette Change, or at the Sprite's last Frame.
-- `palette list` returns all Palette Changes, their starting Frame Numbers, and their
-  effective Frame Ranges.
-- `palette get` accepts any valid `frame_number`, resolves its Effective Palette, and
-  returns the originating `palette_frame_number`, effective Frame Range, and entries.
-- Entry mutation, resize, and import target an existing Palette Change by exact
-  `palette_frame_number`. Their results report the complete resulting Palette Change
-  and affected effective Frame Range.
-- Palette Change creation and deletion are not published Operations for Aseprite
-  1.3.18.5 because its public Lua/editor surface cannot perform that lifecycle.
-  ADR-0038 records this evidence and the conditions for reopening the capability.
-- Entry mutation never simulates Palette Change creation when the requested
-  `palette_frame_number` does not exist.
-- A Palette entry continues to use its native zero-based Palette Index.
-- SPA does not use Palette collection position, internal object ID, UUID, SPA Key,
-  active editor Palette, or a universal Selector to identify a Palette.
+- A **Palette Change** begins at one-based `palette_frame_number`. The
+  **Effective Palette** at a Frame is the latest change at or before it.
+- Palette mutation targets an exact existing change point and reports its
+  affected effective Frame Range. It does not manufacture a missing Palette
+  Change.
+- A Palette Entry is a zero-based Palette Index and an RGBA value. The starting
+  Frame identifies a Palette Change; collection position, process-local ID, and
+  synthetic identity do not.
+- Entry color edits do not rewrite Indexed pixels. Recoloring pixels that store
+  the edited index is their intended effect.
+- **Remap Colors** accepts an explicit index mapping and preserves Aseprite's
+  Sprite-wide scope, including Indexed Images and the global Transparent Color
+  Index.
+- Palette reorder preserves rendered colors through an explicit mapping and
+  declared Palette-change or Sprite scope. It does not silently broaden its
+  target or unlink shared Cels.
+- Growth supplies every new Entry value. Shrink does not clamp, choose nearest
+  colors, or leave invalid indexes; unsupported removal fails until an explicit
+  remap makes it valid.
+- Runtime-specific Palette Change lifecycle availability is reported through
+  the installed Surface Manifest and Capability Gaps, not simulated with
+  private APIs or file patching.
 
 ## Consequences
 
-- Agents can distinguish the Palette requested at a Frame from the native change
-  point that supplies it.
-- A mutation cannot conceal that several Frames share the affected Palette.
-- Common single-Palette Sprites use `palette_frame_number: 1` without a special case.
-- Frame insertion and removal can move Palette Change Frame Numbers; relevant Frame
-  Operations report those native structural adjustments with their other results.
-- Issue #30 owns Palette Change inspection and lifecycle acceptance.
+Agents can distinguish the requested Frame, supplying change point, and
+affected range. They can deliberately choose recoloring, index remapping, or
+render-preserving organization without hidden changes to pixels,
+transparency, or Cel sharing.
 
 ## Rejected alternatives
 
-### Model one independent Palette per Frame
-
-This duplicates shared native state and makes mutations appear narrower than they
-are.
-
-### Mutate the Effective Palette from any Frame without reporting its change point
-
-The request would conceal which Palette is edited and the result could affect Frames
-before and after the requested Frame.
-
-### Address Palettes by collection position or object ID
-
-Collection position adds no domain meaning, while the internal object ID is neither
-public scripting data nor persisted file identity.
-
-### Create a persistent Palette UUID
-
-The starting Frame provides the required native address. A synthetic identity would
-add metadata lifecycle rules without enabling the accepted Palette workflows.
-
-### Let entry mutation create a missing Palette Change
-
-It conflates lifecycle with content editing and makes the affected Frame Range depend
-on hidden fallback behavior.
+One independent Palette per Frame duplicates native shared state. Implicit
+nearest-color or scope expansion is lossy. A generic consistency service or
+synthetic Palette identity adds machinery without matching Aseprite's model.

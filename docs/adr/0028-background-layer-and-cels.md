@@ -1,70 +1,44 @@
-# ADR-0028: Preserve Background Layer Cel semantics
+# ADR-0028: Preserve Background Layer lifecycle semantics
 
 ## Status
 
 Accepted
 
+Issues #10, #11, and #13 own exact feature contracts and acceptance.
+
 ## Context
 
-Aseprite permits at most one Background Layer in a Sprite. Unlike a regular
-transparent Image Layer, a Background Layer is non-transparent and contains one
-full-canvas Cel for every Frame. Its Cels use position `(0, 0)` and full opacity.
+Aseprite permits one Background Layer per Sprite. It is opaque and has one
+full-canvas Cel at every Frame. Native conversion can create Cels, expand
+Images, fill transparency, and normalize position and opacity. Native Cel
+deletion also removes a transparent Cel but fills a Background Cel.
 
-Native conversion to Background expands or composites existing Cel Images onto the
-canvas, fills transparent areas with a background color, normalizes position and
-opacity, and creates filled Cels for Frames that had none. Aseprite's
-`Sprite:deleteCel()` also has name-dependent behavior: it removes a Cel from a
-transparent Layer but only fills a Background Cel with the background color.
-
-SPA cannot expose one `remove` contract whose result sometimes means absence and
-sometimes means replacement pixels. It also cannot depend on an interactive editor's
-current background color.
+Mapping these behaviors to one generic mutation would make the same public verb
+mean different lifecycle effects and could depend on hidden editor color state.
 
 ## Decision
 
-- A valid Background Layer is the Sprite's single non-transparent Image Layer and
-  has one full-canvas Cel at every Frame.
-- Empty Frame Addition creates the required Background Cel using a Background Color
-  declared by the `frame add` request rather than Aseprite's editor preference.
-- `cel remove` is rejected for a Background Cel because the intersection cannot
-  become absent.
-- `cel clear` preserves the addressed Cel. On a transparent Layer it clears the
-  Image to transparent pixels; on a Background Layer it fills the full canvas with
-  the request's explicit Background Color.
-- `layer convert-to-background` and `layer convert-from-background` are explicit
-  Operations rather than hidden modes of `layer set`.
-- `layer convert-to-background` requires an explicit Background Color compatible
-  with the Sprite's Color Mode. It reports every created Cel plus Image expansion,
-  position normalization, and opacity normalization applied to existing Cels.
-- Conversion to Background rejects an existing Background Layer and native-unsupported
-  source kinds, including Group, Tilemap, and Reference Layers.
-- `layer convert-from-background` preserves existing Cel/Image pixels while changing
-  the Layer to a regular transparent Image Layer and reports the resulting facts.
-- SPA does not project Aseprite's misleading `deleteCel` name directly into its
-  Published Language.
+- SPA preserves the single opaque Background Layer and its full-canvas,
+  per-Frame Cel invariant.
+- Conversion to and from Background is explicit rather than a hidden mode of a
+  general Layer setter.
+- Any Background fill uses an explicit compatible Color Value from the request,
+  not an editor foreground/background preference.
+- `cel remove` means that a Cel becomes absent and is invalid for a Background
+  Cel.
+- `cel clear` preserves the Cel. It clears a transparent Cel to transparency
+  and fills a Background Cel with the explicit Background Color.
+- Operations that add Frames or convert a Layer preserve the Background Cel
+  invariant and report their observable native effects.
 
 ## Consequences
 
-- `remove` always means that a Cel becomes absent.
-- Clearing a Background Cel is observable as pixel replacement rather than reported
-  as object deletion.
-- Conversion captures every destructive or normalizing effect in one typed result.
-- Background behavior is deterministic in headless execution because its fill color
-  is request data rather than editor state.
-- Issues #10 and #13 own Background Layer feature acceptance.
+Layer conversion, Frame creation, and Cel lifecycle share one meaning for
+Background content. A destructive or normalizing native effect cannot be hidden
+behind deletion, an unrelated property update, or editor state.
 
 ## Rejected alternatives
 
-### Map native `deleteCel` directly to `cel remove`
-
-The same command would mean deletion on one Layer and pixel filling on another.
-
-### Read the current editor background color
-
-That state is hidden from the public request and can differ across installations or
-runs.
-
-### Treat the Background Layer as an ordinary transparent Layer
-
-This loses its single-layer, full-canvas, per-Frame, and opacity invariants and would
-claim mutations that Aseprite cannot persist faithfully.
+Projecting native `deleteCel` directly would make removal mean either absence
+or replacement pixels. Treating Background as a normal transparent Layer would
+claim a state that Aseprite cannot persist faithfully.

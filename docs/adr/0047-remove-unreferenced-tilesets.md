@@ -1,67 +1,63 @@
-# ADR-0047: Remove a Tileset only after its Layer references are resolved
+# ADR-0047: Preserve Tile meaning across Tileset lifecycle changes
 
 ## Status
 
 Accepted
 
+## Consolidates
+
+This record consolidates ADR-0048, ADR-0049, and ADR-0050. The complete rebind,
+remove, and resize feature contract is owned by issue #45.
+
 ## Context
 
-Aseprite 1.3.18.5 allows `Sprite:deleteTileset()` to delete a Tileset that is still
-referenced. Its Lua implementation first changes every referencing Tilemap Layer to
-Tileset collection index 0 and contains a TODO to improve that behavior. Retaining
-the same packed Tile Indexes while changing the referenced Tileset does not preserve
-Tile Key meaning, Tile imagery, Grid behavior, or the rendered result.
+Aseprite can delete a referenced Tileset by changing its Tilemap Layers to collection
+index 0 while retaining packed Tile Indexes. Assigning `Layer.tileset` similarly keeps
+numeric Placements even when the target Tileset gives those numbers different meaning
+or uses a different Grid. `Tileset.grid` has no public Lua setter; native Grid changes
+use replacement-style construction.
 
-SPA must expose Tileset deletion without importing that hidden fallback. It must
-also retain the complete user capability: an agent can explicitly rebind Layers and
-then remove the old Tileset within the existing single-document Operation Plan.
+These lifecycle seams affect every referencing Layer, Cel, Tile Placement, Tile Bitmap,
+and effective Canvas coverage. SPA must preserve or explicitly replace authored meaning
+without inventing hidden cleanup or index-matching policy.
 
 ## Decision
 
-- `tileset remove` exactly addresses one Tileset and resolves every Tilemap Layer
-  that references it before mutation.
-- When one or more references exist, the Operation fails with `TILESET_IN_USE`,
-  returns the complete referencing Layer facts, and performs no mutation.
-- SPA never uses Aseprite's implicit reassignment to Tileset 0 as the public removal
-  semantic.
-- Explicit Layer-to-Tileset rebinding is a separate Core Operation Semantic. An
-  agent can compose every required rebind followed by `tileset remove` in one
-  Operation Plan, which reuses the standalone handlers and commits atomically.
-- Successful removal returns the complete removed Tileset facts, the old-to-new
-  Tileset Index mapping, and every surviving Tilemap Layer binding.
-- Postconditions report the resulting collection, indexes, and Layer relationships.
-  Issue #45 owns persistence acceptance.
-- SPA does not introduce a general orphan scanner, implicit garbage collection, or
-  background cleanup policy.
+- A referenced Tileset cannot be removed until every Layer reference is explicitly
+  resolved. SPA never exposes Aseprite's implicit reassignment to Tileset 0 as public
+  removal behavior.
+- Tileset rebinding maps used Tiles by Tile Key to a target Tile Key or Empty Tile. It
+  never infers identity from current Index or Image similarity.
+- Rebinding declares how equal or different source and target Grids are handled. A Grid
+  change cannot be hidden behind an ordinary Layer property assignment.
+- Tileset Grid change is a replacement-style lifecycle Operation, not a writable
+  `tileset set` field. It constructs the replacement, transfers accepted Tile content
+  and properties, rebinds Layers, and removes the old Tileset as one Mutation.
+- Replacement does not claim that persistent Tileset identity survived. Resulting
+  collection positions remain current-snapshot facts.
+- Tile Bitmap transformation and Tilemap Cel-position behavior are independent explicit
+  policies. Tile Cell dimensions, Placement meaning, and native transform flags are not
+  implicitly resampled with Tile Bitmap dimensions.
+- Raster scaling and canvas-copy behavior reuse the shared Image-buffer transforms of
+  ADR-0051. Tileset-specific code and Python orchestration do not implement alternate
+  pixel algorithms.
+- Rebind and remove remain standalone Core Operation Semantics that a Tileset resize or
+  Operation Plan can compose through the same packaged Lua handlers.
+- SPA does not add a general orphan scanner, automatic garbage collector, or background
+  cleanup policy. An Operation can remove only an exact temporary object it created or
+  an explicitly addressed unreferenced Tileset.
 
 ## Consequences
 
-- A destructive lifecycle Operation cannot silently change the meaning of existing
-  Tile Placements.
-- Rebinding and deletion remain independently inspectable and reusable while Plans
-  preserve an atomic multi-step authoring intent.
-- Collection reindexing is visible without treating Tileset Index as persistent
-  identity.
-- The rule addresses a verified Aseprite seam without creating lifecycle
-  infrastructure unrelated to sprite authoring.
+Changing a Tileset cannot silently reinterpret existing Tile Placements. Broad Grid and
+Image effects remain explicit while the Lua Kernel reuses one identity, Raster, and
+lifecycle authority.
 
 ## Rejected alternatives
 
-### Mirror Aseprite's Tileset 0 fallback
-
-Collection position is not identity, and matching Tile Index numbers do not prove
-matching Tile meaning or appearance.
-
-### Add a replacement parameter to `tileset remove`
-
-That would duplicate the placement and Grid semantics of the reusable Layer
-rebinding Operation. Plans already provide atomic composition of both operations.
-
-### Delete referencing Tilemap Layers
-
-Removing a Tileset does not imply removing authored Layer content.
-
-### Add automatic orphan collection
-
-SPA can remove the exact transient Tileset it creates in ADR-0046 and explicitly
-remove any other unreferenced Tileset. A general collector is not required.
+- Raw Layer-to-Tileset assignment and deletion-to-Tileset-0 preserve numbers, not Tile
+  meaning.
+- Image similarity and current Index are not Tile identity.
+- Grid is not an ordinary setter because the supported native lifecycle is replacement.
+- Automatic resampling or rounding would combine independent authoring decisions.
+- A general orphan collector solves no accepted sprite-authoring requirement.

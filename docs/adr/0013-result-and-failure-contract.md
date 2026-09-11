@@ -2,14 +2,29 @@
 status: accepted
 ---
 
-# Publish disjoint Operation Results and Failure Envelopes
+# Publish distinct Operation outcomes and verified Artifacts
 
-Every Operation publishes one success schema and participates in a uniform public failure channel. A successful CLI invocation exits zero and emits one schema-valid Operation Result in JSON mode. A failed invocation exits non-zero and emits one schema-valid Failure Envelope. Success models do not contain a `success: false` branch, and failures are not encoded as nominally successful results.
+This decision consolidates ADR-0015.
 
-The Failure Envelope contains a stable machine-readable Failure Code, a broad Failure Category, and a human-readable message. It can identify the Operation and execution phase and can carry code-specific Failure Details or diagnostics when those facts change how an agent responds. Failure Details use a strict type associated with the code; SPA does not expose an arbitrary context dictionary or a universal sparse evidence object containing fields for unrelated failures.
+Every Operation publishes one success schema and participates in one public failure
+channel. A successful CLI invocation exits zero and emits a schema-valid Operation
+Result in JSON mode. A failed invocation exits non-zero and emits a schema-valid
+Failure Envelope. Success models do not contain failure branches, and failures are not
+encoded as nominal success.
 
-Agents branch on Failure Code. Failure Category supports coarse exit behavior or policy. Messages and diagnostics explain the outcome but are not stable parsing surfaces. Human output is rendered from the same result or failure models rather than maintained as another behavior path.
+Failure Envelopes contain a stable Failure Code, a broad Failure Category, and a human
+message. Typed code-specific details and diagnostics are present when they affect
+recovery. Agents branch on the code; categories support coarse policy; messages and
+diagnostics are explanatory rather than stable parsing surfaces. Human output is
+rendered from the same models, and MCP relays the same outcome taxonomy.
 
-A Validation Operation that completes and finds nonconformance returns an Operation Result containing Validation Findings. An unmet Plan Postcondition is a Failure Envelope because it aborts the plan and prevents target commit.
+Inspection and Validation Results report the native facts appropriate to their domain.
+SPA does not impose a common Observation base model. Inspection completeness and bounds
+follow ADR-0008. A completed Validation can return Findings as success; an execution
+failure or unmet Plan Postcondition returns a Failure Envelope.
 
-The Python adapter classifies the outcome using the Kernel Response, Aseprite launch result, captured diagnostics, and required Artifact facts. Aseprite's process exit code is classification input rather than the public verdict. MCP relays the same Failure Envelope losslessly through its error channel and does not translate it into a second error taxonomy.
+An Artifact is a file produced and verified by an Operation. Its common public facts
+are path, role, format, byte size, and SHA-256 digest. Format-specific facts remain in
+the owning Operation Result. SPA does not add an Artifact Record layer, persistent
+manifest, catalog, provenance graph, or audit history. The installed Surface Manifest
+describes callable Operations and is not an output Artifact manifest.

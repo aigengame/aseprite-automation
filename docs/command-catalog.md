@@ -2,12 +2,11 @@
 
 This catalog is the incremental, non-binding map of the Aseprite capability territory that SPA can expose to agents. It provides candidate Command Groups and spellings as inputs to feature work.
 
-The catalog is not a task tracker, release promise, or command registry:
-
-- GitHub issues own delivery scope, acceptance, priority, dependencies, and status.
-- Accepted ADRs own durable decisions and trade-offs.
-- The installed Surface Manifest owns callable Operations and their schemas.
-- A candidate can change or disappear when a vertical slice finds better Aseprite-aligned semantics or a Capability Gap.
+The [Artifact authority matrix](../CONTEXT.md#artifact-authority-matrix) defines
+repository-wide ownership. This catalog owns only candidate territory, navigation, and
+spellings. It is not a task tracker, release promise, schema registry, Capability Gap
+register, or statement of shipped support. A candidate can change or disappear when a
+vertical slice produces better Aseprite-aligned evidence.
 
 ## Catalog rules
 
@@ -15,24 +14,11 @@ The catalog is not a task tracker, release promise, or command registry:
 - Treat a Command Group as navigation, not a Domain Module or Bounded Context.
 - Keep inspection and validation beside the domain object they observe.
 - Keep materially different native behaviors distinct, such as empty Frame addition, Frame duplication, Cel copy, and Cel link.
-- Use one-based `frame_number` and inclusive Frame Ranges. Persist timing as integer `duration_ms`.
-- Use discriminated RGB, Grayscale, and Palette Index Color Values instead of packed native pixel integers.
-- Declare the Coordinate Space of every coordinate-bearing request and result.
-- Define target forms, cardinality, bounds, side effects, determinism, and result facts per Operation.
-- Prefer bounded bulk payloads over one Aseprite process per pixel or Tile Cell.
-- Do not add a candidate to the installed Surface Manifest until its issue supplies real Aseprite evidence.
-
-## Planning entry points
-
-| Territory | Feature issues |
-| --- | --- |
-| Runtime, schema, Plan, first Image Artifact | #3–#7 |
-| Sprite, Layer, Frame, Cel, Tag, animation | #8–#19 |
-| Image, Selection, Paint | #20–#29 |
-| Palette, Color Mode, Color Profile, Filter | #30–#39 |
-| Slice, Tileset, Tilemap, import, text | #40–#47 |
-| Export, raw Lua, Skill, MCP, distribution, coverage | #48–#55 |
-| Asset Pipeline integration | #56–#57 |
+- Express each row as a candidate Operation intent, leaving fields, acceptance,
+  dependencies, priority, evidence, and delivery status to their owning artifacts.
+- Follow `CONTEXT.md` and accepted ADRs without restating their normative contracts.
+- A candidate enters an installed Surface Manifest only through delivered descriptors
+  and observed runtime facts.
 
 ## Meta
 
@@ -140,8 +126,6 @@ The catalog is not a task tracker, release promise, or command registry:
 | `spa paint blur` | Apply deterministic native Blur Ink. |
 | `spa paint jumble` | Apply native-stochastic Jumble when Pointer velocity and direction are scriptable. |
 
-Issue #29 owns the current Spray, Curve, Polygon, Gradient, and Jumble capability-boundary evidence. Candidates without faithful native seams remain absent from the installed Surface Manifest.
-
 ## `filter`
 
 | Candidate command | Intended meaning |
@@ -154,8 +138,6 @@ Issue #29 owns the current Spray, Curve, Polygon, Gradient, and Jumble capabilit
 | `spa filter outline` | Apply native Outline with explicit placement, matrix, colors, Channels, and Tiled Mode. |
 | `spa filter convolution-matrix` | Apply one native named Convolution Matrix Resource when the runtime honors its contract. |
 | `spa filter despeckle` | Apply native per-channel Median Filter behavior. |
-
-Issues #35–#39 own Filter delivery and the runtime-specific Outline, Convolution Matrix, and Despeckle evidence.
 
 ## `palette`
 
@@ -170,8 +152,6 @@ Issues #35–#39 own Filter delivery and the runtime-specific Outline, Convoluti
 | `spa palette import` | Import entries into an existing Palette Change. |
 | `spa palette export` | Export one Effective Palette as a verified Artifact. |
 | `spa palette color-quantization` | Replace an existing Palette through native Color Quantization. |
-
-Aseprite 1.3.18.5 exposes no faithful public Palette Change add/remove seam. Issue #30 owns that Capability Gap and future reevaluation.
 
 ## `selection`
 
@@ -196,8 +176,6 @@ Aseprite 1.3.18.5 exposes no faithful public Palette Change add/remove seam. Iss
 | `spa slice add` | Add a Slice with one initial Key at Frame 1. |
 | `spa slice set` | Set supported Slice properties under explicit Key constraints. |
 | `spa slice remove` | Remove one exactly addressed Slice. |
-
-Issue #40 owns complete observation and the Aseprite 1.3.18.5 arbitrary Slice Key mutation gap.
 
 ## `tileset` and `tilemap`
 
@@ -247,4 +225,5 @@ Issue #40 owns complete observation and the Aseprite 1.3.18.5 arbitrary Slice Ke
 
 ## Unresolved candidate groups
 
-Rasterized text is product territory, but its native reproducible seam is unresolved. Issue #47 owns the feature-level research and contract. The catalog does not create a `text` group until that issue provides evidence.
+Rasterized text remains candidate product territory. The catalog does not propose a
+`text` group until feature work establishes an Aseprite-aligned operation boundary.

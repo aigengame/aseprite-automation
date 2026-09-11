@@ -3,7 +3,11 @@
 Aseprite Automation provides agent-facing automation for Aseprite. The project name is `aseprite-automation`; its primary executable is `spa`.
 
 > [!IMPORTANT]
-> This repository is at the bootstrap stage. The product architecture has been tested through disposable prototypes, but there is no production CLI release yet. [Issue #1](https://github.com/aigengame/aseprite-automation/issues/1) is the umbrella PRD; milestones and feature issues own delivery contracts and evidence. `CONTEXT.md` and accepted ADRs own the aligned language and durable decisions. Shipped behavior will be defined by the installed CLI schemas.
+> This repository is at the bootstrap stage. The product architecture has been tested through disposable prototypes, but there is no production CLI release yet. [Issue #1](https://github.com/aigengame/aseprite-automation/issues/1) is the umbrella PRD; feature issues own delivery contracts and evidence, while milestones group phase outcomes. The [`CONTEXT.md` Artifact authority matrix](CONTEXT.md#artifact-authority-matrix) routes every normative fact to its owning artifact. Shipped behavior will be reported by the installed Surface Manifest.
+
+This README is derived onboarding and project navigation. It summarizes the owning
+artifacts but does not define an independent product, architecture, feature, or runtime
+contract.
 
 ## Background
 
@@ -59,7 +63,10 @@ The CLI is the first Open Host Service. Its Published Language is the versioned 
 - Operation Descriptors own registration and projections. The Lua Operation Kernel owns core Aseprite behavior. Python coordinates use cases and adapters without duplicating that behavior.
 - Capability Gaps are versioned, evidence-backed runtime facts. They remove unfaithful Operations from the installed Surface Manifest instead of creating silent partial support.
 
-Exact feature contracts belong to their accepted issue and referenced ADRs. The installed Surface Manifest becomes the authority after a feature ships.
+Before delivery, exact feature contracts belong to their accepted issues under the
+shared language and decisions. Operation Descriptors, implementation, and tests own the
+implemented contract; the installed Surface Manifest reports the callable projection
+for one installation. See the [Artifact authority matrix](CONTEXT.md#artifact-authority-matrix).
 
 ## Technical Architecture
 
@@ -179,7 +186,7 @@ The project grows through evidence-bearing vertical slices. GitHub issues own sc
 ## Project Documents
 
 - [Umbrella PRD and prototype conclusions](https://github.com/aigengame/aseprite-automation/issues/1)
-- [Ubiquitous Language and context model](CONTEXT.md)
+- [Ubiquitous Language, context model, and Artifact authority matrix](CONTEXT.md#artifact-authority-matrix)
 - [Accepted architecture decisions](docs/adr/)
 - [Incremental command catalog](docs/command-catalog.md)
 - [Aseprite CLI documentation](https://www.aseprite.org/docs/cli/)

@@ -1,8 +1,13 @@
-# ADR-0051: Use one explicit Image Resize Transform across Raster and Tile authoring
+# ADR-0051: Share Image-buffer transforms across Raster and Tile authoring
 
 ## Status
 
 Accepted
+
+## Consolidates
+
+This record consolidates ADR-0054. Image resize delivery is owned by issue #21, Image
+crop and canvas-resize delivery by issue #22, and Tileset resize delivery by issue #45.
 
 ## Context
 
@@ -14,9 +19,11 @@ attached Image obtains these from its Frame, while a standalone Image uses activ
 editor state. Non-nearest methods also repair hidden colors in transparent source
 pixels before producing the resized Image.
 
-SPA needs the same pixel transform for normal Image authoring and every Tile Bitmap
-inside Tileset Resize. It must make method, Palette basis, and source mutation
-behavior deterministic without defining a second Tileset-specific algorithm.
+SPA needs the same resize and non-scaling canvas-copy transforms for ordinary Image
+authoring and every Tile Bitmap inside Tileset Resize. It must make interpolation,
+Palette basis, source mutation, offsets, clipping, and fill deterministic without
+defining Tileset-specific algorithms. Cel placement remains an outer concern that Tile
+Bitmaps do not have.
 
 ## Decision
 
@@ -44,20 +51,28 @@ behavior deterministic without defining a second Tileset-specific algorithm.
   separate placement semantics.
 - Existing linked-Cel rules reduce selected targets to unique shared Images,
   transform each once, preserve sharing, and report every affected Cel.
-- `spa image resize` and Tileset Resize `scale` invoke this same Lua Kernel semantic.
-- Results include requested and actual dimensions, method, Pixel Format, optional
-  Palette Change/effective Frame Range/Transparent Color Index, affected Cels, and
-  before/after structural observations and content digest.
+- Image and Tileset resize Operations invoke this same Lua Kernel semantic.
+- Image Canvas Transform is a second pure Image-buffer semantic owned by the same fixed
+  Lua Kernel. It requires exact positive target dimensions, an integer offset, and an
+  explicit Color Value compatible with the source Pixel Format.
+- Canvas Transform places source Image Pixel `(0,0)` at the declared offset in a filled,
+  same-format target Image. It copies intersecting stored pixels 1:1, discards source
+  pixels outside the target, and retains the fill in uncovered pixels.
+- A Canvas Transform with no source/target intersection is a valid deterministic
+  fill-only result. It does not center, scale, apply Selection, change Color Mode, or
+  resize the Sprite canvas.
+- Each owning Image or Tileset Operation separately defines applicable targets, linked
+  Image behavior, Cel-position policy, and Operation-specific result facts.
 
 ## Consequences
 
 - Invalid input cannot silently become a different resize request.
 - Indexed interpolation is reproducible without active Palette state.
-- Tile Bitmap scaling and ordinary Image scaling cannot drift into separate
+- Tile Bitmap transforms and ordinary Image transforms cannot drift into separate
   implementations.
 - Native transparent-edge preparation is retained without an unintended mutation
   channel.
-- Cel placement can evolve independently from the reusable buffer transform.
+- Cel placement can evolve independently from reusable buffer transforms.
 
 ## Rejected alternatives
 
@@ -85,3 +100,13 @@ belongs to the Cel-targeted operation that composes the shared transform.
 
 Aseprite repairs hidden transparent colors in place before resize. A source copy
 prevents that internal step from escaping the intended replacement transaction.
+
+### Implement Tile canvas resizing separately
+
+That would violate the Lua Kernel's DRY authority over offset, clipping, fill, and copy
+semantics.
+
+### Require a non-empty copied intersection
+
+Exact size, offset, and fill already define a deterministic fill-only Image. An overlap
+guard would add policy without adding authoring capability.

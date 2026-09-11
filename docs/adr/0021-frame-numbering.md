@@ -1,62 +1,50 @@
-# ADR-0021: Use Aseprite-aligned public Frame Numbers
+# ADR-0021: Define the public Frame model
 
 ## Status
 
 Accepted
 
+This ADR consolidates the durable cross-feature decisions from ADR-0031 and
+ADR-0032. Issue #11 owns the exact feature contract and acceptance.
+
 ## Context
 
-SPA must address Frames consistently across typed requests, Operation Results,
-Tags, Cels, exports, and Operation Plans. Aseprite's editor and Lua scripting model
-present Frames as one-based values: `Frame.frameNumber` adds one to Aseprite's
-internal frame position, and indexed Frame collections accept values beginning at
-one. By contrast, Aseprite's native `--frame-range` CLI option accepts zero-based
-offsets. Exposing both conventions would force agents to remember which transport
-or execution path a field came from and would make equivalent Operations disagree.
+Aseprite's editor and Lua API expose one-based Frames, while some native CLI
+options and internal storage use zero-based positions. Lua exposes Frame
+duration as floating-point seconds, but the Sprite model and file format store
+integer milliseconds. Aseprite also distinguishes adding an empty Frame from
+duplicating a Frame and its Cels.
 
-The generic word `index` also fails to state whether a value is zero-based or
-one-based and whether it is a public animation ordinal or an implementation storage
-position.
+SPA needs one public model that agents can copy between Frame, Cel, Tag,
+animation, validation, Plan, and export Operations without transport-specific
+conversion or hidden editor policy.
 
 ## Decision
 
-SPA's Published Language uses **Frame Number** for public Frame addressing.
-
-- The schema field is named `frame_number` and its first valid value is `1`.
-- A **Frame Range** is inclusive at both endpoints, and both endpoints are Frame
-  Numbers.
-- Operation-specific range fields and result models state that convention in their
-  schemas. They do not expose an unqualified `index` as a Frame address.
-- Cels, Tags, Frame inspection, export selection, validation findings, and Plan
-  facts report Frames using the same convention.
-- The Python adapter or Lua Operation Kernel converts to any zero-based internal or
-  native CLI representation. Those values are private execution details and never
-  appear as an alternate public convention.
+- The public address is **Frame Number**, encoded as one-based
+  `frame_number`. An unqualified `index` is not a Frame address.
+- A public Frame Range contains inclusive Frame Number endpoints.
+- Persisted Frame timing is `duration_ms`, an integer from 1 through 65535.
+  Seconds and zero-based positions remain private adapter or Kernel details.
+- FPS can be an operation-specific convenience input only when its deterministic
+  conversion reports the resulting `duration_ms` values. FPS is not another
+  stored timing authority.
+- Empty Frame addition and Frame duplication remain distinct Operations.
+  Duplication makes Cel copy or link intent explicit instead of deriving it
+  from Layer or editor state.
+- Internal conversions are performed by the adapter or Lua Operation Kernel.
+  Public requests, results, diagnostics, and schemas use the same model.
 
 ## Consequences
 
-- Agents can copy a Frame Number from inspection into a later request without
-  translating it.
-- SPA matches the user-visible Aseprite and Lua vocabulary even when a native CLI
-  option uses a different offset convention.
-- Issue #11 owns the first complete Frame acceptance matrix.
-- Implementations may use zero-based positions internally, but public schemas,
-  examples, diagnostics, and Operation Results remain one-based.
+Agents can reuse inspected Frame facts without translation. SPA preserves the
+actual timing resolution and distinguishes an empty timeline position from
+copied animation content. Export-specific timing remains an output fact and
+does not rewrite Sprite timing.
 
 ## Rejected alternatives
 
-### Expose zero-based Frame indexes
-
-This mirrors some internal and CLI mechanics but contradicts Aseprite's editor and
-Lua-facing Frame Number and makes inspected values harder to reuse.
-
-### Let each Operation choose its numbering convention
-
-This leaks adapter choices into the Published Language and creates preventable
-cross-command ambiguity.
-
-### Use `index` and document the base per field
-
-The name itself omits the semantic distinction SPA needs agents to carry between
-calls. `frame_number` makes the public convention explicit and preserves Aseprite's
-language.
+Zero-based public indexes conflict with Aseprite's editor and Lua language.
+Publishing both seconds and milliseconds creates two representations of one
+persisted fact. A single ambiguous “new frame” operation hides whether content
+and links are inherited.

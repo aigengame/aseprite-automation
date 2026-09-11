@@ -1,121 +1,98 @@
-# ADR-0089: Define the native Change Color Mode contract
+# ADR-0089: Define native color operation boundaries
 
 ## Status
 
 Accepted
 
+## Consolidates
+
+- ADR-0090: separation of Color Quantization from Change Color Mode
+- ADR-0091: explicit native color-mapping defaults
+- ADR-0092: conditional native Dithering
+- ADR-0093: native Color Profile assignment and conversion
+
+The owning feature issues and Operation Descriptors hold exact request branches,
+enumerations, result fields, runtime evidence, and acceptance matrices.
+
 ## Context
 
-Aseprite defines Color Mode and the Change Color Mode operation, exposed to scripts
-as `ChangePixelFormat`. SPA needs the same behavior both as a Sprite-wide Mutation and
-inside `export image` on a disposable export Sprite. One fixed Lua implementation must
-serve both callers.
+Aseprite provides several related but different native color operations. Change Color
+Mode maps a Sprite between RGB, Grayscale, and Indexed representations. Color
+Quantization creates Palette colors from rendered Sprite colors. Assign Color Profile
+changes the interpretation attached to stored colors, while Convert Color Profile
+transforms applicable stored colors to preserve appearance.
 
-The native scripting command presents a broad parameter object whose effective fields
-depend on the source and target Color Modes. It also contains implicit fallbacks that
-are unsuitable for an agent contract. An omitted RGB Map Algorithm or Color Best Fit
-Criteria for conversion to Indexed reads editor preferences. Their explicitly passed
-native `default` values are deterministic choices, while an unknown string is also
-silently parsed as `default`. An unknown Dithering value becomes `none`. A missing or
-unknown Dithering Matrix falls back to Bayer 8-by-8 after diagnostic output. An
-omitted or unknown Grayscale method ultimately uses Luma.
-
-The implementation also proves that Dithering affects RGB-to-Indexed conversion but
-is ignored for Grayscale-to-Indexed conversion. Conversion to RGB needs no conversion
-options. Conversion to Grayscale needs only the native `toGray` function. Requesting
-the current Color Mode returns without mutation.
-
-Aseprite's Change Color Mode dialog can separately offer Merge layers, but that UI
-choice is not part of the non-interactive command parameters. Layer flattening and
-Color Mode change also have different observable responsibilities and can be composed
-explicitly where a Sprite mutation needs both.
+Native scripting inputs can also read editor preferences or silently replace missing,
+unknown, or inapplicable values with defaults. SPA must preserve the native capabilities
+without merging these operations or allowing hidden state to decide agent output.
 
 ## Decision
 
-- **Change Color Mode** is the canonical Aseprite operation term. The earlier generic
-  Color Conversion glossary entry is removed; contextual use of the verb conversion
-  does not create another domain concept.
-- `spa sprite change-color-mode` is an explicit Sprite command. Color Mode is not a
-  generic property assignment hidden inside `spa sprite set`.
-- `export image` embeds the same typed Change Color Mode request in its
-  `color_mode: change` branch and invokes the same fixed Lua Kernel implementation
-  against its disposable export Sprite. The `preserve` branch does not invoke it.
-- The request is discriminated by target Color Mode and validated against the actual
-  source Color Mode:
-  - target `rgb` accepts no conversion-specific parameters;
-  - target `grayscale` requires `to_gray: luma | hsv | hsl` and accepts no Palette,
-    RGB Map Algorithm, Color Best Fit Criteria, or Dithering inputs;
-  - target `indexed` uses the Sprite's already established Effective Palettes and
-    requires an explicit RGB Map Algorithm and Color Best Fit Criteria using the
-    native unions accepted in ADR-0091. RGB source additionally requires an explicit
-    Dithering branch, including `none`; Grayscale source rejects Dithering because the
-    native path ignores it. Palette preparation remains a separate explicit Palette
-    operation as defined by ADR-0090.
-- Source and target equality is a valid idempotent no-op. It accepts none of the
-  target-specific conversion parameters and returns `changed: false` with the
-  observed unchanged Color Mode and content facts.
-- Missing required values, unknown strings, numeric enums, target-inapplicable fields,
-  source-inapplicable fields, and combinations that Aseprite would ignore or resolve
-  from preferences fail before mutation. Explicit documented `default` values remain
-  valid native choices, while an invalid value may never reach Aseprite's `default`
-  fallback.
-- ADR-0091 defines the exact RGB Map Algorithm and Color Best Fit Criteria contracts.
-  ADR-0092 defines the conditional Dithering Algorithm, Dithering Matrix, and
-  Dithering Factor contract for RGB-to-Indexed conversion. ADR-0090 separately defines
-  Current/Effective Palette use and Color Quantization composition.
-- Merge layers is not a Change Color Mode request field. A Sprite workflow uses the
-  accepted Plan composition with a Layer operation when flattening is intended.
-  `export image` already renders its explicit Layer Composition into the disposable
-  export Sprite and applies Color Profile before any requested Color Mode change, as
-  fixed by ADR-0094.
-- As a Sprite Mutation, Change Color Mode applies to the complete Sprite using
-  Aseprite's native operation, including every applicable unique Cel Image and
-  Tileset Tile Image. It reports source/target Color Mode, all affected Images, Cels,
-  Tilesets and Tiles, Palette and Transparent Color Index facts, and persisted
-  postconditions. Normal all-or-nothing Target Commit semantics apply.
-- As an export step, it changes only the disposable one-Frame export Sprite and
-  reports the corresponding source/effective Color Mode and conversion facts. It
-  never saves changes to the Source Sprite File.
-- Aseprite owns Color Mode conversion, Palette lookup, Grayscale conversion,
-  quantization, mapping, Dithering, transparency, and Tile Image behavior. The fixed
-  Lua Kernel owns typed native mapping, invocation, observation, and shared behavior.
-  Python performs no pixel or Palette conversion.
-- Issue #33 owns the feature delivery matrix and real-runtime acceptance evidence.
+- SPA uses Aseprite's Color Mode, Change Color Mode, Color Quantization, Color Profile,
+  Assign Color Profile, Convert Color Profile, RGB Map Algorithm, Color Best Fit
+  Criteria, Dithering Algorithm, Dithering Matrix, and Dithering Factor concepts. Their
+  canonical definitions belong to `CONTEXT.md`; SPA does not replace them with a generic
+  color-processing framework.
+- Change Color Mode is an explicit Sprite Mutation, not a generic property assignment.
+  Standalone execution, Plan execution, and export composition invoke the same packaged
+  Lua Kernel capability.
+- Color Quantization is a separate Palette Operation. Change Color Mode to Indexed
+  consumes already established Effective Palettes and never hides Palette generation,
+  import, or editing inside conversion. An export can explicitly compose Palette
+  preparation before conversion on its disposable Sprite.
+- Color Profile is independent of Color Mode. Assign Color Profile and Convert Color
+  Profile remain separate native operations because assignment preserves stored values
+  while conversion changes applicable Image pixels and Palette Entries.
+- Each Operation Descriptor exposes only inputs applicable to the actual native path.
+  Result-affecting native choices are explicit. Omission is not equated with an explicit
+  native `default`, and unknown, case-variant, numeric, cross-branch, or otherwise
+  inapplicable inputs cannot reach Aseprite's preference or fallback behavior.
+- A same-Color-Mode request is a valid idempotent no-op when it carries no inapplicable
+  conversion input.
+- Dithering is available only on native conversion paths where it has an effect. Matrix
+  resolution must distinguish intentional native omission from a requested resource
+  that failed to resolve; SPA never reports a silent fallback as the requested result.
+- A Python environment adapter may resolve installed Dithering Matrix metadata and may
+  validate or digest an ICC file. It does not interpret matrix pixels, quantize or map
+  colors, transform profiles, or implement Dithering. Native color behavior and its
+  effective observations remain in the fixed Lua Kernel.
+- A standalone Sprite Mutation applies the applicable native operation to the complete
+  Sprite and uses normal Target Commit semantics. Export applies the same packaged
+  capabilities only to disposable export state and never mutates the Source Sprite.
+- ADR-0094 owns the fixed `export image` composition order. File Format support is
+  feature-specific and cannot silently omit a requested Color Profile, lose required
+  transparency, or perform an undeclared conversion.
+- Issues #32, #33, and #34 own delivery and acceptance for Color Quantization, Change
+  Color Mode with mapping and Dithering, and Color Profile operations respectively.
 
 ## Consequences
 
-- SPA uses one native operation vocabulary and one Kernel behavior for editable
-  Sprite mutation and disposable export conversion.
-- Target-specific schemas prevent ignored fields and preference-dependent fallbacks.
-- Dithering cannot be presented as meaningful for a native path that ignores it.
-- Layer flattening remains independently composable rather than becoming a hidden
-  side effect of Color Mode change.
-- Indexed conversion retains its complete native mapping and Dithering choices while
-  rejecting combinations the native command ignores or silently replaces.
+- SPA retains Aseprite's distinct native operations and terminology instead of creating
+  overlapping conversion abstractions.
+- One Lua authority serves editable-Sprite and disposable-export use cases without
+  requiring separate algorithms.
+- Agents cannot mistake preference-derived or fallback behavior for declared intent.
+- Palette generation, pixel representation change, and profile transformation remain
+  independently composable and observable.
 
 ## Rejected alternatives
 
-### Keep Color Conversion as a parallel domain term
+### Use one generic color-conversion request
 
-It overlaps Aseprite's Change Color Mode language and encourages a generic conversion
-framework rather than the native operation and its exact inputs.
+It would hide materially different native side effects and create a bag of inputs that
+many execution paths ignore.
 
-### Use one bag of optional parameters
+### Treat omitted or unknown inputs as native defaults
 
-The native implementation ignores many cross-direction fields and silently resolves
-others from preferences or fallback values.
+Native code can read mutable preferences or silently map invalid values to a different
+operation, making the result differ from the request.
 
-### Reject same-mode requests
+### Generate a Palette inside Change Color Mode
 
-Aseprite treats them as no-ops, and an explicit idempotent result is useful for agent
-workflows when it carries no irrelevant conversion input.
+Aseprite exposes Color Quantization separately, and implicit generation would destroy
+or bypass deliberate Palette choices.
 
-### Include Merge layers
+### Implement mapping, Dithering, quantization, or profile conversion outside Aseprite
 
-It is a separate Layer mutation, absent from the non-interactive command parameters,
-and explicitly composable through an Operation Plan.
-
-### Implement export conversion separately
-
-That would violate DRY and allow editable-Sprite and export Color Mode behavior to
-diverge.
+That would introduce a second color engine and violate the Lua Operation Kernel's
+authority over core Aseprite behavior.
