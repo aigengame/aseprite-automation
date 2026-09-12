@@ -30,8 +30,21 @@ or Artifact-registry subsystem.
 - A native return value or process exit code is not proof of completion. SPA requires
   the private Kernel Response and independently validates every expected staged file
   against the owning Operation's declared format and semantic facts.
-- SPA publishes only the complete validated output set. A successful Result reports
-  the final files through the simple Artifact contract defined by ADR-0013.
+- SPA starts final publication only when the complete expected output set has passed
+  validation. A successful Result reports every final file through the simple Artifact
+  contract defined by ADR-0013.
+- When an Export has several final paths, the file adapter publishes them in a
+  deterministic order. A failure before the first final-path change is an ordinary
+  publication failure. A failure after one or more paths changed returns the stable
+  `PARTIAL_PUBLICATION` Failure Code and code-specific details for every declared
+  destination: role, normalized path, whether it existed before publication, and a
+  state of `published`, `not_published`, or `indeterminate`. A `published` destination
+  also states whether it replaced an existing file. The Operation returns no success
+  Result or successful Artifact set.
+- SPA does not automatically restore replaced files or remove already published files.
+  A hard interruption that prevents a Failure Envelope also prevents SPA from claiming
+  a known publication outcome; a later request applies its declared `if_exists` policy
+  to the paths that actually exist.
 - Export does not mutate the Source Sprite and is not a Plan Step. Staging an export is
   distinct from the Staged Sprite File and Target Commit used by Sprite Mutations.
 - This boundary does not promise filesystem atomicity across several final paths. A
@@ -43,6 +56,8 @@ or Artifact-registry subsystem.
 
 - Agents can distinguish a verified export from native false success or partial output.
 - Existing-file behavior and the expected file set are explicit before Aseprite runs.
+- A caller can distinguish failure before publication from known or indeterminate
+  partial publication and can see which existing destinations were replaced.
 - Native behavior stays in the Lua Kernel while ordinary path mapping, file inspection,
   and publication stay in the application and file adapters.
 - Each export feature owns its format-specific contract without duplicating this shared

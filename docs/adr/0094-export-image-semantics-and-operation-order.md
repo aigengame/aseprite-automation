@@ -9,8 +9,10 @@ Accepted
 - ADR-0086: Export Image Area versus Selection Mask
 - ADR-0087: Export Image Frame and Layer Composition
 
-Issue #7 and its Operation Descriptor own exact request variants, result fields, File
-Format matrices, runtime evidence, and acceptance tests.
+Issue #7 owns the initial PNG preserve tracer. Issue #59 owns the expanded Export Image
+Area, Layer Composition, color, Color Profile, Background, and PNG capability matrix.
+Their shared Operation Descriptor owns the implemented request variants and result
+fields; each issue owns its feature evidence and acceptance tests.
 
 ## Context
 

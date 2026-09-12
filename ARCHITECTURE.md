@@ -504,10 +504,11 @@ flowchart LR
     Expand --> Stage[Map to operation-owned staging]
     Stage --> Native[Aseprite renders and encodes through packaged handlers]
     Native --> Verify[Independently validate every staged file]
-    Verify --> Publish[Publish the complete validated set]
+    Verify --> Publish[Publish validated destinations in deterministic order]
     Publish --> Result[Operation Result with Artifact facts]
     Verify -->|failure| VerifyFailure[Failure Envelope; nothing is published]
-    Publish -->|failure| PublishFailure[Failure Envelope; no cross-path atomicity claim]
+    Publish -->|failure before any change| PublishFailure[Publication Failure]
+    Publish -->|failure after a path changed| PartialFailure[PARTIAL_PUBLICATION with per-path facts]
 ```
 
 Static image export uses a fixed private composition order for Layer Composition,
@@ -516,8 +517,13 @@ and File Format encoding. Other export families own their own feature contracts.
 never mutates the Source Sprite.
 
 A successful result reports the complete declared output set. When an Export has
-several final paths, a publication failure is reported, but SPA does not promise
-filesystem atomicity across those paths or a general recovery mechanism.
+several final paths, SPA publishes them in a deterministic order. A failure after a
+final path changed returns `PARTIAL_PUBLICATION` with the known state of every declared
+destination and whether a published path replaced an existing file. SPA does not return
+a successful Artifact set, restore replaced files, remove published files, or promise
+filesystem atomicity or a general recovery mechanism. A hard interruption can leave
+the final state indeterminate; a later request observes existing paths through its
+normal explicit `if_exists` policy.
 
 ## Invariants and their owners
 
