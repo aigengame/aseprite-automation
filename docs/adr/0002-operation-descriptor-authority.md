@@ -6,14 +6,19 @@ status: accepted
 
 This decision consolidates ADR-0012.
 
-Each public capability has one Operation Descriptor. It binds the Operation's public
-request, result, and failure schemas to execution metadata and a packaged Lua handler.
-The CLI command tree, MCP tools, and installed Surface Manifest are projections of
-these descriptors; they do not maintain parallel capability registries.
+Each structured public capability has one Operation Descriptor. It binds the
+capability's public request, result, and failure schemas to execution metadata and a
+declared execution definition. The CLI command tree, eligible MCP tools, and installed
+Surface Manifest are projections of these descriptors; they do not maintain parallel
+capability registries.
 
 Descriptors own registration and Published Language metadata, not native behavior.
-Python contract types own public shapes and statically decidable invariants. The bound
-Lua handler owns core Aseprite behavior as defined by ADR-0010.
+Python contract types own public shapes and statically decidable invariants. An
+ordinary Core Operation binds one fixed packaged Lua handler, which owns its Core
+Operation Semantics and native mapping as defined by ADR-0010. A capability whose
+behavior is implemented by an Application use case can have no Kernel binding. An
+application-composed capability can select and order multiple ordinary packaged
+handlers without redefining their semantics.
 
 The Aseprite adapter and Lua Operation Kernel communicate through a versioned private
 Kernel Protocol. Public defaults and null semantics are resolved before transport, and

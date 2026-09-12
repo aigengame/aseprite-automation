@@ -29,4 +29,10 @@ packaged, versioned source.
 Caller-owned raw Lua is a separate, explicitly unrestricted script-run capability. It
 can be materialized unchanged when Aseprite requires a file, but it does not enter the
 Kernel, participate in Operation Plans, inherit ordinary-operation guarantees, or
-provide an internal alternate implementation path.
+provide an internal alternate implementation path. SPA descriptor registration,
+identity resolution, and ordinary dispatch cannot treat `script run` as a replacement,
+override, rewrite, or proxy for an existing ordinary Core Operation. SPA cannot route
+an ordinary Core Operation through `script run` to bypass its Descriptor, Preflight,
+packaged handler, Postconditions, validation, or result and failure contract. A caller
+can still execute arbitrary Lua through `script run`, but that execution stays outside
+the ordinary Operation contract and has no sandbox claim.

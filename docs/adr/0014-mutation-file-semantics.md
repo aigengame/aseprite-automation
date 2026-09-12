@@ -22,6 +22,12 @@ Kernel saves to a staged Sprite file beside the Target; SPA replaces the Target 
 after validating the Kernel response, Postconditions, and staged file. Staging material
 is never reported as a committed Target.
 
+The Application coordinates this validation. Before the one Aseprite invocation
+returns, packaged handlers close, reopen, and inspect the staged Sprite when an
+Operation requires persisted native facts. The Aseprite adapter owns process and
+protocol mechanics. File adapters validate domain-neutral file facts and perform the
+Target Commit; they do not interpret Aseprite document semantics.
+
 The same failure and commit rule applies to a Mutation Step and its Operation Plan.
 This is single-invocation mutation correctness, not multi-writer coordination or a
 general consistency facility. The caller owns external locking and workflow. Read

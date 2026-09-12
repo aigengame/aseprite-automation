@@ -436,9 +436,16 @@ concepts.
 One typed agent-facing SPA capability with declared inputs, outputs, failures, side
 effects, determinism, targets, and Operation Limits.
 
+**Ordinary Core Operation**
+An Operation whose Core Operation Semantics execute through one fixed packaged Lua
+handler. It excludes capabilities implemented wholly by Application use cases and
+`script run`.
+
 **Operation Descriptor**
-The registration authority for an Operation's identity, schemas, metadata, presentation
-projection, and Lua handler binding. It does not implement native behavior.
+The registration authority for a structured public capability's identity, schemas,
+metadata, presentation projection, and execution definition. An ordinary Core
+Operation binds one packaged Lua handler; another capability can bind an Application
+use case or the separate `script run` adapter path without a Kernel binding.
 
 **Command Group**
 A CLI navigation grouping based mainly on Aseprite language. It does not define a
@@ -448,8 +455,8 @@ Domain Module or Bounded Context.
 The public service boundary first exposed by the `spa` CLI.
 
 **Published Language (PL)**
-The versioned request, Operation Result, Failure Envelope, metadata, Artifact, and
-Surface Manifest schemas shared with callers.
+The versioned Operation Request, Operation Result, Failure Envelope, metadata, Artifact,
+and Surface Manifest schemas shared with callers.
 
 **Surface Manifest**
 The installed aggregate description of callable Operations. It is the runtime authority
@@ -565,9 +572,9 @@ The vertical code-ownership envelope for Operations that share domain language a
 reasons to change. It is not a logical layer or Command Group.
 
 **Lua Operation Kernel**
-The packaged private handler system that owns core Aseprite creation, editing,
-inspection, validation, conversion, and export behavior. Standalone and Plan execution
-use the same handlers.
+The packaged private handler system that owns SPA Core Operation Semantics and their
+mapping to Aseprite's native creation, editing, inspection, validation, conversion, and
+export behavior. Standalone and Plan execution use the same ordinary handlers.
 
 **Kernel Protocol**
 The private versioned request/response transport between Python and the Lua Operation
@@ -575,7 +582,8 @@ Kernel.
 
 **Aseprite Adapter**
 The outbound adapter that owns runtime discovery, resources, process launch, Kernel
-transport, diagnostics, staging integration, and native observations.
+transport, diagnostics, staging integration, and transport of native observations
+produced by packaged handlers.
 
 **Agent Skill**
 Version-matched guidance that teaches agents how to discover and invoke the installed
@@ -598,6 +606,7 @@ one row; other artifacts link to it or provide a clearly identified projection.
 | --- | --- | --- | --- |
 | [PRD #1](https://github.com/aigengame/aseprite-automation/issues/1) | Product problem, definition, outcomes, user stories, product-level constraints and non-goals, and prototype provenance. | Durable architecture decisions, detailed prototype evidence, exact feature contracts, acceptance matrices, delivery status, or implementation order. | Supplies requirements to feature issues and constraints to strategic design. |
 | `CONTEXT.md` | Ubiquitous Language, Bounded Context, subdomains, context relationships, concise architecture model, and this routing matrix. | Feature acceptance, command schemas, runtime support status, or implementation detail. | Constrains ADR language, feature issues, implementation, and derived documentation. |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Integrated user-facing synthesis and navigation of the current accepted architecture, including current module responsibility and flow views. | New or durable architecture decisions, product requirements, exact feature contracts, delivery status, or installed-runtime claims. | Derives from `CONTEXT.md`, accepted ADRs, and current planning. |
 | Accepted ADRs | Durable, consequential decisions, trade-offs, and cross-feature invariants. | Feature backlogs, exhaustive field contracts, test matrices, runtime probe logs, or delivery status. | Interpret the PRD and context model; constrain feature issues and implementation. |
 | [`docs/command-catalog.md`](docs/command-catalog.md) | Non-binding candidate capability territory, Command Group navigation, and candidate spellings. | Product commitments, priority, acceptance, schemas, dependencies, Capability Gap status, or shipped support. | Seeds feature planning and is revised when feature learning changes the candidate map. |
 | Feature issues | Exact vertical-slice scope, feature contract, acceptance criteria, migrated evidence, dependencies, priority, and delivery status. | Cross-feature architecture, phase grouping, or shipped-runtime truth. | Refine PRD stories under CONTEXT and ADR constraints; direct implementation. |
@@ -621,7 +630,8 @@ PRD + command catalog + CONTEXT + accepted ADRs
                  Surface Manifest
 
 CONTEXT + accepted ADRs also constrain implementation directly.
-README derives navigation and status from all owning artifacts.
+ARCHITECTURE derives the integrated system view from CONTEXT, accepted ADRs, and current
+planning. README derives navigation and status from all owning artifacts.
 ```
 
 The same capability theme becomes more specific as it moves through this flow, but each
@@ -629,11 +639,8 @@ artifact owns only the fact dimension assigned by the matrix. The catalog propos
 territory, an issue commits a slice, source and tests own its implementation and proof,
 and the installed Surface Manifest owns the callable facts for one installation.
 
-### Canonical ADR set
+### ADR navigation
 
-The links below are navigation only; each ADR owns its named decision.
-
-- **Strategic design:** [ADR-0001](docs/adr/0001-single-sprite-automation-context.md), [ADR-0002](docs/adr/0002-operation-descriptor-authority.md), [ADR-0003](docs/adr/0003-operation-plan-boundary.md), [ADR-0006](docs/adr/0006-operation-targets-and-identity.md), [ADR-0007](docs/adr/0007-demand-driven-nfrs.md), [ADR-0008](docs/adr/0008-operation-owned-bounds.md), [ADR-0009](docs/adr/0009-command-groups-and-domain-modules.md), [ADR-0010](docs/adr/0010-lua-operation-kernel-authority.md), [ADR-0013](docs/adr/0013-result-and-failure-contract.md), and [ADR-0014](docs/adr/0014-mutation-file-semantics.md).
-- **Aseprite object and value semantics:** [ADR-0018](docs/adr/0018-raster-authoring-boundary.md), [ADR-0021](docs/adr/0021-frame-numbering.md), [ADR-0024](docs/adr/0024-color-values-and-conversion.md), [ADR-0025](docs/adr/0025-coordinate-spaces-and-rectangles.md), [ADR-0028](docs/adr/0028-background-layer-and-cels.md), [ADR-0029](docs/adr/0029-selection-as-explicit-value.md), [ADR-0033](docs/adr/0033-tag-playback-semantics.md), [ADR-0035](docs/adr/0035-palette-time-semantics.md), and [ADR-0039](docs/adr/0039-slice-model-and-addressing.md).
-- **Tile and Raster semantics:** [ADR-0041](docs/adr/0041-tileset-and-tile-identity.md), [ADR-0044](docs/adr/0044-tilemap-and-placement-semantics.md), [ADR-0047](docs/adr/0047-preserve-tile-meaning-across-tileset-lifecycle.md), [ADR-0051](docs/adr/0051-shared-image-resize-transform.md), and [ADR-0057](docs/adr/0057-canonical-pixel-region-snapshot.md).
-- **Native Paint, Filter, color, and delivery boundaries:** [ADR-0060](docs/adr/0060-private-native-tool-invocation.md), [ADR-0066](docs/adr/0066-declare-native-stochastic-operations.md), [ADR-0074](docs/adr/0074-shared-native-filter-semantics.md), [ADR-0085](docs/adr/0085-stage-and-verify-explicit-export-destinations.md), [ADR-0089](docs/adr/0089-native-color-operation-boundaries.md), and [ADR-0094](docs/adr/0094-export-image-semantics-and-operation-order.md).
+The [`ARCHITECTURE.md` Decision map](ARCHITECTURE.md#decision-map) groups the complete
+current ADR set by system concern. Each ADR remains the authority for its named decision;
+this context document does not maintain a second index.
