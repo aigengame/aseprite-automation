@@ -58,8 +58,8 @@ vertical slice produces better Aseprite-aligned evidence.
 | `spa layer move` | Reorder or reparent selected Layers. |
 | `spa layer merge` | Apply an explicitly selected native merge behavior. |
 | `spa layer set-tileset` | Rebind one Tilemap Layer through explicit Tile mapping and Grid policies. |
-| `spa layer convert-to-background` | Convert an eligible Image Layer to a Background Layer and report Cel normalization. |
-| `spa layer convert-from-background` | Convert the Background Layer to a transparent Image Layer. |
+| `spa layer convert-to-background` | Convert an eligible regular Transparent Layer to a Background Layer and report Cel normalization. |
+| `spa layer convert-from-background` | Convert the Background Layer to a regular Transparent Layer. |
 
 ## `frame`
 

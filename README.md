@@ -44,7 +44,7 @@ The table describes intended territory. A capability is supported after an evide
 | Agent access | Publish version-locked Agent Skill guidance and project the installed operation surface through MCP. |
 | Integration | Participate in external asset workflows through the public CLI JSON ABI. |
 
-Command Groups are navigation, not module architecture. Domain Modules own cohesive vertical slices and can project several groups when native behavior shares a lifecycle. `image` represents Aseprite Image observation and structural transformation; `paint` represents authoring intent. Native batch Filters remain distinct from native Paint tools. The [command catalog](docs/command-catalog.md) lists candidate territory; feature issues own delivery contracts.
+Command Groups are navigation, not module architecture. Domain Modules own cohesive vertical slices and can project several groups when native behavior shares a lifecycle. `image` represents Aseprite Image observation and structural transformation; `paint` represents authoring intent. Native batch Filters remain distinct from native Tools. The [command catalog](docs/command-catalog.md) lists candidate territory; feature issues own delivery contracts.
 
 ## Public Contract
 
@@ -54,7 +54,7 @@ The CLI is the first Open Host Service. Its Published Language is the versioned 
 - Machine output contains a schema-valid Operation Result or Failure Envelope and stays separate from vendor diagnostics.
 - Stable Failure Codes drive automation; typed Failure Details and human Diagnostics have different roles.
 - The Surface Manifest describes every callable Operation, side effects, determinism, version constraints, and schemas.
-- Each Operation defines Aseprite-aligned target fields, cardinality, Inspection Scope, Domain Bounds, and result facts. SPA has no universal Selector or Locator.
+- Each Operation defines Aseprite-aligned target fields, cardinality, Inspection Scope, Operation Limits, and result facts. SPA has no universal Selector or Locator.
 - Inspections report normalized coverage and completeness. Native absence, not requested, unsupported, and exceeded bounds remain distinct.
 - Coordinate-bearing requests name their Coordinate Space. Public Rectangles use Aseprite's `x`, `y`, `width`, and `height` vocabulary and half-open coverage.
 - Color Values preserve RGB, Grayscale, Indexed, Alpha Channel, Transparent Color Index, Palette, sRGB, and ICC distinctions from Aseprite.
@@ -133,7 +133,7 @@ Aseprite is an external installed dependency. Runtime discovery reports requeste
 
 A normal mutation performs these steps:
 
-1. Validate the public request, Source/Target or In-place intent, paths, Operation eligibility, and Domain Bounds.
+1. Validate the public request, Source/Target or In-place intent, paths, Operation eligibility, and Operation Limits.
 2. Resolve a supported Aseprite runtime.
 3. Pass validated data to packaged Lua handlers through the versioned private protocol.
 4. Create or open the Sprite, resolve the complete target set, and perform eligible edits inside native transaction boundaries.
@@ -148,7 +148,7 @@ Process exit alone is not completion evidence. End-to-end tests independently re
 The operating model is a trusted local workspace with a trusted Aseprite installation and packaged SPA Operations.
 
 - Source, Target, In-place intent, staging, overwrite behavior, and Export Destinations are explicit.
-- Domain Bounds use units meaningful to each Operation. Process timeout and captured-output bounds remain adapter Execution Guards.
+- Operation Limits use units meaningful to each Operation. Process timeout and captured-output limits remain adapter Execution Guards.
 - Packaged Operations preserve unrelated user and plug-in metadata.
 - `script run` executes caller-owned Lua outside the ordinary Operation behavior contract.
 - SPA does not add authentication, authorization, audit history, distributed consistency, service governance, or a remote multi-tenant boundary to the local tool.

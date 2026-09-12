@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-Aseprite's `app.useTool` invokes the editor's native Paint tools, while
+Aseprite's `app.useTool` invokes the editor's native Tools, while
 `Image.context`/`GraphicsContext` uses a different graphics-path abstraction. Omitted
 `app.useTool` options can fall back to active editor state and preferences.
 
@@ -26,9 +26,9 @@ coordination infrastructure.
   the addressed Cel position into native Canvas coordinates and validates the observed
   changed region before Target Commit.
 - Native invocation cannot implicitly create a Cel, expand or move its Image, or break
-  Image sharing. Ordinary Image and Background Cels are supported under their existing
-  postconditions; Reference, Tilemap, absent, and non-Cel targets require distinct
-  Operations or fail. Linked Image sharing remains intact.
+  Image sharing. Cels on regular Transparent and Background Layers are supported under
+  their existing postconditions; Reference, Tilemap, absent, and non-Cel targets require
+  distinct Operations or fail. Linked Cel sharing remains intact.
 - The Kernel captures and restores the editor/tool state changed for an invocation on
   success and failure. This is invocation-local functional isolation, not a persistent
   session, lock, concurrency, or generalized state-management subsystem.

@@ -7,9 +7,9 @@ This decision consolidates ADR-0019, ADR-0068, and ADR-0072.
 
 ## Context
 
-Aseprite distinguishes structural Image operations, gesture-driven Paint tools, and
+Aseprite distinguishes structural Image operations, gesture-driven Tools, and
 batch Filters. They operate on the same raster data and share color, mask, coordinate,
-target, linked-Image, and native execution concerns. Treating them as one generic
+target, Linked Cel, and native execution concerns. Treating them as one generic
 effect would erase native intent, while separate subsystems would duplicate the same
 pixel authority.
 

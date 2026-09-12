@@ -29,9 +29,10 @@ without merging these operations or allowing hidden state to decide agent output
 ## Decision
 
 - SPA uses Aseprite's Color Mode, Change Color Mode, Color Quantization, Color Profile,
-  Assign Color Profile, Convert Color Profile, RGB Map Algorithm, Color Best Fit
-  Criteria, Dithering Algorithm, Dithering Matrix, and Dithering Factor concepts. Their
-  canonical definitions belong to `CONTEXT.md`; SPA does not replace them with a generic
+  Assign Color Profile, Convert Color Profile, Color Best Fit Criteria, Dithering
+  Algorithm, Dithering Matrix, and Dithering Factor concepts. `RGB Map Algorithm` is
+  SPA's public projection of Aseprite's native `rgbmap` choice. Their canonical
+  definitions belong to `CONTEXT.md`; SPA does not replace them with a generic
   color-processing framework.
 - Change Color Mode is an explicit Sprite Mutation, not a generic property assignment.
   Standalone execution, Plan execution, and export composition invoke the same packaged

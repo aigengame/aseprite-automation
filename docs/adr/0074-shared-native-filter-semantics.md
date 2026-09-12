@@ -101,7 +101,7 @@ Gaps. Installed Operation Descriptors and the Surface Manifest own shipped schem
 
 - Agents can reproduce native Filter behavior without first manipulating or guessing
   invisible editor state.
-- Shared target, Channel, Selection, Palette, Linked Image, and authority rules remain
+- Shared target, Channel, Selection, Palette, Linked Cels, and authority rules remain
   consistent across Filters while each Filter keeps a strict operation-specific schema.
 - Palette-only, pixel-only, and combined mutations cannot be confused in requests or
   results.

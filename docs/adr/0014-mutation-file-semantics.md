@@ -14,7 +14,7 @@ interpret source-target equality as implicit overwrite.
 Every ordinary Mutation is all-or-nothing over its complete resolved target set. Before
 changing the Sprite, the Lua Operation Kernel resolves target fields, enforces target
 count, expands native effects such as linked Cels, and validates every target and
-applicable Domain Bound. Failure does not produce a successful subset or Target Commit.
+applicable Operation Limit. Failure does not produce a successful subset or Target Commit.
 SPA has no generic best-effort, continue-on-error, or partial-success switch.
 
 Supported in-memory document changes run within the declared Aseprite transaction. The

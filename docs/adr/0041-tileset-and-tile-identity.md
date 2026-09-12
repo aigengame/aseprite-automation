@@ -34,7 +34,7 @@ index changes.
 - A direct Tileset target accepts exactly one of current `tileset_index` or
   `tileset_name`. A name must match exactly once. Layer-scoped Operations can instead
   resolve the Tileset referenced by one exactly addressed Tilemap Layer.
-- Tileset Index is a current-snapshot address, not a Persistent Identity. SPA does
+- Tileset Index is a current-snapshot address, not a persistent identity. SPA does
   not expose an internal Tileset ID or introduce a Tileset UUID or Tileset Key.
 - SPA publishes Aseprite's persisted `Tileset.baseIndex` as `base_index` and reports
   its display role. It is never accepted as an address or Tile Index.

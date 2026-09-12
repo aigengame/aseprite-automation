@@ -20,7 +20,7 @@ rules, and reports observed facts. A shared target value is extracted after deli
 Operations establish identical semantics; SPA does not start with a universal
 Selector, locator hierarchy, query DSL, or cardinality framework.
 
-Persistent Identity is evidence-based. Runtime object IDs are not advertised as stable
+Persistent identity is evidence-based. Runtime object IDs are not advertised as stable
 across save and reopen. A native persistent identity is supported according to its
 native lifecycle. When Aseprite has no suitable identity and an accepted functional
 requirement needs one, SPA can store a narrowly scoped key in its versioned custom

@@ -2,7 +2,7 @@
 
 This document is the Ubiquitous Language and context-routing authority for Aseprite Automation. It defines shared terms and ownership boundaries. The [Artifact authority matrix](#artifact-authority-matrix) routes every product, design, delivery, implementation, and installed-runtime fact to one owning artifact.
 
-SPA reuses Aseprite terminology whenever Aseprite already names a concept. An SPA term exists when agent automation needs a public contract, an ownership boundary, or an explicit distinction that Aseprite's interactive editor can keep implicit.
+SPA shares Aseprite terminology when Aseprite already names a concept, extends that language only when agent automation needs an explicit public meaning, and defines SPA-owned terms for its automation contracts and architecture. SPA does not create a synonym for an equivalent Aseprite concept.
 
 ## Bounded Context
 
@@ -49,141 +49,305 @@ gda owns Godot import, engine, and runtime evidence. SPA validation remains evid
 
 Source dependencies point inward from inbound adapters and outward implementations toward inner-owned ports. Domain Modules do not depend on concrete adapters or each other cyclically. Application orchestration may compose several modules through explicit contracts.
 
-## Aseprite language
+## Ubiquitous Language
 
-### Document and animation
+Every term below has one of three origins:
+
+1. **Shared Aseprite language** keeps the identity and meaning that Aseprite already
+   publishes. Making an input source, serialization, or unit explicit does not create a
+   new concept; a `SPA use` note records that mapping without a second definition.
+2. **SPA extensions of Aseprite language** name an independently identifiable value,
+   distinction, or lifecycle that Aseprite does not publish, but that is based on native
+   Aseprite concepts. Each extension states its native base and the meaning that SPA adds.
+3. **SPA automation language** names contracts, workflow concepts, and architecture
+   that belong to SPA rather than to Aseprite.
+
+Aseprite's editor documentation and public CLI and Lua API establish public names.
+When those surfaces use different names, this glossary records the mapping. Source code
+and the `.aseprite` file format can establish native behavior, but an internal class or
+enum name does not by itself become a public SPA term.
+
+### Shared Aseprite language
+
+Terms in this section retain Aseprite's meaning. A `SPA use` note states how SPA exposes
+or disambiguates the same concept; it does not define an equivalent replacement.
+
+#### Document and animation
 
 **Sprite**
-An Aseprite document containing Frames, Layers, Cels, Palettes, Tags, Slices, Tilesets, Grid, Color Mode, Color Profile, and related properties. A Sprite is not a host path or exported file.
+An Aseprite document containing Frames, Layers, Cels, Palettes, Tags, Slices, Tilesets,
+Grid, Color Mode, Color Profile, and related properties.
+_SPA use_: A Sprite is not a host path or an exported Artifact.
 
 **Layer**
-An Aseprite timeline and stacking object. Native Layer kinds include Image Layer, Group Layer, Background Layer, Tilemap Layer, and Reference Layer.
+An Aseprite timeline and stacking object. Aseprite exposes properties such as
+`isImage`, `isGroup`, `isTilemap`, `isTransparent`, `isBackground`, and `isReference`.
+_SPA use_: SPA preserves these overlapping properties rather than reinterpreting them as
+mutually exclusive Layer kinds.
 
-**Image Layer**
-A Layer whose Cels contain raster Images. It can be transparent or converted to the Sprite's Background Layer when native constraints are satisfied.
+**Transparent Layer**
+A Layer for which the native `isTransparent` property is true: the inverse of a
+Background Layer. This property is not a mutually exclusive Layer kind; Group, Tilemap,
+and Reference Layers can also be transparent. Aseprite uses `regular transparent layer`
+when it needs to distinguish an ordinary pixel Layer from those other forms.
 
 **Group Layer**
-A Layer that contains child Layers and participates in hierarchy, visibility, and compositing.
+A Layer that contains child Layers and participates in hierarchy, visibility, and
+compositing. Aseprite editor documentation also uses the phrase `Layer Group`.
 
 **Background Layer**
-Aseprite's native opaque background Layer with its own Cel rules. It is not a transparent Image Layer named "Background."
-
-**Background Color**
-An explicit Color Value used when an Operation creates or fills a Background Layer or Background Cel. SPA does not obtain it from editor foreground/background state or preferences.
+Aseprite's native opaque Layer with its own Cel rules. It is not a Transparent Layer
+whose name happens to be `Background`.
 
 **Tilemap Layer**
-A Layer whose Cels contain Tilemap cell data and reference one Tileset.
+A Layer whose Cels contain Tilemap Images and that references one Tileset.
 
 **Reference Layer**
-Aseprite's native reference-image Layer. Support depends on the Operation's declared native behavior.
+Aseprite's native reference-image Layer.
+_SPA use_: Each Operation states explicitly whether it supports a Reference Layer.
 
 **Frame**
-One timeline position in a Sprite. Public Frame Numbers are one-based and persisted duration is represented as integer milliseconds.
+One timeline position in a Sprite. The Lua API exposes a one-based `frameNumber` and a
+duration in seconds.
+_SPA use_: Public Frame Numbers are one-based. SPA represents persisted duration as
+integer milliseconds and converts at the Lua boundary.
 
 **Frame Range**
-An inclusive range of public Frame Numbers.
+An inclusive range of Frame Numbers. Aseprite uses this meaning in editor and CLI
+operations.
 
 **Cel**
-The Aseprite object at a Layer/Frame intersection. Cel absence is distinct from an existing Cel whose Image is transparent or empty.
+The Aseprite object at a Layer/Frame intersection. Cel absence is distinct from an
+existing Cel whose Image is transparent or empty.
 
 **Image**
-Aseprite's pixel buffer value owned or shared by Cels, Tiles, and other native structures. An Image is not a file Artifact.
+Aseprite's pixel buffer object, which can be owned or shared by Cels, Tiles, and other
+native structures.
+_SPA use_: An Image is not a file Artifact.
 
-**Linked Cels / Linked Image**
-Cels that share one native Image. A raster mutation preserves that sharing unless an explicit Cel operation changes it.
+**Linked Cels**
+Aseprite Cels that share their Image and xy-coordinate.
+_SPA use_: A raster mutation preserves this relationship unless an explicit Cel
+Operation unlinks or replaces it.
 
 **Tag**
-An Aseprite named animation range with native direction and repeat properties. A Tag stores animation metadata; an Operation that consumes it declares the playback context.
+An Aseprite named animation range with native direction and repeat properties.
+_SPA use_: An Operation that consumes a Tag declares the playback context.
 
 **Animation Direction**
-Aseprite's forward, reverse, ping-pong, or ping-pong-reverse traversal behavior for a Tag.
+Aseprite's forward, reverse, ping-pong, or ping-pong-reverse traversal behavior for a
+Tag. The Lua API exposes this concept through `AniDir`.
 
-### Color and palettes
+#### Color and palettes
 
 **Color Mode**
-Aseprite's RGB, Grayscale, or Indexed representation for a Sprite or Image. It is distinct from Color Profile and File Format.
+Aseprite's pixel representation. Sprites use RGB, Grayscale, or Indexed mode; a Tilemap
+Image uses the special `ColorMode.TILEMAP` representation. Color Mode is distinct from
+Color Profile and File Format.
 _Avoid_: Color Handling
 
 **Change Color Mode**
-Aseprite's native operation for changing a Sprite between RGB, Grayscale, and Indexed Color Modes. It is distinct from Color Quantization and from changing a Color Profile.
+Aseprite's native operation for changing a Sprite between RGB, Grayscale, and Indexed
+Color Modes. It is distinct from Color Quantization and from changing a Color Profile.
 
 **RGB**
 Aseprite's red, green, blue, and Alpha Channel pixel representation.
 
 **Grayscale**
-Aseprite's gray plus Alpha Channel pixel representation.
+Aseprite's gray plus Alpha Channel pixel representation. `ColorMode.GRAY` is the
+canonical Lua enum member; Aseprite v1.3.18.5 also exposes the deprecated
+`ColorMode.GRAYSCALE` alias.
 
 **Indexed**
-Aseprite's Palette Index pixel representation. Indexed transparency uses the Transparent Color Index and Palette data rather than an interchangeable per-pixel alpha model.
+Aseprite's Palette Index pixel representation. Indexed transparency uses Palette data
+and the Sprite's transparent color index rather than an interchangeable per-pixel alpha
+model.
 
 **Alpha Channel**
-The alpha component present in applicable RGB, Grayscale, Palette Entry, and File Format behavior.
+The alpha component present in applicable RGB, Grayscale, Palette Entry, and File
+Format behavior.
 _Avoid_: Alpha Handling
 
-**Color Value**
-SPA's discriminated public representation of an RGB value, a Grayscale value, or a Palette Index. It preserves the active Color Mode rather than normalizing every value to RGBA.
+**Background Color**
+Aseprite's active background color used by applicable editor and scripting operations.
+_SPA use_: An Operation that creates or fills a Background Layer or Background Cel
+requires an explicit Color Value instead of reading ambient editor state or preferences.
 
 **Palette**
-Aseprite's indexed color table. A Sprite can contain Frame-based Palette Changes.
+Aseprite's indexed color table. The native document model can associate Palette values
+with Frames.
 
 **Palette Change**
-A Palette value that becomes effective at a Frame. It is not an independent Palette per Frame.
-
-**Effective Palette**
-The Palette Change whose value applies at a requested Frame.
+A Palette value in Aseprite's native document model that becomes effective at a Frame.
+It is not an independent Palette for every Frame.
+_SPA use_: SPA addresses the Frame explicitly because an isolated request cannot rely
+on the editor's active Frame.
 
 **Palette Entry**
-The color stored at a Palette Index in one Palette Change.
+The color stored at one Palette Index in a Palette.
 
 **Palette Index**
 The stored integer value of an Indexed pixel and the address of a Palette Entry.
 
-**Transparent Color Index**
-The Sprite-wide Palette Index used for transparent Indexed pixels. It is distinct from the Alpha Channel of a Palette Entry.
-
 **Color Profile**
-Aseprite's color-space metadata and native Assign/Convert behavior. It is independent of Color Mode.
+Aseprite uses `Color Profile` in its editor and file-format language; the Lua API uses
+`ColorSpace` for the same color-space/profile concern. It is independent of Color Mode.
+_SPA use_: SPA uses Color Profile in its public language and maps it to native
+`ColorSpace` values.
 
 **Assign Color Profile**
-Aseprite's native operation for attaching a Color Profile interpretation without transforming stored color values.
+Aseprite's native operation for attaching a Color Profile interpretation without
+transforming stored color values. The Lua API exposes `assignColorSpace()`.
 
 **Convert Color Profile**
-Aseprite's native operation for transforming applicable stored color values when changing the Sprite's Color Profile.
+Aseprite's native operation for transforming applicable stored color values when the
+Sprite changes Color Profile. The Lua API exposes `convertColorSpace()`.
 
 **sRGB**
 Aseprite's built-in standard RGB Color Profile.
 
 **ICC Profile**
-An exact external ICC color-profile input used by applicable native Assign or Convert behavior.
+An external ICC color-profile input used by applicable native Assign or Convert
+behavior.
 
 **Color Quantization**
-Aseprite's native creation of Palette colors from rendered Sprite colors. It is distinct from Change Color Mode.
-
-**RGB Map Algorithm**
-Aseprite's native choice of algorithm for mapping colors to Palette Entries.
+Aseprite's native creation of Palette colors from rendered Sprite colors. It is
+distinct from Change Color Mode.
 
 **Color Best Fit Criteria**
-Aseprite's native criterion for choosing the closest Palette Entry during applicable color mapping.
+Aseprite's native criterion for choosing the closest Palette Entry during applicable
+color mapping.
 
 **Dithering**
-Aseprite's color-conversion behavior for approximating colors through patterns or error diffusion.
+Aseprite's color-conversion behavior for approximating colors through patterns or error
+diffusion.
 
 **Dithering Algorithm**
 Aseprite's selected native Dithering method for an applicable color operation.
 
 **Dithering Matrix**
-An Aseprite resource used by applicable ordered Dithering or Paint behavior. It is distinct from a Convolution Matrix.
+An Aseprite resource used by applicable ordered Dithering or Tool behavior. It is
+distinct from a Convolution Matrix.
 
 **Dithering Factor**
 Aseprite's strength input for an applicable Dithering Algorithm.
 
-### Geometry and selection
+#### Geometry and selection
 
 **Point**
-An Aseprite-aligned `x`, `y` position whose Coordinate Space is declared by the owning Operation.
+Aseprite's `x`, `y` position value.
+_SPA use_: The owning Operation declares the Coordinate Space.
 
 **Rectangle**
-An Aseprite-aligned `x`, `y`, `width`, `height` shape. SPA uses half-open coverage; each Operation defines whether negative positions or empty Rectangles are meaningful.
+Aseprite's `x`, `y`, `width`, `height` shape.
+_SPA use_: Public Rectangles use half-open coverage. Each Operation defines whether
+negative positions or empty Rectangles are meaningful.
+
+**Selection**
+Aseprite's selected pixel area. The public API exposes it as a Selection object that
+operates on pixels in the Sprite canvas.
+_SPA use_: SPA transports the same concept as an explicit serializable value rather
+than reading hidden editor state.
+
+**Selection Mask**
+The native binary coverage of a Selection.
+_SPA use_: SPA serializes the mask as the canonical coverage of its Selection value; a
+preview image is derived evidence and is not the mask authority.
+
+#### Slices and tiles
+
+**Slice**
+An Aseprite named object with ordered Frame-varying Slice Keys.
+
+**Slice Key**
+A Slice value that starts at one Frame and supplies bounds plus optional center and
+pivot until another Key takes effect.
+
+**Grid**
+Aseprite's origin and cell-size geometry used by Tilemaps and other grid-aware editor
+behavior.
+
+**Tileset**
+An Aseprite collection of Tiles with a Grid and Base Index that can be referenced by
+Tilemap Layers.
+
+**Tile**
+An entry in a Tileset with an Image and native properties.
+
+**Empty Tile**
+The native Tile at internal index 0 that represents an empty Tilemap grid cell.
+
+**Tile Index**
+A Tile's current native position in a Tileset. It can change and is not persistent
+identity.
+
+**Base Index**
+Aseprite's display and export offset for non-empty Tile numbers. It is not a Tile Index
+or identity.
+
+**Tilemap**
+Aseprite's tile-based Layer content. Each Tilemap Image pixel references a Tile in the
+Layer's Tileset and can include native flip flags.
+
+#### Native authoring and files
+
+**Brush**
+Aseprite's Tool footprint and shape input.
+
+**Ink**
+Aseprite's native pixel-application behavior used by a Tool.
+
+**Tool**
+An Aseprite drawing or selection tool. `app.useTool()` drives a Tool through explicit
+points, Brush, Ink, color, and target inputs.
+
+**Filter**
+An Aseprite batch pixel operation such as Brightness/Contrast, Outline, or Despeckle.
+A Filter is distinct from a Tool and from a generic extension DSL.
+
+**Filter Channels**
+Aseprite's `FilterChannels` values for selecting color components or, where supported,
+stored Palette Index values affected by a Filter.
+
+**Tiled Mode**
+Aseprite's horizontal and vertical wrap behavior for applicable Tool and Filter
+operations.
+
+**File Format**
+Aseprite's encoded input or output format and its native options. File Format is
+distinct from Color Mode and Color Profile.
+_Avoid_: Static Image Format
+
+### SPA extensions of Aseprite language
+
+These terms add public agent-facing meaning to the native concepts named in each
+definition. They do not replace Aseprite's object model or algorithms.
+
+#### Color projection
+
+**Color Value**
+SPA's discriminated public representation of an Aseprite RGB value, Grayscale value, or
+Palette Index. It preserves the active Color Mode instead of normalizing every value to
+RGBA. It is not a replacement for the native Lua `Color` object.
+
+**RGB Map Algorithm**
+SPA's public name for the choice exposed by Aseprite's native `rgbmap` command parameter
+and editor phrase `RGB to palette index mapping`. The public `rgb_map_algorithm` field
+and requested/effective result distinguish explicit agent intent from native fallback.
+
+**Effective Palette**
+The Palette Change that applies at a requested Frame. SPA resolves and reports this
+value when native color behavior depends on a Frame.
+
+**Transparent Color Index**
+SPA's explicit name for the Sprite-wide Palette Index exposed by the Lua API as
+`Sprite.transparentColor`. It is distinct from the Alpha Channel of a Palette Entry.
+
+#### Coordinates and selection projection
+
+**Coordinate Space**
+The named coordinate system that gives a Point or Rectangle meaning in a public
+Operation.
 
 **Canvas Pixel**
 A pixel coordinate in Sprite canvas space.
@@ -195,159 +359,166 @@ A pixel coordinate local to one Image.
 A pixel coordinate inside a Tile Image.
 
 **Tile Cell**
-A coordinate in a Tilemap Cel's logical grid. It is not a Canvas Pixel or Tile Bitmap Pixel.
-
-**Coordinate Space**
-The named coordinate system that gives a Point or Rectangle meaning.
-
-**Selection**
-Aseprite's selected pixel area, represented by SPA as an explicit serializable value rather than hidden editor state.
-
-**Selection Mask**
-The canonical binary coverage represented by a Selection value. A preview image is derived evidence and not the mask authority.
+A coordinate in a Tilemap Cel's logical grid. It is not a Canvas Pixel or Tile Bitmap
+Pixel.
 
 **Selection Application**
-An Operation's explicit use of a Selection value to constrain affected Canvas Pixels. An absent Selection is unrestricted, an Empty Selection affects no pixels, and an all-canvas Selection includes every Canvas Pixel.
+An Operation's explicit use of a Selection value to constrain affected Canvas Pixels.
+An absent Selection is unrestricted, an empty Selection affects no pixels, and an
+all-canvas Selection includes every Canvas Pixel.
 
-### Slices and tiles
-
-**Slice**
-An Aseprite named object with ordered Frame-varying Slice Keys.
-
-**Slice Key**
-A Slice value that starts at one Frame and supplies bounds plus optional center and pivot until another Key takes effect.
-
-**Grid**
-Aseprite's origin and cell-size geometry used by Tilemaps and other grid-aware editor behavior.
-
-**Tileset**
-An Aseprite collection of Tiles with a Grid and Base Index that can be referenced by Tilemap Layers.
-
-**Tile**
-An entry in a Tileset with an Image and native properties.
-
-**Empty Tile**
-The native Tile at internal index 0 that represents an empty Tilemap cell.
-
-**Tile Index**
-A Tile's current native position in a Tileset. It can change and is not persistent identity.
-
-**Base Index**
-Aseprite's display/export offset for non-empty Tile numbers. It is not a Tile Index or identity.
+#### Tile and raster projection
 
 **Tile Key**
-SPA's Tileset-scoped persistent Tile identity used when Aseprite provides no suitable native identity. It is stored in the documented SPA custom-properties namespace and remains distinct from current Tile Index.
-
-**Tilemap**
-The Aseprite cell data contained by a Tilemap Cel and interpreted through its Layer's Tileset.
+SPA's Tileset-scoped persistent Tile identity used when Aseprite provides no suitable
+native identity. It is stored in the documented SPA custom-properties namespace and
+remains distinct from the current Tile Index.
 
 **Tile Placement**
-One Tilemap cell value: Empty Tile or a Tile reference plus native flip and diagonal flags.
+SPA's structured representation of one native Tilemap grid-cell value: Empty Tile or a
+Tile reference plus native horizontal, vertical, and diagonal flip flags.
 
 **Tile Region Snapshot**
-A complete bounded Tile Cell Rectangle with a declared Empty default and canonical non-empty placements.
+A complete bounded Tile Cell Rectangle with a declared Empty Tile default and canonical
+non-empty Tile Placements.
 
 **Tilemap Patch**
-A bounded set of explicitly addressed Tile Cell changes that leaves unlisted cells unchanged.
+A bounded set of explicitly addressed Tile Cell changes that leaves unlisted cells
+unchanged.
 
-### Native authoring
+**Raster**
+The shared pixel domain through which SPA observes and transforms Aseprite Images and
+expresses Tool and Filter intent. Raster is not a second Image object model.
 
-**Brush**
-Aseprite's Paint footprint and shape input.
+**Pixel Region Snapshot**
+A complete bounded Raster value whose serialized pixels use local Image Pixel
+coordinates from `(0,0)`. The owning Operation Result reports a different source
+Coordinate Space and source Rectangle separately.
 
-**Ink**
-Aseprite's native Paint behavior for applying a tool's output to pixels.
+**Pixel Patch**
+A bounded set of explicitly addressed pixel changes that leaves unlisted pixels
+unchanged.
 
-**Paint Tool**
-An Aseprite gesture- or controller-driven raster operation such as Pencil, Fill, Line, Blur, or Jumble.
+**Paint Operation**
+An SPA Operation that expresses raster-authoring intent and delegates applicable
+gesture or controller behavior to an Aseprite Tool.
 
-**Filter**
-An Aseprite batch pixel operation such as Brightness/Contrast, Outline, or Despeckle. A Filter is distinct from a Paint Tool and from a generic extension DSL.
-
-**Filter Channels**
-Aseprite's selection of pixel components or, when natively supported, stored Palette Index values affected by a Filter.
+**Filter Cels Target**
+The Filter-specific public target that resolves existing Cels from exact Layer and Frame
+choices while preserving Aseprite's native target meaning. It is not a universal
+Selector.
 
 **Filter Application**
-SPA's Filter-specific explicit choice among the native pixel, Palette Entry, or combined application paths supported by an individual Filter. It is not a generic effect destination.
+SPA's Filter-specific explicit choice among the native pixel, Palette Entry, or combined
+application paths supported by one Filter. It is not a generic effect destination.
 
-**Tiled Mode**
-Aseprite's horizontal and vertical wrap behavior for applicable native Paint and Filter operations.
+**Export Image Area**
+The Canvas Rectangle rendered by an Export Image Operation. It is distinct from a
+Selection Mask.
 
-**File Format**
-Aseprite's encoded output format and its native options. File Format is distinct from Color Mode and Color Profile.
-_Avoid_: Static Image Format
+**Layer Composition**
+The explicit Layer set and native stacking context rendered by an Export Operation.
+Aseprite remains the compositor.
 
-## SPA automation language
+#### Targeting rule
 
-### Public surface
+SPA does not define a universal Selector, Locator, or Address value. Each Operation owns
+the exact Aseprite-aligned target fields and cardinality that its behavior requires.
+Layer, Tag, Slice, and Tileset Operations can therefore use different native IDs,
+indexes, names, paths, or references without creating four parallel `Addressing`
+concepts.
+
+### SPA automation language
+
+#### Public contract
 
 **Operation**
-One typed agent-facing SPA capability with declared inputs, outputs, failures, side effects, determinism, targets, and bounds.
+One typed agent-facing SPA capability with declared inputs, outputs, failures, side
+effects, determinism, targets, and Operation Limits.
 
 **Operation Descriptor**
-The registration authority for an Operation's identity, schemas, metadata, presentation projection, and Lua handler binding. It does not implement native behavior.
+The registration authority for an Operation's identity, schemas, metadata, presentation
+projection, and Lua handler binding. It does not implement native behavior.
 
 **Command Group**
-A CLI navigation grouping based mainly on Aseprite domain language. It does not define a module or Bounded Context.
+A CLI navigation grouping based mainly on Aseprite language. It does not define a
+Domain Module or Bounded Context.
 
 **Open Host Service (OHS)**
 The public service boundary first exposed by the `spa` CLI.
 
 **Published Language (PL)**
-The versioned request, Operation Result, Failure Envelope, metadata, Artifact, and Surface Manifest schemas shared with callers.
+The versioned request, Operation Result, Failure Envelope, metadata, Artifact, and
+Surface Manifest schemas shared with callers.
 
 **Surface Manifest**
-The installed aggregate description of callable Operations. It is the runtime authority for shipped capability.
+The installed aggregate description of callable Operations. It is the runtime authority
+for shipped capability.
 
 **Operation Request**
-The complete typed input to one Operation after public absent, null, and default semantics are resolved.
+The complete typed input to one Operation after public absent, null, and default
+semantics are resolved.
 
 **Operation Result**
-The typed success value of one Operation, including verified domain facts and produced Artifacts.
+The typed success value of one Operation, including verified domain facts and produced
+Artifacts.
 
 **Failure Envelope**
-The disjoint typed failure result containing a stable Failure Code, broad Failure Category, applicable Failure Details, and Diagnostics.
+The disjoint typed failure result containing a stable Failure Code, broad Failure
+Category, applicable Failure Details, and Diagnostics.
 
 **Failure Code**
 A stable machine-oriented identifier used for caller decisions.
 
 **Failure Category**
-A broad stable classification for process exit behavior and coarse caller policy. It does not replace the more specific Failure Code.
+A broad stable classification for process exit behavior and coarse caller policy. It
+does not replace the more specific Failure Code.
 
 **Failure Details**
-Code-specific structured facts needed by a caller to understand or recover from one failure.
+Code-specific structured facts needed by a caller to understand or recover from one
+failure.
 
 **Diagnostics**
-Human-oriented explanatory text and bounded process output. Diagnostics are not a machine contract.
+Human-oriented explanatory text and bounded process output. Diagnostics are not a
+machine contract.
 
 **Execution Kind**
-The side-effect and trust classification of an Operation: `read`, `mutation`, `export`, or `script-run`. Validation is a read purpose, not a separate Execution Kind.
+The side-effect and trust classification of an Operation: `read`, `mutation`, `export`,
+or `script-run`. Validation is a read purpose, not a separate Execution Kind.
 
 **Operation Determinism**
-The declared `deterministic` or `native-stochastic` classification of the result governed by an Operation.
+The declared `deterministic` or `native-stochastic` classification of the result governed
+by an Operation.
 
 **Capability Gap**
-A structured, versioned, evidence-backed fact that the supported Aseprite public non-interactive seams cannot provide a capability faithfully. A Gap can be reopened by new native evidence.
+A structured, versioned, evidence-backed fact that the supported Aseprite public
+non-interactive seams cannot provide a capability faithfully. A Gap can be reopened by
+new native evidence.
 
-### Mutation and validation
+#### Mutation and validation
 
 **Inspection Scope**
-The domain-specific requested coverage of an inspection and the completeness promised for it.
+The domain-specific requested coverage of an inspection and the completeness promised
+for it.
 
 **Validation**
-A read behavior that evaluates declared rules and returns Validation Findings without treating findings as invocation failure.
+A read behavior that evaluates declared rules and returns Validation Findings without
+treating findings as invocation failure.
 
 **Validation Finding**
 One typed rule result associated with an exact domain subject and evidence.
 
 **Postcondition**
-A declared condition that must hold after execution and before Target Commit or Artifact publication.
+A declared condition that must hold after execution and before Target Commit or Artifact
+publication.
 
-**Domain Bound**
-A functional constraint expressed in units intrinsic to an Operation, such as pixels, Tile Cells, Frames, or Plan Steps.
+**Operation Limit**
+A functional limit expressed in units intrinsic to one Operation, such as pixels, Tile
+Cells, Frames, or Plan Steps.
 
 **Execution Guard**
-An adapter-level limit on one Aseprite invocation, such as timeout or captured output. It is not a global quota or policy system.
+An adapter-level limit on one Aseprite invocation, such as timeout or captured output.
+It is not a global quota or policy system.
 
 **Source Sprite File**
 An existing `.aseprite` file opened as mutation input.
@@ -362,83 +533,61 @@ Explicit caller intent to use the Source Sprite File as the Target Sprite File.
 A temporary sibling used for save and verification before publication.
 
 **Target Commit**
-The final replacement of a validated Staged Sprite File into its declared Target Sprite File.
+The final replacement of a validated Staged Sprite File into its declared Target Sprite
+File.
 
 **All-or-Nothing Mutation**
-The guarantee that an ordinary Mutation succeeds for its complete resolved target set or produces no Target Commit.
+The guarantee that an ordinary Mutation succeeds for its complete resolved target set
+or produces no Target Commit.
 
 **Artifact**
-A produced and verified file reported by the owning Operation Result with path, role, format, byte size, and digest.
+A produced and verified file reported by the owning Operation Result with path, role,
+format, byte size, and digest.
 
 **Export Destination**
 The explicit final path and overwrite intent for an exported Artifact.
 
-**Export Image Area**
-The Canvas Rectangle rendered by an Export Image Operation. It is distinct from a Selection Mask.
-
-**Layer Composition**
-The explicit Layer set and native stacking context rendered by an Export Operation. Aseprite remains the compositor.
-
 **Preview Artifact**
-An image Artifact produced for inspection. It supports visual review but does not prove aesthetic quality.
+An image Artifact produced for inspection. It supports visual review but does not prove
+aesthetic quality.
 
-### Raster exchange
-
-**Raster**
-The shared pixel domain used by Image observation/transformation and Paint intent. It is not a competing Image model.
-
-**Pixel Region Snapshot**
-A complete bounded raster value whose serialized pixels use local Image Pixel coordinates from `(0,0)`. An owning Result reports any different source Coordinate Space and source Rectangle separately.
-
-**Pixel Patch**
-A bounded set of explicitly addressed pixel changes that leaves unlisted pixels unchanged.
-
-**Paint Operation**
-An Operation that expresses raster authoring intent against an explicit Cel/Image target.
-
-**Filter Cels Target**
-The Filter-specific native scope that resolves existing Cels from exact Layer and Frame choices. It is not a universal Selector.
-
-**Layer Addressing**
-Operation-specific exact Layer targeting by persistent native UUID when available, current stack path, or a name that is unique in the declared scope.
-
-**Tag Addressing**
-Operation-specific Tag targeting by current index or unique name.
-
-**Slice Addressing**
-Operation-specific Slice targeting by current index or unique name.
-
-**Tileset Addressing**
-Operation-specific Tileset targeting by current index, unique name, or an exactly addressed referencing Tilemap Layer.
-
-### Orchestration and implementation
+#### Orchestration and architecture
 
 **Operation Plan**
-A bounded ordered list of eligible public Operations applied to one Sprite in one Aseprite process and adapter unit of work.
+A bounded ordered list of eligible public Operations applied to one Sprite in one
+Aseprite process and adapter unit of work.
 
 **Plan Step**
 One Operation invocation and its preconditions within an Operation Plan.
 
 **Domain Module**
-The vertical code-ownership envelope for Operations that share domain language and reasons to change. It is not a logical layer or Command Group.
+The vertical code-ownership envelope for Operations that share domain language and
+reasons to change. It is not a logical layer or Command Group.
 
 **Lua Operation Kernel**
-The packaged private handler system that owns core Aseprite creation, editing, inspection, validation, conversion, and export behavior. Standalone and Plan execution use the same handlers.
+The packaged private handler system that owns core Aseprite creation, editing,
+inspection, validation, conversion, and export behavior. Standalone and Plan execution
+use the same handlers.
 
 **Kernel Protocol**
-The private versioned request/response transport between Python and the Lua Operation Kernel.
+The private versioned request/response transport between Python and the Lua Operation
+Kernel.
 
 **Aseprite Adapter**
-The outbound adapter that owns runtime discovery, resources, process launch, Kernel transport, diagnostics, staging integration, and native observations.
+The outbound adapter that owns runtime discovery, resources, process launch, Kernel
+transport, diagnostics, staging integration, and native observations.
 
 **Agent Skill**
-Version-matched guidance that teaches agents how to discover and invoke the installed SPA operation surface.
+Version-matched guidance that teaches agents how to discover and invoke the installed
+SPA Operation surface.
 
 **SPA MCP Adapter**
-An inbound adapter that derives tools from the installed Surface Manifest and invokes the `spa` CLI without owning Operation semantics.
+An inbound adapter that derives tools from the installed Surface Manifest and invokes
+the `spa` CLI without owning Operation semantics.
 
 **Anti-Corruption Layer (ACL)**
-The downstream-owned translation between Asset Pipeline concepts and the public SPA Published Language.
+The downstream-owned translation between Asset Pipeline concepts and the public SPA
+Published Language.
 
 ## Artifact authority matrix
 

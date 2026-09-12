@@ -37,7 +37,7 @@ Mode changes.
   snapshots preserve stored `palette-index` values. No implicit Color Mode change or
   RGBA expansion becomes authoritative.
 - Inline JSON and JSON Artifact forms use the same schema. A value exceeding the
-  inline Domain Bound is emitted as a complete Artifact without truncation or an
+  inline Operation Limit is emitted as a complete Artifact without truncation or an
   alternate encoding.
 - Descriptor schemas validate the transport shape. The fixed Lua Kernel owns
   semantic coverage checks, Color Value compatibility, canonicalization, Image reads,

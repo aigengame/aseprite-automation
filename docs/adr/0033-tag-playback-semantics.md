@@ -27,7 +27,7 @@ current-snapshot targeting and explicit playback or export behavior.
   the Tag and reports the concrete Frame sequence and output loop facts. Those
   facts do not rewrite the Tag.
 - `tag_index` is the one-based position in the current Tag order and is not
-  Persistent Identity.
+  persistent identity.
 - An existing Tag can be addressed by current index or by a name that matches
   exactly once. Missing and ambiguous names fail instead of selecting the first
   match.
