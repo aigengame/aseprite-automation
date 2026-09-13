@@ -1,4 +1,4 @@
-# ADR-0066: Classify deterministic and native-stochastic Operations
+# ADR-0066: Classify Operation Determinism
 
 ## Status
 
@@ -11,10 +11,19 @@ seed. Requiring identical pixels from every Operation would remove Aseprite-equi
 functional capabilities; replacing the generator would create a second semantic
 authority.
 
+The separate `script-run` Execution Kind executes exact caller-owned Lua. Such a script
+can depend on time, files, environment state, or randomness that is neither governed nor
+classified by SPA.
+
 ## Decision
 
 - Every Operation Descriptor declares Operation Determinism, projected through the
   Surface Manifest and Operation Result.
+- `caller-defined` is required for `script-run` and prohibited for every other Execution
+  Kind. It states that SPA makes no claim about the caller's script repeatability or
+  randomness source.
+- `deterministic` and `native-stochastic` are required alternatives for `read`,
+  `mutation`, and `export`; they are prohibited for `script-run`.
 - `deterministic` means that the same validated request, source state, supported
   runtime, and declared environment facts produce the same governed domain result.
   Byte-identical Artifacts require a stronger format-specific declaration.
@@ -36,6 +45,7 @@ authority.
 - Repeatability cannot silently remove a native Aseprite functional capability.
 - Agents can distinguish repeatable results from verified but stochastic native
   results before invocation.
+- Agents can distinguish both from caller-owned Lua whose behavior SPA does not govern.
 - Verification uses exact repeat fixtures where meaningful and native invariants plus
   actual-output evidence for stochastic behavior.
 
@@ -49,6 +59,12 @@ That would exclude Aseprite's native stochastic authoring capabilities for an NF
 
 Aseprite exposes no matching seed contract, so SPA would create a second operation
 semantic.
+
+### Classify caller-owned Lua as deterministic or native-stochastic
+
+Either value can be false for an unrestricted caller script. A dedicated
+`caller-defined` value preserves a uniform Descriptor contract without claiming behavior
+that SPA does not own.
 
 ## Consolidates
 

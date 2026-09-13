@@ -37,7 +37,7 @@ flowchart TB
         Access --> App[Application use cases]
         App --> Core[Core Domain responsibilities]
         App --> Runtime["Aseprite Runtime<br/>Integration"]
-        App --> Files["File and Artifact<br/>adapters"]
+        App --> Files["File Adapter and<br/>Artifact Verifiers"]
         Core -. packaged handler binding .-> Kernel[Lua Operation Kernel]
 
         %% Invisible links stack peer nodes vertically without adding runtime semantics.
@@ -121,7 +121,7 @@ contract. [`CONTEXT.md`](CONTEXT.md#ubiquitous-language) is the terminology auth
 | Subdomain | Classification | Responsibility | Investment rule |
 | --- | --- | --- | --- |
 | Sprite Automation | Core Domain | Agent-facing Aseprite creation, editing, inspection, validation, conversion, export, control, composition, and feedback. | Highest priority; deepen through functional vertical slices. |
-| Aseprite Runtime Integration | Supporting | Runtime and resource discovery, process execution, Kernel transport, staging integration, and native integration facts. | Grow from Core Domain needs and observed runtime variation. |
+| Aseprite Runtime Integration | Supporting | Runtime and resource discovery, process execution, Kernel transport, diagnostics, and native integration facts. | Grow from Core Domain needs and observed runtime variation. |
 | Access Projection | Supporting | CLI presentation, Agent Skill guidance, and MCP projection from one operation surface. | Preserve contract equivalence; do not create a second capability model. |
 | Asset Pipeline Integration | Supporting | Maintain the public SPA boundary used by the downstream-owned Anti-Corruption Layer. | Follow the stable integration commitment without adopting experimental pipeline internals. |
 | Serialization, filesystem, process, and utilities | Generic | Domain-neutral mechanics required by accepted Operations. | Use proportionate solutions; no independent platform roadmap. |
@@ -186,67 +186,51 @@ define a module boundary.
 
 ```mermaid
 flowchart TB
-    subgraph Access[Access Projection]
-        direction TB
-        CLI[CLI]
-        MCP[MCP adapter]
-        Skill[Agent Skill]
-        Skill ~~~ MCP
-    end
-
-    subgraph Application[Application]
-        direction TB
-        Dispatch[Operation dispatch and Preflight]
-        Plan[Operation Plan coordination]
-        Commit[Target Commit and Artifact publication]
-        Descriptors[Per-module Operation Descriptors]
-        Plan ~~~ Commit
-    end
-
-    subgraph Core[Core Domain responsibility areas]
-        direction TB
-        Document[Document and Animation]
-        Raster[Raster Authoring]
-        Color[Color and Palette]
-        Tile[Tile Authoring]
-        Delivery[Delivery]
-        Document ~~~ Raster
-        Raster ~~~ Color
-        Color ~~~ Tile
-        Tile ~~~ Delivery
-    end
-
+    Access["Access Projection<br/>CLI and MCP are sibling inbound adapters<br/>Agent Skill guides the installed surface"]
+    Application["Application<br/>Dispatch · Preflight · Plan · Target Commit<br/>Per-module Operation Descriptors"]
+    Core["Core Domain<br/>Domain Modules and their packaged handlers<br/>Shared Lua Operation Kernel"]
     Ports[Inner-owned ports]
-    Foundation[Generic foundation]
+    Outbound["Outbound adapters<br/>Aseprite Adapter · File Adapter<br/>Format-specific Artifact Verifiers"]
 
-    subgraph Outbound[Outbound adapters]
-        direction TB
-        Runtime[Aseprite adapter and Kernel Protocol]
-        FileAdapter[File and Artifact adapters]
-        Runtime ~~~ FileAdapter
-    end
-
-    Skill -. documents .-> CLI
-    MCP --> CLI
-    Descriptors --> Dispatch
-    Dispatch --> Plan
-    Dispatch --> Commit
-    Bootstrap["Bootstrap composition<br/>binds concrete Access, Application, and Outbound adapters"]
-
-    Bootstrap -. assembles .-> Access
     Access -->|invokes| Application
     Application -->|coordinates| Core
     Application -->|calls| Ports
-    Core --> Foundation
-    Application --> Foundation
-    Outbound -. implements .-> Ports
+    Outbound -->|implements| Ports
 ```
 
-Source dependencies point inward. Inbound adapters invoke Application entry points.
-Application coordinates Domain behavior and ports. Concrete outbound adapters depend
-on the ports they implement; the Domain and Application do not depend on concrete
-process, filesystem, MCP, or CLI types. Bootstrap is the location that knows concrete
-implementations and binds them.
+Solid arrows show permitted source dependency and inward invocation direction. CLI and
+MCP are sibling adapters to the same Descriptor-projected Application contract; neither
+has a source dependency on the other. In the current runtime path, MCP reaches that
+contract through the installed CLI subprocess shown below. Within Application, Dispatch
+invokes the selected use case, Plan coordinates Domain behavior, and Commit uses
+inner-owned ports. Within Outbound, each adapter depends on the applicable inner-owned
+port. Domain and Application source never depends on concrete process, filesystem, MCP,
+or CLI types.
+
+Runtime calls are distinct from those source dependencies:
+
+```mermaid
+flowchart TB
+    MCP[MCP adapter]
+    CLI[Installed CLI]
+    Application[Application entry point]
+    Adapter[Aseprite Adapter]
+    Aseprite[Aseprite]
+    Kernel["Lua Operation Kernel<br/>packaged handler"]
+
+    MCP -. subprocess .-> CLI
+    CLI -. dispatch .-> Application
+    Application -. runtime request .-> Adapter
+    Adapter -. launches .-> Aseprite
+    Aseprite -. invokes .-> Kernel
+```
+
+The dashed graph is runtime flow, not source ownership. Each Domain Module owns its
+applicable packaged handler source and binding; those handlers carry the module's Core
+Operation Semantics inside the shared Lua Operation Kernel. The Aseprite adapter invokes
+the handlers through Aseprite without acquiring their semantics. Bootstrap is the
+composition root that alone knows and binds concrete Access, Application, and Outbound
+implementations.
 
 The diagram is a responsibility map, not a required directory tree. Physical packages
 will follow demonstrated change clusters as vertical slices are implemented.
@@ -285,10 +269,10 @@ frozen package graph.
 
 | Responsibility area | Owns | Important boundary |
 | --- | --- | --- |
-| Document and Animation | Sprite, Layer, Frame, Cel, Tag, Slice, timing, hierarchy, lifecycle, and animation inspection or authoring Operations. | Uses native one-based Frame and object semantics; it does not infer active editor targets. |
+| Document and Animation | Sprite; shared Layer, Frame, and Cel identity, addressing, hierarchy, and existence contracts; feature-declared general Layer/Cel Operations; Tag, Slice, timing, and animation Operations. | It does not claim Tilemap Layer creation and binding or Tilemap Cel/Image content; specialized tile variants depend one-way on the shared contracts. |
 | Raster Authoring | Image observation and transforms, Pixel Snapshot/Patch exchange, Selection value operations, Paint intent, native Tool invocation, native Filters, external raster import, and evidence-gated text rasterization. | Image, Paint, and Filter remain distinct operation families while sharing one pixel and target authority. |
 | Color and Palette | Color Value, Palette Change and Effective Palette behavior, quantization, Color Mode changes, Color Profile assignment/conversion, and Dithering choices. | Preserves native distinctions and makes result-affecting choices explicit. It does not implement a second color engine. |
-| Tile Authoring | Grid, Tileset, Tile, Tile Key, Tilemap, Tile Placement, bounded region exchange, and Tileset lifecycle effects. | Keeps Tile identity, current Tile Index, placement flags, and coordinate spaces distinct. |
+| Tile Authoring | Grid, Tileset, Tile, Tile Key, Tilemap, Tile Placement, Tilemap Layer creation and binding, Tilemap Cel/Image content, bounded region exchange, and established Tileset-coupled lifecycle variants. | Reuses shared Layer/Cel contracts without duplicating them; support for other Layer/Cel variants remains with the owning feature issue until delivered. |
 | Delivery | Static image, animation, sheet, Tileset, preview, and metadata Export Operations with declared destinations and verified Artifacts. | Aseprite renders and encodes; SPA stages, validates, publishes, and reports the complete declared output set. |
 
 An Operation that spans modules is coordinated by Application through public contracts.
@@ -327,6 +311,11 @@ application-composed capability can order multiple ordinary handlers without red
 their semantics. `script run` uses a separate caller-script path. SPA registration,
 identity resolution, and ordinary dispatch cannot use that path to replace, override,
 rewrite, proxy, or bypass an existing ordinary Core Operation.
+
+Every Descriptor declares Operation Determinism. `deterministic` and
+`native-stochastic` apply to `read`, `mutation`, and `export`; only `script-run` can
+declare `caller-defined`. That value states that SPA makes no claim about the caller's
+script repeatability or randomness source. Ordinary Operations cannot use it.
 
 ```mermaid
 flowchart TB
@@ -406,16 +395,23 @@ The Aseprite adapter owns the external integration mechanics:
 Process exit and standard output are evidence, not the public verdict. The Application
 maps all evidence to an Operation Result or Failure Envelope.
 
-### File and Artifact integration
+### File and Artifact verification integration
 
-File adapters own domain-neutral path handling, staging, byte and digest facts, generic
-decoding, and publication mechanics. They support two separate functional boundaries:
+The **File Adapter** owns domain-neutral path handling, staging, existence, byte size,
+digest, publication, and cleanup. It does not decode a File Format or interpret Sprite
+semantics. A format-specific **Artifact Verifier** independently decodes typed observed
+facts from staged Artifact bytes; it does not define the expected result. The owning
+Domain Module defines the expected format and domain facts, and the Application use case
+compares the request, Kernel observations, verifier observations, and applicable
+cross-file facts before publication.
+
+These responsibilities support two separate functional boundaries:
 
 - **Sprite Mutation:** prepare a Staged Sprite File and perform one Target Commit after
   the Application obtains persisted native facts from a close-and-reopen cycle in the
   owning Aseprite invocation.
-- **Export:** stage the complete declared output set, independently validate each file,
-  then publish and report verified Artifacts.
+- **Export:** stage the complete declared output set, decode and compare every expected
+  file, then publish and report verified Artifacts.
 
 These mechanisms do not create a persistent Artifact registry, backup store, audit
 history, or cross-command recovery system.
@@ -478,14 +474,15 @@ flowchart TB
     Inbound["CLI / inbound adapter<br/>Validate and translate request"]
     Preflight["Application use case<br/>Preflight schemas, paths, limits, and eligibility"]
     Discover["Application and Aseprite adapter<br/>Discover compatible runtime"]
-    Stage["Application and File adapter<br/>Prepare Staged Sprite File"]
+    Stage["Application and File Adapter<br/>Prepare Staged Sprite File"]
     Invoke["Aseprite adapter<br/>Invoke bound packaged handler"]
     Resolve["Packaged Lua Kernel in Aseprite<br/>Resolve targets and native side effects"]
     Execute["Packaged Lua Kernel in Aseprite<br/>Execute native transaction and Postconditions"]
     Persist["Packaged Lua Kernel in Aseprite<br/>Save, close, reopen, and observe persisted facts"]
     Evidence["Aseprite adapter to Application<br/>Return Kernel response, process status, and diagnostics"]
-    Verify["Application and File adapter<br/>Validate response, persisted Postconditions, and file facts"]
-    Commit["Application and File adapter<br/>Target Commit"]
+    Verify["Application use case<br/>Validate Kernel response and persisted Postconditions"]
+    FileFacts["File Adapter<br/>Validate staged path, bytes, and digest"]
+    Commit["Application and File Adapter<br/>Target Commit"]
     Result["Caller<br/>Operation Result"]
 
     Request --> Inbound
@@ -498,7 +495,8 @@ flowchart TB
     Execute --> Persist
     Persist --> Evidence
     Evidence --> Verify
-    Verify --> Commit
+    Verify --> FileFacts
+    FileFacts --> Commit
     Commit --> Result
 ```
 
@@ -535,10 +533,12 @@ flowchart TB
     Request[Explicit Export Destinations] --> Expand[Resolve complete expected output set]
     Expand --> Stage[Map to operation-owned staging]
     Stage --> Native[Aseprite renders and encodes through packaged handlers]
-    Native --> Verify[Independently validate every staged file]
-    Verify --> Publish[Publish validated destinations in deterministic order]
+    Native --> Decode[Format-specific Artifact Verifiers decode every staged file]
+    Decode --> Compare["Owning Application use case<br/>Compare request, Kernel, decoded, and cross-file facts"]
+    Compare --> Publish[Publish validated destinations in deterministic order]
     Publish --> Result[Operation Result with Artifact facts]
-    Verify -->|failure| VerifyFailure[Failure Envelope; nothing is published]
+    Decode -->|failure| VerifyFailure[Failure Envelope; nothing is published]
+    Compare -->|failure| VerifyFailure
     Publish -->|failure before any change| PublishFailure[Publication Failure]
     Publish -->|failure after a path changed| PartialFailure[PARTIAL_PUBLICATION with per-path facts]
 ```
@@ -563,12 +563,12 @@ normal explicit `if_exists` policy.
 | --- | --- | --- |
 | Public capability has one registration source. | Operation Descriptor decision and owning Domain Module. | Descriptor projection into CLI, MCP, and Surface Manifest; Skill checks against the installed surface. |
 | Native object and algorithm behavior follows one upstream authority. | Aseprite public semantics and observed native behavior. | Aseprite, invoked and observed by a packaged handler. |
-| Each ordinary Core Operation has one Core Operation Semantics authority. | Owning Domain Module and accepted operation ADR. | Its bound packaged Lua handler. |
+| Each ordinary Core Operation has one Core Operation Semantics authority. | Before delivery, its feature issue owns the exact contract under applicable ADR constraints. After delivery, its Descriptor owns the implemented public contract and binding, while tests own behavior proof. | Its fixed packaged Lua handler is the sole executable Core Operation Semantics authority; Application only invokes and orchestrates it. |
 | Public intent does not depend on hidden editor state. | Owning Operation contract. | Python Preflight plus Kernel target and state handling. |
 | Success and failure are disjoint typed outcomes. | Published Language and result/failure decision. | Application outcome mapping and adapters. |
 | Inspection success is complete for its normalized scope. | Owning inspection Operation. | Kernel observation and Application limit handling. |
 | Ordinary mutation is all-or-nothing for the resolved target set. | Mutation decision and owning Operation. | Kernel transaction, persisted native inspection, and staged Target Commit. |
-| Export success reports a complete verified Artifact set. | Export publication decision and feature contract. | Kernel native export, Artifact adapter validation, and File adapter publication. |
+| Export success reports a complete verified Artifact set. | Export publication decision and feature contract. | Kernel native export; Artifact Verifier decoding; Application semantic comparison; File Adapter publication. |
 | Capability Gaps remain visible and versioned. | Installed runtime facts and owning feature evidence. | Runtime discovery and Surface Manifest generation. |
 
 ## Failure, bounds, and trust

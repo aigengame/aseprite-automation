@@ -13,7 +13,7 @@ The context contains several architectural modules and adapters, but Command Gro
 ## Subdomains
 
 - **Sprite Automation Core Domain:** Aseprite-equivalent sprite capabilities plus agent-facing control, composition, observation, and verification.
-- **Aseprite Runtime Integration Supporting Subdomain:** executable/resource discovery, process execution, Kernel transport, staging, and native integration facts.
+- **Aseprite Runtime Integration Supporting Subdomain:** executable/resource discovery, process execution, Kernel transport, diagnostics, and native integration facts.
 - **Access Projection Supporting Subdomain:** CLI presentation, Agent Skill guidance, MCP projection, and any later accepted access transport derived from the same Published Language.
 - **Asset Pipeline Integration Supporting Subdomain:** translation at the downstream-owned Anti-Corruption Layer and public SPA boundary.
 - **Generic Subdomain:** domain-neutral configuration, serialization, filesystem, and utility code required by accepted features.
@@ -434,7 +434,7 @@ concepts.
 
 **Operation**
 One typed agent-facing SPA capability with declared inputs, outputs, failures, side
-effects, determinism, targets, and Operation Limits.
+effects, targets, Operation Limits, and Operation Determinism.
 
 **Ordinary Core Operation**
 An Operation whose Core Operation Semantics execute through one fixed packaged Lua
@@ -494,8 +494,12 @@ The side-effect and trust classification of an Operation: `read`, `mutation`, `e
 or `script-run`. Validation is a read purpose, not a separate Execution Kind.
 
 **Operation Determinism**
-The declared `deterministic` or `native-stochastic` classification of the result governed
-by an Operation.
+The declared classification of the repeatability guarantee SPA can make for an
+Operation.
+`deterministic` and `native-stochastic` apply to `read`, `mutation`, and `export`.
+`caller-defined` applies only to `script-run` and states that SPA makes no claim about
+the caller's script repeatability or randomness source. Ordinary Operations cannot use
+that value.
 
 **Capability Gap**
 A structured, versioned, evidence-backed fact that the supported Aseprite public
@@ -582,8 +586,17 @@ Kernel.
 
 **Aseprite Adapter**
 The outbound adapter that owns runtime discovery, resources, process launch, Kernel
-transport, diagnostics, staging integration, and transport of native observations
-produced by packaged handlers.
+transport, diagnostics, and transport of native observations produced by packaged
+handlers.
+
+**File Adapter**
+The outbound adapter that owns domain-neutral path handling, staging, file existence,
+byte size, digest, publication, and cleanup. It does not decode a File Format or
+interpret Sprite semantics.
+
+**Artifact Verifier**
+A format-specific outbound adapter that independently decodes typed observed facts from
+staged Artifact bytes. It does not define the expected domain result or publish files.
 
 **Agent Skill**
 Version-matched guidance that teaches agents how to discover and invoke the installed
