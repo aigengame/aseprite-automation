@@ -24,32 +24,32 @@ structured outcomes, and verifiable files while keeping Aseprite responsible for
 native sprite behavior.
 
 ```mermaid
-flowchart LR
-    Agent[AI agent]
-    CI[Continuous integration or local automation]
-    Pipeline[gda Asset Pipeline integration]
+flowchart TB
+    Callers["Callers<br/>AI agent · CI or local automation · gda Asset Pipeline integration"]
 
     subgraph SPA[Sprite Automation Bounded Context]
-        Skill[SPA Agent Skill]
-        MCP[SPA Model Context Protocol adapter]
-        CLI[spa CLI]
-        CLI --> App[Application use cases]
+        direction TB
+        Access["Access Projection<br/>SPA Agent Skill · local MCP adapter · spa CLI"]
+        Access --> App[Application use cases]
         App --> Core[Core Domain responsibilities]
-        App --> Runtime[Aseprite Runtime Integration]
-        App --> Files[File and Artifact adapters]
+        App --> Runtime["Aseprite Runtime<br/>Integration"]
+        App --> Files["File and Artifact<br/>adapters"]
         Core -. packaged handler binding .-> Kernel[Lua Operation Kernel]
+
+        %% Invisible links stack peer nodes vertically without adding runtime semantics.
+        Core ~~~ Runtime
+        Runtime ~~~ Files
     end
 
-    Skill -. guides .-> Agent
-    Agent --> CLI
-    Agent --> MCP
-    MCP --> CLI
-    CI --> CLI
-    Pipeline --> CLI
+    Callers --> Access
     Runtime --> Aseprite[External Aseprite]
     Aseprite -->|executes packaged code| Kernel
     Files --> Workspace[Local workspace]
-    App --> Outcome[Operation Result or Failure Envelope]
+    App --> Outcome["Operation Result or<br/>Failure Envelope"]
+
+    %% Stack external peers so the overview stays narrow on GitHub.
+    Aseprite ~~~ Workspace
+    Workspace ~~~ Outcome
 ```
 
 Arrows in this overview show runtime collaboration and output flow, not source-code
@@ -129,7 +129,7 @@ the design without an accepted functional need and operating evidence.
 ### Context relationships
 
 ```mermaid
-flowchart LR
+flowchart TB
     Aseprite[Aseprite] -->|native language, behavior, formats, and algorithms| SPA[Sprite Automation]
 
     subgraph Pipeline[gda Asset Pipeline]
@@ -183,53 +183,59 @@ define a module boundary.
 ```mermaid
 flowchart TB
     subgraph Access[Access Projection]
+        direction TB
         CLI[CLI]
         MCP[MCP adapter]
         Skill[Agent Skill]
+        Skill ~~~ MCP
     end
 
     subgraph Application[Application]
+        direction TB
         Dispatch[Operation dispatch and Preflight]
         Plan[Operation Plan coordination]
         Commit[Target Commit and Artifact publication]
         Descriptors[Per-module Operation Descriptors]
+        Plan ~~~ Commit
     end
 
     subgraph Core[Core Domain responsibility areas]
+        direction TB
         Document[Document and Animation]
         Raster[Raster Authoring]
         Color[Color and Palette]
         Tile[Tile Authoring]
         Delivery[Delivery]
+        Document ~~~ Raster
+        Raster ~~~ Color
+        Color ~~~ Tile
+        Tile ~~~ Delivery
     end
 
     Ports[Inner-owned ports]
     Foundation[Generic foundation]
 
     subgraph Outbound[Outbound adapters]
+        direction TB
         Runtime[Aseprite adapter and Kernel Protocol]
         FileAdapter[File and Artifact adapters]
+        Runtime ~~~ FileAdapter
     end
 
     Skill -. documents .-> CLI
     MCP --> CLI
-    CLI --> Descriptors
     Descriptors --> Dispatch
     Dispatch --> Plan
     Dispatch --> Commit
-    Dispatch --> Core
-    Plan --> Core
-    Dispatch --> Ports
-    Commit --> Ports
+    Bootstrap["Bootstrap composition<br/>binds concrete Access, Application, and Outbound adapters"]
+
+    Bootstrap -. assembles .-> Access
+    Access -->|invokes| Application
+    Application -->|coordinates| Core
+    Application -->|calls| Ports
     Core --> Foundation
-    Dispatch --> Foundation
-    Runtime -. implements .-> Ports
-    FileAdapter -. implements .-> Ports
-    Bootstrap[Bootstrap composition] -. binds .-> CLI
-    Bootstrap -. binds .-> MCP
-    Bootstrap -. binds .-> Dispatch
-    Bootstrap -. binds .-> Runtime
-    Bootstrap -. binds .-> FileAdapter
+    Application --> Foundation
+    Outbound -. implements .-> Ports
 ```
 
 Source dependencies point inward. Inbound adapters invoke Application entry points.
@@ -319,16 +325,25 @@ identity resolution, and ordinary dispatch cannot use that path to replace, over
 rewrite, proxy, or bypass an existing ordinary Core Operation.
 
 ```mermaid
-flowchart LR
+flowchart TB
     Descriptor[Operation Descriptor] --> Request[Operation Request, Operation Result, and Failure Envelope schemas]
     Descriptor --> CLICommand[CLI command]
     Descriptor --> Renderer[Human renderer]
     Descriptor --> Execution[Execution definition]
     Descriptor --> Manifest[Installed Surface Manifest]
+
+    %% Invisible links stack descriptor facets vertically without changing ownership.
+    Request ~~~ CLICommand
+    CLICommand ~~~ Renderer
+    Renderer ~~~ Execution
+    Execution ~~~ Manifest
+
     Execution -->|ordinary Core Operation| Binding[One packaged Lua handler]
     Execution -->|Application use case| AppPath[Application execution]
     AppPath -. can order ordinary capabilities .-> Binding
     Execution -->|caller-owned Lua| ScriptPath[script run adapter path]
+    AppPath ~~~ Binding
+    Binding ~~~ ScriptPath
     Manifest --> MCPTool[MCP tool projection]
     SkillDocs[Version-matched Agent Skill] -. teaches .-> CLICommand
     Manifest -. installed capability checks .-> SkillDocs
@@ -454,35 +469,36 @@ target-count rules, and Operation Results report current address and impact fact
 ### Ordinary mutation
 
 ```mermaid
-sequenceDiagram
-    participant Caller
-    participant CLI as CLI / inbound adapter
-    participant App as Application use case
-    participant Files as File adapter
-    participant Runtime as Aseprite adapter
-    participant Kernel as Packaged Lua Kernel in Aseprite
+flowchart TB
+    Request["Caller<br/>Typed Operation Request"]
+    Inbound["CLI / inbound adapter<br/>Validate and translate request"]
+    Preflight["Application use case<br/>Preflight schemas, paths, limits, and eligibility"]
+    Discover["Application and Aseprite adapter<br/>Discover compatible runtime"]
+    Stage["Application and File adapter<br/>Prepare Staged Sprite File"]
+    Invoke["Aseprite adapter<br/>Invoke bound packaged handler"]
+    Resolve["Packaged Lua Kernel in Aseprite<br/>Resolve targets and native side effects"]
+    Execute["Packaged Lua Kernel in Aseprite<br/>Execute native transaction and Postconditions"]
+    Persist["Packaged Lua Kernel in Aseprite<br/>Save, close, reopen, and observe persisted facts"]
+    Evidence["Aseprite adapter to Application<br/>Return Kernel response, process status, and diagnostics"]
+    Verify["Application and File adapter<br/>Validate response, persisted Postconditions, and file facts"]
+    Commit["Application and File adapter<br/>Target Commit"]
+    Result["Caller<br/>Operation Result"]
 
-    Caller->>CLI: Typed Operation Request
-    CLI->>App: Validated application intent
-    App->>App: Preflight schemas, paths, limits, and eligibility
-    App->>Runtime: Discover compatible runtime
-    App->>Files: Prepare Staged Sprite File
-    App->>Runtime: Invoke bound packaged handler
-    Runtime->>Kernel: Versioned Kernel request
-    Kernel->>Kernel: Resolve targets and native side effects
-    Kernel->>Kernel: Execute native transaction and Postconditions
-    Kernel->>Kernel: Save and close the staged Sprite
-    Kernel->>Kernel: Reopen staged Sprite and observe persisted facts
-    Kernel-->>Runtime: Kernel response with persisted native facts
-    Runtime-->>App: Response, process status, and diagnostics
-    App->>App: Validate Kernel response and persisted Postconditions
-    App->>Files: Validate domain-neutral file facts
-    Files-->>App: File facts
-    App->>Files: Target Commit
-    App-->>Caller: Operation Result
-
-    Note over App,Files: Any failure before publication produces no Target Commit
+    Request --> Inbound
+    Inbound --> Preflight
+    Preflight --> Discover
+    Discover --> Stage
+    Stage --> Invoke
+    Invoke --> Resolve
+    Resolve --> Execute
+    Execute --> Persist
+    Persist --> Evidence
+    Evidence --> Verify
+    Verify --> Commit
+    Commit --> Result
 ```
+
+Any failure before publication produces a Failure Envelope and no Target Commit.
 
 An ordinary multi-target Mutation resolves and validates its complete effective target
 set before it changes the Sprite. Native Linked Cel or Tileset effects are included in
@@ -511,7 +527,7 @@ workflow, retry, and partial success do not enter the Plan model.
 ### Export publication
 
 ```mermaid
-flowchart LR
+flowchart TB
     Request[Explicit Export Destinations] --> Expand[Resolve complete expected output set]
     Expand --> Stage[Map to operation-owned staging]
     Stage --> Native[Aseprite renders and encodes through packaged handlers]
