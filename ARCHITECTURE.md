@@ -18,10 +18,14 @@ reflected here after its owning artifact changes.
 
 ## Architecture at a glance
 
-SPA is a local, command-line interface (CLI)-first automation toolchain around an
-externally installed Aseprite. It gives agents typed Operations, explicit targets,
-structured outcomes, and verifiable files while keeping Aseprite responsible for
-native sprite behavior.
+SPA is an **Aseprite automation toolchain for AI agents**. Its business capability is
+equivalent to Aseprite's: it provides agent-facing mechanisms for sprite creation,
+editing, inspection, validation, conversion, and export, and develops these functional
+capabilities broadly and deeply for agent use.
+
+SPA exposes those capabilities as typed Operations with explicit targets, structured
+outcomes, and verifiable Artifacts. It invokes an externally installed Aseprite, which
+remains authoritative for native sprite behavior.
 
 ```mermaid
 flowchart TB
