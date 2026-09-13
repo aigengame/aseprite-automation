@@ -27,10 +27,18 @@ Non-functional work must trace to an accepted functional slice and an observed
 operating need. It has no independent platform roadmap and does not justify speculative
 infrastructure for scale, distribution, tenancy, governance, or compatibility.
 
-The current CLI and subprocess MCP path assume a trusted local caller, workspace,
-packaged Operation set, and Aseprite installation. SPA does not add authentication,
-accounts, roles, authorization policy, audit-history storage, event sourcing,
-distributed consistency or locks, generalized recovery infrastructure, service
-governance, multi-tenancy, or a generic sandbox. Per-operation evidence, native
-transactions, staged commit, target addressing, process control, and diagnostics remain
-part of the functional behavior they support rather than becoming such platforms.
+The current CLI and local MCP path—stdio between client and adapter, with CLI subprocess
+invocation behind the adapter—assume a trusted caller, workspace, packaged Operation set,
+and Aseprite installation. The current delivery plan has no standalone REST API or remote
+HTTP service. HTTP is not prohibited in principle: an accepted functional slice can add
+bounded Artifact/resource access or MCP transport as an Access Projection over the same
+Published Language and Application use cases.
+
+SPA does not add authentication, accounts, roles, authorization policy, audit-history
+storage, event sourcing, distributed consistency or locks, generalized recovery
+infrastructure, service governance, multi-tenancy, or a generic sandbox without a
+functional requirement and observed operating need. A future network-facing slice must
+state the trust and deployment boundary it actually creates and add only the supporting
+behavior required by that boundary. Per-operation evidence, native transactions, staged
+commit, target addressing, process control, and diagnostics remain part of the
+functional behavior they support rather than becoming such platforms.

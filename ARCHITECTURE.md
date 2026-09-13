@@ -68,9 +68,12 @@ discover
 
 The create/edit and inspect/validate steps repeat as the agent refines an asset.
 
-The `spa` CLI is the first Open Host Service. The Agent Skill and Model Context
-Protocol (MCP) adapter project the installed CLI surface instead of defining parallel
-behavior. REST/HTTP is outside the current boundary.
+The `spa` CLI is the first Open Host Service. The Agent Skill and current local Model
+Context Protocol (MCP) adapter project the installed CLI surface instead of defining
+parallel behavior. The current delivery plan does not include a standalone REST API or
+remote HTTP service. HTTP is not excluded as a future transport: a validated functional
+workflow can add bounded Artifact/resource access or MCP transport as another Access
+Projection over the same Published Language and Application use cases.
 
 ## Architecture drivers
 
@@ -254,7 +257,7 @@ and dependencies in project metadata and its lockfile.
 | Ordinary Core Operations | Packaged Lua handlers | Core Operation Semantics and native mapping executed through Aseprite. |
 | Aseprite integration | External `aseprite --batch --script` | Native document, Tool, Filter, color, and export behavior. |
 | Private transport | Versioned JSON request and response files | Data exchange through `--script-param`, separate from diagnostics. |
-| Agent access | Version-matched Skill and subprocess MCP adapter | Guidance and equivalent tool projection from the installed surface. |
+| Agent access | Version-matched Skill and local stdio MCP adapter with CLI subprocess invocation | Guidance and equivalent tool projection from the installed surface. |
 
 These choices can change when implementation or distribution evidence requires it.
 The Bounded Context, Published Language, and behavior authority do not depend on one
@@ -400,14 +403,23 @@ history, or cross-command recovery system.
 
 ### Access Projection
 
-- The **CLI** is the public execution channel and JSON ABI.
+- The **CLI** is the current primary public execution channel and JSON ABI.
 - The **Agent Skill** teaches discovery and the edit-observe-verify-export loop for the
   installed surface.
 - The **MCP adapter** reads the Surface Manifest, invokes `spa`, and relays equivalent
   requests and outcomes.
 
+The initial MCP slice uses stdio between the MCP client and adapter. The adapter invokes
+the installed `spa` CLI as a subprocess; it does not require a REST or HTTP intermediary.
+MCP image and resource content is projected through MCP itself and does not require an
+HTTP file service.
+
 MCP does not call the Lua Kernel directly and does not own schemas, failure meanings, or
-feature taxonomy. A new access channel must project the same Published Language.
+feature taxonomy. A later MCP Streamable HTTP transport or bounded HTTP resource adapter
+would be a sibling inbound adapter, not a mandatory `MCP -> REST -> CLI` layer. Every new
+access channel must project the same Published Language and cannot become an Operation
+semantics authority. Network-facing requirements enter the design only with the
+functional slice that creates them.
 
 ### Asset Pipeline boundary
 

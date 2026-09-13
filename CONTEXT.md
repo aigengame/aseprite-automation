@@ -14,7 +14,7 @@ The context contains several architectural modules and adapters, but Command Gro
 
 - **Sprite Automation Core Domain:** Aseprite-equivalent sprite capabilities plus agent-facing control, composition, observation, and verification.
 - **Aseprite Runtime Integration Supporting Subdomain:** executable/resource discovery, process execution, Kernel transport, staging, and native integration facts.
-- **Access Projection Supporting Subdomain:** CLI presentation, Agent Skill guidance, and MCP projection from the same Published Language.
+- **Access Projection Supporting Subdomain:** CLI presentation, Agent Skill guidance, MCP projection, and any later accepted access transport derived from the same Published Language.
 - **Asset Pipeline Integration Supporting Subdomain:** translation at the downstream-owned Anti-Corruption Layer and public SPA boundary.
 - **Generic Subdomain:** domain-neutral configuration, serialization, filesystem, and utility code required by accepted features.
 
@@ -28,7 +28,7 @@ Aseprite is the upstream language and behavior authority. SPA follows its object
 
 ### SPA Open Host Service
 
-The `spa` CLI exposes the Sprite Automation Open Host Service and Published Language. Agent Skill and MCP access project the installed CLI surface and do not maintain independent domain contracts.
+The `spa` CLI first exposes the Sprite Automation Open Host Service and Published Language. Agent Skill and current MCP access project the installed CLI surface and do not maintain independent domain contracts. A later accepted transport remains an Access Projection over the same Published Language; it does not create another domain or Operation authority.
 
 ### Asset Pipeline downstream
 
@@ -40,7 +40,7 @@ gda owns Godot import, engine, and runtime evidence. SPA validation remains evid
 
 ## Architecture model
 
-- **Inbound adapters** translate CLI or MCP requests into Application use cases.
+- **Inbound adapters** translate CLI, MCP, or later accepted transport requests into Application use cases.
 - **Application use cases** coordinate domain rules, Operation Descriptors, ports, packaged Kernel capabilities, staging, and Artifact publication.
 - **Domain Modules** own cohesive vertical feature slices across contract, domain, application, presentation, and Lua binding responsibilities.
 - **Outbound ports** are owned by the inner contract that needs external behavior.

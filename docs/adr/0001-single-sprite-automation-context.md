@@ -19,7 +19,9 @@ The context has these directional relationships:
   headless-runtime differences behind its public automation contract.
 - SPA owns explicit targeting, orchestration, observation, validation, Capability
   Gaps, structured outcomes, and Artifact facts for sprite automation. Its CLI is the
-  Open Host Service and its schemas form the Published Language.
+  first exposure of the Open Host Service, and its schemas form the Published Language.
+  MCP and any later accepted access transport project that language as inbound adapters;
+  they do not own another capability or domain model.
 - The gda Asset Pipeline is a downstream consumer. Its Anti-Corruption Layer translates
   the public SPA contract into pipeline concepts. SPA does not import pipeline-internal
   models or depend on its experimental command and type names.
