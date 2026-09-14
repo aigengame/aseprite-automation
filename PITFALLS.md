@@ -135,3 +135,21 @@ another environment can have different capabilities._
   restore `PATH` from a known-good value before retrying. Treat the original failure as
   shell-environment evidence rather than evidence that each missing command was removed.
 - **Last verified:** 2026-09-10 with zsh on macOS.
+
+## Mermaid CLI cannot find or launch its browser
+
+- **Applies when:** Mermaid CLI runs through a temporary `npx` environment that has no
+  compatible downloaded browser, or a managed sandbox prevents Puppeteer from launching
+  an installed browser.
+- **Symptom:** Rendering fails before parsing the diagram with `Could not find
+  chrome-headless-shell` or `Failed to launch the browser process`.
+- **Cause:** Mermaid CLI uses Puppeteer for rendering. Its configured cache has no
+  compatible browser executable, or the current permission scope blocks the browser
+  process.
+- **Prevention:** Confirm an available browser executable and set
+  `PUPPETEER_EXECUTABLE_PATH=<browser-executable>`. Use an execution scope that permits
+  the headless browser process when the managed environment requires it.
+- **Recovery:** Retry the same render with the explicit browser path and required process
+  permission. Treat a browser-launch failure as environment evidence, not Mermaid syntax
+  evidence.
+- **Last verified:** 2026-09-14 with Mermaid CLI 11.17.0 and local Chrome on macOS.
