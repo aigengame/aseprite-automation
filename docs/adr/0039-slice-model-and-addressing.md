@@ -4,8 +4,10 @@
 
 Accepted
 
-Issue #40 owns the exact feature contract, runtime-specific Capability Gap,
-and acceptance.
+Issue #40 owns the exact planned feature contract, acceptance, evidence requirements,
+provenance links, curated evidence summaries, and runtime-specific candidate-gap
+handling. Tests and evidence artifacts own executed proof; the installed Surface
+Manifest owns installed Capability Gaps.
 
 ## Context
 

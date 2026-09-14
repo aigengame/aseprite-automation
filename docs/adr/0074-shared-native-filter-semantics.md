@@ -96,9 +96,11 @@ installed Capability Gaps.
   and structured-result decisions apply. Results expose the effective target,
   Selection, Channels, application and Palette basis where applicable, unique mutated
   Images, all affected Linked Cels, and persisted observations.
-- Exact parameters, allowed combinations, result fields, version gates, tests, and
-  Capability Gap evidence belong to the owning feature issue until delivery and to the
-  installed Operation Descriptor and Surface Manifest after delivery.
+- Exact planned parameters, allowed combinations, result fields, version constraints,
+  evidence requirements, provenance links, curated evidence summaries, and candidate-gap
+  handling belong to the owning feature issue. The installed Operation Descriptor owns
+  the implemented contract and version constraints. Tests and evidence artifacts own
+  executed proof; the Surface Manifest owns installed Capability Gaps.
 
 ## Consequences
 

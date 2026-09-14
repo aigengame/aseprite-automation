@@ -25,7 +25,7 @@ is never reported as a committed Target.
 
 The Application coordinates this validation. Before the one Aseprite invocation
 returns, packaged handlers close, reopen, and inspect the staged Sprite when an
-Operation requires persisted native facts. The Aseprite adapter owns process and
+Operation requires persisted native facts. The Aseprite Adapter owns process and
 protocol mechanics. The File Adapter validates domain-neutral file facts and performs
 the Target Commit; it does not interpret Aseprite document semantics.
 

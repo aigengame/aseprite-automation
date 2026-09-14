@@ -21,7 +21,7 @@ whose behavior is implemented by an Application use case can have no Kernel bind
 application-composed capability can select and order multiple packaged Ordinary Core
 Operation handlers without redefining their semantics.
 
-The Aseprite adapter and Lua Operation Kernel communicate through a versioned private
+The Aseprite Adapter and Lua Operation Kernel communicate through a versioned private
 Kernel Protocol. Public defaults and null semantics are resolved before transport, and
 the adapter translates protocol values into the Published Language. Private
 application orchestration can select and order packaged handlers, but it does not

@@ -231,7 +231,7 @@ flowchart TB
 
 The dashed graph is runtime flow, not source ownership. Each Domain Module owns its
 applicable packaged handler source and binding; those handlers carry the module's Core
-Operation Semantics inside the shared Lua Operation Kernel. The Aseprite adapter invokes
+Operation Semantics inside the shared Lua Operation Kernel. The Aseprite Adapter invokes
 the handlers through Aseprite without acquiring their semantics. Bootstrap is the
 composition root that alone knows and binds concrete Access, Application, and Outbound
 implementations.
@@ -387,18 +387,18 @@ for exact caller-owned Lua and does not inherit Ordinary Core Operation guarante
 
 ### Aseprite Runtime Integration
 
-The Aseprite adapter owns the external integration mechanics:
+The Aseprite Adapter owns the external integration mechanics:
 
 - executable and resource discovery;
-- Aseprite/API version facts and Capability Gap evidence;
+- collection and transport of Aseprite/API version and native-capability observations;
 - `--batch --script` process launch;
 - the versioned Kernel Protocol and transport files;
 - process exit and bounded diagnostic capture;
 - process-environment and transport-file cleanup; and
 - process, protocol, and runtime-integration observations required by an Operation.
 
-Process exit and standard output are evidence, not the public verdict. The Application
-maps all evidence to an Operation Result or Failure Envelope.
+Process exit and standard output are runtime observations, not the public verdict. The
+Application maps those observations to an Operation Result or Failure Envelope.
 
 ### File and Artifact verification integration
 
@@ -479,13 +479,13 @@ flowchart TB
     Request["Caller<br/>Typed Operation Request"]
     Inbound["CLI / inbound adapter<br/>Validate and translate request"]
     Preflight["Application use case<br/>Preflight schemas, paths, limits, and eligibility"]
-    Discover["Application and Aseprite adapter<br/>Discover compatible runtime"]
+    Discover["Application and Aseprite Adapter<br/>Discover compatible runtime"]
     Stage["Application and File Adapter<br/>Prepare Staged Sprite File"]
-    Invoke["Aseprite adapter<br/>Invoke bound packaged handler"]
+    Invoke["Aseprite Adapter<br/>Invoke bound packaged handler"]
     Resolve["Packaged Lua Kernel in Aseprite<br/>Resolve targets and native side effects"]
     Execute["Packaged Lua Kernel in Aseprite<br/>Execute native transaction and Postconditions"]
     Persist["Packaged Lua Kernel in Aseprite<br/>Save, close, reopen, and observe persisted facts"]
-    Evidence["Aseprite adapter to Application<br/>Return Kernel response, process status, and diagnostics"]
+    Evidence["Aseprite Adapter to Application<br/>Return Kernel response, process status, and diagnostics"]
     Verify["Application use case<br/>Validate Kernel response and persisted Postconditions"]
     FileFacts["File Adapter<br/>Validate staged path, bytes, and digest"]
     Commit["Application and File Adapter<br/>Target Commit"]
@@ -571,13 +571,13 @@ normal explicit `if_exists` policy.
 | --- | --- | --- |
 | Public capability has one registration source. | Operation Descriptor. | Descriptor projection into CLI, MCP, and Surface Manifest; Agent Skill checks against the installed surface. |
 | Native object and algorithm behavior follows one upstream authority. | Aseprite public semantics and native behavior. | Aseprite, invoked and observed by a packaged handler. |
-| Each Ordinary Core Operation has one Core Operation Semantics authority. | Before delivery, its feature issue owns the exact contract under applicable ADR constraints. After delivery, its Descriptor owns the implemented public contract and binding, while tests own behavior proof. | Its fixed packaged Lua handler is the sole executable Core Operation Semantics authority; Application only invokes and orchestrates it. |
+| Each Ordinary Core Operation has one Core Operation Semantics authority. | Before delivery, its feature issue owns the exact contract under applicable ADR constraints. After delivery, its Descriptor owns the implemented public contract and binding, while tests and evidence artifacts own executed behavior proof. | Its fixed packaged Lua handler is the sole executable Core Operation Semantics authority; Application only invokes and orchestrates it. |
 | Public intent does not depend on hidden editor state. | Owning Operation contract. | Python Preflight plus Kernel target and state handling. |
 | Success and failure are disjoint typed outcomes. | Published Language and result/failure decision. | Application outcome mapping and adapters. |
 | Inspection success is complete for its normalized scope. | Owning inspection Operation. | Kernel observation and Application limit handling. |
 | An Ordinary Core Operation with Execution Kind `mutation` is all-or-nothing for its resolved target set. | Mutation decision and owning Operation. | Kernel transaction, persisted native inspection, and staged Target Commit. |
 | Export success reports a complete verified Artifact set. | Export publication decision and feature contract. | Kernel native export; Artifact Verifier decoding; Application semantic comparison; File Adapter publication. |
-| Capability Gaps remain visible and versioned. | Installed runtime facts and owning feature evidence. | Runtime discovery and Surface Manifest generation. |
+| Capability Gaps remain visible and versioned. | Installed Surface Manifest for installed Capability Gaps; feature issue for planned candidate-gap handling and evidence requirements. | Aseprite Adapter collection of runtime observations; tests and evidence artifacts retain executed proof; Surface Manifest generation reports installed Gaps. |
 
 ## Failure, bounds, and trust
 

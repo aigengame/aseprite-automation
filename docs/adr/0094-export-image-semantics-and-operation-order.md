@@ -12,7 +12,9 @@ Accepted
 Issue #7 owns the initial PNG preserve tracer. Issue #59 owns the expanded Export Image
 Area, Layer Composition, color, Color Profile, Background, and PNG capability matrix.
 Their shared Operation Descriptor owns the implemented request variants and result
-fields; each issue owns its feature evidence and acceptance tests.
+fields. Each issue owns planned acceptance, evidence requirements, provenance links,
+and curated evidence summaries. Tests and evidence artifacts own executed assertions
+and results.
 
 ## Context
 

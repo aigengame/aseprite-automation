@@ -5,8 +5,10 @@
 Accepted
 
 This ADR consolidates the durable cross-feature decisions from ADR-0036 and
-ADR-0037. Issues #30 and #31 own exact feature contracts, runtime-specific
-gaps, and acceptance.
+ADR-0037. Issues #30 and #31 own exact planned feature contracts, acceptance,
+evidence requirements, provenance links, curated evidence summaries, and
+runtime-specific candidate-gap handling. Tests and evidence artifacts own executed
+proof; the installed Surface Manifest owns installed Capability Gaps.
 
 ## Context
 

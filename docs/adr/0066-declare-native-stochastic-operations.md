@@ -70,5 +70,8 @@ that SPA does not own.
 
 This ADR retains the cross-feature Operation Determinism decision previously mixed with
 the Spray feature contract and repeated by ADR-0067, ADR-0069, and ADR-0073. Issue #29
-owns Spray and Jumble contracts and Capability Gaps; issue #28 owns deterministic
-Gradient, Contour, and Blur delivery evidence.
+owns the planned Spray and Jumble contracts, evidence requirements, and candidate-gap
+handling; issue #28 owns the planned deterministic Gradient, Contour, and Blur
+contracts and evidence requirements. The issues own provenance links and curated
+evidence summaries. Tests and evidence artifacts own executed proof; the installed
+Surface Manifest owns installed Capability Gaps.

@@ -24,6 +24,6 @@ operation-specific rather than forming a universal cursor, Observation Envelope,
 Inspection Result base model.
 
 Exceeding an Operation Limit returns a typed failure with the applicable allowed range.
-The Aseprite adapter separately owns process timeout and captured-output Execution
+The Aseprite Adapter separately owns process timeout and captured-output Execution
 Guards. These guards preserve execution and observation but do not create caller-facing
 quotas or centralized resource governance.
