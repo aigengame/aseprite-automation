@@ -575,7 +575,7 @@ normal explicit `if_exists` policy.
 | Public intent does not depend on hidden editor state. | Owning Operation contract. | Python Preflight plus Kernel target and state handling. |
 | Success and failure are disjoint typed outcomes. | Published Language and result/failure decision. | Application outcome mapping and adapters. |
 | Inspection success is complete for its normalized scope. | Owning inspection Operation. | Kernel observation and Application limit handling. |
-| An Ordinary Core Operation with Execution Kind `mutation` is all-or-nothing for its resolved target set. | Mutation decision and owning Operation. | Kernel transaction, persisted native inspection, and staged Target Commit. |
+| An Ordinary Core Operation with Execution Kind `mutation` is all-or-nothing for its resolved target set. | Mutation decision and owning Operation. | Kernel transaction, persisted native inspection, Staged Sprite File preparation, and Target Commit. |
 | Export success reports a complete verified Artifact set. | Export publication decision and feature contract. | Kernel native export; Artifact Verifier decoding; Application semantic comparison; File Adapter publication. |
 | Capability Gaps remain visible and versioned. | Installed Surface Manifest for installed Capability Gaps; feature issue for planned candidate-gap handling and evidence requirements. | Aseprite Adapter collection of runtime observations; tests and evidence artifacts retain executed proof; Surface Manifest generation reports installed Gaps. |
 
