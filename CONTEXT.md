@@ -1,6 +1,8 @@
 # Sprite Automation
 
-This document is the Ubiquitous Language and context-routing authority for Aseprite Automation. It defines shared terms and ownership boundaries. The [Artifact authority matrix](#artifact-authority-matrix) routes every product, design, delivery, implementation, and installed-runtime fact to one owning artifact.
+This document is the Ubiquitous Language and strategic domain-model authority for Aseprite Automation. It defines shared terms, the Sprite Automation Bounded Context, Subdomains, context relationships, and strategic ownership boundaries. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) owns repository artifact governance and projection rules.
+
+`SPA` is the short project name used in documentation; `spa` is the executable.
 
 SPA shares Aseprite terminology when Aseprite already names a concept, extends that language only when agent automation needs an explicit public meaning, and defines SPA-owned terms for its automation contracts and architecture. SPA does not create a synonym for an equivalent Aseprite concept.
 
@@ -8,7 +10,7 @@ SPA shares Aseprite terminology when Aseprite already names a concept, extends t
 
 SPA has one **Sprite Automation Bounded Context**. It owns agent-facing creation, editing, inspection, validation, conversion, and export of Aseprite visual assets.
 
-The context contains several architectural modules and adapters, but Command Groups, Domain Modules, CLI, MCP, Agent Skill, Lua Kernel, validation, and export are not separate Bounded Contexts.
+The context contains several architectural modules and adapters, but Command Groups, Domain Modules, the command-line interface (CLI), Model Context Protocol (MCP), Agent Skill, Lua Kernel, validation, and export are not separate Bounded Contexts.
 
 ## Subdomains
 
@@ -28,26 +30,21 @@ Aseprite is the upstream language and behavior authority. SPA follows its object
 
 ### SPA Open Host Service
 
-The `spa` CLI first exposes the Sprite Automation Open Host Service and Published Language. Agent Skill and current MCP access project the installed CLI surface and do not maintain independent domain contracts. A later accepted transport remains an Access Projection over the same Published Language; it does not create another domain or Operation authority.
+The `spa` CLI first exposes the Sprite Automation Open Host Service and Published Language. The Agent Skill and planned initial MCP access project the installed CLI surface and do not maintain independent domain contracts. A later accepted transport remains an Access Projection over the same Published Language; it does not create another domain or Operation authority.
 
 ### Asset Pipeline downstream
 
-The developing gda Asset Pipeline consumes SPA through its own Anti-Corruption Layer and the public SPA JSON ABI. The pipeline owns workflow order, concept/reference handoff, produced-file roles, installation, retry, and project acceptance. Its validation-stage commands and tactical abstractions can change without changing SPA's integration commitment.
+The developing gda Asset Pipeline consumes SPA through its own Anti-Corruption Layer and the public `spa` CLI JSON contract. The pipeline owns workflow order, concept/reference handoff, produced-file roles, installation, retry, and project acceptance. Its validation-stage commands and tactical abstractions can change without changing SPA's integration commitment.
 
 ### gda downstream evidence
 
 gda owns Godot import, engine, and runtime evidence. SPA validation remains evidence about Sprite/Aseprite output and does not become a Godot runtime claim.
 
-## Architecture model
+## Architecture projection
 
-- **Inbound adapters** translate CLI, MCP, or later accepted transport requests into Application use cases.
-- **Application use cases** coordinate domain rules, Operation Descriptors, ports, packaged Kernel capabilities, staging, and Artifact publication.
-- **Domain Modules** own cohesive vertical feature slices across contract, domain, application, presentation, and Lua binding responsibilities.
-- **Outbound ports** are owned by the inner contract that needs external behavior.
-- **Concrete adapters** implement Aseprite, filesystem, clock, digest, and other external behavior behind those ports.
-- **Bootstrap composition** binds concrete adapters and entry points.
-
-Source dependencies point inward from inbound adapters and outward implementations toward inner-owned ports. Domain Modules do not depend on concrete adapters or each other cyclically. Application orchestration may compose several modules through explicit contracts.
+[`ARCHITECTURE.md`](ARCHITECTURE.md) derives the integrated module, dependency,
+contract, and execution view from this strategic model and the accepted ADRs. It does
+not create a second domain or decision authority.
 
 ## Ubiquitous Language
 
@@ -443,7 +440,7 @@ handler. It excludes capabilities implemented wholly by Application use cases an
 
 **Operation Descriptor**
 The registration authority for a structured public capability's identity, schemas,
-metadata, presentation projection, and execution definition. An ordinary Core
+metadata, presentation projection, and execution definition. An Ordinary Core
 Operation binds one packaged Lua handler; another capability can bind an Application
 use case or the separate `script run` adapter path without a Kernel binding.
 
@@ -498,8 +495,8 @@ The declared classification of the repeatability guarantee SPA can make for an
 Operation.
 `deterministic` and `native-stochastic` apply to `read`, `mutation`, and `export`.
 `caller-defined` applies only to `script-run` and states that SPA makes no claim about
-the caller's script repeatability or randomness source. Ordinary Operations cannot use
-that value.
+the caller's script repeatability or randomness source. All other Execution Kinds
+prohibit that value.
 
 **Capability Gap**
 A structured, versioned, evidence-backed fact that the supported Aseprite public
@@ -548,8 +545,8 @@ The final replacement of a validated Staged Sprite File into its declared Target
 File.
 
 **All-or-Nothing Mutation**
-The guarantee that an ordinary Mutation succeeds for its complete resolved target set
-or produces no Target Commit.
+The guarantee that an Ordinary Core Operation with Execution Kind `mutation` succeeds
+for its complete resolved target set or produces no Target Commit.
 
 **Artifact**
 A produced and verified file reported by the owning Operation Result with path, role,
@@ -612,48 +609,5 @@ Published Language.
 
 ## Artifact authority matrix
 
-These artifacts form orthogonal authority dimensions. A fact is stated normatively in
-one row; other artifacts link to it or provide a clearly identified projection.
-
-| Artifact | Unique authority | Must not own | Depends on or projects |
-| --- | --- | --- | --- |
-| [PRD #1](https://github.com/aigengame/aseprite-automation/issues/1) | Product problem, definition, outcomes, user stories, product-level constraints and non-goals, and prototype provenance. | Durable architecture decisions, detailed prototype evidence, exact feature contracts, acceptance matrices, delivery status, or implementation order. | Supplies requirements to feature issues and constraints to strategic design. |
-| `CONTEXT.md` | Ubiquitous Language, Bounded Context, subdomains, context relationships, concise architecture model, and this routing matrix. | Feature acceptance, command schemas, runtime support status, or implementation detail. | Constrains ADR language, feature issues, implementation, and derived documentation. |
-| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Integrated user-facing synthesis and navigation of the current accepted architecture, including current module responsibility and flow views. | New or durable architecture decisions, product requirements, exact feature contracts, delivery status, or installed-runtime claims. | Derives from `CONTEXT.md`, accepted ADRs, and current planning. |
-| Accepted ADRs | Durable, consequential decisions, trade-offs, and cross-feature invariants. | Feature backlogs, exhaustive field contracts, test matrices, runtime probe logs, or delivery status. | Interpret the PRD and context model; constrain feature issues and implementation. |
-| [`docs/command-catalog.md`](docs/command-catalog.md) | Non-binding candidate capability territory, Command Group navigation, and candidate spellings. | Product commitments, priority, acceptance, schemas, dependencies, Capability Gap status, or shipped support. | Seeds feature planning and is revised when feature learning changes the candidate map. |
-| Feature issues | Exact vertical-slice scope, feature contract, acceptance criteria, migrated evidence, dependencies, priority, and delivery status. | Cross-feature architecture, phase grouping, or shipped-runtime truth. | Refine PRD stories under CONTEXT and ADR constraints; direct implementation. |
-| Milestones | Delivery-phase grouping and phase-level outcome. | Feature contracts, implicit dependencies, implementation truth, or architecture. | Group feature issues without replacing their own scope, dependencies, and status. |
-| Operation Descriptors, implementation, and tests | Implemented request/result/failure contract, handler binding, executable behavior, and behavior proof in source control. | Undelivered candidate territory or installed-environment claims. | Implement accepted feature issues and project the public surface. |
-| Installed Surface Manifest | Callable Operations, schemas, execution metadata, version constraints, and Capability Gaps for one installed SPA/runtime combination. | Planned scope, product priority, design rationale, or historical evidence. | Is generated from installed Operation Descriptors and observed runtime facts. |
-| `README.md` | Human onboarding and a derived project-status and architecture overview. | Independent product, architecture, feature, or runtime contracts. | Summarizes and links to the owning artifacts above. |
-
-The principal dependency and projection flow is:
-
-```text
-PRD + command catalog + CONTEXT + accepted ADRs
-                         |
-                         v
-                   feature issues
-                         |
-                         v
-          descriptors / implementation / tests
-                         |
-                         v
-                 Surface Manifest
-
-CONTEXT + accepted ADRs also constrain implementation directly.
-ARCHITECTURE derives the integrated system view from CONTEXT, accepted ADRs, and current
-planning. README derives navigation and status from all owning artifacts.
-```
-
-The same capability theme becomes more specific as it moves through this flow, but each
-artifact owns only the fact dimension assigned by the matrix. The catalog proposes
-territory, an issue commits a slice, source and tests own its implementation and proof,
-and the installed Surface Manifest owns the callable facts for one installation.
-
-### ADR navigation
-
-The [`ARCHITECTURE.md` Decision map](ARCHITECTURE.md#decision-map) groups the complete
-current ADR set by system concern. Each ADR remains the authority for its named decision;
-this context document does not maintain a second index.
+The canonical matrix moved to [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md). This
+section preserves existing inbound links only; it does not own a duplicate matrix.

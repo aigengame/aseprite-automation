@@ -11,7 +11,8 @@ Creation has no Source and requires a Target. Editing requires a Source and eith
 distinct Target or explicit in-place intent. SPA does not infer an output name or
 interpret source-target equality as implicit overwrite.
 
-Every ordinary Mutation is all-or-nothing over its complete resolved target set. Before
+Every Ordinary Core Operation with Execution Kind `mutation` is all-or-nothing over
+its complete resolved target set. Before
 changing the Sprite, the Lua Operation Kernel resolves target fields, enforces target
 count, expands native effects such as linked Cels, and validates every target and
 applicable Operation Limit. Failure does not produce a successful subset or Target Commit.

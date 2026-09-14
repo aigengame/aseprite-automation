@@ -8,9 +8,9 @@ This decision consolidates ADR-0004 and ADR-0005.
 
 An Operation Plan composes Sprite-bound read and mutation Operations against one
 in-memory Sprite. A read-only plan commits nothing; a mutating plan commits at most one
-declared Sprite target. Export, caller script execution, and meta Operations are not
-Plan Steps because their side effects cannot satisfy the same document and commit
-boundary.
+declared Sprite target. Only Operations whose Descriptors declare Plan eligibility can
+be Steps. Export and `script run` are not eligible. Cross-Sprite workflow, retry, and
+partial success remain outside the Plan boundary.
 
 Validation is a read purpose, not an Execution Kind or horizontal subsystem. A
 completed Validation reports typed Findings when inspected content does not conform to

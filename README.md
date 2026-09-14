@@ -1,20 +1,22 @@
 # Aseprite Automation
 
-Aseprite Automation provides agent-facing automation for Aseprite. The project name is `aseprite-automation`; its primary executable is `spa`.
+Aseprite Automation (SPA) provides agent-facing automation for Aseprite. `SPA` is the
+short project name used in documentation; `spa` is the primary executable.
 
 > [!IMPORTANT]
-> This repository is at the bootstrap stage. The product architecture has been tested through disposable prototypes, but there is no production command-line interface (CLI) release yet. [Issue #1](https://github.com/aigengame/aseprite-automation/issues/1) is the umbrella product requirements document (PRD); feature issues own delivery contracts and evidence, while milestones group phase outcomes. The [`CONTEXT.md` Artifact authority matrix](CONTEXT.md#artifact-authority-matrix) routes every normative fact to its owning artifact. Shipped behavior will be reported by the installed Surface Manifest.
+> This repository is at the bootstrap stage. The product architecture has been tested through disposable prototypes, but there is no production command-line interface (CLI) release yet. [Issue #1](https://github.com/aigengame/aseprite-automation/issues/1) is the umbrella product requirements document (PRD); feature issues own delivery contracts and evidence, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. Shipped behavior will be reported by the installed Surface Manifest.
 
-This README is derived onboarding and project navigation. It summarizes the owning
-artifacts but does not define an independent product, architecture, feature, or runtime
-contract. See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the integrated current system
-view.
+This README owns the user-facing product introduction and promotion, value-proposition
+narrative, onboarding, adoption guidance, and project navigation. Its factual claims
+derive from the applicable product, architecture, delivery, and installed-runtime
+authorities; it does not define a competing contract. See
+[`ARCHITECTURE.md`](ARCHITECTURE.md) for the integrated current system view.
 
 ## Background
 
 Aseprite exposes useful batch and Lua scripting capabilities, but `aseprite --script` is not an agent-facing automation contract. A direct caller must still construct scripts, encode parameters, separate diagnostics from results, detect semantic failures, protect source files, and verify generated artifacts.
 
-SPA adds that product boundary. It turns sprite workflows into parameterized Operations with typed inputs, structured results, stable failures, and observable postconditions. Ordinary Core Operations use packaged Lua handlers; they do not generate temporary Lua implementations. Caller-owned Lua remains the explicit `script run` escape hatch, but it cannot replace or bypass an existing ordinary Core Operation through the SPA surface.
+SPA adds that product boundary. It turns sprite workflows into parameterized Operations with typed inputs, structured results, stable failures, and observable postconditions. Ordinary Core Operations use packaged Lua handlers; they do not generate temporary Lua implementations. Caller-owned Lua remains the explicit `script run` escape hatch, but it cannot replace or bypass an existing Ordinary Core Operation through the SPA surface.
 
 ## Product Position
 
@@ -29,28 +31,35 @@ discover -> inspect when applicable -> create or edit
 
 The product serves agents, continuous integration (CI) jobs, and asset pipelines that need explicit sprite operations and inspectable evidence. It preserves and observes native Aseprite behavior, including declared stochastic behavior. SPA does not take ownership of gameplay, engine integration, art direction, or another product domain.
 
-## Capability Territory
+## Capability coverage
 
-The table describes intended territory. A capability is supported after an evidence-bearing vertical slice ships and appears in the installed Surface Manifest.
+The table introduces the product's intended capability coverage. Its rows are themes for
+users, not Command Groups, Domain Modules, architecture ownership, or shipped-support
+claims. A capability is supported after an evidence-bearing vertical slice ships and
+appears in the installed Surface Manifest.
 
-| Area | Responsibility |
+| Capability theme | Intended coverage |
 | --- | --- |
 | Runtime | Discover an external Aseprite installation, resources, version, scripting capabilities, and evidence-backed Capability Gaps. |
-| Document and animation | Create and edit Sprites, Layers, Frames, Cels, Tags, timing, Palettes, and color data. |
-| Raster authoring | Inspect and transform Images; apply bounded Pixel Patches, native Paint operations, and native Filters. |
+| Sprite and animation | Create and edit Sprites, Layers, Frames, Cels, Tags, timing, and animation structure. |
+| Raster, paint, and selection | Inspect and transform Images; exchange bounded pixel data; apply Selections, native Paint operations, and native Filters. |
+| Color and palette | Inspect and edit Palettes and color data; perform native quantization, Color Mode, Color Profile, and eligible Dithering operations. |
 | Tile authoring | Create and inspect Tilemaps and Tilesets with stable Tile Keys, typed flags, explicit Coordinate Spaces, and bounded results. |
-| Other authored objects | Work with Selections, Slices, text, and related Aseprite concepts through verified contracts. |
-| Inspection and validation | Return the facts needed to select targets, verify persisted results, and report structural findings. |
-| Planning | Apply a bounded sequence of existing Operations to one Sprite in one Aseprite process and adapter unit of work. |
-| Delivery | Export raster, animation, sheet, Tileset, preview, and metadata Artifacts with independent verification. |
+| Slices and imported content | Work with Slices, external raster input, and evidence-gated text rasterization through verified contracts. |
+| Inspection and validation | Observe and validate each owned Aseprite concept beside its creation or editing capabilities. |
+| Composition and delivery | Apply eligible Operations in a bounded single-Sprite Plan and export image, animation, sheet, Tileset, preview, and metadata Artifacts. |
 | Agent access | Publish version-locked Agent Skill guidance and project the installed operation surface through the Model Context Protocol (MCP). |
-| Integration | Participate in external asset workflows through the public CLI JSON application binary interface (ABI). |
+| Asset workflow integration | Participate in external asset workflows through the public `spa` CLI JSON contract. |
 
 Command Groups are navigation, not module architecture. Domain Modules own cohesive vertical slices and can project several groups when native behavior shares a lifecycle. `image` represents Aseprite Image observation and structural transformation; `paint` represents authoring intent. Native batch Filters remain distinct from native Tools. The [command catalog](docs/command-catalog.md) lists candidate territory; feature issues own delivery contracts.
 
 ## Public Contract
 
-The CLI is the first Open Host Service. Its Published Language is the versioned set of Operation Request, Operation Result, Failure Envelope, Operation metadata, Artifact, and Surface Manifest schemas. Human output, MCP tools, and the private Python/Lua transport are projections rather than independent contracts.
+The CLI is the planned first Open Host Service. Its Published Language is the versioned
+set of Operation Request, Operation Result, Failure Envelope, Operation metadata,
+Artifact, and Surface Manifest schemas. Human output and MCP tools are projections of
+the Published Language. The Python/Lua Kernel Protocol is a separate private contract,
+not a second public API.
 
 - Each Operation has strict typed request, result, and failure schemas.
 - Machine output contains a schema-valid Operation Result or Failure Envelope and stays separate from vendor diagnostics.
@@ -60,15 +69,16 @@ The CLI is the first Open Host Service. Its Published Language is the versioned 
 - Inspections report normalized coverage and completeness. Native absence, not requested, unsupported, and exceeded bounds remain distinct.
 - Coordinate-bearing requests name their Coordinate Space. Public Rectangles use Aseprite's `x`, `y`, `width`, and `height` vocabulary and half-open coverage.
 - Color Values preserve RGB, Grayscale, Indexed, Alpha Channel, Transparent Color Index, Palette, sRGB, and ICC distinctions from Aseprite.
-- Ordinary multi-target Mutations resolve the complete target set and produce a Target Commit for the whole set or none of it.
+- Supported multi-target Mutations resolve the complete target set and produce a Target Commit for the whole set or none of it.
 - Every produced file is a verified Artifact in the owning Operation Result. Format-specific facts stay with that result.
 - Operation Descriptors own registration and projections. The Lua Operation Kernel owns SPA Core Operation Semantics and native mapping. Python coordinates use cases and adapters without duplicating that behavior.
 - Capability Gaps are versioned, evidence-backed runtime facts. They remove unfaithful Operations from the installed Surface Manifest instead of creating silent partial support.
 
 Before delivery, exact feature contracts belong to their accepted issues under the
-shared language and decisions. Operation Descriptors, implementation, and tests own the
-implemented contract; the installed Surface Manifest reports the callable projection
-for one installation. See the [Artifact authority matrix](CONTEXT.md#artifact-authority-matrix).
+shared language and decisions. Operation Descriptors own implemented public contracts
+and bindings, implementation owns executable behavior, tests own verification evidence,
+and the installed Surface Manifest reports callable facts for one installation. See
+[`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md).
 
 ## Technical Architecture
 
@@ -77,7 +87,8 @@ Published Language to the CLI, Agent Skill, MCP, and installed Surface Manifest.
 Application use cases coordinate Domain Modules, an external Aseprite process, staged
 file publication, and structured outcomes. Aseprite remains authoritative for native
 behavior; packaged Lua handlers own SPA Core Operation Semantics and native mapping.
-Python owns contracts, orchestration, and adapters.
+Application use cases coordinate the surrounding workflow without redefining that
+native behavior.
 
 The planned bootstrap stack, owned by
 [issue #3](https://github.com/aigengame/aseprite-automation/issues/3), is Python 3.13,
@@ -85,7 +96,7 @@ Typer, Pydantic 2, `uv`, packaged Lua, and an external
 `aseprite --batch --script` runtime. After implementation, project metadata and the
 lockfile report the actual runtime and dependencies. The operating model is a trusted
 local workspace. Asset Pipeline integration uses a downstream-owned Anti-Corruption
-Layer and the public SPA JSON ABI.
+Layer and the public `spa` CLI JSON contract.
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the integrated context map, subdomains,
 module responsibilities, dependency rules, technology profile, contracts, execution
@@ -95,28 +106,31 @@ flows, trust boundary, and decision map.
 
 The project grows through evidence-bearing vertical slices. GitHub issues own scope, acceptance, dependencies, and delivery status. Milestones group outcomes and do not imply dependencies that are absent from issue bodies.
 
-- [Phase 1 — Installed CLI Tracer](https://github.com/aigengame/aseprite-automation/milestone/3): issues #3–#7
-- [Phase 2 — Sprite and Animation Authoring](https://github.com/aigengame/aseprite-automation/milestone/1): issues #8–#19
-- [Phase 3 — Raster and Paint Authoring](https://github.com/aigengame/aseprite-automation/milestone/2): issues #20–#29
-- [Phase 4 — Color, Palette, and Filters](https://github.com/aigengame/aseprite-automation/milestone/6): issues #30–#39
-- [Phase 5 — Slice, Tile, and Imported Content](https://github.com/aigengame/aseprite-automation/milestone/7): issues #40–#47
-- [Phase 6 — Delivery and Agent Access](https://github.com/aigengame/aseprite-automation/milestone/5): issues #48–#55
-- [Phase 7 — Asset Pipeline Integration](https://github.com/aigengame/aseprite-automation/milestone/4): issues #56–#57
+- [Phase 1 — Installed CLI Tracer](https://github.com/aigengame/aseprite-automation/milestone/3)
+- [Phase 2 — Sprite and Animation Authoring](https://github.com/aigengame/aseprite-automation/milestone/1)
+- [Phase 3 — Raster and Paint Authoring](https://github.com/aigengame/aseprite-automation/milestone/2)
+- [Phase 4 — Color, Palette, and Filters](https://github.com/aigengame/aseprite-automation/milestone/6)
+- [Phase 5 — Slice, Tile, and Imported Content](https://github.com/aigengame/aseprite-automation/milestone/7)
+- [Phase 6 — Delivery and Agent Access](https://github.com/aigengame/aseprite-automation/milestone/5)
+- [Phase 7 — Asset Pipeline Integration](https://github.com/aigengame/aseprite-automation/milestone/4)
 
 ## Non-Goals
 
 - Editor GUI automation or a persistent interactive editor session.
-- Generated Lua implementations for ordinary Operations.
+- Generated Lua implementations for Ordinary Core Operations.
 - An embedded model, autonomous art direction, or automatic aesthetic acceptance.
 - A general workflow DAG, background job system, plug-in marketplace, or cross-document transaction.
 - Godot project semantics, gameplay validation, or asset installation inside SPA.
 - Bundling or redistributing Aseprite.
-- REST service infrastructure before a named remote consumer and artifact lifecycle require it.
+- A standalone REST platform. An accepted evidence-backed functional slice can later
+  add bounded Artifact/resource access or MCP transport through the same Published
+  Language.
 
 ## Project Documents
 
 - [Umbrella PRD and prototype conclusions](https://github.com/aigengame/aseprite-automation/issues/1)
-- [Ubiquitous Language, context model, and Artifact authority matrix](CONTEXT.md#artifact-authority-matrix)
+- [Authority governance and document dependency matrix](AUTHORITY_MATRIX.md)
+- [Ubiquitous Language and strategic domain model](CONTEXT.md)
 - [Integrated system architecture](ARCHITECTURE.md)
 - [Accepted architecture decisions](docs/adr/)
 - [Incremental command catalog](docs/command-catalog.md)

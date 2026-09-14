@@ -1,14 +1,16 @@
 # SPA command catalog
 
-This catalog is the incremental, non-binding map of the Aseprite capability territory that SPA can expose to agents. It provides candidate Command Groups and spellings as inputs to feature work.
+This catalog is the incremental, non-binding map of the Aseprite capability territory
+that Aseprite Automation (SPA) can expose to agents. It records candidate Command Groups
+and spellings as inputs to feature work. `spa` is the executable.
 
-The [Artifact authority matrix](../CONTEXT.md#artifact-authority-matrix) defines
-repository-wide ownership. This catalog owns only candidate territory, navigation, and
-spellings. It is not a task tracker, release promise, schema registry, Capability Gap
-register, or statement of shipped support. A candidate can change or disappear when a
-vertical slice produces better Aseprite-aligned evidence.
+[`AUTHORITY_MATRIX.md`](../AUTHORITY_MATRIX.md) defines repository-wide ownership and
+document dependencies. This catalog records exploratory candidates; it is not a task
+tracker, release promise, schema registry, Capability Gap register, or statement of
+shipped support. A candidate can change or disappear when a vertical slice produces
+better Aseprite-aligned evidence.
 
-## Catalog rules
+## How to read this catalog
 
 - Reuse Aseprite object and operation names when Aseprite already defines them.
 - Treat a Command Group as navigation, not a Domain Module or Bounded Context.
@@ -17,10 +19,11 @@ vertical slice produces better Aseprite-aligned evidence.
 - Express each row as a candidate Operation intent, leaving fields, acceptance,
   dependencies, priority, evidence, and delivery status to their owning artifacts.
 - Follow `CONTEXT.md` and accepted ADRs without restating their normative contracts.
-- A candidate enters an installed Surface Manifest only through delivered descriptors
-  and observed runtime facts.
+- A feature issue can adopt, rename, split, combine, or reject a candidate. An
+  Operation Descriptor owns an implemented public identity, and the installed Surface
+  Manifest reports installed availability.
 
-## Meta
+## Discovery and access
 
 | Candidate command | Intended meaning |
 | --- | --- |

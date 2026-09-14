@@ -68,7 +68,7 @@ data model.
 - Existing unkeyed native content stays observable while stable authoring inputs use
   Tile Keys.
 - Complete state and sparse intent each have one unambiguous representation across
-  CLI, Skill, MCP, and Artifact transport.
+  CLI, Agent Skill, MCP, and Artifact transport.
 
 ## Rejected alternatives
 

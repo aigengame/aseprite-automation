@@ -6,6 +6,10 @@ users and contributors. It describes responsibilities, boundaries, dependencies,
 execution flows without replacing the documents that own individual decisions or
 feature contracts.
 
+[`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) defines the normative sources for every
+fact in this integrated view. If this document conflicts with an owning source, update
+this view instead of treating it as another decision authority.
+
 > [!IMPORTANT]
 > SPA is at the bootstrap stage. This document describes the accepted architecture and
 > planned module ownership; it does not claim that a capability has shipped. Feature
@@ -33,7 +37,7 @@ flowchart TB
 
     subgraph SPA[Sprite Automation Bounded Context]
         direction TB
-        Access["Access Projection<br/>SPA Agent Skill · local MCP adapter · spa CLI"]
+        Access["Access Projection<br/>Agent Skill · planned MCP adapter · spa CLI"]
         Access --> App[Application use cases]
         App --> Core[Core Domain responsibilities]
         App --> Runtime["Aseprite Runtime<br/>Integration"]
@@ -72,7 +76,7 @@ discover
 
 The create/edit and inspect/validate steps repeat as the agent refines an asset.
 
-The `spa` CLI is the first Open Host Service. The Agent Skill and current local Model
+The `spa` CLI is the first Open Host Service. The Agent Skill and planned initial Model
 Context Protocol (MCP) adapter project the installed CLI surface instead of defining
 parallel behavior. The current delivery plan does not include a standalone REST API or
 remote HTTP service. HTTP is not excluded as a future transport: a validated functional
@@ -124,7 +128,7 @@ contract. [`CONTEXT.md`](CONTEXT.md#ubiquitous-language) is the terminology auth
 | Aseprite Runtime Integration | Supporting | Runtime and resource discovery, process execution, Kernel transport, diagnostics, and native integration facts. | Grow from Core Domain needs and observed runtime variation. |
 | Access Projection | Supporting | CLI presentation, Agent Skill guidance, and MCP projection from one operation surface. | Preserve contract equivalence; do not create a second capability model. |
 | Asset Pipeline Integration | Supporting | Maintain the public SPA boundary used by the downstream-owned Anti-Corruption Layer. | Follow the stable integration commitment without adopting experimental pipeline internals. |
-| Serialization, filesystem, process, and utilities | Generic | Domain-neutral mechanics required by accepted Operations. | Use proportionate solutions; no independent platform roadmap. |
+| Serialization, filesystem, and utilities | Generic | Domain-neutral mechanics required by accepted Operations. | Use proportionate solutions; no independent platform roadmap. |
 
 This priority is a design constraint. Authentication, authorization, audit history,
 distributed consistency, multi-tenancy, and similar service infrastructure do not enter
@@ -143,7 +147,7 @@ flowchart TB
         ACL -->|translated result| Workflow
     end
 
-    ACL -->|calls public SPA JSON application binary interface| SPA
+    ACL -->|calls public spa CLI JSON contract| SPA
     SPA -->|Operation Results and verified Artifacts| ACL
     Workflow -->|Godot project inputs| GDA[gda]
     GDA -->|import and runtime evidence| Workflow
@@ -152,7 +156,7 @@ flowchart TB
 - **Aseprite is upstream.** SPA shares its native language and delegates native
   behavior through supported non-interactive seams.
 - **The Asset Pipeline is downstream.** Its Anti-Corruption Layer translates pipeline
-  concepts to the public SPA JSON application binary interface (ABI). Experimental
+  concepts to the public `spa` CLI JSON contract. Experimental
   pipeline command names and types do not become SPA contracts.
 - **gda owns Godot evidence.** SPA can verify a Sprite or exported image, but it does
   not claim Godot import, runtime, gameplay, or player acceptance.
@@ -171,7 +175,7 @@ reproduce a pattern catalog.
 | Domain Module | Owns a cohesive feature family and its reason to change across logical layers. |
 | Value Object | Represents explicit values such as Color Value, Selection, Coordinate Space, Pixel Region Snapshot, Tile Placement, and Artifact facts. |
 | Application use case | Coordinates work that has no natural native Aseprite object owner, such as Operation Plan execution and publication. |
-| Open Host Service and Published Language | Exposes the CLI JSON ABI and its schemas to agents and downstream consumers. |
+| Open Host Service and Published Language | Exposes the public `spa` CLI JSON contract and its schemas to agents and downstream consumers. |
 | Anti-Corruption Layer | Belongs to the Asset Pipeline and prevents pipeline models from entering SPA. |
 
 SPA does not introduce a database Repository, an event-sourced Aggregate, or a global
@@ -200,7 +204,7 @@ flowchart TB
 
 Solid arrows show permitted source dependency and inward invocation direction. CLI and
 MCP are sibling adapters to the same Descriptor-projected Application contract; neither
-has a source dependency on the other. In the current runtime path, MCP reaches that
+has a source dependency on the other. In the planned initial runtime path, MCP reaches that
 contract through the installed CLI subprocess shown below. Within Application, Dispatch
 invokes the selected use case, Plan coordinates Domain behavior, and Commit uses
 inner-owned ports. Within Outbound, each adapter depends on the applicable inner-owned
@@ -251,7 +255,7 @@ and dependencies in project metadata and its lockfile.
 | Ordinary Core Operations | Packaged Lua handlers | Core Operation Semantics and native mapping executed through Aseprite. |
 | Aseprite integration | External `aseprite --batch --script` | Native document, Tool, Filter, color, and export behavior. |
 | Private transport | Versioned JSON request and response files | Data exchange through `--script-param`, separate from diagnostics. |
-| Agent access | Version-matched Skill and local stdio MCP adapter with CLI subprocess invocation | Guidance and equivalent tool projection from the installed surface. |
+| Agent access | Version-matched Agent Skill and planned local stdio MCP adapter with CLI subprocess invocation | Guidance and equivalent tool projection from the installed surface. |
 
 These choices can change when implementation or distribution evidence requires it.
 The Bounded Context, Published Language, and behavior authority do not depend on one
@@ -270,7 +274,7 @@ frozen package graph.
 | Responsibility area | Owns | Important boundary |
 | --- | --- | --- |
 | Document and Animation | Sprite; shared Layer, Frame, and Cel identity, addressing, hierarchy, and existence contracts; feature-declared general Layer/Cel Operations; Tag, Slice, timing, and animation Operations. | It does not claim Tilemap Layer creation and binding or Tilemap Cel/Image content; specialized tile variants depend one-way on the shared contracts. |
-| Raster Authoring | Image observation and transforms, Pixel Snapshot/Patch exchange, Selection value operations, Paint intent, native Tool invocation, native Filters, external raster import, and evidence-gated text rasterization. | Image, Paint, and Filter remain distinct operation families while sharing one pixel and target authority. |
+| Raster Authoring | Image observation and transforms, Pixel Region Snapshot and Pixel Patch exchange, Selection value operations, Paint intent, native Tool invocation, native Filters, external raster import, and evidence-gated text rasterization. | Image, Paint, and Filter remain distinct operation families while sharing one pixel and target authority. |
 | Color and Palette | Color Value, Palette Change and Effective Palette behavior, quantization, Color Mode changes, Color Profile assignment/conversion, and Dithering choices. | Preserves native distinctions and makes result-affecting choices explicit. It does not implement a second color engine. |
 | Tile Authoring | Grid, Tileset, Tile, Tile Key, Tilemap, Tile Placement, Tilemap Layer creation and binding, Tilemap Cel/Image content, bounded region exchange, and established Tileset-coupled lifecycle variants. | Reuses shared Layer/Cel contracts without duplicating them; support for other Layer/Cel variants remains with the owning feature issue until delivered. |
 | Delivery | Static image, animation, sheet, Tileset, preview, and metadata Export Operations with declared destinations and verified Artifacts. | Aseprite renders and encodes; SPA stages, validates, publishes, and reports the complete declared output set. |
@@ -305,17 +309,17 @@ Each structured public capability has one **Operation Descriptor**. The descript
 binds schemas, execution metadata, presentation, and a declared execution definition.
 Descriptors are the registration authority; they do not implement native behavior.
 
-An ordinary Core Operation binds one fixed packaged Lua handler. A capability whose
+An Ordinary Core Operation binds one fixed packaged Lua handler. A capability whose
 behavior is implemented by an Application use case can have no Kernel binding. An
 application-composed capability can order multiple ordinary handlers without redefining
 their semantics. `script run` uses a separate caller-script path. SPA registration,
 identity resolution, and ordinary dispatch cannot use that path to replace, override,
-rewrite, proxy, or bypass an existing ordinary Core Operation.
+rewrite, proxy, or bypass an existing Ordinary Core Operation.
 
 Every Descriptor declares Operation Determinism. `deterministic` and
 `native-stochastic` apply to `read`, `mutation`, and `export`; only `script-run` can
 declare `caller-defined`. That value states that SPA makes no claim about the caller's
-script repeatability or randomness source. Ordinary Operations cannot use it.
+script repeatability or randomness source. All other Execution Kinds prohibit it.
 
 ```mermaid
 flowchart TB
@@ -331,7 +335,7 @@ flowchart TB
     Renderer ~~~ Execution
     Execution ~~~ Manifest
 
-    Execution -->|ordinary Core Operation| Binding[One packaged Lua handler]
+    Execution -->|Ordinary Core Operation| Binding[One packaged Lua handler]
     Execution -->|Application use case| AppPath[Application execution]
     AppPath -. can order ordinary capabilities .-> Binding
     Execution -->|caller-owned Lua| ScriptPath[script run adapter path]
@@ -361,7 +365,7 @@ Application use cases own the order of work around native behavior:
 
 Python can perform this orchestration. It cannot duplicate Core Operation Semantics
 owned by a packaged Lua handler, substitute for Aseprite's native behavior, or create a
-temporary Lua implementation for an ordinary Operation.
+temporary Lua implementation for an Ordinary Core Operation.
 
 ### Lua Operation Kernel
 
@@ -378,7 +382,7 @@ Semantics executed inside Aseprite. Its handlers:
 Standalone Operations, Operation Plans, and private export composition call the same
 packaged handlers. Shared helpers can remove code duplication, but a second Python or
 generated-Lua behavior path is prohibited. `spa script run` is a separate escape hatch
-for exact caller-owned Lua and does not inherit ordinary Operation guarantees.
+for exact caller-owned Lua and does not inherit Ordinary Core Operation guarantees.
 
 ### Aseprite Runtime Integration
 
@@ -418,13 +422,14 @@ history, or cross-command recovery system.
 
 ### Access Projection
 
-- The **CLI** is the current primary public execution channel and JSON ABI.
+- The **CLI** is the planned first public execution channel for the public `spa` CLI
+  JSON contract.
 - The **Agent Skill** teaches discovery and the edit-observe-verify-export loop for the
   installed surface.
 - The **MCP adapter** reads the Surface Manifest, invokes `spa`, and relays equivalent
   requests and outcomes.
 
-The initial MCP slice uses stdio between the MCP client and adapter. The adapter invokes
+The planned initial MCP slice uses stdio between the MCP client and adapter. The adapter invokes
 the installed `spa` CLI as a subprocess; it does not require a REST or HTTP intermediary.
 MCP image and resource content is projected through MCP itself and does not require an
 HTTP file service.
@@ -440,7 +445,7 @@ functional slice that creates them.
 
 SPA owns Aseprite and sprite-asset semantics. The downstream Asset Pipeline owns
 workflow order, concept/reference handoff, file roles, installation, retry, and project
-acceptance. Its Anti-Corruption Layer calls the public SPA JSON ABI and translates the
+acceptance. Its Anti-Corruption Layer calls the public `spa` CLI JSON contract and translates the
 result into pipeline concepts. This commitment remains stable while the pipeline's
 experimental commands and tactical types evolve.
 
@@ -523,8 +528,10 @@ Plan Preflight
 ```
 
 A later Step can target an object created by an earlier Step, so live target resolution
-occurs immediately before each Step. Export, `script run`, meta Operations, cross-Sprite
-workflow, retry, and partial success do not enter the Plan model.
+occurs immediately before each Step. Only Sprite-bound read and mutation Operations
+whose Descriptors declare Plan eligibility can be Steps. Export and `script run` are
+not eligible. Cross-Sprite workflow, retry, and partial success remain outside the Plan
+model.
 
 ### Export publication
 
@@ -561,9 +568,9 @@ normal explicit `if_exists` policy.
 
 | Invariant | Knowledge owner | Execution owner |
 | --- | --- | --- |
-| Public capability has one registration source. | Operation Descriptor decision and owning Domain Module. | Descriptor projection into CLI, MCP, and Surface Manifest; Skill checks against the installed surface. |
-| Native object and algorithm behavior follows one upstream authority. | Aseprite public semantics and observed native behavior. | Aseprite, invoked and observed by a packaged handler. |
-| Each ordinary Core Operation has one Core Operation Semantics authority. | Before delivery, its feature issue owns the exact contract under applicable ADR constraints. After delivery, its Descriptor owns the implemented public contract and binding, while tests own behavior proof. | Its fixed packaged Lua handler is the sole executable Core Operation Semantics authority; Application only invokes and orchestrates it. |
+| Public capability has one registration source. | Operation Descriptor. | Descriptor projection into CLI, MCP, and Surface Manifest; Agent Skill checks against the installed surface. |
+| Native object and algorithm behavior follows one upstream authority. | Aseprite public semantics and native behavior. | Aseprite, invoked and observed by a packaged handler. |
+| Each Ordinary Core Operation has one Core Operation Semantics authority. | Before delivery, its feature issue owns the exact contract under applicable ADR constraints. After delivery, its Descriptor owns the implemented public contract and binding, while tests own behavior proof. | Its fixed packaged Lua handler is the sole executable Core Operation Semantics authority; Application only invokes and orchestrates it. |
 | Public intent does not depend on hidden editor state. | Owning Operation contract. | Python Preflight plus Kernel target and state handling. |
 | Success and failure are disjoint typed outcomes. | Published Language and result/failure decision. | Application outcome mapping and adapters. |
 | Inspection success is complete for its normalized scope. | Owning inspection Operation. | Kernel observation and Application limit handling. |
@@ -599,15 +606,9 @@ Feature issues own the exact scope and explicit dependencies of those slices.
 Milestones group phase outcomes, and explicit issue dependencies determine implementation
 order.
 
-Architecture changes follow these rules:
-
-1. A terminology or context-boundary change updates `CONTEXT.md` first.
-2. A durable decision or trade-off is recorded in an accepted ADR.
-3. A feature's exact scope, fields, evidence, dependencies, and acceptance stay in its
-   issue until implementation owns the delivered contract.
-4. This document is updated when those authorities change the integrated system view.
-5. README keeps a short derived overview and links here for the full view.
-6. The installed Surface Manifest remains the final authority for callable capability.
+[`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) defines the update order and the owner of
+each changed fact. This document changes after the applicable normative source changes
+and labels planned, implemented, and installed facts by their owning source.
 
 A new Bounded Context, service, event mechanism, generic abstraction, or compatibility
 layer requires evidence that the current model cannot express an accepted functional

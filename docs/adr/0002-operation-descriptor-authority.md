@@ -14,7 +14,7 @@ capability registries.
 
 Descriptors own registration and Published Language metadata, not native behavior.
 Python contract types own public shapes and statically decidable invariants. An
-ordinary Core Operation binds one fixed packaged Lua handler, which owns its Core
+Ordinary Core Operation binds one fixed packaged Lua handler, which owns its Core
 Operation Semantics and native mapping as defined by ADR-0010. A capability whose
 behavior is implemented by an Application use case can have no Kernel binding. An
 application-composed capability can select and order multiple ordinary packaged
