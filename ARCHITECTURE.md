@@ -37,7 +37,7 @@ flowchart TB
 
     subgraph SPA[Sprite Automation Bounded Context]
         direction TB
-        Access["Access Projection<br/>Agent Skill · planned MCP adapter · spa CLI"]
+        Access["Access Projection<br/>Agent Skill · planned MCP Adapter · spa CLI"]
         Access --> App[Application use cases]
         App --> Core[Core Domain responsibilities]
         App --> Runtime["Aseprite Runtime<br/>Integration"]
@@ -128,7 +128,7 @@ contract. [`CONTEXT.md`](CONTEXT.md#ubiquitous-language) is the terminology auth
 | Aseprite Runtime Integration | Supporting | Runtime and resource discovery, process execution, Kernel transport, diagnostics, and native integration facts. | Grow from Core Domain needs and observed runtime variation. |
 | Access Projection | Supporting | CLI presentation, Agent Skill guidance, and MCP projection from one operation surface. | Preserve contract equivalence; do not create a second capability model. |
 | Asset Pipeline Integration | Supporting | Maintain the public SPA boundary used by the downstream-owned Anti-Corruption Layer. | Follow the stable integration commitment without adopting experimental pipeline internals. |
-| Serialization, filesystem, and utilities | Generic | Domain-neutral mechanics required by accepted Operations. | Use proportionate solutions; no independent platform roadmap. |
+| Serialization, filesystem, and utilities | Generic | Domain-neutral mechanics required by accepted Operations. Aseprite process execution and policy remain Runtime Integration. | Use proportionate solutions; no independent platform roadmap. |
 
 This priority is a design constraint. Authentication, authorization, audit history,
 distributed consistency, multi-tenancy, and similar service infrastructure do not enter
@@ -215,7 +215,7 @@ Runtime calls are distinct from those source dependencies:
 
 ```mermaid
 flowchart TB
-    MCP[MCP adapter]
+    MCP[MCP Adapter]
     CLI[Installed CLI]
     Application[Application entry point]
     Adapter[Aseprite Adapter]
@@ -255,7 +255,7 @@ and dependencies in project metadata and its lockfile.
 | Ordinary Core Operations | Packaged Lua handlers | Core Operation Semantics and native mapping executed through Aseprite. |
 | Aseprite integration | External `aseprite --batch --script` | Native document, Tool, Filter, color, and export behavior. |
 | Private transport | Versioned JSON request and response files | Data exchange through `--script-param`, separate from diagnostics. |
-| Agent access | Version-matched Agent Skill and planned local stdio MCP adapter with CLI subprocess invocation | Guidance and equivalent tool projection from the installed surface. |
+| Agent access | Version-matched Agent Skill and planned local stdio MCP Adapter with CLI subprocess invocation | Guidance and equivalent tool projection from the installed surface. |
 
 These choices can change when implementation or distribution evidence requires it.
 The Bounded Context, Published Language, and behavior authority do not depend on one
@@ -311,10 +311,11 @@ Descriptors are the registration authority; they do not implement native behavio
 
 An Ordinary Core Operation binds one fixed packaged Lua handler. A capability whose
 behavior is implemented by an Application use case can have no Kernel binding. An
-application-composed capability can order multiple ordinary handlers without redefining
-their semantics. `script run` uses a separate caller-script path. SPA registration,
-identity resolution, and ordinary dispatch cannot use that path to replace, override,
-rewrite, proxy, or bypass an existing Ordinary Core Operation.
+application-composed capability can order multiple packaged Ordinary Core Operation
+handlers without redefining their semantics. `script run` uses a separate caller-script
+path. SPA registration, identity resolution, and Ordinary Core Operation dispatch cannot
+use that path to replace, override, rewrite, proxy, or bypass an existing Ordinary Core
+Operation.
 
 Every Descriptor declares Operation Determinism. `deterministic` and
 `native-stochastic` apply to `read`, `mutation`, and `export`; only `script-run` can
@@ -337,7 +338,7 @@ flowchart TB
 
     Execution -->|Ordinary Core Operation| Binding[One packaged Lua handler]
     Execution -->|Application use case| AppPath[Application execution]
-    AppPath -. can order ordinary capabilities .-> Binding
+    AppPath -. can order Ordinary Core Operations .-> Binding
     Execution -->|caller-owned Lua| ScriptPath[script run adapter path]
     AppPath ~~~ Binding
     Binding ~~~ ScriptPath
@@ -426,7 +427,7 @@ history, or cross-command recovery system.
   JSON contract.
 - The **Agent Skill** teaches discovery and the edit-observe-verify-export loop for the
   installed surface.
-- The **MCP adapter** reads the Surface Manifest, invokes `spa`, and relays equivalent
+- The **MCP Adapter** reads the Surface Manifest, invokes `spa`, and relays equivalent
   requests and outcomes.
 
 The planned initial MCP slice uses stdio between the MCP client and adapter. The adapter invokes
@@ -471,7 +472,7 @@ target-count rules, and Operation Results report current address and impact fact
 
 ## Execution flows
 
-### Ordinary mutation
+### Ordinary Core Operation mutation
 
 ```mermaid
 flowchart TB
@@ -507,11 +508,11 @@ flowchart TB
 
 Any failure before publication produces a Failure Envelope and no Target Commit.
 
-An ordinary multi-target Mutation resolves and validates its complete effective target
-set before it changes the Sprite. Native Linked Cel or Tileset effects are included in
-that scope. Supported changes run inside an Aseprite transaction; staged replacement
-protects the declared file target. Save, close, reopen, and persisted observation occur
-before the one Aseprite invocation returns.
+An Ordinary Core Operation with Execution Kind `mutation` resolves and validates its
+complete effective target set before it changes the Sprite. Native Linked Cel or Tileset
+effects are included in that scope. Supported changes run inside an Aseprite transaction;
+staged replacement protects the declared file target. Save, close, reopen, and persisted
+observation occur before the one Aseprite invocation returns.
 
 ### Operation Plan
 
@@ -574,7 +575,7 @@ normal explicit `if_exists` policy.
 | Public intent does not depend on hidden editor state. | Owning Operation contract. | Python Preflight plus Kernel target and state handling. |
 | Success and failure are disjoint typed outcomes. | Published Language and result/failure decision. | Application outcome mapping and adapters. |
 | Inspection success is complete for its normalized scope. | Owning inspection Operation. | Kernel observation and Application limit handling. |
-| Ordinary mutation is all-or-nothing for the resolved target set. | Mutation decision and owning Operation. | Kernel transaction, persisted native inspection, and staged Target Commit. |
+| An Ordinary Core Operation with Execution Kind `mutation` is all-or-nothing for its resolved target set. | Mutation decision and owning Operation. | Kernel transaction, persisted native inspection, and staged Target Commit. |
 | Export success reports a complete verified Artifact set. | Export publication decision and feature contract. | Kernel native export; Artifact Verifier decoding; Application semantic comparison; File Adapter publication. |
 | Capability Gaps remain visible and versioned. | Installed runtime facts and owning feature evidence. | Runtime discovery and Surface Manifest generation. |
 
@@ -622,7 +623,7 @@ This map is navigation, not a second decision record.
 
 | Concern | Decisions |
 | --- | --- |
-| Context, subdomains, and module ownership | [ADR-0001](docs/adr/0001-single-sprite-automation-context.md), [ADR-0007](docs/adr/0007-demand-driven-nfrs.md), [ADR-0009](docs/adr/0009-command-groups-and-domain-modules.md) |
+| Strategic-context decisions and rationale; current model in `CONTEXT.md` | [ADR-0001](docs/adr/0001-single-sprite-automation-context.md), [ADR-0007](docs/adr/0007-demand-driven-nfrs.md), [ADR-0009](docs/adr/0009-command-groups-and-domain-modules.md) |
 | Operation contract, Plan, targets, limits, and outcomes | [ADR-0002](docs/adr/0002-operation-descriptor-authority.md), [ADR-0003](docs/adr/0003-operation-plan-boundary.md), [ADR-0006](docs/adr/0006-operation-targets-and-identity.md), [ADR-0008](docs/adr/0008-operation-owned-bounds.md), [ADR-0013](docs/adr/0013-result-and-failure-contract.md) |
 | Kernel authority and mutation publication | [ADR-0010](docs/adr/0010-lua-operation-kernel-authority.md), [ADR-0014](docs/adr/0014-mutation-file-semantics.md) |
 | Document, animation, color, and selection semantics | [ADR-0021](docs/adr/0021-frame-numbering.md), [ADR-0024](docs/adr/0024-color-values-and-conversion.md), [ADR-0025](docs/adr/0025-coordinate-spaces-and-rectangles.md), [ADR-0028](docs/adr/0028-background-layer-and-cels.md), [ADR-0029](docs/adr/0029-selection-as-explicit-value.md), [ADR-0033](docs/adr/0033-tag-playback-semantics.md), [ADR-0035](docs/adr/0035-palette-time-semantics.md), [ADR-0039](docs/adr/0039-slice-model-and-addressing.md) |

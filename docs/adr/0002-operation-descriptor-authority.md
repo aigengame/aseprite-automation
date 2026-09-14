@@ -12,13 +12,14 @@ declared execution definition. The CLI command tree, eligible MCP tools, and ins
 Surface Manifest are projections of these descriptors; they do not maintain parallel
 capability registries.
 
-Descriptors own registration and Published Language metadata, not native behavior.
-Python contract types own public shapes and statically decidable invariants. An
-Ordinary Core Operation binds one fixed packaged Lua handler, which owns its Core
-Operation Semantics and native mapping as defined by ADR-0010. A capability whose
-behavior is implemented by an Application use case can have no Kernel binding. An
-application-composed capability can select and order multiple ordinary packaged
-handlers without redefining their semantics.
+Descriptors own registration, public shapes, Published Language metadata, and
+statically decidable contract invariants, not native behavior. Python contract types
+implement and validate those Descriptor-owned shapes; they are not a second contract
+authority. An Ordinary Core Operation binds one fixed packaged Lua handler, which owns
+its Core Operation Semantics and native mapping as defined by ADR-0010. A capability
+whose behavior is implemented by an Application use case can have no Kernel binding. An
+application-composed capability can select and order multiple packaged Ordinary Core
+Operation handlers without redefining their semantics.
 
 The Aseprite adapter and Lua Operation Kernel communicate through a versioned private
 Kernel Protocol. Public defaults and null semantics are resolved before transport, and

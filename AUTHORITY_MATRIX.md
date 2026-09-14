@@ -10,14 +10,18 @@ When two artifacts disagree about a normative fact, identify the fact type in th
 matrix and correct the non-owning artifact. An integrated view, user-facing view, or
 exploratory artifact never overrides the source of that fact.
 
+An ignored local `STATE.md`, when present, is a transient worker report outside this
+tracked authority graph. It derives current execution status from Git, PRs, issues,
+milestones, and durable authorities; it does not own product or system knowledge.
+
 ## Normative authorities
 
 | Authority | Owns | Does not own | Depends on or supplies |
 | --- | --- | --- | --- |
 | Aseprite public language and native behavior | Native terms, object model, editor and scripting semantics, file formats, and native algorithms. | SPA product scope, public automation contracts, or delivery status. | Supplies the upstream semantic base for `CONTEXT.md`, ADRs, feature work, and implementation evidence. |
 | [PRD #1](https://github.com/aigengame/aseprite-automation/issues/1) | Product problem, users, outcomes, stable requirement numbers, product constraints and non-goals, and prototype provenance. | Durable architecture mechanisms, exact feature contracts, acceptance matrices, implementation order, delivery status, or shipped support. | Supplies product requirements to strategic design and feature issues. |
-| [`CONTEXT.md`](CONTEXT.md) | Ubiquitous Language, the Sprite Automation Bounded Context, Subdomains, context relationships, and strategic domain ownership. | Repository-document governance, tactical architecture, feature acceptance, implementation detail, or runtime support. | Constrains ADRs, issues, source, tests, and derived documentation. |
-| [Accepted ADRs](docs/adr/) | Consequential cross-feature decisions, trade-offs, and invariants. | Product backlog, exhaustive feature fields, test matrices, probe logs, delivery status, or shipped support. | Interpret the PRD and domain model; constrain feature issues and implementation. |
+| [`CONTEXT.md`](CONTEXT.md) | Ubiquitous Language and the canonical current Sprite Automation Bounded Context, Subdomains, context relationships, and strategic domain ownership. | Repository-document governance, decision history and rationale, tactical architecture, feature acceptance, implementation detail, or runtime support. | Uses Aseprite semantics, product requirements, and accepted strategic decisions; constrains ADRs, issues, source, tests, and derived documentation. |
+| [Accepted ADRs](docs/adr/) | Consequential cross-feature decisions, their rationale and trade-offs, and durable invariants. | The canonical current strategic model, product backlog, exhaustive feature fields, test matrices, probe logs, delivery status, or shipped support. | Evaluate change against the PRD and current domain model; constrain feature issues and implementation. An accepted strategic-model change updates `CONTEXT.md` in the same change. |
 | [Feature issues](https://github.com/aigengame/aseprite-automation/issues) | Exact planned vertical-slice scope, feature contract, acceptance, dependencies, priority, evidence, and delivery status. | Cross-feature architecture, milestone membership rules, or installed-runtime truth. | Refine PRD requirements under `CONTEXT.md` and accepted ADRs; direct delivery. |
 | [Milestones](https://github.com/aigengame/aseprite-automation/milestones) | Phase outcomes and issue membership. | Feature contracts, implicit dependency order, architecture, or implementation truth. | Group issues; explicit issue dependencies remain authoritative for order. |
 | Operation Descriptor | Implemented public Operation identity, request/result/failure schemas, metadata, presentation bindings, and execution binding. | Executable native behavior, candidate territory, or installed-environment facts. | Implements an accepted issue contract and supplies public projections and the installed Surface Manifest. |
@@ -43,7 +47,6 @@ flowchart TB
     PRD --> Context
     Native --> ADRs
     PRD --> ADRs
-    Context --> ADRs
     PRD --> Issues
     Context --> Issues
     ADRs --> Issues
@@ -58,6 +61,11 @@ flowchart TB
 
 The arrows show constraint, refinement, implementation, generation, or verification.
 They do not make an upstream artifact responsible for the downstream fact.
+
+`CONTEXT.md` is the canonical current strategic model. An ADR owns the decision and
+rationale that establishes or changes that model. A proposed ADR starts from the current
+model; when the decision is accepted, the same change updates `CONTEXT.md`. This update
+rule preserves decision history without making an ADR a second current-model authority.
 
 ## Integrated and user-facing views
 

@@ -12,10 +12,11 @@ editor does not expose the same automation form.
 
 Sprite Automation is the Core Domain and has the highest delivery priority. Aseprite
 Runtime Integration, Access Projection, and Asset Pipeline Integration are Supporting
-Subdomains. Domain-neutral serialization, filesystem, process, and utility mechanisms
-are Generic Subdomains or infrastructure. Supporting and Generic design follows
-accepted Core Domain requirements, uses proportionate abstraction, and grows from
-observed variation.
+Subdomains. Domain-neutral serialization, filesystem, and utility mechanisms form the
+Generic Subdomain. Aseprite process execution, invocation policy, diagnostic capture,
+and process wrappers that exist to serve them remain Aseprite Runtime Integration.
+Supporting and Generic design follows accepted Core Domain requirements, uses
+proportionate abstraction, and grows from observed variation.
 
 Behavior placement follows domain authority rather than deployment mechanics. Core
 Operation Semantics remain Core behavior in their packaged Lua handlers; runtime
@@ -27,12 +28,12 @@ Non-functional work must trace to an accepted functional slice and an observed
 operating need. It has no independent platform roadmap and does not justify speculative
 infrastructure for scale, distribution, tenancy, governance, or compatibility.
 
-The current CLI and local MCP path—stdio between client and adapter, with CLI subprocess
-invocation behind the adapter—assume a trusted caller, workspace, packaged Operation set,
-and Aseprite installation. The current delivery plan has no standalone REST API or remote
-HTTP service. HTTP is not prohibited in principle: an accepted functional slice can add
-bounded Artifact/resource access or MCP transport as an Access Projection over the same
-Published Language and Application use cases.
+The planned initial CLI and local MCP path—stdio between client and adapter, with CLI
+subprocess invocation behind the adapter—assume a trusted caller, workspace, packaged
+Operation set, and Aseprite installation. The current delivery plan has no standalone
+REST API or remote HTTP service. HTTP is not prohibited in principle: an accepted
+functional slice can add bounded Artifact/resource access or MCP transport as an Access
+Projection over the same Published Language and Application use cases.
 
 SPA does not add authentication, accounts, roles, authorization policy, audit-history
 storage, event sourcing, distributed consistency or locks, generalized recovery

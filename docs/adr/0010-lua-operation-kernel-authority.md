@@ -11,11 +11,12 @@ Core Operation's Core Operation Semantics. One fixed handler defines what the Op
 creates, edits, observes, validates, converts, or exports through Aseprite. Standalone,
 Plan, and application-composed execution invoke the same handlers.
 
-Python owns the public contract and application orchestration: Operation Descriptors,
-schemas, static Preflight, Execution Kind, Plan admission, failure mapping,
-access-channel projection, selection and ordering of packaged handlers, process
-invocation, staged commit, and Artifact reporting. It can compose packaged capabilities
-through private protocol data, but it cannot reproduce their Aseprite behavior.
+The Python Application layer implements the Descriptor-owned public contract and owns
+application orchestration: contract-type validation, static Preflight, Plan admission,
+failure mapping, access-channel projection, selection and ordering of packaged handlers,
+process invocation, staged commit, and Artifact reporting. It can compose packaged
+capabilities through private protocol data, but it cannot reproduce their Aseprite
+behavior or become a second public-contract authority.
 
 The Lua Kernel resolves live document targets, enforces document-dependent
 preconditions, performs supported native mutations, observes native state, invokes
@@ -23,8 +24,8 @@ native conversion or export behavior, and produces the private protocol response
 
 SPA does not assemble or generate Lua source at runtime to implement an Ordinary Core
 Operation. Runtime request, response, staging, and diagnostic files carry data and
-Artifacts rather than executable behavior. Ordinary handlers and shared helpers remain
-packaged, versioned source.
+Artifacts rather than executable behavior. Ordinary Core Operation handlers and shared
+helpers remain packaged, versioned source.
 
 Caller-owned raw Lua is a separate, explicitly unrestricted script-run capability. It
 can be materialized unchanged when Aseprite requires a file, but it does not enter the

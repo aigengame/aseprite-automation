@@ -20,7 +20,7 @@ The context contains several architectural modules and adapters, but Command Gro
 - **Asset Pipeline Integration Supporting Subdomain:** translation at the downstream-owned Anti-Corruption Layer and public SPA boundary.
 - **Generic Subdomain:** domain-neutral configuration, serialization, filesystem, and utility code required by accepted features.
 
-The Core Domain has the highest delivery priority. Supporting and Generic work follows current functional requirements, uses proportionate abstraction, and grows from evidence rather than an independent infrastructure roadmap. ADR-0007 owns this investment rule.
+The Core Domain has the highest delivery priority. Supporting and Generic work follows current functional requirements, uses proportionate abstraction, and grows from evidence rather than an independent infrastructure roadmap. This document states the current strategic rule; ADR-0007 records the decision and rationale that established it.
 
 ## Context relationships
 
@@ -45,6 +45,11 @@ gda owns Godot import, engine, and runtime evidence. SPA validation remains evid
 [`ARCHITECTURE.md`](ARCHITECTURE.md) derives the integrated module, dependency,
 contract, and execution view from this strategic model and the accepted ADRs. It does
 not create a second domain or decision authority.
+
+This document is the canonical current strategic model. ADRs retain the decisions and
+rationale that establish or change that model. A proposed decision starts from the
+current model; accepting a strategic change requires updating this document in the same
+change.
 
 ## Ubiquitous Language
 
@@ -575,7 +580,8 @@ reasons to change. It is not a logical layer or Command Group.
 **Lua Operation Kernel**
 The packaged private handler system that owns SPA Core Operation Semantics and their
 mapping to Aseprite's native creation, editing, inspection, validation, conversion, and
-export behavior. Standalone and Plan execution use the same ordinary handlers.
+export behavior. Standalone and Plan execution use the same Ordinary Core Operation
+handlers.
 
 **Kernel Protocol**
 The private versioned request/response transport between Python and the Lua Operation
@@ -599,7 +605,7 @@ staged Artifact bytes. It does not define the expected domain result or publish 
 Version-matched guidance that teaches agents how to discover and invoke the installed
 SPA Operation surface.
 
-**SPA MCP Adapter**
+**MCP Adapter**
 An inbound adapter that derives tools from the installed Surface Manifest and invokes
 the `spa` CLI without owning Operation semantics.
 
