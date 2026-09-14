@@ -22,11 +22,11 @@ milestones, and durable authorities; it does not own product or system knowledge
 | [PRD #1](https://github.com/aigengame/aseprite-automation/issues/1) | Product problem, users, outcomes, stable requirement numbers, product constraints and non-goals, and prototype provenance. | Durable architecture mechanisms, exact feature contracts, acceptance matrices, implementation order, delivery status, or shipped support. | Supplies product requirements to strategic design and feature issues. |
 | [`CONTEXT.md`](CONTEXT.md) | Ubiquitous Language and the canonical current Sprite Automation Bounded Context, Subdomains, context relationships, and strategic domain ownership. | Repository-document governance, decision history and rationale, tactical architecture, feature acceptance, implementation detail, or runtime support. | Uses Aseprite semantics, product requirements, and accepted strategic decisions; constrains ADRs, issues, source, tests, and derived documentation. |
 | [Accepted ADRs](docs/adr/) | Consequential cross-feature decisions, their rationale and trade-offs, and durable invariants. | The canonical current strategic model, product backlog, exhaustive feature fields, test matrices, probe logs, delivery status, or shipped support. | Evaluate change against the PRD and current domain model; constrain feature issues and implementation. An accepted strategic-model change updates `CONTEXT.md` in the same change. |
-| [Feature issues](https://github.com/aigengame/aseprite-automation/issues) | Exact planned vertical-slice scope, feature contract, acceptance, dependencies, priority, evidence, and delivery status. | Cross-feature architecture, milestone membership rules, or installed-runtime truth. | Refine PRD requirements under `CONTEXT.md` and accepted ADRs; direct delivery. |
+| [Feature issues](https://github.com/aigengame/aseprite-automation/issues) | Exact planned vertical-slice scope, feature contract, acceptance, dependencies, priority, evidence requirements, provenance links, curated evidence summaries, and delivery status. | Executed verification assertions or results, cross-feature architecture, milestone membership rules, or installed-runtime truth. | Refine PRD requirements under `CONTEXT.md` and accepted ADRs; direct delivery and identify required evidence. |
 | [Milestones](https://github.com/aigengame/aseprite-automation/milestones) | Phase outcomes and issue membership. | Feature contracts, implicit dependency order, architecture, or implementation truth. | Group issues; explicit issue dependencies remain authoritative for order. |
 | Operation Descriptor | Implemented public Operation identity, request/result/failure schemas, metadata, presentation bindings, and execution binding. | Executable native behavior, candidate territory, or installed-environment facts. | Implements an accepted issue contract and supplies public projections and the installed Surface Manifest. |
 | Implementation | Executable behavior. For an Ordinary Core Operation, its fixed packaged Lua handler is the sole executable Core Operation Semantics authority. Application code owns application-use-case orchestration without duplicating those semantics. | Product intent, planned scope, or independent public-contract definitions. | Implements issues and Descriptors under accepted ADR constraints. |
-| Tests and evidence | Verification assertions and evidence about contracts, behavior, integration, packaging, and regressions. | Product meaning, executable behavior, or an independently editable contract. | Verify the applicable issue, Descriptor, implementation, and native claim. |
+| Tests and evidence | Executed verification assertions, observations, measurements, and retained results about contracts, behavior, integration, packaging, and regressions. | Product meaning, evidence requirements, executable behavior, or an independently editable contract. | Verify the applicable issue, Descriptor, implementation, and native claim; supply results that issues can link to and summarize. |
 | Installed Surface Manifest | Callable Operations, schemas, execution metadata, version constraints, and Capability Gaps for one installed SPA and Aseprite combination. | Roadmap, priority, design rationale, historical evidence, or unsupported candidates. | Is generated from installed Descriptors and observed runtime facts. |
 
 The normative delivery flow is vertical:
@@ -52,6 +52,7 @@ flowchart TB
     ADRs --> Issues
     Issues --> Descriptor
     Issues --> Implementation
+    Issues --> Evidence
     Descriptor --> Implementation
     Descriptor --> Evidence
     Implementation --> Evidence
@@ -66,6 +67,22 @@ They do not make an upstream artifact responsible for the downstream fact.
 rationale that establishes or changes that model. A proposed ADR starts from the current
 model; when the decision is accepted, the same change updates `CONTEXT.md`. This update
 rule preserves decision history without making an ADR a second current-model authority.
+
+That strategic-model change is a temporal lifecycle, not a timeless dependency cycle:
+
+```mermaid
+flowchart TB
+    Current[Current CONTEXT.md]
+    Proposal[Proposed strategic ADR<br/>evaluates the current model]
+    Accepted[Accepted strategic decision]
+    Update[Update CONTEXT.md<br/>in the same change]
+    Canonical[New canonical current model]
+
+    Current --> Proposal
+    Proposal --> Accepted
+    Accepted --> Update
+    Update --> Canonical
+```
 
 ## Integrated and user-facing views
 
@@ -157,7 +174,8 @@ Related statements at different stages are different fact dimensions:
 | Accepted planned slice and acceptance | Feature issue. |
 | Implemented public Operation contract | Operation Descriptor. |
 | Executable behavior | Implementation; fixed packaged Lua handler for Ordinary Core Operation Semantics. |
-| Verification result | Tests and evidence. |
+| Evidence requirement, provenance link, or curated evidence summary | Feature issue. |
+| Executed verification assertion, observation, measurement, or result | Tests and evidence. |
 | Availability in one installation | Installed Surface Manifest. |
 
 This lifecycle does not permit two current owners for the same fact. For example, a

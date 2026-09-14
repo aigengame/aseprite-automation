@@ -11,8 +11,10 @@ Accepted
 - ADR-0092: conditional native Dithering
 - ADR-0093: native Color Profile assignment and conversion
 
-The owning feature issues and Operation Descriptors hold exact request branches,
-enumerations, result fields, runtime evidence, and acceptance matrices.
+The owning feature issues hold exact planned request branches, enumerations, result
+fields, required runtime evidence, provenance links, curated evidence summaries, and
+acceptance matrices. Tests and evidence artifacts own executed assertions and results.
+Operation Descriptors own the implemented public contracts.
 
 ## Context
 

@@ -65,5 +65,7 @@ That would violate Lua Kernel authority and create a second raster engine.
 
 This ADR retains the cross-feature Native Tool Invocation decision previously repeated
 by ADR-0061 through ADR-0065, ADR-0067, ADR-0069 through ADR-0071, and ADR-0073.
-Issues #26 through #29 own the affected feature contracts, acceptance, Capability Gaps,
-and runtime evidence.
+Issues #26 through #29 own the affected planned feature contracts, acceptance, required
+runtime evidence, provenance links, curated evidence summaries, and planned handling of
+candidate Capability Gaps. Tests and evidence artifacts own executed assertions and
+results; the installed Surface Manifest owns installed Capability Gaps.

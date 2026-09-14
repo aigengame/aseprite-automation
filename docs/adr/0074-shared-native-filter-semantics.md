@@ -24,8 +24,11 @@ request shape would admit combinations that a particular native Filter ignores.
 
 SPA therefore needs one shared Filter vocabulary without replacing Aseprite's
 operation-specific semantics or creating a generic selector, effect, or image-processing
-system. Feature issues own exact fields, acceptance, runtime evidence, and Capability
-Gaps. Installed Operation Descriptors and the Surface Manifest own shipped schemas.
+system. Feature issues own exact planned fields, acceptance, required runtime evidence,
+provenance links, curated evidence summaries, and planned handling of candidate
+Capability Gaps. Tests and evidence artifacts own executed assertions and results.
+Installed Operation Descriptors own shipped schemas, and the Surface Manifest owns
+installed Capability Gaps.
 
 ## Decision
 

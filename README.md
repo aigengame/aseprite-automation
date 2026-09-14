@@ -4,7 +4,7 @@ Aseprite Automation (SPA) provides agent-facing automation for Aseprite. `SPA` i
 short project name used in documentation; `spa` is the primary executable.
 
 > [!IMPORTANT]
-> This repository is at the bootstrap stage. The product architecture has been tested through disposable prototypes, but there is no production command-line interface (CLI) release yet. [Issue #1](https://github.com/aigengame/aseprite-automation/issues/1) is the umbrella product requirements document (PRD); feature issues own delivery contracts and evidence, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. Shipped behavior will be reported by the installed Surface Manifest.
+> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). There is no production command-line interface (CLI) release yet. Feature issues own delivery contracts, evidence requirements, provenance links, and curated evidence summaries, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. Shipped behavior will be reported by the installed Surface Manifest.
 
 This README owns the user-facing product introduction and promotion, value-proposition
 narrative, onboarding, adoption guidance, and project navigation. Its factual claims
@@ -74,10 +74,11 @@ not a second public API.
 - Operation Descriptors own registration and projections. The Lua Operation Kernel owns SPA Core Operation Semantics and native mapping. Python coordinates use cases and adapters without duplicating that behavior.
 - Capability Gaps are versioned, evidence-backed runtime facts. They remove unfaithful Operations from the installed Surface Manifest instead of creating silent partial support.
 
-Before delivery, exact feature contracts belong to their accepted issues under the
-shared language and decisions. Operation Descriptors own implemented public contracts
-and bindings, implementation owns executable behavior, tests own verification evidence,
-and the installed Surface Manifest reports callable facts for one installation. See
+Before delivery, exact feature contracts and evidence requirements belong to their
+accepted issues under the shared language and decisions. Operation Descriptors own
+implemented public contracts and bindings, implementation owns executable behavior,
+tests and evidence artifacts own executed verification assertions and results, and the
+installed Surface Manifest reports callable facts for one installation. See
 [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md).
 
 ## Technical Architecture
@@ -104,7 +105,10 @@ flows, trust boundary, and decision map.
 
 ## Delivery Plan
 
-The project grows through evidence-bearing vertical slices. GitHub issues own scope, acceptance, dependencies, and delivery status. Milestones group outcomes and do not imply dependencies that are absent from issue bodies.
+The project grows through evidence-bearing vertical slices. GitHub issues own scope,
+acceptance, dependencies, evidence requirements, provenance links, curated evidence
+summaries, and delivery status. Milestones group outcomes and do not imply dependencies
+that are absent from issue bodies.
 
 - [Phase 1 — Installed CLI Tracer](https://github.com/aigengame/aseprite-automation/milestone/3)
 - [Phase 2 — Sprite and Animation Authoring](https://github.com/aigengame/aseprite-automation/milestone/1)

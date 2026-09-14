@@ -11,12 +11,16 @@ Core Operation's Core Operation Semantics. One fixed handler defines what the Op
 creates, edits, observes, validates, converts, or exports through Aseprite. Standalone,
 Plan, and application-composed execution invoke the same handlers.
 
-The Python Application layer implements the Descriptor-owned public contract and owns
-application orchestration: contract-type validation, static Preflight, Plan admission,
-failure mapping, access-channel projection, selection and ordering of packaged handlers,
-process invocation, staged commit, and Artifact reporting. It can compose packaged
-capabilities through private protocol data, but it cannot reproduce their Aseprite
-behavior or become a second public-contract authority.
+The Python Application layer validates requests and outcomes against the
+Descriptor-owned public contract and owns application orchestration: contract-type
+validation, static Preflight, Plan admission, failure mapping, selection and ordering
+of packaged handlers, staged-commit coordination, and Artifact reporting. It supplies
+Descriptor-backed Application entry points for Access adapters to project and requests
+Aseprite execution through an inner-owned port. Access adapters own access-channel
+projection. The Aseprite Runtime adapter owns process launch, Kernel transport, and
+invocation mechanics. Application can compose packaged capabilities through private
+protocol data, but it cannot reproduce their Aseprite behavior or become a second
+public-contract authority.
 
 The Lua Kernel resolves live document targets, enforces document-dependent
 preconditions, performs supported native mutations, observes native state, invokes
