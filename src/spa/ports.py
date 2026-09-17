@@ -25,6 +25,7 @@ RuntimeIssueKind = Literal[
     "launch_failed",
     "deadline",
     "output_overflow",
+    "process_failed",
     "response_absent",
     "response_malformed",
     "handler_rejected",

@@ -15,6 +15,7 @@ from spa.contracts import (
     RuntimeRequest,
 )
 from spa.ports import RuntimeIssue, RuntimeObservation
+from spa.runtime.invocation import prepare_invocation
 
 PROTOCOL_VERSION = 1
 OUTPUT_LIMIT_BYTES = 65536
@@ -141,10 +142,9 @@ def probe(request: RuntimeRequest) -> RuntimeObservation:
             json.dumps({"protocol_version": PROTOCOL_VERSION, "echo": sentinel}),
             encoding="utf-8",
         )
-        env = os.environ.copy()
-        env["ASEPRITE_USER_FOLDER"] = str(Path(work) / "aseprite-user")
+        prepared = prepare_invocation(canonical, resource, Path(work))
         command = [
-            str(canonical),
+            str(prepared.executable),
             "--batch",
             "--script-param",
             f"request={request_file}",
@@ -155,8 +155,22 @@ def probe(request: RuntimeRequest) -> RuntimeObservation:
             "--script",
             str(script),
         ]
-        status, diagnostics = _run(command, env, request.timeout_seconds)
+        status, diagnostics = _run(
+            command, prepared.environment, request.timeout_seconds
+        )
         if not response_file.is_file():
+            if status != 0:
+                reason = (
+                    f"terminated by signal {-status}"
+                    if status < 0
+                    else f"exited with status {status}"
+                )
+                raise RuntimeIssue(
+                    "process_failed",
+                    f"Aseprite {reason} before writing a Kernel response",
+                    {"executable": str(canonical), "exit_status": status},
+                    diagnostics,
+                )
             raise RuntimeIssue(
                 "response_absent",
                 "Aseprite did not write a Kernel response",

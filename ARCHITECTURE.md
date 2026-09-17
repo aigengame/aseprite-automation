@@ -390,6 +390,7 @@ for exact caller-owned Lua and does not inherit Ordinary Core Operation guarante
 The Aseprite Adapter owns the external integration mechanics:
 
 - executable and resource discovery;
+- host-specific invocation preparation within the adapter;
 - collection and transport of Aseprite/API version and native-capability observations;
 - `--batch --script` process launch;
 - the versioned Kernel Protocol and transport files;
@@ -399,6 +400,16 @@ The Aseprite Adapter owns the external integration mechanics:
 
 Process exit and standard output are runtime observations, not the public verdict. The
 Application maps those observations to an Operation Result or Failure Envelope.
+
+Invocation preparation keeps the installed executable's canonical path separate from
+the path used to start one process. For macOS `.app` CLI invocations, the adapter
+creates a temporary non-bundle link to the executable and a link to its `data`
+resources. Other installation shapes use the installed executable directly. The
+adapter supplies an isolated Aseprite user folder and cleans these temporary paths.
+This private mechanism does not change the caller's sandbox, the installed app, or
+the File Adapter's ownership of Sprite and Artifact paths. [Issue #61](https://github.com/aigengame/aseprite-automation/issues/61)
+owns the supported restricted profile and its evidence requirements. Tests retain
+the executed integration evidence.
 
 ### File and Artifact verification integration
 

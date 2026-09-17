@@ -70,7 +70,7 @@ def _runtime_failure(
             details = KernelExecutionDetails(
                 response_path=evidence["response_path"], reason=evidence["reason"]
             )
-        case "exit_mismatch":
+        case "process_failed" | "exit_mismatch":
             code, category = "process_failed", "execution"
             details = ProcessDetails(
                 executable=evidence["executable"], exit_status=evidence["exit_status"]

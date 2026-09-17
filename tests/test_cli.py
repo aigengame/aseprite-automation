@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -94,6 +95,19 @@ def test_exit_zero_without_kernel_response_is_failure(tmp_path: Path) -> None:
     assert failure["diagnostics"]["exit_status"] == 0
 
 
+def test_process_exit_before_kernel_response_is_execution_failure(
+    tmp_path: Path,
+) -> None:
+    binary = _fake_executable(tmp_path, 'echo "startup failed" >&2\nexit 13\n')
+    run = spa("info", "--aseprite", str(binary), "--json")
+    assert run.returncode == 1
+    failure = json.loads(run.stdout)
+    assert failure["code"] == "process_failed"
+    assert failure["category"] == "execution"
+    assert failure["details"]["exit_status"] == 13
+    assert "startup failed" in failure["diagnostics"]["stderr"]
+
+
 def test_exit_zero_with_kernel_error_is_execution_failure(tmp_path: Path) -> None:
     binary = _fake_executable(
         tmp_path,
@@ -124,6 +138,38 @@ def test_runtime_uses_an_isolated_user_folder(tmp_path: Path) -> None:
     isolated_path = Path(failure["diagnostics"]["stdout"])
     assert isolated_path.name == "aseprite-user"
     assert not isolated_path.exists()
+
+
+def test_aseprite_can_write_to_the_isolated_user_folder(tmp_path: Path) -> None:
+    binary = _fake_executable(
+        tmp_path,
+        'printf "ready" > "$ASEPRITE_USER_FOLDER/startup-check" || exit 17\n',
+    )
+    run = spa("info", "--aseprite", str(binary), "--json")
+    failure = json.loads(run.stdout)
+    assert failure["code"] == "kernel_response_missing"
+    assert failure["diagnostics"]["exit_status"] == 0
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX shell fixture")
+def test_app_bundle_cli_launch_is_scoped_to_macos(tmp_path: Path) -> None:
+    binary = _fake_executable(
+        tmp_path,
+        'printf "%s\\n" "$0"\n'
+        'if test -f "$(dirname "$0")/data/gui.xml"; then echo data-present; '
+        "else echo data-absent; fi\n",
+    )
+    run = spa("info", "--aseprite", str(binary), "--json")
+    failure = json.loads(run.stdout)
+    assert failure["code"] == "kernel_response_missing"
+    launched_path, data_status = failure["diagnostics"]["stdout"].splitlines()
+    if sys.platform == "darwin":
+        assert launched_path != str(binary.resolve())
+        assert Path(launched_path).name == binary.name
+        assert data_status == "data-present"
+    else:
+        assert launched_path == str(binary.resolve())
+        assert data_status == "data-absent"
 
 
 def test_resource_check_is_distinct_from_process_outcome(tmp_path: Path) -> None:
@@ -187,6 +233,26 @@ def test_symlinked_executable_resolves_to_resource_complete_bundle(
     assert runtime["canonical_path"] == str(
         Path(os.environ["SPA_TEST_ASEPRITE"]).resolve()
     )
+
+
+@pytest.mark.skipif(
+    sys.platform != "darwin"
+    or not os.environ.get("SPA_TEST_ASEPRITE")
+    or os.environ.get("SPA_TEST_MACOS_AGENT_SANDBOX") != "1",
+    reason="requires installed Aseprite in a macOS agent sandbox",
+)
+def test_macos_agent_sandbox_starts_installed_aseprite_script() -> None:
+    executable = Path(os.environ["SPA_TEST_ASEPRITE"]).resolve()
+    assert executable.parent.name == "MacOS"
+    assert executable.parent.parent.name == "Contents"
+    assert executable.parent.parent.parent.suffix == ".app"
+
+    run = spa("info", "--aseprite", str(executable), "--json")
+    assert run.returncode == 0, run.stdout
+    result = json.loads(run.stdout)
+    validate(result, json.loads(spa("info", "--schema").stdout)["result_schema"])
+    assert result["runtime"]["canonical_path"] == str(executable)
+    assert result["runtime"]["resource_complete"] is True
 
 
 @pytest.mark.skipif(

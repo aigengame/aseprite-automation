@@ -119,6 +119,13 @@ currently these are `info`, `version`, and `schema`. It probes Aseprite, while e
 command's `--schema` remains available without a runtime. For a real integration
 test, set `SPA_TEST_ASEPRITE` to that executable and run `uv run --group test pytest`.
 
+For macOS `.app` CLI use, SPA prepares a temporary launch path and links the installed
+`data` resources without changing the app or leaving the caller's sandbox. The
+restricted macOS profile and its opt-in real-Aseprite test are specified in
+[issue #61](https://github.com/aigengame/aseprite-automation/issues/61). Linux CI
+does not certify that macOS profile, and other restricted environments remain
+unverified.
+
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the integrated context map, subdomains,
 module responsibilities, dependency rules, technology profile, contracts, execution
 flows, trust boundary, and decision map.
