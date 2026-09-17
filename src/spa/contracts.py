@@ -103,7 +103,6 @@ class ProcessDetails(PublicModel):
 class KernelProtocolDetail(PublicModel):
     kind: Literal["kernel_protocol"] = "kernel_protocol"
     response_path: str
-    kernel_protocol_version: int = 1
 
 
 class KernelExecutionDetails(PublicModel):

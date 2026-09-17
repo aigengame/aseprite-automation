@@ -155,7 +155,7 @@ def test_exit_zero_without_kernel_response_is_failure(tmp_path: Path) -> None:
     assert failure["code"] == "kernel_response_missing"
     assert failure["category"] == "kernel_protocol"
     assert failure["details"]["kind"] == "kernel_protocol"
-    assert failure["details"]["kernel_protocol_version"] == 1
+    assert "kernel_protocol_version" not in failure["details"]
     assert failure["diagnostics"]["exit_status"] == 0
 
 
@@ -204,8 +204,30 @@ def test_zero_exit_with_truncated_kernel_response_is_kernel_protocol_failure(
     assert failure["code"] == "kernel_response_invalid"
     assert failure["category"] == "kernel_protocol"
     assert failure["details"]["kind"] == "kernel_protocol"
-    assert failure["details"]["kernel_protocol_version"] == 1
+    assert "kernel_protocol_version" not in failure["details"]
     assert failure["diagnostics"]["exit_status"] == 0
+
+
+def test_other_kernel_protocol_version_is_rejected_without_negotiation(
+    tmp_path: Path,
+) -> None:
+    binary = _fake_executable(
+        tmp_path,
+        """
+response=
+for argument in "$@"; do
+  case "$argument" in response=*) response=${argument#response=};; esac
+done
+printf '{"kernel_protocol_version":2,"status":"ok","aseprite_version":"test","api_version":1}' > "$response"
+""",
+    )
+    run = spa("info", "--aseprite", str(binary), "--json")
+    assert run.returncode == 1
+    failure = json.loads(run.stdout)
+    assert failure["code"] == "kernel_response_invalid"
+    assert failure["category"] == "kernel_protocol"
+    assert "kernel_protocol_version" not in failure["details"]
+    assert "unexpected Kernel Protocol version" in failure["message"]
 
 
 def test_exit_zero_with_kernel_error_is_execution_failure(tmp_path: Path) -> None:
