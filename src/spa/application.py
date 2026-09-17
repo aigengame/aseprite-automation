@@ -14,6 +14,7 @@ from spa.contracts import (
     RequestDetails,
     ResourceDetails,
     ValidationIssue,
+    failure_envelope,
 )
 from spa.descriptors import OperationDescriptor
 from spa.ports import RuntimeIssue, RuntimeProbe
@@ -22,10 +23,9 @@ from spa.ports import RuntimeIssue, RuntimeProbe
 def _request_failure(
     descriptor: OperationDescriptor, issues: list[ValidationIssue]
 ) -> FailureEnvelope:
-    return FailureEnvelope(
+    return failure_envelope(
         operation=f"spa {descriptor.name}",
         code="invalid_request",
-        category="input",
         message="Invalid Operation Request",
         details=RequestDetails(errors=issues),
     )
@@ -37,50 +37,49 @@ def _runtime_failure(
     evidence = issue.evidence
     match issue.kind:
         case "discovery_absent":
-            code, category = "executable_not_found", "environment"
+            code = "executable_not_found"
             details = NotFoundDetails(
                 requested_path=evidence["requested_path"], searched=evidence["searched"]
             )
         case "resources_absent":
-            code, category = "resource_incomplete", "environment"
+            code = "resource_incomplete"
             details = ResourceDetails(
                 canonical_path=evidence["canonical_path"], searched=evidence["searched"]
             )
         case "launch_failed":
-            code, category = "process_start_failed", "execution"
+            code = "process_start_failed"
             details = ProcessDetails(executable=evidence["executable"])
         case "deadline":
-            code, category = "process_timeout", "execution"
+            code = "process_timeout"
             details = ProcessDetails(
                 executable=evidence["executable"], exit_status=evidence["exit_status"]
             )
         case "output_overflow":
-            code, category = "output_limit_exceeded", "execution"
+            code = "output_limit_exceeded"
             details = ProcessDetails(
                 executable=evidence["executable"], exit_status=evidence["exit_status"]
             )
         case "response_absent":
-            code, category = "kernel_response_missing", "protocol"
+            code = "kernel_response_missing"
             details = ProtocolDetails(response_path=evidence["response_path"])
         case "response_malformed":
-            code, category = "kernel_response_invalid", "protocol"
+            code = "kernel_response_invalid"
             details = ProtocolDetails(response_path=evidence["response_path"])
         case "handler_rejected":
-            code, category = "kernel_execution_failed", "execution"
+            code = "kernel_execution_failed"
             details = KernelExecutionDetails(
                 response_path=evidence["response_path"], reason=evidence["reason"]
             )
         case "process_failed" | "exit_mismatch":
-            code, category = "process_failed", "execution"
+            code = "process_failed"
             details = ProcessDetails(
                 executable=evidence["executable"], exit_status=evidence["exit_status"]
             )
         case _:
             raise ValueError(f"Unknown runtime issue kind: {issue.kind}")
-    return FailureEnvelope(
+    return failure_envelope(
         operation=f"spa {descriptor.name}",
         code=code,
-        category=category,
         message=str(issue),
         details=details,
         diagnostics=issue.diagnostics,

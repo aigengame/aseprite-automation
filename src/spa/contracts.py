@@ -1,8 +1,13 @@
-"""Published Language models for the installed meta-operation slice."""
+"""Published Language models and registered failures for the installed slice."""
 
-from typing import Annotated, Literal
+import re
+from collections.abc import Mapping
+from copy import deepcopy
+from dataclasses import dataclass
+from types import MappingProxyType
+from typing import Annotated, Any, Literal, get_args
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class PublicModel(BaseModel):
@@ -73,6 +78,7 @@ class SchemaResult(PublicModel):
     spa_version: str
     runtime: RuntimeFacts
     operations: list[OperationSchema]
+    access_failure_schema: dict
     capability_gaps: list[CapabilityGap]
 
 
@@ -127,6 +133,104 @@ FailureDetails = Annotated[
     Field(discriminator="kind"),
 ]
 
+FailureCategory = Literal["input", "environment", "execution", "protocol"]
+
+
+@dataclass(frozen=True)
+class FailureCodeSpec:
+    code: str
+    meaning: str
+    category: FailureCategory
+    details_type: type[PublicModel]
+
+    @property
+    def details_kind(self) -> str:
+        return get_args(self.details_type.model_fields["kind"].annotation)[0]
+
+
+def register_failure_codes(
+    specs: tuple[FailureCodeSpec, ...],
+) -> Mapping[str, FailureCodeSpec]:
+    """Reject invalid registration before it can become a public projection."""
+    registered: dict[str, FailureCodeSpec] = {}
+    details_types = set(get_args(get_args(FailureDetails)[0]))
+    for spec in specs:
+        if not re.fullmatch(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*", spec.code):
+            raise ValueError(f"Failure Code must be lower_snake_case: {spec.code}")
+        if spec.code in registered:
+            raise ValueError(f"Duplicate Failure Code: {spec.code}")
+        if not spec.meaning.strip():
+            raise ValueError(f"Failure Code has no meaning: {spec.code}")
+        if spec.category not in get_args(FailureCategory):
+            raise ValueError(f"Unknown Failure Category: {spec.category}")
+        if spec.details_type not in details_types:
+            raise ValueError(f"Unsupported Failure Details type: {spec.details_type}")
+        registered[spec.code] = spec
+    return MappingProxyType(registered)
+
+
+FAILURE_CODES = register_failure_codes(
+    (
+        FailureCodeSpec(
+            "invalid_request",
+            "The public request or CLI invocation is invalid",
+            "input",
+            RequestDetails,
+        ),
+        FailureCodeSpec(
+            "executable_not_found",
+            "The selected Aseprite executable is unavailable",
+            "environment",
+            NotFoundDetails,
+        ),
+        FailureCodeSpec(
+            "resource_incomplete",
+            "Required Aseprite resources are unavailable",
+            "environment",
+            ResourceDetails,
+        ),
+        FailureCodeSpec(
+            "process_start_failed",
+            "Aseprite invocation could not be prepared or started",
+            "execution",
+            ProcessDetails,
+        ),
+        FailureCodeSpec(
+            "process_timeout",
+            "The Aseprite process exceeded its deadline",
+            "execution",
+            ProcessDetails,
+        ),
+        FailureCodeSpec(
+            "output_limit_exceeded",
+            "Aseprite process output exceeded the bound",
+            "execution",
+            ProcessDetails,
+        ),
+        FailureCodeSpec(
+            "process_failed", "The Aseprite process failed", "execution", ProcessDetails
+        ),
+        FailureCodeSpec(
+            "kernel_response_missing",
+            "The private Kernel response is absent",
+            "protocol",
+            ProtocolDetails,
+        ),
+        FailureCodeSpec(
+            "kernel_response_invalid",
+            "The private Kernel response is invalid",
+            "protocol",
+            ProtocolDetails,
+        ),
+        FailureCodeSpec(
+            "kernel_execution_failed",
+            "The packaged Kernel handler refused execution",
+            "execution",
+            KernelExecutionDetails,
+        ),
+    )
+)
+
 
 class Diagnostics(PublicModel):
     stdout: str = ""
@@ -138,7 +242,81 @@ class FailureEnvelope(PublicModel):
     status: Literal["failure"] = "failure"
     operation: str
     code: str
-    category: Literal["input", "environment", "execution", "protocol"]
+    category: FailureCategory
     message: str
     details: FailureDetails
     diagnostics: Diagnostics = Field(default_factory=Diagnostics)
+
+    @model_validator(mode="after")
+    def validate_registered_failure(self) -> "FailureEnvelope":
+        spec = FAILURE_CODES.get(self.code)
+        if spec is None:
+            raise ValueError(f"Unknown Failure Code: {self.code}")
+        if self.category != spec.category:
+            raise ValueError(
+                f"Failure Category for {self.code} must be {spec.category}"
+            )
+        if not isinstance(self.details, spec.details_type):
+            raise ValueError(  # noqa: TRY004 - invalid public code/Details pairing
+                f"Failure Details for {self.code} must be {spec.details_kind}"
+            )
+        return self
+
+
+def failure_envelope(
+    operation: str,
+    code: str,
+    message: str,
+    details: FailureDetails,
+    diagnostics: Diagnostics | None = None,
+) -> FailureEnvelope:
+    """Construct a public failure without a producer-owned Category decision."""
+    spec = FAILURE_CODES.get(code)
+    if spec is None:
+        raise ValueError(f"Unknown Failure Code: {code}")
+    if not isinstance(details, spec.details_type):
+        raise ValueError(  # noqa: TRY004 - invalid public code/Details pairing
+            f"Failure Details for {code} must be {spec.details_kind}"
+        )
+    return FailureEnvelope(
+        operation=operation,
+        code=code,
+        category=spec.category,
+        message=message,
+        details=details,
+        diagnostics=diagnostics or Diagnostics(),
+    )
+
+
+def failure_schema(codes: tuple[str, ...]) -> dict[str, Any]:
+    """Project one registered code/Category/Details union as Draft 2020-12."""
+    if not codes or len(codes) != len(set(codes)):
+        raise ValueError("Failure schema needs unique applicable codes")
+    unknown = set(codes) - FAILURE_CODES.keys()
+    if unknown:
+        raise ValueError(f"Unknown Failure Code in schema: {sorted(unknown)}")
+    base = FailureEnvelope.model_json_schema()
+    definitions = base.pop("$defs")
+    base["required"] = list(dict.fromkeys([*base["required"], "status"]))
+    branches = []
+    for code in codes:
+        spec = FAILURE_CODES[code]
+        branch = deepcopy(base)
+        branch["properties"]["code"] = {"const": code}
+        branch["properties"]["category"] = {"const": spec.category}
+        branch["properties"]["details"] = {
+            "allOf": [
+                {"$ref": f"#/$defs/{spec.details_type.__name__}"},
+                {
+                    "type": "object",
+                    "properties": {"kind": {"const": spec.details_kind}},
+                    "required": ["kind"],
+                },
+            ]
+        }
+        branches.append(branch)
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$defs": definitions,
+        "oneOf": branches,
+    }

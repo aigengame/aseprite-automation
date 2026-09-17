@@ -3,7 +3,12 @@
 import typer
 
 from spa.application import dispatch
-from spa.contracts import FailureEnvelope, RequestDetails, ValidationIssue
+from spa.contracts import (
+    FailureEnvelope,
+    RequestDetails,
+    ValidationIssue,
+    failure_envelope,
+)
 from spa.descriptors import OPERATIONS, OperationDescriptor
 from spa.ports import RuntimeProbe
 
@@ -127,10 +132,9 @@ def run_cli(app: typer.Typer) -> None:
         operation = context.command_path if context else "spa"
         message = exc.format_message() if hasattr(exc, "format_message") else str(exc)
         _emit_failure(
-            FailureEnvelope(
+            failure_envelope(
                 operation=operation,
                 code="invalid_request",
-                category="input",
                 message="Invalid CLI invocation",
                 details=RequestDetails(
                     errors=[
