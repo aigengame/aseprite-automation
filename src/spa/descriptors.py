@@ -1,0 +1,140 @@
+"""One registration authority for the installed meta Operations."""
+
+from collections.abc import Callable
+from dataclasses import dataclass
+
+from pydantic import BaseModel
+
+from spa.contracts import (
+    FailureEnvelope,
+    InfoResult,
+    OperationSchema,
+    RuntimeFacts,
+    RuntimeRequest,
+    SchemaResult,
+    VersionRequest,
+    VersionResult,
+)
+from spa.ports import RuntimeProbe
+
+COMMON_CLI_FLAGS = {
+    "input_json": "--input-json",
+    "schema": "--schema",
+    "json_output": "--json",
+    "human": "--human",
+}
+RUNTIME_CLI_FLAGS = {
+    "aseprite": "--aseprite",
+    "timeout_seconds": "--timeout-seconds",
+}
+
+
+@dataclass(frozen=True)
+class OperationDescriptor:
+    name: str
+    request_type: type[BaseModel]
+    result_type: type[BaseModel]
+    execute: Callable[[BaseModel, RuntimeProbe], BaseModel]
+    render_human: Callable[[BaseModel], str]
+    requires_runtime: bool
+
+    @property
+    def cli_flags(self) -> dict[str, str]:
+        return COMMON_CLI_FLAGS | (RUNTIME_CLI_FLAGS if self.requires_runtime else {})
+
+    def schema(self) -> OperationSchema:
+        command = f"spa {self.name}"
+        return OperationSchema(
+            operation=command,
+            execution_kind="read",
+            determinism="deterministic",
+            side_effects=[],
+            minimum_aseprite_version=None,
+            requires_runtime=self.requires_runtime,
+            request_schema=self.request_type.model_json_schema(),
+            result_schema=self.result_type.model_json_schema(),
+            failure_schema=FailureEnvelope.model_json_schema(),
+            invocation_schema={
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                    "command": {"const": command},
+                    "input_json": {"type": "string"},
+                    "argv": self.request_type.model_json_schema(),
+                    "schema": {"type": "boolean"},
+                    "json_output": {"type": "boolean"},
+                    "human": {"type": "boolean"},
+                },
+                "required": ["command"],
+                "additionalProperties": False,
+                "x-cli-flags": self.cli_flags,
+            },
+        )
+
+
+def version_result(_: VersionRequest, _probe: RuntimeProbe) -> VersionResult:
+    from importlib.metadata import version
+
+    return VersionResult(spa_version=version("aseprite-automation"))
+
+
+def info_result(request: RuntimeRequest, probe: RuntimeProbe) -> InfoResult:
+    from importlib.metadata import version
+
+    observation = probe(request)
+    facts = RuntimeFacts(
+        selection_source=observation.selection_source,
+        requested_path=observation.requested_path,
+        discovered_path=observation.discovered_path,
+        canonical_path=observation.canonical_path,
+        resource_complete=True,
+        resource_path=observation.resource_path,
+        aseprite_version=observation.aseprite_version,
+        api_version=observation.api_version,
+    )
+    return InfoResult(
+        spa_version=version("aseprite-automation"),
+        runtime=facts,
+        supported_capabilities=[f"spa {descriptor.name}" for descriptor in OPERATIONS],
+        capability_gaps=[],
+    )
+
+
+def schema_result(request: RuntimeRequest, probe: RuntimeProbe) -> SchemaResult:
+    info = info_result(request, probe)
+    return SchemaResult(
+        spa_version=info.spa_version,
+        runtime=info.runtime,
+        operations=[descriptor.schema() for descriptor in OPERATIONS],
+        capability_gaps=info.capability_gaps,
+    )
+
+
+OPERATIONS = (
+    OperationDescriptor(
+        "info",
+        RuntimeRequest,
+        InfoResult,
+        info_result,
+        lambda r: (
+            f"Aseprite {r.runtime.aseprite_version} (API {r.runtime.api_version}) at {r.runtime.canonical_path}"
+        ),
+        True,
+    ),
+    OperationDescriptor(
+        "version",
+        VersionRequest,
+        VersionResult,
+        version_result,
+        lambda r: f"SPA {r.spa_version}",
+        False,
+    ),
+    OperationDescriptor(
+        "schema",
+        RuntimeRequest,
+        SchemaResult,
+        schema_result,
+        lambda r: "\n".join(item.operation for item in r.operations),
+        True,
+    ),
+)
