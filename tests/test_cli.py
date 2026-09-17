@@ -143,6 +143,32 @@ def test_unprefixed_executable_environment_is_ignored(tmp_path: Path) -> None:
     ]
 
 
+@pytest.mark.parametrize("source", ["argv", "environment"])
+def test_unexpandable_executable_path_uses_structured_discovery_failure(
+    source: str,
+) -> None:
+    unresolved = "~spa_nonexistent_agent_91a6a27c/aseprite"
+    environment = os.environ.copy()
+    arguments = ["info", "--json"]
+    if source == "argv":
+        arguments.extend(("--aseprite", unresolved))
+    else:
+        environment["SPA_ASEPRITE_EXECUTABLE"] = unresolved
+
+    run = spa(*arguments, env=environment)
+
+    assert run.returncode == 1
+    assert run.stderr == ""
+    failure = json.loads(run.stdout)
+    schema = json.loads(spa("info", "--schema").stdout)
+    validate(failure, schema["failure_schema"])
+    assert failure["code"] == "executable_not_found"
+    assert failure["details"]["requested_path"] == (
+        unresolved if source == "argv" else None
+    )
+    assert failure["details"]["searched"] == [unresolved]
+
+
 def _fake_executable(tmp_path: Path, body: str) -> Path:
     binary = tmp_path / "Aseprite.app" / "Contents" / "MacOS" / "aseprite"
     binary.parent.mkdir(parents=True)

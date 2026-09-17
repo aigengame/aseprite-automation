@@ -33,17 +33,26 @@ OUTPUT_LIMIT_BYTES = 65536
 def _discover(requested: str | None) -> tuple[Path, Path, Path, str]:
     source = requested or os.environ.get("SPA_ASEPRITE_EXECUTABLE")
     selection_source = "explicit" if requested else "environment" if source else "path"
-    discovered = (
-        Path(source).expanduser() if source else Path(shutil.which("aseprite") or "")
-    )
     searched = [source] if source else ["SPA_ASEPRITE_EXECUTABLE", "PATH:aseprite"]
-    if not discovered.is_file() or not os.access(discovered, os.X_OK):
+    try:
+        discovered = (
+            Path(source).expanduser()
+            if source
+            else Path(shutil.which("aseprite") or "")
+        )
+        if not discovered.is_file() or not os.access(discovered, os.X_OK):
+            raise RuntimeIssue(
+                "discovery_absent",
+                "Aseprite executable was not found or is not executable",
+                DiscoveryEvidence(requested_path=requested, searched=searched),
+            )
+        canonical = discovered.resolve(strict=True)
+    except (OSError, RuntimeError, ValueError) as exc:
         raise RuntimeIssue(
             "discovery_absent",
             "Aseprite executable was not found or is not executable",
             DiscoveryEvidence(requested_path=requested, searched=searched),
-        )
-    canonical = discovered.resolve(strict=True)
+        ) from exc
     resource_candidates = [
         canonical.parent.parent / "Resources" / "data" / "gui.xml",
         canonical.parent.parent / "data" / "gui.xml",
