@@ -4,7 +4,7 @@ Aseprite Automation (SPA) provides agent-facing automation for Aseprite. `SPA` i
 short project name used in documentation; `spa` is the primary executable.
 
 > [!IMPORTANT]
-> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). There is no production command-line interface (CLI) release yet. Feature issues own delivery contracts, evidence requirements, provenance links, and curated evidence summaries, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. Shipped behavior will be reported by the installed Surface Manifest.
+> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The first installed CLI slice provides runtime discovery and contract inspection; sprite authoring Operations are not yet shipped. Feature issues own delivery contracts, evidence requirements, provenance links, and curated evidence summaries, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
 
 This README owns the user-facing product introduction and promotion, value-proposition
 narrative, onboarding, adoption guidance, and project navigation. Its factual claims
@@ -55,7 +55,7 @@ Command Groups are navigation, not module architecture. Domain Modules own cohes
 
 ## Public Contract
 
-The CLI is the planned first Open Host Service. Its Published Language is the versioned
+The CLI is the first Open Host Service. Its Published Language is the versioned
 set of Operation Request, Operation Result, Failure Envelope, Operation metadata,
 Artifact, and Surface Manifest schemas. Human output and MCP tools are projections of
 the Published Language. The Python/Lua Kernel Protocol is a separate private contract,
@@ -91,13 +91,33 @@ behavior; packaged Lua handlers own SPA Core Operation Semantics and native mapp
 Application use cases coordinate the surrounding workflow without redefining that
 native behavior.
 
-The planned bootstrap stack, owned by
+The initial bootstrap stack, delivered by
 [issue #3](https://github.com/aigengame/aseprite-automation/issues/3), is Python 3.13,
-Typer, Pydantic 2, `uv`, packaged Lua, and an external
-`aseprite --batch --script` runtime. After implementation, project metadata and the
-lockfile report the actual runtime and dependencies. The operating model is a trusted
+Typer, Pydantic 2, `uv`, a packaged Lua runtime probe, and an external
+`aseprite --batch --script` runtime. Project metadata and the lockfile report the
+actual dependencies. The operating model is a trusted
 local workspace. Asset Pipeline integration uses a downstream-owned Anti-Corruption
 Layer and the public `spa` CLI JSON contract.
+
+## Try the installed CLI tracer
+
+Install the project with `uv sync`, then point the runtime probe at an installed
+Aseprite executable (on macOS, the binary inside `Aseprite.app/Contents/MacOS/`).
+The commands emit JSON by default; `--human` renders the same outcome for reading.
+
+```sh
+uv run spa version
+uv run spa info --aseprite /path/to/Aseprite.app/Contents/MacOS/aseprite
+uv run spa schema --aseprite /path/to/Aseprite.app/Contents/MacOS/aseprite
+uv run spa info --schema
+uv run spa info --input-json '{"aseprite":"/path/to/Aseprite.app/Contents/MacOS/aseprite"}'
+```
+
+`ASEPRITE_EXECUTABLE` or `aseprite` on `PATH` can supply the executable when
+`--aseprite` is absent. `spa schema` reports the installed callable Operations;
+currently these are `info`, `version`, and `schema`. It probes Aseprite, while each
+command's `--schema` remains available without a runtime. For a real integration
+test, set `SPA_TEST_ASEPRITE` to that executable and run `uv run --group test pytest`.
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the integrated context map, subdomains,
 module responsibilities, dependency rules, technology profile, contracts, execution
