@@ -9,7 +9,7 @@ from spa.contracts import (
     ValidationIssue,
     failure_envelope,
 )
-from spa.descriptors import OPERATIONS, OperationDescriptor
+from spa.descriptors import ACCESS_FAILURE_CODES, OPERATIONS, OperationDescriptor
 from spa.ports import RuntimeProbe
 
 
@@ -130,6 +130,16 @@ def run_cli(app: typer.Typer) -> None:
     except typer.exceptions.TyperException as exc:
         context = getattr(exc, "ctx", None)
         operation = context.command_path if context else "spa"
+        if operation == "spa":
+            applicable_codes = ACCESS_FAILURE_CODES
+        else:
+            descriptor = next(
+                (item for item in OPERATIONS if operation == f"spa {item.name}"),
+                None,
+            )
+            if descriptor is None:
+                raise ValueError(f"Unknown CLI failure path: {operation}") from exc
+            applicable_codes = descriptor.failure_codes
         message = exc.format_message() if hasattr(exc, "format_message") else str(exc)
         _emit_failure(
             failure_envelope(
@@ -145,6 +155,7 @@ def run_cli(app: typer.Typer) -> None:
                         )
                     ]
                 ),
+                applicable_codes=applicable_codes,
             ),
             False,
         )

@@ -7,7 +7,7 @@ from jsonschema import Draft202012Validator
 from jsonschema import ValidationError as SchemaError
 from pydantic import ValidationError
 
-from spa.application import _runtime_failure
+from spa.application import _runtime_failure, dispatch
 from spa.contracts import (
     FAILURE_CODES,
     FailureEnvelope,
@@ -22,8 +22,21 @@ from spa.contracts import (
     failure_schema,
     register_failure_codes,
 )
-from spa.descriptors import OPERATIONS
+from spa.descriptors import ACCESS_FAILURE_CODES, OPERATIONS
 from spa.ports import RuntimeIssue
+
+RUNTIME_ISSUE_CASES = (
+    ("discovery_absent", "executable_not_found"),
+    ("resources_absent", "resource_incomplete"),
+    ("launch_failed", "process_start_failed"),
+    ("deadline", "process_timeout"),
+    ("output_overflow", "output_limit_exceeded"),
+    ("process_failed", "process_failed"),
+    ("exit_mismatch", "process_failed"),
+    ("response_absent", "kernel_response_missing"),
+    ("response_malformed", "kernel_response_invalid"),
+    ("handler_rejected", "kernel_execution_failed"),
+)
 
 
 def test_all_installed_failure_codes_are_registered_once() -> None:
@@ -58,13 +71,37 @@ def test_failure_construction_derives_category_and_refuses_mismatch() -> None:
     details = RequestDetails(
         errors=[ValidationIssue(location=[], code="test", message="bad")]
     )
-    outcome = failure_envelope("spa version", "invalid_request", "bad", details)
+    outcome = failure_envelope(
+        "spa version",
+        "invalid_request",
+        "bad",
+        details,
+        applicable_codes=("invalid_request",),
+    )
     assert outcome.category == "input"
     with pytest.raises(ValueError, match="Unknown Failure Code"):
-        failure_envelope("spa version", "not_registered", "bad", details)
+        failure_envelope(
+            "spa version",
+            "not_registered",
+            "bad",
+            details,
+            applicable_codes=("invalid_request",),
+        )
     with pytest.raises(ValueError, match="Details"):
         failure_envelope(
-            "spa version", "invalid_request", "bad", ProcessDetails(executable="x")
+            "spa version",
+            "invalid_request",
+            "bad",
+            ProcessDetails(executable="x"),
+            applicable_codes=("invalid_request",),
+        )
+    with pytest.raises(ValueError, match="not applicable"):
+        failure_envelope(
+            "spa version",
+            "process_start_failed",
+            "bad",
+            ProcessDetails(executable="x"),
+            applicable_codes=("invalid_request",),
         )
     with pytest.raises(ValidationError, match="Category"):
         FailureEnvelope(
@@ -96,13 +133,17 @@ def test_each_registered_code_has_a_constrained_public_schema() -> None:
         ),
     }
     for code, spec in FAILURE_CODES.items():
-        schema = failure_schema((code,))
+        schema = failure_schema((code,), "spa info")
         Draft202012Validator.check_schema(schema)
         validator = Draft202012Validator(schema)
         details_schema = spec.details_type.model_json_schema()
         assert details_schema["properties"]["kind"]["const"] == spec.details_kind
         outcome = failure_envelope(
-            "spa info", code, "failed", details_by_type[spec.details_type]
+            "spa info",
+            code,
+            "failed",
+            details_by_type[spec.details_type],
+            applicable_codes=(code,),
         ).model_dump(mode="json")
         validator.validate(outcome)
         assert not validator.is_valid(
@@ -120,9 +161,9 @@ def test_each_registered_code_has_a_constrained_public_schema() -> None:
 
 def test_failure_schema_refuses_unknown_and_duplicate_applicability() -> None:
     with pytest.raises(ValueError, match="Unknown Failure Code"):
-        failure_schema(("not_registered",))
+        failure_schema(("not_registered",), "spa")
     with pytest.raises(ValueError, match="unique"):
-        failure_schema(("invalid_request", "invalid_request"))
+        failure_schema(("invalid_request", "invalid_request"), "spa")
 
 
 def test_failure_schema_rejects_wrong_code_category_details_and_missing_fields() -> (
@@ -135,8 +176,11 @@ def test_failure_schema_rejects_wrong_code_category_details_and_missing_fields()
         RequestDetails(
             errors=[ValidationIssue(location=[], code="test", message="bad")]
         ),
+        applicable_codes=("invalid_request",),
     ).model_dump(mode="json")
-    validator = Draft202012Validator(failure_schema(("invalid_request",)))
+    validator = Draft202012Validator(
+        failure_schema(("invalid_request",), "spa version")
+    )
     validator.validate(outcome)
     for field, value in (
         ("code", "process_failed"),
@@ -154,6 +198,8 @@ def test_failure_schema_rejects_wrong_code_category_details_and_missing_fields()
     changed["details"] = {"errors": outcome["details"]["errors"]}
     with pytest.raises(SchemaError):
         validator.validate(changed)
+    with pytest.raises(SchemaError):
+        validator.validate(outcome | {"operation": "spa info"})
 
 
 def test_descriptor_applicability_does_not_advertise_other_codes() -> None:
@@ -177,6 +223,7 @@ def test_descriptor_applicability_does_not_advertise_other_codes() -> None:
         "process_start_failed",
         "launch denied",
         ProcessDetails(executable="x"),
+        applicable_codes=by_name["info"].failure_codes,
     ).model_dump(mode="json")
     Draft202012Validator(by_name["info"].schema().failure_schema).validate(failure)
     with pytest.raises(SchemaError):
@@ -185,21 +232,51 @@ def test_descriptor_applicability_does_not_advertise_other_codes() -> None:
         )
 
 
-@pytest.mark.parametrize(
-    ("kind", "expected_code"),
-    [
-        ("discovery_absent", "executable_not_found"),
-        ("resources_absent", "resource_incomplete"),
-        ("launch_failed", "process_start_failed"),
-        ("deadline", "process_timeout"),
-        ("output_overflow", "output_limit_exceeded"),
-        ("process_failed", "process_failed"),
-        ("exit_mismatch", "process_failed"),
-        ("response_absent", "kernel_response_missing"),
-        ("response_malformed", "kernel_response_invalid"),
-        ("handler_rejected", "kernel_execution_failed"),
-    ],
-)
+def test_registry_and_access_applicability_are_closed_over_installed_producers() -> (
+    None
+):
+    declared = set(ACCESS_FAILURE_CODES)
+    for descriptor in OPERATIONS:
+        declared.update(descriptor.failure_codes)
+    assert set(FAILURE_CODES) == declared
+    info = next(descriptor for descriptor in OPERATIONS if descriptor.name == "info")
+    assert set(info.failure_codes) == {"invalid_request"} | {
+        code for _, code in RUNTIME_ISSUE_CASES
+    }
+    access_schema = Draft202012Validator(failure_schema(ACCESS_FAILURE_CODES, "spa"))
+    access_failure = failure_envelope(
+        "spa",
+        "invalid_request",
+        "bad",
+        RequestDetails(errors=[]),
+        applicable_codes=ACCESS_FAILURE_CODES,
+    ).model_dump(mode="json")
+    access_schema.validate(access_failure)
+    assert not access_schema.is_valid(access_failure | {"operation": "spa version"})
+    other_failure = failure_envelope(
+        "spa",
+        "process_start_failed",
+        "failed",
+        ProcessDetails(executable="x"),
+        applicable_codes=info.failure_codes,
+    ).model_dump(mode="json")
+    assert not access_schema.is_valid(other_failure)
+
+
+def test_application_refuses_failure_not_declared_by_selected_descriptor() -> None:
+    version = next(
+        descriptor for descriptor in OPERATIONS if descriptor.name == "version"
+    )
+
+    def launch_issue(_request: object, _probe: object) -> None:
+        raise RuntimeIssue("launch_failed", "failed", {"executable": "/aseprite"})
+
+    misclassified = replace(version, execute=launch_issue)
+    with pytest.raises(ValueError, match="not applicable to spa version"):
+        dispatch(misclassified, None, {}, lambda _request: None)
+
+
+@pytest.mark.parametrize(("kind", "expected_code"), RUNTIME_ISSUE_CASES)
 def test_every_runtime_issue_kind_classifies_to_a_registered_failure(
     kind: str, expected_code: str
 ) -> None:

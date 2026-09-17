@@ -67,7 +67,7 @@ class OperationDescriptor:
             requires_runtime=self.requires_runtime,
             request_schema=self.request_type.model_json_schema(),
             result_schema=self.result_type.model_json_schema(),
-            failure_schema=failure_schema(self.failure_codes),
+            failure_schema=failure_schema(self.failure_codes, command),
             invocation_schema={
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
                 "type": "object",
@@ -120,7 +120,7 @@ def schema_result(request: RuntimeRequest, probe: RuntimeProbe) -> SchemaResult:
         spa_version=info.spa_version,
         runtime=info.runtime,
         operations=[descriptor.schema() for descriptor in OPERATIONS],
-        access_failure_schema=failure_schema(ACCESS_FAILURE_CODES),
+        access_failure_schema=failure_schema(ACCESS_FAILURE_CODES, "spa"),
         capability_gaps=info.capability_gaps,
     )
 

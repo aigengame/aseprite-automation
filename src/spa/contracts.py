@@ -249,28 +249,15 @@ class FailureEnvelope(PublicModel):
 
     @model_validator(mode="after")
     def validate_registered_failure(self) -> "FailureEnvelope":
-        spec = FAILURE_CODES.get(self.code)
-        if spec is None:
-            raise ValueError(f"Unknown Failure Code: {self.code}")
+        spec = _registered_spec(self.code, self.details)
         if self.category != spec.category:
             raise ValueError(
                 f"Failure Category for {self.code} must be {spec.category}"
             )
-        if not isinstance(self.details, spec.details_type):
-            raise ValueError(  # noqa: TRY004 - invalid public code/Details pairing
-                f"Failure Details for {self.code} must be {spec.details_kind}"
-            )
         return self
 
 
-def failure_envelope(
-    operation: str,
-    code: str,
-    message: str,
-    details: FailureDetails,
-    diagnostics: Diagnostics | None = None,
-) -> FailureEnvelope:
-    """Construct a public failure without a producer-owned Category decision."""
+def _registered_spec(code: str, details: FailureDetails) -> FailureCodeSpec:
     spec = FAILURE_CODES.get(code)
     if spec is None:
         raise ValueError(f"Unknown Failure Code: {code}")
@@ -278,6 +265,22 @@ def failure_envelope(
         raise ValueError(  # noqa: TRY004 - invalid public code/Details pairing
             f"Failure Details for {code} must be {spec.details_kind}"
         )
+    return spec
+
+
+def failure_envelope(
+    operation: str,
+    code: str,
+    message: str,
+    details: FailureDetails,
+    *,
+    applicable_codes: tuple[str, ...],
+    diagnostics: Diagnostics | None = None,
+) -> FailureEnvelope:
+    """Construct a registered failure applicable to its public Operation or Access path."""
+    spec = _registered_spec(code, details)
+    if code not in applicable_codes:
+        raise ValueError(f"Failure Code {code} is not applicable to {operation}")
     return FailureEnvelope(
         operation=operation,
         code=code,
@@ -288,7 +291,7 @@ def failure_envelope(
     )
 
 
-def failure_schema(codes: tuple[str, ...]) -> dict[str, Any]:
+def failure_schema(codes: tuple[str, ...], operation: str) -> dict[str, Any]:
     """Project one registered code/Category/Details union as Draft 2020-12."""
     if not codes or len(codes) != len(set(codes)):
         raise ValueError("Failure schema needs unique applicable codes")
@@ -302,6 +305,7 @@ def failure_schema(codes: tuple[str, ...]) -> dict[str, Any]:
     for code in codes:
         spec = FAILURE_CODES[code]
         branch = deepcopy(base)
+        branch["properties"]["operation"] = {"const": operation}
         branch["properties"]["code"] = {"const": code}
         branch["properties"]["category"] = {"const": spec.category}
         branch["properties"]["details"] = {

@@ -28,6 +28,7 @@ def _request_failure(
         code="invalid_request",
         message="Invalid Operation Request",
         details=RequestDetails(errors=issues),
+        applicable_codes=descriptor.failure_codes,
     )
 
 
@@ -82,6 +83,7 @@ def _runtime_failure(
         code=code,
         message=str(issue),
         details=details,
+        applicable_codes=descriptor.failure_codes,
         diagnostics=issue.diagnostics,
     )
 
