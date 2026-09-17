@@ -133,7 +133,7 @@ FailureDetails = Annotated[
     Field(discriminator="kind"),
 ]
 
-FailureCategory = Literal["input", "environment", "execution", "protocol"]
+FailureCategory = Literal["input", "environment", "execution", "kernel_protocol"]
 
 
 @dataclass(frozen=True)
@@ -213,13 +213,13 @@ FAILURE_CODES = register_failure_codes(
         FailureCodeSpec(
             "kernel_response_missing",
             "The private Kernel response is absent",
-            "protocol",
+            "kernel_protocol",
             KernelProtocolDetail,
         ),
         FailureCodeSpec(
             "kernel_response_invalid",
             "The private Kernel response is invalid",
-            "protocol",
+            "kernel_protocol",
             KernelProtocolDetail,
         ),
         FailureCodeSpec(

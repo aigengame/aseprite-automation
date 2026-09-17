@@ -12,11 +12,11 @@ Result in JSON mode. A failed invocation exits non-zero and emits a schema-valid
 Failure Envelope. Success models do not contain failure branches, and failures are not
 encoded as nominal success.
 
-Failure Envelopes contain a stable Failure Code, a broad Failure Category, and a human
-message. Typed code-specific details and diagnostics are present when they affect
-recovery. Agents branch on the code; categories support coarse policy; messages and
-diagnostics are explanatory rather than stable parsing surfaces. Human output is
-rendered from the same models, and MCP relays the same outcome taxonomy.
+Failure Envelopes contain a stable Failure Code, a well-defined Failure Category, and
+a human message. Typed code-specific details and diagnostics are present when they
+affect recovery. Agents branch on the code; categories support cross-code policy;
+messages and diagnostics are explanatory rather than stable parsing surfaces. Human
+output is rendered from the same models, and MCP relays the same outcome taxonomy.
 
 The Published Language failure contract uses one shared machine-readable registration
 for public Failure Code semantics. A registered code has one stable meaning, Failure
@@ -24,8 +24,9 @@ Category, and applicable Failure Details kind. Published codes use
 `lower_snake_case`; their meaning and classification are not silently repurposed.
 `input` denotes an invalid request; `environment` denotes an unavailable Aseprite
 runtime or required resource; `execution` denotes failure to carry out an accepted
-Operation; and `protocol` denotes a missing or invalid private Kernel response after
-applicable process evidence is classified.
+Operation; and `kernel_protocol` denotes a missing or invalid private Kernel Protocol
+response after Aseprite exits successfully. It does not classify arbitrary protocol
+errors, Aseprite process failures, or Kernel handler refusals.
 Private adapter issue kinds and Kernel transport facts are not public Failure Codes.
 
 The shared registration defines code semantics, not another Operation registry. Each

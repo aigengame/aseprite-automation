@@ -153,6 +153,7 @@ def test_exit_zero_without_kernel_response_is_failure(tmp_path: Path) -> None:
     assert run.returncode == 1
     failure = json.loads(run.stdout)
     assert failure["code"] == "kernel_response_missing"
+    assert failure["category"] == "kernel_protocol"
     assert failure["details"]["kind"] == "kernel_protocol"
     assert failure["details"]["kernel_protocol_version"] == 1
     assert failure["diagnostics"]["exit_status"] == 0
@@ -194,14 +195,14 @@ def test_nonzero_exit_with_truncated_kernel_response_is_process_failure(
     assert failure["diagnostics"]["exit_status"] == 13
 
 
-def test_zero_exit_with_truncated_kernel_response_is_protocol_failure(
+def test_zero_exit_with_truncated_kernel_response_is_kernel_protocol_failure(
     tmp_path: Path,
 ) -> None:
     binary = _fake_truncated_response_executable(tmp_path, 0)
     run = spa("info", "--aseprite", str(binary), "--json")
     failure = json.loads(run.stdout)
     assert failure["code"] == "kernel_response_invalid"
-    assert failure["category"] == "protocol"
+    assert failure["category"] == "kernel_protocol"
     assert failure["details"]["kind"] == "kernel_protocol"
     assert failure["details"]["kernel_protocol_version"] == 1
     assert failure["diagnostics"]["exit_status"] == 0

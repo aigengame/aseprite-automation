@@ -168,6 +168,7 @@ def test_kernel_protocol_detail_uses_canonical_term_in_public_schema() -> None:
         applicable_codes=("kernel_response_invalid",),
     ).model_dump(mode="json")
     details = outcome["details"]
+    assert outcome["category"] == "kernel_protocol"
     assert details["kind"] == "kernel_protocol"
     assert details["kernel_protocol_version"] == 1
     assert "protocol_version" not in details
@@ -175,6 +176,7 @@ def test_kernel_protocol_detail_uses_canonical_term_in_public_schema() -> None:
         failure_schema(("kernel_response_invalid",), "spa info")
     )
     validator.validate(outcome)
+    assert not validator.is_valid(outcome | {"category": "protocol"})
     assert not validator.is_valid(
         outcome
         | {
