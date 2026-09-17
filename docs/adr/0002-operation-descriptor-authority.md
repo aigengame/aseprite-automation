@@ -8,9 +8,11 @@ This decision consolidates ADR-0012.
 
 Each structured public capability has one Operation Descriptor. It binds the
 capability's public request, result, and failure schemas to execution metadata and a
-declared execution definition. The CLI command tree, eligible MCP tools, and installed
-Surface Manifest are projections of these descriptors; they do not maintain parallel
-capability registries.
+declared execution definition. The CLI command tree, eligible MCP tools, and Operation
+entries in the installed Surface Manifest are projections of these descriptors; they
+do not maintain parallel capability registries. CLI failures before a Descriptor can
+be selected use the shared public Failure Code registration under ADR-0013, not a
+synthetic Operation.
 
 Descriptors own registration, public shapes, Published Language metadata, and
 statically decidable contract invariants, not native behavior. Python contract types
@@ -22,8 +24,10 @@ application-composed capability can select and order multiple packaged Ordinary 
 Operation handlers without redefining their semantics.
 
 The Aseprite Adapter and Lua Operation Kernel communicate through a versioned private
-Kernel Protocol. Public defaults and null semantics are resolved before transport, and
-the adapter translates protocol values into the Published Language. Private
+Kernel Protocol. Public defaults and null semantics are resolved before transport.
+The adapter decodes private protocol responses and reports typed runtime evidence; the
+Application validates and classifies that evidence into the Published Language under
+ADR-0013. Neither layer reimplements packaged Core Operation Semantics. Private
 application orchestration can select and order packaged handlers, but it does not
 create another public workflow language.
 

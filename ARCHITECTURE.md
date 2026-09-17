@@ -311,8 +311,10 @@ Descriptors are the registration authority; they do not implement native behavio
 Under ADR-0013, the failure contract calls for shared registration of each public
 Failure Code's meaning, Category, and Details kind. Each Descriptor declares its
 Operation's applicable codes and projects their constraints in its failure schema.
-The Application classifies private runtime evidence; Access adapters project the same
-Failure Envelope.
+Before Descriptor selection, the CLI constructs usage failures from that registration;
+aggregate `spa schema` discovery exposes their separate Access-level failure schema.
+The Application classifies private runtime evidence for selected Operations; Access
+adapters project the same Failure Envelope.
 
 An Ordinary Core Operation binds one fixed packaged Lua handler. A capability whose
 behavior is implemented by an Application use case can have no Kernel binding. An
