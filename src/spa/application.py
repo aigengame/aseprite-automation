@@ -8,9 +8,9 @@ from pydantic import BaseModel, ValidationError
 from spa.contracts import (
     FailureEnvelope,
     KernelExecutionDetails,
+    KernelProtocolDetail,
     NotFoundDetails,
     ProcessDetails,
-    ProtocolDetails,
     RequestDetails,
     ResourceDetails,
     ValidationIssue,
@@ -62,10 +62,10 @@ def _runtime_failure(
             )
         case "response_absent":
             code = "kernel_response_missing"
-            details = ProtocolDetails(response_path=evidence["response_path"])
+            details = KernelProtocolDetail(response_path=evidence["response_path"])
         case "response_malformed":
             code = "kernel_response_invalid"
-            details = ProtocolDetails(response_path=evidence["response_path"])
+            details = KernelProtocolDetail(response_path=evidence["response_path"])
         case "handler_rejected":
             code = "kernel_execution_failed"
             details = KernelExecutionDetails(

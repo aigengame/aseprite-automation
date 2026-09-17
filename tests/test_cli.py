@@ -141,7 +141,7 @@ response=
 for argument in "$@"; do
   case "$argument" in response=*) response=${{argument#response=}};; esac
 done
-printf '{{"protocol_version":1,' > "$response"
+printf '{{"kernel_protocol_version":1,' > "$response"
 exit {exit_status}
 """,
     )
@@ -153,6 +153,8 @@ def test_exit_zero_without_kernel_response_is_failure(tmp_path: Path) -> None:
     assert run.returncode == 1
     failure = json.loads(run.stdout)
     assert failure["code"] == "kernel_response_missing"
+    assert failure["details"]["kind"] == "kernel_protocol"
+    assert failure["details"]["kernel_protocol_version"] == 1
     assert failure["diagnostics"]["exit_status"] == 0
 
 
@@ -200,6 +202,8 @@ def test_zero_exit_with_truncated_kernel_response_is_protocol_failure(
     failure = json.loads(run.stdout)
     assert failure["code"] == "kernel_response_invalid"
     assert failure["category"] == "protocol"
+    assert failure["details"]["kind"] == "kernel_protocol"
+    assert failure["details"]["kernel_protocol_version"] == 1
     assert failure["diagnostics"]["exit_status"] == 0
 
 
@@ -211,7 +215,7 @@ response=
 for argument in "$@"; do
   case "$argument" in response=*) response=${argument#response=};; esac
 done
-printf '{"protocol_version":1,"status":"error","message":"semantic failure"}' > "$response"
+printf '{"kernel_protocol_version":1,"status":"error","message":"semantic failure"}' > "$response"
 exit 0
 """,
     )
@@ -485,7 +489,7 @@ for argument in "$@"; do
   esac
 done
 cp "$request" "$echo_file"
-printf '{"protocol_version":1,"status":"ok","aseprite_version":"test","api_version":1}' > "$response"
+printf '{"kernel_protocol_version":1,"status":"ok","aseprite_version":"test","api_version":1}' > "$response"
 """,
     )
     run = spa("schema", "--aseprite", str(binary), "--json")

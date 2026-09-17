@@ -12,9 +12,9 @@ from spa.contracts import (
     FAILURE_CODES,
     FailureEnvelope,
     KernelExecutionDetails,
+    KernelProtocolDetail,
     NotFoundDetails,
     ProcessDetails,
-    ProtocolDetails,
     RequestDetails,
     ResourceDetails,
     ValidationIssue,
@@ -127,7 +127,7 @@ def test_each_registered_code_has_a_constrained_public_schema() -> None:
         NotFoundDetails: NotFoundDetails(requested_path=None, searched=[]),
         ResourceDetails: ResourceDetails(canonical_path="/aseprite", searched=[]),
         ProcessDetails: ProcessDetails(executable="/aseprite"),
-        ProtocolDetails: ProtocolDetails(response_path="/response.json"),
+        KernelProtocolDetail: KernelProtocolDetail(response_path="/response.json"),
         KernelExecutionDetails: KernelExecutionDetails(
             response_path="/response.json", reason="refused"
         ),
@@ -157,6 +157,34 @@ def test_each_registered_code_has_a_constrained_public_schema() -> None:
         assert not validator.is_valid(
             outcome | {"details": wrong_details.model_dump(mode="json")}
         )
+
+
+def test_kernel_protocol_detail_uses_canonical_term_in_public_schema() -> None:
+    outcome = failure_envelope(
+        "spa info",
+        "kernel_response_invalid",
+        "invalid response",
+        KernelProtocolDetail(response_path="/response.json"),
+        applicable_codes=("kernel_response_invalid",),
+    ).model_dump(mode="json")
+    details = outcome["details"]
+    assert details["kind"] == "kernel_protocol"
+    assert details["kernel_protocol_version"] == 1
+    assert "protocol_version" not in details
+    validator = Draft202012Validator(
+        failure_schema(("kernel_response_invalid",), "spa info")
+    )
+    validator.validate(outcome)
+    assert not validator.is_valid(
+        outcome
+        | {
+            "details": {
+                "kind": "kernel_protocol",
+                "response_path": "/response.json",
+                "protocol_version": 1,
+            }
+        }
+    )
 
 
 def test_failure_schema_refuses_unknown_and_duplicate_applicability() -> None:

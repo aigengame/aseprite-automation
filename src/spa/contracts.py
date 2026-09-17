@@ -100,10 +100,10 @@ class ProcessDetails(PublicModel):
     exit_status: int | None = None
 
 
-class ProtocolDetails(PublicModel):
-    kind: Literal["protocol"] = "protocol"
+class KernelProtocolDetail(PublicModel):
+    kind: Literal["kernel_protocol"] = "kernel_protocol"
     response_path: str
-    protocol_version: int = 1
+    kernel_protocol_version: int = 1
 
 
 class KernelExecutionDetails(PublicModel):
@@ -127,7 +127,7 @@ FailureDetails = Annotated[
     NotFoundDetails
     | ResourceDetails
     | ProcessDetails
-    | ProtocolDetails
+    | KernelProtocolDetail
     | KernelExecutionDetails
     | RequestDetails,
     Field(discriminator="kind"),
@@ -214,13 +214,13 @@ FAILURE_CODES = register_failure_codes(
             "kernel_response_missing",
             "The private Kernel response is absent",
             "protocol",
-            ProtocolDetails,
+            KernelProtocolDetail,
         ),
         FailureCodeSpec(
             "kernel_response_invalid",
             "The private Kernel response is invalid",
             "protocol",
-            ProtocolDetails,
+            KernelProtocolDetail,
         ),
         FailureCodeSpec(
             "kernel_execution_failed",
