@@ -3,6 +3,7 @@
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -86,6 +87,20 @@ def _fake_executable(tmp_path: Path, body: str) -> Path:
     return binary
 
 
+def _fake_truncated_response_executable(tmp_path: Path, exit_status: int) -> Path:
+    return _fake_executable(
+        tmp_path,
+        f"""
+response=
+for argument in "$@"; do
+  case "$argument" in response=*) response=${{argument#response=}};; esac
+done
+printf '{{"protocol_version":1,' > "$response"
+exit {exit_status}
+""",
+    )
+
+
 def test_exit_zero_without_kernel_response_is_failure(tmp_path: Path) -> None:
     binary = _fake_executable(tmp_path, "exit 0\n")
     run = spa("info", "--aseprite", str(binary), "--json")
@@ -106,6 +121,40 @@ def test_process_exit_before_kernel_response_is_execution_failure(
     assert failure["category"] == "execution"
     assert failure["details"]["exit_status"] == 13
     assert "startup failed" in failure["diagnostics"]["stderr"]
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX signal fixture")
+def test_signal_terminated_process_is_reported_as_process_failure(
+    tmp_path: Path,
+) -> None:
+    binary = _fake_executable(tmp_path, "kill -TERM $$\n")
+    run = spa("info", "--aseprite", str(binary), "--json")
+    failure = json.loads(run.stdout)
+    assert failure["code"] == "process_failed"
+    assert failure["details"]["exit_status"] == -signal.SIGTERM
+    assert "signal 15" in failure["message"]
+
+
+def test_nonzero_exit_with_truncated_kernel_response_is_process_failure(
+    tmp_path: Path,
+) -> None:
+    binary = _fake_truncated_response_executable(tmp_path, 13)
+    run = spa("info", "--aseprite", str(binary), "--json")
+    failure = json.loads(run.stdout)
+    assert failure["code"] == "process_failed"
+    assert failure["category"] == "execution"
+    assert failure["diagnostics"]["exit_status"] == 13
+
+
+def test_zero_exit_with_truncated_kernel_response_is_protocol_failure(
+    tmp_path: Path,
+) -> None:
+    binary = _fake_truncated_response_executable(tmp_path, 0)
+    run = spa("info", "--aseprite", str(binary), "--json")
+    failure = json.loads(run.stdout)
+    assert failure["code"] == "kernel_response_invalid"
+    assert failure["category"] == "protocol"
+    assert failure["diagnostics"]["exit_status"] == 0
 
 
 def test_exit_zero_with_kernel_error_is_execution_failure(tmp_path: Path) -> None:
@@ -140,7 +189,7 @@ def test_runtime_uses_an_isolated_user_folder(tmp_path: Path) -> None:
     assert not isolated_path.exists()
 
 
-def test_aseprite_can_write_to_the_isolated_user_folder(tmp_path: Path) -> None:
+def test_isolated_user_folder_is_writable_before_launch(tmp_path: Path) -> None:
     binary = _fake_executable(
         tmp_path,
         'printf "ready" > "$ASEPRITE_USER_FOLDER/startup-check" || exit 17\n',
@@ -181,16 +230,30 @@ def test_resource_check_is_distinct_from_process_outcome(tmp_path: Path) -> None
     assert json.loads(run.stdout)["code"] == "resource_incomplete"
 
 
+def test_process_start_failure_keeps_installed_executable_identity(
+    tmp_path: Path,
+) -> None:
+    binary = _fake_executable(tmp_path, "")
+    binary.write_text("#!/nonexistent/spa-test-interpreter\n", encoding="utf-8")
+    run = spa("info", "--aseprite", str(binary), "--json")
+    failure = json.loads(run.stdout)
+    assert failure["code"] == "process_start_failed"
+    assert failure["details"]["executable"] == str(binary.resolve())
+
+
 def test_timeout_and_output_bound_are_typed(tmp_path: Path) -> None:
     timeout_binary = _fake_executable(tmp_path / "timeout", "exec sleep 3\n")
     timed = spa("info", "--aseprite", str(timeout_binary), "--timeout-seconds", "0.1")
     assert timed.returncode == 1
-    assert json.loads(timed.stdout)["code"] == "process_timeout"
+    timed_failure = json.loads(timed.stdout)
+    assert timed_failure["code"] == "process_timeout"
+    assert timed_failure["details"]["executable"] == str(timeout_binary.resolve())
     output_binary = _fake_executable(tmp_path / "output", "yes x | head -c 70000\n")
     overflow = spa("info", "--aseprite", str(output_binary))
     assert overflow.returncode == 1
     failure = json.loads(overflow.stdout)
     assert failure["code"] == "output_limit_exceeded"
+    assert failure["details"]["executable"] == str(output_binary.resolve())
     assert len(failure["diagnostics"]["stdout"]) <= 65536
 
 

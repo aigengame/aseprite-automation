@@ -54,7 +54,10 @@ def _discover(requested: str | None) -> tuple[Path, Path, Path, str]:
 
 
 def _run(
-    command: list[str], env: dict[str, str], timeout: float
+    command: list[str],
+    env: dict[str, str],
+    timeout: float,
+    canonical_executable: Path,
 ) -> tuple[int, Diagnostics]:
     try:
         process = subprocess.Popen(
@@ -64,7 +67,7 @@ def _run(
         raise RuntimeIssue(
             "launch_failed",
             str(exc),
-            {"executable": command[0]},
+            {"executable": str(canonical_executable)},
         ) from exc
     assert process.stdout is not None and process.stderr is not None
     captured = {"stdout": bytearray(), "stderr": bytearray()}
@@ -114,17 +117,33 @@ def _run(
         raise RuntimeIssue(
             "deadline",
             "Aseprite process timed out",
-            {"executable": command[0], "exit_status": status},
+            {"executable": str(canonical_executable), "exit_status": status},
             diagnostics,
         )
     if over_limit:
         raise RuntimeIssue(
             "output_overflow",
             "Aseprite process output exceeded the limit",
-            {"executable": command[0], "exit_status": status},
+            {"executable": str(canonical_executable), "exit_status": status},
             diagnostics,
         )
     return status, diagnostics
+
+
+def _process_failure(
+    status: int, executable: Path, diagnostics: Diagnostics
+) -> RuntimeIssue:
+    reason = (
+        f"terminated by signal {-status}"
+        if status < 0
+        else f"exited with status {status}"
+    )
+    return RuntimeIssue(
+        "process_failed",
+        f"Aseprite {reason} before writing a complete Kernel response",
+        {"executable": str(executable), "exit_status": status},
+        diagnostics,
+    )
 
 
 def probe(request: RuntimeRequest) -> RuntimeObservation:
@@ -156,21 +175,11 @@ def probe(request: RuntimeRequest) -> RuntimeObservation:
             str(script),
         ]
         status, diagnostics = _run(
-            command, prepared.environment, request.timeout_seconds
+            command, prepared.environment, request.timeout_seconds, canonical
         )
         if not response_file.is_file():
             if status != 0:
-                reason = (
-                    f"terminated by signal {-status}"
-                    if status < 0
-                    else f"exited with status {status}"
-                )
-                raise RuntimeIssue(
-                    "process_failed",
-                    f"Aseprite {reason} before writing a Kernel response",
-                    {"executable": str(canonical), "exit_status": status},
-                    diagnostics,
-                )
+                raise _process_failure(status, canonical, diagnostics)
             raise RuntimeIssue(
                 "response_absent",
                 "Aseprite did not write a Kernel response",
@@ -220,6 +229,8 @@ def probe(request: RuntimeRequest) -> RuntimeObservation:
             if not isinstance(version, str) or not isinstance(api_version, int):
                 raise TypeError("Kernel probe returned invalid version facts")
         except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
+            if status != 0:
+                raise _process_failure(status, canonical, diagnostics) from exc
             raise RuntimeIssue(
                 "response_malformed",
                 f"Invalid Kernel response: {exc}",

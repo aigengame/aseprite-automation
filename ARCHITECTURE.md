@@ -408,7 +408,7 @@ resources. Other installation shapes use the installed executable directly. The
 adapter supplies an isolated Aseprite user folder and cleans these temporary paths.
 This private mechanism does not change the caller's sandbox, the installed app, or
 the File Adapter's ownership of Sprite and Artifact paths. [Issue #61](https://github.com/aigengame/aseprite-automation/issues/61)
-owns the supported restricted profile and its evidence requirements. Tests retain
+defines the targeted restricted profile and its evidence requirements. Tests retain
 the executed integration evidence.
 
 ### File and Artifact verification integration
