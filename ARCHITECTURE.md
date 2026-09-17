@@ -241,18 +241,18 @@ will follow demonstrated change clusters as vertical slices are implemented.
 
 ### Technology profile
 
-The planned implementation uses a replaceable outer stack around stable domain and
-public-contract boundaries. [Issue #3](https://github.com/aigengame/aseprite-automation/issues/3)
-owns these reversible bootstrap choices until implementation records the actual runtime
-and dependencies in project metadata and its lockfile.
+The initial installed CLI tracer uses a replaceable outer stack around stable domain
+and public-contract boundaries. [Issue #3](https://github.com/aigengame/aseprite-automation/issues/3)
+delivers the bootstrap choices recorded in project metadata and its lockfile; later
+feature slices will extend the implemented surface.
 
-| Component | Planned bootstrap choice | Role |
+| Component | Bootstrap choice | Role |
 | --- | --- | --- |
 | Application runtime | Python 3.13 | Use-case orchestration and adapter coordination. |
 | CLI adapter | Typer | Command access and human or machine presentation. |
 | Public contracts | Pydantic 2 and JSON Schema | Typed Operation Requests, Operation Results, Failure Envelopes, and discovery schemas. |
 | Project and packaging | `uv` | Environments, dependencies, builds, and installed-product tests. |
-| Ordinary Core Operations | Packaged Lua handlers | Core Operation Semantics and native mapping executed through Aseprite. |
+| Ordinary Core Operations | Packaged Lua handlers (planned for Core slices) | Core Operation Semantics and native mapping executed through Aseprite. The current tracer packages a fixed runtime probe, not a Sprite authoring handler. |
 | Aseprite integration | External `aseprite --batch --script` | Native document, Tool, Filter, color, and export behavior. |
 | Private transport | Versioned JSON request and response files | Data exchange through `--script-param`, separate from diagnostics. |
 | Agent access | Version-matched Agent Skill and planned local stdio MCP Adapter with CLI subprocess invocation | Guidance and equivalent tool projection from the installed surface. |
@@ -397,6 +397,7 @@ for exact caller-owned Lua and does not inherit Ordinary Core Operation guarante
 The Aseprite Adapter owns the external integration mechanics:
 
 - executable and resource discovery;
+- host-specific invocation preparation within the adapter;
 - collection and transport of Aseprite/API version and native-capability observations;
 - `--batch --script` process launch;
 - the versioned Kernel Protocol and transport files;
@@ -406,6 +407,16 @@ The Aseprite Adapter owns the external integration mechanics:
 
 Process exit and standard output are runtime observations, not the public verdict. The
 Application maps those observations to an Operation Result or Failure Envelope.
+
+Invocation preparation keeps the installed executable's canonical path separate from
+the path used to start one process. For macOS `.app` CLI invocations, the adapter
+creates a temporary non-bundle link to the executable and a link to its `data`
+resources. Other installation shapes use the installed executable directly. The
+adapter supplies an isolated Aseprite user folder and cleans these temporary paths.
+This private mechanism does not change the caller's sandbox, the installed app, or
+the File Adapter's ownership of Sprite and Artifact paths. [Issue #61](https://github.com/aigengame/aseprite-automation/issues/61)
+defines the targeted restricted profile and its evidence requirements. Tests retain
+the executed integration evidence.
 
 ### File and Artifact verification integration
 
