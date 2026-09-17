@@ -16,11 +16,13 @@ from spa.cli import build_app
 from spa.descriptors import OPERATIONS
 
 
-def spa(*args: str) -> subprocess.CompletedProcess[str]:
+def spa(
+    *args: str, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
     executable = shutil.which("spa")
     assert executable, "run tests in the installed project environment"
     return subprocess.run(
-        [executable, *args], text=True, capture_output=True, check=False
+        [executable, *args], text=True, capture_output=True, check=False, env=env
     )
 
 
@@ -74,6 +76,38 @@ def test_missing_runtime_has_structured_environment_failure() -> None:
     assert failure["code"] == "executable_not_found"
     assert failure["category"] == "environment"
     assert failure["details"]["requested_path"] == "/no/such/aseprite"
+
+
+def test_spa_prefixed_executable_environment_selects_runtime(tmp_path: Path) -> None:
+    binary = _fake_executable(tmp_path, 'echo "environment-selected"\nexit 13\n')
+    environment = os.environ.copy()
+    environment["SPA_ASEPRITE_EXECUTABLE"] = str(binary)
+    environment["ASEPRITE_EXECUTABLE"] = "/no/such/aseprite"
+
+    run = spa("info", env=environment)
+
+    assert run.returncode == 1
+    failure = json.loads(run.stdout)
+    assert failure["code"] == "process_failed"
+    assert failure["diagnostics"]["stdout"].strip() == "environment-selected"
+
+
+def test_unprefixed_executable_environment_is_ignored(tmp_path: Path) -> None:
+    binary = _fake_executable(tmp_path, 'echo "unprefixed-selected"\nexit 13\n')
+    environment = os.environ.copy()
+    environment.pop("SPA_ASEPRITE_EXECUTABLE", None)
+    environment["ASEPRITE_EXECUTABLE"] = str(binary)
+    environment["PATH"] = ""
+
+    run = spa("info", env=environment)
+
+    assert run.returncode == 1
+    failure = json.loads(run.stdout)
+    assert failure["code"] == "executable_not_found"
+    assert failure["details"]["searched"] == [
+        "SPA_ASEPRITE_EXECUTABLE",
+        "PATH:aseprite",
+    ]
 
 
 def _fake_executable(tmp_path: Path, body: str) -> Path:

@@ -113,15 +113,18 @@ uv run spa info --schema
 uv run spa info --input-json '{"aseprite":"/path/to/Aseprite.app/Contents/MacOS/aseprite"}'
 ```
 
-`ASEPRITE_EXECUTABLE` or `aseprite` on `PATH` can supply the executable when
-`--aseprite` is absent. `spa schema` reports the installed callable Operations;
-currently these are `info`, `version`, and `schema`. It probes Aseprite, while each
-command's `--schema` remains available without a runtime. For a real integration
-test, set `SPA_TEST_ASEPRITE` to that executable and run `uv run --group test pytest`.
+`--aseprite` and `SPA_ASEPRITE_EXECUTABLE` name an executable file, not a macOS
+`.app` directory. When `--aseprite` is absent, SPA checks
+`SPA_ASEPRITE_EXECUTABLE`, then `aseprite` on `PATH`. `spa schema` reports the
+installed callable Operations; currently these are `info`, `version`, and `schema`.
+It probes Aseprite, while each command's `--schema` remains available without a
+runtime. For a real integration test, set `SPA_TEST_ASEPRITE` to that executable
+and run `uv run --group test pytest`.
 
-For macOS `.app` CLI use, SPA prepares a temporary launch path and links the installed
-`data` resources without changing the app or leaving the caller's sandbox. The
-restricted macOS profile and its opt-in real-Aseprite test are specified in
+For CLI use of a binary inside a macOS `.app`, SPA prepares a temporary launch
+path and links the installed `data` resources without changing the app or
+leaving the caller's sandbox. The restricted macOS profile and its opt-in
+real-Aseprite test are specified in
 [issue #61](https://github.com/aigengame/aseprite-automation/issues/61). Linux CI
 does not certify that macOS profile, and other restricted environments remain
 unverified.

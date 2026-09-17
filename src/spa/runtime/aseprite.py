@@ -22,12 +22,12 @@ OUTPUT_LIMIT_BYTES = 65536
 
 
 def _discover(requested: str | None) -> tuple[Path, Path, Path, str]:
-    source = requested or os.environ.get("ASEPRITE_EXECUTABLE")
+    source = requested or os.environ.get("SPA_ASEPRITE_EXECUTABLE")
     selection_source = "explicit" if requested else "environment" if source else "path"
     discovered = (
         Path(source).expanduser() if source else Path(shutil.which("aseprite") or "")
     )
-    searched = [source] if source else ["ASEPRITE_EXECUTABLE", "PATH:aseprite"]
+    searched = [source] if source else ["SPA_ASEPRITE_EXECUTABLE", "PATH:aseprite"]
     if not discovered.is_file() or not os.access(discovered, os.X_OK):
         raise RuntimeIssue(
             "discovery_absent",

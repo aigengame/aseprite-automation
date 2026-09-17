@@ -45,7 +45,12 @@ def _command(descriptor: OperationDescriptor, probe_runtime: RuntimeProbe):
                 None, flags["input_json"], help="Operation Request as a JSON object."
             ),
             aseprite: str | None = typer.Option(
-                None, flags["aseprite"], help="Aseprite executable path."
+                None,
+                flags["aseprite"],
+                help=(
+                    "Aseprite executable path; defaults to "
+                    "SPA_ASEPRITE_EXECUTABLE, then PATH."
+                ),
             ),
             timeout_seconds: float | None = typer.Option(
                 None, flags["timeout_seconds"], help="Aseprite process deadline."
