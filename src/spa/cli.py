@@ -5,9 +5,7 @@ import typer
 from spa.application import dispatch
 from spa.contracts import FailureEnvelope, RequestDetails, ValidationIssue
 from spa.descriptors import OPERATIONS, OperationDescriptor
-from spa.runtime.aseprite import probe
-
-app = typer.Typer(name="spa", no_args_is_help=True, add_completion=False)
+from spa.ports import RuntimeProbe
 
 
 def _emit_failure(failure: FailureEnvelope, human: bool) -> None:
@@ -22,37 +20,82 @@ def _execute(
     timeout_seconds: float | None,
     schema: bool,
     human: bool,
+    probe_runtime: RuntimeProbe,
 ) -> None:
     if schema:
         typer.echo(descriptor.schema().model_dump_json())
         return
-    result = dispatch(descriptor, input_json, {"aseprite": aseprite, "timeout_seconds": timeout_seconds}, probe)
+    result = dispatch(
+        descriptor,
+        input_json,
+        {"aseprite": aseprite, "timeout_seconds": timeout_seconds},
+        probe_runtime,
+    )
     if isinstance(result, FailureEnvelope):
         _emit_failure(result, human)
     typer.echo(descriptor.render_human(result) if human else result.model_dump_json())
 
 
-def _command(descriptor: OperationDescriptor):
+def _command(descriptor: OperationDescriptor, probe_runtime: RuntimeProbe):
+    flags = descriptor.cli_flags
     if descriptor.requires_runtime:
+
         def runtime_command(
-            input_json: str | None = typer.Option(None, "--input-json", help="Operation Request as a JSON object."),
-            aseprite: str | None = typer.Option(None, "--aseprite", help="Aseprite executable path."),
-            timeout_seconds: float | None = typer.Option(None, "--timeout-seconds", help="Aseprite process deadline."),
-            schema: bool = typer.Option(False, "--schema", help="Emit this Operation's schema."),
-            json_output: bool = typer.Option(False, "--json", help="Emit structured JSON (default)."),
-            human: bool = typer.Option(False, "--human", help="Render the same outcome for a human."),
+            input_json: str | None = typer.Option(
+                None, flags["input_json"], help="Operation Request as a JSON object."
+            ),
+            aseprite: str | None = typer.Option(
+                None, flags["aseprite"], help="Aseprite executable path."
+            ),
+            timeout_seconds: float | None = typer.Option(
+                None, flags["timeout_seconds"], help="Aseprite process deadline."
+            ),
+            schema: bool = typer.Option(
+                False, flags["schema"], help="Emit this Operation's schema."
+            ),
+            json_output: bool = typer.Option(
+                False, flags["json_output"], help="Emit structured JSON (default)."
+            ),
+            human: bool = typer.Option(
+                False, flags["human"], help="Render the same outcome for a human."
+            ),
         ) -> None:
-            _execute(descriptor, input_json, aseprite, timeout_seconds, schema, human and not json_output)
+            _execute(
+                descriptor,
+                input_json,
+                aseprite,
+                timeout_seconds,
+                schema,
+                human and not json_output,
+                probe_runtime,
+            )
 
         command = runtime_command
     else:
+
         def pure_command(
-            input_json: str | None = typer.Option(None, "--input-json", help="Operation Request as a JSON object."),
-            schema: bool = typer.Option(False, "--schema", help="Emit this Operation's schema."),
-            json_output: bool = typer.Option(False, "--json", help="Emit structured JSON (default)."),
-            human: bool = typer.Option(False, "--human", help="Render the same outcome for a human."),
+            input_json: str | None = typer.Option(
+                None, flags["input_json"], help="Operation Request as a JSON object."
+            ),
+            schema: bool = typer.Option(
+                False, flags["schema"], help="Emit this Operation's schema."
+            ),
+            json_output: bool = typer.Option(
+                False, flags["json_output"], help="Emit structured JSON (default)."
+            ),
+            human: bool = typer.Option(
+                False, flags["human"], help="Render the same outcome for a human."
+            ),
         ) -> None:
-            _execute(descriptor, input_json, None, None, schema, human and not json_output)
+            _execute(
+                descriptor,
+                input_json,
+                None,
+                None,
+                schema,
+                human and not json_output,
+                probe_runtime,
+            )
 
         command = pure_command
     command.__name__ = descriptor.name
@@ -60,11 +103,14 @@ def _command(descriptor: OperationDescriptor):
     return command
 
 
-for operation in OPERATIONS:
-    app.command(name=operation.name)(_command(operation))
+def build_app(probe_runtime: RuntimeProbe) -> typer.Typer:
+    app = typer.Typer(name="spa", no_args_is_help=True, add_completion=False)
+    for operation in OPERATIONS:
+        app.command(name=operation.name)(_command(operation, probe_runtime))
+    return app
 
 
-def main() -> None:
+def run_cli(app: typer.Typer) -> None:
     """Installed entry point: keep Click usage errors on the same failure channel."""
     command = typer.main.get_command(app)
     try:
@@ -75,10 +121,21 @@ def main() -> None:
         context = getattr(exc, "ctx", None)
         operation = context.command_path if context else "spa"
         message = exc.format_message() if hasattr(exc, "format_message") else str(exc)
-        _emit_failure(FailureEnvelope(
-            operation=operation, code="invalid_request", category="input",
-            message="Invalid CLI invocation",
-            details=RequestDetails(errors=[ValidationIssue(
-                location=[], code="cli_usage", message=message,
-            )]),
-        ), False)
+        _emit_failure(
+            FailureEnvelope(
+                operation=operation,
+                code="invalid_request",
+                category="input",
+                message="Invalid CLI invocation",
+                details=RequestDetails(
+                    errors=[
+                        ValidationIssue(
+                            location=[],
+                            code="cli_usage",
+                            message=message,
+                        )
+                    ]
+                ),
+            ),
+            False,
+        )

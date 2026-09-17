@@ -100,6 +100,12 @@ class ProtocolDetails(PublicModel):
     protocol_version: int = 1
 
 
+class KernelExecutionDetails(PublicModel):
+    kind: Literal["kernel_execution"] = "kernel_execution"
+    response_path: str
+    reason: str
+
+
 class RequestDetails(PublicModel):
     kind: Literal["invalid_request"] = "invalid_request"
     errors: list["ValidationIssue"]
@@ -112,7 +118,12 @@ class ValidationIssue(PublicModel):
 
 
 FailureDetails = Annotated[
-    NotFoundDetails | ResourceDetails | ProcessDetails | ProtocolDetails | RequestDetails,
+    NotFoundDetails
+    | ResourceDetails
+    | ProcessDetails
+    | ProtocolDetails
+    | KernelExecutionDetails
+    | RequestDetails,
     Field(discriminator="kind"),
 ]
 

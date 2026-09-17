@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.scripts]
-spa = "spa.cli:main"
+spa = "spa.bootstrap:main"
 
 [dependency-groups]
 test = ["pytest>=8,<10", "jsonschema>=4,<5"]

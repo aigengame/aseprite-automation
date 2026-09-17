@@ -8,12 +8,18 @@ from pathlib import Path
 
 import pytest
 from jsonschema import Draft202012Validator, validate
+from typer.main import get_command
+
+from spa.cli import build_app
+from spa.descriptors import OPERATIONS
 
 
 def spa(*args: str) -> subprocess.CompletedProcess[str]:
     executable = shutil.which("spa")
     assert executable, "run tests in the installed project environment"
-    return subprocess.run([executable, *args], text=True, capture_output=True)
+    return subprocess.run(
+        [executable, *args], text=True, capture_output=True, check=False
+    )
 
 
 def test_version_is_an_installed_structured_operation() -> None:
@@ -54,7 +60,9 @@ def test_human_output_projects_the_same_version_result() -> None:
     run = spa("version", "--human")
     assert run.returncode == 0
     assert run.stdout.strip() == f"SPA {version}"
-    assert json.loads(spa("version", "--human", "--json").stdout)["spa_version"] == version
+    assert (
+        json.loads(spa("version", "--human", "--json").stdout)["spa_version"] == version
+    )
 
 
 def test_missing_runtime_has_structured_environment_failure() -> None:
@@ -83,6 +91,28 @@ def test_exit_zero_without_kernel_response_is_failure(tmp_path: Path) -> None:
     assert run.returncode == 1
     failure = json.loads(run.stdout)
     assert failure["code"] == "kernel_response_missing"
+    assert failure["diagnostics"]["exit_status"] == 0
+
+
+def test_exit_zero_with_kernel_error_is_execution_failure(tmp_path: Path) -> None:
+    binary = _fake_executable(
+        tmp_path,
+        """
+response=
+for argument in "$@"; do
+  case "$argument" in response=*) response=${argument#response=};; esac
+done
+printf '{"protocol_version":1,"status":"error","message":"semantic failure"}' > "$response"
+exit 0
+""",
+    )
+    run = spa("info", "--aseprite", str(binary))
+    assert run.returncode == 1
+    failure = json.loads(run.stdout)
+    assert failure["code"] == "kernel_execution_failed"
+    assert failure["category"] == "execution"
+    assert failure["details"]["kind"] == "kernel_execution"
+    assert failure["details"]["reason"] == "semantic failure"
     assert failure["diagnostics"]["exit_status"] == 0
 
 
@@ -118,7 +148,9 @@ def test_timeout_and_output_bound_are_typed(tmp_path: Path) -> None:
     assert len(failure["diagnostics"]["stdout"]) <= 65536
 
 
-@pytest.mark.skipif(not os.environ.get("SPA_TEST_ASEPRITE"), reason="requires installed Aseprite")
+@pytest.mark.skipif(
+    not os.environ.get("SPA_TEST_ASEPRITE"), reason="requires installed Aseprite"
+)
 def test_info_reports_installed_runtime() -> None:
     run = spa("info", "--aseprite", os.environ["SPA_TEST_ASEPRITE"], "--json")
     assert run.returncode == 0, run.stderr
@@ -130,13 +162,21 @@ def test_info_reports_installed_runtime() -> None:
     assert result["supported_capabilities"]
     info_schema = json.loads(spa("info", "--schema").stdout)
     validate(result, info_schema["result_schema"])
-    input_run = spa("info", "--input-json", json.dumps({"aseprite": os.environ["SPA_TEST_ASEPRITE"]}))
+    input_run = spa(
+        "info",
+        "--input-json",
+        json.dumps({"aseprite": os.environ["SPA_TEST_ASEPRITE"]}),
+    )
     assert input_run.returncode == 0, input_run.stdout
     assert json.loads(input_run.stdout)["runtime"] == result["runtime"]
 
 
-@pytest.mark.skipif(not os.environ.get("SPA_TEST_ASEPRITE"), reason="requires installed Aseprite")
-def test_symlinked_executable_resolves_to_resource_complete_bundle(tmp_path: Path) -> None:
+@pytest.mark.skipif(
+    not os.environ.get("SPA_TEST_ASEPRITE"), reason="requires installed Aseprite"
+)
+def test_symlinked_executable_resolves_to_resource_complete_bundle(
+    tmp_path: Path,
+) -> None:
     link = tmp_path / "aseprite"
     link.symlink_to(os.environ["SPA_TEST_ASEPRITE"])
     run = spa("info", "--aseprite", str(link))
@@ -144,16 +184,22 @@ def test_symlinked_executable_resolves_to_resource_complete_bundle(tmp_path: Pat
     runtime = json.loads(run.stdout)["runtime"]
     assert runtime["requested_path"] == str(link)
     assert runtime["discovered_path"] == str(link)
-    assert runtime["canonical_path"] == str(Path(os.environ["SPA_TEST_ASEPRITE"]).resolve())
+    assert runtime["canonical_path"] == str(
+        Path(os.environ["SPA_TEST_ASEPRITE"]).resolve()
+    )
 
 
-@pytest.mark.skipif(not os.environ.get("SPA_TEST_ASEPRITE"), reason="requires installed Aseprite")
+@pytest.mark.skipif(
+    not os.environ.get("SPA_TEST_ASEPRITE"), reason="requires installed Aseprite"
+)
 def test_manifest_is_projected_from_command_descriptors() -> None:
     run = spa("schema", "--aseprite", os.environ["SPA_TEST_ASEPRITE"])
     assert run.returncode == 0, run.stdout
     manifest = json.loads(run.stdout)
     assert [entry["operation"] for entry in manifest["operations"]] == [
-        "spa info", "spa version", "spa schema"
+        "spa info",
+        "spa version",
+        "spa schema",
     ]
     for entry in manifest["operations"]:
         command = entry["operation"].split()[1]
@@ -162,3 +208,16 @@ def test_manifest_is_projected_from_command_descriptors() -> None:
         Draft202012Validator.check_schema(entry["result_schema"])
         Draft202012Validator.check_schema(entry["failure_schema"])
         Draft202012Validator.check_schema(entry["invocation_schema"])
+
+
+def test_advertised_cli_flags_match_the_actual_typer_commands() -> None:
+    def unused_probe(_):
+        raise AssertionError("schema inspection must not probe the runtime")
+
+    typer_command = get_command(build_app(unused_probe))
+    for descriptor in OPERATIONS:
+        actual = {
+            parameter.name: parameter.opts[0]
+            for parameter in typer_command.commands[descriptor.name].params
+        }
+        assert actual == descriptor.schema().invocation_schema["x-cli-flags"]

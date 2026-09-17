@@ -1,7 +1,7 @@
 """One registration authority for the installed meta Operations."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 from pydantic import BaseModel
 
@@ -15,6 +15,18 @@ from spa.contracts import (
     VersionRequest,
     VersionResult,
 )
+from spa.ports import RuntimeProbe
+
+COMMON_CLI_FLAGS = {
+    "input_json": "--input-json",
+    "schema": "--schema",
+    "json_output": "--json",
+    "human": "--human",
+}
+RUNTIME_CLI_FLAGS = {
+    "aseprite": "--aseprite",
+    "timeout_seconds": "--timeout-seconds",
+}
 
 
 @dataclass(frozen=True)
@@ -22,9 +34,13 @@ class OperationDescriptor:
     name: str
     request_type: type[BaseModel]
     result_type: type[BaseModel]
-    execute: Callable[[BaseModel, Callable[[RuntimeRequest], RuntimeFacts]], BaseModel]
+    execute: Callable[[BaseModel, RuntimeProbe], BaseModel]
     render_human: Callable[[BaseModel], str]
     requires_runtime: bool
+
+    @property
+    def cli_flags(self) -> dict[str, str]:
+        return COMMON_CLI_FLAGS | (RUNTIME_CLI_FLAGS if self.requires_runtime else {})
 
     def schema(self) -> OperationSchema:
         command = f"spa {self.name}"
@@ -51,28 +67,31 @@ class OperationDescriptor:
                 },
                 "required": ["command"],
                 "additionalProperties": False,
-                "x-cli-flags": {
-                    "input_json": "--input-json",
-                    "schema": "--schema",
-                    "json_output": "--json",
-                    "human": "--human",
-                    **({"argv.aseprite": "--aseprite", "argv.timeout_seconds": "--timeout-seconds"}
-                       if self.requires_runtime else {}),
-                },
+                "x-cli-flags": self.cli_flags,
             },
         )
 
 
-def version_result(_: VersionRequest, _probe: Callable[[RuntimeRequest], RuntimeFacts]) -> VersionResult:
+def version_result(_: VersionRequest, _probe: RuntimeProbe) -> VersionResult:
     from importlib.metadata import version
 
     return VersionResult(spa_version=version("aseprite-automation"))
 
 
-def info_result(request: RuntimeRequest, probe: Callable[[RuntimeRequest], RuntimeFacts]) -> InfoResult:
+def info_result(request: RuntimeRequest, probe: RuntimeProbe) -> InfoResult:
     from importlib.metadata import version
 
-    facts = probe(request)
+    observation = probe(request)
+    facts = RuntimeFacts(
+        selection_source=observation.selection_source,
+        requested_path=observation.requested_path,
+        discovered_path=observation.discovered_path,
+        canonical_path=observation.canonical_path,
+        resource_complete=True,
+        resource_path=observation.resource_path,
+        aseprite_version=observation.aseprite_version,
+        api_version=observation.api_version,
+    )
     return InfoResult(
         spa_version=version("aseprite-automation"),
         runtime=facts,
@@ -81,7 +100,7 @@ def info_result(request: RuntimeRequest, probe: Callable[[RuntimeRequest], Runti
     )
 
 
-def schema_result(request: RuntimeRequest, probe: Callable[[RuntimeRequest], RuntimeFacts]) -> SchemaResult:
+def schema_result(request: RuntimeRequest, probe: RuntimeProbe) -> SchemaResult:
     info = info_result(request, probe)
     return SchemaResult(
         spa_version=info.spa_version,
@@ -92,7 +111,30 @@ def schema_result(request: RuntimeRequest, probe: Callable[[RuntimeRequest], Run
 
 
 OPERATIONS = (
-    OperationDescriptor("info", RuntimeRequest, InfoResult, info_result, lambda r: f"Aseprite {r.runtime.aseprite_version} (API {r.runtime.api_version}) at {r.runtime.canonical_path}", True),
-    OperationDescriptor("version", VersionRequest, VersionResult, version_result, lambda r: f"SPA {r.spa_version}", False),
-    OperationDescriptor("schema", RuntimeRequest, SchemaResult, schema_result, lambda r: "\n".join(item.operation for item in r.operations), True),
+    OperationDescriptor(
+        "info",
+        RuntimeRequest,
+        InfoResult,
+        info_result,
+        lambda r: (
+            f"Aseprite {r.runtime.aseprite_version} (API {r.runtime.api_version}) at {r.runtime.canonical_path}"
+        ),
+        True,
+    ),
+    OperationDescriptor(
+        "version",
+        VersionRequest,
+        VersionResult,
+        version_result,
+        lambda r: f"SPA {r.spa_version}",
+        False,
+    ),
+    OperationDescriptor(
+        "schema",
+        RuntimeRequest,
+        SchemaResult,
+        schema_result,
+        lambda r: "\n".join(item.operation for item in r.operations),
+        True,
+    ),
 )
