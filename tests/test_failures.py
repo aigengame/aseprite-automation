@@ -235,6 +235,9 @@ def test_descriptor_applicability_does_not_advertise_other_codes() -> None:
 def test_registry_and_access_applicability_are_closed_over_installed_producers() -> (
     None
 ):
+    # run_cli currently produces only invalid_request before Descriptor selection.
+    # A later Access code needs its own CLI producer witness in the same feature slice.
+    assert ACCESS_FAILURE_CODES == ("invalid_request",)
     declared = set(ACCESS_FAILURE_CODES)
     for descriptor in OPERATIONS:
         declared.update(descriptor.failure_codes)
