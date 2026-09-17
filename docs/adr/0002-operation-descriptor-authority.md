@@ -2,14 +2,35 @@
 status: accepted
 ---
 
-# Make the Operation Descriptor the single capability registration authority
+# Use one Operation authority and a private Kernel Protocol
 
-SPA represents each public automation capability with one Operation Descriptor. The descriptor binds the Operation's request, result, and failure schemas to its execution metadata and packaged Lua handler. The CLI command tree, MCP tool surface, and Surface Manifest are projections derived from these descriptors; they do not maintain independent per-capability registries.
+This decision consolidates ADR-0012.
 
-This preserves gda's architectural rule that one registration authority drives dispatch and schema projections, while adapting the name to SPA's domain language. In Aseprite, Command already means a native editor action exposed through `app.command`. Calling SPA's channel-neutral authority a Command Descriptor would conflate an SPA Operation, its CLI projection, and an Aseprite Command.
+Each structured public capability has one Operation Descriptor. It binds the
+capability's public request, result, and failure schemas to execution metadata and a
+declared execution definition. The CLI command tree, eligible MCP tools, and installed
+Surface Manifest are projections of these descriptors; they do not maintain parallel
+capability registries.
 
-The descriptor is registration metadata rather than the home of operation behavior. Python contract types own public shape and static invariants; the packaged Lua handler owns the Operation's core Aseprite behavior. A descriptor identifies and connects those parts without duplicating their logic.
+Descriptors own registration, public shapes, Published Language metadata, and
+statically decidable contract invariants, not native behavior. Python contract types
+implement and validate those Descriptor-owned shapes; they are not a second contract
+authority. An Ordinary Core Operation binds one fixed packaged Lua handler, which owns
+its Core Operation Semantics and native mapping as defined by ADR-0010. A capability
+whose behavior is implemented by an Application use case can have no Kernel binding. An
+application-composed capability can select and order multiple packaged Ordinary Core
+Operation handlers without redefining their semantics.
 
-ADR-0010 further distinguishes this public registration authority from behavior authority: the descriptor owns the published contract and projections, while its bound Lua Operation Kernel handler is the sole implementation of the Operation's core Aseprite behavior.
+The Aseprite Adapter and Lua Operation Kernel communicate through a versioned private
+Kernel Protocol. Public defaults and null semantics are resolved before transport, and
+the adapter translates protocol values into the Published Language. Private
+application orchestration can select and order packaged handlers, but it does not
+create another public workflow language.
 
-Adding a parallel CLI, MCP, Surface Manifest, or Lua-handler registry is therefore an architectural violation. A new access channel must consume the same Operation Descriptors or the Surface Manifest projected from them.
+Every Kernel invocation returns an explicit protocol success or failure response.
+Aseprite's process exit status and diagnostics are evidence used to classify the
+outcome, not the public verdict by themselves.
+
+This separation gives every access channel one public contract while allowing the
+runtime protocol to evolve with delivered Operations. A new access channel consumes
+the same descriptors or their installed Surface Manifest projection.

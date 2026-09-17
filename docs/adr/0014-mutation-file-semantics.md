@@ -2,16 +2,35 @@
 status: accepted
 ---
 
-# Require explicit source, target, and in-place mutation intent
+# Make mutations explicit, all-or-nothing, and staged
 
-Mutation Operations distinguish a Source Sprite File from a Target Sprite File. Creating a Sprite has no Source and requires a Target. Editing an existing Sprite requires a Source and exactly one output intent: a distinct Target, or explicit `in_place` intent that makes the Source path the Target path.
+This decision consolidates ADR-0020.
 
-SPA does not infer a Target filename. After path normalization, Source and Target equality without `in_place` is rejected rather than interpreted as an overwrite. When `in_place` is selected, a separate Target argument is rejected so one request cannot express conflicting intent.
+A Mutation Operation distinguishes its Source Sprite File from its Target Sprite File.
+Creation has no Source and requires a Target. Editing requires a Source and either a
+distinct Target or explicit in-place intent. SPA does not infer an output name or
+interpret source-target equality as implicit overwrite.
 
-An ordinary Mutation Operation resolves and validates its complete target set before changing it. It has no skipped-target success branch or generic best-effort mode. If any selected target cannot satisfy the Operation contract, the Operation fails and performs no Target Commit.
+Every Ordinary Core Operation with Execution Kind `mutation` is all-or-nothing over
+its complete resolved target set. Before
+changing the Sprite, the Lua Operation Kernel resolves target fields, enforces target
+count, expands native effects such as linked Cels, and validates every target and
+applicable Operation Limit. Failure does not produce a successful subset or Target Commit.
+SPA has no generic best-effort, continue-on-error, or partial-success switch.
 
-The Lua Operation Kernel saves to a Staged Sprite File created as a sibling of the Target. SPA performs a Target Commit only after the Kernel Response, declared Postconditions, and staged `.aseprite` file have been validated. A failed Operation or Operation Plan does not replace the Target. A retained staging file is either cleaned up or explicitly identified as diagnostic material; it is never reported as a committed Target.
+Supported in-memory document changes run within the declared Aseprite transaction. The
+Kernel saves to a staged Sprite file beside the Target; SPA replaces the Target only
+after validating the Kernel response, Postconditions, and staged file. Staging material
+is never reported as a committed Target.
 
-This is single-mutation correctness, not a general consistency facility. SPA does not add expected-digest preconditions, caller locks, write coordination, or multi-writer guarantees. The local caller owns coordination outside the invocation.
+The Application coordinates this validation. Before the one Aseprite invocation
+returns, packaged handlers close, reopen, and inspect the staged Sprite when an
+Operation requires persisted native facts. The Aseprite Adapter owns process and
+protocol mechanics. The File Adapter validates domain-neutral file facts and performs
+the Target Commit; it does not interpret Aseprite document semantics.
 
-Read Operations have no Target. Export Operations use their own declared Artifact outputs and do not overload Source/Target mutation terminology. An Operation Plan remains limited to at most one Target Sprite File as decided by ADR-0003.
+The same failure and commit rule applies to a Mutation Step and its Operation Plan.
+This is single-invocation mutation correctness, not multi-writer coordination or a
+general consistency facility. The caller owns external locking and workflow. Read
+Operations have no Target, while Export Operations publish their own declared Artifact
+destinations.

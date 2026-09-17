@@ -1,67 +1,51 @@
-# ADR-0029: Represent Selection as an explicit value
+# ADR-0029: Represent Selection as an explicit canonical value
 
 ## Status
 
 Accepted
 
+This ADR consolidates the durable cross-feature decisions from ADR-0030. Issue
+#24 owns the exact feature contract and acceptance.
+
 ## Context
 
-Aseprite exposes `Sprite.selection` as a native pixel Mask for the current Document.
-The scripting API can read, replace, combine, invert, and transform it. However, the
-current `.aseprite` writer does not persist the active Selection, and the deprecated
-file-format Mask Chunk is ignored when read. A Selection set in one isolated SPA
-invocation therefore cannot be recovered by reopening the Sprite File in the next.
-
-Treating `selection set` as a normal saved mutation would claim a Target Commit that
-does not contain the result. Carrying a hidden current Selection in an Operation Plan
-would add stateful, Plan-only semantics and make ordinary Operations behave
-differently depending on prior steps.
+Aseprite exposes the current Document Selection as a binary pixel Mask, but the
+current Sprite file lifecycle does not preserve that editor state. SPA must
+transport arbitrary Selection shapes across isolated Operations without
+claiming a file mutation or preserving hidden Plan state. A preview image does
+not carry sufficient origin and Mask semantics to be the authority.
 
 ## Decision
 
-- SPA retains Aseprite's term **Selection** and represents it in the Published
-  Language as an explicit serializable pixel Mask value in Canvas Pixel space.
-- Selection Operations such as create, combine, invert, grow, shrink, transform, and
-  validate accept and return Selection values. They do not claim to persist
-  `Sprite.selection` in a Target Sprite File.
-- Image, Paint, copy, move, erase, and other Selection-consuming Operations receive
-  the Selection explicitly in their request.
-- The Lua Operation Kernel may materialize a Selection value as a native Selection
-  while executing an Operation so it can reuse Aseprite's behavior. That transient
-  object is not part of Target Commit.
-- Omission of a Selection request field means no Selection restriction. An explicit
-  empty Selection selects zero Canvas Pixels. An explicit all-canvas Selection
-  selects every Canvas Pixel. These meanings are distinct.
-- A caller can pass the same Selection value or Artifact explicitly to multiple Plan
-  Steps. SPA does not introduce a hidden current Plan Selection, a named selection
-  session, or Plan-only Selection mutation commands.
-- A larger Selection can use an explicitly supported Artifact projection with the
-  same bounds and Mask semantics.
-- Inline and Artifact forms use the canonical binary Selection Encoding in ADR-0030.
-  A PNG can be produced as a Preview Artifact but is not the Selection authority.
+- SPA retains Aseprite's term **Selection** and represents it as an explicit,
+  serializable binary Mask value in Canvas Pixel space.
+- Selection-producing Operations return this value. Image, Paint, and other
+  consumers receive it explicitly instead of reading a prior process or Plan
+  state.
+- An omitted Selection means no restriction. `empty` selects no pixels, and
+  `all` carries the exact selected Canvas Rectangle.
+- A `mask` carries tight half-open bounds and ordered rows. Each row contains
+  an absolute Canvas `y` and sorted positive-length `{x, length}` runs.
+  Runs do not overlap, adjacent runs are merged, and the bounds have no
+  unselected outer row or column.
+- Construction geometry and set-operation history are request forms, not
+  variants of the resulting Selection value.
+- Inline and `selection-mask` JSON Artifact forms use the same schema. A PNG
+  can be a derived Preview Artifact but is not authoritative or assumed
+  reversible.
+- The Lua Operation Kernel owns normalization, native Selection
+  materialization, and result encoding. Python can validate statically
+  decidable wire invariants but does not implement Mask behavior.
 
 ## Consequences
 
-- Selection-dependent edits are reproducible across isolated CLI and MCP calls.
-- Operation Results do not claim that a transient editor Mask was saved.
-- Agents can construct and reuse complex Selections without a persistent editor
-  process.
-- Selection remains native domain language while its transport is adapted for
-  agent automation.
-- Canonical encoding and Artifact parity follow ADR-0030.
+Selection-dependent edits are reproducible across channels and invocations.
+Equivalent binary coverage has one comparable representation, while empty,
+all-canvas, and omitted intent remain distinct.
 
 ## Rejected alternatives
 
-### Persist `Sprite.selection` through the Sprite File
-
-The supported Aseprite file lifecycle does not preserve that state.
-
-### Restrict Selection commands to Operation Plans
-
-This introduces a hidden current-selection state and a second execution model for
-otherwise channel-neutral Operations.
-
-### Interpret an empty Selection as the whole canvas
-
-That makes an explicit value indistinguishable from omission and can turn an intended
-no-op into a full-image mutation.
+Persisting editor Selection would claim state absent from the Sprite file.
+Plan-only current Selection introduces a second execution model. Construction
+history is not a canonical Mask, and PNG introduces unrelated color, alpha, and
+threshold rules.

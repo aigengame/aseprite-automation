@@ -2,35 +2,32 @@
 status: accepted
 ---
 
-# Keep one Sprite Automation bounded context
+# Define the Sprite Automation context and its external relationships
 
-SPA uses one Sprite Automation bounded context because authoring, observation,
-validation, and delivery share one language and change around the same Sprite
-automation contract. Runtime integration, packaged Lua, CLI, MCP, Agent Skill,
-inspection, validation, and export are modules or adapters rather than separate
-bounded contexts. The repository therefore retains one root `CONTEXT.md` and does not
-add an internal multi-context routing map.
+This decision consolidates ADR-0016.
 
-Its external context relationships are directional:
+SPA uses one Sprite Automation bounded context because authoring, inspection,
+validation, conversion, and export share Aseprite's object model and change around the
+same agent-facing automation contract. Runtime integration, the Lua Operation Kernel,
+CLI, MCP, Agent Skill, validation, and export are modules or adapters inside that
+context, not independent bounded contexts.
 
-- Aseprite is the upstream authority for native concepts and behavior such as Sprite,
-  Layer, Frame, Cel, Image, Tileset, painting, filtering, color conversion, and export.
-  SPA deliberately conforms to that native language and delegates native algorithms,
-  while the Lua Operation Kernel and Aseprite adapter translate the public automation
-  contract and contain headless API quirks, hidden state, and runtime differences.
-- SPA owns agent-facing Sprite Automation semantics, including explicit targeting,
-  composition, observation, Capability Gaps, postconditions, Target Commit, Operation
-  Plans, Published Language, and Artifact facts. It publishes the CLI Open Host Service
-  and Published Language to downstream consumers.
-- Asset Pipeline is a downstream consumer. Its consumer-owned Anti-Corruption Layer
-  translates SPA Operation Results, Failure Envelopes, and Artifacts into the pipeline
-  contract accepted at integration time. SPA does not depend on validation-stage
-  pipeline commands, types, or internal models.
-- gda owns Godot import, engine, and runtime facts downstream of Asset Pipeline. It has
-  no direct model dependency on SPA, and SPA validation cannot become Godot runtime
-  evidence.
+The context has these directional relationships:
 
-Cross-Sprite orchestration, output aggregation, installation, retry, and project
-acceptance remain with the caller or Asset Pipeline. Reconsider another SPA bounded
-context only after evidence shows an independent language, model, lifecycle, and reason
-to evolve separately.
+- Aseprite is the upstream language and behavior authority for native objects,
+  operations, formats, and algorithms. SPA preserves that language and contains
+  headless-runtime differences behind its public automation contract.
+- SPA owns explicit targeting, orchestration, observation, validation, Capability
+  Gaps, structured outcomes, and Artifact facts for sprite automation. Its CLI is the
+  first exposure of the Open Host Service, and its schemas form the Published Language.
+  MCP and any later accepted access transport project that language as inbound adapters;
+  they do not own another capability or domain model.
+- The gda Asset Pipeline is a downstream consumer. Its Anti-Corruption Layer translates
+  the public SPA contract into pipeline concepts. SPA does not import pipeline-internal
+  models or depend on its experimental command and type names.
+- gda owns Godot import, engine, and runtime evidence. SPA validation cannot become a
+  Godot runtime claim.
+
+Cross-Sprite workflow, aggregation, installation, retry, and project acceptance remain
+with the caller or Asset Pipeline. A new SPA bounded context is justified when evidence
+shows an independent language, model, lifecycle, and reason to evolve separately.

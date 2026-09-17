@@ -2,16 +2,28 @@
 status: accepted
 ---
 
-# Keep bounds with operations instead of building resource governance
+# Keep bounds and complete inspection semantics with Operations
 
-Each functional area owns the bounds and units that make its Operations meaningful and usable. Paint owns raster payload geometry and representation constraints. Tilemap inspection owns region or chunk selection and can expose an explicit Artifact projection when cell data is unsuitable for a structured inline result. It reports exact Inspection Coverage and never silently truncates. Operation Plan owns its composition boundary, including Plan Step count. Other Operations introduce bounds when their functional contract requires them.
+This decision consolidates ADR-0026.
 
-The Aseprite adapter retains direct Execution Guards for one process invocation, including timeout and captured-output limits. These guards protect the ability to complete and observe the Operation; they do not form a caller-facing quota language, a shared multidimensional budget ledger, or a resource-governance subsystem.
+Each Operation owns the limits and units intrinsic to its behavior. Raster Operations
+can use pixel geometry, Tilemap Operations can use Tile Cell regions, and Operation
+Plans can bound their Step count. SPA does not create a cross-domain budget ledger or
+require every descriptor to register unrelated resource dimensions.
 
-The second prototype demonstrated that tile-bitmap pixels and tile cells are different units and that a full tilemap observation can become unusable. The architectural conclusion is domain ownership of those units and an appropriate result shape, not mandatory registration of every possible resource dimension on every Operation Descriptor.
+Each inspection Operation defines a typed domain-specific Inspection Scope and reports
+the normalized scope it evaluated. Success is complete for that scope: SPA does not
+silently truncate, sample, or omit promised facts. Results distinguish native absence,
+an empty native collection, an unrequested section, an unsupported capability, and an
+exceeded Operation Limit.
 
-An inspection that exceeds its declared Domain Bound returns a typed failure with the
-applicable allowed range unless the caller selected a supported domain-specific
-window, chunk, page, or Artifact projection. Bounds do not authorize partial success.
+An Operation can expose an explicit window, chunk, page, or Artifact projection when
+its data requires one. A successful bounded result reports exact inspection coverage
+and whether broader traversal is complete. Coverage and continuation semantics remain
+operation-specific rather than forming a universal cursor, Observation Envelope, or
+Inspection Result base model.
 
-SPA therefore does not require a universal list of request bytes, operation count, raster pixels, tile-bitmap pixels, tile cells, tiles, frames, cels, runtime, diagnostics, response bytes, and artifact limits across the whole surface. It does not aggregate those dimensions into a central budget policy. Operation tests exercise their own Domain Bounds; adapter tests exercise process timeout and diagnostic capture behavior.
+Exceeding an Operation Limit returns a typed failure with the applicable allowed range.
+The Aseprite Adapter separately owns process timeout and captured-output Execution
+Guards. These guards preserve execution and observation but do not create caller-facing
+quotas or centralized resource governance.

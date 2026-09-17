@@ -1,299 +1,142 @@
 # Aseprite Automation
 
-Aseprite Automation provides agent-facing automation for Aseprite. The project name is `aseprite-automation`; its primary executable is `spa`.
+Aseprite Automation (SPA) provides agent-facing automation for Aseprite. `SPA` is the
+short project name used in documentation; `spa` is the primary executable.
 
 > [!IMPORTANT]
-> This repository is at the bootstrap stage. The product architecture has been tested through disposable prototypes, but there is no production CLI release yet. [Issue #1](https://github.com/aigengame/aseprite-automation/issues/1) is the umbrella PRD and prototype record; `CONTEXT.md` and the accepted ADRs contain the current aligned language and decisions. Shipped behavior will be defined by the installed CLI schemas and verified vertical slices.
+> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). There is no production command-line interface (CLI) release yet. Feature issues own delivery contracts, evidence requirements, provenance links, and curated evidence summaries, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. Shipped behavior will be reported by the installed Surface Manifest.
+
+This README owns the user-facing product introduction and promotion, value-proposition
+narrative, onboarding, adoption guidance, and project navigation. Its factual claims
+derive from the applicable product, architecture, delivery, and installed-runtime
+authorities; it does not define a competing contract. See
+[`ARCHITECTURE.md`](ARCHITECTURE.md) for the integrated current system view.
 
 ## Background
 
-Aseprite exposes useful batch and Lua scripting capabilities, but `aseprite --script` is not an agent-facing automation contract. A direct caller must still construct scripts, encode parameters, separate diagnostics from results, detect failures, protect source files, and verify generated artifacts.
+Aseprite exposes useful batch and Lua scripting capabilities, but `aseprite --script` is not an agent-facing automation contract. A direct caller must still construct scripts, encode parameters, separate diagnostics from results, detect semantic failures, protect source files, and verify generated artifacts.
 
-SPA adds that missing product boundary. It turns common sprite workflows into fixed, parameterized operations with strict inputs, structured results, stable failures, and observable postconditions. Ordinary operations use packaged Lua scripts; they do not generate temporary Lua source. Arbitrary Lua remains an explicit trusted escape hatch: `script run` can execute a caller-owned file or materialize caller-supplied stdin bytes unchanged, but it never implements an ordinary operation.
+SPA adds that product boundary. It turns sprite workflows into parameterized Operations with typed inputs, structured results, stable failures, and observable postconditions. Ordinary Core Operations use packaged Lua handlers; they do not generate temporary Lua implementations. Caller-owned Lua remains the explicit `script run` escape hatch, but it cannot replace or bypass an existing Ordinary Core Operation through the SPA surface.
 
 ## Product Position
 
-SPA is an **Aseprite automation toolchain for AI agents**. The CLI is the first and authoritative execution channel.
+SPA is an **Aseprite automation toolchain for AI agents**. Its business capability is equivalent to Aseprite's: it provides agent-facing mechanisms for sprite creation, editing, inspection, validation, conversion, and export, and develops these functional capabilities broadly and deeply for agent use.
 
-SPA's business capability is coextensive with Aseprite's. It provides agent-oriented sprite creation, editing, validation, conversion, and export, and develops these functional capabilities broadly and deeply for agent use. It does not take ownership of gameplay, engine integration, art direction, or another product domain.
-
-SPA provides a structured, verifiable loop:
+SPA provides a structured and verifiable loop:
 
 ```text
-discover -> inspect -> create or edit -> verify -> export
+discover -> inspect when applicable -> create or edit
+         -> inspect and validate -> continue editing or export
 ```
 
-The product is designed for agents, CI jobs, and asset pipelines that need explicit and verifiable sprite operations. Each Operation declares whether its governed result is `deterministic` or `native-stochastic`. Native Aseprite randomness is preserved and observed rather than excluded or rewritten. SPA is not an autonomous art director, a replacement for Aseprite's interactive editor, or a guarantee of visual quality.
+The product serves agents, continuous integration (CI) jobs, and asset pipelines that need explicit sprite operations and inspectable evidence. It preserves and observes native Aseprite behavior, including declared stochastic behavior. SPA does not take ownership of gameplay, engine integration, art direction, or another product domain.
 
-## Capability Territory
+## Capability coverage
 
-The table describes the intended product territory. A capability is supported only after it ships through a verified vertical slice and appears in the installed aggregate schema.
+The table introduces the product's intended capability coverage. Its rows are themes for
+users, not Command Groups, Domain Modules, architecture ownership, or shipped-support
+claims. A capability is supported after an evidence-bearing vertical slice ships and
+appears in the installed Surface Manifest.
 
-| Area | Responsibility |
+| Capability theme | Intended coverage |
 | --- | --- |
-| Runtime | Discover and validate an external Aseprite installation, its resources, version, supported scripting capabilities, and evidence-backed Capability Gaps. |
-| Document and animation | Create and edit sprites, layers, frames, cels, tags, timing, palettes, and color data. |
-| Raster authoring | Apply bounded bitmap patches, typed paint operations, and native filters without expanding work into thousands of per-pixel process calls. |
-| Tile authoring | Create and inspect tilemaps and tilesets with stable tile keys, typed transform flags, explicit coordinate spaces, and bounded inspection results. |
-| Other authored objects | Work with selections, slices, text, and related Aseprite concepts when their contracts have verified semantics. |
-| Inspection | Return enough typed document facts to select mutation targets and verify results. Missing, ambiguous, unsupported, and omitted facts remain explicit. |
-| Validation and comparison | Check structural properties, pixels, metadata, artifacts, and digests. Visual review remains separate from structural proof. |
-| Planning | Apply a bounded sequence of existing operations to one sprite document in one Aseprite process and one adapter unit of work. |
-| Delivery | Export sprites, animation sheets, GIFs, tilesets, previews, and normalized metadata as verified Artifacts in Operation Results. Add conversions when their semantics are proven. |
-| Agent access | Publish version-locked Agent Skill guidance and generate MCP tools from the installed CLI schema without a second command registry. |
-| Integration | Act as an Aseprite authoring and export subsystem for external asset pipelines through the public CLI JSON ABI. |
+| Runtime | Discover an external Aseprite installation, resources, version, scripting capabilities, and evidence-backed Capability Gaps. |
+| Sprite and animation | Create and edit Sprites, Layers, Frames, Cels, Tags, timing, and animation structure. |
+| Raster, paint, and selection | Inspect and transform Images; exchange bounded pixel data; apply Selections, native Paint operations, and native Filters. |
+| Color and palette | Inspect and edit Palettes and color data; perform native quantization, Color Mode, Color Profile, and eligible Dithering operations. |
+| Tile authoring | Create and inspect Tilemaps and Tilesets with stable Tile Keys, typed flags, explicit Coordinate Spaces, and bounded results. |
+| Slices and imported content | Work with Slices, external raster input, and evidence-gated text rasterization through verified contracts. |
+| Inspection and validation | Observe and validate each owned Aseprite concept beside its creation or editing capabilities. |
+| Composition and delivery | Apply eligible Operations in a bounded single-Sprite Plan and export image, animation, sheet, Tileset, preview, and metadata Artifacts. |
+| Agent access | Publish version-locked Agent Skill guidance and project the installed operation surface through the Model Context Protocol (MCP). |
+| Asset workflow integration | Participate in external asset workflows through the public `spa` CLI JSON contract. |
 
-Command groups are a navigation surface, not the module architecture. Domain modules own cohesive vertical feature slices and can project more than one group when Aseprite behavior shares a lifecycle. Inspection and validation stay with the domain concepts that they observe. `plan` is bounded orchestration, delivery operations own export and conversion, and `script run` is the explicitly unsafe extension point.
-
-Raster authoring illustrates that distinction: `image` follows Aseprite's native Image value for observation and structural pixel-buffer transformations, while `paint` exposes agent-facing drawing intent such as bulk patches, primitives, and fills. Both surfaces share one Raster Authoring Domain Module and one set of pixel semantics. Raster mutations preserve Aseprite's linked-Cel sharing, apply once per unique shared Image, and report all affected Cels; an isolated edit first uses the explicit `cel unlink` Operation.
-
-Aseprite also distinguishes Freehand tools from batch Filters. SPA projects Blur and Jumble as `paint blur` and `paint jumble` because they use native Brush gestures. It projects Aseprite's native filter commands under the `filter` navigation group: Brightness/Contrast, Hue/Saturation, Color Curve, Replace Color, Invert Color, Outline, Convolution Matrix, and Despeckle. Aseprite's Adjustments and FX menu labels remain documentation labels, not architectural boundaries. Every Filter keeps its own Descriptor and fixed Lua Kernel handler; SPA adds no generic `effect`, Filter DSL, or plug-in system.
-
-Every Filter request also carries an explicit Aseprite-aligned Filter Cels Target. `selected` supplies exact Layers and one-based Frame Numbers and resolves existing Cels in their Cartesian product; `all` resolves every existing Cel on a natively pixel-editable Layer. Neither mode inherits the active Cel, timeline range, or a saved Filter preference. Empty selected intersections and Layers excluded from `all` are reported, Linked Images are filtered once with every affected Cel reported, and the pixel Selection mask remains a separate explicit input. This is a Filter-specific native scope, not a universal Selector.
-
-Filter channels are likewise explicit and typed rather than exposed as Aseprite's internal integer mask. A non-empty `components` set uses Color-Mode-compatible names; Indexed Filters can instead expose the exclusive `index` form when their native implementation really processes stored Palette Indexes. Each Filter Descriptor restricts the set to channels that operation can affect, and a request for Alpha fails when any resolved target is a Background Cel instead of being silently weakened. Indexed Palette basis and whether a particular Filter changes pixels or Palette Entries remain separate operation semantics.
-
-Aseprite's Brightness/Contrast and Hue/Saturation can apply to different native destinations depending on editor state, so SPA makes that `Filter Application` explicit. `pixels` targets Cels/Images in every Color Mode and uses a declared Palette basis for Indexed conversion. `indexed-palette-entries` targets one exact Palette Change and preserves stored indexes. `rgb-palette-colors` preserves Aseprite's combined behavior of changing selected Palette Entries and replacing exact old-color matches in explicitly targeted RGB pixels. The Kernel controls and restores the active Frame, Palette Picks, timeline range, and pixel Selection required by each path. Filters whose destination is always pixels do not acquire this union.
-
-`filter brightness-contrast` is the first accepted concrete Filter contract. It requires integer `brightness` and `contrast` percentages from -100 through 100 and explicit effective component channels: red/green/blue subsets for RGB or Indexed interpretation, and gray for Grayscale. Alpha and Index are rejected because the native implementation does not change them. Zero/zero remains a valid reported no-op. Aseprite owns the tonal mapping, ordering, clamping, Palette matching, and Indexed RGB Map quantization; SPA adds no gamma, curve, tiled mode, or alternate formula.
-
-`filter hue-saturation` exposes Aseprite's HSL, HSV, HSL+, and HSV+ behavior as `hsl-multiply`, `hsv-multiply`, `hsl-add`, and `hsv-add`. HSL requests use Hue/Saturation/Lightness; HSV uses Hue/Saturation/Value. Grayscale exposes only the native multiplicative Lightness behavior, while Alpha is a separate conditional adjustment and Index is unsupported. Every numeric field uses the editor's integer range and appears only when its selected channels can use it. Because the additive script modes are under-documented, all four modes must pass real headless parity before the Operation appears for a runtime.
-
-`filter color-curve` accepts 1..256 strictly input-ordered `{input, output}` integer Points in the native 8-bit domain. A single Point is a constant curve; endpoints are optional and Aseprite supplies linear interpolation and endpoint extension. RGB and Grayscale use explicit component Channels. Indexed execution explicitly selects component conversion or stored Index transformation and always declares the Effective Palette basis. Color Curve is pixel-only: it requires Filter Cels Target, accepts pixel Selection, never changes Palette Entries, and exposes no spline, formula, tiled mode, or alternate lookup-table API.
-
-`filter replace-color` requires explicit source and destination Color Values plus one integer Tolerance from 0 through 255. Native component matching applies that Tolerance independently to every selected channel, requires all of them to match, and preserves unselected components. Indexed requests use explicit Palette Index source/destination values for both stored-Index and Palette-component modes, eliminating Aseprite's hidden best-fit conversion while preserving every effective outcome. Equal source and destination can still normalize neighboring values when Tolerance is positive, so results report matched and actually changed pixels separately.
-
-`filter invert-color` has no strength or color parameters: it complements explicitly selected components or stored Indexed values. Indexed component mode uses a declared Effective Palette and RGB Map. Native Index mode computes `255-index` without clamping, so SPA preflights every participating pixel and refuses any result outside the declared Palette instead of expanding the Palette, clamping, or switching modes. Two passes are exactly reversible for component bytes and valid stored Indexes, but not promised for Indexed component mode because Palette quantization can lose information.
-
-`filter outline` projects Aseprite's native Inside/Outside Outline with explicit outline and classification-background colors, Filter Cels Target, Selection, Channels, and Tiled Mode. Its typed Outline Matrix supports the native presets and a custom set of eight effective neighboring positions; the Kernel maps those names to native bits without exposing the raw mask or the semantically inert center. RGB and Grayscale retain native component behavior. Indexed stored-Index execution uses explicit valid Palette Index colors and an Effective Palette. Aseprite 1.3.18.5's Indexed component path is demonstrably broken, so that combination reports a version-specific Capability Gap instead of switching Channels or using a replacement renderer. Repeated native Outline passes can be composed explicitly when a wider result is desired.
-
-`filter convolution-matrix` is the intended projection of one uniquely resolved native Convolution Matrix Resource with explicit Channels, Tiled Mode, Filter Cels Target, Selection, and Indexed Palette basis where applicable. `spa info` makes discovered Resource names, sources, collisions, and declared default Channels visible; a missing or ambiguous name is a typed failure, never a successful no-op. Aseprite 1.3.18.5 cannot publish this Operation: its headless command ignores both the supplied Channels and a Resource's default target, and a real probe changed all RGBA components regardless of whether Red or Alpha was requested. SPA reports that versioned Capability Gap instead of exposing a fixed-all-component subset or duplicating convolution in Lua/Python.
-
-`filter despeckle` retains Aseprite's command name and its native per-channel Median Filter semantics. It requires explicit `1..100` width and height, Channels, Tiled Mode, Filter Cels Target, and optional Selection. Even windows use Aseprite's native anchor and upper median; `1x1` is a valid no-op. Indexed can calculate stored-Index medians or component medians through an Effective Palette and RGB Map. Aseprite 1.3.18.5 corrupts an unselected Green component when an Indexed component request omits Green, so those exact combinations report a version-specific Capability Gap while RGB, Grayscale, Index, and Green-containing Indexed component paths remain available. SPA does not broaden Channels or replace the native algorithm.
-
-The [command catalog](docs/command-catalog.md) is an incremental, non-binding map of this territory. GitHub issues own delivery commitments and status; the installed `spa schema` Surface Manifest remains the authority for commands and contracts that actually ship.
+Command Groups are navigation, not module architecture. Domain Modules own cohesive vertical slices and can project several groups when native behavior shares a lifecycle. `image` represents Aseprite Image observation and structural transformation; `paint` represents authoring intent. Native batch Filters remain distinct from native Tools. The [command catalog](docs/command-catalog.md) lists candidate territory; feature issues own delivery contracts.
 
 ## Public Contract
 
-The initial Open Host Service is the typed command service exposed by `spa`. Its Published Language is the versioned set of input, output, error, Operation metadata, Artifact, and Surface Manifest schemas. The private Python/Lua Kernel Protocol is an adapter concern rather than another public API.
+The CLI is the planned first Open Host Service. Its Published Language is the versioned
+set of Operation Request, Operation Result, Failure Envelope, Operation metadata,
+Artifact, and Surface Manifest schemas. Human output and MCP tools are projections of
+the Published Language. The Python/Lua Kernel Protocol is a separate private contract,
+not a second public API.
 
-The public contract follows these rules:
+- Each Operation has strict typed request, result, and failure schemas.
+- Machine output contains a schema-valid Operation Result or Failure Envelope and stays separate from vendor diagnostics.
+- Stable Failure Codes drive automation; typed Failure Details and human Diagnostics have different roles.
+- The Surface Manifest describes every callable Operation, side effects, determinism, version constraints, and schemas.
+- Each Operation defines Aseprite-aligned target fields, cardinality, Inspection Scope, Operation Limits, and result facts. SPA has no universal Selector or Locator.
+- Inspections report normalized coverage and completeness. Native absence, not requested, unsupported, and exceeded bounds remain distinct.
+- Coordinate-bearing requests name their Coordinate Space. Public Rectangles use Aseprite's `x`, `y`, `width`, and `height` vocabulary and half-open coverage.
+- Color Values preserve RGB, Grayscale, Indexed, Alpha Channel, Transparent Color Index, Palette, sRGB, and ICC distinctions from Aseprite.
+- Supported multi-target Mutations resolve the complete target set and produce a Target Commit for the whole set or none of it.
+- Every produced file is a verified Artifact in the owning Operation Result. Format-specific facts stay with that result.
+- Operation Descriptors own registration and projections. The Lua Operation Kernel owns SPA Core Operation Semantics and native mapping. Python coordinates use cases and adapters without duplicating that behavior.
+- Capability Gaps are versioned, evidence-backed runtime facts. They remove unfaithful Operations from the installed Surface Manifest instead of creating silent partial support.
 
-- Each command has strict typed input and output schemas.
-- JSON output contains either a documented Operation Result on exit zero or a Failure Envelope on non-zero exit; success and failure models are disjoint.
-- Every inspection success is complete for its normalized, operation-specific Inspection Scope. Results distinguish native absence from sections not requested; requested unsupported capabilities and exceeded Domain Bounds fail explicitly rather than producing silent truncation or partial success.
-- Windowed inspection Operations report their domain-specific coverage and completeness. They may expose a Rectangle, Frame Range, page, chunk, or explicitly selected Artifact projection without creating a universal cursor or Observation Envelope.
-- Stable Failure Codes drive agent decisions. Broad categories govern coarse exit behavior, while messages and diagnostics remain explanatory text.
-- Code-specific Failure Details are strictly typed when an agent needs them; SPA does not expose a generic details dictionary or universal sparse evidence object.
-- Human-readable output is derived from the same result models.
-- One Surface Manifest describes every dispatchable Operation, its execution metadata, and its Operation Determinism.
-- Structured parameters can carry nested objects, arrays, paths, and large payloads without fragile shell encoding.
-- Each Operation defines Aseprite-aligned target fields, target-count rules, and domain-specific result facts; SPA has no universal Selector or Locator model.
-- SPA-created Sprites enable Aseprite's native Layer UUID persistence by default, with explicit opt-out. Existing Sprites retain their `useLayerUuids` setting; SPA never silently changes it for addressing, and an unpersisted runtime UUID is not a cross-Operation identity.
-- Layer Operations can use a persisted `layer_uuid`, an exact current `layer_stack_path` composed from one-based native stack indexes, or a `layer_name` that must match exactly one Layer in the Operation's documented scope. Missing and ambiguous targets fail explicitly.
-- Cel absence is distinct from an existing transparent or empty Image. `cel add` requires an empty Layer/Frame intersection and never replaces content; Image and Paint mutations require an existing Cel/Image. Agents compose creation and painting inside one Operation Plan when both are intended.
-- Background Layer behavior remains native and explicit: at most one per Sprite, with one full-canvas opaque Cel per Frame. `cel remove` never disguises Background clearing as deletion; `cel clear` preserves the Cel, and Layer conversion reports every normalization it performs using a declared Background Color.
-- An ordinary Mutation resolves and validates its complete target set before changing it; it either succeeds for the whole set or performs no Target Commit.
-- Coordinate-bearing fields identify canvas-pixel, tile-cell, or tile-bitmap-pixel space explicitly.
-- Public Rectangles use zero-based `x/y` plus non-negative `width/height` and cover a half-open region. Negative positions and empty Rectangles are accepted only where the native Operation gives them meaning. Raster writes reject out-of-bounds regions unless the request explicitly selects a supported clipping behavior, which reports the applied Rectangle.
-- Selection is an explicit serializable Canvas Pixel Mask value, not persistent Sprite File state. Selection Operations transform values, while Paint, Image, copy, move, erase, and similar Operations receive the value explicitly. Absent, empty, and all-canvas Selection semantics remain distinct.
-- Canonical Selection Encoding is binary and discriminated as `empty`, `all` with a Canvas Rectangle, or `mask` with tight bounds and normalized row runs. Inline values and JSON Selection Mask Artifacts share one schema; PNG is an optional Preview, never the Selection authority.
-- Public `frame_number` values are one-based, matching Aseprite's editor and Lua API; Frame Range endpoints are inclusive, and any zero-based native CLI conversion stays private.
-- `frame add` inserts an explicitly timed empty Frame; `frame duplicate` copies one whole source Frame with a declared `copy` or `link` Cel mode and copied-or-overridden duration. Neither Operation lets `Layer.isContinuous` choose sharing implicitly, and results report resulting Frame Numbers and Tag Range adjustments.
-- Persisted Frame timing uses integer `duration_ms` in Aseprite's exact `1..65535` millisecond range. Lua seconds are private conversion data; higher-level FPS input must declare quantization and return actual milliseconds. Export-specific timing quantization is reported without changing Sprite timing facts.
-- Tags use inclusive Frame Ranges, explicit `animation_direction`, and native `repeats` from 0 through 65535. Zero remains `unspecified`, not universally infinite. Playback and export Operations declare how they interpret the Tag and report the expanded Frame sequence and output loop facts.
-- A Tag is addressed by exactly one operation-specific field: current one-based `tag_index`, or `tag_name` when that name is unique. Aseprite permits duplicate names and range edits can reorder Tags, so results return the complete resulting Tag and its current index; SPA adds no persistent Tag identity.
-- A Slice retains Aseprite's ordered Slice Keys instead of being flattened into static bounds. Each Key begins at a one-based `frame_number`, carries Canvas Pixel bounds plus optional Slice-local center and pivot, and reports its inclusive effective Frame Range. Existing Slices are addressed by current one-based `slice_index` or a unique `slice_name`; SPA adds no Slice UUID or generic Selector. On Aseprite 1.3.18.5, a fixed Lua Kernel handler normalizes complete native `listSlices` exporter metadata for reads. Whole-Slice lifecycle and properties remain supported, but geometry mutation is limited to a Slice with one Key at Frame 1; arbitrary Slice Key add, set, and remove are reported as a Capability Gap.
-- A Tileset is addressed by current one-based `tileset_index`, unique `tileset_name`, or a resolved Tilemap Layer where the Operation is Layer-scoped. Native Tile Index is zero-based and index 0 is the non-removable Empty Tile. Persisted `base_index` changes displayed numbering only. SPA-created non-empty Tiles require a caller-supplied Tileset-scoped `tile_key` in the versioned `aigengame.spa` properties namespace; existing unkeyed Tiles stay readable and receive no metadata until an explicit Key assignment. Placement uses Tile Key, while results also report the current Tile Index. New Tiles append. Removing an unused Tile remaps every higher Index; removing a used Tile additionally requires an explicit replacement Tile Key or Empty Tile. The fixed Lua Kernel rewrites every Placement across all Layers and Cels sharing the Tileset, preserves transform flags, and commits the lifecycle change atomically.
-- `tileset remove` requires the addressed Tileset to have no referencing Tilemap Layers. A referenced target fails as `TILESET_IN_USE` with complete Layer facts and no mutation instead of inheriting Aseprite's implicit reassignment to Tileset 0. Explicit Layer rebinding and removal can be composed atomically in an Operation Plan. Successful removal reports the complete Tileset Index change and every surviving Layer binding, then verifies them after save/close/reopen.
-- `layer set-tileset` rebinds one Tilemap Layer through a complete `by_key` or `explicit` Tile Rebinding Map instead of preserving raw Tile Indexes. Empty remains Empty, every used source Tile Key must map, and Placement flags are preserved. The request also chooses `require_equal` Grid semantics or explicitly accepts `use_target`, which keeps Tile Cell coordinates and Cel positions without resampling and reports the changed Canvas coverage. The Lua Kernel rewrites all Layer Placements and switches the Tileset atomically.
-- A concrete Tileset's Grid is not an editable `tileset set` field. `tileset resize` is the explicit replacement-style lifecycle. Its required Tile Image Transform is `scale`, which reuses shared `image resize` interpolation/color semantics, or `canvas`, which reuses the shared Image Canvas Transform to copy pixels 1:1 into an explicitly offset and filled target Tile Bitmap. Its required Cel position policy either keeps Canvas Pixel positions or preserves exact old Grid coordinates for aligned Cels without rounding. Tile Cell arrays, Tile Keys/order/properties, and Placement flags remain unchanged; Sprite canvas and out-of-canvas content are not silently modified. The Lua Kernel creates the replacement, rebinds all Layers, and removes the old Tileset atomically, returning complete Tile, Layer, Cel, Grid, coverage, and index facts.
-- `tile reorder` accepts one complete permutation of all non-empty Tile Keys, keeps Empty Tile at Index 0 and preserves Base Index. Image, color, data, Tile Key, and unrelated Properties move as one Tile while every shared Placement is remapped atomically. The candidate remains unshipped until a real Aseprite vertical slice proves lossless typed-Property movement and save/reopen behavior.
-- A Tilemap Layer references one Tileset and can have an absent Tilemap Cel at any Frame. Each Tilemap Cel Image pixel is a Tile Cell addressed by zero-based `tile_x/tile_y`; its Cel position and Tileset Grid determine Canvas Pixel coverage. Public Placement Values are `empty` or `tile` with Tile Key and explicit X/Y/diagonal flip booleans. Mutation never accepts a packed value, Base Index, or bare Tile Index. `tilemap get/set/patch/fill` target one Layer and Frame, require an existing Cel, and use bounded Cel-local Tile Cell coordinates with the normal explicit clipping rule.
-- `layer add` uses the native Layer kind, including `kind: tilemap`. A Tilemap Layer addition must declare `tileset.create` with a name, Grid, and Base Index or `tileset.share` with one exact existing Tileset address. Creation returns both Layer and Tileset; sharing validates the target before mutation, binds the Layer, and removes Aseprite's implicitly created orphan Tileset in the same all-or-nothing Operation. No active Tileset or Tileset 0 is an implicit default. An existing initial Raster Layer is preserved and can be removed separately.
-- A Tile Region Snapshot is a Rectangle plus canonical row-major non-empty Placements; omitted Cells explicitly mean Empty. `tilemap set` replaces the complete Rectangle, `tilemap patch` changes only listed Cells, and `tilemap fill` writes one Placement Value throughout a Rectangle. Default `get` returns topology and usage summaries; an explicit region returns a complete inline Snapshot, while oversized complete Cel data uses a JSON Artifact with the same structure. Results report exact requested and covered regions and never silently truncate.
-- Palettes are modeled as ordered Palette Changes, not independent copies on every Frame. Reads resolve the Effective Palette for a `frame_number`; entry mutation targets an exact existing `palette_frame_number` and reports its inclusive effective Frame Range. Aseprite 1.3.18.5 exposes no public Lua/editor operation to add or remove change points, so `spa info` reports that lifecycle Capability Gap instead of SPA fabricating support through private or binary-file seams.
-- Palette Entry recoloring preserves stored pixel indexes. Palette Reorder preserves rendered colors with an explicit `palette-change` or `sprite` scope; the narrower scope refuses cross-range linked Images and cannot move the Sprite-wide Transparent Color Index. Aseprite-aligned `palette remap` is Sprite-wide. Shrinking a Palette refuses to remove a used or transparent index, and no operation chooses a replacement color implicitly.
-- Color-bearing contracts use a discriminated Color Value for RGBA, Grayscale, or Palette Index data. Indexed transparency remains a distinct Transparent Color Index; packed pixel integers are private, and cross-Color-Mode conversion is explicit rather than preference-dependent.
-- One Image Resize Transform serves `image resize` and Tileset Resize `scale`. It requires positive target dimensions and an explicit native `nearest-neighbor`, `bilinear`, or `rotsprite` method; invalid sizes and unknown names fail instead of being clamped or downgraded. Nearest and rotsprite preserve stored Indexed values. Indexed bilinear requires an exact `palette_frame_number`, uses that Effective Palette and Transparent Color Index for RGBA interpolation and RGB Map quantization, and performs no dithering. The Lua Kernel transforms a source copy so Aseprite's transparent-color fixup cannot mutate source state outside the intended replacement. The transform never moves a Cel.
-- `image resize` composes that buffer transform with a required Cel Position Policy for an ordinary transparent Image Layer. `keep` preserves Canvas positions. `pivot` accepts an integer Point in old Image Pixel space, computes the exact anchor-preserving rational offset, and explicitly rounds it with `toward-zero`, `floor`, `ceil`, or `nearest-away-from-zero`; the same integer offset moves every Cel sharing the Image. Tilemap, Background, and Reference Cels retain their distinct native semantics and are rejected by this Operation. Pivot and resize commit atomically and return exact and applied placement facts.
-- `image crop` accepts one non-empty, fully contained half-open source Image Pixel Rectangle. Its origin becomes `(0,0)` in the new buffer. `preserve_canvas_pixels` offsets every linked Cel by the Rectangle origin; `keep_cel_position` leaves positions unchanged. The shared Image is cropped once and links remain intact. Out-of-bounds padding and fill belong to the separate Image Canvas Operation, and Tilemap, Background, Reference, or absent Cels are rejected.
-- One Image Canvas Transform serves `image canvas-resize` and Tileset Resize `canvas`. It creates an exact positive-size same-Pixel-Format buffer, fills it with an explicit compatible Color Value, and copies source pixels 1:1 after placing the source origin at an integer target-Image offset. Pixels outside the target are discarded and an empty intersection is still a valid explicit fill-only result. `keep_cel_position` moves copied pixels on the Sprite Canvas by that offset; `preserve_source_canvas` subtracts it from every linked Cel position. The shared Image changes once, links remain intact, and the operation never scales pixels or changes the Sprite canvas.
-- `image flip` mirrors a complete Image through Aseprite's native `Image:flip` with a required `horizontal` or `vertical` axis. It supports existing Cels on ordinary Image, Background, and Reference Layers because dimensions and placement remain unchanged; Tilemap Cels use Tilemap semantics instead. Linked Images are flipped once without changing Cel positions, Background invariants, Reference bounds, or native sharing. The active Selection is not applied implicitly.
-- `image rotate` uses a fixed Lua Image Quarter-turn Transform because Aseprite 1.3.18.5 has no Lua `Image:rotate`; editor `Rotate` targets a Sprite canvas or Mask instead. It accepts only the Aseprite-aligned angles `90` clockwise, `-90` counterclockwise, or `180`, maps stored pixels exactly without interpolation, and requires `keep` or an integer old-Image `pivot` Cel Position Policy. It applies to ordinary transparent Image Layer Cels, transforms each linked Image once, and rejects Background, Reference, Tilemap, absent, and non-Cel targets. Python cannot own an alternate rotation implementation.
-- A Pixel Region Snapshot is the complete canonical Raster value for a positive half-open Image Pixel Rectangle. Each ordered row is fully covered by positive-length runs of compatible Color Values, adjacent equal runs are merged, and no omitted-pixel default exists. `image get` returns an exact bounded Snapshot inline or as a structurally identical JSON Artifact. `image replace` accepts a full-bounds, same-size, same-Color-Mode Snapshot and replaces pixel content without changing geometry. Ordinary Image, Background, and Reference Cels are supported; Tilemap Cels use Tilemap snapshots. Linked Images change once and retain sharing.
-- A Pixel Patch is the canonical sparse counterpart to a complete Snapshot. Its ordered absolute Image Pixel runs replace exact stored values while omissions remain unchanged. `paint apply` accepts it inline or as the same JSON Artifact schema, defaults to rejecting out-of-bounds Rectangles, supports explicit clipping and explicit Canvas-space Selection Application, and reports every applied or skipped pixel. It supports ordinary Image and Background Cels, preserves linked sharing, and leaves alpha/opacity/BlendMode composition to the distinct `paint composite` Operation.
-- `paint composite` places an inline or Artifact Pixel Region Snapshot at an explicit Image Pixel position and requires Aseprite `opacity` and one supported BlendMode. Source and target Color Modes match; bounds and explicit Selection behavior reuse `paint apply`. RGB and Grayscale delegate to native `Image:drawImage` through the fixed Lua Kernel. Indexed requests declare the target Frame's Effective Palette and remain a visible Capability Gap until a real-runtime slice proves Palette-correct native delegation without Palette 0 fallback or persistent temporary mutation. Indexed remains part of the intended product capability.
-- Paint primitives such as `paint line`, `paint rectangle`, `paint ellipse`, and `paint fill` use a private Native Tool Invocation that fully specifies Aseprite `app.useTool` rather than inheriting active editor state. Public commands retain typed, operation-specific contracts and Image Pixel geometry; the Kernel supplies the exact target and options, translates coordinates, enforces Paint bounds/Selection rules, and restores invocation-local state. `GraphicsContext`, a generic public `use-tool`, and Python rasterizers are not alternate semantics. Each primitive is delivered after a real headless Aseprite parity slice proves its declared deterministic or native-stochastic behavior, atomicity, state restoration, and native-tool delegation.
-- Standard Paint Brush preserves Aseprite's `circle`, `square`, and `line` Brush types with positive size and explicit applicable angle; Line Brush means footprint, not the Line tool. `paint line` sends exactly two Image Pixel endpoints plus Brush, Color Value, `opacity`, and `simple`, `alpha-compositing`, `copy-color`, or `lock-alpha` Ink through Native Tool Invocation. Equal endpoints produce a point. Bounds, clipping, and Selection use the actual native Brush footprint. Image Brush and Shading Ink remain intended capabilities with their own explicit-state contracts and real-runtime gates.
-- `paint rectangle` and `paint ellipse` share Paint Shape inputs: a positive half-open Image Pixel `bounds`, explicit `outline` or `filled` style, Standard Paint Brush, Color Value, opacity, Ink, clipping, and Selection. The Kernel maps bounds to the native tools' inclusive endpoints and controls optional-fill state. One-pixel dimensions retain native shape behavior, while actual affected bounds include the Brush footprint. Rectangle and Ellipse pass independent headless editor-parity gates and never fall back to GraphicsContext or Python geometry.
-- `paint fill` invokes Aseprite's native Paint Bucket from one Image Pixel seed with explicit Color Value, opacity, Ink, tolerance, contiguous mode, Pixel Connectivity when contiguous, Refer To (`active-layer` or `all-layers`), Stop at Grid, clipping, and Selection. All Layers uses the addressed Frame's native visible composite for matching but writes only the target Cel. Stop at Grid is an explicit result choice independent of GUI grid visibility. The fixed Lua Kernel controls and restores the Paint Bucket preferences that `app.useTool` cannot receive directly; SPA does not accept a Brush or replace native flood fill with Lua or Python.
-- `paint pencil` sends one non-empty ordered Image Pixel Point sequence through Aseprite's native Pencil tool as a single press/move/release gesture. It requires Standard Paint Brush, Color Value, opacity, Ink, and explicit `regular`, `pixel-perfect`, or `dots` Freehand Algorithm. SPA preserves the supplied Point sequence and delegates its pixel interpretation to Aseprite; it does not simplify paths or share implementations with Line, Spray, or Eraser. Each algorithm has an independent headless parity gate. Complete Paint Dynamics remain an intended functional Capability Gap because Aseprite 1.3.18.5 does not expose pressure, velocity, tilt, and dynamic Brush inputs through headless `app.useTool`.
-- `paint eraser` preserves the same ordered native gesture and Freehand Algorithm choices but invokes Aseprite's Eraser tool. Required `erase` or `replace-foreground-with-background` behavior selects the native left- or right-button Ink without exposing a generic mouse-button input. Transparent Layer erasure accepts no color; Background erasure requires an explicit background Color Value and restores the hidden native preference it must temporarily control. Replacement requires explicit foreground and background Color Values. Eraser accepts no generic Ink and is never rewritten as transparent Pencil painting or a custom Lua/Python algorithm.
-- `paint spray` remains an intended native Spray operation with ordered Points, Standard Paint Brush, Color Value, opacity, Ink, Spray Width `1..32`, and Spray Speed `1..100`. It is explicitly `native-stochastic`: Aseprite seeds its native random distribution from process time and exposes no seed, so results report actual pixels and digest without promising exact replay. Aseprite 1.3.18.5 resets Spray preferences on the first headless tool invocation and has no direct width/speed arguments; the command remains a version-specific Capability Gap until a real slice proves that the fixed Lua Kernel can prime the native tool in an isolated temporary Sprite, then set and restore width/speed. SPA does not ship a fixed-default subset or its own random Spray renderer.
-- `paint gradient` remains an intended deterministic native Gradient operation. Ordered Image Pixel `from/to` Points define foreground-to-background direction and `from` also seeds native Flood Fill matching. The request requires both Color Values, opacity, `linear` or `radial` Gradient Type, `none` or a uniquely resolved installed Dithering Matrix, and the applicable Paint Fill tolerance, contiguous/connectivity, Refer To, Stop at Grid, clipping, and Selection inputs. It accepts no Brush, generic Ink, or Freehand Algorithm. Aseprite 1.3.18.5 reads Gradient Type and Dithering Matrix directly from the GUI Context Bar and exposes no headless parameters, so the command remains a version-specific Capability Gap unless a real headless slice proves otherwise; SPA does not substitute Paint Composite, GraphicsContext, Python, or a custom Lua gradient.
-- Aseprite's Curve, Polygon, and Contour remain separate `paint curve`, `paint polygon`, and `paint contour` Operations rather than variants of a SPA-defined Path. They can reuse Point, Brush, Color, Ink, bounds, clipping, and Selection values, but preserve the native Four Points/Bézier, Point-by-Point/filled-closure, and Freehand/filled-contour controllers respectively. Curve and Polygon require real headless probes because one scripted press/move/release gesture does not evidently encode their multi-stage controllers. Contour has an independent positive gate. A gap in one never suppresses the others, and SPA does not substitute custom Bézier, polygon, GraphicsContext, or Python geometry.
-- `paint contour` is a deterministic native Contour invocation. It preserves one non-empty ordered Image Pixel Point sequence as one Freehand gesture and requires Standard Paint Brush, Color Value, opacity, accepted Ink, and explicit `regular` or `pixel-perfect` Freehand Algorithm. Native closure and fill are fixed behavior rather than public flags. A real Aseprite 1.3.18.5 headless probe executed both documented algorithms and observed distinct native raster results; the production slice must still prove complete parity, persistence, and structured results. The undocumented internal `dots` value, Paint Dynamics, generic Path controls, and custom contour renderers are not part of this Operation.
-- `paint curve` retains the complete deterministic native Curve contract: exactly four ordered Image Pixel roles (`start`, `control1`, `control2`, `end`), Standard Paint Brush, Color Value, opacity, and accepted Ink. A real Aseprite 1.3.18.5 headless probe changed both controls while preserving the endpoints; both calls returned success but produced no pixels, proving that one `app.useTool` gesture cannot complete the Four Points Controller. The Operation is therefore absent from that runtime's Surface Manifest and reported by `spa info` as a versioned Controller Capability Gap. SPA never degrades it to Line, ignores controls, or substitutes its own Bézier renderer.
-- `paint polygon` retains the deterministic native Polygon contract: ordered Image Pixel vertices, Standard Paint Brush, Color Value, opacity, accepted Ink, and fixed native filled closure. A real Aseprite 1.3.18.5 probe showed that one `app.useTool` gesture discards intermediate vertices: materially different vertex sequences with the same endpoints both returned success and produced zero pixels. Repeating the first vertex at the end did not complete the intended Polygon and instead filled the entire probe canvas. The Operation is absent from that runtime's Surface Manifest and reported as a versioned Controller Capability Gap. SPA never synthesizes completion, chains independent tool calls, aliases Contour, or substitutes its own polygon renderer.
-- `paint blur` is a deterministic native Blur gesture with ordered Image Pixel Points, Standard Paint Brush, opacity, `regular` or `pixel-perfect` Freehand Algorithm, and explicit Tiled Mode (`none/x/y/both`). Native Blur Ink performs its 3×3 neighboring-pixel treatment, so Color and caller-selected Ink are not inputs. A real Aseprite 1.3.18.5 probe changed 133 pixels and reproduced the same result exactly; a separate state probe moved document Tiled Mode from `none` to `x` and restored it to `none`. The fixed Lua Kernel uses that native state seam, while delivery still requires complete edge-wrapping, Color Mode, selection, persistence, state-restoration, and editor-parity evidence.
-- `paint jumble` remains the complete intended `native-stochastic` Jumble capability. A real probe confirmed native random output—105 pixels changed and two identical requests differed at 98 pixels—but Aseprite 1.3.18.5 hardcodes scripted Pointer velocity to zero. Because pointer speed and direction drive Jumble's native displacement, the Operation remains absent from that runtime's Surface Manifest with a typed Capability Gap. SPA does not ship a fixed-zero subset, derive velocity from Point spacing, or replace native Jumble with Lua/Python randomness.
-- Each produced file is returned as an Artifact containing `path`, `role`, `format`, `size_bytes`, and `sha256`; format-specific facts stay in the owning Operation Result.
-- Every Export Operation uses explicit Export Destinations containing `path` and `if_exists: fail | replace`. A fixed small output set declares several Destinations directly; a generated multi-file command resolves its complete expected files from an output directory, an Aseprite-aligned Filename Format, and bounded domain inputs. The fixed Lua Kernel owns native selection, rendering, encoding, and naming semantics, while the file adapter maps outputs to an operation-owned temporary location. SPA requires the Kernel Response, every expected file, and command-specific format facts before publishing verified Artifacts; it never trusts process exit or Lua truthiness alone. This contains Aseprite's headless overwrite and partial-output behavior without adding an Artifact Manifest, backup, rollback, registry, or general multi-file transaction system.
-- `export image` distinguishes rectangular Export Image Area from pixel Selection. Its required Area is the full `canvas`, explicit Canvas Pixel `bounds`, or one exactly addressed `slice` resolved through its effective Key at the selected Frame. Aseprite's `SaveFileCopyAs.bounds` and editor Selected Canvas path crop to a Rectangle but do not apply a non-rectangular Selection Mask; a real 1.3.18.5 probe preserved an unselected center pixel inside the Selection bounds. The Operation therefore accepts no Selection field. A future true masked export remains a functional extension, but it must reuse canonical Selection Encoding and explicitly define outside-mask pixels, output bounds, Color Mode, Background behavior, and verification rather than pretending that native Bounds are a Mask.
-- `export image` renders exactly one explicit one-based Frame Number and one typed Layer Composition. `visible` uses persisted effective visibility with exact optional exclusions; `all` renders all natively renderable Layers with exact optional exclusions; `include` renders a non-empty exact Layer set. Group inclusion or exclusion expands its subtree, an included child temporarily enables required ancestor Groups, and explicit inclusion can render hidden content. The Lua Kernel resolves and temporarily applies visibility and restores it on every handled path; it never inherits active Frame, Layer, timeline Range, or `app.range`. Aseprite remains authoritative for native stack order, Blend Mode, Layer/Cel opacity, Background, Tilemap, Reference, color, and pixel compositing. The Operation produces one static raster Artifact; Tags, Frame Ranges, playback, and multiple outputs belong to GIF, Sheet, and Sequence export.
-- `export image` reuses Aseprite's File Format, Color Mode, Change Color Mode, Alpha Channel, Transparent Color Index, Background Layer, and Background Color vocabulary; it does not invent Static Image Format, Color Handling, or Alpha Handling concepts. A typed `file_format` branch must match the Destination extension and owns only its native format options. Request branches can preserve or explicitly change Color Mode and can preserve transparency or apply an explicit fully opaque Background Color to the disposable export Sprite. They are Published Language choices rather than new domain entities. SPA rejects implicit warning-driven Color/Alpha/Palette loss: a real 1.3.18.5 probe discarded Alpha when writing JPEG and returned `true`/exit zero for an Indexed JPEG that produced no file. Aseprite performs conversion, Background behavior, and encoding in the fixed Kernel; Python only validates structure, paths, and final facts. Runtime plug-ins do not dynamically expand the stable public schema.
-- Change Color Mode is the shared native operation for `sprite change-color-mode` and `export image.color_mode.change`; the latter applies it only to the disposable export Sprite. The target-specific request accepts no options for RGB, requires `to_gray: luma | hsv | hsl` for Grayscale, and for Indexed uses already established Effective Palettes while requiring RGB Map Algorithm and Color Best Fit Criteria. Dithering is required only for RGB-to-Indexed and is a conditional native contract: `none`; `ordered` or `old` with an optional installed-ID or file-path Dithering Matrix; or `error-diffusion` with a required `0..1` Dithering Factor. An omitted ordered/old matrix preserves Aseprite's native Bayer 8-by-8 default. Grayscale-to-Indexed rejects Dithering because Aseprite ignores it. `rgb_map_algorithm` accepts the exact native `default | rgb5a3 | octree` strings; `color_best_fit_criteria` accepts `default | rgb | linearizedRGB | ciexyz | cielab`. Each applicable field is required. Explicit `default` is a native deterministic choice, while omission, unknown strings, numeric enums, case variants, irrelevant fields, unresolved matrices, and preference-derived or silent fallbacks fail. It never generates or imports a Palette. Same-mode input is a valid no-op with no conversion parameters. Merge layers remains a separate composable Layer operation. Aseprite converts the complete Sprite, including applicable Cel and Tileset Images, while the fixed Lua Kernel provides the same typed mapping and observations to both callers; Python may discover runtime matrix resources but never converts pixels or Palettes or implements Dithering.
-- Color Profile remains separate from Color Mode. `sprite assign-color-profile` delegates Aseprite's metadata-only Assign Color Profile behavior; `sprite convert-color-profile` delegates native pixel/Palette conversion. Their targets are explicit `none`, `srgb`, or an ICC file as applicable. `export image` requires `color_profile: preserve | omit | assign | convert`: the latter two act only on the disposable export Sprite, and each File Format branch must prove it can represent the requested result. A real 1.3.18.5 probe showed that changing `app.preferences.color.manage` during a headless script did not change PNG output, while Assign None omitted the profile and Assign/Convert ICC embedded it with distinct file digests. SPA therefore uses native Sprite operations instead of hidden color-management preferences. Lua owns Assign/Convert; Python may validate ICC input and encoded profile facts but never transforms colors.
-- Color Quantization remains Aseprite's separate "Create Palette from Current Sprite" operation and is exposed as `palette color-quantization`, not as a generic Palette Source or hidden part of Change Color Mode. It addresses one existing Palette Change, renders every Sprite Frame, and replaces that complete Effective Palette using explicit `max_colors`, `with_alpha`, native `rgb_map_algorithm: default | rgb5a3 | octree`, and native `new_layer_blending_method`; explicit `default` resolves to Octree, while omission or invalid values fail. It accepts no mutable Palette Picks or ranged shortcut and cannot create a Palette Change. A Plan can prepare a Palette before Change Color Mode. For `export image`, an explicit export step either copies the selected source Frame's Effective Palette or applies the same Color Quantization Lua handler to the rendered disposable Sprite before conversion. A real 1.3.18.5 probe proved the Lua Kernel can set and restore both New layer blending method values and that quantization did not add a Palette Change, so the preference seam remains private to this functional operation rather than becoming a general preference-management system.
-
-- `export image` has one fixed internal order: render the requested Frame, Layer Composition, and Export Image Area into a disposable Sprite; apply the Color Profile branch; prepare a Palette when changing to Indexed; apply Change Color Mode; apply transparency preservation or Background in the final Color Mode and Color Profile; then invoke the File Format encoder. This order prevents Profile conversion, Palette mapping/Dithering, and Background composition from being silently exchanged. The Python Application Layer owns this use-case orchestration and can select, order, and compose the packaged Kernel capabilities into one private execution; the Lua Kernel remains the sole authority for each core operation and executes the native steps against the same disposable Sprite in one Aseprite process. It is not a caller-defined pipeline or an Operation Plan and creates no intermediate Artifacts.
-
-REST and remote HTTP are outside the current product boundary. They are not a reason to introduce remote identity, authorization, concurrency, cancellation, or retention infrastructure into the local tool.
+Before delivery, exact feature contracts and evidence requirements belong to their
+accepted issues under the shared language and decisions. Operation Descriptors own
+implemented public contracts and bindings, implementation owns executable behavior,
+tests and evidence artifacts own executed verification assertions and results, and the
+installed Surface Manifest reports callable facts for one installation. See
+[`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md).
 
 ## Technical Architecture
 
-SPA uses one **Sprite Automation** bounded context. Domain rules do not depend on Aseprite process details, MCP, Godot, or an external asset pipeline.
+SPA uses one **Sprite Automation** Bounded Context. Operation Descriptors project one
+Published Language to the CLI, Agent Skill, MCP, and installed Surface Manifest.
+Application use cases coordinate Domain Modules, an external Aseprite process, staged
+file publication, and structured outcomes. Aseprite remains authoritative for native
+behavior; packaged Lua handlers own SPA Core Operation Semantics and native mapping.
+Application use cases coordinate the surrounding workflow without redefining that
+native behavior.
 
-```text
-AI agents / CI / Asset Pipeline
-    |
-    +-- spa CLI -----------------------------+
-    |                                        |
-    +-- spa-mcp -- invokes installed spa ----+--> Typed command service
-    |                                        |    and aggregate schema
-    +-- spa Agent Skill -- usage guidance ---+
-                                             |
-                                             v
-Application use cases and operation descriptors
-    |
-Sprite Automation domain model and ports
-    |
-    +-- Aseprite outbound adapter
-    |      |
-    |      +-- fixed, packaged Lua operation kernel
-    |      +-- versioned request/response codec
-    |      +-- process, timeout, and diagnostic handling
-    |
-    +-- staged file commit and artifact validation
-           |
-           v
- External Aseprite: --batch --script
-```
+The planned bootstrap stack, owned by
+[issue #3](https://github.com/aigengame/aseprite-automation/issues/3), is Python 3.13,
+Typer, Pydantic 2, `uv`, packaged Lua, and an external
+`aseprite --batch --script` runtime. After implementation, project metadata and the
+lockfile report the actual runtime and dependencies. The operating model is a trusted
+local workspace. Asset Pipeline integration uses a downstream-owned Anti-Corruption
+Layer and the public `spa` CLI JSON contract.
 
-### Strategic subdomains
+See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the integrated context map, subdomains,
+module responsibilities, dependency rules, technology profile, contracts, execution
+flows, trust boundary, and decision map.
 
-Sprite Automation is the Core Domain and receives the highest delivery priority. It
-includes both Aseprite-equivalent sprite capabilities and the agent-facing control,
-composition, observation, and verification that make those capabilities usable.
-Aseprite Runtime Integration, access projection, and Asset Pipeline integration support
-that domain. Domain-neutral framework and utility capabilities are generic. Supporting
-and generic work follows accepted Core Domain needs, uses proportionate abstraction,
-and does not establish an independent roadmap. [ADR-0007](docs/adr/0007-demand-driven-nfrs.md)
-is the authority for this investment boundary.
+## Delivery Plan
 
-### External context relationships
+The project grows through evidence-bearing vertical slices. GitHub issues own scope,
+acceptance, dependencies, evidence requirements, provenance links, curated evidence
+summaries, and delivery status. Milestones group outcomes and do not imply dependencies
+that are absent from issue bodies.
 
-SPA remains one internal Sprite Automation bounded context. Aseprite is the upstream
-authority for native language and behavior; SPA translates its supported automation
-seams into the CLI Open Host Service and Published Language. Asset Pipeline consumes
-that public contract through its own Anti-Corruption Layer, while gda owns later Godot
-import, engine, and runtime facts. CLI, MCP, Agent Skill, Lua Kernel, inspection,
-validation, and export are modules or adapters inside this single context, not new
-bounded contexts. [ADR-0001](docs/adr/0001-single-sprite-automation-context.md) owns the
-complete relationship and the evidence threshold for any future split.
-
-### Layer responsibilities
-
-- **Contract authority:** typed Operation Descriptors define public registration, schema, Operation Determinism, help, result rendering, MCP discovery, and Lua handler binding; they do not implement Aseprite behavior.
-- **Application layer:** Python use cases coordinate automation rules, operation-specific bounds, output intent, ports, and private execution structure. They may select, order, and compose packaged Kernel capabilities, arrange one or more Aseprite invocations, and manage result and Artifact lifecycles, but they do not implement Aseprite-native operation semantics.
-- **Domain modules:** are vertical ownership envelopes for cohesive feature slices, not another logical layer. Their domain rules, contracts, application use cases, rendering, and Lua bindings retain the source-dependency rules defined by [ADR-0009](docs/adr/0009-command-groups-and-domain-modules.md); module boundaries need not mirror CLI groups one-for-one.
-- **Operation behavior authority:** the packaged Lua Operation Kernel owns the core creation, editing, observation, validation, conversion, and export behavior executed against Aseprite. Standalone and Plan paths invoke the same handlers.
-- **Aseprite adapter:** owns executable discovery, platform resources, process execution, the private JSON/Lua boundary, fixed Lua scripts, diagnostics, and Aseprite-specific behavior.
-- **File and artifact adapters:** own staged Sprite saves, atomic Target Sprite replacement, Export Destination path mapping and temporary outputs, digests, and artifact verification.
-- **MCP adapter:** launches the installed `spa` executable, discovers tools from its aggregate schema, forwards structured inputs, and relays the same results.
-
-Source dependencies point from inbound adapters to Application and Domain contracts;
-concrete outbound adapters depend on inner-owned ports. Only bootstrap binds concrete
-adapters and entry points. Cross-module behavior is coordinated by Application use
-cases, not cyclic imports or shared mutable state. Step 3 will select the initial module
-inventory and physical paths without changing these rules.
-
-## Planned Technology Stack
-
-| Component | Technology and role |
-| --- | --- |
-| CLI and application | Python 3.13 with Typer for the human and automation command surface. |
-| Contracts | Pydantic 2 models as the source for validation, JSON Schema, structured results, and failure envelopes. |
-| Project and packaging | `uv` for Python environments, dependencies, builds, and installed-product tests. |
-| Aseprite operations | Fixed, versioned Lua scripts executed by an external Aseprite process through `--batch --script`. |
-| Private adapter protocol | A versioned Kernel Protocol using JSON request and response files passed by `--script-param`, with process output captured separately as bounded diagnostics. |
-| MCP | An optional Python dependency and a thin subprocess adapter generated from the installed aggregate schema. |
-| Agent guidance | A version-locked Agent Skill distributed with the CLI and derived from the same supported operation surface. |
-
-This stack is the current decision in the product requirements. A later validated distribution constraint can change it; the public typed contract and domain boundaries must remain independent of the chosen framework.
-
-## Aseprite Execution Model
-
-Aseprite is an external installed dependency. SPA does not bundle the official executable by default. Runtime discovery reports the requested, discovered, and canonical executable paths, verifies required resources, and identifies the exact tested version before mutation.
-
-The Kernel Protocol accounts for Aseprite's JSON behavior: decoded null becomes Lua `nil`, and decoded objects and arrays are userdata that must not be echoed through arbitrary Lua-table recomposition. Python resolves public absent/null/default semantics before transport; Kernel handlers construct fresh response facts. A valid Kernel Response, not process exit status alone, determines Operation success.
-
-A normal mutation follows this unit of work:
-
-1. Preflight the public request, explicit Source/Target or In-place intent, Plan Step eligibility, paths, operation-specific Domain Bounds, and other statically decidable constraints.
-2. Resolve a supported, resource-complete Aseprite runtime.
-3. Pass validated data to a fixed Lua handler through versioned request and response files referenced by `--script-param`.
-4. Create or open the document outside `app.transaction`; resolve each Step Precondition and each Operation's complete target set against the current Sprite before its guarded mutation, then apply supported document edits inside one transaction.
-5. Evaluate declared Postconditions, save to a staged sibling of the Target Sprite File, and validate the private response and staged file.
-6. Commit the staged file to the declared Target only after validation succeeds.
-7. Emit a schema-valid public Operation Result, or a typed Failure Envelope on a non-zero exit.
-
-A successful Aseprite process exit is not sufficient evidence of success. SPA requires a valid private response and the expected file effects. End-to-end tests independently reopen outputs through a real supported Aseprite binary and observe the persisted result.
-
-A bounded operation plan applies only to one sprite document. Cross-document ordering, bundles, installation, retry, and project acceptance belong to the caller or an external asset pipeline.
-
-## Safety and Trust Boundary
-
-The normal environment is a trusted local workspace with a trusted Aseprite installation and packaged SPA operations.
-
-- Creating requires a declared Target Sprite File. Editing requires either a distinct Target or explicit In-place intent; SPA never infers an overwrite.
-- Ordinary mutations are all-or-nothing over their resolved target set. SPA does not silently skip invalid targets or expose a generic best-effort switch.
-- Operation contracts use domain-appropriate bounds and units for their requests and results; SPA does not build a general quota system.
-- Packaged ordinary operations preserve unrelated user and plugin metadata.
-- `script run` executes arbitrary Lua and is explicitly outside the ordinary-operation safety contract.
-- The trusted local host owns caller identity and access. SPA does not add authentication, authorization, audit history, distributed consistency, generalized recovery, service governance, or a remote multi-tenant security boundary.
-
-## Asset Pipeline Boundary
-
-SPA is committed to integration with the developing gda Asset Pipeline through an Asset Pipeline-owned anti-corruption adapter that invokes the public `spa` CLI ABI. The pipeline is still under validation and has not joined gda's main branch, so its current command names and tactical abstractions are references rather than SPA contracts.
-
-- **SPA owns:** Aseprite document and visual-asset semantics, sprite editing, inspection, bounded structural validation, and Aseprite/raster export facts.
-- **Asset Pipeline owns:** workflow order, concept and reference handoff, project recipes, produced-file roles, installation, retry, and project acceptance.
-- **gda owns:** Godot import facts, engine behavior, and runtime observations.
-
-The adapter translates SPA Operation Results, Failure Envelopes, and Artifacts into the Asset Pipeline contract accepted at integration time. The systems do not import each other's internal models, and a SPA validation result is not Godot runtime evidence.
-
-## Delivery Strategy
-
-The project grows through small, evidence-bearing vertical slices. A high command count or the expressiveness of raw Lua does not prove that SPA covers agent sprite workflows.
-
-Feature issues and milestones own delivery order, tracer scope, and acceptance criteria. This architecture baseline constrains those slices without selecting their sequence. A maintained workflow corpus will determine coverage claims.
+- [Phase 1 — Installed CLI Tracer](https://github.com/aigengame/aseprite-automation/milestone/3)
+- [Phase 2 — Sprite and Animation Authoring](https://github.com/aigengame/aseprite-automation/milestone/1)
+- [Phase 3 — Raster and Paint Authoring](https://github.com/aigengame/aseprite-automation/milestone/2)
+- [Phase 4 — Color, Palette, and Filters](https://github.com/aigengame/aseprite-automation/milestone/6)
+- [Phase 5 — Slice, Tile, and Imported Content](https://github.com/aigengame/aseprite-automation/milestone/7)
+- [Phase 6 — Delivery and Agent Access](https://github.com/aigengame/aseprite-automation/milestone/5)
+- [Phase 7 — Asset Pipeline Integration](https://github.com/aigengame/aseprite-automation/milestone/4)
 
 ## Non-Goals
 
-- Editor UI automation or a persistent interactive editor session; SPA automates Aseprite capabilities rather than reproducing its editor UI.
-- Persisting Aseprite's transient active `Sprite.selection` in a Sprite File or carrying a hidden current Selection between isolated invocations or Plan Steps.
-- Generated Lua source for ordinary operations.
+- Editor GUI automation or a persistent interactive editor session.
+- Generated Lua implementations for Ordinary Core Operations.
 - An embedded model, autonomous art direction, or automatic aesthetic acceptance.
-- A general workflow DAG, background job system, plugin marketplace, or cross-document transaction.
+- A general workflow DAG, background job system, plug-in marketplace, or cross-document transaction.
 - Godot project semantics, gameplay validation, or asset installation inside SPA.
 - Bundling or redistributing Aseprite.
-- A REST service before a named remote consumer and its artifact lifecycle are understood.
+- A standalone REST platform. An accepted evidence-backed functional slice can later
+  add bounded Artifact/resource access or MCP transport through the same Published
+  Language.
 
 ## Project Documents
 
-- [Product requirements and prototype findings](https://github.com/aigengame/aseprite-automation/issues/1)
+- [Umbrella PRD and prototype conclusions](https://github.com/aigengame/aseprite-automation/issues/1)
+- [Authority governance and document dependency matrix](AUTHORITY_MATRIX.md)
+- [Ubiquitous Language and strategic domain model](CONTEXT.md)
+- [Integrated system architecture](ARCHITECTURE.md)
+- [Accepted architecture decisions](docs/adr/)
 - [Incremental command catalog](docs/command-catalog.md)
 - [Aseprite CLI documentation](https://www.aseprite.org/docs/cli/)
 - [Aseprite scripting documentation](https://www.aseprite.org/docs/scripting/)
