@@ -308,6 +308,11 @@ them close.
 Each structured public capability has one **Operation Descriptor**. The descriptor
 binds schemas, execution metadata, presentation, and a declared execution definition.
 Descriptors are the registration authority; they do not implement native behavior.
+Under ADR-0013, the failure contract calls for shared registration of each public
+Failure Code's meaning, Category, and Details kind. Each Descriptor declares its
+Operation's applicable codes and projects their constraints in its failure schema.
+The Application classifies private runtime evidence; Access adapters project the same
+Failure Envelope.
 
 An Ordinary Core Operation binds one fixed packaged Lua handler. A capability whose
 behavior is implemented by an Application use case can have no Kernel binding. An
@@ -548,7 +553,7 @@ flowchart TB
     Decode -->|failure| VerifyFailure[Failure Envelope; nothing is published]
     Compare -->|failure| VerifyFailure
     Publish -->|failure before any change| PublishFailure[Publication Failure]
-    Publish -->|failure after a path changed| PartialFailure[PARTIAL_PUBLICATION with per-path facts]
+    Publish -->|failure after a path changed| PartialFailure[partial_publication with per-path facts]
 ```
 
 Static image export uses a fixed private composition order for Layer Composition,
@@ -558,7 +563,7 @@ never mutates the Source Sprite.
 
 A successful result reports the complete declared output set. When an Export has
 several final paths, SPA publishes them in a deterministic order. A failure after a
-final path changed returns `PARTIAL_PUBLICATION` with the known state of every declared
+final path changed returns `partial_publication` with the known state of every declared
 destination and whether a published path replaced an existing file. SPA does not return
 a successful Artifact set, restore replaced files, remove published files, or promise
 filesystem atomicity or a general recovery mechanism. A hard interruption can leave

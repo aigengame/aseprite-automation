@@ -18,6 +18,34 @@ recovery. Agents branch on the code; categories support coarse policy; messages 
 diagnostics are explanatory rather than stable parsing surfaces. Human output is
 rendered from the same models, and MCP relays the same outcome taxonomy.
 
+The Descriptor-owned Published Language contract uses one shared machine-readable
+registration for public Failure Code semantics. A registered code has one stable
+meaning, Failure Category, and applicable Failure Details kind. Published codes use
+`lower_snake_case`; their meaning and classification are not silently repurposed.
+`input` denotes an invalid request; `environment` denotes an unavailable Aseprite
+runtime or required resource; `execution` denotes failure to carry out an accepted
+Operation; and `protocol` denotes a missing or invalid private Kernel response after
+applicable process evidence is classified.
+Private adapter issue kinds and Kernel transport facts are not public Failure Codes.
+
+The shared registration defines code semantics, not another Operation registry. Each
+Operation Descriptor declares its applicable registered codes and projects a failure
+schema that enumerates those codes and binds each to its Category and Details kind.
+SPA validates the same association when constructing a Failure Envelope; an
+unregistered code or mismatched association cannot be published as a valid outcome.
+The Application classifies private runtime evidence; packaged Lua handlers remain
+authoritative for native Core Operation failure conditions, which the Application
+validates and translates at the public boundary without reimplementing them. Access
+adapters project the resulting envelope rather than inventing another taxonomy.
+
+A feature adds a public code only when callers need a distinct stable decision from
+existing codes. The feature's planned contract names the code and required recovery
+facts; its implementation adds the registration, owning Descriptor applicability,
+producer or classifier, and positive and refusal tests together. A planned but
+unimplemented code is not advertised in an installed Operation schema. CLI process
+exit policy is an Access projection rather than a property repeated per code: the
+initial CLI contract uses exit 2 for `input` and 1 for other structured failures.
+
 Inspection and Validation Results report the native facts appropriate to their domain.
 SPA does not impose a common Observation base model. Inspection completeness and bounds
 follow ADR-0008. A completed Validation can return Findings as success; an execution

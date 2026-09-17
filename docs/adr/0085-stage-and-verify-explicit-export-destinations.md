@@ -42,7 +42,7 @@ or Artifact-registry subsystem.
 - When an Export has several final paths, the File Adapter publishes them in a
   deterministic order. A failure before the first final-path change is an ordinary
   publication failure. A failure after one or more paths changed returns the stable
-  `PARTIAL_PUBLICATION` Failure Code and code-specific details for every declared
+  `partial_publication` Failure Code and code-specific details for every declared
   destination: role, normalized path, whether it existed before publication, and a
   state of `published`, `not_published`, or `indeterminate`. A `published` destination
   also states whether it replaced an existing file. The Operation returns no success
