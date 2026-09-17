@@ -11,9 +11,11 @@ from pathlib import Path
 import pytest
 from jsonschema import Draft202012Validator, validate
 from typer.main import get_command
+from typer.testing import CliRunner
 
 from spa.cli import build_app
 from spa.descriptors import OPERATIONS
+from spa.runtime.aseprite import probe
 
 
 def spa(
@@ -273,6 +275,83 @@ def test_process_start_failure_keeps_installed_executable_identity(
     failure = json.loads(run.stdout)
     assert failure["code"] == "process_start_failed"
     assert failure["details"]["executable"] == str(binary.resolve())
+
+
+def _assert_preparation_failure(binary: Path) -> None:
+    info = next(descriptor for descriptor in OPERATIONS if descriptor.name == "info")
+    run = CliRunner().invoke(build_app(probe), ["info", "--aseprite", str(binary)])
+    assert run.exit_code == 1, run.stdout
+    assert run.stderr == ""
+    failure = json.loads(run.stdout)
+    assert failure["code"] == "process_start_failed"
+    assert failure["category"] == "execution"
+    assert failure["details"]["executable"] == str(binary.resolve())
+    assert failure["diagnostics"]["exit_status"] is None
+    validate(failure, info.schema().failure_schema)
+
+
+def test_unwritable_temporary_workspace_has_typed_start_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    binary = _fake_executable(tmp_path, "exit 0\n")
+
+    def deny_workspace(*_args: object, **_kwargs: object) -> None:
+        raise PermissionError("temporary workspace denied")
+
+    monkeypatch.setattr(
+        "spa.runtime.aseprite.tempfile.TemporaryDirectory", deny_workspace
+    )
+    _assert_preparation_failure(binary)
+
+
+def test_unwritable_kernel_request_has_typed_start_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    binary = _fake_executable(tmp_path, "exit 0\n")
+    original_write_text = Path.write_text
+    denied_requests: list[Path] = []
+
+    def deny_request(path: Path, *args: object, **kwargs: object) -> int:
+        if path.name == "request.json":
+            denied_requests.append(path)
+            raise PermissionError("Kernel request write denied")
+        return original_write_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", deny_request)
+    _assert_preparation_failure(binary)
+    assert denied_requests and not denied_requests[0].parent.exists()
+
+
+def test_unwritable_aseprite_user_folder_has_typed_start_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    binary = _fake_executable(tmp_path, "exit 0\n")
+    original_mkdir = Path.mkdir
+
+    def deny_user_folder(path: Path, *args: object, **kwargs: object) -> None:
+        if path.name == "aseprite-user":
+            raise PermissionError("Aseprite user folder denied")
+        original_mkdir(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "mkdir", deny_user_folder)
+    _assert_preparation_failure(binary)
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="macOS bundle launch strategy")
+@pytest.mark.parametrize("denied_name", ["aseprite", "data"])
+def test_unwritable_bundle_link_has_typed_start_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, denied_name: str
+) -> None:
+    binary = _fake_executable(tmp_path, "exit 0\n")
+    original_symlink_to = Path.symlink_to
+
+    def deny_launch_link(path: Path, *args: object, **kwargs: object) -> None:
+        if path.name == denied_name:
+            raise PermissionError(f"bundle {denied_name} link denied")
+        original_symlink_to(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "symlink_to", deny_launch_link)
+    _assert_preparation_failure(binary)
 
 
 def test_timeout_and_output_bound_are_typed(tmp_path: Path) -> None:

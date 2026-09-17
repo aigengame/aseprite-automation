@@ -153,14 +153,29 @@ def probe(request: RuntimeRequest) -> RuntimeObservation:
         "nullable": None,
         "nested": [{"value": None}, [1, None, {"flag": True}]],
     }
-    with tempfile.TemporaryDirectory(prefix="spa-info-") as work:
+    try:
+        workspace = tempfile.TemporaryDirectory(prefix="spa-info-")
+    except OSError as exc:
+        raise RuntimeIssue(
+            "launch_failed",
+            f"Could not create Aseprite invocation workspace: {exc}",
+            {"executable": str(canonical)},
+        ) from exc
+    with workspace as work:
         request_file = Path(work) / "request.json"
         response_file = Path(work) / "response.json"
         echo_file = Path(work) / "echo.json"
-        request_file.write_text(
-            json.dumps({"protocol_version": PROTOCOL_VERSION, "echo": sentinel}),
-            encoding="utf-8",
-        )
+        try:
+            request_file.write_text(
+                json.dumps({"protocol_version": PROTOCOL_VERSION, "echo": sentinel}),
+                encoding="utf-8",
+            )
+        except OSError as exc:
+            raise RuntimeIssue(
+                "launch_failed",
+                f"Could not write Aseprite Kernel request: {exc}",
+                {"executable": str(canonical)},
+            ) from exc
         prepared = prepare_invocation(canonical, resource, Path(work))
         command = [
             str(prepared.executable),
