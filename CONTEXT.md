@@ -473,15 +473,17 @@ The typed success value of one Operation, including verified domain facts and pr
 Artifacts.
 
 **Failure Envelope**
-The disjoint typed failure result containing a stable Failure Code, broad Failure
-Category, applicable Failure Details, and Diagnostics.
+The disjoint typed failure result containing a stable Failure Code, a well-defined
+Failure Category, applicable Failure Details, and Diagnostics.
 
 **Failure Code**
 A stable machine-oriented identifier used for caller decisions.
 
 **Failure Category**
-A broad stable classification for process exit behavior and coarse caller policy. It
-does not replace the more specific Failure Code.
+A stable class of public failures for process exit behavior and cross-code caller
+policy; it does not replace the more specific Failure Code. `kernel_protocol` names
+failures of the private Kernel Protocol response, not arbitrary protocol, process,
+or Kernel handler failures.
 
 **Failure Details**
 Code-specific structured facts needed by a caller to understand or recover from one

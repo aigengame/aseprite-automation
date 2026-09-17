@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from pydantic import BaseModel
 
 from spa.contracts import (
-    FailureEnvelope,
     InfoResult,
     OperationSchema,
     RuntimeFacts,
@@ -14,6 +13,7 @@ from spa.contracts import (
     SchemaResult,
     VersionRequest,
     VersionResult,
+    failure_schema,
 )
 from spa.ports import RuntimeProbe
 
@@ -27,6 +27,19 @@ RUNTIME_CLI_FLAGS = {
     "aseprite": "--aseprite",
     "timeout_seconds": "--timeout-seconds",
 }
+ACCESS_FAILURE_CODES = ("invalid_request",)
+RUNTIME_FAILURE_CODES = (
+    "invalid_request",
+    "executable_not_found",
+    "resource_incomplete",
+    "process_start_failed",
+    "process_timeout",
+    "output_limit_exceeded",
+    "process_failed",
+    "kernel_response_missing",
+    "kernel_response_invalid",
+    "kernel_execution_failed",
+)
 
 
 @dataclass(frozen=True)
@@ -37,6 +50,7 @@ class OperationDescriptor:
     execute: Callable[[BaseModel, RuntimeProbe], BaseModel]
     render_human: Callable[[BaseModel], str]
     requires_runtime: bool
+    failure_codes: tuple[str, ...]
 
     @property
     def cli_flags(self) -> dict[str, str]:
@@ -53,7 +67,7 @@ class OperationDescriptor:
             requires_runtime=self.requires_runtime,
             request_schema=self.request_type.model_json_schema(),
             result_schema=self.result_type.model_json_schema(),
-            failure_schema=FailureEnvelope.model_json_schema(),
+            failure_schema=failure_schema(self.failure_codes, command),
             invocation_schema={
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
                 "type": "object",
@@ -106,6 +120,7 @@ def schema_result(request: RuntimeRequest, probe: RuntimeProbe) -> SchemaResult:
         spa_version=info.spa_version,
         runtime=info.runtime,
         operations=[descriptor.schema() for descriptor in OPERATIONS],
+        access_failure_schema=failure_schema(ACCESS_FAILURE_CODES, "spa"),
         capability_gaps=info.capability_gaps,
     )
 
@@ -120,6 +135,7 @@ OPERATIONS = (
             f"Aseprite {r.runtime.aseprite_version} (API {r.runtime.api_version}) at {r.runtime.canonical_path}"
         ),
         True,
+        RUNTIME_FAILURE_CODES,
     ),
     OperationDescriptor(
         "version",
@@ -128,6 +144,7 @@ OPERATIONS = (
         version_result,
         lambda r: f"SPA {r.spa_version}",
         False,
+        ("invalid_request",),
     ),
     OperationDescriptor(
         "schema",
@@ -136,5 +153,6 @@ OPERATIONS = (
         schema_result,
         lambda r: "\n".join(item.operation for item in r.operations),
         True,
+        RUNTIME_FAILURE_CODES,
     ),
 )

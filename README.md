@@ -117,7 +117,9 @@ uv run spa info --input-json '{"aseprite":"/path/to/Aseprite.app/Contents/MacOS/
 `.app` directory. When `--aseprite` is absent, SPA checks
 `SPA_ASEPRITE_EXECUTABLE`, then `aseprite` on `PATH`. `spa schema` reports the
 installed callable Operations; currently these are `info`, `version`, and `schema`.
-It probes Aseprite, while each command's `--schema` remains available without a
+It also includes `access_failure_schema` for CLI failures before an Operation is
+selected; each Operation entry has its own applicable `failure_schema`. Aggregate
+discovery probes Aseprite, while each command's `--schema` remains available without a
 runtime. For a real integration test, set `SPA_TEST_ASEPRITE` to that executable
 and run `uv run --group test pytest`.
 

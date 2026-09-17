@@ -17,7 +17,7 @@ from spa.contracts import (
 from spa.ports import RuntimeIssue, RuntimeObservation
 from spa.runtime.invocation import prepare_invocation
 
-PROTOCOL_VERSION = 1
+KERNEL_PROTOCOL_VERSION = 1
 OUTPUT_LIMIT_BYTES = 65536
 
 
@@ -167,7 +167,12 @@ def probe(request: RuntimeRequest) -> RuntimeObservation:
         echo_file = Path(work) / "echo.json"
         try:
             request_file.write_text(
-                json.dumps({"protocol_version": PROTOCOL_VERSION, "echo": sentinel}),
+                json.dumps(
+                    {
+                        "kernel_protocol_version": KERNEL_PROTOCOL_VERSION,
+                        "echo": sentinel,
+                    }
+                ),
                 encoding="utf-8",
             )
         except OSError as exc:
@@ -207,7 +212,7 @@ def probe(request: RuntimeRequest) -> RuntimeObservation:
             response = json.loads(response_file.read_text(encoding="utf-8"))
             if (
                 not isinstance(response, dict)
-                or response.get("protocol_version") != PROTOCOL_VERSION
+                or response.get("kernel_protocol_version") != KERNEL_PROTOCOL_VERSION
             ):
                 raise ValueError("unexpected Kernel Protocol version")
             response_status = response.get("status")
@@ -228,7 +233,10 @@ def probe(request: RuntimeRequest) -> RuntimeObservation:
             if echo_file.stat().st_size > OUTPUT_LIMIT_BYTES:
                 raise ValueError("Kernel JSON echo exceeded the output limit")
             echo = json.loads(echo_file.read_text(encoding="utf-8"))
-            if echo != {"protocol_version": PROTOCOL_VERSION, "echo": sentinel}:
+            if echo != {
+                "kernel_protocol_version": KERNEL_PROTOCOL_VERSION,
+                "echo": sentinel,
+            }:
                 raise ValueError(
                     f"Kernel JSON null/nested value round-trip changed: {echo!r}"
                 )

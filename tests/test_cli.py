@@ -61,6 +61,16 @@ def test_invalid_argv_is_on_the_same_failure_channel() -> None:
     assert failure["details"]["errors"][0]["code"] == "cli_usage"
 
 
+def test_unknown_command_uses_registered_access_failure() -> None:
+    run = spa("no-such-operation", "--json")
+    assert run.returncode == 2
+    assert run.stderr == ""
+    failure = json.loads(run.stdout)
+    assert failure["operation"] == "spa"
+    assert failure["code"] == "invalid_request"
+    assert failure["category"] == "input"
+
+
 def test_human_output_projects_the_same_version_result() -> None:
     version = json.loads(spa("version").stdout)["spa_version"]
     run = spa("version", "--human")
@@ -131,7 +141,7 @@ response=
 for argument in "$@"; do
   case "$argument" in response=*) response=${{argument#response=}};; esac
 done
-printf '{{"protocol_version":1,' > "$response"
+printf '{{"kernel_protocol_version":1,' > "$response"
 exit {exit_status}
 """,
     )
@@ -143,6 +153,9 @@ def test_exit_zero_without_kernel_response_is_failure(tmp_path: Path) -> None:
     assert run.returncode == 1
     failure = json.loads(run.stdout)
     assert failure["code"] == "kernel_response_missing"
+    assert failure["category"] == "kernel_protocol"
+    assert failure["details"]["kind"] == "kernel_protocol"
+    assert "kernel_protocol_version" not in failure["details"]
     assert failure["diagnostics"]["exit_status"] == 0
 
 
@@ -182,15 +195,39 @@ def test_nonzero_exit_with_truncated_kernel_response_is_process_failure(
     assert failure["diagnostics"]["exit_status"] == 13
 
 
-def test_zero_exit_with_truncated_kernel_response_is_protocol_failure(
+def test_zero_exit_with_truncated_kernel_response_is_kernel_protocol_failure(
     tmp_path: Path,
 ) -> None:
     binary = _fake_truncated_response_executable(tmp_path, 0)
     run = spa("info", "--aseprite", str(binary), "--json")
     failure = json.loads(run.stdout)
     assert failure["code"] == "kernel_response_invalid"
-    assert failure["category"] == "protocol"
+    assert failure["category"] == "kernel_protocol"
+    assert failure["details"]["kind"] == "kernel_protocol"
+    assert "kernel_protocol_version" not in failure["details"]
     assert failure["diagnostics"]["exit_status"] == 0
+
+
+def test_other_kernel_protocol_version_is_rejected_without_negotiation(
+    tmp_path: Path,
+) -> None:
+    binary = _fake_executable(
+        tmp_path,
+        """
+response=
+for argument in "$@"; do
+  case "$argument" in response=*) response=${argument#response=};; esac
+done
+printf '{"kernel_protocol_version":2,"status":"ok","aseprite_version":"test","api_version":1}' > "$response"
+""",
+    )
+    run = spa("info", "--aseprite", str(binary), "--json")
+    assert run.returncode == 1
+    failure = json.loads(run.stdout)
+    assert failure["code"] == "kernel_response_invalid"
+    assert failure["category"] == "kernel_protocol"
+    assert "kernel_protocol_version" not in failure["details"]
+    assert "unexpected Kernel Protocol version" in failure["message"]
 
 
 def test_exit_zero_with_kernel_error_is_execution_failure(tmp_path: Path) -> None:
@@ -201,7 +238,7 @@ response=
 for argument in "$@"; do
   case "$argument" in response=*) response=${argument#response=};; esac
 done
-printf '{"protocol_version":1,"status":"error","message":"semantic failure"}' > "$response"
+printf '{"kernel_protocol_version":1,"status":"error","message":"semantic failure"}' > "$response"
 exit 0
 """,
     )
@@ -438,6 +475,11 @@ def test_manifest_is_projected_from_command_descriptors() -> None:
     run = spa("schema", "--aseprite", os.environ["SPA_TEST_ASEPRITE"])
     assert run.returncode == 0, run.stdout
     manifest = json.loads(run.stdout)
+    Draft202012Validator.check_schema(manifest["access_failure_schema"])
+    unknown = json.loads(spa("no-such-operation", "--json").stdout)
+    validate(unknown, manifest["access_failure_schema"])
+    invalid_argv = json.loads(spa("info", "--timeout-seconds", "nope").stdout)
+    validate(invalid_argv, manifest["operations"][0]["failure_schema"])
     assert [entry["operation"] for entry in manifest["operations"]] == [
         "spa info",
         "spa version",
@@ -450,6 +492,40 @@ def test_manifest_is_projected_from_command_descriptors() -> None:
         Draft202012Validator.check_schema(entry["result_schema"])
         Draft202012Validator.check_schema(entry["failure_schema"])
         Draft202012Validator.check_schema(entry["invocation_schema"])
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX shell fixture")
+def test_installed_manifest_exposes_access_failures_without_real_aseprite(
+    tmp_path: Path,
+) -> None:
+    binary = _fake_executable(
+        tmp_path,
+        """
+request=
+response=
+echo_file=
+for argument in "$@"; do
+  case "$argument" in
+    request=*) request=${argument#request=};;
+    response=*) response=${argument#response=};;
+    echo=*) echo_file=${argument#echo=};;
+  esac
+done
+cp "$request" "$echo_file"
+printf '{"kernel_protocol_version":1,"status":"ok","aseprite_version":"test","api_version":1}' > "$response"
+""",
+    )
+    run = spa("schema", "--aseprite", str(binary), "--json")
+    assert run.returncode == 0, run.stdout
+    manifest = json.loads(run.stdout)
+    access_schema = manifest["access_failure_schema"]
+    Draft202012Validator.check_schema(access_schema)
+    validate(json.loads(spa("no-such-operation", "--json").stdout), access_schema)
+    assert [item["operation"] for item in manifest["operations"]] == [
+        "spa info",
+        "spa version",
+        "spa schema",
+    ]
 
 
 def test_advertised_cli_flags_match_the_actual_typer_commands() -> None:

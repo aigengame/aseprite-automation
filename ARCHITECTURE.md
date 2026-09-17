@@ -479,6 +479,11 @@ experimental commands and tactical types evolve.
 | Failure Envelope | Public failure | Provides stable Failure Code and Category, typed Details where useful, and human Diagnostics. |
 | Surface Manifest | Public discovery | Reports what the installed SPA/Aseprite combination can call. |
 
+Before SPA 1.0, the co-packaged Python and Lua components use only the current Kernel
+Protocol version. This private boundary can evolve without historical-version
+compatibility machinery; checking the installed Aseprite Lua runtime and scripting
+API remains a separate obligation.
+
 A completed Validation can return an Operation Result with typed Validation Findings.
 An invalid request, execution failure, or unmet commit gate returns a Failure Envelope;
 a Finding is not a command failure.

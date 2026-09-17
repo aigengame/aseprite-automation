@@ -25,16 +25,25 @@ Operation handlers without redefining their semantics.
 
 The Aseprite Adapter and Lua Operation Kernel communicate through a versioned private
 Kernel Protocol. Public defaults and null semantics are resolved before transport.
-The adapter decodes private protocol responses and reports typed runtime evidence; the
-Application validates and classifies that evidence into the Published Language under
-ADR-0013. Neither layer reimplements packaged Core Operation Semantics. Private
-application orchestration can select and order packaged handlers, but it does not
-create another public workflow language.
+The adapter decodes private Kernel Protocol responses and reports typed runtime
+evidence; the Application validates and classifies that evidence into the Published
+Language under ADR-0013. Neither layer reimplements packaged Core Operation
+Semantics. Private application orchestration can select and order packaged handlers,
+but it does not create another public workflow language.
 
-Every Kernel invocation returns an explicit protocol success or failure response.
+Before SPA 1.0, the co-packaged Python Adapter and Lua Kernel support only their
+current Kernel Protocol version. The version field checks an exact match for one
+invocation; it does not promise cross-release compatibility. The pair may change the
+protocol incompatibly between pre-1.0 releases. During that period, SPA does not
+negotiate or migrate historical protocol messages, retain old Kernel implementations
+or a runtime version registry, or provide protocol replay. This does not waive
+compatibility checks against the installed Aseprite Lua runtime and scripting API.
+
+Every Kernel invocation returns an explicit Kernel Protocol success or failure
+response.
 Aseprite's process exit status and diagnostics are evidence used to classify the
 outcome, not the public verdict by themselves.
 
 This separation gives every access channel one public contract while allowing the
-runtime protocol to evolve with delivered Operations. A new access channel consumes
+Kernel Protocol to evolve with delivered Operations. A new access channel consumes
 the same descriptors or their installed Surface Manifest projection.
