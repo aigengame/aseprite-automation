@@ -15,18 +15,19 @@ from spa.contracts import (
     RuntimeRequest,
 )
 from spa.ports import RuntimeIssue, RuntimeObservation
+from spa.runtime.invocation import prepare_invocation
 
 PROTOCOL_VERSION = 1
 OUTPUT_LIMIT_BYTES = 65536
 
 
 def _discover(requested: str | None) -> tuple[Path, Path, Path, str]:
-    source = requested or os.environ.get("ASEPRITE_EXECUTABLE")
+    source = requested or os.environ.get("SPA_ASEPRITE_EXECUTABLE")
     selection_source = "explicit" if requested else "environment" if source else "path"
     discovered = (
         Path(source).expanduser() if source else Path(shutil.which("aseprite") or "")
     )
-    searched = [source] if source else ["ASEPRITE_EXECUTABLE", "PATH:aseprite"]
+    searched = [source] if source else ["SPA_ASEPRITE_EXECUTABLE", "PATH:aseprite"]
     if not discovered.is_file() or not os.access(discovered, os.X_OK):
         raise RuntimeIssue(
             "discovery_absent",
@@ -53,7 +54,10 @@ def _discover(requested: str | None) -> tuple[Path, Path, Path, str]:
 
 
 def _run(
-    command: list[str], env: dict[str, str], timeout: float
+    command: list[str],
+    env: dict[str, str],
+    timeout: float,
+    canonical_executable: Path,
 ) -> tuple[int, Diagnostics]:
     try:
         process = subprocess.Popen(
@@ -63,7 +67,7 @@ def _run(
         raise RuntimeIssue(
             "launch_failed",
             str(exc),
-            {"executable": command[0]},
+            {"executable": str(canonical_executable)},
         ) from exc
     assert process.stdout is not None and process.stderr is not None
     captured = {"stdout": bytearray(), "stderr": bytearray()}
@@ -113,17 +117,33 @@ def _run(
         raise RuntimeIssue(
             "deadline",
             "Aseprite process timed out",
-            {"executable": command[0], "exit_status": status},
+            {"executable": str(canonical_executable), "exit_status": status},
             diagnostics,
         )
     if over_limit:
         raise RuntimeIssue(
             "output_overflow",
             "Aseprite process output exceeded the limit",
-            {"executable": command[0], "exit_status": status},
+            {"executable": str(canonical_executable), "exit_status": status},
             diagnostics,
         )
     return status, diagnostics
+
+
+def _process_failure(
+    status: int, executable: Path, diagnostics: Diagnostics
+) -> RuntimeIssue:
+    reason = (
+        f"terminated by signal {-status}"
+        if status < 0
+        else f"exited with status {status}"
+    )
+    return RuntimeIssue(
+        "process_failed",
+        f"Aseprite {reason} before writing a complete Kernel response",
+        {"executable": str(executable), "exit_status": status},
+        diagnostics,
+    )
 
 
 def probe(request: RuntimeRequest) -> RuntimeObservation:
@@ -133,18 +153,32 @@ def probe(request: RuntimeRequest) -> RuntimeObservation:
         "nullable": None,
         "nested": [{"value": None}, [1, None, {"flag": True}]],
     }
-    with tempfile.TemporaryDirectory(prefix="spa-info-") as work:
+    try:
+        workspace = tempfile.TemporaryDirectory(prefix="spa-info-")
+    except OSError as exc:
+        raise RuntimeIssue(
+            "launch_failed",
+            f"Could not create Aseprite invocation workspace: {exc}",
+            {"executable": str(canonical)},
+        ) from exc
+    with workspace as work:
         request_file = Path(work) / "request.json"
         response_file = Path(work) / "response.json"
         echo_file = Path(work) / "echo.json"
-        request_file.write_text(
-            json.dumps({"protocol_version": PROTOCOL_VERSION, "echo": sentinel}),
-            encoding="utf-8",
-        )
-        env = os.environ.copy()
-        env["ASEPRITE_USER_FOLDER"] = str(Path(work) / "aseprite-user")
+        try:
+            request_file.write_text(
+                json.dumps({"protocol_version": PROTOCOL_VERSION, "echo": sentinel}),
+                encoding="utf-8",
+            )
+        except OSError as exc:
+            raise RuntimeIssue(
+                "launch_failed",
+                f"Could not write Aseprite Kernel request: {exc}",
+                {"executable": str(canonical)},
+            ) from exc
+        prepared = prepare_invocation(canonical, resource, Path(work))
         command = [
-            str(canonical),
+            str(prepared.executable),
             "--batch",
             "--script-param",
             f"request={request_file}",
@@ -155,8 +189,12 @@ def probe(request: RuntimeRequest) -> RuntimeObservation:
             "--script",
             str(script),
         ]
-        status, diagnostics = _run(command, env, request.timeout_seconds)
+        status, diagnostics = _run(
+            command, prepared.environment, request.timeout_seconds, canonical
+        )
         if not response_file.is_file():
+            if status != 0:
+                raise _process_failure(status, canonical, diagnostics)
             raise RuntimeIssue(
                 "response_absent",
                 "Aseprite did not write a Kernel response",
@@ -206,6 +244,8 @@ def probe(request: RuntimeRequest) -> RuntimeObservation:
             if not isinstance(version, str) or not isinstance(api_version, int):
                 raise TypeError("Kernel probe returned invalid version facts")
         except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
+            if status != 0:
+                raise _process_failure(status, canonical, diagnostics) from exc
             raise RuntimeIssue(
                 "response_malformed",
                 f"Invalid Kernel response: {exc}",
