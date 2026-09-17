@@ -5,7 +5,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from spa.ports import RuntimeIssue
+from spa.ports import LaunchEvidence, RuntimeIssue
 
 
 @dataclass(frozen=True)
@@ -40,7 +40,7 @@ def prepare_invocation(
         raise RuntimeIssue(
             "launch_failed",
             f"Could not prepare Aseprite CLI invocation: {exc}",
-            {"executable": str(executable)},
+            LaunchEvidence(executable=str(executable)),
         ) from exc
 
     return PreparedInvocation(launch_path, environment)

@@ -14,7 +14,16 @@ from spa.contracts import (
     Diagnostics,
     RuntimeRequest,
 )
-from spa.ports import RuntimeIssue, RuntimeObservation
+from spa.ports import (
+    DiscoveryEvidence,
+    HandlerEvidence,
+    LaunchEvidence,
+    ProcessEvidence,
+    ResourceEvidence,
+    ResponseEvidence,
+    RuntimeIssue,
+    RuntimeObservation,
+)
 from spa.runtime.invocation import prepare_invocation
 
 KERNEL_PROTOCOL_VERSION = 1
@@ -32,7 +41,7 @@ def _discover(requested: str | None) -> tuple[Path, Path, Path, str]:
         raise RuntimeIssue(
             "discovery_absent",
             "Aseprite executable was not found or is not executable",
-            {"requested_path": requested, "searched": searched},
+            DiscoveryEvidence(requested_path=requested, searched=searched),
         )
     canonical = discovered.resolve(strict=True)
     resource_candidates = [
@@ -45,10 +54,10 @@ def _discover(requested: str | None) -> tuple[Path, Path, Path, str]:
         raise RuntimeIssue(
             "resources_absent",
             "Aseprite gui.xml resource was not found",
-            {
-                "canonical_path": str(canonical),
-                "searched": [str(path) for path in resource_candidates],
-            },
+            ResourceEvidence(
+                canonical_path=str(canonical),
+                searched=[str(path) for path in resource_candidates],
+            ),
         )
     return discovered, canonical, resource, selection_source
 
@@ -67,7 +76,7 @@ def _run(
         raise RuntimeIssue(
             "launch_failed",
             str(exc),
-            {"executable": str(canonical_executable)},
+            LaunchEvidence(executable=str(canonical_executable)),
         ) from exc
     assert process.stdout is not None and process.stderr is not None
     captured = {"stdout": bytearray(), "stderr": bytearray()}
@@ -117,14 +126,14 @@ def _run(
         raise RuntimeIssue(
             "deadline",
             "Aseprite process timed out",
-            {"executable": str(canonical_executable), "exit_status": status},
+            ProcessEvidence(executable=str(canonical_executable), exit_status=status),
             diagnostics,
         )
     if over_limit:
         raise RuntimeIssue(
             "output_overflow",
             "Aseprite process output exceeded the limit",
-            {"executable": str(canonical_executable), "exit_status": status},
+            ProcessEvidence(executable=str(canonical_executable), exit_status=status),
             diagnostics,
         )
     return status, diagnostics
@@ -141,7 +150,7 @@ def _process_failure(
     return RuntimeIssue(
         "process_failed",
         f"Aseprite {reason} before writing a complete Kernel response",
-        {"executable": str(executable), "exit_status": status},
+        ProcessEvidence(executable=str(executable), exit_status=status),
         diagnostics,
     )
 
@@ -159,7 +168,7 @@ def probe(request: RuntimeRequest) -> RuntimeObservation:
         raise RuntimeIssue(
             "launch_failed",
             f"Could not create Aseprite invocation workspace: {exc}",
-            {"executable": str(canonical)},
+            LaunchEvidence(executable=str(canonical)),
         ) from exc
     with workspace as work:
         request_file = Path(work) / "request.json"
@@ -179,7 +188,7 @@ def probe(request: RuntimeRequest) -> RuntimeObservation:
             raise RuntimeIssue(
                 "launch_failed",
                 f"Could not write Aseprite Kernel request: {exc}",
-                {"executable": str(canonical)},
+                LaunchEvidence(executable=str(canonical)),
             ) from exc
         prepared = prepare_invocation(canonical, resource, Path(work))
         command = [
@@ -203,7 +212,7 @@ def probe(request: RuntimeRequest) -> RuntimeObservation:
             raise RuntimeIssue(
                 "response_absent",
                 "Aseprite did not write a Kernel response",
-                {"response_path": str(response_file)},
+                ResponseEvidence(response_path=str(response_file)),
                 diagnostics,
             )
         try:
@@ -212,7 +221,8 @@ def probe(request: RuntimeRequest) -> RuntimeObservation:
             response = json.loads(response_file.read_text(encoding="utf-8"))
             if (
                 not isinstance(response, dict)
-                or response.get("kernel_protocol_version") != KERNEL_PROTOCOL_VERSION
+                or type(response.get("kernel_protocol_version")) is not int
+                or response["kernel_protocol_version"] != KERNEL_PROTOCOL_VERSION
             ):
                 raise ValueError("unexpected Kernel Protocol version")
             response_status = response.get("status")
@@ -223,7 +233,7 @@ def probe(request: RuntimeRequest) -> RuntimeObservation:
                 raise RuntimeIssue(
                     "handler_rejected",
                     f"Kernel probe failed: {reason}",
-                    {"response_path": str(response_file), "reason": reason},
+                    HandlerEvidence(response_path=str(response_file), reason=reason),
                     diagnostics,
                 )
             if response_status != "ok":
@@ -233,10 +243,13 @@ def probe(request: RuntimeRequest) -> RuntimeObservation:
             if echo_file.stat().st_size > OUTPUT_LIMIT_BYTES:
                 raise ValueError("Kernel JSON echo exceeded the output limit")
             echo = json.loads(echo_file.read_text(encoding="utf-8"))
-            if echo != {
+            expected_echo = {
                 "kernel_protocol_version": KERNEL_PROTOCOL_VERSION,
                 "echo": sentinel,
-            }:
+            }
+            if json.dumps(echo, sort_keys=True, allow_nan=False) != json.dumps(
+                expected_echo, sort_keys=True, allow_nan=False
+            ):
                 raise ValueError(
                     f"Kernel JSON null/nested value round-trip changed: {echo!r}"
                 )
@@ -244,12 +257,12 @@ def probe(request: RuntimeRequest) -> RuntimeObservation:
                 raise RuntimeIssue(
                     "exit_mismatch",
                     f"Aseprite exited with status {status} despite a success response",
-                    {"executable": str(canonical), "exit_status": status},
+                    ProcessEvidence(executable=str(canonical), exit_status=status),
                     diagnostics,
                 )
             version = response["aseprite_version"]
             api_version = response["api_version"]
-            if not isinstance(version, str) or not isinstance(api_version, int):
+            if not isinstance(version, str) or type(api_version) is not int:
                 raise TypeError("Kernel probe returned invalid version facts")
         except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
             if status != 0:
@@ -257,7 +270,7 @@ def probe(request: RuntimeRequest) -> RuntimeObservation:
             raise RuntimeIssue(
                 "response_malformed",
                 f"Invalid Kernel response: {exc}",
-                {"response_path": str(response_file)},
+                ResponseEvidence(response_path=str(response_file)),
                 diagnostics,
             ) from exc
     return RuntimeObservation(

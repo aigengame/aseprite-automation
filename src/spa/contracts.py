@@ -100,6 +100,12 @@ class ProcessDetails(PublicModel):
     exit_status: int | None = None
 
 
+class ProcessStartDetails(PublicModel):
+    kind: Literal["process_start"] = "process_start"
+    executable: str
+    exit_status: None
+
+
 class KernelProtocolDetail(PublicModel):
     kind: Literal["kernel_protocol"] = "kernel_protocol"
     response_path: str
@@ -125,6 +131,7 @@ class ValidationIssue(PublicModel):
 FailureDetails = Annotated[
     NotFoundDetails
     | ResourceDetails
+    | ProcessStartDetails
     | ProcessDetails
     | KernelProtocolDetail
     | KernelExecutionDetails
@@ -192,7 +199,7 @@ FAILURE_CODES = register_failure_codes(
             "process_start_failed",
             "Aseprite invocation could not be prepared or started",
             "execution",
-            ProcessDetails,
+            ProcessStartDetails,
         ),
         FailureCodeSpec(
             "process_timeout",

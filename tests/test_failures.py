@@ -15,15 +15,25 @@ from spa.contracts import (
     KernelProtocolDetail,
     NotFoundDetails,
     ProcessDetails,
+    ProcessStartDetails,
     RequestDetails,
     ResourceDetails,
     ValidationIssue,
+    VersionRequest,
     failure_envelope,
     failure_schema,
     register_failure_codes,
 )
 from spa.descriptors import ACCESS_FAILURE_CODES, OPERATIONS
-from spa.ports import RuntimeIssue
+from spa.ports import (
+    DiscoveryEvidence,
+    HandlerEvidence,
+    LaunchEvidence,
+    ProcessEvidence,
+    ResourceEvidence,
+    ResponseEvidence,
+    RuntimeIssue,
+)
 
 RUNTIME_ISSUE_CASES = (
     ("discovery_absent", "executable_not_found"),
@@ -100,7 +110,7 @@ def test_failure_construction_derives_category_and_refuses_mismatch() -> None:
             "spa version",
             "process_start_failed",
             "bad",
-            ProcessDetails(executable="x"),
+            ProcessStartDetails(executable="x", exit_status=None),
             applicable_codes=("invalid_request",),
         )
     with pytest.raises(ValidationError, match="Category"):
@@ -126,6 +136,9 @@ def test_each_registered_code_has_a_constrained_public_schema() -> None:
         RequestDetails: RequestDetails(errors=[]),
         NotFoundDetails: NotFoundDetails(requested_path=None, searched=[]),
         ResourceDetails: ResourceDetails(canonical_path="/aseprite", searched=[]),
+        ProcessStartDetails: ProcessStartDetails(
+            executable="/aseprite", exit_status=None
+        ),
         ProcessDetails: ProcessDetails(executable="/aseprite"),
         KernelProtocolDetail: KernelProtocolDetail(response_path="/response.json"),
         KernelExecutionDetails: KernelExecutionDetails(
@@ -178,6 +191,33 @@ def test_kernel_protocol_detail_does_not_expose_private_version() -> None:
     assert not validator.is_valid(outcome | {"category": "protocol"})
     for field in ("protocol_version", "kernel_protocol_version"):
         assert not validator.is_valid(outcome | {"details": details | {field: 1}})
+
+
+def test_process_start_failure_cannot_claim_a_process_exit_status() -> None:
+    with pytest.raises(ValidationError):
+        ProcessStartDetails(executable="/aseprite", exit_status=7)
+    failure = failure_envelope(
+        "spa info",
+        "process_start_failed",
+        "launch denied",
+        ProcessStartDetails(executable="/aseprite", exit_status=None),
+        applicable_codes=("process_start_failed",),
+    ).model_dump(mode="json")
+    validator = Draft202012Validator(
+        failure_schema(("process_start_failed",), "spa info")
+    )
+    validator.validate(failure)
+    assert not validator.is_valid(
+        failure | {"details": failure["details"] | {"exit_status": 7}}
+    )
+    with pytest.raises(ValueError, match="Details"):
+        failure_envelope(
+            "spa info",
+            "process_start_failed",
+            "launch denied",
+            ProcessDetails(executable="/aseprite", exit_status=7),
+            applicable_codes=("process_start_failed",),
+        )
 
 
 def test_failure_schema_refuses_unknown_and_duplicate_applicability() -> None:
@@ -243,7 +283,7 @@ def test_descriptor_applicability_does_not_advertise_other_codes() -> None:
         "spa info",
         "process_start_failed",
         "launch denied",
-        ProcessDetails(executable="x"),
+        ProcessStartDetails(executable="x", exit_status=None),
         applicable_codes=by_name["info"].failure_codes,
     ).model_dump(mode="json")
     Draft202012Validator(by_name["info"].schema().failure_schema).validate(failure)
@@ -281,7 +321,7 @@ def test_registry_and_access_applicability_are_closed_over_installed_producers()
         "spa",
         "process_start_failed",
         "failed",
-        ProcessDetails(executable="x"),
+        ProcessStartDetails(executable="x", exit_status=None),
         applicable_codes=info.failure_codes,
     ).model_dump(mode="json")
     assert not access_schema.is_valid(other_failure)
@@ -293,11 +333,56 @@ def test_application_refuses_failure_not_declared_by_selected_descriptor() -> No
     )
 
     def launch_issue(_request: object, _probe: object) -> None:
-        raise RuntimeIssue("launch_failed", "failed", {"executable": "/aseprite"})
+        raise RuntimeIssue(
+            "launch_failed", "failed", LaunchEvidence(executable="/aseprite")
+        )
 
     misclassified = replace(version, execute=launch_issue)
     with pytest.raises(ValueError, match="not applicable to spa version"):
         dispatch(misclassified, None, {}, lambda _request: None)
+
+
+def test_application_refuses_result_outside_descriptor_contract() -> None:
+    version = next(
+        descriptor for descriptor in OPERATIONS if descriptor.name == "version"
+    )
+    wrong_result = replace(version, execute=lambda _request, _probe: VersionRequest())
+    with pytest.raises(TypeError, match="Operation Result does not match spa version"):
+        dispatch(wrong_result, None, {}, lambda _request: None)
+
+    wrong_failure = FailureEnvelope(
+        operation="spa version",
+        code="process_failed",
+        category="execution",
+        message="failed",
+        details=ProcessDetails(executable="/aseprite", exit_status=7),
+    )
+    wrong_failure_result = replace(
+        version, execute=lambda _request, _probe: wrong_failure
+    )
+    with pytest.raises(ValueError, match="not applicable to spa version"):
+        dispatch(wrong_failure_result, None, {}, lambda _request: None)
+
+
+def test_runtime_issue_requires_kind_specific_private_evidence() -> None:
+    with pytest.raises(TypeError, match="Invalid private evidence"):
+        RuntimeIssue("launch_failed", "failed", {})
+
+
+def _evidence_for(kind: str):
+    if kind == "discovery_absent":
+        return DiscoveryEvidence(requested_path=None, searched=[])
+    if kind == "resources_absent":
+        return ResourceEvidence(canonical_path="/aseprite", searched=[])
+    if kind == "launch_failed":
+        return LaunchEvidence(executable="/aseprite")
+    if kind in {"deadline", "output_overflow", "process_failed", "exit_mismatch"}:
+        return ProcessEvidence(executable="/aseprite", exit_status=13)
+    if kind in {"response_absent", "response_malformed"}:
+        return ResponseEvidence(response_path="/response.json")
+    if kind == "handler_rejected":
+        return HandlerEvidence(response_path="/response.json", reason="refused")
+    raise AssertionError(kind)
 
 
 @pytest.mark.parametrize(("kind", "expected_code"), RUNTIME_ISSUE_CASES)
@@ -305,16 +390,7 @@ def test_every_runtime_issue_kind_classifies_to_a_registered_failure(
     kind: str, expected_code: str
 ) -> None:
     info = next(descriptor for descriptor in OPERATIONS if descriptor.name == "info")
-    evidence = {
-        "requested_path": None,
-        "searched": [],
-        "canonical_path": "/aseprite",
-        "executable": "/aseprite",
-        "exit_status": 13,
-        "response_path": "/response.json",
-        "reason": "refused",
-    }
-    outcome = _runtime_failure(info, RuntimeIssue(kind, "failed", evidence))
+    outcome = _runtime_failure(info, RuntimeIssue(kind, "failed", _evidence_for(kind)))
     assert outcome.code == expected_code
     assert outcome.category == FAILURE_CODES[expected_code].category
     Draft202012Validator(info.schema().failure_schema).validate(

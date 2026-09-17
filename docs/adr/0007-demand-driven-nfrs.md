@@ -37,7 +37,7 @@ Non-functional work must trace to an accepted functional slice and an observed
 operating need. It has no independent platform roadmap and does not justify speculative
 infrastructure for scale, distribution, tenancy, governance, or compatibility.
 
-The planned initial CLI and local MCP path—stdio between client and adapter, with CLI
+The installed CLI and planned local MCP path—stdio between client and adapter, with CLI
 subprocess invocation behind the adapter—assume a trusted caller, workspace, packaged
 Operation set, and Aseprite installation. The current delivery plan has no standalone
 REST API or remote HTTP service. HTTP is not prohibited in principle: an accepted

@@ -31,7 +31,7 @@ Language under ADR-0013. Neither layer reimplements packaged Core Operation
 Semantics. Private application orchestration can select and order packaged handlers,
 but it does not create another public workflow language.
 
-Before SPA 1.0, the co-packaged Python Adapter and Lua Kernel support only their
+Before SPA 1.0, the co-packaged Aseprite Adapter and Lua Kernel support only their
 current Kernel Protocol version. The version field checks an exact match for one
 invocation; it does not promise cross-release compatibility. The pair may change the
 protocol incompatibly between pre-1.0 releases. During that period, SPA does not

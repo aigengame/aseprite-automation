@@ -111,7 +111,11 @@ uv run spa info --aseprite /path/to/Aseprite.app/Contents/MacOS/aseprite
 uv run spa schema --aseprite /path/to/Aseprite.app/Contents/MacOS/aseprite
 uv run spa info --schema
 uv run spa info --input-json '{"aseprite":"/path/to/Aseprite.app/Contents/MacOS/aseprite"}'
+printf '%s\n' '{"aseprite":"/path/to/Aseprite.app/Contents/MacOS/aseprite"}' | uv run spa info --input-json -
 ```
+
+`--input-json -` reads one complete JSON request object from stdin; a literal
+`--input-json` value remains available for short invocations.
 
 `--aseprite` and `SPA_ASEPRITE_EXECUTABLE` name an executable file, not a macOS
 `.app` directory. When `--aseprite` is absent, SPA checks

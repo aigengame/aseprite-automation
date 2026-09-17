@@ -1,5 +1,7 @@
 """CLI Access Projection of Operation Descriptors."""
 
+import sys
+
 import typer
 
 from spa.application import dispatch
@@ -30,6 +32,28 @@ def _execute(
     if schema:
         typer.echo(descriptor.schema().model_dump_json())
         return
+    if input_json == "-":
+        try:
+            input_json = sys.stdin.read()
+        except (OSError, UnicodeError) as exc:
+            _emit_failure(
+                failure_envelope(
+                    operation=f"spa {descriptor.name}",
+                    code="invalid_request",
+                    message="Could not read JSON from stdin",
+                    details=RequestDetails(
+                        errors=[
+                            ValidationIssue(
+                                location=["input_json"],
+                                code="stdin_read",
+                                message=str(exc),
+                            )
+                        ]
+                    ),
+                    applicable_codes=descriptor.failure_codes,
+                ),
+                human,
+            )
     result = dispatch(
         descriptor,
         input_json,
@@ -47,7 +71,9 @@ def _command(descriptor: OperationDescriptor, probe_runtime: RuntimeProbe):
 
         def runtime_command(
             input_json: str | None = typer.Option(
-                None, flags["input_json"], help="Operation Request as a JSON object."
+                None,
+                flags["input_json"],
+                help="Operation Request as JSON text, or '-' to read stdin.",
             ),
             aseprite: str | None = typer.Option(
                 None,
@@ -85,7 +111,9 @@ def _command(descriptor: OperationDescriptor, probe_runtime: RuntimeProbe):
 
         def pure_command(
             input_json: str | None = typer.Option(
-                None, flags["input_json"], help="Operation Request as a JSON object."
+                None,
+                flags["input_json"],
+                help="Operation Request as JSON text, or '-' to read stdin.",
             ),
             schema: bool = typer.Option(
                 False, flags["schema"], help="Emit this Operation's schema."

@@ -19,12 +19,17 @@ from spa.runtime.aseprite import probe
 
 
 def spa(
-    *args: str, env: dict[str, str] | None = None
+    *args: str, env: dict[str, str] | None = None, stdin: str | None = None
 ) -> subprocess.CompletedProcess[str]:
     executable = shutil.which("spa")
     assert executable, "run tests in the installed project environment"
     return subprocess.run(
-        [executable, *args], text=True, capture_output=True, check=False, env=env
+        [executable, *args],
+        text=True,
+        capture_output=True,
+        check=False,
+        env=env,
+        input=stdin,
     )
 
 
@@ -38,6 +43,22 @@ def test_version_is_an_installed_structured_operation() -> None:
     Draft202012Validator.check_schema(version_schema["result_schema"])
     Draft202012Validator.check_schema(version_schema["invocation_schema"])
     validate(result, version_schema["result_schema"])
+    assert (
+        "stdin"
+        in version_schema["invocation_schema"]["properties"]["input_json"][
+            "description"
+        ]
+    )
+
+
+def test_installed_cli_reads_json_request_from_stdin() -> None:
+    run = spa("version", "--input-json", "-", stdin="{}")
+    assert run.returncode == 0, run.stdout
+    assert json.loads(run.stdout)["operation"] == "spa version"
+
+    invalid = spa("version", "--input-json", "-", stdin="{")
+    assert invalid.returncode == 2
+    assert json.loads(invalid.stdout)["code"] == "invalid_request"
 
 
 def test_invalid_request_uses_typed_failure_contract() -> None:
@@ -133,6 +154,20 @@ def _fake_executable(tmp_path: Path, body: str) -> Path:
     return binary
 
 
+def test_stdin_json_selects_the_installed_runtime(tmp_path: Path) -> None:
+    binary = _fake_executable(tmp_path, 'echo "stdin-selected"\nexit 13\n')
+    run = spa(
+        "info",
+        "--input-json",
+        "-",
+        stdin=json.dumps({"aseprite": str(binary)}),
+    )
+    assert run.returncode == 1
+    failure = json.loads(run.stdout)
+    assert failure["code"] == "process_failed"
+    assert failure["diagnostics"]["stdout"].strip() == "stdin-selected"
+
+
 def _fake_truncated_response_executable(tmp_path: Path, exit_status: int) -> Path:
     return _fake_executable(
         tmp_path,
@@ -208,8 +243,9 @@ def test_zero_exit_with_truncated_kernel_response_is_kernel_protocol_failure(
     assert failure["diagnostics"]["exit_status"] == 0
 
 
+@pytest.mark.parametrize("private_version", ["2", "true"])
 def test_other_kernel_protocol_version_is_rejected_without_negotiation(
-    tmp_path: Path,
+    tmp_path: Path, private_version: str
 ) -> None:
     binary = _fake_executable(
         tmp_path,
@@ -218,8 +254,8 @@ response=
 for argument in "$@"; do
   case "$argument" in response=*) response=${argument#response=};; esac
 done
-printf '{"kernel_protocol_version":2,"status":"ok","aseprite_version":"test","api_version":1}' > "$response"
-""",
+printf '{"kernel_protocol_version":%s,"status":"ok","aseprite_version":"test","api_version":1}' 'PRIVATE_VERSION' > "$response"
+""".replace("PRIVATE_VERSION", private_version),
     )
     run = spa("info", "--aseprite", str(binary), "--json")
     assert run.returncode == 1
@@ -228,6 +264,55 @@ printf '{"kernel_protocol_version":2,"status":"ok","aseprite_version":"test","ap
     assert failure["category"] == "kernel_protocol"
     assert "kernel_protocol_version" not in failure["details"]
     assert "unexpected Kernel Protocol version" in failure["message"]
+
+
+def test_boolean_api_version_is_a_kernel_protocol_failure(tmp_path: Path) -> None:
+    binary = _fake_executable(
+        tmp_path,
+        """
+request=
+response=
+echo=
+for argument in "$@"; do
+  case "$argument" in
+    request=*) request=${argument#request=};;
+    response=*) response=${argument#response=};;
+    echo=*) echo=${argument#echo=};;
+  esac
+done
+cp "$request" "$echo"
+printf '{"kernel_protocol_version":1,"status":"ok","aseprite_version":"test","api_version":true}' > "$response"
+""",
+    )
+    run = spa("info", "--aseprite", str(binary), "--json")
+    assert run.returncode == 1
+    failure = json.loads(run.stdout)
+    assert failure["code"] == "kernel_response_invalid"
+    assert failure["category"] == "kernel_protocol"
+    assert "Traceback" not in run.stderr
+
+
+def test_json_echo_rejects_boolean_number_swap(tmp_path: Path) -> None:
+    binary = _fake_executable(
+        tmp_path,
+        """
+response=
+echo=
+for argument in "$@"; do
+  case "$argument" in
+    response=*) response=${argument#response=};;
+    echo=*) echo=${argument#echo=};;
+  esac
+done
+printf '{"kernel_protocol_version":1,"echo":{"nullable":null,"nested":[{"value":null},[true,null,{"flag":1}]]}}' > "$echo"
+printf '{"kernel_protocol_version":1,"status":"ok","aseprite_version":"test","api_version":1}' > "$response"
+""",
+    )
+    run = spa("info", "--aseprite", str(binary), "--json")
+    assert run.returncode == 1
+    failure = json.loads(run.stdout)
+    assert failure["code"] == "kernel_response_invalid"
+    assert "round-trip changed" in failure["message"]
 
 
 def test_exit_zero_with_kernel_error_is_execution_failure(tmp_path: Path) -> None:
@@ -312,6 +397,8 @@ def test_process_start_failure_keeps_installed_executable_identity(
     failure = json.loads(run.stdout)
     assert failure["code"] == "process_start_failed"
     assert failure["details"]["executable"] == str(binary.resolve())
+    assert failure["details"]["kind"] == "process_start"
+    assert failure["details"]["exit_status"] is None
 
 
 def _assert_preparation_failure(binary: Path) -> None:
@@ -323,6 +410,8 @@ def _assert_preparation_failure(binary: Path) -> None:
     assert failure["code"] == "process_start_failed"
     assert failure["category"] == "execution"
     assert failure["details"]["executable"] == str(binary.resolve())
+    assert failure["details"]["kind"] == "process_start"
+    assert failure["details"]["exit_status"] is None
     assert failure["diagnostics"]["exit_status"] is None
     validate(failure, info.schema().failure_schema)
 

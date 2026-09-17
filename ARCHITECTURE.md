@@ -308,7 +308,7 @@ them close.
 Each structured public capability has one **Operation Descriptor**. The descriptor
 binds schemas, execution metadata, presentation, and a declared execution definition.
 Descriptors are the registration authority; they do not implement native behavior.
-Under ADR-0013, the failure contract calls for shared registration of each public
+Under ADR-0013, the failure contract uses shared registration of each public
 Failure Code's meaning, Category, and Details kind. Each Descriptor declares its
 Operation's applicable codes and projects their constraints in its failure schema.
 Before Descriptor selection, the CLI constructs usage failures from that registration;
@@ -441,7 +441,7 @@ history, or cross-command recovery system.
 
 ### Access Projection
 
-- The **CLI** is the planned first public execution channel for the public `spa` CLI
+- The **CLI** is the first public execution channel for the public `spa` CLI
   JSON contract.
 - The **Agent Skill** teaches discovery and the edit-observe-verify-export loop for the
   installed surface.

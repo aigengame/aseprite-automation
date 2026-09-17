@@ -73,7 +73,10 @@ class OperationDescriptor:
                 "type": "object",
                 "properties": {
                     "command": {"const": command},
-                    "input_json": {"type": "string"},
+                    "input_json": {
+                        "type": "string",
+                        "description": "Inline JSON object or '-' to read one object from stdin.",
+                    },
                     "argv": self.request_type.model_json_schema(),
                     "schema": {"type": "boolean"},
                     "json_output": {"type": "boolean"},
