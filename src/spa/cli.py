@@ -142,7 +142,7 @@ def _command(descriptor: OperationDescriptor, probe_runtime: RuntimeProbe):
 
 
 def build_app(probe_runtime: RuntimeProbe) -> typer.Typer:
-    app = typer.Typer(name="spa", no_args_is_help=True, add_completion=False)
+    app = typer.Typer(name="spa", no_args_is_help=False, add_completion=False)
     for operation in OPERATIONS:
         app.command(name=operation.name)(_command(operation, probe_runtime))
     return app

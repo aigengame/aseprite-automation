@@ -327,6 +327,14 @@ def test_registry_and_access_applicability_are_closed_over_installed_producers()
     assert not access_schema.is_valid(other_failure)
 
 
+def test_descriptor_rejects_result_operation_identity_mismatch() -> None:
+    version = next(
+        descriptor for descriptor in OPERATIONS if descriptor.name == "version"
+    )
+    with pytest.raises(ValueError, match="Result Operation identity"):
+        replace(version, name="renamed")
+
+
 def test_application_refuses_failure_not_declared_by_selected_descriptor() -> None:
     version = next(
         descriptor for descriptor in OPERATIONS if descriptor.name == "version"

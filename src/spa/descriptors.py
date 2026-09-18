@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import get_args
 
 from pydantic import BaseModel
 
@@ -51,6 +52,14 @@ class OperationDescriptor:
     render_human: Callable[[BaseModel], str]
     requires_runtime: bool
     failure_codes: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        command = f"spa {self.name}"
+        operation_field = self.result_type.model_fields.get("operation")
+        if operation_field is None or get_args(operation_field.annotation) != (
+            command,
+        ):
+            raise ValueError(f"Result Operation identity does not match {command}")
 
     @property
     def cli_flags(self) -> dict[str, str]:

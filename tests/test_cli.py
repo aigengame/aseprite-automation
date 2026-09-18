@@ -14,7 +14,8 @@ from typer.main import get_command
 from typer.testing import CliRunner
 
 from spa.cli import build_app
-from spa.descriptors import OPERATIONS
+from spa.contracts import failure_schema
+from spa.descriptors import ACCESS_FAILURE_CODES, OPERATIONS
 from spa.runtime.aseprite import probe
 
 
@@ -90,6 +91,20 @@ def test_unknown_command_uses_registered_access_failure() -> None:
     assert failure["operation"] == "spa"
     assert failure["code"] == "invalid_request"
     assert failure["category"] == "input"
+
+
+def test_bare_invocation_emits_only_registered_access_failure() -> None:
+    run = spa()
+    assert run.returncode == 2
+    assert run.stderr == ""
+    failure = json.loads(run.stdout)
+    validate(failure, failure_schema(ACCESS_FAILURE_CODES, "spa"))
+    assert failure["operation"] == "spa"
+    assert failure["code"] == "invalid_request"
+
+    help_run = spa("--help")
+    assert help_run.returncode == 0
+    assert "Usage:" in help_run.stdout
 
 
 def test_human_output_projects_the_same_version_result() -> None:

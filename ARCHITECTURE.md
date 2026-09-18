@@ -11,10 +11,11 @@ fact in this integrated view. If this document conflicts with an owning source, 
 this view instead of treating it as another decision authority.
 
 > [!IMPORTANT]
-> SPA is at the bootstrap stage. This document describes the accepted architecture and
-> planned module ownership; it does not claim that a capability has shipped. Feature
-> issues own delivery status, and the installed Surface Manifest will own the callable
-> surface of a released installation.
+> SPA is at the bootstrap stage. The installed CLI tracer exposes `spa info`,
+> `spa version`, and `spa schema`; Sprite authoring
+> Operations have not shipped. The module ownership below includes planned work, not
+> additional installed capabilities. Feature issues own delivery status, while the
+> installed Surface Manifest reports the callable surface of each installation.
 
 The document evolves with the product. An accepted change to the Bounded Context,
 module ownership, public contract, execution model, or integration boundary must be
