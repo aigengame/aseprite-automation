@@ -56,8 +56,12 @@ class OperationDescriptor:
     def __post_init__(self) -> None:
         command = f"spa {self.name}"
         operation_field = self.result_type.model_fields.get("operation")
-        if operation_field is None or get_args(operation_field.annotation) != (
-            command,
+        if (
+            operation_field is None
+            or get_args(operation_field.annotation) != (command,)
+            or (
+                not operation_field.is_required() and operation_field.default != command
+            )
         ):
             raise ValueError(f"Result Operation identity does not match {command}")
 

@@ -1,6 +1,7 @@
 """Public Failure Code registration and schema conformance for issue #64."""
 
 from dataclasses import replace
+from typing import Literal
 
 import pytest
 from jsonschema import Draft202012Validator
@@ -20,6 +21,7 @@ from spa.contracts import (
     ResourceDetails,
     ValidationIssue,
     VersionRequest,
+    VersionResult,
     failure_envelope,
     failure_schema,
     register_failure_codes,
@@ -333,6 +335,17 @@ def test_descriptor_rejects_result_operation_identity_mismatch() -> None:
     )
     with pytest.raises(ValueError, match="Result Operation identity"):
         replace(version, name="renamed")
+
+
+def test_descriptor_rejects_result_operation_with_stale_default() -> None:
+    class RenamedResult(VersionResult):
+        operation: Literal["spa renamed"] = "spa version"
+
+    version = next(
+        descriptor for descriptor in OPERATIONS if descriptor.name == "version"
+    )
+    with pytest.raises(ValueError, match="Result Operation identity"):
+        replace(version, name="renamed", result_type=RenamedResult)
 
 
 def test_application_refuses_failure_not_declared_by_selected_descriptor() -> None:
