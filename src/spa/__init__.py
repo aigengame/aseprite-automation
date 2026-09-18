@@ -1,0 +1,1 @@
+"""Aseprite automation for agents."""

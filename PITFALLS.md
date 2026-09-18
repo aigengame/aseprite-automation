@@ -28,21 +28,24 @@ another environment can have different capabilities._
   rather than a product or test failure.
 - **Last verified:** 2026-08-27 in a managed Codex desktop environment.
 
-## Pytest cache in a read-only worktree
+## Pytest and Ruff caches in a read-only worktree
 
-- **Applies when:** Pytest runs from a checkout or worktree that is readable but does
-  not allow writes below its project root.
-- **Symptom:** Tests can pass, but pytest reports `PytestCacheWarning` because it cannot
-  write a path below `.pytest_cache`.
-- **Cause:** The built-in cache provider stores node IDs, failure state, and related
-  data in `.pytest_cache` by default.
-- **Prevention:** If the cache is not needed, consider disabling the provider with
+- **Applies when:** Pytest or Ruff runs from a checkout or worktree that is readable
+  but does not allow writes below its project root.
+- **Symptom:** Tests can pass while pytest reports `PytestCacheWarning` for
+  `.pytest_cache`; Ruff can fail before checking code because it cannot initialize
+  `.ruff_cache`.
+- **Cause:** Both tools write their own cache below the project root by default.
+- **Prevention:** For pytest, if the cache is not needed, consider disabling its provider with
   `-p no:cacheprovider`. This also disables pytest's stepwise plugin. If the cache or
   stepwise behavior is needed, set a task-scoped writable location with
-  `-o cache_dir=<writable-temp-dir>/<task>-pytest-cache`.
-- **Recovery:** Rerun with the cache disabled or redirected when a warning-free result
-  is required. A cache-write warning by itself does not prove that the test failed.
-- **Last verified:** 2026-08-24 with pytest in a managed read-only worktree.
+  `-o cache_dir=<writable-temp-dir>/<task>-pytest-cache`. For Ruff, use
+  `RUFF_CACHE_DIR=<writable-temp-dir>/<task>-ruff-cache`.
+- **Recovery:** Rerun with the applicable cache disabled or redirected. A pytest
+  cache-write warning by itself does not prove that the test failed; a Ruff cache
+  error prevents the check from running.
+- **Last verified:** 2026-09-17 with Ruff and 2026-08-24 with pytest in managed
+  read-only worktrees.
 
 ## Writable GitHub CLI cache for run evidence
 

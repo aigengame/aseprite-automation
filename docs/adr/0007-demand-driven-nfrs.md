@@ -18,6 +18,15 @@ and process wrappers that exist to serve them remain Aseprite Runtime Integratio
 Supporting and Generic design follows accepted Core Domain requirements, uses
 proportionate abstraction, and grows from observed variation.
 
+The Aseprite Adapter prepares each process invocation under Runtime Integration.
+This private boundary can select an operating-system and installation-specific launch
+path, connect required Aseprite resources, and provide an isolated writable user
+folder. It keeps the installed executable's canonical identity separate from the
+process launch path. It does not own Sprite or Artifact paths, alter an installation,
+or escape the caller's execution restrictions. A restricted-environment support claim
+requires a real Aseprite integration check in that environment; one host strategy
+does not establish support for another operating system or sandbox.
+
 Behavior placement follows domain authority rather than deployment mechanics. Core
 Operation Semantics remain Core behavior in their packaged Lua handlers; runtime
 transport and resource discovery support that behavior. Staged commit and Artifact
@@ -28,7 +37,7 @@ Non-functional work must trace to an accepted functional slice and an observed
 operating need. It has no independent platform roadmap and does not justify speculative
 infrastructure for scale, distribution, tenancy, governance, or compatibility.
 
-The planned initial CLI and local MCP path—stdio between client and adapter, with CLI
+The installed CLI and planned local MCP path—stdio between client and adapter, with CLI
 subprocess invocation behind the adapter—assume a trusted caller, workspace, packaged
 Operation set, and Aseprite installation. The current delivery plan has no standalone
 REST API or remote HTTP service. HTTP is not prohibited in principle: an accepted

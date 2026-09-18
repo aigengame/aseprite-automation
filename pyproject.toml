@@ -1,0 +1,26 @@
+[build-system]
+requires = ["uv_build>=0.11.19,<0.12"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "spa"
+
+[project]
+name = "aseprite-automation"
+version = "0.1.0a1"
+description = "Agent-facing automation for Aseprite"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+  "pydantic>=2.11,<3",
+  "typer>=0.16,<1",
+]
+
+[project.scripts]
+spa = "spa.bootstrap:main"
+
+[dependency-groups]
+test = ["pytest>=8,<10", "jsonschema>=4,<5"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

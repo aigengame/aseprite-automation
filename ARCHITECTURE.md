@@ -11,10 +11,11 @@ fact in this integrated view. If this document conflicts with an owning source, 
 this view instead of treating it as another decision authority.
 
 > [!IMPORTANT]
-> SPA is at the bootstrap stage. This document describes the accepted architecture and
-> planned module ownership; it does not claim that a capability has shipped. Feature
-> issues own delivery status, and the installed Surface Manifest will own the callable
-> surface of a released installation.
+> SPA is at the bootstrap stage. The installed CLI tracer exposes `spa info`,
+> `spa version`, and `spa schema`; Sprite authoring
+> Operations have not shipped. The module ownership below includes planned work, not
+> additional installed capabilities. Feature issues own delivery status, while the
+> installed Surface Manifest reports the callable surface of each installation.
 
 The document evolves with the product. An accepted change to the Bounded Context,
 module ownership, public contract, execution model, or integration boundary must be
@@ -241,18 +242,18 @@ will follow demonstrated change clusters as vertical slices are implemented.
 
 ### Technology profile
 
-The planned implementation uses a replaceable outer stack around stable domain and
-public-contract boundaries. [Issue #3](https://github.com/aigengame/aseprite-automation/issues/3)
-owns these reversible bootstrap choices until implementation records the actual runtime
-and dependencies in project metadata and its lockfile.
+The initial installed CLI tracer uses a replaceable outer stack around stable domain
+and public-contract boundaries. [Issue #3](https://github.com/aigengame/aseprite-automation/issues/3)
+delivers the bootstrap choices recorded in project metadata and its lockfile; later
+feature slices will extend the implemented surface.
 
-| Component | Planned bootstrap choice | Role |
+| Component | Bootstrap choice | Role |
 | --- | --- | --- |
 | Application runtime | Python 3.13 | Use-case orchestration and adapter coordination. |
 | CLI adapter | Typer | Command access and human or machine presentation. |
 | Public contracts | Pydantic 2 and JSON Schema | Typed Operation Requests, Operation Results, Failure Envelopes, and discovery schemas. |
 | Project and packaging | `uv` | Environments, dependencies, builds, and installed-product tests. |
-| Ordinary Core Operations | Packaged Lua handlers | Core Operation Semantics and native mapping executed through Aseprite. |
+| Ordinary Core Operations | Packaged Lua handlers (planned for Core slices) | Core Operation Semantics and native mapping executed through Aseprite. The current tracer packages a fixed runtime probe, not a Sprite authoring handler. |
 | Aseprite integration | External `aseprite --batch --script` | Native document, Tool, Filter, color, and export behavior. |
 | Private transport | Versioned JSON request and response files | Data exchange through `--script-param`, separate from diagnostics. |
 | Agent access | Version-matched Agent Skill and planned local stdio MCP Adapter with CLI subprocess invocation | Guidance and equivalent tool projection from the installed surface. |
@@ -308,6 +309,13 @@ them close.
 Each structured public capability has one **Operation Descriptor**. The descriptor
 binds schemas, execution metadata, presentation, and a declared execution definition.
 Descriptors are the registration authority; they do not implement native behavior.
+Under ADR-0013, the failure contract uses shared registration of each public
+Failure Code's meaning, Category, and Details kind. Each Descriptor declares its
+Operation's applicable codes and projects their constraints in its failure schema.
+Before Descriptor selection, the CLI constructs usage failures from that registration;
+aggregate `spa schema` discovery exposes their separate Access-level failure schema.
+The Application classifies private runtime evidence for selected Operations; Access
+adapters project the same Failure Envelope.
 
 An Ordinary Core Operation binds one fixed packaged Lua handler. A capability whose
 behavior is implemented by an Application use case can have no Kernel binding. An
@@ -390,6 +398,7 @@ for exact caller-owned Lua and does not inherit Ordinary Core Operation guarante
 The Aseprite Adapter owns the external integration mechanics:
 
 - executable and resource discovery;
+- host-specific invocation preparation within the adapter;
 - collection and transport of Aseprite/API version and native-capability observations;
 - `--batch --script` process launch;
 - the versioned Kernel Protocol and transport files;
@@ -399,6 +408,16 @@ The Aseprite Adapter owns the external integration mechanics:
 
 Process exit and standard output are runtime observations, not the public verdict. The
 Application maps those observations to an Operation Result or Failure Envelope.
+
+Invocation preparation keeps the installed executable's canonical path separate from
+the path used to start one process. For macOS `.app` CLI invocations, the adapter
+creates a temporary non-bundle link to the executable and a link to its `data`
+resources. Other installation shapes use the installed executable directly. The
+adapter supplies an isolated Aseprite user folder and cleans these temporary paths.
+This private mechanism does not change the caller's sandbox, the installed app, or
+the File Adapter's ownership of Sprite and Artifact paths. [Issue #61](https://github.com/aigengame/aseprite-automation/issues/61)
+defines the targeted restricted profile and its evidence requirements. Tests retain
+the executed integration evidence.
 
 ### File and Artifact verification integration
 
@@ -423,7 +442,7 @@ history, or cross-command recovery system.
 
 ### Access Projection
 
-- The **CLI** is the planned first public execution channel for the public `spa` CLI
+- The **CLI** is the first public execution channel for the public `spa` CLI
   JSON contract.
 - The **Agent Skill** teaches discovery and the edit-observe-verify-export loop for the
   installed surface.
@@ -460,6 +479,11 @@ experimental commands and tactical types evolve.
 | Operation Result | Public success | Reports verified domain facts and produced Artifacts. |
 | Failure Envelope | Public failure | Provides stable Failure Code and Category, typed Details where useful, and human Diagnostics. |
 | Surface Manifest | Public discovery | Reports what the installed SPA/Aseprite combination can call. |
+
+Before SPA 1.0, the co-packaged Python and Lua components use only the current Kernel
+Protocol version. This private boundary can evolve without historical-version
+compatibility machinery; checking the installed Aseprite Lua runtime and scripting
+API remains a separate obligation.
 
 A completed Validation can return an Operation Result with typed Validation Findings.
 An invalid request, execution failure, or unmet commit gate returns a Failure Envelope;
@@ -548,7 +572,7 @@ flowchart TB
     Decode -->|failure| VerifyFailure[Failure Envelope; nothing is published]
     Compare -->|failure| VerifyFailure
     Publish -->|failure before any change| PublishFailure[Publication Failure]
-    Publish -->|failure after a path changed| PartialFailure[PARTIAL_PUBLICATION with per-path facts]
+    Publish -->|failure after a path changed| PartialFailure[partial_publication with per-path facts]
 ```
 
 Static image export uses a fixed private composition order for Layer Composition,
@@ -558,7 +582,7 @@ never mutates the Source Sprite.
 
 A successful result reports the complete declared output set. When an Export has
 several final paths, SPA publishes them in a deterministic order. A failure after a
-final path changed returns `PARTIAL_PUBLICATION` with the known state of every declared
+final path changed returns `partial_publication` with the known state of every declared
 destination and whether a published path replaced an existing file. SPA does not return
 a successful Artifact set, restore replaced files, remove published files, or promise
 filesystem atomicity or a general recovery mechanism. A hard interruption can leave
