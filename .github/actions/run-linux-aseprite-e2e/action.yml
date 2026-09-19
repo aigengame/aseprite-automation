@@ -1,0 +1,47 @@
+name: Run Linux real Aseprite E2E
+description: Run the SPA batch scripting path without a graphical display.
+
+inputs:
+  junit-path:
+    description: Absolute output path for the pytest JUnit report.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: ./.github/actions/setup-python-env
+
+    - name: Set up real Aseprite
+      id: aseprite
+      uses: ./.github/actions/setup-linux-aseprite
+
+    - name: Verify the headless batch environment
+      shell: bash
+      run: |
+        test -z "${DISPLAY:-}"
+        test -z "${WAYLAND_DISPLAY:-}"
+        "$SPA_TEST_ASEPRITE" --batch --version
+
+    - name: Run real Aseprite E2E tests
+      shell: bash
+      run: |
+        pytest_status=0
+        uv run --frozen --group test pytest -m e2e -rs \
+          --junitxml="${{ inputs.junit-path }}" || pytest_status=$?
+        uv run --frozen python scripts/verify_pytest_execution.py \
+          "${{ inputs.junit-path }}"
+        exit "$pytest_status"
+
+    - name: Record Linux real-runtime evidence
+      shell: bash
+      run: |
+        {
+          echo "### Linux real Aseprite E2E"
+          echo "- Commit: \`${GITHUB_SHA}\`"
+          echo "- Trigger: \`${GITHUB_EVENT_NAME}\`"
+          echo "- Executable: \`${{ steps.aseprite.outputs.executable }}\`"
+          echo "- Aseprite: \`${{ steps.aseprite.outputs.version }}\`"
+          echo "- Display: \`DISPLAY\` and \`WAYLAND_DISPLAY\` absent"
+          echo "- Path: real \`--batch --script\` through the installed SPA CLI"
+        } >> "$GITHUB_STEP_SUMMARY"
