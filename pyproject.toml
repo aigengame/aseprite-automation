@@ -1,5 +1,5 @@
 [build-system]
-requires = ["uv_build>=0.11.19,<0.12"]
+requires = ["uv_build==0.11.19"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
@@ -23,6 +23,7 @@ spa = "spa.bootstrap:main"
 dev = [
     "pyright==1.1.414",
     "ruff==0.16.8",
+    "twine==6.2.0",
 ]
 test = ["pytest>=8,<10", "jsonschema>=4,<5"]
 

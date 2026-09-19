@@ -4,6 +4,7 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -58,21 +59,8 @@ jobs:
       - name: Set up Python
         uses: ./.github/actions/setup-python-env
 
-      - name: Build wheel and source distribution
-        run: uv build
-
-      - name: Check distribution metadata
-        run: uvx --from twine==6.2.0 twine check dist/*
-
-      - name: Install and smoke test the wheel
-        shell: bash
-        run: |
-          wheel_path="$(find dist -maxdepth 1 -name '*.whl' -print -quit)"
-          test -n "$wheel_path"
-          uv venv "$RUNNER_TEMP/spa-wheel-smoke" --python 3.13
-          uv pip install --python "$RUNNER_TEMP/spa-wheel-smoke/bin/python" "$wheel_path"
-          uv run --frozen python scripts/verify_installed_cli.py \
-            "$RUNNER_TEMP/spa-wheel-smoke/bin/spa"
+      - name: Build and verify distributions
+        uses: ./.github/actions/verify-python-distributions
 
       - name: Preserve the verified distributions
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

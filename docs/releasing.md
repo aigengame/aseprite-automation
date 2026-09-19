@@ -16,15 +16,18 @@ wheel. PyPI publication is outside this phase.
 
 The `Release PR` workflow runs on pushes to `main`. It uses release-please only to
 create or update the reviewable change; it cannot create a tag or GitHub Release.
-Because it uses the repository `GITHUB_TOKEN`, its bot-authored updates do not trigger
-another workflow. Review the complete Release PR and rely on the exact-commit Release
-verification after merge.
+Because GitHub does not emit another workflow event for its `GITHUB_TOKEN` updates,
+the workflow explicitly dispatches CI for the Release PR branch. Review the complete
+change and its four CI jobs before merge. After the Release PR merges, maintenance
+waits until that reviewed version has a tag; publication resumes maintenance after it
+creates the tag. This prevents a tagless draft from regenerating old release history.
 
 ## Verification environments
 
 Local real-runtime evidence normally uses the installed macOS Aseprite application.
-CI and release verification use Linux and build the pinned official Aseprite 1.3.18.5
-source with scripting enabled and the non-graphical backend. The Linux gate requires
+CI and release verification use Linux and build the official source version pinned in
+`.github/actions/setup-linux-aseprite/action.yml` with scripting enabled and the
+non-graphical backend. The Linux gate requires
 `DISPLAY` and `WAYLAND_DISPLAY` to be absent, exercises the real `--batch --script`
 probe, and rejects zero or all-skipped E2E execution.
 
@@ -42,14 +45,14 @@ commands and skip policy.
    successful run before the first public release. This exercises source checks, fast
    tests, the Linux real Aseprite E2E gate, package build, metadata checks, and the
    installed-wheel smoke test without creating a release.
-4. Run `Release` again on `main` with `publish` true. The workflow repeats every gate
-   at the dispatch SHA, validates the reviewed release metadata, and builds the wheel
+4. Run `Release` again on `main` with `publish` true. Release-please creates a draft
+   and reports its exact commit. The read-only verification job checks out that commit,
+   repeats every gate, validates the reviewed release metadata, and builds the wheel
    and sdist once.
 
-The publishing run checks that `main` still points to the verified SHA. Release-please
-then creates a draft for that SHA. The workflow compares the draft SHA with the tested
-SHA before the publisher can run. A generally green branch or a successful job for a
-different commit is never accepted as release evidence.
+The publisher depends on successful verification of the draft's reported SHA. A
+generally green branch or a successful job for a different commit is never accepted as
+release evidence.
 
 ## Permissions and artifacts
 
@@ -57,22 +60,25 @@ The verification job has read-only repository permission. It runs project code,
 native Aseprite, tests, and the build backend, then stores the exact-SHA distributions
 as a run-scoped artifact. The draft-cutting job has only repository release and pull
 request permissions and runs no checked-out project code. The final publisher has
-only repository contents permission; it downloads the already verified artifact,
-attaches exactly one wheel and one sdist, and publishes the draft.
+repository contents permission for the existing draft and Actions permission to
+resume Release PR maintenance. It downloads the already verified artifact, attaches
+exactly one wheel and one sdist, and publishes the draft.
 
 No tag or public release is created when source checks, tests, Linux real Aseprite E2E,
 metadata validation, package checks, or the installed CLI smoke test fail.
 
 ## Recovery
 
-- When verification fails, fix the cause through a pull request and start a new run on
-  the new `main` SHA. No draft was created.
+- When a non-publishing verification fails, fix the cause through a pull request and
+  start a new run on the new `main` SHA.
+- When verification fails after a draft was cut, use **Re-run failed jobs** after the
+  cause is corrected without changing the reviewed release commit. The publisher is
+  deliberately marked failed too, so both jobs resume while the successful draft job
+  remains fixed.
 - When draft creation fails before a release exists, use **Re-run failed jobs** after a
-  transient GitHub failure. The SHA guard still applies.
+  transient GitHub failure.
 - When asset upload or draft publication fails, use **Re-run failed jobs**. The
   successful verification and draft jobs remain fixed, and `gh release upload
   --clobber` makes the publisher converge on the same two artifacts.
 - Do not rerun every job after a draft was created. A full rerun can ask
   release-please to cut the same untagged release again. Resume only failed jobs.
-- When `main` advances between verification and draft creation, the run fails. Start a
-  new run so the tests, Aseprite E2E evidence, distributions, and release SHA agree.

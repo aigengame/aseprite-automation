@@ -1,6 +1,7 @@
 """CLI Access Projection of Operation Descriptors."""
 
 import sys
+from typing import Any
 
 import typer
 
@@ -21,7 +22,7 @@ def _emit_failure(failure: FailureEnvelope, human: bool) -> None:
 
 
 def _execute(
-    descriptor: OperationDescriptor,
+    descriptor: OperationDescriptor[Any, Any],
     input_json: str | None,
     aseprite: str | None,
     timeout_seconds: float | None,
@@ -65,7 +66,7 @@ def _execute(
     typer.echo(descriptor.render_human(result) if human else result.model_dump_json())
 
 
-def _command(descriptor: OperationDescriptor, probe_runtime: RuntimeProbe):
+def _command(descriptor: OperationDescriptor[Any, Any], probe_runtime: RuntimeProbe):
     flags = descriptor.cli_flags
     if descriptor.requires_runtime:
 

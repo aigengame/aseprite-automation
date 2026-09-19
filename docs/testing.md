@@ -66,14 +66,16 @@ instead of the production type gate.
 
 ## CI gates
 
-`.github/workflows/ci.yml` runs on every pull request and every push to `main`. All
-jobs use Python 3.13, uv 0.11.19, and the committed `uv.lock` with `--frozen`.
+`.github/workflows/ci.yml` runs on every pull request and every push to `main`. The
+Release PR workflow also dispatches it explicitly because GitHub does not emit a
+second workflow event for a pull request updated with `GITHUB_TOKEN`. All jobs use
+Python 3.13, uv 0.11.19, and the committed `uv.lock` with `--frozen`.
 
 | Job | Required evidence |
 | --- | --- |
 | Source quality | Ruff lint and formatting plus Pyright for production source. |
 | Fast tests | Unit and integration tests selected with `-m "not e2e"`. |
-| Build and smoke test distributions | One sdist and wheel, valid package metadata, and a successful `spa version` from a wheel-only environment. |
+| Build and smoke test distributions | One sdist and wheel, valid package metadata, and a successful `spa version` from a wheel-only environment populated from locked runtime dependencies. |
 | Linux real Aseprite E2E | The installed SPA CLI drives the pinned real Aseprite `--batch --script` path and records JUnit evidence. |
 
 A failure in any job fails CI. Configure these four named jobs as required checks on
@@ -94,14 +96,14 @@ without display capability can skip with a visible reason. Display permission de
 must fail. A job that claims graphical coverage must fail when its required windowed
 tests do not execute.
 
-The Linux job builds the official Aseprite 1.3.18.5 source release whose SHA-256 is
-`04b0a84617efb3107d380c352ebb0af9eb2633ff4c1a8bfcb671d2a437247d5d`.
-It enables scripting with Aseprite's `LAF_BACKEND=none`, checks that both `DISPLAY` and
-`WAYLAND_DISPLAY` are absent, and then runs the real-runtime tier. The JUnit audit fails
-when the report is missing, contains zero tests, or all selected tests were skipped.
-The job summary records the commit, trigger, executable, Aseprite version, display
-state, and exercised path. A macOS-only skip remains visible and does not invalidate
-the Linux batch evidence while other E2E tests execute.
+The Linux job builds the official source release and verifies the archive against the
+version and SHA-256 authority in `.github/actions/setup-linux-aseprite/action.yml`. It
+enables scripting with Aseprite's `LAF_BACKEND=none`, checks that both `DISPLAY` and
+`WAYLAND_DISPLAY` are absent, and then runs the real-runtime tier. The JUnit audit
+fails when the report is missing, contains zero tests, or all selected tests were
+skipped. The job summary records the tested commit, trigger, executable, Aseprite
+version, display state, and exercised path. A macOS-only skip remains visible and does
+not invalidate the Linux batch evidence while other E2E tests execute.
 
 The Linux real Aseprite job is also part of release verification. A release workflow
 always reruns it at the exact release commit and does not reuse a generally green CI

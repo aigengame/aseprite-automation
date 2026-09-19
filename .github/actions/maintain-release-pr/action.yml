@@ -1,0 +1,35 @@
+name: Maintain the Release PR
+description: Update the reviewed release change and dispatch CI for its exact head.
+
+runs:
+  using: composite
+  steps:
+    - name: Create or update the Release PR only
+      id: release
+      uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4
+      with:
+        config-file: release-please-config.json
+        manifest-file: .release-please-manifest.json
+        skip-github-release: true
+
+    - name: Dispatch CI for the bot-authored Release PR head
+      if: steps.release.outputs.prs_created == 'true'
+      env:
+        GH_TOKEN: ${{ github.token }}
+        SPA_RELEASE_PR: ${{ steps.release.outputs.pr }}
+      shell: bash
+      run: |
+        branch="$(jq -r .headBranchName <<< "$SPA_RELEASE_PR")"
+        number="$(jq -r .number <<< "$SPA_RELEASE_PR")"
+        test -n "$branch"
+        test -n "$number"
+        test "$branch" != "null"
+        test "$number" != "null"
+        sha="$(gh pr view "$number" --repo "$GITHUB_REPOSITORY" \
+          --json headRefOid --jq .headRefOid)"
+        test -n "$sha"
+        gh workflow run ci.yml --ref "$branch"
+        {
+          echo "Dispatched CI for Release PR branch \`${branch}\`."
+          echo "Expected head: \`${sha}\`."
+        } >> "$GITHUB_STEP_SUMMARY"

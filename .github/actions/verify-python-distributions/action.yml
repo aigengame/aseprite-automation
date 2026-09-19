@@ -1,0 +1,28 @@
+name: Verify Python distributions
+description: Build and validate the SPA sdist and wheel against locked dependencies.
+
+runs:
+  using: composite
+  steps:
+    - name: Build wheel and source distribution
+      shell: bash
+      run: uv build
+
+    - name: Check distribution metadata
+      shell: bash
+      run: uv run --frozen twine check dist/*
+
+    - name: Install and smoke test the wheel
+      shell: bash
+      run: |
+        wheel_path="$(find dist -maxdepth 1 -name '*.whl' -print -quit)"
+        test -n "$wheel_path"
+        uv export --quiet --frozen --no-dev --no-emit-project \
+          --output-file "$RUNNER_TEMP/spa-runtime-requirements.txt"
+        uv venv "$RUNNER_TEMP/spa-wheel-smoke" --python 3.13
+        uv pip sync --python "$RUNNER_TEMP/spa-wheel-smoke/bin/python" \
+          --require-hashes "$RUNNER_TEMP/spa-runtime-requirements.txt"
+        uv pip install --python "$RUNNER_TEMP/spa-wheel-smoke/bin/python" \
+          --no-deps "$wheel_path"
+        uv run --frozen python scripts/verify_installed_cli.py \
+          "$RUNNER_TEMP/spa-wheel-smoke/bin/spa"

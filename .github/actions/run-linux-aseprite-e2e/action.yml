@@ -36,9 +36,10 @@ runs:
     - name: Record Linux real-runtime evidence
       shell: bash
       run: |
+        tested_sha="$(git rev-parse HEAD)"
         {
           echo "### Linux real Aseprite E2E"
-          echo "- Commit: \`${GITHUB_SHA}\`"
+          echo "- Commit: \`${tested_sha}\`"
           echo "- Trigger: \`${GITHUB_EVENT_NAME}\`"
           echo "- Executable: \`${{ steps.aseprite.outputs.executable }}\`"
           echo "- Aseprite: \`${{ steps.aseprite.outputs.version }}\`"

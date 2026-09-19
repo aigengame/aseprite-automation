@@ -3,8 +3,10 @@ name: Release PR
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
+  actions: write
   contents: write
   pull-requests: write
 
@@ -18,9 +20,26 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - name: Update the Release PR only
-        uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4
-        with:
-          config-file: release-please-config.json
-          manifest-file: .release-please-manifest.json
-          skip-github-release: true
+      - name: Check out the release state
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Require the previous reviewed version to be tagged
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          version="$(jq -r '."."' .release-please-manifest.json)"
+          test -n "$version"
+          if [ "$version" = "0.0.0" ] || \
+             gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v${version}" >/dev/null 2>&1; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "Release PR maintenance waits for pending tag \`v${version}\`." \
+              >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Maintain the reviewed release change
+        if: steps.gate.outputs.ready == 'true'
+        uses: ./.github/actions/maintain-release-pr
