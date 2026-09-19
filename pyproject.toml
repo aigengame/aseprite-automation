@@ -24,3 +24,7 @@ test = ["pytest>=8,<10", "jsonschema>=4,<5"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = ["--strict-markers"]
+markers = [
+  "e2e: uses the installed SPA CLI with a real Aseprite executable",
+]

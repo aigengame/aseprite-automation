@@ -124,8 +124,10 @@ installed callable Operations; currently these are `info`, `version`, and `schem
 It also includes `access_failure_schema` for CLI failures before an Operation is
 selected; each Operation entry has its own applicable `failure_schema`. Aggregate
 discovery probes Aseprite, while each command's `--schema` remains available without a
-runtime. For a real integration test, set `SPA_TEST_ASEPRITE` to that executable
-and run `uv run --group test pytest`.
+runtime. For real-runtime tests, set `SPA_TEST_ASEPRITE` to that executable and
+run `uv run --frozen --group test pytest -m e2e -rs`. See
+[`docs/testing.md`](docs/testing.md) for the test ownership, verification-tier,
+platform, and display-environment conventions.
 
 For CLI use of a binary inside a macOS `.app`, SPA prepares a temporary launch
 path and links the installed `data` resources without changing the app or
