@@ -2,7 +2,7 @@
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import get_args
+from typing import Any, get_args
 
 from pydantic import BaseModel
 
@@ -48,8 +48,8 @@ class OperationDescriptor:
     name: str
     request_type: type[BaseModel]
     result_type: type[BaseModel]
-    execute: Callable[[BaseModel, RuntimeProbe], BaseModel]
-    render_human: Callable[[BaseModel], str]
+    execute: Callable[..., BaseModel]
+    render_human: Callable[[Any], str]
     requires_runtime: bool
     failure_codes: tuple[str, ...]
 

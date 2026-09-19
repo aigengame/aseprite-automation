@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Source quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out the tested commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Python
+        uses: ./.github/actions/setup-python-env
+
+      - name: Check lint
+        run: uv run --frozen ruff check .
+
+      - name: Check formatting
+        run: uv run --frozen ruff format --check .
+
+      - name: Check production types
+        run: uv run --frozen pyright
+
+  fast-tests:
+    name: Fast tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out the tested commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Python
+        uses: ./.github/actions/setup-python-env
+
+      - name: Run unit and integration tests
+        run: uv run --frozen --group test pytest -m "not e2e"
+
+  package:
+    name: Build and smoke test distributions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out the tested commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Python
+        uses: ./.github/actions/setup-python-env
+
+      - name: Build wheel and source distribution
+        run: uv build
+
+      - name: Check distribution metadata
+        run: uvx --from twine==6.2.0 twine check dist/*
+
+      - name: Install and smoke test the wheel
+        shell: bash
+        run: |
+          wheel_path="$(find dist -maxdepth 1 -name '*.whl' -print -quit)"
+          test -n "$wheel_path"
+          uv venv "$RUNNER_TEMP/spa-wheel-smoke" --python 3.13
+          uv pip install --python "$RUNNER_TEMP/spa-wheel-smoke/bin/python" "$wheel_path"
+          uv run --frozen python scripts/verify_installed_cli.py \
+            "$RUNNER_TEMP/spa-wheel-smoke/bin/spa"
+
+      - name: Preserve the verified distributions
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: python-distributions-${{ github.sha }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7

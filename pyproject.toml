@@ -20,6 +20,10 @@ dependencies = [
 spa = "spa.bootstrap:main"
 
 [dependency-groups]
+dev = [
+    "pyright==1.1.414",
+    "ruff==0.16.8",
+]
 test = ["pytest>=8,<10", "jsonschema>=4,<5"]
 
 [tool.pytest.ini_options]
@@ -28,3 +32,8 @@ addopts = ["--strict-markers"]
 markers = [
   "e2e: uses the installed SPA CLI with a real Aseprite executable",
 ]
+
+[tool.pyright]
+include = ["src"]
+pythonVersion = "3.13"
+typeCheckingMode = "basic"

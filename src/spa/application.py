@@ -18,7 +18,16 @@ from spa.contracts import (
     failure_envelope,
 )
 from spa.descriptors import OperationDescriptor
-from spa.ports import RuntimeIssue, RuntimeProbe
+from spa.ports import (
+    DiscoveryEvidence,
+    HandlerEvidence,
+    LaunchEvidence,
+    ProcessEvidence,
+    ResourceEvidence,
+    ResponseEvidence,
+    RuntimeIssue,
+    RuntimeProbe,
+)
 
 
 def _request_failure(
@@ -39,42 +48,51 @@ def _runtime_failure(
     evidence = issue.evidence
     match issue.kind:
         case "discovery_absent":
+            assert isinstance(evidence, DiscoveryEvidence)
             code = "executable_not_found"
             details = NotFoundDetails(
                 requested_path=evidence.requested_path, searched=evidence.searched
             )
         case "resources_absent":
+            assert isinstance(evidence, ResourceEvidence)
             code = "resource_incomplete"
             details = ResourceDetails(
                 canonical_path=evidence.canonical_path, searched=evidence.searched
             )
         case "launch_failed":
+            assert isinstance(evidence, LaunchEvidence)
             code = "process_start_failed"
             details = ProcessStartDetails(
                 executable=evidence.executable, exit_status=None
             )
         case "deadline":
+            assert isinstance(evidence, ProcessEvidence)
             code = "process_timeout"
             details = ProcessDetails(
                 executable=evidence.executable, exit_status=evidence.exit_status
             )
         case "output_overflow":
+            assert isinstance(evidence, ProcessEvidence)
             code = "output_limit_exceeded"
             details = ProcessDetails(
                 executable=evidence.executable, exit_status=evidence.exit_status
             )
         case "response_absent":
+            assert isinstance(evidence, ResponseEvidence)
             code = "kernel_response_missing"
             details = KernelProtocolDetail(response_path=evidence.response_path)
         case "response_malformed":
+            assert isinstance(evidence, ResponseEvidence)
             code = "kernel_response_invalid"
             details = KernelProtocolDetail(response_path=evidence.response_path)
         case "handler_rejected":
+            assert isinstance(evidence, HandlerEvidence)
             code = "kernel_execution_failed"
             details = KernelExecutionDetails(
                 response_path=evidence.response_path, reason=evidence.reason
             )
         case "process_failed" | "exit_mismatch":
+            assert isinstance(evidence, ProcessEvidence)
             code = "process_failed"
             details = ProcessDetails(
                 executable=evidence.executable, exit_status=evidence.exit_status
