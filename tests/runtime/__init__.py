@@ -1,0 +1,1 @@
+"""Aseprite Runtime Integration tests."""

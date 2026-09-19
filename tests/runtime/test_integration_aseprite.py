@@ -1,120 +1,20 @@
-"""Installed command surface contract tests."""
+"""Aseprite Runtime Integration tests with a controlled fake executable."""
 
 import json
 import os
-import shutil
 import signal
-import subprocess
 import sys
 from pathlib import Path
 
 import pytest
-from jsonschema import Draft202012Validator, validate
-from typer.main import get_command
+from jsonschema import validate
 from typer.testing import CliRunner
 
 from spa.cli import build_app
-from spa.contracts import failure_schema
-from spa.descriptors import ACCESS_FAILURE_CODES, OPERATIONS
+from spa.descriptors import OPERATIONS
 from spa.runtime.aseprite import probe
-
-
-def spa(
-    *args: str, env: dict[str, str] | None = None, stdin: str | None = None
-) -> subprocess.CompletedProcess[str]:
-    executable = shutil.which("spa")
-    assert executable, "run tests in the installed project environment"
-    return subprocess.run(
-        [executable, *args],
-        text=True,
-        capture_output=True,
-        check=False,
-        env=env,
-        input=stdin,
-    )
-
-
-def test_version_is_an_installed_structured_operation() -> None:
-    run = spa("version", "--json")
-    assert run.returncode == 0, run.stderr
-    result = json.loads(run.stdout)
-    assert result["operation"] == "spa version"
-    assert result["spa_version"]
-    version_schema = json.loads(spa("version", "--schema").stdout)
-    Draft202012Validator.check_schema(version_schema["result_schema"])
-    Draft202012Validator.check_schema(version_schema["invocation_schema"])
-    validate(result, version_schema["result_schema"])
-    assert (
-        "stdin"
-        in version_schema["invocation_schema"]["properties"]["input_json"][
-            "description"
-        ]
-    )
-
-
-def test_installed_cli_reads_json_request_from_stdin() -> None:
-    run = spa("version", "--input-json", "-", stdin="{}")
-    assert run.returncode == 0, run.stdout
-    assert json.loads(run.stdout)["operation"] == "spa version"
-
-    invalid = spa("version", "--input-json", "-", stdin="{")
-    assert invalid.returncode == 2
-    assert json.loads(invalid.stdout)["code"] == "invalid_request"
-
-
-def test_invalid_request_uses_typed_failure_contract() -> None:
-    schema = json.loads(spa("version", "--schema").stdout)
-    run = spa("version", "--input-json", '{"unexpected": 1}', "--json")
-    assert run.returncode == 2
-    failure = json.loads(run.stdout)
-    validate(failure, schema["failure_schema"])
-    assert failure["status"] == "failure"
-    assert failure["code"] == "invalid_request"
-    assert failure["details"]["kind"] == "invalid_request"
-    assert failure["details"]["errors"][0]["location"] == ["unexpected"]
-
-
-def test_invalid_argv_is_on_the_same_failure_channel() -> None:
-    run = spa("info", "--timeout-seconds", "not-a-number")
-    assert run.returncode == 2
-    assert run.stderr == ""
-    failure = json.loads(run.stdout)
-    assert failure["code"] == "invalid_request"
-    assert failure["details"]["errors"][0]["code"] == "cli_usage"
-
-
-def test_unknown_command_uses_registered_access_failure() -> None:
-    run = spa("no-such-operation", "--json")
-    assert run.returncode == 2
-    assert run.stderr == ""
-    failure = json.loads(run.stdout)
-    assert failure["operation"] == "spa"
-    assert failure["code"] == "invalid_request"
-    assert failure["category"] == "input"
-
-
-def test_bare_invocation_emits_only_registered_access_failure() -> None:
-    run = spa()
-    assert run.returncode == 2
-    assert run.stderr == ""
-    failure = json.loads(run.stdout)
-    validate(failure, failure_schema(ACCESS_FAILURE_CODES, "spa"))
-    assert failure["operation"] == "spa"
-    assert failure["code"] == "invalid_request"
-
-    help_run = spa("--help")
-    assert help_run.returncode == 0
-    assert "Usage:" in help_run.stdout
-
-
-def test_human_output_projects_the_same_version_result() -> None:
-    version = json.loads(spa("version").stdout)["spa_version"]
-    run = spa("version", "--human")
-    assert run.returncode == 0
-    assert run.stdout.strip() == f"SPA {version}"
-    assert (
-        json.loads(spa("version", "--human", "--json").stdout)["spa_version"] == version
-    )
+from tests.support import fake_aseprite as _fake_executable
+from tests.support import spa
 
 
 def test_missing_runtime_has_structured_environment_failure() -> None:
@@ -182,19 +82,6 @@ def test_unexpandable_executable_path_uses_structured_discovery_failure(
         unresolved if source == "argv" else None
     )
     assert failure["details"]["searched"] == [unresolved]
-
-
-def _fake_executable(tmp_path: Path, body: str) -> Path:
-    binary = tmp_path / "Aseprite.app" / "Contents" / "MacOS" / "aseprite"
-    binary.parent.mkdir(parents=True)
-    binary.write_text("#!/bin/sh\n" + body, encoding="utf-8")
-    binary.chmod(0o755)
-    resource = binary.parent.parent / "Resources" / "data" / "gui.xml"
-    resource.parent.mkdir(parents=True)
-    resource.write_text("<gui/>", encoding="utf-8")
-    return binary
-
-
 def test_stdin_json_selects_the_installed_runtime(tmp_path: Path) -> None:
     binary = _fake_executable(tmp_path, 'echo "stdin-selected"\nexit 13\n')
     run = spa(
@@ -535,137 +422,3 @@ def test_timeout_and_output_bound_are_typed(tmp_path: Path) -> None:
     assert failure["code"] == "output_limit_exceeded"
     assert failure["details"]["executable"] == str(output_binary.resolve())
     assert len(failure["diagnostics"]["stdout"]) <= 65536
-
-
-@pytest.mark.skipif(
-    not os.environ.get("SPA_TEST_ASEPRITE"), reason="requires installed Aseprite"
-)
-def test_info_reports_installed_runtime() -> None:
-    run = spa("info", "--aseprite", os.environ["SPA_TEST_ASEPRITE"], "--json")
-    assert run.returncode == 0, run.stderr
-    result = json.loads(run.stdout)
-    assert result["operation"] == "spa info"
-    assert result["runtime"]["resource_complete"] is True
-    assert result["runtime"]["aseprite_version"]
-    assert result["runtime"]["api_version"]
-    assert result["supported_capabilities"]
-    info_schema = json.loads(spa("info", "--schema").stdout)
-    validate(result, info_schema["result_schema"])
-    input_run = spa(
-        "info",
-        "--input-json",
-        json.dumps({"aseprite": os.environ["SPA_TEST_ASEPRITE"]}),
-    )
-    assert input_run.returncode == 0, input_run.stdout
-    assert json.loads(input_run.stdout)["runtime"] == result["runtime"]
-
-
-@pytest.mark.skipif(
-    not os.environ.get("SPA_TEST_ASEPRITE"), reason="requires installed Aseprite"
-)
-def test_symlinked_executable_resolves_to_resource_complete_bundle(
-    tmp_path: Path,
-) -> None:
-    link = tmp_path / "aseprite"
-    link.symlink_to(os.environ["SPA_TEST_ASEPRITE"])
-    run = spa("info", "--aseprite", str(link))
-    assert run.returncode == 0, run.stdout
-    runtime = json.loads(run.stdout)["runtime"]
-    assert runtime["requested_path"] == str(link)
-    assert runtime["discovered_path"] == str(link)
-    assert runtime["canonical_path"] == str(
-        Path(os.environ["SPA_TEST_ASEPRITE"]).resolve()
-    )
-
-
-@pytest.mark.skipif(
-    sys.platform != "darwin"
-    or not os.environ.get("SPA_TEST_ASEPRITE")
-    or os.environ.get("SPA_TEST_MACOS_AGENT_SANDBOX") != "1",
-    reason="requires installed Aseprite in a macOS agent sandbox",
-)
-def test_macos_agent_sandbox_starts_installed_aseprite_script() -> None:
-    executable = Path(os.environ["SPA_TEST_ASEPRITE"]).resolve()
-    assert executable.parent.name == "MacOS"
-    assert executable.parent.parent.name == "Contents"
-    assert executable.parent.parent.parent.suffix == ".app"
-
-    run = spa("info", "--aseprite", str(executable), "--json")
-    assert run.returncode == 0, run.stdout
-    result = json.loads(run.stdout)
-    validate(result, json.loads(spa("info", "--schema").stdout)["result_schema"])
-    assert result["runtime"]["canonical_path"] == str(executable)
-    assert result["runtime"]["resource_complete"] is True
-
-
-@pytest.mark.skipif(
-    not os.environ.get("SPA_TEST_ASEPRITE"), reason="requires installed Aseprite"
-)
-def test_manifest_is_projected_from_command_descriptors() -> None:
-    run = spa("schema", "--aseprite", os.environ["SPA_TEST_ASEPRITE"])
-    assert run.returncode == 0, run.stdout
-    manifest = json.loads(run.stdout)
-    Draft202012Validator.check_schema(manifest["access_failure_schema"])
-    unknown = json.loads(spa("no-such-operation", "--json").stdout)
-    validate(unknown, manifest["access_failure_schema"])
-    invalid_argv = json.loads(spa("info", "--timeout-seconds", "nope").stdout)
-    validate(invalid_argv, manifest["operations"][0]["failure_schema"])
-    assert [entry["operation"] for entry in manifest["operations"]] == [
-        "spa info",
-        "spa version",
-        "spa schema",
-    ]
-    for entry in manifest["operations"]:
-        command = entry["operation"].split()[1]
-        assert entry == json.loads(spa(command, "--schema").stdout)
-        Draft202012Validator.check_schema(entry["request_schema"])
-        Draft202012Validator.check_schema(entry["result_schema"])
-        Draft202012Validator.check_schema(entry["failure_schema"])
-        Draft202012Validator.check_schema(entry["invocation_schema"])
-
-
-@pytest.mark.skipif(os.name == "nt", reason="POSIX shell fixture")
-def test_installed_manifest_exposes_access_failures_without_real_aseprite(
-    tmp_path: Path,
-) -> None:
-    binary = _fake_executable(
-        tmp_path,
-        """
-request=
-response=
-echo_file=
-for argument in "$@"; do
-  case "$argument" in
-    request=*) request=${argument#request=};;
-    response=*) response=${argument#response=};;
-    echo=*) echo_file=${argument#echo=};;
-  esac
-done
-cp "$request" "$echo_file"
-printf '{"kernel_protocol_version":1,"status":"ok","aseprite_version":"test","api_version":1}' > "$response"
-""",
-    )
-    run = spa("schema", "--aseprite", str(binary), "--json")
-    assert run.returncode == 0, run.stdout
-    manifest = json.loads(run.stdout)
-    access_schema = manifest["access_failure_schema"]
-    Draft202012Validator.check_schema(access_schema)
-    validate(json.loads(spa("no-such-operation", "--json").stdout), access_schema)
-    assert [item["operation"] for item in manifest["operations"]] == [
-        "spa info",
-        "spa version",
-        "spa schema",
-    ]
-
-
-def test_advertised_cli_flags_match_the_actual_typer_commands() -> None:
-    def unused_probe(_):
-        raise AssertionError("schema inspection must not probe the runtime")
-
-    typer_command = get_command(build_app(unused_probe))
-    for descriptor in OPERATIONS:
-        actual = {
-            parameter.name: parameter.opts[0]
-            for parameter in typer_command.commands[descriptor.name].params
-        }
-        assert actual == descriptor.schema().invocation_schema["x-cli-flags"]
