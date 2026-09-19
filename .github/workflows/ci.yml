@@ -68,6 +68,7 @@ jobs:
           name: python-distributions-${{ github.sha }}
           path: dist/
           if-no-files-found: error
+          overwrite: true
           retention-days: 7
 
   aseprite-e2e:
@@ -90,4 +91,5 @@ jobs:
           name: linux-real-aseprite-e2e-${{ github.sha }}
           path: ${{ runner.temp }}/spa-real-aseprite-e2e.xml
           if-no-files-found: warn
+          overwrite: true
           retention-days: 14

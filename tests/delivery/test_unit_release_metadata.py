@@ -21,7 +21,9 @@ def write_release_tree(root: Path, *, version: str = "1.2.3") -> None:
         encoding="utf-8",
     )
     (root / "CHANGELOG.md").write_text(
-        f"# Changelog\n\n## [{version}] - today\n", encoding="utf-8"
+        "# Changelog\n\n"
+        f"## [{version}](https://github.test/compare/v1.2.2...v{version}) (today)\n",
+        encoding="utf-8",
     )
     (root / "release-please-config.json").write_text(
         json.dumps({"include-component-in-tag": False, "include-v-in-tag": True}),

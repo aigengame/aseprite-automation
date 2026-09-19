@@ -38,7 +38,8 @@ def validate_release_metadata(root: Path) -> ReleaseMetadata:
 
     changelog = (root / "CHANGELOG.md").read_text(encoding="utf-8")
     heading = re.compile(
-        rf"^## (?:\[{re.escape(version)}\]|{re.escape(version)})(?:\s|$)",
+        rf"^## (?:{re.escape(version)}|\[{re.escape(version)}\]"
+        rf"(?:\([^)]+\))?)(?:\s|$)",
         re.MULTILINE,
     )
     if heading.search(changelog) is None:

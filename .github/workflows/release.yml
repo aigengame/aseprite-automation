@@ -133,6 +133,7 @@ jobs:
           name: release-evidence-${{ steps.target.outputs.release_sha }}
           path: ${{ runner.temp }}/spa-release-e2e.xml
           if-no-files-found: warn
+          overwrite: true
           retention-days: 30
 
       - name: Preserve the verified distributions
@@ -141,6 +142,7 @@ jobs:
           name: release-distributions-${{ steps.target.outputs.release_sha }}
           path: dist/
           if-no-files-found: error
+          overwrite: true
           retention-days: 30
 
   publish:
