@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from jsonschema import Draft202012Validator, validate
+from jsonschema import validate
 
 from tests.support import spa
 
@@ -31,6 +31,8 @@ def test_info_reports_installed_runtime() -> None:
     )
     assert input_run.returncode == 0, input_run.stdout
     assert json.loads(input_run.stdout)["runtime"] == result["runtime"]
+
+
 def test_symlinked_executable_resolves_to_resource_complete_bundle(
     tmp_path: Path,
 ) -> None:
@@ -44,6 +46,8 @@ def test_symlinked_executable_resolves_to_resource_complete_bundle(
     assert runtime["canonical_path"] == str(
         Path(os.environ["SPA_TEST_ASEPRITE"]).resolve()
     )
+
+
 @pytest.mark.skipif(
     sys.platform != "darwin"
     or not os.environ.get("SPA_TEST_ASEPRITE")
@@ -62,24 +66,3 @@ def test_macos_agent_sandbox_starts_installed_aseprite_script() -> None:
     validate(result, json.loads(spa("info", "--schema").stdout)["result_schema"])
     assert result["runtime"]["canonical_path"] == str(executable)
     assert result["runtime"]["resource_complete"] is True
-def test_manifest_is_projected_from_command_descriptors() -> None:
-    run = spa("schema", "--aseprite", os.environ["SPA_TEST_ASEPRITE"])
-    assert run.returncode == 0, run.stdout
-    manifest = json.loads(run.stdout)
-    Draft202012Validator.check_schema(manifest["access_failure_schema"])
-    unknown = json.loads(spa("no-such-operation", "--json").stdout)
-    validate(unknown, manifest["access_failure_schema"])
-    invalid_argv = json.loads(spa("info", "--timeout-seconds", "nope").stdout)
-    validate(invalid_argv, manifest["operations"][0]["failure_schema"])
-    assert [entry["operation"] for entry in manifest["operations"]] == [
-        "spa info",
-        "spa version",
-        "spa schema",
-    ]
-    for entry in manifest["operations"]:
-        command = entry["operation"].split()[1]
-        assert entry == json.loads(spa(command, "--schema").stdout)
-        Draft202012Validator.check_schema(entry["request_schema"])
-        Draft202012Validator.check_schema(entry["result_schema"])
-        Draft202012Validator.check_schema(entry["failure_schema"])
-        Draft202012Validator.check_schema(entry["invocation_schema"])

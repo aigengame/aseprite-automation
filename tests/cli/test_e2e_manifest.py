@@ -1,0 +1,34 @@
+"""Installed manifest tests against a real Aseprite executable."""
+
+import json
+import os
+
+import pytest
+from jsonschema import Draft202012Validator, validate
+
+from tests.support import spa
+
+pytestmark = pytest.mark.e2e
+
+
+def test_manifest_is_projected_from_command_descriptors() -> None:
+    run = spa("schema", "--aseprite", os.environ["SPA_TEST_ASEPRITE"])
+    assert run.returncode == 0, run.stdout
+    manifest = json.loads(run.stdout)
+    Draft202012Validator.check_schema(manifest["access_failure_schema"])
+    unknown = json.loads(spa("no-such-operation", "--json").stdout)
+    validate(unknown, manifest["access_failure_schema"])
+    invalid_argv = json.loads(spa("info", "--timeout-seconds", "nope").stdout)
+    validate(invalid_argv, manifest["operations"][0]["failure_schema"])
+    assert [entry["operation"] for entry in manifest["operations"]] == [
+        "spa info",
+        "spa version",
+        "spa schema",
+    ]
+    for entry in manifest["operations"]:
+        command = entry["operation"].split()[1]
+        assert entry == json.loads(spa(command, "--schema").stdout)
+        Draft202012Validator.check_schema(entry["request_schema"])
+        Draft202012Validator.check_schema(entry["result_schema"])
+        Draft202012Validator.check_schema(entry["failure_schema"])
+        Draft202012Validator.check_schema(entry["invocation_schema"])

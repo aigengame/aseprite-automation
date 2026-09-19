@@ -9,8 +9,7 @@ from jsonschema import Draft202012Validator, validate
 
 from spa.contracts import failure_schema
 from spa.descriptors import ACCESS_FAILURE_CODES
-from tests.support import fake_aseprite as _fake_executable
-from tests.support import spa
+from tests.support import fake_aseprite, spa
 
 
 def test_version_is_an_installed_structured_operation() -> None:
@@ -98,7 +97,7 @@ def test_human_output_projects_the_same_version_result() -> None:
 def test_installed_manifest_exposes_access_failures_without_real_aseprite(
     tmp_path: Path,
 ) -> None:
-    binary = _fake_executable(
+    binary = fake_aseprite(
         tmp_path,
         """
 request=

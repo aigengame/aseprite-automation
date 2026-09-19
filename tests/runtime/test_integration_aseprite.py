@@ -13,8 +13,7 @@ from typer.testing import CliRunner
 from spa.cli import build_app
 from spa.descriptors import OPERATIONS
 from spa.runtime.aseprite import probe
-from tests.support import fake_aseprite as _fake_executable
-from tests.support import spa
+from tests.support import fake_aseprite, spa
 
 
 def test_missing_runtime_has_structured_environment_failure() -> None:
@@ -27,7 +26,7 @@ def test_missing_runtime_has_structured_environment_failure() -> None:
 
 
 def test_spa_prefixed_executable_environment_selects_runtime(tmp_path: Path) -> None:
-    binary = _fake_executable(tmp_path, 'echo "environment-selected"\nexit 13\n')
+    binary = fake_aseprite(tmp_path, 'echo "environment-selected"\nexit 13\n')
     environment = os.environ.copy()
     environment["SPA_ASEPRITE_EXECUTABLE"] = str(binary)
     environment["ASEPRITE_EXECUTABLE"] = "/no/such/aseprite"
@@ -41,7 +40,7 @@ def test_spa_prefixed_executable_environment_selects_runtime(tmp_path: Path) -> 
 
 
 def test_unprefixed_executable_environment_is_ignored(tmp_path: Path) -> None:
-    binary = _fake_executable(tmp_path, 'echo "unprefixed-selected"\nexit 13\n')
+    binary = fake_aseprite(tmp_path, 'echo "unprefixed-selected"\nexit 13\n')
     environment = os.environ.copy()
     environment.pop("SPA_ASEPRITE_EXECUTABLE", None)
     environment["ASEPRITE_EXECUTABLE"] = str(binary)
@@ -83,7 +82,7 @@ def test_unexpandable_executable_path_uses_structured_discovery_failure(
     )
     assert failure["details"]["searched"] == [unresolved]
 def test_stdin_json_selects_the_installed_runtime(tmp_path: Path) -> None:
-    binary = _fake_executable(tmp_path, 'echo "stdin-selected"\nexit 13\n')
+    binary = fake_aseprite(tmp_path, 'echo "stdin-selected"\nexit 13\n')
     run = spa(
         "info",
         "--input-json",
@@ -97,7 +96,7 @@ def test_stdin_json_selects_the_installed_runtime(tmp_path: Path) -> None:
 
 
 def _fake_truncated_response_executable(tmp_path: Path, exit_status: int) -> Path:
-    return _fake_executable(
+    return fake_aseprite(
         tmp_path,
         f"""
 response=
@@ -111,7 +110,7 @@ exit {exit_status}
 
 
 def test_exit_zero_without_kernel_response_is_failure(tmp_path: Path) -> None:
-    binary = _fake_executable(tmp_path, "exit 0\n")
+    binary = fake_aseprite(tmp_path, "exit 0\n")
     run = spa("info", "--aseprite", str(binary), "--json")
     assert run.returncode == 1
     failure = json.loads(run.stdout)
@@ -125,7 +124,7 @@ def test_exit_zero_without_kernel_response_is_failure(tmp_path: Path) -> None:
 def test_process_exit_before_kernel_response_is_execution_failure(
     tmp_path: Path,
 ) -> None:
-    binary = _fake_executable(tmp_path, 'echo "startup failed" >&2\nexit 13\n')
+    binary = fake_aseprite(tmp_path, 'echo "startup failed" >&2\nexit 13\n')
     run = spa("info", "--aseprite", str(binary), "--json")
     assert run.returncode == 1
     failure = json.loads(run.stdout)
@@ -139,7 +138,7 @@ def test_process_exit_before_kernel_response_is_execution_failure(
 def test_signal_terminated_process_is_reported_as_process_failure(
     tmp_path: Path,
 ) -> None:
-    binary = _fake_executable(tmp_path, "kill -TERM $$\n")
+    binary = fake_aseprite(tmp_path, "kill -TERM $$\n")
     run = spa("info", "--aseprite", str(binary), "--json")
     failure = json.loads(run.stdout)
     assert failure["code"] == "process_failed"
@@ -175,7 +174,7 @@ def test_zero_exit_with_truncated_kernel_response_is_kernel_protocol_failure(
 def test_other_kernel_protocol_version_is_rejected_without_negotiation(
     tmp_path: Path, private_version: str
 ) -> None:
-    binary = _fake_executable(
+    binary = fake_aseprite(
         tmp_path,
         """
 response=
@@ -195,7 +194,7 @@ printf '{"kernel_protocol_version":%s,"status":"ok","aseprite_version":"test","a
 
 
 def test_boolean_api_version_is_a_kernel_protocol_failure(tmp_path: Path) -> None:
-    binary = _fake_executable(
+    binary = fake_aseprite(
         tmp_path,
         """
 request=
@@ -221,7 +220,7 @@ printf '{"kernel_protocol_version":1,"status":"ok","aseprite_version":"test","ap
 
 
 def test_json_echo_rejects_boolean_number_swap(tmp_path: Path) -> None:
-    binary = _fake_executable(
+    binary = fake_aseprite(
         tmp_path,
         """
 response=
@@ -244,7 +243,7 @@ printf '{"kernel_protocol_version":1,"status":"ok","aseprite_version":"test","ap
 
 
 def test_exit_zero_with_kernel_error_is_execution_failure(tmp_path: Path) -> None:
-    binary = _fake_executable(
+    binary = fake_aseprite(
         tmp_path,
         """
 response=
@@ -266,7 +265,7 @@ exit 0
 
 
 def test_runtime_uses_an_isolated_user_folder(tmp_path: Path) -> None:
-    binary = _fake_executable(tmp_path, 'printf "%s" "$ASEPRITE_USER_FOLDER"\nexit 0\n')
+    binary = fake_aseprite(tmp_path, 'printf "%s" "$ASEPRITE_USER_FOLDER"\nexit 0\n')
     run = spa("info", "--aseprite", str(binary))
     failure = json.loads(run.stdout)
     assert failure["code"] == "kernel_response_missing"
@@ -276,7 +275,7 @@ def test_runtime_uses_an_isolated_user_folder(tmp_path: Path) -> None:
 
 
 def test_isolated_user_folder_is_writable_before_launch(tmp_path: Path) -> None:
-    binary = _fake_executable(
+    binary = fake_aseprite(
         tmp_path,
         'printf "ready" > "$ASEPRITE_USER_FOLDER/startup-check" || exit 17\n',
     )
@@ -288,7 +287,7 @@ def test_isolated_user_folder_is_writable_before_launch(tmp_path: Path) -> None:
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX shell fixture")
 def test_app_bundle_cli_launch_is_scoped_to_macos(tmp_path: Path) -> None:
-    binary = _fake_executable(
+    binary = fake_aseprite(
         tmp_path,
         'printf "%s\\n" "$0"\n'
         'if test -f "$(dirname "$0")/data/gui.xml"; then echo data-present; '
@@ -319,7 +318,7 @@ def test_resource_check_is_distinct_from_process_outcome(tmp_path: Path) -> None
 def test_process_start_failure_keeps_installed_executable_identity(
     tmp_path: Path,
 ) -> None:
-    binary = _fake_executable(tmp_path, "")
+    binary = fake_aseprite(tmp_path, "")
     binary.write_text("#!/nonexistent/spa-test-interpreter\n", encoding="utf-8")
     run = spa("info", "--aseprite", str(binary), "--json")
     failure = json.loads(run.stdout)
@@ -347,7 +346,7 @@ def _assert_preparation_failure(binary: Path) -> None:
 def test_unwritable_temporary_workspace_has_typed_start_failure(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    binary = _fake_executable(tmp_path, "exit 0\n")
+    binary = fake_aseprite(tmp_path, "exit 0\n")
 
     def deny_workspace(*_args: object, **_kwargs: object) -> None:
         raise PermissionError("temporary workspace denied")
@@ -361,7 +360,7 @@ def test_unwritable_temporary_workspace_has_typed_start_failure(
 def test_unwritable_kernel_request_has_typed_start_failure(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    binary = _fake_executable(tmp_path, "exit 0\n")
+    binary = fake_aseprite(tmp_path, "exit 0\n")
     original_write_text = Path.write_text
     denied_requests: list[Path] = []
 
@@ -379,7 +378,7 @@ def test_unwritable_kernel_request_has_typed_start_failure(
 def test_unwritable_aseprite_user_folder_has_typed_start_failure(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    binary = _fake_executable(tmp_path, "exit 0\n")
+    binary = fake_aseprite(tmp_path, "exit 0\n")
     original_mkdir = Path.mkdir
 
     def deny_user_folder(path: Path, *args: object, **kwargs: object) -> None:
@@ -396,7 +395,7 @@ def test_unwritable_aseprite_user_folder_has_typed_start_failure(
 def test_unwritable_bundle_link_has_typed_start_failure(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, denied_name: str
 ) -> None:
-    binary = _fake_executable(tmp_path, "exit 0\n")
+    binary = fake_aseprite(tmp_path, "exit 0\n")
     original_symlink_to = Path.symlink_to
 
     def deny_launch_link(path: Path, *args: object, **kwargs: object) -> None:
@@ -409,13 +408,13 @@ def test_unwritable_bundle_link_has_typed_start_failure(
 
 
 def test_timeout_and_output_bound_are_typed(tmp_path: Path) -> None:
-    timeout_binary = _fake_executable(tmp_path / "timeout", "exec sleep 3\n")
+    timeout_binary = fake_aseprite(tmp_path / "timeout", "exec sleep 3\n")
     timed = spa("info", "--aseprite", str(timeout_binary), "--timeout-seconds", "0.1")
     assert timed.returncode == 1
     timed_failure = json.loads(timed.stdout)
     assert timed_failure["code"] == "process_timeout"
     assert timed_failure["details"]["executable"] == str(timeout_binary.resolve())
-    output_binary = _fake_executable(tmp_path / "output", "yes x | head -c 70000\n")
+    output_binary = fake_aseprite(tmp_path / "output", "yes x | head -c 70000\n")
     overflow = spa("info", "--aseprite", str(output_binary))
     assert overflow.returncode == 1
     failure = json.loads(overflow.stdout)
