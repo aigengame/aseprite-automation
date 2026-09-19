@@ -129,6 +129,11 @@ run `uv run --frozen --group test pytest -m e2e -rs`. See
 [`docs/testing.md`](docs/testing.md) for the test ownership, verification-tier,
 platform, and display-environment conventions.
 
+Pull requests and `main` run locked source, fast-test, distribution, and Linux
+real-Aseprite gates. Releases use a reviewed version and changelog change, then
+repeat all gates on the exact release commit before publishing a GitHub Release. See
+[`docs/releasing.md`](docs/releasing.md) for the release and recovery procedure.
+
 For CLI use of a binary inside a macOS `.app`, SPA prepares a temporary launch
 path and links the installed `data` resources without changing the app or
 leaving the caller's sandbox. The restricted macOS profile and its opt-in
@@ -174,6 +179,8 @@ that are absent from issue bodies.
 - [Authority governance and document dependency matrix](AUTHORITY_MATRIX.md)
 - [Ubiquitous Language and strategic domain model](CONTEXT.md)
 - [Integrated system architecture](ARCHITECTURE.md)
+- [Testing and CI](docs/testing.md)
+- [GitHub Release procedure](docs/releasing.md)
 - [Accepted architecture decisions](docs/adr/)
 - [Incremental command catalog](docs/command-catalog.md)
 - [Aseprite CLI documentation](https://www.aseprite.org/docs/cli/)
