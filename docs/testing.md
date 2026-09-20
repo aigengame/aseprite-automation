@@ -9,7 +9,7 @@ verification tier. The layout does not mirror source packages or CLI Command Gro
 | --- | --- |
 | `tests/cli/` | Access Projection through the installed CLI and its in-process projections. |
 | `tests/contracts/` | Shared Published Language rules, including Failure Code registration and Operation Descriptor constraints. |
-| `tests/delivery/` | CI and release gates that protect source and distribution delivery. |
+| `tests/release/` | Release metadata and publication gates. |
 | `tests/runtime/` | Aseprite Runtime Integration, including discovery, launch, private Kernel transport, and real-runtime evidence. |
 
 Add an ownership directory only when tests for that behavior exist. Keep a helper in
@@ -106,10 +106,11 @@ skipped. The job summary records the tested commit, trigger, executable, Aseprit
 version, display state, and exercised path. A macOS-only skip remains visible and does
 not invalidate the Linux batch evidence while other E2E tests execute.
 
-The setup action caches only a validated installed Aseprite tree. Its key includes the
-runner OS and architecture, Aseprite version, source checksum, and setup action content.
-The first run for a new key builds from source; later runs restore the executable and
-data files and skip compilation. A successful `main` run seeds the default-branch cache
+The setup action caches only an installed Aseprite tree that passes executable, resource,
+version, and minimal `--batch --script` checks. Its key includes the runner OS and
+architecture, Aseprite version, source checksum, and setup action content. The first run
+for a new key builds from source; later runs restore the executable and data files, rerun
+the checks, and skip compilation. A successful `main` run seeds the default-branch cache
 that later pull requests can read. A pull-request cache remains scoped to that pull
 request. GitHub can remove a cache after seven days without access or earlier under the
 repository cache limit, so an occasional rebuild is expected.
