@@ -86,10 +86,28 @@ runs:
         SPA_ASEPRITE_EXECUTABLE: ${{ steps.paths.outputs.executable }}
       shell: bash
       run: |
+        probe_script="$RUNNER_TEMP/spa-aseprite-cache-probe.lua"
+        probe_result="$RUNNER_TEMP/spa-aseprite-cache-probe.txt"
+        probe_user="$RUNNER_TEMP/spa-aseprite-cache-user"
         test -x "$SPA_ASEPRITE_EXECUTABLE"
         test -f "$(dirname "$SPA_ASEPRITE_EXECUTABLE")/data/gui.xml"
         version="$("$SPA_ASEPRITE_EXECUTABLE" --batch --version | head -n 1)"
         test -n "$version"
+
+        rm -f "$probe_result"
+        mkdir -p "$probe_user"
+        cat > "$probe_script" <<'LUA'
+        assert(app ~= nil, "Aseprite app API is unavailable")
+        local output_path = assert(app.params.output)
+        local output_file = assert(io.open(output_path, "w"))
+        output_file:write("spa-aseprite-script-ok\n")
+        output_file:close()
+        LUA
+        ASEPRITE_USER_FOLDER="$probe_user" \
+          "$SPA_ASEPRITE_EXECUTABLE" --batch \
+          --script-param "output=$probe_result" --script "$probe_script"
+        test "$(cat "$probe_result")" = "spa-aseprite-script-ok"
+
         echo "SPA_TEST_ASEPRITE=$SPA_ASEPRITE_EXECUTABLE" >> "$GITHUB_ENV"
         echo "$(dirname "$SPA_ASEPRITE_EXECUTABLE")" >> "$GITHUB_PATH"
         echo "executable=$SPA_ASEPRITE_EXECUTABLE" >> "$GITHUB_OUTPUT"
