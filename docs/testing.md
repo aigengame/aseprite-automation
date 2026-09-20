@@ -106,6 +106,14 @@ skipped. The job summary records the tested commit, trigger, executable, Aseprit
 version, display state, and exercised path. A macOS-only skip remains visible and does
 not invalidate the Linux batch evidence while other E2E tests execute.
 
+The setup action caches only a validated installed Aseprite tree. Its key includes the
+runner OS and architecture, Aseprite version, source checksum, and setup action content.
+The first run for a new key builds from source; later runs restore the executable and
+data files and skip compilation. A successful `main` run seeds the default-branch cache
+that later pull requests can read. A pull-request cache remains scoped to that pull
+request. GitHub can remove a cache after seven days without access or earlier under the
+repository cache limit, so an occasional rebuild is expected.
+
 The Linux real Aseprite job is also part of release verification. A release workflow
 always reruns it at the exact release commit and does not reuse a generally green CI
 run. A successful macOS local run remains separate developer evidence; it cannot
