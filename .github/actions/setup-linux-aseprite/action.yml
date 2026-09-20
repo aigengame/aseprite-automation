@@ -44,7 +44,7 @@ runs:
 
     - name: Restore the pinned Aseprite CLI build
       id: cache
-      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:
         path: ${{ steps.paths.outputs.install-dir }}
         key: spa-aseprite-cli-${{ runner.os }}-${{ runner.arch }}-${{ inputs.aseprite-version }}-${{ inputs.source-sha256 }}-${{ hashFiles('.github/actions/setup-linux-aseprite/action.yml') }}
@@ -97,7 +97,7 @@ runs:
 
     - name: Save the verified Aseprite CLI build
       if: steps.cache.outputs.cache-hit != 'true'
-      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:
         path: ${{ steps.paths.outputs.install-dir }}
         key: ${{ steps.cache.outputs.cache-primary-key }}
