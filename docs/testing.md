@@ -67,9 +67,10 @@ instead of the production type gate.
 ## CI gates
 
 `.github/workflows/ci.yml` runs on every pull request and every push to `main`. The
-Release PR workflow also dispatches it explicitly because GitHub does not emit a
-second workflow event for a pull request updated with `GITHUB_TOKEN`. All jobs use
-Python 3.13, uv 0.11.19, and the committed `uv.lock` with `--frozen`.
+Release workflow also dispatches it explicitly for the Release PR branch because
+GitHub does not emit a second workflow event for a pull request updated with
+`GITHUB_TOKEN`. All jobs use Python 3.13, uv 0.11.19, and the committed `uv.lock` with
+`--frozen`.
 
 | Job | Required evidence |
 | --- | --- |

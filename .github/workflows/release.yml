@@ -1,14 +1,10 @@
 name: Release
-run-name: Release request from ${{ github.ref_name }} @ ${{ github.sha }} (publish=${{ inputs.publish }})
+run-name: Release pipeline from ${{ github.ref_name }} @ ${{ github.sha }} (${{ github.event_name }})
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
-    inputs:
-      publish:
-        description: Create and publish the GitHub Release after verification
-        required: true
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -19,8 +15,8 @@ concurrency:
 
 jobs:
   cut-draft:
-    name: Cut draft GitHub Release
-    if: inputs.publish
+    name: Cut draft release for a merged Release PR
+    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -49,23 +45,13 @@ jobs:
           target-branch: main
           skip-github-pull-request: true
 
-      - name: Require a release candidate
-        env:
-          SPA_RELEASE_CREATED: ${{ steps.release.outputs.release_created }}
-          SPA_RELEASE_SHA: ${{ steps.release.outputs.sha }}
-          SPA_RELEASE_TAG: ${{ steps.release.outputs.tag_name }}
-        shell: bash
-        run: |
-          if [ "$SPA_RELEASE_CREATED" != "true" ]; then
-            echo "release-please did not create a release candidate" >&2
-            exit 1
-          fi
-          test -n "$SPA_RELEASE_SHA"
-          test -n "$SPA_RELEASE_TAG"
-
   verify:
     name: Verify exact release commit
-    if: ${{ always() && !cancelled() }}
+    if: >-
+      always() && !cancelled() &&
+      (github.event_name == 'workflow_dispatch' ||
+       (needs.cut-draft.result == 'success' &&
+        needs.cut-draft.outputs.release_created == 'true'))
     needs: cut-draft
     runs-on: ubuntu-24.04
     timeout-minutes: 50
@@ -78,23 +64,19 @@ jobs:
           SPA_CUT_RESULT: ${{ needs.cut-draft.result }}
           SPA_DRAFT_CREATED: ${{ needs.cut-draft.outputs.release_created }}
           SPA_DRAFT_SHA: ${{ needs.cut-draft.outputs.release_sha }}
-          SPA_PUBLISH: ${{ inputs.publish }}
+          SPA_EVENT_NAME: ${{ github.event_name }}
         shell: bash
         run: |
-          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
-            echo "Release verification must be dispatched from main, not $GITHUB_REF" >&2
-            exit 1
-          fi
-          if [ "$SPA_PUBLISH" = "true" ]; then
+          if [ "$SPA_EVENT_NAME" = "workflow_dispatch" ]; then
+            release_sha="$GITHUB_SHA"
+          else
             if [ "$SPA_CUT_RESULT" != "success" ] || \
                [ "$SPA_DRAFT_CREATED" != "true" ] || \
                [ -z "$SPA_DRAFT_SHA" ]; then
-              echo "A publish run requires a successful draft release" >&2
+              echo "An automatic release requires a successful draft" >&2
               exit 1
             fi
             release_sha="$SPA_DRAFT_SHA"
-          else
-            release_sha="$GITHUB_SHA"
           fi
           echo "release_sha=$release_sha" >> "$GITHUB_OUTPUT"
 
@@ -147,12 +129,15 @@ jobs:
 
   publish:
     name: Publish GitHub Release
-    if: ${{ always() && !cancelled() && inputs.publish }}
+    if: >-
+      always() && !cancelled() &&
+      github.event_name == 'push' &&
+      needs.cut-draft.outputs.release_created == 'true'
     needs: [cut-draft, verify]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      actions: write
+      actions: read
       contents: write
     steps:
       - name: Require successful draft and verification jobs
@@ -187,7 +172,42 @@ jobs:
           gh release edit "$SPA_RELEASE_TAG" --draft=false --latest \
             --repo "$GITHUB_REPOSITORY"
 
-      - name: Resume Release PR maintenance after the tag exists
+  release-pr:
+    name: Maintain reviewed release change
+    if: >-
+      always() && !cancelled() &&
+      github.event_name == 'push' &&
+      needs.cut-draft.result == 'success' &&
+      (needs.verify.result == 'success' || needs.verify.result == 'skipped') &&
+      (needs.publish.result == 'success' || needs.publish.result == 'skipped')
+    needs: [cut-draft, verify, publish]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: write
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Check out the release state
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Require the previous reviewed version to be tagged
+        id: gate
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run release-pr.yml --ref main
+        shell: bash
+        run: |
+          version="$(jq -r '."."' .release-please-manifest.json)"
+          test -n "$version"
+          if [ "$version" = "0.0.0" ] || \
+             gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v${version}" >/dev/null 2>&1; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "Release PR maintenance waits for pending tag \`v${version}\`." \
+              >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Maintain the reviewed release change
+        if: steps.gate.outputs.ready == 'true'
+        uses: ./.github/actions/maintain-release-pr
