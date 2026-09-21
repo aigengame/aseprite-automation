@@ -12,24 +12,79 @@ runs:
         manifest-file: .release-please-manifest.json
         skip-github-release: true
 
-    - name: Dispatch CI for the bot-authored Release PR head
-      if: steps.release.outputs.prs_created == 'true'
+    - name: Resolve the open Release PR
+      id: target
       env:
         GH_TOKEN: ${{ github.token }}
         SPA_RELEASE_PR: ${{ steps.release.outputs.pr }}
       shell: bash
       run: |
-        branch="$(jq -r .headBranchName <<< "$SPA_RELEASE_PR")"
-        number="$(jq -r .number <<< "$SPA_RELEASE_PR")"
-        test -n "$branch"
+        if [ -n "$SPA_RELEASE_PR" ]; then
+          number="$(jq -r .number <<< "$SPA_RELEASE_PR")"
+          branch="$(jq -r .headBranchName <<< "$SPA_RELEASE_PR")"
+        else
+          branch="release-please--branches--${GITHUB_REF_NAME}"
+          pull_requests="$(gh pr list --repo "$GITHUB_REPOSITORY" \
+            --state open --base "$GITHUB_REF_NAME" --head "$branch" \
+            --limit 2 --json number,headRefName)"
+          count="$(jq length <<< "$pull_requests")"
+          if [ "$count" -eq 0 ]; then
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "No open Release PR requires maintenance." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          test "$count" -eq 1
+          number="$(jq -r '.[0].number' <<< "$pull_requests")"
+          branch="$(jq -r '.[0].headRefName' <<< "$pull_requests")"
+        fi
+
         test -n "$number"
-        test "$branch" != "null"
+        test -n "$branch"
         test "$number" != "null"
-        sha="$(gh pr view "$number" --repo "$GITHUB_REPOSITORY" \
+        test "$branch" != "null"
+        echo "found=true" >> "$GITHUB_OUTPUT"
+        echo "number=$number" >> "$GITHUB_OUTPUT"
+        echo "branch=$branch" >> "$GITHUB_OUTPUT"
+
+    - name: Install uv for Release PR maintenance
+      if: steps.target.outputs.found == 'true'
+      uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+      with:
+        version: 0.11.19
+        enable-cache: false
+
+    - name: Refresh the generated lockfile and dispatch exact-head CI
+      if: steps.target.outputs.found == 'true'
+      env:
+        GH_TOKEN: ${{ github.token }}
+        SPA_RELEASE_BRANCH: ${{ steps.target.outputs.branch }}
+        SPA_RELEASE_PR_NUMBER: ${{ steps.target.outputs.number }}
+      shell: bash
+      run: |
+        git fetch origin "$SPA_RELEASE_BRANCH"
+        # actions/checkout configures a narrow refspec, so the explicit fetch
+        # updates FETCH_HEAD without guaranteeing origin/<branch> exists.
+        git checkout -B "$SPA_RELEASE_BRANCH" FETCH_HEAD
+        uv python install 3.13
+        uv lock
+        uv run --no-project --python 3.13 \
+          python scripts/verify_release_metadata.py
+        git diff --check
+        if ! git diff --quiet -- uv.lock; then
+          git config user.name "github-actions[bot]"
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+          git add uv.lock
+          git commit -m "chore: sync uv.lock with the release version"
+          git push origin "HEAD:refs/heads/$SPA_RELEASE_BRANCH"
+        fi
+
+        sha="$(gh pr view "$SPA_RELEASE_PR_NUMBER" --repo "$GITHUB_REPOSITORY" \
           --json headRefOid --jq .headRefOid)"
         test -n "$sha"
-        gh workflow run ci.yml --ref "$branch"
+        test "$sha" = "$(git rev-parse HEAD)"
+        gh workflow run ci.yml --ref "$SPA_RELEASE_BRANCH"
         {
-          echo "Dispatched CI for Release PR branch \`${branch}\`."
-          echo "Expected head: \`${sha}\`."
+          echo "Refreshed the Release PR lockfile for branch \`${SPA_RELEASE_BRANCH}\`."
+          echo "Dispatched CI for exact head \`${sha}\`."
         } >> "$GITHUB_STEP_SUMMARY"
