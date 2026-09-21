@@ -20,14 +20,6 @@
     { "type": "ci", "section": "Continuous Integration", "hidden": true }
   ],
   "packages": {
-    ".": {
-      "extra-files": [
-        {
-          "type": "toml",
-          "path": "uv.lock",
-          "jsonpath": "$.package[?(@.name == 'aseprite-automation')].version"
-        }
-      ]
-    }
+    ".": {}
   }
 }

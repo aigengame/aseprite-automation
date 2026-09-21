@@ -12,7 +12,14 @@ runs:
         manifest-file: .release-please-manifest.json
         skip-github-release: true
 
-    - name: Dispatch CI for the bot-authored Release PR head
+    - name: Install uv for Release PR maintenance
+      if: steps.release.outputs.prs_created == 'true'
+      uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+      with:
+        version: 0.11.19
+        enable-cache: false
+
+    - name: Refresh the generated lockfile and dispatch exact-head CI
       if: steps.release.outputs.prs_created == 'true'
       env:
         GH_TOKEN: ${{ github.token }}
@@ -25,11 +32,29 @@ runs:
         test -n "$number"
         test "$branch" != "null"
         test "$number" != "null"
+
+        git fetch origin "$branch"
+        # actions/checkout configures a narrow refspec, so the explicit fetch
+        # updates FETCH_HEAD without guaranteeing origin/<branch> exists.
+        git checkout -B "$branch" FETCH_HEAD
+        uv python install 3.13
+        uv lock
+        git diff --check
+        if ! git diff --quiet -- uv.lock; then
+          git config user.name "github-actions[bot]"
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+          git add uv.lock
+          git commit -m "chore: sync uv.lock with the release version"
+          git push origin "HEAD:refs/heads/$branch"
+        fi
+
         sha="$(gh pr view "$number" --repo "$GITHUB_REPOSITORY" \
           --json headRefOid --jq .headRefOid)"
         test -n "$sha"
+        test "$sha" = "$(git rev-parse HEAD)"
         gh workflow run ci.yml --ref "$branch"
         {
-          echo "Dispatched CI for Release PR branch \`${branch}\`."
-          echo "Expected head: \`${sha}\`."
+          echo "Refreshed the Release PR lockfile for branch \`${branch}\`."
+          echo "Dispatched CI for exact head \`${sha}\`."
         } >> "$GITHUB_STEP_SUMMARY"

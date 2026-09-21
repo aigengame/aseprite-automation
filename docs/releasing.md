@@ -6,9 +6,10 @@ wheel. PyPI publication is outside this phase.
 
 ## Release authorities
 
-- `release-please-config.json` defines versioning, changelog sections, tag shape, and
-  the `uv.lock` version update.
-- `.release-please-manifest.json` records the latest reviewed release version.
+- `release-please-config.json` defines versioning, changelog sections, and tag shape;
+  `.release-please-manifest.json` is its released-version ledger.
+- `.github/actions/maintain-release-pr/action.yml` projects the selected version into
+  the generated `uv.lock` by running `uv lock` on the Release PR branch.
 - The Release PR owns the coordinated `pyproject.toml`, manifest, `uv.lock`, and
   `CHANGELOG.md` change.
 - `.github/workflows/release.yml` verifies and publishes one exact commit. It never
@@ -16,9 +17,9 @@ wheel. PyPI publication is outside this phase.
 
 The `Release` workflow runs on pushes to `main`. On an ordinary push, release-please
 creates or updates the reviewable Release PR. Because GitHub does not emit another
-workflow event for its `GITHUB_TOKEN` updates, the workflow explicitly dispatches CI
-for the Release PR branch. Review the complete change and its four CI jobs before
-merge.
+workflow event for its `GITHUB_TOKEN` updates, the workflow refreshes the lockfile and
+explicitly dispatches CI for the resulting Release PR head. Review the complete change
+and its four CI jobs before merge.
 
 Merging the Release PR is the publication approval. Its `main` push makes
 release-please create a draft for the reviewed version. The workflow verifies the
