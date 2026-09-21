@@ -18,11 +18,20 @@ from spa.contracts import (
     failure_envelope,
 )
 from spa.descriptors import OperationDescriptor
-from spa.ports import RuntimeIssue, RuntimeProbe
+from spa.ports import (
+    DiscoveryEvidence,
+    HandlerEvidence,
+    LaunchEvidence,
+    ProcessEvidence,
+    ResourceEvidence,
+    ResponseEvidence,
+    RuntimeIssue,
+    RuntimeProbe,
+)
 
 
 def _request_failure(
-    descriptor: OperationDescriptor, issues: list[ValidationIssue]
+    descriptor: OperationDescriptor[Any, Any], issues: list[ValidationIssue]
 ) -> FailureEnvelope:
     return failure_envelope(
         operation=f"spa {descriptor.name}",
@@ -34,47 +43,46 @@ def _request_failure(
 
 
 def _runtime_failure(
-    descriptor: OperationDescriptor, issue: RuntimeIssue
+    descriptor: OperationDescriptor[Any, Any], issue: RuntimeIssue
 ) -> FailureEnvelope:
-    evidence = issue.evidence
-    match issue.kind:
-        case "discovery_absent":
+    match issue.kind, issue.evidence:
+        case "discovery_absent", DiscoveryEvidence() as evidence:
             code = "executable_not_found"
             details = NotFoundDetails(
                 requested_path=evidence.requested_path, searched=evidence.searched
             )
-        case "resources_absent":
+        case "resources_absent", ResourceEvidence() as evidence:
             code = "resource_incomplete"
             details = ResourceDetails(
                 canonical_path=evidence.canonical_path, searched=evidence.searched
             )
-        case "launch_failed":
+        case "launch_failed", LaunchEvidence() as evidence:
             code = "process_start_failed"
             details = ProcessStartDetails(
                 executable=evidence.executable, exit_status=None
             )
-        case "deadline":
+        case "deadline", ProcessEvidence() as evidence:
             code = "process_timeout"
             details = ProcessDetails(
                 executable=evidence.executable, exit_status=evidence.exit_status
             )
-        case "output_overflow":
+        case "output_overflow", ProcessEvidence() as evidence:
             code = "output_limit_exceeded"
             details = ProcessDetails(
                 executable=evidence.executable, exit_status=evidence.exit_status
             )
-        case "response_absent":
+        case "response_absent", ResponseEvidence() as evidence:
             code = "kernel_response_missing"
             details = KernelProtocolDetail(response_path=evidence.response_path)
-        case "response_malformed":
+        case "response_malformed", ResponseEvidence() as evidence:
             code = "kernel_response_invalid"
             details = KernelProtocolDetail(response_path=evidence.response_path)
-        case "handler_rejected":
+        case "handler_rejected", HandlerEvidence() as evidence:
             code = "kernel_execution_failed"
             details = KernelExecutionDetails(
                 response_path=evidence.response_path, reason=evidence.reason
             )
-        case "process_failed" | "exit_mismatch":
+        case (("process_failed" | "exit_mismatch"), ProcessEvidence() as evidence):
             code = "process_failed"
             details = ProcessDetails(
                 executable=evidence.executable, exit_status=evidence.exit_status
@@ -92,7 +100,7 @@ def _runtime_failure(
 
 
 def _validated_outcome(
-    descriptor: OperationDescriptor, outcome: BaseModel | FailureEnvelope
+    descriptor: OperationDescriptor[Any, Any], outcome: BaseModel | FailureEnvelope
 ) -> BaseModel | FailureEnvelope:
     operation = f"spa {descriptor.name}"
     if isinstance(outcome, FailureEnvelope):
@@ -113,7 +121,7 @@ def _validated_outcome(
 
 
 def dispatch(
-    descriptor: OperationDescriptor,
+    descriptor: OperationDescriptor[Any, Any],
     input_json: str | None,
     argv_values: dict[str, Any],
     probe_runtime: RuntimeProbe,

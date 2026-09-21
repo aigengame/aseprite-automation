@@ -9,6 +9,7 @@ import tempfile
 import time
 from importlib.resources import files
 from pathlib import Path
+from typing import Literal
 
 from spa.contracts import (
     Diagnostics,
@@ -30,9 +31,13 @@ KERNEL_PROTOCOL_VERSION = 1
 OUTPUT_LIMIT_BYTES = 65536
 
 
-def _discover(requested: str | None) -> tuple[Path, Path, Path, str]:
+def _discover(
+    requested: str | None,
+) -> tuple[Path, Path, Path, Literal["explicit", "environment", "path"]]:
     source = requested or os.environ.get("SPA_ASEPRITE_EXECUTABLE")
-    selection_source = "explicit" if requested else "environment" if source else "path"
+    selection_source: Literal["explicit", "environment", "path"] = (
+        "explicit" if requested else "environment" if source else "path"
+    )
     searched = [source] if source else ["SPA_ASEPRITE_EXECUTABLE", "PATH:aseprite"]
     try:
         discovered = (
@@ -102,7 +107,11 @@ def _run(
                 timed_out = True
                 break
             for key, _ in streams.select(timeout=remaining):
-                chunk = os.read(key.fileobj.fileno(), 8192)
+                fileobj = key.fileobj
+                file_descriptor = (
+                    fileobj if isinstance(fileobj, int) else fileobj.fileno()
+                )
+                chunk = os.read(file_descriptor, 8192)
                 if not chunk:
                     streams.unregister(key.fileobj)
                     continue

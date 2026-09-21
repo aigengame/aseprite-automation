@@ -81,6 +81,8 @@ def test_unexpandable_executable_path_uses_structured_discovery_failure(
         unresolved if source == "argv" else None
     )
     assert failure["details"]["searched"] == [unresolved]
+
+
 def test_stdin_json_selects_the_installed_runtime(tmp_path: Path) -> None:
     binary = fake_aseprite(tmp_path, 'echo "stdin-selected"\nexit 13\n')
     run = spa(

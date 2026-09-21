@@ -14,9 +14,7 @@ def _require_real_aseprite_for_e2e(request: pytest.FixtureRequest) -> None:
 
     configured = os.environ.get("SPA_TEST_ASEPRITE")
     if not configured:
-        pytest.fail(
-            "e2e tests need a real Aseprite executable; set SPA_TEST_ASEPRITE"
-        )
+        pytest.fail("e2e tests need a real Aseprite executable; set SPA_TEST_ASEPRITE")
 
     executable = Path(configured).expanduser()
     if not executable.is_file() or not os.access(executable, os.X_OK):

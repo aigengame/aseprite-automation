@@ -44,12 +44,12 @@ RUNTIME_FAILURE_CODES = (
 
 
 @dataclass(frozen=True)
-class OperationDescriptor:
+class OperationDescriptor[RequestT: BaseModel, ResultT: BaseModel]:
     name: str
-    request_type: type[BaseModel]
-    result_type: type[BaseModel]
-    execute: Callable[[BaseModel, RuntimeProbe], BaseModel]
-    render_human: Callable[[BaseModel], str]
+    request_type: type[RequestT]
+    result_type: type[ResultT]
+    execute: Callable[[RequestT, RuntimeProbe], ResultT]
+    render_human: Callable[[ResultT], str]
     requires_runtime: bool
     failure_codes: tuple[str, ...]
 

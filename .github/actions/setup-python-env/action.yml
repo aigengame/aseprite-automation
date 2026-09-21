@@ -1,0 +1,20 @@
+name: Set up the locked Python environment
+description: Install the project Python and synchronize every locked dependency group.
+
+runs:
+  using: composite
+  steps:
+    - name: Install uv
+      uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+      with:
+        version: 0.11.19
+        enable-cache: true
+        cache-dependency-glob: uv.lock
+
+    - name: Install Python
+      shell: bash
+      run: uv python install 3.13
+
+    - name: Synchronize the locked environment
+      shell: bash
+      run: uv sync --frozen --all-groups

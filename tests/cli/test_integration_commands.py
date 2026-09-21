@@ -93,6 +93,8 @@ def test_human_output_projects_the_same_version_result() -> None:
     assert (
         json.loads(spa("version", "--human", "--json").stdout)["spa_version"] == version
     )
+
+
 @pytest.mark.skipif(os.name == "nt", reason="POSIX shell fixture")
 def test_installed_manifest_exposes_access_failures_without_real_aseprite(
     tmp_path: Path,
