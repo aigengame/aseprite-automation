@@ -77,6 +77,10 @@ metadata validation, package checks, or the installed CLI smoke test fail.
 
 - When a manual non-publishing verification fails, fix the Release PR branch and run
   the verification again on its new head.
+- When Release PR maintenance fails after release-please creates or updates the PR,
+  use **Re-run failed jobs**. The maintenance action resolves the existing open
+  Release PR, regenerates and validates its lockfile, verifies its remote head, and
+  dispatches exact-head CI even when release-please has no new PR update to report.
 - When verification fails after a draft was cut, use **Re-run failed jobs** after the
   cause is corrected without changing the reviewed release commit. The publisher is
   deliberately marked failed too, so both jobs resume while the successful draft job
