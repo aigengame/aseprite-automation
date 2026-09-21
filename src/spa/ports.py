@@ -114,6 +114,12 @@ class HandlerEvidence:
 
 
 @dataclass(frozen=True)
+class PostconditionEvidence:
+    response_path: str
+    reason: str
+
+
+@dataclass(frozen=True)
 class RuntimeCompatibilityEvidence:
     aseprite_version: str
     lua_version: str
@@ -141,6 +147,7 @@ RuntimeEvidence = (
     | ProcessEvidence
     | ResponseEvidence
     | HandlerEvidence
+    | PostconditionEvidence
     | RuntimeCompatibilityEvidence
     | TargetCommitEvidence
 )
@@ -169,7 +176,7 @@ _EVIDENCE_TYPES: dict[RuntimeIssueKind, type[RuntimeEvidence]] = {
     "response_absent": ResponseEvidence,
     "response_malformed": ResponseEvidence,
     "handler_rejected": HandlerEvidence,
-    "postcondition_failed": HandlerEvidence,
+    "postcondition_failed": PostconditionEvidence,
     "exit_mismatch": ProcessEvidence,
     "runtime_incompatible": RuntimeCompatibilityEvidence,
     "target_commit_failed": TargetCommitEvidence,

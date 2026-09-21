@@ -1,7 +1,7 @@
 """Sprite Domain Module contracts, descriptors, use cases, and rendering."""
 
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Literal, cast
 
 from pydantic import Field, ValidationError, field_validator
 
@@ -13,10 +13,10 @@ from spa.contracts import (
 )
 from spa.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.ports import (
-    HandlerEvidence,
     KernelInvocationResult,
     OperationServices,
     PackagedHandler,
+    PostconditionEvidence,
     ResponseEvidence,
     RuntimeIssue,
 )
@@ -299,10 +299,36 @@ def _postcondition_failure(
 ) -> RuntimeIssue:
     return RuntimeIssue(
         "postcondition_failed",
-        "Persisted Sprite inspection did not satisfy declared postconditions",
-        HandlerEvidence(response_path=invocation.response_path, reason=reason),
+        f"Persisted Sprite inspection did not satisfy declared postconditions: {reason}",
+        PostconditionEvidence(response_path=invocation.response_path, reason=reason),
         invocation.diagnostics,
     )
+
+
+def _layer_count(layers: list[LayerFacts]) -> int:
+    return sum(1 + _layer_count(layer.children) for layer in layers)
+
+
+def _section_count(
+    section: InspectionSection, value: object, inspection: SpriteInspection
+) -> tuple[int, int]:
+    expected = {
+        "frames": inspection.metadata.frame_count,
+        "tags": inspection.metadata.tag_count,
+        "palettes": inspection.metadata.palette_count,
+        "layers": inspection.metadata.layer_count,
+        "cels": inspection.metadata.cel_count,
+        "slices": inspection.metadata.slice_count,
+        "tilesets": inspection.metadata.tileset_count,
+    }[section]
+    if not isinstance(value, list):
+        raise TypeError(f"Inspection section {section} is not a list")
+    actual = (
+        _layer_count(cast(list[LayerFacts], value))
+        if section == "layers"
+        else len(value)
+    )
+    return actual, expected
 
 
 def _validated_scope(
@@ -314,7 +340,11 @@ def _validated_scope(
     unsupported: list[UnsupportedInspectionSection] = []
     for section in request.inspection_scope:
         value = getattr(inspection, section)
-        if section == "slices" and value is None:
+        if (
+            section == "slices"
+            and value is None
+            and inspection.metadata.slice_count > 0
+        ):
             unsupported.append(
                 UnsupportedInspectionSection(
                     section="slices",
@@ -326,6 +356,12 @@ def _validated_scope(
                 invocation, f"requested section {section} was not inspected"
             )
         else:
+            actual, expected = _section_count(section, value, inspection)
+            if actual != expected:
+                raise _postcondition_failure(
+                    invocation,
+                    f"section {section} has {actual} entries; metadata declares {expected}",
+                )
             complete.append(section)
     for section in request.unrequested_sections:
         if getattr(inspection, section) is not None:

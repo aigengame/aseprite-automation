@@ -139,6 +139,10 @@ def test_installed_manifest_exposes_access_failures_without_real_aseprite(
         "spa info",
         "spa version",
         "spa schema",
-        "spa sprite create",
-        "spa sprite get",
     ]
+    gaps = {
+        item["capability"]: item["evidence"] for item in manifest["capability_gaps"]
+    }
+    assert "aseprite_sprite_create" in gaps["spa sprite create"]
+    assert "aseprite_sprite_inspection" in gaps["spa sprite get"]
+    assert "Slice Keys" in gaps["spa sprite get inspection_scope=slices"]

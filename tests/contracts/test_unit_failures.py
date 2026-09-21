@@ -33,6 +33,7 @@ from spa.ports import (
     DiscoveryEvidence,
     HandlerEvidence,
     LaunchEvidence,
+    PostconditionEvidence,
     ProcessEvidence,
     ResourceEvidence,
     ResponseEvidence,
@@ -54,7 +55,7 @@ RUNTIME_ISSUE_CASES = (
     ("response_absent", "kernel_response_missing"),
     ("response_malformed", "kernel_response_invalid"),
     ("handler_rejected", "kernel_execution_failed"),
-    ("postcondition_failed", "kernel_execution_failed"),
+    ("postcondition_failed", "kernel_response_invalid"),
     ("runtime_incompatible", "runtime_incompatible"),
 )
 
@@ -444,8 +445,12 @@ def _evidence_for(kind: str):
         return ProcessEvidence(executable="/aseprite", exit_status=13)
     if kind in {"response_absent", "response_malformed"}:
         return ResponseEvidence(response_path="/response.json")
-    if kind in {"handler_rejected", "postcondition_failed"}:
+    if kind == "handler_rejected":
         return HandlerEvidence(response_path="/response.json", reason="refused")
+    if kind == "postcondition_failed":
+        return PostconditionEvidence(
+            response_path="/response.json", reason="incomplete"
+        )
     if kind == "runtime_incompatible":
         return RuntimeCompatibilityEvidence(
             aseprite_version="old",

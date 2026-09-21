@@ -27,6 +27,7 @@ from spa.ports import (
     HandlerEvidence,
     LaunchEvidence,
     OperationServices,
+    PostconditionEvidence,
     ProcessEvidence,
     ResourceEvidence,
     ResponseEvidence,
@@ -85,14 +86,14 @@ def _runtime_failure(
         case "response_malformed", ResponseEvidence() as evidence:
             code = "kernel_response_invalid"
             details = KernelProtocolDetail(response_path=evidence.response_path)
-        case (
-            ("handler_rejected" | "postcondition_failed"),
-            HandlerEvidence() as evidence,
-        ):
+        case "handler_rejected", HandlerEvidence() as evidence:
             code = "kernel_execution_failed"
             details = KernelExecutionDetails(
                 response_path=evidence.response_path, reason=evidence.reason
             )
+        case "postcondition_failed", PostconditionEvidence() as evidence:
+            code = "kernel_response_invalid"
+            details = KernelProtocolDetail(response_path=evidence.response_path)
         case (("process_failed" | "exit_mismatch"), ProcessEvidence() as evidence):
             code = "process_failed"
             details = ProcessDetails(

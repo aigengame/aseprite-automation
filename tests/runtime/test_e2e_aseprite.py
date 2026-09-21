@@ -34,6 +34,23 @@ def test_info_reports_installed_runtime() -> None:
         "aseprite_sprite_inspection",
     ]
     assert result["supported_capabilities"]
+    assert result["supported_capabilities"] == [
+        "spa info",
+        "spa version",
+        "spa schema",
+        "spa sprite create",
+        "spa sprite get",
+    ]
+    assert result["capability_gaps"] == [
+        {
+            "capability": "spa sprite get inspection_scope=slices",
+            "aseprite_version": result["runtime"]["aseprite_version"],
+            "evidence": (
+                "The public Aseprite Lua API does not expose ordered frame-varying "
+                "Slice Keys; nonempty Slices are reported as unsupported"
+            ),
+        }
+    ]
     info_schema = json.loads(spa("info", "--schema").stdout)
     validate(result, info_schema["result_schema"])
     input_run = spa(

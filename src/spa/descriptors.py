@@ -1,6 +1,7 @@
 """One registration authority for installed Operations."""
 
 from spa.contracts import (
+    CapabilityGap,
     InfoResult,
     RuntimeFacts,
     RuntimeRequest,
@@ -23,6 +24,64 @@ KERNEL_RUNTIME_REQUIREMENTS = RuntimeRequirements(
     minimum_api_version=41,
     required_capabilities=["aseprite_runtime_introspection"],
 )
+
+
+def _runtime_supports(descriptor: OperationDescriptor, runtime: RuntimeFacts) -> bool:
+    requirements = descriptor.runtime_requirements
+    return requirements is None or (
+        runtime.lua_version == requirements.lua_language
+        and runtime.api_version >= requirements.minimum_api_version
+        and all(
+            capability in runtime.verified_capabilities
+            for capability in requirements.required_capabilities
+        )
+    )
+
+
+def _surface(runtime: RuntimeFacts) -> tuple[list[str], list[CapabilityGap]]:
+    supported: list[str] = []
+    gaps: list[CapabilityGap] = []
+    for descriptor in OPERATIONS:
+        command = f"spa {descriptor.name}"
+        if _runtime_supports(descriptor, runtime):
+            supported.append(command)
+            continue
+        requirements = descriptor.runtime_requirements
+        assert requirements is not None
+        missing = [
+            capability
+            for capability in requirements.required_capabilities
+            if capability not in runtime.verified_capabilities
+        ]
+        evidence = []
+        if runtime.lua_version != requirements.lua_language:
+            evidence.append(
+                f"observed {runtime.lua_version}; requires {requirements.lua_language}"
+            )
+        if runtime.api_version < requirements.minimum_api_version:
+            evidence.append(
+                f"observed API {runtime.api_version}; requires API {requirements.minimum_api_version}"
+            )
+        if missing:
+            evidence.append(f"missing observed capabilities: {', '.join(missing)}")
+        gaps.append(
+            CapabilityGap(
+                capability=command,
+                aseprite_version=runtime.aseprite_version,
+                evidence="; ".join(evidence),
+            )
+        )
+    gaps.append(
+        CapabilityGap(
+            capability="spa sprite get inspection_scope=slices",
+            aseprite_version=runtime.aseprite_version,
+            evidence=(
+                "The public Aseprite Lua API does not expose ordered frame-varying "
+                "Slice Keys; nonempty Slices are reported as unsupported"
+            ),
+        )
+    )
+    return supported, gaps
 
 
 def version_result(_: VersionRequest, _services: OperationServices) -> VersionResult:
@@ -48,11 +107,12 @@ def info_result(request: RuntimeRequest, services: OperationServices) -> InfoRes
         verified_prerequisites=list(observation.verified_prerequisites),
         verified_capabilities=list(observation.verified_capabilities),
     )
+    supported, gaps = _surface(facts)
     return InfoResult(
         spa_version=version("aseprite-automation"),
         runtime=facts,
-        supported_capabilities=[f"spa {descriptor.name}" for descriptor in OPERATIONS],
-        capability_gaps=[],
+        supported_capabilities=supported,
+        capability_gaps=gaps,
     )
 
 
@@ -61,7 +121,11 @@ def schema_result(request: RuntimeRequest, services: OperationServices) -> Schem
     return SchemaResult(
         spa_version=info.spa_version,
         runtime=info.runtime,
-        operations=[descriptor.schema() for descriptor in OPERATIONS],
+        operations=[
+            descriptor.schema()
+            for descriptor in OPERATIONS
+            if f"spa {descriptor.name}" in info.supported_capabilities
+        ],
         access_failure_schema=failure_schema(ACCESS_FAILURE_CODES, "spa"),
         capability_gaps=info.capability_gaps,
     )

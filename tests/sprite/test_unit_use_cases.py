@@ -148,13 +148,34 @@ def test_create_refuses_mismatched_persisted_facts_before_target_commit() -> Non
     assert files.commits == 0
 
 
+def test_create_refuses_incomplete_section_before_target_commit() -> None:
+    files = _TargetFiles()
+    request = SpriteCreateRequest(
+        target_sprite_file="created.aseprite",
+        width=3,
+        height=2,
+        color_mode="rgb",
+        initial_layer={"kind": "transparent"},
+    )
+
+    with pytest.raises(RuntimeIssue, match="metadata declares 1"):
+        create_sprite(request, _services(_inspection(frames=[]), files))
+
+    assert files.commits == 0
+
+
 @pytest.mark.parametrize(
     "inspection",
     [
         _inspection(frames=None),
+        _inspection(frames=[]),
         _inspection(tags=[]),
     ],
-    ids=["requested-section-null", "unrequested-section-populated"],
+    ids=[
+        "requested-section-null",
+        "requested-section-count-mismatch",
+        "unrequested-section-populated",
+    ],
 )
 def test_get_refuses_false_scope_completeness(inspection: dict[str, Any]) -> None:
     request = SpriteGetRequest(
@@ -164,4 +185,32 @@ def test_get_refuses_false_scope_completeness(inspection: dict[str, Any]) -> Non
     with pytest.raises(RuntimeIssue) as failure:
         get_sprite(request, _services(inspection))
 
+    assert failure.value.kind == "postcondition_failed"
+
+
+def test_get_distinguishes_nonempty_unsupported_slices_from_empty_complete_slices() -> (
+    None
+):
+    request = SpriteGetRequest(
+        sprite_file="created.aseprite", inspection_scope=["slices"]
+    )
+    inspection = _inspection(
+        frames=None,
+        tags=None,
+        palettes=None,
+        layers=None,
+        cels=None,
+        slices=None,
+        tilesets=None,
+    )
+    inspection["metadata"] = inspection["metadata"] | {"slice_count": 1}
+
+    result = get_sprite(request, _services(inspection))
+
+    assert result.scope.complete_sections == []
+    assert [item.section for item in result.scope.unsupported_sections] == ["slices"]
+
+    inspection["metadata"] = inspection["metadata"] | {"slice_count": 0}
+    with pytest.raises(RuntimeIssue) as failure:
+        get_sprite(request, _services(inspection))
     assert failure.value.kind == "postcondition_failed"
