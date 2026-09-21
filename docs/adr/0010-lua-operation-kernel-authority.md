@@ -36,6 +36,11 @@ depend on an external Lua interpreter, LuaJIT extensions, precompiled Lua byteco
 unverified native Lua modules. Each handler's Operation Descriptor narrows the
 Aseprite API capabilities required for its native behavior.
 
+The first macOS evidence profile is Aseprite 1.3.18.5-dev with `app.apiVersion == 41`;
+that build vendors Lua 5.4.6. The patch release records provenance for that build. The
+handler contract remains the `Lua 5.4` language profile observed through `_VERSION`,
+not a dependency on a system Lua installation or a universal Lua patch version.
+
 Caller-owned raw Lua is a separate, explicitly unrestricted script-run capability. It
 can be materialized unchanged when Aseprite requires a file, but it does not enter the
 Kernel, participate in Operation Plans, inherit Ordinary Core Operation guarantees, or

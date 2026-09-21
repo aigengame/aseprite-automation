@@ -19,8 +19,9 @@ def test_info_reports_installed_runtime() -> None:
     result = json.loads(run.stdout)
     assert result["operation"] == "spa info"
     assert result["runtime"]["resource_complete"] is True
-    assert result["runtime"]["aseprite_version"]
-    assert result["runtime"]["api_version"]
+    # Pin the evidence profile without using the product version as a runtime gate.
+    assert result["runtime"]["aseprite_version"].startswith("1.3.18.5")
+    assert result["runtime"]["api_version"] == 41
     assert result["runtime"]["lua_version"] == "Lua 5.4"
     assert result["runtime"]["verified_capabilities"] == [
         "aseprite_scripting",

@@ -81,6 +81,13 @@ class OperationDescriptor[RequestT: BaseModel, ResultT: BaseModel]:
             raise ValueError(
                 f"Runtime Operation Request must extend RuntimeRequest: {command}"
             )
+        if (
+            self.runtime_requirements is not None
+            and "runtime_incompatible" not in self.failure_codes
+        ):
+            raise ValueError(
+                f"Runtime Operation must declare runtime_incompatible: {command}"
+            )
 
     @property
     def cli_flags(self) -> dict[str, str]:

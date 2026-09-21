@@ -34,6 +34,13 @@ assert its observed embedded Lua version, `app.apiVersion`, JSON round trip, fil
 and scripting evidence. Each later Operation adds real-runtime evidence for the native
 capabilities named by its Descriptor.
 
+The initial evidence profiles use local macOS Aseprite 1.3.18.5-dev and the pinned
+Linux CI Aseprite 1.3.18.5 source release. Both expose `_VERSION == "Lua 5.4"` and
+`app.apiVersion == 41`; the macOS build's vendored Lua 5.4.6 records source provenance,
+not a patch-level compatibility rule. The E2E assertion pins this evidence family while
+the runtime compatibility decision continues to use the Descriptor requirements and
+observed language, API, and capability facts.
+
 Pytest rejects unregistered markers. The root e2e gate also rejects a selected e2e
 test when `SPA_TEST_ASEPRITE` is absent, is not a file, or is not executable. A missing
 runtime therefore cannot produce an all-skipped successful e2e run.
