@@ -138,6 +138,27 @@ local function cel_layer_path(sprite, layer)
   return path
 end
 
+local function inspect_slice_keys(slice)
+  local available, native_keys = pcall(function() return slice.keys end)
+  if not available or native_keys == nil then return nil end
+  local keys = {}
+  for index = 1, #native_keys do
+    local key = native_keys[index]
+    local frame_number = key.frameNumber
+    if frame_number == nil and key.frame ~= nil then
+      frame_number = key.frame.frameNumber
+    end
+    assert(type(frame_number) == "number", "Slice Key has no Frame number")
+    keys[#keys + 1] = {
+      frame_number = frame_number,
+      bounds = rectangle(key.bounds),
+      center = key.center == nil and json_null or rectangle(key.center),
+      pivot = key.pivot == nil and json_null or point(key.pivot),
+    }
+  end
+  return array(keys)
+end
+
 function module.inspect(sprite, scope)
   local requested = requested_set(scope)
   local paths = {}
@@ -233,9 +254,19 @@ function module.inspect(sprite, scope)
     if #sprite.slices == 0 then
       result.slices = array({})
     else
-      -- The public Aseprite Lua API exposes only the effective Slice value for
-      -- the current frame, not the ordered frame-varying Slice Keys.
-      result.slices = json_null
+      local slices = {}
+      local complete = true
+      for index = 1, #sprite.slices do
+        local slice = sprite.slices[index]
+        local keys = inspect_slice_keys(slice)
+        if keys == nil then
+          complete = false
+          break
+        end
+        slices[#slices + 1] = { name=slice.name, keys=keys }
+      end
+      -- Current public APIs expose only the effective value when `keys` is absent.
+      result.slices = complete and array(slices) or json_null
     end
   end
 

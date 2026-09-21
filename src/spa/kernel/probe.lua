@@ -1,24 +1,107 @@
 -- Fixed, packaged Kernel Protocol probe. Runtime files carry data, never Lua behavior.
 local kernel_protocol_version = 1
+local inspection = dofile(app.params.support)
 
-local function observes_sprite_inspection()
+local function prepare_inspection_fixture(path)
   local open_sprite = nil
   local ok = pcall(function()
-    open_sprite = Sprite(2, 3, ColorMode.RGB)
-    assert(open_sprite.width == 2 and open_sprite.height == 3)
-    assert(#open_sprite.frames == 1 and #open_sprite.layers == 1)
-    local layer = open_sprite.layers[1]
-    assert(type(layer.isImage) == "boolean")
-    assert(type(layer.isGroup) == "boolean")
-    assert(type(layer.isTilemap) == "boolean")
-    assert(type(layer.isReference) == "boolean")
-    assert(#open_sprite.tags == 0 and #open_sprite.slices == 0)
-    assert(#open_sprite.tilesets == 0 and #open_sprite.cels == 1)
+    open_sprite = Sprite(8, 6, ColorMode.RGB)
+    open_sprite:newFrame(1)
+    open_sprite.frames[1].duration = 0.12
+    open_sprite.frames[2].duration = 0.34
+    local tag = open_sprite:newTag(1, 2)
+    tag.name = "probe"
+    tag.aniDir = AniDir.PING_PONG
+    tag.repeats = 2
+    tag.color = Color{ r=10, g=20, b=30, a=255 }
+    local group = open_sprite:newGroup()
+    group.name = "probe-group"
+    local child = open_sprite:newLayer()
+    child.name = "probe-child"
+    child.parent = group
+    local image = Image(2, 3, ColorMode.RGB)
+    image:clear(Color{ r=90, g=80, b=70, a=255 })
+    local cel = open_sprite:newCel(child, 2, image, Point(4, 2))
+    cel.opacity = 123
+    cel.zIndex = 4
+    local slice = open_sprite:newSlice(Rectangle(1, 2, 3, 4))
+    slice.name = "probe-slice"
+    slice.center = Rectangle(1, 1, 1, 2)
+    slice.pivot = Point(2, 3)
+    local tileset = open_sprite:newTileset(Rectangle(0, 0, 4, 5), 2)
+    tileset.name = "probe-tileset"
+    tileset.baseIndex = 7
+    assert(open_sprite:saveAs(path))
     open_sprite:close()
     open_sprite = nil
   end)
   if open_sprite ~= nil then pcall(function() open_sprite:close() end) end
   return ok
+end
+
+local function observes_sprite_inspection()
+  local open_sprite = nil
+  local capability_path = assert(app.params.capability_sprite)
+  if not prepare_inspection_fixture(capability_path) then return false, false end
+  local ok, slice_keys = pcall(function()
+    open_sprite = assert(app.open(capability_path))
+    local result = inspection.inspect(open_sprite, {
+      "frames", "tags", "palettes", "layers", "cels", "slices", "tilesets",
+    })
+    assert(result.metadata.width == 8 and result.metadata.height == 6)
+    assert(result.metadata.color_mode == "rgb")
+    assert(result.metadata.frame_count == 2 and result.metadata.tag_count == 1)
+    assert(result.metadata.palette_count == 1 and result.metadata.layer_count == 3)
+    assert(result.metadata.cel_count == #result.cels and result.metadata.cel_count >= 2)
+    assert(result.metadata.slice_count == 1)
+    assert(result.metadata.tileset_count == 1)
+    assert(type(result.metadata.transparent_color_index) == "number")
+    assert(result.metadata.grid_bounds.width > 0)
+    assert(result.metadata.pixel_ratio.width > 0)
+    assert(#result.frames == 2 and result.frames[2].duration_ms == 340)
+    assert(#result.tags == 1 and result.tags[1].direction == "ping_pong")
+    assert(result.tags[1].color.green == 20)
+    assert(#result.palettes == 1 and #result.palettes[1].entries > 0)
+    assert(#result.layers == 2)
+    local group = nil
+    for _, layer in ipairs(result.layers) do
+      if layer.name == "probe-group" then group = layer end
+    end
+    assert(group ~= nil)
+    assert(group.name == "probe-group" and group.is_group and not group.is_image)
+    assert(group.blend_mode ~= nil and #group.children == 1)
+    local child = group.children[1]
+    assert(child.name == "probe-child" and child.is_image and child.is_visible)
+    assert(type(child.is_tilemap) == "boolean")
+    assert(type(child.is_reference) == "boolean")
+    assert(type(child.is_editable) == "boolean")
+    assert(type(child.is_continuous) == "boolean")
+    assert(type(child.is_collapsed) == "boolean")
+    local found_cel = false
+    for _, cel in ipairs(result.cels) do
+      if cel.opacity == 123 then
+        assert(cel.frame_number == 2 and cel.bounds.x == 4)
+        assert(cel.z_index == 4)
+        found_cel = true
+      end
+    end
+    assert(found_cel)
+    assert(#result.tilesets == 1)
+    assert(result.tilesets[1].base_index == 7)
+    assert(result.tilesets[1].tile_size.width == 4)
+    local has_slice_keys = type(result.slices) == "table"
+    if has_slice_keys then
+      assert(#result.slices == 1 and result.slices[1].name == "probe-slice")
+      assert(#result.slices[1].keys > 0)
+    end
+    open_sprite:close()
+    open_sprite = nil
+    return has_slice_keys
+  end)
+  if open_sprite ~= nil then pcall(function() open_sprite:close() end) end
+  pcall(function() os.remove(capability_path) end)
+  if not ok then return false, false end
+  return true, slice_keys
 end
 
 local function observes_sprite_creation()
@@ -56,12 +139,15 @@ end
 
 local function observed_capabilities()
   local capabilities = { "aseprite_runtime_introspection" }
-  local inspection = observes_sprite_inspection()
-  if inspection and observes_sprite_creation() then
+  local supports_inspection, supports_slice_keys = observes_sprite_inspection()
+  if supports_inspection and observes_sprite_creation() then
     capabilities[#capabilities + 1] = "aseprite_sprite_create"
   end
-  if inspection then
+  if supports_inspection then
     capabilities[#capabilities + 1] = "aseprite_sprite_inspection"
+  end
+  if supports_slice_keys then
+    capabilities[#capabilities + 1] = "aseprite_sprite_slice_keys"
   end
   return capabilities
 end

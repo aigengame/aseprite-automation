@@ -1,12 +1,14 @@
 """Application dispatch and outcome classification for descriptor-backed Operations."""
 
 import json
+from collections.abc import Mapping
 from dataclasses import replace
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
 from spa.contracts import (
+    FailureCodeSpec,
     FailureEnvelope,
     KernelExecutionDetails,
     KernelProtocolDetail,
@@ -40,7 +42,9 @@ from spa.sprite import TargetCommitDetails
 
 
 def _request_failure(
-    descriptor: OperationDescriptor[Any, Any], issues: list[ValidationIssue]
+    descriptor: OperationDescriptor[Any, Any],
+    issues: list[ValidationIssue],
+    failure_codes: Mapping[str, FailureCodeSpec],
 ) -> FailureEnvelope:
     return failure_envelope(
         operation=f"spa {descriptor.name}",
@@ -48,11 +52,14 @@ def _request_failure(
         message="Invalid Operation Request",
         details=RequestDetails(errors=issues),
         applicable_codes=descriptor.failure_codes,
+        failure_codes=failure_codes,
     )
 
 
 def _runtime_failure(
-    descriptor: OperationDescriptor[Any, Any], issue: RuntimeIssue
+    descriptor: OperationDescriptor[Any, Any],
+    issue: RuntimeIssue,
+    failure_codes: Mapping[str, FailureCodeSpec],
 ) -> FailureEnvelope:
     match issue.kind, issue.evidence:
         case "discovery_absent", DiscoveryEvidence() as evidence:
@@ -123,25 +130,28 @@ def _runtime_failure(
         message=str(issue),
         details=details,
         applicable_codes=descriptor.failure_codes,
+        failure_codes=failure_codes,
         diagnostics=issue.diagnostics,
     )
 
 
 def _validated_outcome(
-    descriptor: OperationDescriptor[Any, Any], outcome: BaseModel | FailureEnvelope
+    descriptor: OperationDescriptor[Any, Any],
+    outcome: BaseModel | FailureEnvelope,
+    failure_codes: Mapping[str, FailureCodeSpec],
 ) -> BaseModel | FailureEnvelope:
     operation = f"spa {descriptor.name}"
     if isinstance(outcome, FailureEnvelope):
-        validated = FailureEnvelope.model_validate(outcome.model_dump())
-        if validated.operation != operation:
+        if outcome.operation != operation:
             raise ValueError(f"Failure Operation does not match {operation}")
         return failure_envelope(
             operation=operation,
-            code=validated.code,
-            message=validated.message,
-            details=validated.details,
+            code=outcome.code,
+            message=outcome.message,
+            details=outcome.details,
             applicable_codes=descriptor.failure_codes,
-            diagnostics=validated.diagnostics,
+            failure_codes=failure_codes,
+            diagnostics=outcome.diagnostics,
         )
     if not isinstance(outcome, descriptor.result_type):
         raise TypeError(f"Operation Result does not match {operation}")
@@ -153,6 +163,7 @@ def dispatch(
     input_json: str | None,
     argv_values: dict[str, Any],
     dependencies: OperationServices,
+    failure_codes: Mapping[str, FailureCodeSpec],
 ) -> BaseModel | FailureEnvelope:
     configured = dependencies
     try:
@@ -176,11 +187,13 @@ def dispatch(
                 )
                 for error in exc.errors(include_context=False)
             ],
+            failure_codes,
         )
     except (json.JSONDecodeError, TypeError) as exc:
         return _request_failure(
             descriptor,
             [ValidationIssue(location=[], code="json_input", message=str(exc))],
+            failure_codes,
         )
 
     observation: RuntimeObservation | None = None
@@ -225,5 +238,5 @@ def dispatch(
             request, replace(configured, probe_runtime=compatible_probe)
         )
     except RuntimeIssue as exc:
-        return _runtime_failure(descriptor, exc)
-    return _validated_outcome(descriptor, outcome)
+        return _runtime_failure(descriptor, exc, failure_codes)
+    return _validated_outcome(descriptor, outcome, failure_codes)

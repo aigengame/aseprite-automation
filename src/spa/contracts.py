@@ -12,9 +12,6 @@ from pydantic import (
     ConfigDict,
     Field,
     SerializeAsAny,
-    ValidationInfo,
-    field_validator,
-    model_validator,
 )
 
 
@@ -44,6 +41,7 @@ RuntimeCapability = Literal[
     "aseprite_runtime_introspection",
     "aseprite_sprite_create",
     "aseprite_sprite_inspection",
+    "aseprite_sprite_slice_keys",
 ]
 
 
@@ -278,13 +276,6 @@ CORE_FAILURE_CODE_SPECS = (
 )
 
 
-def _failure_codes() -> Mapping[str, FailureCodeSpec]:
-    """Load the immutable composition without making contracts own module wiring."""
-    from spa.failure_registry import FAILURE_CODES
-
-    return FAILURE_CODES
-
-
 class Diagnostics(PublicModel):
     stdout: str = ""
     stderr: str = ""
@@ -300,31 +291,13 @@ class FailureEnvelope(PublicModel):
     details: SerializeAsAny[PublicModel]
     diagnostics: Diagnostics = Field(default_factory=Diagnostics)
 
-    @field_validator("details", mode="before")
-    @classmethod
-    def parse_registered_details(
-        cls, value: object, info: ValidationInfo
-    ) -> PublicModel:
-        code = info.data.get("code")
-        spec = _failure_codes().get(code) if isinstance(code, str) else None
-        if spec is None:
-            raise ValueError(f"Unknown Failure Code: {code}")
-        if isinstance(value, spec.details_type):
-            return value
-        return spec.details_type.model_validate(value)
 
-    @model_validator(mode="after")
-    def validate_registered_failure(self) -> "FailureEnvelope":
-        spec = _registered_spec(self.code, self.details)
-        if self.category != spec.category:
-            raise ValueError(
-                f"Failure Category for {self.code} must be {spec.category}"
-            )
-        return self
-
-
-def _registered_spec(code: str, details: PublicModel) -> FailureCodeSpec:
-    spec = _failure_codes().get(code)
+def _registered_spec(
+    code: str,
+    details: PublicModel,
+    failure_codes: Mapping[str, FailureCodeSpec],
+) -> FailureCodeSpec:
+    spec = failure_codes.get(code)
     if spec is None:
         raise ValueError(f"Unknown Failure Code: {code}")
     if not isinstance(details, spec.details_type):
@@ -341,10 +314,11 @@ def failure_envelope(
     details: PublicModel,
     *,
     applicable_codes: tuple[str, ...],
+    failure_codes: Mapping[str, FailureCodeSpec],
     diagnostics: Diagnostics | None = None,
 ) -> FailureEnvelope:
     """Construct a registered failure applicable to its public Operation or Access path."""
-    spec = _registered_spec(code, details)
+    spec = _registered_spec(code, details, failure_codes)
     if code not in applicable_codes:
         raise ValueError(f"Failure Code {code} is not applicable to {operation}")
     return FailureEnvelope(
@@ -357,11 +331,14 @@ def failure_envelope(
     )
 
 
-def failure_schema(codes: tuple[str, ...], operation: str) -> dict[str, Any]:
+def failure_schema(
+    codes: tuple[str, ...],
+    operation: str,
+    failure_codes: Mapping[str, FailureCodeSpec],
+) -> dict[str, Any]:
     """Project one registered code/Category/Details union as Draft 2020-12."""
     if not codes or len(codes) != len(set(codes)):
         raise ValueError("Failure schema needs unique applicable codes")
-    failure_codes = _failure_codes()
     unknown = set(codes) - failure_codes.keys()
     if unknown:
         raise ValueError(f"Unknown Failure Code in schema: {sorted(unknown)}")

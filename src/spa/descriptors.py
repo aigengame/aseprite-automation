@@ -11,6 +11,7 @@ from spa.contracts import (
     VersionResult,
     failure_schema,
 )
+from spa.failure_registry import FAILURE_CODES
 from spa.operation import (
     ACCESS_FAILURE_CODES,
     RUNTIME_FAILURE_CODES,
@@ -71,16 +72,18 @@ def _surface(runtime: RuntimeFacts) -> tuple[list[str], list[CapabilityGap]]:
                 evidence="; ".join(evidence),
             )
         )
-    gaps.append(
-        CapabilityGap(
-            capability="spa sprite get inspection_scope=slices",
-            aseprite_version=runtime.aseprite_version,
-            evidence=(
-                "The public Aseprite Lua API does not expose ordered frame-varying "
-                "Slice Keys; nonempty Slices are reported as unsupported"
-            ),
+    if "aseprite_sprite_slice_keys" not in runtime.verified_capabilities:
+        gaps.append(
+            CapabilityGap(
+                capability="spa sprite get inspection_scope=slices",
+                aseprite_version=runtime.aseprite_version,
+                evidence=(
+                    "The selected Aseprite runtime did not expose ordered "
+                    "frame-varying Slice Keys through the packaged inspector; "
+                    "nonempty Slices are reported as unsupported"
+                ),
+            )
         )
-    )
     return supported, gaps
 
 
@@ -122,11 +125,13 @@ def schema_result(request: RuntimeRequest, services: OperationServices) -> Schem
         spa_version=info.spa_version,
         runtime=info.runtime,
         operations=[
-            descriptor.schema()
+            descriptor.schema(FAILURE_CODES)
             for descriptor in OPERATIONS
             if f"spa {descriptor.name}" in info.supported_capabilities
         ],
-        access_failure_schema=failure_schema(ACCESS_FAILURE_CODES, "spa"),
+        access_failure_schema=failure_schema(
+            ACCESS_FAILURE_CODES, "spa", FAILURE_CODES
+        ),
         capability_gaps=info.capability_gaps,
     )
 

@@ -13,6 +13,7 @@ from typer.testing import CliRunner
 from spa.cli import build_app
 from spa.contracts import RuntimeRequest
 from spa.descriptors import OPERATIONS
+from spa.failure_registry import FAILURE_CODES
 from spa.runtime.aseprite import probe
 from tests.support import fake_aseprite, fake_probe_response, operation_services, spa
 
@@ -418,7 +419,8 @@ def test_process_start_failure_keeps_installed_executable_identity(
 def _assert_preparation_failure(binary: Path) -> None:
     info = next(descriptor for descriptor in OPERATIONS if descriptor.name == "info")
     run = CliRunner().invoke(
-        build_app(operation_services(probe)), ["info", "--aseprite", str(binary)]
+        build_app(operation_services(probe), FAILURE_CODES),
+        ["info", "--aseprite", str(binary)],
     )
     assert run.exit_code == 1, run.stdout
     assert run.stderr == ""
@@ -429,7 +431,7 @@ def _assert_preparation_failure(binary: Path) -> None:
     assert failure["details"]["kind"] == "process_start"
     assert failure["details"]["exit_status"] is None
     assert failure["diagnostics"]["exit_status"] is None
-    validate(failure, info.schema().failure_schema)
+    validate(failure, info.schema(FAILURE_CODES).failure_schema)
 
 
 def test_unwritable_temporary_workspace_has_typed_start_failure(

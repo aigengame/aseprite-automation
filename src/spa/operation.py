@@ -1,12 +1,13 @@
 """Shared Operation Descriptor mechanics at the application-contract boundary."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Literal, get_args
 
 from pydantic import BaseModel
 
 from spa.contracts import (
+    FailureCodeSpec,
     OperationSchema,
     RuntimeRequest,
     RuntimeRequirements,
@@ -85,7 +86,7 @@ class OperationDescriptor[RequestT: BaseModel, ResultT: BaseModel]:
     def requires_runtime(self) -> bool:
         return self.runtime_requirements is not None
 
-    def schema(self) -> OperationSchema:
+    def schema(self, failure_codes: Mapping[str, FailureCodeSpec]) -> OperationSchema:
         command = f"spa {self.name}"
         return OperationSchema(
             operation=command,
@@ -97,7 +98,7 @@ class OperationDescriptor[RequestT: BaseModel, ResultT: BaseModel]:
             runtime_requirements=self.runtime_requirements,
             request_schema=self.request_type.model_json_schema(),
             result_schema=self.result_type.model_json_schema(),
-            failure_schema=failure_schema(self.failure_codes, command),
+            failure_schema=failure_schema(self.failure_codes, command, failure_codes),
             invocation_schema={
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
                 "type": "object",

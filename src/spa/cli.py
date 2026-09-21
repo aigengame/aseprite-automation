@@ -1,12 +1,14 @@
 """CLI Access Projection of Operation Descriptors."""
 
 import sys
+from collections.abc import Mapping
 from typing import Any
 
 import typer
 
 from spa.application import dispatch
 from spa.contracts import (
+    FailureCodeSpec,
     FailureEnvelope,
     RequestDetails,
     ValidationIssue,
@@ -30,9 +32,10 @@ def _execute(
     schema: bool,
     human: bool,
     dependencies: OperationServices,
+    failure_codes: Mapping[str, FailureCodeSpec],
 ) -> None:
     if schema:
-        typer.echo(descriptor.schema().model_dump_json())
+        typer.echo(descriptor.schema(failure_codes).model_dump_json())
         return
     if input_json == "-":
         try:
@@ -53,6 +56,7 @@ def _execute(
                         ]
                     ),
                     applicable_codes=descriptor.failure_codes,
+                    failure_codes=failure_codes,
                 ),
                 human,
             )
@@ -61,6 +65,7 @@ def _execute(
         input_json,
         {"aseprite": aseprite, "timeout_seconds": timeout_seconds},
         dependencies,
+        failure_codes,
     )
     if isinstance(result, FailureEnvelope):
         _emit_failure(result, human)
@@ -70,6 +75,7 @@ def _execute(
 def _command(
     descriptor: OperationDescriptor[Any, Any],
     dependencies: OperationServices,
+    failure_codes: Mapping[str, FailureCodeSpec],
 ):
     flags = descriptor.cli_flags
     if descriptor.requires_runtime:
@@ -109,6 +115,7 @@ def _command(
                 schema,
                 human and not json_output,
                 dependencies,
+                failure_codes,
             )
 
         command = runtime_command
@@ -138,6 +145,7 @@ def _command(
                 schema,
                 human and not json_output,
                 dependencies,
+                failure_codes,
             )
 
         command = pure_command
@@ -146,13 +154,16 @@ def _command(
     return command
 
 
-def build_app(dependencies: OperationServices) -> typer.Typer:
+def build_app(
+    dependencies: OperationServices,
+    failure_codes: Mapping[str, FailureCodeSpec],
+) -> typer.Typer:
     app = typer.Typer(name="spa", no_args_is_help=False, add_completion=False)
     groups: dict[str, typer.Typer] = {}
     for operation in OPERATIONS:
         path = operation.name.split()
         if len(path) == 1:
-            app.command(name=path[0])(_command(operation, dependencies))
+            app.command(name=path[0])(_command(operation, dependencies, failure_codes))
             continue
         if len(path) != 2:
             raise ValueError(f"Unsupported CLI command depth: {operation.name}")
@@ -162,11 +173,13 @@ def build_app(dependencies: OperationServices) -> typer.Typer:
             group = typer.Typer(no_args_is_help=False, add_completion=False)
             groups[group_name] = group
             app.add_typer(group, name=group_name)
-        group.command(name=command_name)(_command(operation, dependencies))
+        group.command(name=command_name)(
+            _command(operation, dependencies, failure_codes)
+        )
     return app
 
 
-def run_cli(app: typer.Typer) -> None:
+def run_cli(app: typer.Typer, failure_codes: Mapping[str, FailureCodeSpec]) -> None:
     """Installed entry point: keep Click usage errors on the same failure channel."""
     command = typer.main.get_command(app)
     try:
@@ -204,6 +217,7 @@ def run_cli(app: typer.Typer) -> None:
                     ]
                 ),
                 applicable_codes=applicable_codes,
+                failure_codes=failure_codes,
             ),
             False,
         )

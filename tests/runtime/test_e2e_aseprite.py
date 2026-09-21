@@ -46,8 +46,9 @@ def test_info_reports_installed_runtime() -> None:
             "capability": "spa sprite get inspection_scope=slices",
             "aseprite_version": result["runtime"]["aseprite_version"],
             "evidence": (
-                "The public Aseprite Lua API does not expose ordered frame-varying "
-                "Slice Keys; nonempty Slices are reported as unsupported"
+                "The selected Aseprite runtime did not expose ordered "
+                "frame-varying Slice Keys through the packaged inspector; "
+                "nonempty Slices are reported as unsupported"
             ),
         }
     ]
