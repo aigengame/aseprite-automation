@@ -139,24 +139,28 @@ local function cel_layer_path(sprite, layer)
 end
 
 local function inspect_slice_keys(slice)
-  local available, native_keys = pcall(function() return slice.keys end)
-  if not available or native_keys == nil then return nil end
-  local keys = {}
-  for index = 1, #native_keys do
-    local key = native_keys[index]
-    local frame_number = key.frameNumber
-    if frame_number == nil and key.frame ~= nil then
-      frame_number = key.frame.frameNumber
+  local available, keys = pcall(function()
+    local native_keys = slice.keys
+    if native_keys == nil then return nil end
+    local decoded = {}
+    for index = 1, #native_keys do
+      local key = native_keys[index]
+      local frame_number = key.frameNumber
+      if frame_number == nil and key.frame ~= nil then
+        frame_number = key.frame.frameNumber
+      end
+      assert(type(frame_number) == "number", "Slice Key has no Frame number")
+      decoded[#decoded + 1] = {
+        frame_number = frame_number,
+        bounds = rectangle(key.bounds),
+        center = key.center == nil and json_null or rectangle(key.center),
+        pivot = key.pivot == nil and json_null or point(key.pivot),
+      }
     end
-    assert(type(frame_number) == "number", "Slice Key has no Frame number")
-    keys[#keys + 1] = {
-      frame_number = frame_number,
-      bounds = rectangle(key.bounds),
-      center = key.center == nil and json_null or rectangle(key.center),
-      pivot = key.pivot == nil and json_null or point(key.pivot),
-    }
-  end
-  return array(keys)
+    return array(decoded)
+  end)
+  if not available then return nil end
+  return keys
 end
 
 function module.inspect(sprite, scope)

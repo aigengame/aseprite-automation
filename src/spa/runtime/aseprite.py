@@ -184,6 +184,9 @@ def probe(request: RuntimeRequest) -> RuntimeObservation:
     discovered, canonical, resource, selection_source = _discover(request.aseprite)
     script = files("spa.kernel").joinpath("probe.lua")
     support = files("spa.kernel").joinpath("sprite_inspect.lua")
+    inspection_fixture = files("spa.kernel").joinpath(
+        "sprite_inspection_fixture.aseprite"
+    )
     sentinel = {
         "nullable": None,
         "nested": [{"value": None}, [1, None, {"flag": True}]],
@@ -229,6 +232,8 @@ def probe(request: RuntimeRequest) -> RuntimeObservation:
             f"echo={echo_file}",
             "--script-param",
             f"capability_sprite={capability_sprite}",
+            "--script-param",
+            f"inspection_fixture={inspection_fixture}",
             "--script-param",
             f"support={support}",
             "--script",
