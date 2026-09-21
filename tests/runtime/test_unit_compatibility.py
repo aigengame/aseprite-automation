@@ -2,19 +2,10 @@
 
 from dataclasses import replace
 
-import pytest
-
 from spa.application import dispatch
 from spa.contracts import FailureEnvelope
 from spa.descriptors import OPERATIONS
 from spa.ports import RuntimeObservation
-
-
-def test_runtime_descriptor_declares_compatibility_failure() -> None:
-    info = next(descriptor for descriptor in OPERATIONS if descriptor.name == "info")
-
-    with pytest.raises(ValueError, match="runtime_incompatible"):
-        replace(info, failure_codes=("invalid_request",))
 
 
 def test_incompatible_runtime_is_rejected_before_operation_execution() -> None:

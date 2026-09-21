@@ -361,6 +361,13 @@ def test_descriptor_rejects_result_operation_with_stale_default() -> None:
         replace(version, name="renamed", result_type=RenamedResult)
 
 
+def test_runtime_descriptor_declares_compatibility_failure() -> None:
+    info = next(descriptor for descriptor in OPERATIONS if descriptor.name == "info")
+
+    with pytest.raises(ValueError, match="runtime_incompatible"):
+        replace(info, failure_codes=("invalid_request",))
+
+
 def test_application_refuses_failure_not_declared_by_selected_descriptor() -> None:
     version = next(
         descriptor for descriptor in OPERATIONS if descriptor.name == "version"
