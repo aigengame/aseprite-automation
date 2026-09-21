@@ -19,6 +19,7 @@ from spa.contracts import (
     RuntimeCapability,
     RuntimeCompatibilityDetails,
     RuntimeRequest,
+    TargetCommitDetails,
     ValidationIssue,
     failure_envelope,
 )
@@ -27,6 +28,7 @@ from spa.ports import (
     DiscoveryEvidence,
     HandlerEvidence,
     KernelHandler,
+    KernelInvocationResult,
     LaunchEvidence,
     OperationServices,
     ProcessEvidence,
@@ -36,6 +38,7 @@ from spa.ports import (
     RuntimeIssue,
     RuntimeObservation,
     RuntimeProbe,
+    TargetCommitEvidence,
     TargetCommitObservation,
 )
 
@@ -56,7 +59,7 @@ def _unavailable_kernel(
     _handler: KernelHandler,
     _payload: dict[str, Any],
     _timeout: float,
-) -> dict[str, Any]:
+) -> KernelInvocationResult:
     raise RuntimeError("Kernel invoker is not configured")
 
 
@@ -138,6 +141,12 @@ def _runtime_failure(
                 required_lua_language=evidence.required_lua_language,
                 minimum_api_version=evidence.minimum_api_version,
                 missing_capabilities=list(evidence.missing_capabilities),
+            )
+        case "target_commit_failed", TargetCommitEvidence() as evidence:
+            code = "target_commit_failed"
+            details = TargetCommitDetails(
+                target_sprite_file=evidence.target_sprite_file,
+                reason=evidence.reason,
             )
         case _:
             raise ValueError(f"Unknown runtime issue kind: {issue.kind}")

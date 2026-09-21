@@ -85,6 +85,18 @@ def test_unknown_command_uses_registered_access_failure() -> None:
     assert failure["category"] == "input"
 
 
+@pytest.mark.parametrize("args", [("sprite",), ("sprite", "no-such-operation")])
+def test_incomplete_or_unknown_nested_command_uses_access_failure(
+    args: tuple[str, ...],
+) -> None:
+    run = spa(*args)
+    assert run.returncode == 2
+    assert run.stderr == ""
+    failure = json.loads(run.stdout)
+    assert failure["operation"] == "spa"
+    validate(failure, failure_schema(ACCESS_FAILURE_CODES, "spa"))
+
+
 def test_bare_invocation_emits_only_registered_access_failure() -> None:
     run = spa()
     assert run.returncode == 2

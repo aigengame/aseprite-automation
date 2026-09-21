@@ -21,6 +21,7 @@ from spa.ports import (
     DiscoveryEvidence,
     HandlerEvidence,
     KernelHandler,
+    KernelInvocationResult,
     LaunchEvidence,
     ProcessEvidence,
     ResourceEvidence,
@@ -346,7 +347,7 @@ def invoke(
     handler: KernelHandler,
     payload: dict[str, Any],
     timeout_seconds: float,
-) -> dict[str, Any]:
+) -> KernelInvocationResult:
     """Invoke one fixed packaged handler and return its private result object."""
     canonical = Path(observation.canonical_path)
     resource = Path(observation.resource_path)
@@ -438,7 +439,11 @@ def invoke(
                     ProcessEvidence(executable=str(canonical), exit_status=status),
                     diagnostics,
                 )
-            return result
+            return KernelInvocationResult(
+                payload=result,
+                response_path=str(response_file),
+                diagnostics=diagnostics,
+            )
         except RuntimeIssue:
             raise
         except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:

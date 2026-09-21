@@ -20,6 +20,7 @@ from spa.contracts import (
     RequestDetails,
     ResourceDetails,
     RuntimeCompatibilityDetails,
+    TargetCommitDetails,
     ValidationIssue,
     VersionRequest,
     VersionResult,
@@ -37,6 +38,7 @@ from spa.ports import (
     ResponseEvidence,
     RuntimeCompatibilityEvidence,
     RuntimeIssue,
+    TargetCommitEvidence,
 )
 
 RUNTIME_ISSUE_CASES = (
@@ -67,6 +69,7 @@ def test_all_installed_failure_codes_are_registered_once() -> None:
         "kernel_response_invalid",
         "kernel_execution_failed",
         "runtime_incompatible",
+        "target_commit_failed",
     } <= set(FAILURE_CODES)
     assert all(
         spec.meaning and spec.code == code for code, spec in FAILURE_CODES.items()
@@ -157,6 +160,9 @@ def test_each_registered_code_has_a_constrained_public_schema() -> None:
             required_lua_language="Lua 5.4",
             minimum_api_version=41,
             missing_capabilities=["aseprite_runtime_introspection"],
+        ),
+        TargetCommitDetails: TargetCommitDetails(
+            target_sprite_file="sprite.aseprite", reason="target_not_file"
         ),
     }
     for code, spec in FAILURE_CODES.items():
@@ -444,5 +450,28 @@ def test_every_runtime_issue_kind_classifies_to_a_registered_failure(
     assert outcome.code == expected_code
     assert outcome.category == FAILURE_CODES[expected_code].category
     Draft202012Validator(info.schema().failure_schema).validate(
+        outcome.model_dump(mode="json")
+    )
+
+
+def test_target_commit_failure_is_owned_by_mutating_sprite_operation() -> None:
+    create = next(
+        descriptor for descriptor in OPERATIONS if descriptor.name == "sprite create"
+    )
+    outcome = _runtime_failure(
+        create,
+        RuntimeIssue(
+            "target_commit_failed",
+            "failed",
+            TargetCommitEvidence(
+                target_sprite_file="sprite.aseprite", reason="target_not_file"
+            ),
+        ),
+    )
+    assert outcome.code == "target_commit_failed"
+    assert outcome.details == TargetCommitDetails(
+        target_sprite_file="sprite.aseprite", reason="target_not_file"
+    )
+    Draft202012Validator(create.schema().failure_schema).validate(
         outcome.model_dump(mode="json")
     )

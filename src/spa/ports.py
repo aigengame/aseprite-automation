@@ -30,8 +30,17 @@ class RuntimeObservation:
 RuntimeProbe = Callable[[RuntimeRequest], RuntimeObservation]
 
 KernelHandler = Literal["sprite_create", "sprite_get"]
+
+
+@dataclass(frozen=True)
+class KernelInvocationResult:
+    payload: dict[str, Any]
+    response_path: str
+    diagnostics: Diagnostics
+
+
 KernelInvoker = Callable[
-    [RuntimeObservation, KernelHandler, dict[str, Any], float], dict[str, Any]
+    [RuntimeObservation, KernelHandler, dict[str, Any], float], KernelInvocationResult
 ]
 
 
@@ -103,6 +112,18 @@ class RuntimeCompatibilityEvidence:
     missing_capabilities: tuple[RuntimeCapability, ...]
 
 
+@dataclass(frozen=True)
+class TargetCommitEvidence:
+    target_sprite_file: str
+    reason: Literal[
+        "target_not_file",
+        "staged_file_missing",
+        "staged_file_empty",
+        "replace_failed",
+        "published_file_changed",
+    ]
+
+
 RuntimeEvidence = (
     DiscoveryEvidence
     | ResourceEvidence
@@ -111,6 +132,7 @@ RuntimeEvidence = (
     | ResponseEvidence
     | HandlerEvidence
     | RuntimeCompatibilityEvidence
+    | TargetCommitEvidence
 )
 RuntimeIssueKind = Literal[
     "discovery_absent",
@@ -124,6 +146,7 @@ RuntimeIssueKind = Literal[
     "handler_rejected",
     "exit_mismatch",
     "runtime_incompatible",
+    "target_commit_failed",
 ]
 _EVIDENCE_TYPES: dict[RuntimeIssueKind, type[RuntimeEvidence]] = {
     "discovery_absent": DiscoveryEvidence,
@@ -137,6 +160,7 @@ _EVIDENCE_TYPES: dict[RuntimeIssueKind, type[RuntimeEvidence]] = {
     "handler_rejected": HandlerEvidence,
     "exit_mismatch": ProcessEvidence,
     "runtime_incompatible": RuntimeCompatibilityEvidence,
+    "target_commit_failed": TargetCommitEvidence,
 }
 
 

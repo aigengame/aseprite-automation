@@ -5,7 +5,7 @@ import os
 import uuid
 from pathlib import Path
 
-from spa.ports import TargetCommitObservation
+from spa.ports import RuntimeIssue, TargetCommitEvidence, TargetCommitObservation
 
 
 class LocalTargetFiles:
@@ -14,16 +14,48 @@ class LocalTargetFiles:
         return target.with_name(f".{target.stem}.{token}.staged.aseprite")
 
     def commit(self, staged: Path, target: Path) -> TargetCommitObservation:
+        if target.exists() and not target.is_file():
+            raise RuntimeIssue(
+                "target_commit_failed",
+                "Target Sprite File exists but is not a regular file",
+                TargetCommitEvidence(str(target), "target_not_file"),
+            )
         if not staged.is_file():
-            raise ValueError("Kernel did not produce a staged Sprite file")
-        payload = staged.read_bytes()
+            raise RuntimeIssue(
+                "target_commit_failed",
+                "Kernel did not produce a staged Sprite file",
+                TargetCommitEvidence(str(target), "staged_file_missing"),
+            )
+        try:
+            payload = staged.read_bytes()
+        except OSError as exc:
+            raise RuntimeIssue(
+                "target_commit_failed",
+                "Staged Sprite file could not be read",
+                TargetCommitEvidence(str(target), "staged_file_missing"),
+            ) from exc
         if not payload:
-            raise ValueError("Kernel produced an empty staged Sprite file")
+            raise RuntimeIssue(
+                "target_commit_failed",
+                "Kernel produced an empty staged Sprite file",
+                TargetCommitEvidence(str(target), "staged_file_empty"),
+            )
         digest = hashlib.sha256(payload).hexdigest()
-        os.replace(staged, target)
-        stat = target.stat()
+        try:
+            os.replace(staged, target)
+            stat = target.stat()
+        except OSError as exc:
+            raise RuntimeIssue(
+                "target_commit_failed",
+                "Staged Sprite file could not replace the declared target",
+                TargetCommitEvidence(str(target), "replace_failed"),
+            ) from exc
         if stat.st_size != len(payload):
-            raise OSError("Target Commit size changed during publication")
+            raise RuntimeIssue(
+                "target_commit_failed",
+                "Published Target Sprite File changed during verification",
+                TargetCommitEvidence(str(target), "published_file_changed"),
+            )
         return TargetCommitObservation(
             target_sprite_file=str(target),
             byte_size=stat.st_size,

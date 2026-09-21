@@ -3,11 +3,16 @@
 from pathlib import Path
 from typing import Annotated, Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, ValidationError, field_validator
 
 from spa.contracts import PublicModel, RuntimeRequest, RuntimeRequirements
 from spa.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
-from spa.ports import OperationServices
+from spa.ports import (
+    KernelInvocationResult,
+    OperationServices,
+    ResponseEvidence,
+    RuntimeIssue,
+)
 
 InspectionSection = Literal[
     "frames", "tags", "palettes", "layers", "cels", "slices", "tilesets"
@@ -225,6 +230,21 @@ SPRITE_GET_REQUIREMENTS = RuntimeRequirements(
     minimum_api_version=41,
     required_capabilities=["aseprite_sprite_inspection"],
 )
+SPRITE_CREATE_FAILURE_CODES = (*RUNTIME_FAILURE_CODES, "target_commit_failed")
+
+
+def _inspection_from_kernel(
+    invocation: KernelInvocationResult,
+) -> SpriteInspection:
+    try:
+        return SpriteInspection.model_validate(invocation.payload["sprite"])
+    except (KeyError, TypeError, ValidationError) as exc:
+        raise RuntimeIssue(
+            "response_malformed",
+            "Packaged Sprite handler returned invalid inspection facts",
+            ResponseEvidence(response_path=invocation.response_path),
+            invocation.diagnostics,
+        ) from exc
 
 
 def create_sprite(
@@ -242,10 +262,10 @@ def create_sprite(
         "inspection_scope": list(INSPECTION_SECTIONS),
     }
     try:
-        raw = services.invoke_kernel(
+        invocation = services.invoke_kernel(
             observation, "sprite_create", payload, request.timeout_seconds
         )
-        inspection = SpriteInspection.model_validate(raw["sprite"])
+        inspection = _inspection_from_kernel(invocation)
         committed = services.target_files.commit(staged, target)
         return SpriteCreateResult(
             target_commit=TargetCommit(
@@ -264,7 +284,7 @@ def get_sprite(
     request: SpriteGetRequest, services: OperationServices
 ) -> SpriteGetResult:
     observation = services.probe_runtime(request)
-    raw = services.invoke_kernel(
+    invocation = services.invoke_kernel(
         observation,
         "sprite_get",
         {
@@ -273,7 +293,7 @@ def get_sprite(
         },
         request.timeout_seconds,
     )
-    inspection = SpriteInspection.model_validate(raw["sprite"])
+    inspection = _inspection_from_kernel(invocation)
     return SpriteGetResult(
         **inspection.model_dump(),
         sprite_file=request.sprite_file,
@@ -293,7 +313,7 @@ SPRITE_OPERATIONS = (
         create_sprite,
         lambda result: result.target_commit.target_sprite_file,
         SPRITE_CREATE_REQUIREMENTS,
-        RUNTIME_FAILURE_CODES,
+        SPRITE_CREATE_FAILURE_CODES,
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
     ),

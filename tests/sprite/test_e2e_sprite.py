@@ -186,6 +186,35 @@ def test_handler_rejection_is_schema_valid_and_does_not_publish_target(
     assert not target.exists()
 
 
+def test_invalid_existing_target_fails_without_target_commit(tmp_path: Path) -> None:
+    target = tmp_path / "directory.aseprite"
+    target.mkdir()
+    request = {
+        "target_sprite_file": str(target),
+        "width": 3,
+        "height": 2,
+        "color_mode": "rgb",
+        "initial_layer": {"kind": "transparent"},
+        "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+    }
+    run = spa("sprite", "create", "--input-json", json.dumps(request))
+    assert run.returncode == 1, run.stdout
+    failure = json.loads(run.stdout)
+    validate(
+        failure,
+        json.loads(spa("sprite", "create", "--schema").stdout)["failure_schema"],
+    )
+    assert failure["code"] == "target_commit_failed"
+    assert failure["details"] == {
+        "kind": "target_commit",
+        "target_sprite_file": str(target),
+        "reason": "target_not_file",
+    }
+    assert "target_commit" not in failure
+    assert target.is_dir()
+    assert list(target.iterdir()) == []
+
+
 def test_get_reports_populated_native_structures_completely(tmp_path: Path) -> None:
     target = tmp_path / "populated.aseprite"
     _populated_sprite(target)

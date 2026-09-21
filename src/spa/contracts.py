@@ -149,6 +149,21 @@ class RuntimeCompatibilityDetails(PublicModel):
     missing_capabilities: list[RuntimeCapability]
 
 
+TargetCommitFailureReason = Literal[
+    "target_not_file",
+    "staged_file_missing",
+    "staged_file_empty",
+    "replace_failed",
+    "published_file_changed",
+]
+
+
+class TargetCommitDetails(PublicModel):
+    kind: Literal["target_commit"] = "target_commit"
+    target_sprite_file: str
+    reason: TargetCommitFailureReason
+
+
 class RequestDetails(PublicModel):
     kind: Literal["invalid_request"] = "invalid_request"
     errors: list["ValidationIssue"]
@@ -168,6 +183,7 @@ FailureDetails = Annotated[
     | KernelProtocolDetail
     | KernelExecutionDetails
     | RuntimeCompatibilityDetails
+    | TargetCommitDetails
     | RequestDetails,
     Field(discriminator="kind"),
 ]
@@ -272,6 +288,12 @@ FAILURE_CODES = register_failure_codes(
             "The installed Aseprite Lua language or scripting API version does not meet the Operation requirements",
             "environment",
             RuntimeCompatibilityDetails,
+        ),
+        FailureCodeSpec(
+            "target_commit_failed",
+            "The validated staged Sprite could not be published at its declared target",
+            "execution",
+            TargetCommitDetails,
         ),
     )
 )
