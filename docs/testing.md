@@ -33,7 +33,9 @@ Runtime integration fixtures cover incompatible Lua and API observations and str
 failure without claiming native execution. Real-runtime tests execute the packaged
 probe and assert its observed embedded Lua version, `app.apiVersion`, JSON round trip,
 file I/O, and scripting evidence. These three facilities are prerequisites of a complete
-probe response, not partial capability observations. Each later Operation adds
+probe response. Runtime capabilities are reported independently: omitting a known
+capability does not invalidate the probe, while the Application rejects it before
+execution when the selected Descriptor requires it. Each later Operation adds
 real-runtime evidence for the native capabilities named by its Descriptor.
 
 The initial evidence profiles use local macOS Aseprite 1.3.18.5-dev and the pinned

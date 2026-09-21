@@ -27,11 +27,12 @@ class RuntimeRequest(Request):
     timeout_seconds: float = Field(default=15.0, gt=0, le=120)
 
 
-RuntimeCapability = Literal[
+ProbePrerequisite = Literal[
     "aseprite_scripting",
     "lua_file_io",
     "aseprite_json",
 ]
+RuntimeCapability = Literal["aseprite_runtime_introspection"]
 
 
 class RuntimeRequirements(PublicModel):
@@ -50,6 +51,7 @@ class RuntimeFacts(PublicModel):
     aseprite_version: str
     api_version: int
     lua_version: str
+    verified_prerequisites: list[ProbePrerequisite]
     verified_capabilities: list[RuntimeCapability]
 
 
@@ -140,6 +142,7 @@ class RuntimeCompatibilityDetails(PublicModel):
     api_version: int
     required_lua_language: str
     minimum_api_version: int
+    missing_capabilities: list[RuntimeCapability]
 
 
 class RequestDetails(PublicModel):

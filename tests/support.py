@@ -1,5 +1,6 @@
 """Helpers shared across test ownership areas."""
 
+import shlex
 import shutil
 import subprocess
 from pathlib import Path
@@ -31,3 +32,25 @@ def fake_aseprite(tmp_path: Path, body: str) -> Path:
     resource.parent.mkdir(parents=True)
     resource.write_text("<gui/>", encoding="utf-8")
     return binary
+
+
+def fake_probe_response(tmp_path: Path, response: str) -> Path:
+    """Create a controlled Aseprite transport that returns one probe response."""
+    quoted_response = shlex.quote(response)
+    return fake_aseprite(
+        tmp_path,
+        f"""
+request=
+response_file=
+echo_file=
+for argument in "$@"; do
+  case "$argument" in
+    request=*) request=${{argument#request=}};;
+    response=*) response_file=${{argument#response=}};;
+    echo=*) echo_file=${{argument#echo=}};;
+  esac
+done
+cp "$request" "$echo_file"
+printf '%s' {quoted_response} > "$response_file"
+""",
+    )

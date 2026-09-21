@@ -28,9 +28,10 @@ A runtime-backed Descriptor declares the Lua language profile, minimum Aseprite
 Aseprite Adapter observes those facts from the selected process. A complete probe
 establishes the scripting, file I/O, and JSON facilities used by its own transport; a
 failure before that response uses the typed process or Kernel failure channel. The
-Application checks the independently observed Lua language and API version before it
-executes the Operation. Aseprite product version remains provenance and does not
-replace these runtime observations.
+Adapter reports native runtime capabilities independently of those fixed
+prerequisites. The Application checks the observed Lua language, API version, and
+capabilities against the selected Descriptor before it executes the Operation. Aseprite
+product version remains provenance and does not replace these runtime observations.
 
 The Aseprite Adapter and Lua Operation Kernel communicate through a versioned private
 Kernel Protocol. Public defaults and null semantics are resolved before transport.

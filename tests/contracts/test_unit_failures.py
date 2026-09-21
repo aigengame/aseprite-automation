@@ -156,6 +156,7 @@ def test_each_registered_code_has_a_constrained_public_schema() -> None:
             api_version=40,
             required_lua_language="Lua 5.4",
             minimum_api_version=41,
+            missing_capabilities=["aseprite_runtime_introspection"],
         ),
     }
     for code, spec in FAILURE_CODES.items():
@@ -429,6 +430,7 @@ def _evidence_for(kind: str):
             api_version=40,
             required_lua_language="Lua 5.4",
             minimum_api_version=41,
+            missing_capabilities=("aseprite_runtime_introspection",),
         )
     raise AssertionError(kind)
 

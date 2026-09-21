@@ -453,7 +453,9 @@ use case or the separate `script run` adapter path without a Kernel binding.
 The Lua language profile, minimum Aseprite `app.apiVersion`, and set of
 Aseprite-provided capabilities declared by a runtime-backed Operation Descriptor. SPA
 establishes probe and transport prerequisites through a complete probe response and
-compares independently observed compatibility facts before executing the Operation.
+preserves independently observed native capabilities. The Application compares those
+capabilities, the Lua language, and the API version with the selected Descriptor before
+executing the Operation.
 
 **Command Group**
 A CLI navigation grouping based mainly on Aseprite language. It does not define a

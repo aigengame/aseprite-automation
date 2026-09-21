@@ -23,10 +23,13 @@ def test_info_reports_installed_runtime() -> None:
     assert result["runtime"]["aseprite_version"].startswith("1.3.18.5")
     assert result["runtime"]["api_version"] == 41
     assert result["runtime"]["lua_version"] == "Lua 5.4"
-    assert result["runtime"]["verified_capabilities"] == [
+    assert result["runtime"]["verified_prerequisites"] == [
         "aseprite_scripting",
         "lua_file_io",
         "aseprite_json",
+    ]
+    assert result["runtime"]["verified_capabilities"] == [
+        "aseprite_runtime_introspection"
     ]
     assert result["supported_capabilities"]
     info_schema = json.loads(spa("info", "--schema").stdout)

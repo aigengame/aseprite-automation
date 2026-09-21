@@ -9,7 +9,7 @@ from jsonschema import Draft202012Validator, validate
 
 from spa.contracts import failure_schema
 from spa.descriptors import ACCESS_FAILURE_CODES
-from tests.support import fake_aseprite, spa
+from tests.support import fake_probe_response, spa
 
 
 def test_version_is_an_installed_structured_operation() -> None:
@@ -36,11 +36,7 @@ def test_runtime_operation_schema_declares_compatibility_requirements() -> None:
     assert info_schema["runtime_requirements"] == {
         "lua_language": "Lua 5.4",
         "minimum_api_version": 41,
-        "required_capabilities": [
-            "aseprite_scripting",
-            "lua_file_io",
-            "aseprite_json",
-        ],
+        "required_capabilities": ["aseprite_runtime_introspection"],
     }
 
     version_schema = json.loads(spa("version", "--schema").stdout)
@@ -117,22 +113,9 @@ def test_human_output_projects_the_same_version_result() -> None:
 def test_installed_manifest_exposes_access_failures_without_real_aseprite(
     tmp_path: Path,
 ) -> None:
-    binary = fake_aseprite(
+    binary = fake_probe_response(
         tmp_path,
-        """
-request=
-response=
-echo_file=
-for argument in "$@"; do
-  case "$argument" in
-    request=*) request=${argument#request=};;
-    response=*) response=${argument#response=};;
-    echo=*) echo_file=${argument#echo=};;
-  esac
-done
-cp "$request" "$echo_file"
-printf '{"kernel_protocol_version":1,"status":"ok","aseprite_version":"test","api_version":41,"lua_version":"Lua 5.4","verified_capabilities":["aseprite_scripting","lua_file_io","aseprite_json"]}' > "$response"
-""",
+        '{"kernel_protocol_version":1,"status":"ok","aseprite_version":"test","api_version":41,"lua_version":"Lua 5.4","verified_prerequisites":["aseprite_scripting","lua_file_io","aseprite_json"],"verified_capabilities":["aseprite_runtime_introspection"]}',
     )
     run = spa("schema", "--aseprite", str(binary), "--json")
     assert run.returncode == 0, run.stdout

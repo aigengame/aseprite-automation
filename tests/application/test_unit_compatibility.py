@@ -25,13 +25,14 @@ def test_incompatible_runtime_is_rejected_before_operation_execution() -> None:
             canonical_path="/aseprite",
             resource_path="/data/gui.xml",
             aseprite_version="old",
-            api_version=40,
-            lua_version="Lua 5.3",
-            verified_capabilities=(
+            api_version=41,
+            lua_version="Lua 5.4",
+            verified_prerequisites=(
                 "aseprite_scripting",
                 "lua_file_io",
                 "aseprite_json",
             ),
+            verified_capabilities=(),
         )
 
     outcome = dispatch(
@@ -43,5 +44,6 @@ def test_incompatible_runtime_is_rejected_before_operation_execution() -> None:
 
     assert isinstance(outcome, FailureEnvelope)
     assert outcome.code == "runtime_incompatible"
+    assert outcome.details.missing_capabilities == ["aseprite_runtime_introspection"]
     assert len(probes) == 1
     assert executions == []

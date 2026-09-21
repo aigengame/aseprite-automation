@@ -18,10 +18,13 @@ local function execute()
     aseprite_version = tostring(app.version),
     api_version = app.apiVersion,
     lua_version = _VERSION,
-    verified_capabilities = {
+    verified_prerequisites = {
       "aseprite_scripting",
       "lua_file_io",
       "aseprite_json",
+    },
+    verified_capabilities = {
+      "aseprite_runtime_introspection",
     },
   }
 end

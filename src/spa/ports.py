@@ -4,7 +4,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal
 
-from spa.contracts import Diagnostics, RuntimeCapability, RuntimeRequest
+from spa.contracts import (
+    Diagnostics,
+    ProbePrerequisite,
+    RuntimeCapability,
+    RuntimeRequest,
+)
 
 
 @dataclass(frozen=True)
@@ -17,6 +22,7 @@ class RuntimeObservation:
     aseprite_version: str
     api_version: int
     lua_version: str
+    verified_prerequisites: tuple[ProbePrerequisite, ...]
     verified_capabilities: tuple[RuntimeCapability, ...]
 
 
@@ -64,6 +70,7 @@ class RuntimeCompatibilityEvidence:
     api_version: int
     required_lua_language: str
     minimum_api_version: int
+    missing_capabilities: tuple[RuntimeCapability, ...]
 
 
 RuntimeEvidence = (

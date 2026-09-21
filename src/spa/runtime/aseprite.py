@@ -13,6 +13,7 @@ from typing import Literal, cast, get_args
 
 from spa.contracts import (
     Diagnostics,
+    ProbePrerequisite,
     RuntimeCapability,
     RuntimeRequest,
 )
@@ -30,6 +31,9 @@ from spa.runtime.invocation import prepare_invocation
 
 KERNEL_PROTOCOL_VERSION = 1
 OUTPUT_LIMIT_BYTES = 65536
+PROBE_PREREQUISITES: frozenset[ProbePrerequisite] = frozenset(
+    {"aseprite_scripting", "lua_file_io", "aseprite_json"}
+)
 
 
 def _discover(
@@ -282,27 +286,33 @@ def probe(request: RuntimeRequest) -> RuntimeObservation:
             version = response["aseprite_version"]
             api_version = response["api_version"]
             lua_version = response["lua_version"]
+            verified_prerequisites = response["verified_prerequisites"]
             verified_capabilities = response["verified_capabilities"]
             if (
                 not isinstance(version, str)
                 or type(api_version) is not int
                 or not isinstance(lua_version, str)
+                or not isinstance(verified_prerequisites, list)
+                or not all(
+                    isinstance(prerequisite, str)
+                    for prerequisite in verified_prerequisites
+                )
                 or not isinstance(verified_capabilities, list)
                 or not all(
                     isinstance(capability, str) for capability in verified_capabilities
                 )
             ):
-                raise TypeError("Kernel probe returned invalid version facts")
+                raise TypeError("Kernel probe returned invalid runtime facts")
+            if set(verified_prerequisites) != PROBE_PREREQUISITES:
+                raise ValueError(
+                    "Kernel probe did not verify every required probe prerequisite"
+                )
             supported_capabilities = set(get_args(RuntimeCapability))
             if any(
                 capability not in supported_capabilities
                 for capability in verified_capabilities
             ):
                 raise ValueError("Kernel probe returned an unknown runtime capability")
-            if set(verified_capabilities) != supported_capabilities:
-                raise ValueError(
-                    "Kernel probe did not verify every required probe prerequisite"
-                )
         except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
             if status != 0:
                 raise _process_failure(status, canonical, diagnostics) from exc
@@ -321,6 +331,9 @@ def probe(request: RuntimeRequest) -> RuntimeObservation:
         aseprite_version=version,
         api_version=api_version,
         lua_version=lua_version,
+        verified_prerequisites=cast(
+            tuple[ProbePrerequisite, ...], tuple(verified_prerequisites)
+        ),
         verified_capabilities=cast(
             tuple[RuntimeCapability, ...], tuple(verified_capabilities)
         ),

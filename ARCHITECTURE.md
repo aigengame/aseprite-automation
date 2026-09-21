@@ -311,8 +311,10 @@ binds schemas, execution metadata, presentation, and a declared execution defini
 For an Operation that invokes Aseprite, it also declares the required Lua language
 profile, minimum `app.apiVersion`, and the Aseprite-provided runtime capabilities that
 the Operation actually uses. A complete probe establishes its scripting, file I/O, and
-JSON transport prerequisites. The Application compares the independently observed Lua
-language and API version before it enters the Operation execution definition.
+JSON transport prerequisites. It reports native runtime capabilities independently of
+those fixed prerequisites. The Application compares the observed Lua language, API
+version, and capabilities with the selected Descriptor before it enters the Operation
+execution definition.
 Descriptors are the registration authority; they do not implement native behavior.
 Under ADR-0013, the failure contract uses shared registration of each public
 Failure Code's meaning, Category, and Details kind. Each Descriptor declares its
@@ -405,7 +407,8 @@ The Aseprite Adapter owns the external integration mechanics:
 - executable and resource discovery;
 - host-specific invocation preparation within the adapter;
 - collection and transport of the Aseprite version, embedded Lua language version,
-  `app.apiVersion`, and exercised runtime-capability observations;
+  `app.apiVersion`, fixed probe prerequisites, and independently observed runtime
+  capabilities;
 - `--batch --script` process launch;
 - the versioned Kernel Protocol and transport files;
 - process exit and bounded diagnostic capture;
@@ -496,9 +499,12 @@ the `Lua 5.4` language profile. Each runtime-backed Descriptor declares its mini
 `app.apiVersion` and required Aseprite-provided capabilities. The Adapter observes the
 selected process. A successful probe establishes its transport prerequisites; a
 prerequisite failure uses the existing typed process or Kernel failure channel. The
-Application rejects observed Lua-language or API-version mismatches with typed evidence
-before Operation execution. The private Kernel Protocol continues to require an exact
-match with the one version co-packaged in the same pre-1.0 release.
+Adapter preserves each independently observed runtime capability rather than requiring
+every known capability for every probe. The Application rejects an observed
+Lua-language or API-version mismatch, or a capability missing from the selected
+Descriptor's requirements, with typed evidence before Operation execution. The private
+Kernel Protocol continues to require an exact match with the one version co-packaged in
+the same pre-1.0 release.
 
 A completed Validation can return an Operation Result with typed Validation Findings.
 An invalid request, execution failure, or unmet commit gate returns a Failure Envelope;

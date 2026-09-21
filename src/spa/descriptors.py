@@ -46,11 +46,7 @@ RUNTIME_FAILURE_CODES = (
 KERNEL_RUNTIME_REQUIREMENTS = RuntimeRequirements(
     lua_language="Lua 5.4",
     minimum_api_version=41,
-    required_capabilities=[
-        "aseprite_scripting",
-        "lua_file_io",
-        "aseprite_json",
-    ],
+    required_capabilities=["aseprite_runtime_introspection"],
 )
 
 
@@ -151,6 +147,7 @@ def info_result(request: RuntimeRequest, probe: RuntimeProbe) -> InfoResult:
         aseprite_version=observation.aseprite_version,
         api_version=observation.api_version,
         lua_version=observation.lua_version,
+        verified_prerequisites=list(observation.verified_prerequisites),
         verified_capabilities=list(observation.verified_capabilities),
     )
     return InfoResult(
