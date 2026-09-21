@@ -14,6 +14,9 @@ from spa.contracts import (
     ProcessStartDetails,
     RequestDetails,
     ResourceDetails,
+    RuntimeCapability,
+    RuntimeCompatibilityDetails,
+    RuntimeRequest,
     ValidationIssue,
     failure_envelope,
 )
@@ -25,7 +28,9 @@ from spa.ports import (
     ProcessEvidence,
     ResourceEvidence,
     ResponseEvidence,
+    RuntimeCompatibilityEvidence,
     RuntimeIssue,
+    RuntimeObservation,
     RuntimeProbe,
 )
 
@@ -86,6 +91,16 @@ def _runtime_failure(
             code = "process_failed"
             details = ProcessDetails(
                 executable=evidence.executable, exit_status=evidence.exit_status
+            )
+        case "runtime_incompatible", RuntimeCompatibilityEvidence() as evidence:
+            code = "runtime_incompatible"
+            details = RuntimeCompatibilityDetails(
+                aseprite_version=evidence.aseprite_version,
+                lua_version=evidence.lua_version,
+                api_version=evidence.api_version,
+                required_lua_language=evidence.required_lua_language,
+                minimum_api_version=evidence.minimum_api_version,
+                missing_capabilities=list(evidence.missing_capabilities),
             )
         case _:
             raise ValueError(f"Unknown runtime issue kind: {issue.kind}")
@@ -153,8 +168,46 @@ def dispatch(
             descriptor,
             [ValidationIssue(location=[], code="json_input", message=str(exc))],
         )
+
+    observation: RuntimeObservation | None = None
+
+    def compatible_probe(runtime_request: RuntimeRequest) -> RuntimeObservation:
+        nonlocal observation
+        if observation is None:
+            observation = probe_runtime(runtime_request)
+            requirements = descriptor.runtime_requirements
+            if requirements is None:
+                return observation
+            missing: tuple[RuntimeCapability, ...] = tuple(
+                capability
+                for capability in requirements.required_capabilities
+                if capability not in observation.verified_capabilities
+            )
+            if (
+                observation.lua_version != requirements.lua_language
+                or observation.api_version < requirements.minimum_api_version
+                or missing
+            ):
+                raise RuntimeIssue(
+                    "runtime_incompatible",
+                    "Installed Aseprite scripting runtime does not meet the Operation requirements",
+                    RuntimeCompatibilityEvidence(
+                        aseprite_version=observation.aseprite_version,
+                        lua_version=observation.lua_version,
+                        api_version=observation.api_version,
+                        required_lua_language=requirements.lua_language,
+                        minimum_api_version=requirements.minimum_api_version,
+                        missing_capabilities=missing,
+                    ),
+                )
+        return observation
+
     try:
-        outcome = descriptor.execute(request, probe_runtime)
+        if descriptor.runtime_requirements is not None:
+            if not isinstance(request, RuntimeRequest):
+                raise TypeError("Runtime Operation Request must extend RuntimeRequest")
+            compatible_probe(request)
+        outcome = descriptor.execute(request, compatible_probe)
     except RuntimeIssue as exc:
         return _runtime_failure(descriptor, exc)
     return _validated_outcome(descriptor, outcome)

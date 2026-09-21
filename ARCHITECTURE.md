@@ -308,6 +308,10 @@ them close.
 
 Each structured public capability has one **Operation Descriptor**. The descriptor
 binds schemas, execution metadata, presentation, and a declared execution definition.
+For an Operation that invokes Aseprite, it also declares the required Lua language
+profile, minimum `app.apiVersion`, and the Aseprite-provided runtime capabilities that
+the Operation actually uses. The Application compares those requirements with facts
+observed by the Adapter before it enters the Operation execution definition.
 Descriptors are the registration authority; they do not implement native behavior.
 Under ADR-0013, the failure contract uses shared registration of each public
 Failure Code's meaning, Category, and Details kind. Each Descriptor declares its
@@ -399,7 +403,8 @@ The Aseprite Adapter owns the external integration mechanics:
 
 - executable and resource discovery;
 - host-specific invocation preparation within the adapter;
-- collection and transport of Aseprite/API version and native-capability observations;
+- collection and transport of the Aseprite version, embedded Lua language version,
+  `app.apiVersion`, and exercised runtime-capability observations;
 - `--batch --script` process launch;
 - the versioned Kernel Protocol and transport files;
 - process exit and bounded diagnostic capture;
@@ -484,6 +489,13 @@ Before SPA 1.0, the co-packaged Python and Lua components use only the current K
 Protocol version. This private boundary can evolve without historical-version
 compatibility machinery; checking the installed Aseprite Lua runtime and scripting
 API remains a separate obligation.
+
+These are three independent compatibility axes. The packaged Kernel currently declares
+the `Lua 5.4` language profile. Each runtime-backed Descriptor declares its minimum
+`app.apiVersion` and required Aseprite-provided capabilities. The Adapter observes the
+selected process; the Application rejects unmet requirements with typed evidence before
+Operation execution. The private Kernel Protocol continues to require an exact match
+with the one version co-packaged in the same pre-1.0 release.
 
 A completed Validation can return an Operation Result with typed Validation Findings.
 An invalid request, execution failure, or unmet commit gate returns a Failure Envelope;

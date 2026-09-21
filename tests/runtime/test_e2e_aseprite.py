@@ -21,6 +21,12 @@ def test_info_reports_installed_runtime() -> None:
     assert result["runtime"]["resource_complete"] is True
     assert result["runtime"]["aseprite_version"]
     assert result["runtime"]["api_version"]
+    assert result["runtime"]["lua_version"] == "Lua 5.4"
+    assert result["runtime"]["verified_capabilities"] == [
+        "aseprite_scripting",
+        "lua_file_io",
+        "aseprite_json",
+    ]
     assert result["supported_capabilities"]
     info_schema = json.loads(spa("info", "--schema").stdout)
     validate(result, info_schema["result_schema"])
@@ -31,6 +37,9 @@ def test_info_reports_installed_runtime() -> None:
     )
     assert input_run.returncode == 0, input_run.stdout
     assert json.loads(input_run.stdout)["runtime"] == result["runtime"]
+    human_run = spa("info", "--aseprite", os.environ["SPA_TEST_ASEPRITE"], "--human")
+    assert human_run.returncode == 0, human_run.stdout
+    assert "Lua 5.4" in human_run.stdout
 
 
 def test_symlinked_executable_resolves_to_resource_complete_bundle(

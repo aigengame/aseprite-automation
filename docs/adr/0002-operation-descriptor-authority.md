@@ -23,6 +23,13 @@ whose behavior is implemented by an Application use case can have no Kernel bind
 application-composed capability can select and order multiple packaged Ordinary Core
 Operation handlers without redefining their semantics.
 
+A runtime-backed Descriptor declares the Lua language profile, minimum Aseprite
+`app.apiVersion`, and Aseprite-provided capabilities required by that Operation. The
+Aseprite Adapter observes those facts from the selected process. The Application checks
+the declared requirements before it executes the Operation and returns typed evidence
+when they are not met. Aseprite product version remains provenance and does not replace
+these runtime observations.
+
 The Aseprite Adapter and Lua Operation Kernel communicate through a versioned private
 Kernel Protocol. Public defaults and null semantics are resolved before transport.
 The adapter decodes private Kernel Protocol responses and reports typed runtime

@@ -449,6 +449,12 @@ metadata, presentation projection, and execution definition. An Ordinary Core
 Operation binds one packaged Lua handler; another capability can bind an Application
 use case or the separate `script run` adapter path without a Kernel binding.
 
+**Runtime Requirements**
+The Lua language profile, minimum Aseprite `app.apiVersion`, and set of
+Aseprite-provided capabilities declared by a runtime-backed Operation Descriptor. SPA
+checks these requirements against observations from the selected Aseprite process
+before executing the Operation.
+
 **Command Group**
 A CLI navigation grouping based mainly on Aseprite language. It does not define a
 Domain Module or Bounded Context.

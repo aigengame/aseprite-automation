@@ -31,6 +31,11 @@ Operation. Runtime request, response, staging, and diagnostic files carry data a
 Artifacts rather than executable behavior. Ordinary Core Operation handlers and shared
 helpers remain packaged, versioned source.
 
+Packaged Kernel handlers currently target the `Lua 5.4` language profile. They do not
+depend on an external Lua interpreter, LuaJIT extensions, precompiled Lua bytecode, or
+unverified native Lua modules. Each handler's Operation Descriptor narrows the
+Aseprite API capabilities required for its native behavior.
+
 Caller-owned raw Lua is a separate, explicitly unrestricted script-run capability. It
 can be materialized unchanged when Aseprite requires a file, but it does not enter the
 Kernel, participate in Operation Plans, inherit Ordinary Core Operation guarantees, or

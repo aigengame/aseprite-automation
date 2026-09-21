@@ -28,6 +28,12 @@ Use the tier in the file name:
 - `test_e2e_*.py` invokes the installed `spa` CLI with a real Aseprite executable.
   Mark the module or each test with `pytest.mark.e2e`.
 
+Runtime integration fixtures cover incompatible observations and structured failure
+without claiming native execution. Real-runtime tests execute the packaged probe and
+assert its observed embedded Lua version, `app.apiVersion`, JSON round trip, file I/O,
+and scripting evidence. Each later Operation adds real-runtime evidence for the native
+capabilities named by its Descriptor.
+
 Pytest rejects unregistered markers. The root e2e gate also rejects a selected e2e
 test when `SPA_TEST_ASEPRITE` is absent, is not a file, or is not executable. A missing
 runtime therefore cannot produce an all-skipped successful e2e run.

@@ -19,6 +19,7 @@ from spa.contracts import (
     ProcessStartDetails,
     RequestDetails,
     ResourceDetails,
+    RuntimeCompatibilityDetails,
     ValidationIssue,
     VersionRequest,
     VersionResult,
@@ -34,6 +35,7 @@ from spa.ports import (
     ProcessEvidence,
     ResourceEvidence,
     ResponseEvidence,
+    RuntimeCompatibilityEvidence,
     RuntimeIssue,
 )
 
@@ -48,6 +50,7 @@ RUNTIME_ISSUE_CASES = (
     ("response_absent", "kernel_response_missing"),
     ("response_malformed", "kernel_response_invalid"),
     ("handler_rejected", "kernel_execution_failed"),
+    ("runtime_incompatible", "runtime_incompatible"),
 )
 
 
@@ -63,6 +66,7 @@ def test_all_installed_failure_codes_are_registered_once() -> None:
         "kernel_response_missing",
         "kernel_response_invalid",
         "kernel_execution_failed",
+        "runtime_incompatible",
     } <= set(FAILURE_CODES)
     assert all(
         spec.meaning and spec.code == code for code, spec in FAILURE_CODES.items()
@@ -145,6 +149,14 @@ def test_each_registered_code_has_a_constrained_public_schema() -> None:
         KernelProtocolDetail: KernelProtocolDetail(response_path="/response.json"),
         KernelExecutionDetails: KernelExecutionDetails(
             response_path="/response.json", reason="refused"
+        ),
+        RuntimeCompatibilityDetails: RuntimeCompatibilityDetails(
+            aseprite_version="old",
+            lua_version="Lua 5.3",
+            api_version=40,
+            required_lua_language="Lua 5.4",
+            minimum_api_version=41,
+            missing_capabilities=["aseprite_json"],
         ),
     }
     for code, spec in FAILURE_CODES.items():
@@ -279,6 +291,7 @@ def test_descriptor_applicability_does_not_advertise_other_codes() -> None:
         "kernel_response_missing",
         "kernel_response_invalid",
         "kernel_execution_failed",
+        "runtime_incompatible",
     }
     assert by_name["schema"].failure_codes == by_name["info"].failure_codes
     failure = failure_envelope(
@@ -403,6 +416,15 @@ def _evidence_for(kind: str):
         return ResponseEvidence(response_path="/response.json")
     if kind == "handler_rejected":
         return HandlerEvidence(response_path="/response.json", reason="refused")
+    if kind == "runtime_incompatible":
+        return RuntimeCompatibilityEvidence(
+            aseprite_version="old",
+            lua_version="Lua 5.3",
+            api_version=40,
+            required_lua_language="Lua 5.4",
+            minimum_api_version=41,
+            missing_capabilities=("aseprite_json",),
+        )
     raise AssertionError(kind)
 
 

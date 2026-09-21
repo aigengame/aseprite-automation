@@ -9,10 +9,11 @@ import tempfile
 import time
 from importlib.resources import files
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast, get_args
 
 from spa.contracts import (
     Diagnostics,
+    RuntimeCapability,
     RuntimeRequest,
 )
 from spa.ports import (
@@ -280,8 +281,24 @@ def probe(request: RuntimeRequest) -> RuntimeObservation:
                 )
             version = response["aseprite_version"]
             api_version = response["api_version"]
-            if not isinstance(version, str) or type(api_version) is not int:
+            lua_version = response["lua_version"]
+            verified_capabilities = response["verified_capabilities"]
+            if (
+                not isinstance(version, str)
+                or type(api_version) is not int
+                or not isinstance(lua_version, str)
+                or not isinstance(verified_capabilities, list)
+                or not all(
+                    isinstance(capability, str) for capability in verified_capabilities
+                )
+            ):
                 raise TypeError("Kernel probe returned invalid version facts")
+            supported_capabilities = set(get_args(RuntimeCapability))
+            if any(
+                capability not in supported_capabilities
+                for capability in verified_capabilities
+            ):
+                raise ValueError("Kernel probe returned an unknown runtime capability")
         except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
             if status != 0:
                 raise _process_failure(status, canonical, diagnostics) from exc
@@ -299,4 +316,8 @@ def probe(request: RuntimeRequest) -> RuntimeObservation:
         resource_path=str(resource),
         aseprite_version=version,
         api_version=api_version,
+        lua_version=lua_version,
+        verified_capabilities=cast(
+            tuple[RuntimeCapability, ...], tuple(verified_capabilities)
+        ),
     )

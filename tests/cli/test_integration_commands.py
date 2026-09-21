@@ -30,6 +30,24 @@ def test_version_is_an_installed_structured_operation() -> None:
     )
 
 
+def test_runtime_operation_schema_declares_compatibility_requirements() -> None:
+    info_schema = json.loads(spa("info", "--schema").stdout)
+    assert info_schema["requires_runtime"] is True
+    assert info_schema["runtime_requirements"] == {
+        "lua_language": "Lua 5.4",
+        "minimum_api_version": 41,
+        "required_capabilities": [
+            "aseprite_scripting",
+            "lua_file_io",
+            "aseprite_json",
+        ],
+    }
+
+    version_schema = json.loads(spa("version", "--schema").stdout)
+    assert version_schema["requires_runtime"] is False
+    assert version_schema["runtime_requirements"] is None
+
+
 def test_installed_cli_reads_json_request_from_stdin() -> None:
     run = spa("version", "--input-json", "-", stdin="{}")
     assert run.returncode == 0, run.stdout
@@ -113,7 +131,7 @@ for argument in "$@"; do
   esac
 done
 cp "$request" "$echo_file"
-printf '{"kernel_protocol_version":1,"status":"ok","aseprite_version":"test","api_version":1}' > "$response"
+printf '{"kernel_protocol_version":1,"status":"ok","aseprite_version":"test","api_version":41,"lua_version":"Lua 5.4","verified_capabilities":["aseprite_scripting","lua_file_io","aseprite_json"]}' > "$response"
 """,
     )
     run = spa("schema", "--aseprite", str(binary), "--json")
