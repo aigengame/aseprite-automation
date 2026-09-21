@@ -140,7 +140,6 @@ class RuntimeCompatibilityDetails(PublicModel):
     api_version: int
     required_lua_language: str
     minimum_api_version: int
-    missing_capabilities: list[RuntimeCapability]
 
 
 class RequestDetails(PublicModel):
@@ -263,7 +262,7 @@ FAILURE_CODES = register_failure_codes(
         ),
         FailureCodeSpec(
             "runtime_incompatible",
-            "The installed Aseprite scripting runtime does not meet the Operation requirements",
+            "The installed Aseprite Lua language or scripting API version does not meet the Operation requirements",
             "environment",
             RuntimeCompatibilityDetails,
         ),

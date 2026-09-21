@@ -7,6 +7,7 @@ verification tier. The layout does not mirror source packages or CLI Command Gro
 
 | Directory | Behavior owner |
 | --- | --- |
+| `tests/application/` | Application orchestration, including compatibility checks before Operation execution. |
 | `tests/cli/` | Access Projection through the installed CLI and its in-process projections. |
 | `tests/contracts/` | Shared Published Language rules, including Failure Code registration and Operation Descriptor constraints. |
 | `tests/release/` | Release metadata and publication gates. |
@@ -28,18 +29,19 @@ Use the tier in the file name:
 - `test_e2e_*.py` invokes the installed `spa` CLI with a real Aseprite executable.
   Mark the module or each test with `pytest.mark.e2e`.
 
-Runtime integration fixtures cover incompatible observations and structured failure
-without claiming native execution. Real-runtime tests execute the packaged probe and
-assert its observed embedded Lua version, `app.apiVersion`, JSON round trip, file I/O,
-and scripting evidence. Each later Operation adds real-runtime evidence for the native
-capabilities named by its Descriptor.
+Runtime integration fixtures cover incompatible Lua and API observations and structured
+failure without claiming native execution. Real-runtime tests execute the packaged
+probe and assert its observed embedded Lua version, `app.apiVersion`, JSON round trip,
+file I/O, and scripting evidence. These three facilities are prerequisites of a complete
+probe response, not partial capability observations. Each later Operation adds
+real-runtime evidence for the native capabilities named by its Descriptor.
 
 The initial evidence profiles use local macOS Aseprite 1.3.18.5-dev and the pinned
 Linux CI Aseprite 1.3.18.5 source release. Both expose `_VERSION == "Lua 5.4"` and
 `app.apiVersion == 41`; the macOS build's vendored Lua 5.4.6 records source provenance,
 not a patch-level compatibility rule. The E2E assertion pins this evidence family while
-the runtime compatibility decision continues to use the Descriptor requirements and
-observed language, API, and capability facts.
+the runtime compatibility decision continues to use the Descriptor's observed language
+and API requirements.
 
 Pytest rejects unregistered markers. The root e2e gate also rejects a selected e2e
 test when `SPA_TEST_ASEPRITE` is absent, is not a file, or is not executable. A missing

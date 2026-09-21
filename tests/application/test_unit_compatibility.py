@@ -27,7 +27,11 @@ def test_incompatible_runtime_is_rejected_before_operation_execution() -> None:
             aseprite_version="old",
             api_version=40,
             lua_version="Lua 5.3",
-            verified_capabilities=("aseprite_scripting", "lua_file_io"),
+            verified_capabilities=(
+                "aseprite_scripting",
+                "lua_file_io",
+                "aseprite_json",
+            ),
         )
 
     outcome = dispatch(

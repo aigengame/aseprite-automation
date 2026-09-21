@@ -299,6 +299,10 @@ def probe(request: RuntimeRequest) -> RuntimeObservation:
                 for capability in verified_capabilities
             ):
                 raise ValueError("Kernel probe returned an unknown runtime capability")
+            if set(verified_capabilities) != supported_capabilities:
+                raise ValueError(
+                    "Kernel probe did not verify every required probe prerequisite"
+                )
         except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
             if status != 0:
                 raise _process_failure(status, canonical, diagnostics) from exc

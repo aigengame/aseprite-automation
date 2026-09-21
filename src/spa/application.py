@@ -14,7 +14,6 @@ from spa.contracts import (
     ProcessStartDetails,
     RequestDetails,
     ResourceDetails,
-    RuntimeCapability,
     RuntimeCompatibilityDetails,
     RuntimeRequest,
     ValidationIssue,
@@ -100,7 +99,6 @@ def _runtime_failure(
                 api_version=evidence.api_version,
                 required_lua_language=evidence.required_lua_language,
                 minimum_api_version=evidence.minimum_api_version,
-                missing_capabilities=list(evidence.missing_capabilities),
             )
         case _:
             raise ValueError(f"Unknown runtime issue kind: {issue.kind}")
@@ -178,26 +176,19 @@ def dispatch(
             requirements = descriptor.runtime_requirements
             if requirements is None:
                 return observation
-            missing: tuple[RuntimeCapability, ...] = tuple(
-                capability
-                for capability in requirements.required_capabilities
-                if capability not in observation.verified_capabilities
-            )
             if (
                 observation.lua_version != requirements.lua_language
                 or observation.api_version < requirements.minimum_api_version
-                or missing
             ):
                 raise RuntimeIssue(
                     "runtime_incompatible",
-                    "Installed Aseprite scripting runtime does not meet the Operation requirements",
+                    "Installed Aseprite Lua language or scripting API version does not meet the Operation requirements",
                     RuntimeCompatibilityEvidence(
                         aseprite_version=observation.aseprite_version,
                         lua_version=observation.lua_version,
                         api_version=observation.api_version,
                         required_lua_language=requirements.lua_language,
                         minimum_api_version=requirements.minimum_api_version,
-                        missing_capabilities=missing,
                     ),
                 )
         return observation

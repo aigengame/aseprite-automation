@@ -30,8 +30,10 @@ response after Aseprite exits successfully. It does not classify arbitrary proto
 errors, Aseprite process failures, or Kernel handler refusals.
 Private adapter issue kinds and Kernel transport facts are not public Failure Codes.
 The initial runtime compatibility contract publishes `runtime_incompatible` with the
-observed Lua and API versions, declared requirements, and missing capabilities so a
-caller can distinguish an unsupported runtime before Operation execution.
+observed Lua and API versions and their declared requirements so a caller can
+distinguish that unsupported runtime before Operation execution. The probe's scripting,
+file I/O, and JSON transport are prerequisites of producing those observations; their
+failure remains on the applicable typed process or Kernel failure channel.
 
 The shared registration defines code semantics, not another Operation registry. Each
 Operation Descriptor declares its applicable registered codes and projects a failure

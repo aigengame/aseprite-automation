@@ -64,7 +64,6 @@ class RuntimeCompatibilityEvidence:
     api_version: int
     required_lua_language: str
     minimum_api_version: int
-    missing_capabilities: tuple[RuntimeCapability, ...]
 
 
 RuntimeEvidence = (

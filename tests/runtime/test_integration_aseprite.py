@@ -2,6 +2,7 @@
 
 import json
 import os
+import shlex
 import signal
 import sys
 from pathlib import Path
@@ -111,6 +112,27 @@ exit {exit_status}
     )
 
 
+def _fake_probe_response_executable(tmp_path: Path, response: str) -> Path:
+    quoted_response = shlex.quote(response)
+    return fake_aseprite(
+        tmp_path,
+        f"""
+request=
+response_file=
+echo_file=
+for argument in "$@"; do
+  case "$argument" in
+    request=*) request=${{argument#request=}};;
+    response=*) response_file=${{argument#response=}};;
+    echo=*) echo_file=${{argument#echo=}};;
+  esac
+done
+cp "$request" "$echo_file"
+printf '%s' {quoted_response} > "$response_file"
+""",
+    )
+
+
 def test_exit_zero_without_kernel_response_is_failure(tmp_path: Path) -> None:
     binary = fake_aseprite(tmp_path, "exit 0\n")
     run = spa("info", "--aseprite", str(binary), "--json")
@@ -196,22 +218,9 @@ printf '{"kernel_protocol_version":%s,"status":"ok","aseprite_version":"test","a
 
 
 def test_boolean_api_version_is_a_kernel_protocol_failure(tmp_path: Path) -> None:
-    binary = fake_aseprite(
+    binary = _fake_probe_response_executable(
         tmp_path,
-        """
-request=
-response=
-echo=
-for argument in "$@"; do
-  case "$argument" in
-    request=*) request=${argument#request=};;
-    response=*) response=${argument#response=};;
-    echo=*) echo=${argument#echo=};;
-  esac
-done
-cp "$request" "$echo"
-printf '{"kernel_protocol_version":1,"status":"ok","aseprite_version":"test","api_version":true}' > "$response"
-""",
+        '{"kernel_protocol_version":1,"status":"ok","aseprite_version":"test","api_version":true}',
     )
     run = spa("info", "--aseprite", str(binary), "--json")
     assert run.returncode == 1
@@ -224,22 +233,9 @@ printf '{"kernel_protocol_version":1,"status":"ok","aseprite_version":"test","ap
 def test_unknown_runtime_capability_is_a_kernel_protocol_failure(
     tmp_path: Path,
 ) -> None:
-    binary = fake_aseprite(
+    binary = _fake_probe_response_executable(
         tmp_path,
-        """
-request=
-response=
-echo=
-for argument in "$@"; do
-  case "$argument" in
-    request=*) request=${argument#request=};;
-    response=*) response=${argument#response=};;
-    echo=*) echo=${argument#echo=};;
-  esac
-done
-cp "$request" "$echo"
-printf '%s' '{"kernel_protocol_version":1,"status":"ok","aseprite_version":"test","api_version":41,"lua_version":"Lua 5.4","verified_capabilities":["aseprite_scripting","lua_file_io","aseprite_json","unknown"]}' > "$response"
-""",
+        '{"kernel_protocol_version":1,"status":"ok","aseprite_version":"test","api_version":41,"lua_version":"Lua 5.4","verified_capabilities":["aseprite_scripting","lua_file_io","aseprite_json","unknown"]}',
     )
 
     run = spa("info", "--aseprite", str(binary), "--json")
@@ -252,35 +248,34 @@ printf '%s' '{"kernel_protocol_version":1,"status":"ok","aseprite_version":"test
     assert "Traceback" not in run.stderr
 
 
+def test_incomplete_probe_prerequisites_are_a_kernel_protocol_failure(
+    tmp_path: Path,
+) -> None:
+    binary = _fake_probe_response_executable(
+        tmp_path,
+        '{"kernel_protocol_version":1,"status":"ok","aseprite_version":"test","api_version":41,"lua_version":"Lua 5.4","verified_capabilities":["aseprite_scripting","lua_file_io"]}',
+    )
+
+    run = spa("info", "--aseprite", str(binary), "--json")
+
+    assert run.returncode == 1
+    failure = json.loads(run.stdout)
+    assert failure["code"] == "kernel_response_invalid"
+    assert failure["category"] == "kernel_protocol"
+    assert "probe prerequisite" in failure["message"]
+
+
 @pytest.mark.parametrize(
-    ("lua_version", "api_version", "capabilities", "missing_capabilities"),
+    ("lua_version", "api_version"),
     [
-        (
-            "Lua 5.3",
-            41,
-            ["aseprite_scripting", "lua_file_io", "aseprite_json"],
-            [],
-        ),
-        (
-            "Lua 5.4",
-            40,
-            ["aseprite_scripting", "lua_file_io", "aseprite_json"],
-            [],
-        ),
-        (
-            "Lua 5.4",
-            41,
-            ["aseprite_scripting", "lua_file_io"],
-            ["aseprite_json"],
-        ),
+        ("Lua 5.3", 41),
+        ("Lua 5.4", 40),
     ],
 )
 def test_incompatible_runtime_fails_with_observed_requirements(
     tmp_path: Path,
     lua_version: str,
     api_version: int,
-    capabilities: list[str],
-    missing_capabilities: list[str],
 ) -> None:
     response = json.dumps(
         {
@@ -289,27 +284,15 @@ def test_incompatible_runtime_fails_with_observed_requirements(
             "aseprite_version": "old",
             "api_version": api_version,
             "lua_version": lua_version,
-            "verified_capabilities": capabilities,
+            "verified_capabilities": [
+                "aseprite_scripting",
+                "lua_file_io",
+                "aseprite_json",
+            ],
         },
         separators=(",", ":"),
     )
-    binary = fake_aseprite(
-        tmp_path,
-        f"""
-request=
-response=
-echo=
-for argument in "$@"; do
-  case "$argument" in
-    request=*) request=${{argument#request=}};;
-    response=*) response=${{argument#response=}};;
-    echo=*) echo=${{argument#echo=}};;
-  esac
-done
-cp "$request" "$echo"
-printf '%s' '{response}' > "$response"
-""",
-    )
+    binary = _fake_probe_response_executable(tmp_path, response)
 
     run = spa("info", "--aseprite", str(binary), "--json")
 
@@ -325,7 +308,6 @@ printf '%s' '{response}' > "$response"
         "api_version": api_version,
         "required_lua_language": "Lua 5.4",
         "minimum_api_version": 41,
-        "missing_capabilities": missing_capabilities,
     }
 
 
