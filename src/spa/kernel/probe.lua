@@ -1,6 +1,52 @@
 -- Fixed, packaged Kernel Protocol probe. Runtime files carry data, never Lua behavior.
 local kernel_protocol_version = 1
 
+local function observed_capabilities()
+  local capabilities = { "aseprite_runtime_introspection" }
+  local open_sprite = nil
+  local capability_path = assert(app.params.capability_sprite)
+  local ok = pcall(function()
+    open_sprite = Sprite(2, 3, ColorMode.RGB)
+    assert(open_sprite.width == 2 and open_sprite.height == 3)
+    assert(#open_sprite.frames == 1 and #open_sprite.layers == 1)
+    app.activeSprite = open_sprite
+    app.activeLayer = open_sprite.layers[1]
+    app.activeFrame = open_sprite.frames[1]
+    app.bgColor = Color{ r=17, g=34, b=51, a=255 }
+    app.command.BackgroundFromLayer()
+    assert(open_sprite.layers[1].isBackground)
+    assert(open_sprite:saveAs(capability_path))
+    open_sprite:close()
+    open_sprite = nil
+
+    open_sprite = assert(app.open(capability_path))
+    local layer = open_sprite.layers[1]
+    assert(open_sprite.width == 2 and open_sprite.height == 3)
+    assert(#open_sprite.frames == 1 and #open_sprite.layers == 1)
+    assert(type(layer.isImage) == "boolean")
+    assert(type(layer.isGroup) == "boolean")
+    assert(type(layer.isTilemap) == "boolean")
+    assert(type(layer.isReference) == "boolean")
+    assert(layer.isBackground and not layer.isTransparent)
+    local pixel = layer.cels[1].image:getPixel(0, 0)
+    assert(app.pixelColor.rgbaR(pixel) == 17)
+    assert(app.pixelColor.rgbaG(pixel) == 34)
+    assert(app.pixelColor.rgbaB(pixel) == 51)
+    assert(app.pixelColor.rgbaA(pixel) == 255)
+    assert(#open_sprite.tags == 0 and #open_sprite.slices == 0)
+    assert(#open_sprite.tilesets == 0 and #open_sprite.cels == 1)
+    open_sprite:close()
+    open_sprite = nil
+  end)
+  if open_sprite ~= nil then pcall(function() open_sprite:close() end) end
+  pcall(function() os.remove(capability_path) end)
+  if ok then
+    capabilities[#capabilities + 1] = "aseprite_sprite_create"
+    capabilities[#capabilities + 1] = "aseprite_sprite_inspection"
+  end
+  return capabilities
+end
+
 local function execute()
   local request_file = assert(io.open(app.params.request, "rb"))
   local request = json.decode(request_file:read("*a"))
@@ -23,11 +69,7 @@ local function execute()
       "lua_file_io",
       "aseprite_json",
     },
-    verified_capabilities = {
-      "aseprite_runtime_introspection",
-      "aseprite_sprite_create",
-      "aseprite_sprite_inspection",
-    },
+    verified_capabilities = observed_capabilities(),
   }
 end
 

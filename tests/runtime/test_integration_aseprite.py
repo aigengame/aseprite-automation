@@ -14,7 +14,7 @@ from spa.cli import build_app
 from spa.contracts import RuntimeRequest
 from spa.descriptors import OPERATIONS
 from spa.runtime.aseprite import probe
-from tests.support import fake_aseprite, fake_probe_response, spa
+from tests.support import fake_aseprite, fake_probe_response, operation_services, spa
 
 
 def test_missing_runtime_has_structured_environment_failure() -> None:
@@ -417,7 +417,9 @@ def test_process_start_failure_keeps_installed_executable_identity(
 
 def _assert_preparation_failure(binary: Path) -> None:
     info = next(descriptor for descriptor in OPERATIONS if descriptor.name == "info")
-    run = CliRunner().invoke(build_app(probe), ["info", "--aseprite", str(binary)])
+    run = CliRunner().invoke(
+        build_app(operation_services(probe)), ["info", "--aseprite", str(binary)]
+    )
     assert run.exit_code == 1, run.stdout
     assert run.stderr == ""
     failure = json.loads(run.stdout)

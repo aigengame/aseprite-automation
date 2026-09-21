@@ -1,5 +1,6 @@
 """Inner-owned facts exchanged with the Aseprite Runtime Integration adapter."""
 
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -29,7 +30,16 @@ class RuntimeObservation:
 
 RuntimeProbe = Callable[[RuntimeRequest], RuntimeObservation]
 
-KernelHandler = Literal["sprite_create", "sprite_get"]
+
+@dataclass(frozen=True)
+class PackagedHandler:
+    """Opaque packaged-resource identity selected by a Domain Module."""
+
+    resource_name: str
+
+    def __post_init__(self) -> None:
+        if not re.fullmatch(r"[a-z][a-z0-9_]*", self.resource_name):
+            raise ValueError("Packaged handler name must be lower_snake_case")
 
 
 @dataclass(frozen=True)
@@ -40,7 +50,8 @@ class KernelInvocationResult:
 
 
 KernelInvoker = Callable[
-    [RuntimeObservation, KernelHandler, dict[str, Any], float], KernelInvocationResult
+    [RuntimeObservation, PackagedHandler, dict[str, Any], float],
+    KernelInvocationResult,
 ]
 
 
@@ -120,7 +131,6 @@ class TargetCommitEvidence:
         "staged_file_missing",
         "staged_file_empty",
         "replace_failed",
-        "published_file_changed",
     ]
 
 
@@ -144,6 +154,7 @@ RuntimeIssueKind = Literal[
     "response_absent",
     "response_malformed",
     "handler_rejected",
+    "postcondition_failed",
     "exit_mismatch",
     "runtime_incompatible",
     "target_commit_failed",
@@ -158,6 +169,7 @@ _EVIDENCE_TYPES: dict[RuntimeIssueKind, type[RuntimeEvidence]] = {
     "response_absent": ResponseEvidence,
     "response_malformed": ResponseEvidence,
     "handler_rejected": HandlerEvidence,
+    "postcondition_failed": HandlerEvidence,
     "exit_mismatch": ProcessEvidence,
     "runtime_incompatible": RuntimeCompatibilityEvidence,
     "target_commit_failed": TargetCommitEvidence,

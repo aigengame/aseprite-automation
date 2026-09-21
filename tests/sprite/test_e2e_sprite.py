@@ -116,6 +116,7 @@ def test_get_reports_complete_requested_sections_and_explicit_omissions(
     assert result["scope"] == {
         "requested_sections": sections,
         "complete_sections": sections,
+        "unsupported_sections": [],
         "unrequested_sections": [],
     }
     assert result["metadata"]["width"] == 3
@@ -148,6 +149,7 @@ def test_get_reports_complete_requested_sections_and_explicit_omissions(
     assert partial.returncode == 0, partial.stdout
     partial_result = json.loads(partial.stdout)
     assert partial_result["scope"]["complete_sections"] == ["frames"]
+    assert partial_result["scope"]["unsupported_sections"] == []
     assert partial_result["scope"]["unrequested_sections"] == [
         "tags",
         "palettes",
@@ -248,19 +250,30 @@ def test_get_reports_populated_native_structures_completely(tmp_path: Path) -> N
         }
     ]
     group = next(layer for layer in result["layers"] if layer["name"] == "body")
+    assert group["is_group"] is True
+    assert group["is_image"] is False
     assert [child["name"] for child in group["children"]] == ["outline"]
+    assert group["children"][0]["is_image"] is True
+    assert group["children"][0]["is_group"] is False
     child_path = group["children"][0]["path"]
     child_cel = next(cel for cel in result["cels"] if cel["layer_path"] == child_path)
     assert child_cel["frame_number"] == 2
     assert child_cel["bounds"] == {"x": 4, "y": 2, "width": 2, "height": 3}
     assert child_cel["opacity"] == 123
     assert child_cel["z_index"] == 4
-    assert result["slices"] == [
+    assert result["slices"] is None
+    assert result["scope"]["complete_sections"] == [
+        "frames",
+        "tags",
+        "palettes",
+        "layers",
+        "cels",
+        "tilesets",
+    ]
+    assert result["scope"]["unsupported_sections"] == [
         {
-            "name": "panel",
-            "bounds": {"x": 1, "y": 2, "width": 3, "height": 4},
-            "center": {"x": 1, "y": 1, "width": 1, "height": 2},
-            "pivot": {"x": 2, "y": 3},
+            "section": "slices",
+            "reason": "aseprite_lua_slice_keys_unavailable",
         }
     ]
     assert result["tilesets"] == [

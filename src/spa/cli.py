@@ -14,7 +14,7 @@ from spa.contracts import (
 )
 from spa.descriptors import OPERATIONS
 from spa.operation import ACCESS_FAILURE_CODES, OperationDescriptor
-from spa.ports import OperationServices, RuntimeProbe
+from spa.ports import OperationServices
 
 
 def _emit_failure(failure: FailureEnvelope, human: bool) -> None:
@@ -29,7 +29,7 @@ def _execute(
     timeout_seconds: float | None,
     schema: bool,
     human: bool,
-    dependencies: RuntimeProbe | OperationServices,
+    dependencies: OperationServices,
 ) -> None:
     if schema:
         typer.echo(descriptor.schema().model_dump_json())
@@ -69,7 +69,7 @@ def _execute(
 
 def _command(
     descriptor: OperationDescriptor[Any, Any],
-    dependencies: RuntimeProbe | OperationServices,
+    dependencies: OperationServices,
 ):
     flags = descriptor.cli_flags
     if descriptor.requires_runtime:
@@ -146,7 +146,7 @@ def _command(
     return command
 
 
-def build_app(dependencies: RuntimeProbe | OperationServices) -> typer.Typer:
+def build_app(dependencies: OperationServices) -> typer.Typer:
     app = typer.Typer(name="spa", no_args_is_help=False, add_completion=False)
     groups: dict[str, typer.Typer] = {}
     for operation in OPERATIONS:

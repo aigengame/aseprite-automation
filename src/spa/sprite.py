@@ -5,11 +5,19 @@ from typing import Annotated, Literal
 
 from pydantic import Field, ValidationError, field_validator
 
-from spa.contracts import PublicModel, RuntimeRequest, RuntimeRequirements
+from spa.contracts import (
+    FailureCodeSpec,
+    PublicModel,
+    RuntimeRequest,
+    RuntimeRequirements,
+    install_failure_codes,
+)
 from spa.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.ports import (
+    HandlerEvidence,
     KernelInvocationResult,
     OperationServices,
+    PackagedHandler,
     ResponseEvidence,
     RuntimeIssue,
 )
@@ -146,9 +154,12 @@ class PaletteFacts(PublicModel):
 class LayerFacts(PublicModel):
     path: list[int] = Field(min_length=1)
     name: str
-    kind: Literal["image", "group", "tilemap", "reference"]
     opacity: int | None = Field(default=None, ge=0, le=255)
     blend_mode: str | None
+    is_image: bool
+    is_group: bool
+    is_tilemap: bool
+    is_reference: bool
     is_visible: bool
     is_editable: bool
     is_continuous: bool
@@ -167,11 +178,16 @@ class CelFacts(PublicModel):
     z_index: int
 
 
-class SliceFacts(PublicModel):
-    name: str
+class SliceKeyFacts(PublicModel):
+    frame_number: int = Field(ge=1)
     bounds: Rectangle
     center: Rectangle | None
     pivot: Point | None
+
+
+class SliceFacts(PublicModel):
+    name: str
+    keys: list[SliceKeyFacts]
 
 
 class TilesetFacts(PublicModel):
@@ -182,9 +198,15 @@ class TilesetFacts(PublicModel):
     tile_size: Size
 
 
+class UnsupportedInspectionSection(PublicModel):
+    section: InspectionSection
+    reason: Literal["aseprite_lua_slice_keys_unavailable"]
+
+
 class InspectionScope(PublicModel):
     requested_sections: list[InspectionSection]
     complete_sections: list[InspectionSection]
+    unsupported_sections: list[UnsupportedInspectionSection]
     unrequested_sections: list[InspectionSection]
 
 
@@ -203,6 +225,32 @@ class TargetCommit(PublicModel):
     target_sprite_file: str
     byte_size: int = Field(gt=0)
     sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+TargetCommitFailureReason = Literal[
+    "target_not_file",
+    "staged_file_missing",
+    "staged_file_empty",
+    "replace_failed",
+]
+
+
+class TargetCommitDetails(PublicModel):
+    kind: Literal["target_commit"] = "target_commit"
+    target_sprite_file: str
+    reason: TargetCommitFailureReason
+
+
+install_failure_codes(
+    (
+        FailureCodeSpec(
+            "target_commit_failed",
+            "The validated staged Sprite could not be published at its declared target",
+            "execution",
+            TargetCommitDetails,
+        ),
+    )
+)
 
 
 class SpriteCreateResult(PublicModel):
@@ -231,6 +279,8 @@ SPRITE_GET_REQUIREMENTS = RuntimeRequirements(
     required_capabilities=["aseprite_sprite_inspection"],
 )
 SPRITE_CREATE_FAILURE_CODES = (*RUNTIME_FAILURE_CODES, "target_commit_failed")
+SPRITE_CREATE_HANDLER = PackagedHandler("sprite_create")
+SPRITE_GET_HANDLER = PackagedHandler("sprite_get")
 
 
 def _inspection_from_kernel(
@@ -245,6 +295,108 @@ def _inspection_from_kernel(
             ResponseEvidence(response_path=invocation.response_path),
             invocation.diagnostics,
         ) from exc
+
+
+def _postcondition_failure(
+    invocation: KernelInvocationResult, reason: str
+) -> RuntimeIssue:
+    return RuntimeIssue(
+        "postcondition_failed",
+        "Persisted Sprite inspection did not satisfy declared postconditions",
+        HandlerEvidence(response_path=invocation.response_path, reason=reason),
+        invocation.diagnostics,
+    )
+
+
+def _validated_scope(
+    request: SpriteGetRequest,
+    inspection: SpriteInspection,
+    invocation: KernelInvocationResult,
+) -> InspectionScope:
+    complete: list[InspectionSection] = []
+    unsupported: list[UnsupportedInspectionSection] = []
+    for section in request.inspection_scope:
+        value = getattr(inspection, section)
+        if section == "slices" and value is None:
+            unsupported.append(
+                UnsupportedInspectionSection(
+                    section="slices",
+                    reason="aseprite_lua_slice_keys_unavailable",
+                )
+            )
+        elif value is None:
+            raise _postcondition_failure(
+                invocation, f"requested section {section} was not inspected"
+            )
+        else:
+            complete.append(section)
+    for section in request.unrequested_sections:
+        if getattr(inspection, section) is not None:
+            raise _postcondition_failure(
+                invocation, f"unrequested section {section} was populated"
+            )
+    return InspectionScope(
+        requested_sections=request.inspection_scope,
+        complete_sections=complete,
+        unsupported_sections=unsupported,
+        unrequested_sections=request.unrequested_sections,
+    )
+
+
+def _validate_created_sprite(
+    request: SpriteCreateRequest,
+    inspection: SpriteInspection,
+    invocation: KernelInvocationResult,
+) -> None:
+    metadata = inspection.metadata
+    if (
+        metadata.width != request.width
+        or metadata.height != request.height
+        or metadata.color_mode != request.color_mode
+        or metadata.frame_count != 1
+        or metadata.layer_count != 1
+        or metadata.cel_count != 1
+        or metadata.tag_count != 0
+        or metadata.slice_count != 0
+        or metadata.tileset_count != 0
+    ):
+        raise _postcondition_failure(
+            invocation, "persisted Sprite metadata differs from the create request"
+        )
+    if inspection.layers is None or len(inspection.layers) != 1:
+        raise _postcondition_failure(
+            invocation, "persisted Sprite does not have exactly one root layer"
+        )
+    layer = inspection.layers[0]
+    if (
+        layer.path != [1]
+        or not layer.is_image
+        or layer.is_group
+        or layer.is_tilemap
+        or layer.is_reference
+        or layer.children
+    ):
+        raise _postcondition_failure(
+            invocation, "persisted initial layer has unexpected native properties"
+        )
+    if request.initial_layer.kind == "transparent":
+        valid_layer = (
+            layer.is_transparent
+            and not layer.is_background
+            and layer.background_color is None
+        )
+    else:
+        valid_layer = (
+            not layer.is_transparent
+            and layer.is_background
+            and layer.background_color is not None
+            and layer.background_color.model_dump()
+            == request.initial_layer.background_color.model_dump()
+        )
+    if not valid_layer:
+        raise _postcondition_failure(
+            invocation, "persisted initial layer differs from the create request"
+        )
 
 
 def create_sprite(
@@ -263,9 +415,21 @@ def create_sprite(
     }
     try:
         invocation = services.invoke_kernel(
-            observation, "sprite_create", payload, request.timeout_seconds
+            observation, SPRITE_CREATE_HANDLER, payload, request.timeout_seconds
         )
         inspection = _inspection_from_kernel(invocation)
+        create_scope = SpriteGetRequest(
+            aseprite=request.aseprite,
+            timeout_seconds=request.timeout_seconds,
+            sprite_file=request.target_sprite_file,
+            inspection_scope=list(INSPECTION_SECTIONS),
+        )
+        scope = _validated_scope(create_scope, inspection, invocation)
+        if scope.unsupported_sections:
+            raise _postcondition_failure(
+                invocation, "created Sprite inspection was not complete"
+            )
+        _validate_created_sprite(request, inspection, invocation)
         committed = services.target_files.commit(staged, target)
         return SpriteCreateResult(
             target_commit=TargetCommit(
@@ -286,7 +450,7 @@ def get_sprite(
     observation = services.probe_runtime(request)
     invocation = services.invoke_kernel(
         observation,
-        "sprite_get",
+        SPRITE_GET_HANDLER,
         {
             "sprite_file": request.sprite_file,
             "inspection_scope": request.inspection_scope,
@@ -294,14 +458,11 @@ def get_sprite(
         request.timeout_seconds,
     )
     inspection = _inspection_from_kernel(invocation)
+    scope = _validated_scope(request, inspection, invocation)
     return SpriteGetResult(
         **inspection.model_dump(),
         sprite_file=request.sprite_file,
-        scope=InspectionScope(
-            requested_sections=request.inspection_scope,
-            complete_sections=request.inspection_scope,
-            unrequested_sections=request.unrequested_sections,
-        ),
+        scope=scope,
     )
 
 

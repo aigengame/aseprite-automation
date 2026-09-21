@@ -41,24 +41,18 @@ class LocalTargetFiles:
                 TargetCommitEvidence(str(target), "staged_file_empty"),
             )
         digest = hashlib.sha256(payload).hexdigest()
+        byte_size = len(payload)
         try:
             os.replace(staged, target)
-            stat = target.stat()
         except OSError as exc:
             raise RuntimeIssue(
                 "target_commit_failed",
                 "Staged Sprite file could not replace the declared target",
                 TargetCommitEvidence(str(target), "replace_failed"),
             ) from exc
-        if stat.st_size != len(payload):
-            raise RuntimeIssue(
-                "target_commit_failed",
-                "Published Target Sprite File changed during verification",
-                TargetCommitEvidence(str(target), "published_file_changed"),
-            )
         return TargetCommitObservation(
             target_sprite_file=str(target),
-            byte_size=stat.st_size,
+            byte_size=byte_size,
             sha256=digest,
         )
 

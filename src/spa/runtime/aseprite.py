@@ -20,9 +20,9 @@ from spa.contracts import (
 from spa.ports import (
     DiscoveryEvidence,
     HandlerEvidence,
-    KernelHandler,
     KernelInvocationResult,
     LaunchEvidence,
+    PackagedHandler,
     ProcessEvidence,
     ResourceEvidence,
     ResponseEvidence,
@@ -199,6 +199,7 @@ def probe(request: RuntimeRequest) -> RuntimeObservation:
         request_file = Path(work) / "request.json"
         response_file = Path(work) / "response.json"
         echo_file = Path(work) / "echo.json"
+        capability_sprite = Path(work) / "capability.aseprite"
         try:
             request_file.write_text(
                 json.dumps(
@@ -225,6 +226,8 @@ def probe(request: RuntimeRequest) -> RuntimeObservation:
             f"response={response_file}",
             "--script-param",
             f"echo={echo_file}",
+            "--script-param",
+            f"capability_sprite={capability_sprite}",
             "--script",
             str(script),
         ]
@@ -344,17 +347,18 @@ def probe(request: RuntimeRequest) -> RuntimeObservation:
 
 def invoke(
     observation: RuntimeObservation,
-    handler: KernelHandler,
+    handler: PackagedHandler,
     payload: dict[str, Any],
     timeout_seconds: float,
 ) -> KernelInvocationResult:
     """Invoke one fixed packaged handler and return its private result object."""
     canonical = Path(observation.canonical_path)
     resource = Path(observation.resource_path)
-    script = files("spa.kernel").joinpath(f"{handler}.lua")
+    handler_name = handler.resource_name
+    script = files("spa.kernel").joinpath(f"{handler_name}.lua")
     support = files("spa.kernel").joinpath("sprite_inspect.lua")
     try:
-        workspace = tempfile.TemporaryDirectory(prefix=f"spa-{handler}-")
+        workspace = tempfile.TemporaryDirectory(prefix=f"spa-{handler_name}-")
     except OSError as exc:
         raise RuntimeIssue(
             "launch_failed",
@@ -407,8 +411,6 @@ def invoke(
                 diagnostics,
             )
         try:
-            if response_file.stat().st_size > OUTPUT_LIMIT_BYTES:
-                raise ValueError("Kernel response exceeded the output limit")
             response = json.loads(response_file.read_text(encoding="utf-8"))
             if (
                 not isinstance(response, dict)
@@ -423,7 +425,7 @@ def invoke(
                     raise ValueError("Kernel error response has no typed cause/message")
                 raise RuntimeIssue(
                     "handler_rejected",
-                    f"Packaged {handler} handler rejected execution",
+                    f"Packaged {handler_name} handler rejected execution",
                     HandlerEvidence(response_path=str(response_file), reason=reason),
                     diagnostics,
                 )

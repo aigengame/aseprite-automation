@@ -4,13 +4,14 @@ from typer.main import get_command
 
 from spa.cli import build_app
 from spa.descriptors import OPERATIONS
+from tests.support import operation_services
 
 
 def test_advertised_cli_flags_match_the_actual_typer_commands() -> None:
     def unused_probe(_):
         raise AssertionError("schema inspection must not probe the runtime")
 
-    typer_command = get_command(build_app(unused_probe))
+    typer_command = get_command(build_app(operation_services(unused_probe)))
     for descriptor in OPERATIONS:
         path = descriptor.name.split()
         command = typer_command

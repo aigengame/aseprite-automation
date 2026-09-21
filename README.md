@@ -122,8 +122,8 @@ uv run spa sprite get --input-json '{"aseprite":"/path/to/aseprite","sprite_file
 
 `--aseprite` and `SPA_ASEPRITE_EXECUTABLE` name an executable file, not a macOS
 `.app` directory. When `--aseprite` is absent, SPA checks
-`SPA_ASEPRITE_EXECUTABLE`, then `aseprite` on `PATH`. `spa schema` reports the
-installed callable Operations; currently these are `info`, `version`, and `schema`.
+`SPA_ASEPRITE_EXECUTABLE`, then `aseprite` on `PATH`. `spa schema` is the source
+of truth for the installed callable Operations and their contracts.
 `spa info` reports the selected Aseprite version, `app.apiVersion`, embedded Lua
 language version, fixed scripting, file I/O, and JSON probe prerequisites, and
 independently observed runtime capabilities. A prerequisite failure uses the typed

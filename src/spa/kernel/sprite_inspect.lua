@@ -81,13 +81,6 @@ local function background_color(layer)
   }
 end
 
-local function layer_kind(layer)
-  if layer.isTilemap then return "tilemap" end
-  if layer.isGroup then return "group" end
-  if layer.isReference then return "reference" end
-  return "image"
-end
-
 local function copy_path(path, index)
   local result = {}
   for i, value in ipairs(path) do result[i] = value end
@@ -109,9 +102,12 @@ local function inspect_layers(layers, parent_path, paths, counts)
     result[#result + 1] = {
       path = path,
       name = layer.name,
-      kind = layer_kind(layer),
       opacity = layer.opacity == nil and json_null or layer.opacity,
       blend_mode = layer.blendMode == nil and json_null or blend_mode(layer.blendMode),
+      is_image = layer.isImage,
+      is_group = layer.isGroup,
+      is_tilemap = layer.isTilemap,
+      is_reference = layer.isReference,
       is_visible = layer.isVisible,
       is_editable = layer.isEditable,
       is_continuous = layer.isContinuous,
@@ -234,17 +230,13 @@ function module.inspect(sprite, scope)
   end
 
   if requested.slices then
-    local slices = {}
-    for index = 1, #sprite.slices do
-      local slice = sprite.slices[index]
-      slices[#slices + 1] = {
-        name = slice.name,
-        bounds = rectangle(slice.bounds),
-        center = slice.center == nil and json_null or rectangle(slice.center),
-        pivot = slice.pivot == nil and json_null or point(slice.pivot),
-      }
+    if #sprite.slices == 0 then
+      result.slices = array({})
+    else
+      -- The public Aseprite Lua API exposes only the effective Slice value for
+      -- the current frame, not the ordered frame-varying Slice Keys.
+      result.slices = json_null
     end
-    result.slices = array(slices)
   end
 
   if requested.tilesets then

@@ -20,7 +20,6 @@ from spa.contracts import (
     RequestDetails,
     ResourceDetails,
     RuntimeCompatibilityDetails,
-    TargetCommitDetails,
     ValidationIssue,
     VersionRequest,
     VersionResult,
@@ -40,6 +39,8 @@ from spa.ports import (
     RuntimeIssue,
     TargetCommitEvidence,
 )
+from spa.sprite import TargetCommitDetails
+from tests.support import operation_services
 
 RUNTIME_ISSUE_CASES = (
     ("discovery_absent", "executable_not_found"),
@@ -52,6 +53,7 @@ RUNTIME_ISSUE_CASES = (
     ("response_absent", "kernel_response_missing"),
     ("response_malformed", "kernel_response_invalid"),
     ("handler_rejected", "kernel_execution_failed"),
+    ("postcondition_failed", "kernel_execution_failed"),
     ("runtime_incompatible", "runtime_incompatible"),
 )
 
@@ -386,7 +388,7 @@ def test_application_refuses_failure_not_declared_by_selected_descriptor() -> No
 
     misclassified = replace(version, execute=launch_issue)
     with pytest.raises(ValueError, match="not applicable to spa version"):
-        dispatch(misclassified, None, {}, lambda _request: None)
+        dispatch(misclassified, None, {}, operation_services(lambda _request: None))
 
 
 def test_application_refuses_result_outside_descriptor_contract() -> None:
@@ -395,7 +397,7 @@ def test_application_refuses_result_outside_descriptor_contract() -> None:
     )
     wrong_result = replace(version, execute=lambda _request, _probe: VersionRequest())
     with pytest.raises(TypeError, match="Operation Result does not match spa version"):
-        dispatch(wrong_result, None, {}, lambda _request: None)
+        dispatch(wrong_result, None, {}, operation_services(lambda _request: None))
 
     wrong_failure = FailureEnvelope(
         operation="spa version",
@@ -408,7 +410,12 @@ def test_application_refuses_result_outside_descriptor_contract() -> None:
         version, execute=lambda _request, _probe: wrong_failure
     )
     with pytest.raises(ValueError, match="not applicable to spa version"):
-        dispatch(wrong_failure_result, None, {}, lambda _request: None)
+        dispatch(
+            wrong_failure_result,
+            None,
+            {},
+            operation_services(lambda _request: None),
+        )
 
 
 def test_runtime_issue_requires_kind_specific_private_evidence() -> None:
@@ -427,7 +434,7 @@ def _evidence_for(kind: str):
         return ProcessEvidence(executable="/aseprite", exit_status=13)
     if kind in {"response_absent", "response_malformed"}:
         return ResponseEvidence(response_path="/response.json")
-    if kind == "handler_rejected":
+    if kind in {"handler_rejected", "postcondition_failed"}:
         return HandlerEvidence(response_path="/response.json", reason="refused")
     if kind == "runtime_incompatible":
         return RuntimeCompatibilityEvidence(
