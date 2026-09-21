@@ -11,6 +11,7 @@ from spa.contracts import (
     OperationSchema,
     RuntimeFacts,
     RuntimeRequest,
+    RuntimeRequirements,
     SchemaResult,
     VersionRequest,
     VersionResult,
@@ -40,6 +41,12 @@ RUNTIME_FAILURE_CODES = (
     "kernel_response_missing",
     "kernel_response_invalid",
     "kernel_execution_failed",
+    "runtime_incompatible",
+)
+KERNEL_RUNTIME_REQUIREMENTS = RuntimeRequirements(
+    lua_language="Lua 5.4",
+    minimum_api_version=41,
+    required_capabilities=["aseprite_runtime_introspection"],
 )
 
 
@@ -50,7 +57,7 @@ class OperationDescriptor[RequestT: BaseModel, ResultT: BaseModel]:
     result_type: type[ResultT]
     execute: Callable[[RequestT, RuntimeProbe], ResultT]
     render_human: Callable[[ResultT], str]
-    requires_runtime: bool
+    runtime_requirements: RuntimeRequirements | None
     failure_codes: tuple[str, ...]
 
     def __post_init__(self) -> None:
@@ -64,10 +71,27 @@ class OperationDescriptor[RequestT: BaseModel, ResultT: BaseModel]:
             )
         ):
             raise ValueError(f"Result Operation identity does not match {command}")
+        if self.runtime_requirements is not None and not issubclass(
+            self.request_type, RuntimeRequest
+        ):
+            raise ValueError(
+                f"Runtime Operation Request must extend RuntimeRequest: {command}"
+            )
+        if (
+            self.runtime_requirements is not None
+            and "runtime_incompatible" not in self.failure_codes
+        ):
+            raise ValueError(
+                f"Runtime Operation must declare runtime_incompatible: {command}"
+            )
 
     @property
     def cli_flags(self) -> dict[str, str]:
         return COMMON_CLI_FLAGS | (RUNTIME_CLI_FLAGS if self.requires_runtime else {})
+
+    @property
+    def requires_runtime(self) -> bool:
+        return self.runtime_requirements is not None
 
     def schema(self) -> OperationSchema:
         command = f"spa {self.name}"
@@ -78,6 +102,7 @@ class OperationDescriptor[RequestT: BaseModel, ResultT: BaseModel]:
             side_effects=[],
             minimum_aseprite_version=None,
             requires_runtime=self.requires_runtime,
+            runtime_requirements=self.runtime_requirements,
             request_schema=self.request_type.model_json_schema(),
             result_schema=self.result_type.model_json_schema(),
             failure_schema=failure_schema(self.failure_codes, command),
@@ -121,6 +146,9 @@ def info_result(request: RuntimeRequest, probe: RuntimeProbe) -> InfoResult:
         resource_path=observation.resource_path,
         aseprite_version=observation.aseprite_version,
         api_version=observation.api_version,
+        lua_version=observation.lua_version,
+        verified_prerequisites=list(observation.verified_prerequisites),
+        verified_capabilities=list(observation.verified_capabilities),
     )
     return InfoResult(
         spa_version=version("aseprite-automation"),
@@ -148,9 +176,11 @@ OPERATIONS = (
         InfoResult,
         info_result,
         lambda r: (
-            f"Aseprite {r.runtime.aseprite_version} (API {r.runtime.api_version}) at {r.runtime.canonical_path}"
+            f"Aseprite {r.runtime.aseprite_version} "
+            f"(API {r.runtime.api_version}, {r.runtime.lua_version}) "
+            f"at {r.runtime.canonical_path}"
         ),
-        True,
+        KERNEL_RUNTIME_REQUIREMENTS,
         RUNTIME_FAILURE_CODES,
     ),
     OperationDescriptor(
@@ -159,7 +189,7 @@ OPERATIONS = (
         VersionResult,
         version_result,
         lambda r: f"SPA {r.spa_version}",
-        False,
+        None,
         ("invalid_request",),
     ),
     OperationDescriptor(
@@ -168,7 +198,7 @@ OPERATIONS = (
         SchemaResult,
         schema_result,
         lambda r: "\n".join(item.operation for item in r.operations),
-        True,
+        KERNEL_RUNTIME_REQUIREMENTS,
         RUNTIME_FAILURE_CODES,
     ),
 )

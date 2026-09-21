@@ -4,7 +4,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal
 
-from spa.contracts import Diagnostics, RuntimeRequest
+from spa.contracts import (
+    Diagnostics,
+    ProbePrerequisite,
+    RuntimeCapability,
+    RuntimeRequest,
+)
 
 
 @dataclass(frozen=True)
@@ -16,6 +21,9 @@ class RuntimeObservation:
     resource_path: str
     aseprite_version: str
     api_version: int
+    lua_version: str
+    verified_prerequisites: tuple[ProbePrerequisite, ...]
+    verified_capabilities: tuple[RuntimeCapability, ...]
 
 
 RuntimeProbe = Callable[[RuntimeRequest], RuntimeObservation]
@@ -55,6 +63,16 @@ class HandlerEvidence:
     reason: str
 
 
+@dataclass(frozen=True)
+class RuntimeCompatibilityEvidence:
+    aseprite_version: str
+    lua_version: str
+    api_version: int
+    required_lua_language: str
+    minimum_api_version: int
+    missing_capabilities: tuple[RuntimeCapability, ...]
+
+
 RuntimeEvidence = (
     DiscoveryEvidence
     | ResourceEvidence
@@ -62,6 +80,7 @@ RuntimeEvidence = (
     | ProcessEvidence
     | ResponseEvidence
     | HandlerEvidence
+    | RuntimeCompatibilityEvidence
 )
 RuntimeIssueKind = Literal[
     "discovery_absent",
@@ -74,6 +93,7 @@ RuntimeIssueKind = Literal[
     "response_malformed",
     "handler_rejected",
     "exit_mismatch",
+    "runtime_incompatible",
 ]
 _EVIDENCE_TYPES: dict[RuntimeIssueKind, type[RuntimeEvidence]] = {
     "discovery_absent": DiscoveryEvidence,
@@ -86,6 +106,7 @@ _EVIDENCE_TYPES: dict[RuntimeIssueKind, type[RuntimeEvidence]] = {
     "response_malformed": ResponseEvidence,
     "handler_rejected": HandlerEvidence,
     "exit_mismatch": ProcessEvidence,
+    "runtime_incompatible": RuntimeCompatibilityEvidence,
 }
 
 

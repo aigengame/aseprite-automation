@@ -65,6 +65,7 @@ not a second public API.
 - Machine output contains a schema-valid Operation Result or Failure Envelope and stays separate from vendor diagnostics.
 - Stable Failure Codes drive automation; typed Failure Details and human Diagnostics have different roles.
 - The Surface Manifest describes every callable Operation, side effects, determinism, version constraints, and schemas.
+- Runtime-backed Operation Descriptors declare their Lua language, Aseprite API version, and native capability requirements. The Adapter verifies fixed probe prerequisites and reports runtime capabilities independently; the Application checks the selected Descriptor before Operation execution.
 - Each Operation defines Aseprite-aligned target fields, cardinality, Inspection Scope, Operation Limits, and result facts. SPA has no universal Selector or Locator.
 - Inspections report normalized coverage and completeness. Native absence, not requested, unsupported, and exceeded bounds remain distinct.
 - Coordinate-bearing requests name their Coordinate Space. Public Rectangles use Aseprite's `x`, `y`, `width`, and `height` vocabulary and half-open coverage.
@@ -121,6 +122,12 @@ printf '%s\n' '{"aseprite":"/path/to/Aseprite.app/Contents/MacOS/aseprite"}' | u
 `.app` directory. When `--aseprite` is absent, SPA checks
 `SPA_ASEPRITE_EXECUTABLE`, then `aseprite` on `PATH`. `spa schema` reports the
 installed callable Operations; currently these are `info`, `version`, and `schema`.
+`spa info` reports the selected Aseprite version, `app.apiVersion`, embedded Lua
+language version, fixed scripting, file I/O, and JSON probe prerequisites, and
+independently observed runtime capabilities. A prerequisite failure uses the typed
+process or Kernel failure channel. A Lua-language or API-version mismatch, or a
+capability required by the selected Operation but absent from the observation, returns
+`runtime_incompatible` before the Operation executes.
 It also includes `access_failure_schema` for CLI failures before an Operation is
 selected; each Operation entry has its own applicable `failure_schema`. Aggregate
 discovery probes Aseprite, while each command's `--schema` remains available without a

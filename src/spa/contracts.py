@@ -27,6 +27,20 @@ class RuntimeRequest(Request):
     timeout_seconds: float = Field(default=15.0, gt=0, le=120)
 
 
+ProbePrerequisite = Literal[
+    "aseprite_scripting",
+    "lua_file_io",
+    "aseprite_json",
+]
+RuntimeCapability = Literal["aseprite_runtime_introspection"]
+
+
+class RuntimeRequirements(PublicModel):
+    lua_language: str = Field(min_length=1)
+    minimum_api_version: int = Field(ge=1)
+    required_capabilities: list[RuntimeCapability]
+
+
 class RuntimeFacts(PublicModel):
     selection_source: Literal["explicit", "environment", "path"]
     requested_path: str | None
@@ -36,6 +50,9 @@ class RuntimeFacts(PublicModel):
     resource_path: str
     aseprite_version: str
     api_version: int
+    lua_version: str
+    verified_prerequisites: list[ProbePrerequisite]
+    verified_capabilities: list[RuntimeCapability]
 
 
 class CapabilityGap(PublicModel):
@@ -66,6 +83,7 @@ class OperationSchema(PublicModel):
     side_effects: list[str]
     minimum_aseprite_version: str | None
     requires_runtime: bool
+    runtime_requirements: RuntimeRequirements | None
     request_schema: dict
     result_schema: dict
     failure_schema: dict
@@ -117,6 +135,16 @@ class KernelExecutionDetails(PublicModel):
     reason: str
 
 
+class RuntimeCompatibilityDetails(PublicModel):
+    kind: Literal["runtime_compatibility"] = "runtime_compatibility"
+    aseprite_version: str
+    lua_version: str
+    api_version: int
+    required_lua_language: str
+    minimum_api_version: int
+    missing_capabilities: list[RuntimeCapability]
+
+
 class RequestDetails(PublicModel):
     kind: Literal["invalid_request"] = "invalid_request"
     errors: list["ValidationIssue"]
@@ -135,6 +163,7 @@ FailureDetails = Annotated[
     | ProcessDetails
     | KernelProtocolDetail
     | KernelExecutionDetails
+    | RuntimeCompatibilityDetails
     | RequestDetails,
     Field(discriminator="kind"),
 ]
@@ -233,6 +262,12 @@ FAILURE_CODES = register_failure_codes(
             "The packaged Kernel handler refused execution",
             "execution",
             KernelExecutionDetails,
+        ),
+        FailureCodeSpec(
+            "runtime_incompatible",
+            "The installed Aseprite Lua language or scripting API version does not meet the Operation requirements",
+            "environment",
+            RuntimeCompatibilityDetails,
         ),
     )
 )
