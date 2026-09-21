@@ -1,6 +1,8 @@
 """Application dispatch and outcome classification for descriptor-backed Operations."""
 
 import json
+from dataclasses import replace
+from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
@@ -20,11 +22,13 @@ from spa.contracts import (
     ValidationIssue,
     failure_envelope,
 )
-from spa.descriptors import OperationDescriptor
+from spa.operation import OperationDescriptor
 from spa.ports import (
     DiscoveryEvidence,
     HandlerEvidence,
+    KernelHandler,
     LaunchEvidence,
+    OperationServices,
     ProcessEvidence,
     ResourceEvidence,
     ResponseEvidence,
@@ -32,7 +36,40 @@ from spa.ports import (
     RuntimeIssue,
     RuntimeObservation,
     RuntimeProbe,
+    TargetCommitObservation,
 )
+
+
+class _UnavailableTargetFiles:
+    def staged_path(self, target: Path) -> Path:
+        raise RuntimeError("Target File adapter is not configured")
+
+    def commit(self, staged: Path, target: Path) -> TargetCommitObservation:
+        raise RuntimeError("Target File adapter is not configured")
+
+    def discard(self, staged: Path) -> None:
+        return None
+
+
+def _unavailable_kernel(
+    _observation: RuntimeObservation,
+    _handler: KernelHandler,
+    _payload: dict[str, Any],
+    _timeout: float,
+) -> dict[str, Any]:
+    raise RuntimeError("Kernel invoker is not configured")
+
+
+def operation_services(
+    dependencies: RuntimeProbe | OperationServices,
+) -> OperationServices:
+    if isinstance(dependencies, OperationServices):
+        return dependencies
+    return OperationServices(
+        probe_runtime=dependencies,
+        invoke_kernel=_unavailable_kernel,
+        target_files=_UnavailableTargetFiles(),
+    )
 
 
 def _request_failure(
@@ -139,8 +176,9 @@ def dispatch(
     descriptor: OperationDescriptor[Any, Any],
     input_json: str | None,
     argv_values: dict[str, Any],
-    probe_runtime: RuntimeProbe,
+    dependencies: RuntimeProbe | OperationServices,
 ) -> BaseModel | FailureEnvelope:
+    configured = operation_services(dependencies)
     try:
         values: dict[str, Any] = (
             json.loads(input_json) if input_json is not None else {}
@@ -174,7 +212,7 @@ def dispatch(
     def compatible_probe(runtime_request: RuntimeRequest) -> RuntimeObservation:
         nonlocal observation
         if observation is None:
-            observation = probe_runtime(runtime_request)
+            observation = configured.probe_runtime(runtime_request)
             requirements = descriptor.runtime_requirements
             if requirements is None:
                 return observation
@@ -207,7 +245,9 @@ def dispatch(
             if not isinstance(request, RuntimeRequest):
                 raise TypeError("Runtime Operation Request must extend RuntimeRequest")
             compatible_probe(request)
-        outcome = descriptor.execute(request, compatible_probe)
+        outcome = descriptor.execute(
+            request, replace(configured, probe_runtime=compatible_probe)
+        )
     except RuntimeIssue as exc:
         return _runtime_failure(descriptor, exc)
     return _validated_outcome(descriptor, outcome)

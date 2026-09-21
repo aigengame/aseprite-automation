@@ -25,6 +25,8 @@ local function execute()
     },
     verified_capabilities = {
       "aseprite_runtime_introspection",
+      "aseprite_sprite_create",
+      "aseprite_sprite_inspection",
     },
   }
 end

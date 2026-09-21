@@ -1,14 +1,7 @@
-"""One registration authority for the installed meta Operations."""
-
-from collections.abc import Callable
-from dataclasses import dataclass
-from typing import get_args
-
-from pydantic import BaseModel
+"""One registration authority for installed Operations."""
 
 from spa.contracts import (
     InfoResult,
-    OperationSchema,
     RuntimeFacts,
     RuntimeRequest,
     RuntimeRequirements,
@@ -17,32 +10,14 @@ from spa.contracts import (
     VersionResult,
     failure_schema,
 )
-from spa.ports import RuntimeProbe
-
-COMMON_CLI_FLAGS = {
-    "input_json": "--input-json",
-    "schema": "--schema",
-    "json_output": "--json",
-    "human": "--human",
-}
-RUNTIME_CLI_FLAGS = {
-    "aseprite": "--aseprite",
-    "timeout_seconds": "--timeout-seconds",
-}
-ACCESS_FAILURE_CODES = ("invalid_request",)
-RUNTIME_FAILURE_CODES = (
-    "invalid_request",
-    "executable_not_found",
-    "resource_incomplete",
-    "process_start_failed",
-    "process_timeout",
-    "output_limit_exceeded",
-    "process_failed",
-    "kernel_response_missing",
-    "kernel_response_invalid",
-    "kernel_execution_failed",
-    "runtime_incompatible",
+from spa.operation import (
+    ACCESS_FAILURE_CODES,
+    RUNTIME_FAILURE_CODES,
+    OperationDescriptor,
 )
+from spa.ports import OperationServices
+from spa.sprite import SPRITE_OPERATIONS
+
 KERNEL_RUNTIME_REQUIREMENTS = RuntimeRequirements(
     lua_language="Lua 5.4",
     minimum_api_version=41,
@@ -50,93 +25,16 @@ KERNEL_RUNTIME_REQUIREMENTS = RuntimeRequirements(
 )
 
 
-@dataclass(frozen=True)
-class OperationDescriptor[RequestT: BaseModel, ResultT: BaseModel]:
-    name: str
-    request_type: type[RequestT]
-    result_type: type[ResultT]
-    execute: Callable[[RequestT, RuntimeProbe], ResultT]
-    render_human: Callable[[ResultT], str]
-    runtime_requirements: RuntimeRequirements | None
-    failure_codes: tuple[str, ...]
-
-    def __post_init__(self) -> None:
-        command = f"spa {self.name}"
-        operation_field = self.result_type.model_fields.get("operation")
-        if (
-            operation_field is None
-            or get_args(operation_field.annotation) != (command,)
-            or (
-                not operation_field.is_required() and operation_field.default != command
-            )
-        ):
-            raise ValueError(f"Result Operation identity does not match {command}")
-        if self.runtime_requirements is not None and not issubclass(
-            self.request_type, RuntimeRequest
-        ):
-            raise ValueError(
-                f"Runtime Operation Request must extend RuntimeRequest: {command}"
-            )
-        if (
-            self.runtime_requirements is not None
-            and "runtime_incompatible" not in self.failure_codes
-        ):
-            raise ValueError(
-                f"Runtime Operation must declare runtime_incompatible: {command}"
-            )
-
-    @property
-    def cli_flags(self) -> dict[str, str]:
-        return COMMON_CLI_FLAGS | (RUNTIME_CLI_FLAGS if self.requires_runtime else {})
-
-    @property
-    def requires_runtime(self) -> bool:
-        return self.runtime_requirements is not None
-
-    def schema(self) -> OperationSchema:
-        command = f"spa {self.name}"
-        return OperationSchema(
-            operation=command,
-            execution_kind="read",
-            determinism="deterministic",
-            side_effects=[],
-            minimum_aseprite_version=None,
-            requires_runtime=self.requires_runtime,
-            runtime_requirements=self.runtime_requirements,
-            request_schema=self.request_type.model_json_schema(),
-            result_schema=self.result_type.model_json_schema(),
-            failure_schema=failure_schema(self.failure_codes, command),
-            invocation_schema={
-                "$schema": "https://json-schema.org/draft/2020-12/schema",
-                "type": "object",
-                "properties": {
-                    "command": {"const": command},
-                    "input_json": {
-                        "type": "string",
-                        "description": "Inline JSON object or '-' to read one object from stdin.",
-                    },
-                    "argv": self.request_type.model_json_schema(),
-                    "schema": {"type": "boolean"},
-                    "json_output": {"type": "boolean"},
-                    "human": {"type": "boolean"},
-                },
-                "required": ["command"],
-                "additionalProperties": False,
-                "x-cli-flags": self.cli_flags,
-            },
-        )
-
-
-def version_result(_: VersionRequest, _probe: RuntimeProbe) -> VersionResult:
+def version_result(_: VersionRequest, _services: OperationServices) -> VersionResult:
     from importlib.metadata import version
 
     return VersionResult(spa_version=version("aseprite-automation"))
 
 
-def info_result(request: RuntimeRequest, probe: RuntimeProbe) -> InfoResult:
+def info_result(request: RuntimeRequest, services: OperationServices) -> InfoResult:
     from importlib.metadata import version
 
-    observation = probe(request)
+    observation = services.probe_runtime(request)
     facts = RuntimeFacts(
         selection_source=observation.selection_source,
         requested_path=observation.requested_path,
@@ -158,8 +56,8 @@ def info_result(request: RuntimeRequest, probe: RuntimeProbe) -> InfoResult:
     )
 
 
-def schema_result(request: RuntimeRequest, probe: RuntimeProbe) -> SchemaResult:
-    info = info_result(request, probe)
+def schema_result(request: RuntimeRequest, services: OperationServices) -> SchemaResult:
+    info = info_result(request, services)
     return SchemaResult(
         spa_version=info.spa_version,
         runtime=info.runtime,
@@ -169,7 +67,7 @@ def schema_result(request: RuntimeRequest, probe: RuntimeProbe) -> SchemaResult:
     )
 
 
-OPERATIONS = (
+META_OPERATIONS = (
     OperationDescriptor(
         "info",
         RuntimeRequest,
@@ -202,3 +100,5 @@ OPERATIONS = (
         RUNTIME_FAILURE_CODES,
     ),
 )
+
+OPERATIONS = (*META_OPERATIONS, *SPRITE_OPERATIONS)

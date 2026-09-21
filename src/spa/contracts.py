@@ -32,7 +32,11 @@ ProbePrerequisite = Literal[
     "lua_file_io",
     "aseprite_json",
 ]
-RuntimeCapability = Literal["aseprite_runtime_introspection"]
+RuntimeCapability = Literal[
+    "aseprite_runtime_introspection",
+    "aseprite_sprite_create",
+    "aseprite_sprite_inspection",
+]
 
 
 class RuntimeRequirements(PublicModel):
@@ -78,7 +82,7 @@ class InfoResult(PublicModel):
 
 class OperationSchema(PublicModel):
     operation: str
-    execution_kind: Literal["read"]
+    execution_kind: Literal["read", "mutation"]
     determinism: Literal["deterministic"]
     side_effects: list[str]
     minimum_aseprite_version: str | None

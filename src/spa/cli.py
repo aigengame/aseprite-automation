@@ -12,8 +12,9 @@ from spa.contracts import (
     ValidationIssue,
     failure_envelope,
 )
-from spa.descriptors import ACCESS_FAILURE_CODES, OPERATIONS, OperationDescriptor
-from spa.ports import RuntimeProbe
+from spa.descriptors import OPERATIONS
+from spa.operation import ACCESS_FAILURE_CODES, OperationDescriptor
+from spa.ports import OperationServices, RuntimeProbe
 
 
 def _emit_failure(failure: FailureEnvelope, human: bool) -> None:
@@ -28,7 +29,7 @@ def _execute(
     timeout_seconds: float | None,
     schema: bool,
     human: bool,
-    probe_runtime: RuntimeProbe,
+    dependencies: RuntimeProbe | OperationServices,
 ) -> None:
     if schema:
         typer.echo(descriptor.schema().model_dump_json())
@@ -59,14 +60,17 @@ def _execute(
         descriptor,
         input_json,
         {"aseprite": aseprite, "timeout_seconds": timeout_seconds},
-        probe_runtime,
+        dependencies,
     )
     if isinstance(result, FailureEnvelope):
         _emit_failure(result, human)
     typer.echo(descriptor.render_human(result) if human else result.model_dump_json())
 
 
-def _command(descriptor: OperationDescriptor[Any, Any], probe_runtime: RuntimeProbe):
+def _command(
+    descriptor: OperationDescriptor[Any, Any],
+    dependencies: RuntimeProbe | OperationServices,
+):
     flags = descriptor.cli_flags
     if descriptor.requires_runtime:
 
@@ -104,7 +108,7 @@ def _command(descriptor: OperationDescriptor[Any, Any], probe_runtime: RuntimePr
                 timeout_seconds,
                 schema,
                 human and not json_output,
-                probe_runtime,
+                dependencies,
             )
 
         command = runtime_command
@@ -133,19 +137,32 @@ def _command(descriptor: OperationDescriptor[Any, Any], probe_runtime: RuntimePr
                 None,
                 schema,
                 human and not json_output,
-                probe_runtime,
+                dependencies,
             )
 
         command = pure_command
-    command.__name__ = descriptor.name
+    command.__name__ = descriptor.name.rsplit(" ", 1)[-1]
     command.__doc__ = f"Run spa {descriptor.name}."
     return command
 
 
-def build_app(probe_runtime: RuntimeProbe) -> typer.Typer:
+def build_app(dependencies: RuntimeProbe | OperationServices) -> typer.Typer:
     app = typer.Typer(name="spa", no_args_is_help=False, add_completion=False)
+    groups: dict[str, typer.Typer] = {}
     for operation in OPERATIONS:
-        app.command(name=operation.name)(_command(operation, probe_runtime))
+        path = operation.name.split()
+        if len(path) == 1:
+            app.command(name=path[0])(_command(operation, dependencies))
+            continue
+        if len(path) != 2:
+            raise ValueError(f"Unsupported CLI command depth: {operation.name}")
+        group_name, command_name = path
+        group = groups.get(group_name)
+        if group is None:
+            group = typer.Typer(no_args_is_help=False, add_completion=False)
+            groups[group_name] = group
+            app.add_typer(group, name=group_name)
+        group.command(name=command_name)(_command(operation, dependencies))
     return app
 
 

@@ -12,6 +12,7 @@ verification tier. The layout does not mirror source packages or CLI Command Gro
 | `tests/contracts/` | Shared Published Language rules, including Failure Code registration and Operation Descriptor constraints. |
 | `tests/release/` | Release metadata and publication gates. |
 | `tests/runtime/` | Aseprite Runtime Integration, including discovery, launch, private Kernel transport, and real-runtime evidence. |
+| `tests/sprite/` | Sprite Domain Module contracts plus real creation, persisted reopen, structural inspection, and Target Commit evidence. |
 
 Add an ownership directory only when tests for that behavior exist. Keep a helper in
 the narrowest ownership directory that uses it. Move a helper to `tests/support.py`
@@ -37,6 +38,8 @@ probe response. Runtime capabilities are reported independently: omitting a know
 capability does not invalidate the probe, while the Application rejects it before
 execution when the selected Descriptor requires it. Each later Operation adds
 real-runtime evidence for the native capabilities named by its Descriptor.
+The Sprite E2E fixture covers nonempty Frames, Tags, Palettes, nested Layers, Cels,
+Slices, and Tilesets in addition to empty-section and unrequested-section semantics.
 
 The initial evidence profiles use local macOS Aseprite 1.3.18.5-dev and the pinned
 Linux CI Aseprite 1.3.18.5 source release. Both expose `_VERSION == "Lua 5.4"` and

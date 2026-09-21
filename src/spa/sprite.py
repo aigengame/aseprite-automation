@@ -1,0 +1,312 @@
+"""Sprite Domain Module contracts, descriptors, use cases, and rendering."""
+
+from pathlib import Path
+from typing import Annotated, Literal
+
+from pydantic import Field, field_validator
+
+from spa.contracts import PublicModel, RuntimeRequest, RuntimeRequirements
+from spa.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
+from spa.ports import OperationServices
+
+InspectionSection = Literal[
+    "frames", "tags", "palettes", "layers", "cels", "slices", "tilesets"
+]
+INSPECTION_SECTIONS: tuple[InspectionSection, ...] = (
+    "frames",
+    "tags",
+    "palettes",
+    "layers",
+    "cels",
+    "slices",
+    "tilesets",
+)
+
+
+def _native_sprite_path(value: str) -> str:
+    if Path(value).suffix.lower() != ".aseprite":
+        raise ValueError("Sprite file must use the .aseprite extension")
+    return value
+
+
+class RgbaColor(PublicModel):
+    red: int = Field(ge=0, le=255)
+    green: int = Field(ge=0, le=255)
+    blue: int = Field(ge=0, le=255)
+    alpha: int = Field(ge=0, le=255)
+
+
+class BackgroundColor(RgbaColor):
+    alpha: Literal[255]
+
+
+class TransparentInitialLayer(PublicModel):
+    kind: Literal["transparent"] = "transparent"
+
+
+class BackgroundInitialLayer(PublicModel):
+    kind: Literal["background"] = "background"
+    background_color: BackgroundColor
+
+
+InitialLayer = Annotated[
+    TransparentInitialLayer | BackgroundInitialLayer, Field(discriminator="kind")
+]
+
+
+class SpriteCreateRequest(RuntimeRequest):
+    target_sprite_file: str = Field(min_length=1)
+    width: int = Field(ge=1, le=65535)
+    height: int = Field(ge=1, le=65535)
+    color_mode: Literal["rgb"]
+    initial_layer: InitialLayer
+
+    _validate_target = field_validator("target_sprite_file")(_native_sprite_path)
+
+
+class SpriteGetRequest(RuntimeRequest):
+    sprite_file: str = Field(min_length=1)
+    inspection_scope: list[InspectionSection]
+
+    _validate_source = field_validator("sprite_file")(_native_sprite_path)
+
+    @field_validator("inspection_scope")
+    @classmethod
+    def normalize_scope(cls, value: list[InspectionSection]) -> list[InspectionSection]:
+        if len(value) != len(set(value)):
+            raise ValueError("Inspection Scope cannot contain duplicate sections")
+        requested = set(value)
+        return [section for section in INSPECTION_SECTIONS if section in requested]
+
+    @property
+    def unrequested_sections(self) -> list[InspectionSection]:
+        requested = set(self.inspection_scope)
+        return [section for section in INSPECTION_SECTIONS if section not in requested]
+
+
+class Point(PublicModel):
+    x: int
+    y: int
+
+
+class Size(PublicModel):
+    width: int = Field(ge=0)
+    height: int = Field(ge=0)
+
+
+class Rectangle(Point, Size):
+    pass
+
+
+class SpriteMetadata(PublicModel):
+    width: int = Field(ge=1)
+    height: int = Field(ge=1)
+    color_mode: Literal["rgb", "grayscale", "indexed"]
+    frame_count: int = Field(ge=1)
+    tag_count: int = Field(ge=0)
+    palette_count: int = Field(ge=0)
+    layer_count: int = Field(ge=0)
+    cel_count: int = Field(ge=0)
+    slice_count: int = Field(ge=0)
+    tileset_count: int = Field(ge=0)
+    transparent_color_index: int = Field(ge=0)
+    grid_bounds: Rectangle
+    pixel_ratio: Size
+
+
+class FrameFacts(PublicModel):
+    frame_number: int = Field(ge=1)
+    duration_ms: int = Field(ge=0)
+
+
+class TagFacts(PublicModel):
+    name: str
+    from_frame: int = Field(ge=1)
+    to_frame: int = Field(ge=1)
+    direction: str
+    repeats: int = Field(ge=0)
+    color: RgbaColor
+
+
+class PaletteEntry(PublicModel):
+    index: int = Field(ge=0)
+    color: RgbaColor
+
+
+class PaletteFacts(PublicModel):
+    frame_number: int = Field(ge=1)
+    entries: list[PaletteEntry]
+
+
+class LayerFacts(PublicModel):
+    path: list[int] = Field(min_length=1)
+    name: str
+    kind: Literal["image", "group", "tilemap", "reference"]
+    opacity: int | None = Field(default=None, ge=0, le=255)
+    blend_mode: str | None
+    is_visible: bool
+    is_editable: bool
+    is_continuous: bool
+    is_collapsed: bool
+    is_transparent: bool
+    is_background: bool
+    background_color: RgbaColor | None
+    children: list["LayerFacts"]
+
+
+class CelFacts(PublicModel):
+    layer_path: list[int] = Field(min_length=1)
+    frame_number: int = Field(ge=1)
+    bounds: Rectangle
+    opacity: int = Field(ge=0, le=255)
+    z_index: int
+
+
+class SliceFacts(PublicModel):
+    name: str
+    bounds: Rectangle
+    center: Rectangle | None
+    pivot: Point | None
+
+
+class TilesetFacts(PublicModel):
+    name: str
+    tile_count: int = Field(ge=0)
+    base_index: int = Field(ge=0)
+    grid_origin: Point
+    tile_size: Size
+
+
+class InspectionScope(PublicModel):
+    requested_sections: list[InspectionSection]
+    complete_sections: list[InspectionSection]
+    unrequested_sections: list[InspectionSection]
+
+
+class SpriteInspection(PublicModel):
+    metadata: SpriteMetadata
+    frames: list[FrameFacts] | None
+    tags: list[TagFacts] | None
+    palettes: list[PaletteFacts] | None
+    layers: list[LayerFacts] | None
+    cels: list[CelFacts] | None
+    slices: list[SliceFacts] | None
+    tilesets: list[TilesetFacts] | None
+
+
+class TargetCommit(PublicModel):
+    target_sprite_file: str
+    byte_size: int = Field(gt=0)
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class SpriteCreateResult(PublicModel):
+    status: Literal["success"] = "success"
+    operation: Literal["spa sprite create"] = "spa sprite create"
+    target_commit: TargetCommit
+    persisted_reopen_verified: Literal[True]
+    sprite: SpriteInspection
+
+
+class SpriteGetResult(SpriteInspection):
+    status: Literal["success"] = "success"
+    operation: Literal["spa sprite get"] = "spa sprite get"
+    sprite_file: str
+    scope: InspectionScope
+
+
+SPRITE_CREATE_REQUIREMENTS = RuntimeRequirements(
+    lua_language="Lua 5.4",
+    minimum_api_version=41,
+    required_capabilities=["aseprite_sprite_create"],
+)
+SPRITE_GET_REQUIREMENTS = RuntimeRequirements(
+    lua_language="Lua 5.4",
+    minimum_api_version=41,
+    required_capabilities=["aseprite_sprite_inspection"],
+)
+
+
+def create_sprite(
+    request: SpriteCreateRequest, services: OperationServices
+) -> SpriteCreateResult:
+    observation = services.probe_runtime(request)
+    target = Path(request.target_sprite_file)
+    staged = services.target_files.staged_path(target)
+    payload = {
+        "width": request.width,
+        "height": request.height,
+        "color_mode": request.color_mode,
+        "initial_layer": request.initial_layer.model_dump(mode="json"),
+        "staged_sprite_file": str(staged),
+        "inspection_scope": list(INSPECTION_SECTIONS),
+    }
+    try:
+        raw = services.invoke_kernel(
+            observation, "sprite_create", payload, request.timeout_seconds
+        )
+        inspection = SpriteInspection.model_validate(raw["sprite"])
+        committed = services.target_files.commit(staged, target)
+        return SpriteCreateResult(
+            target_commit=TargetCommit(
+                target_sprite_file=committed.target_sprite_file,
+                byte_size=committed.byte_size,
+                sha256=committed.sha256,
+            ),
+            persisted_reopen_verified=True,
+            sprite=inspection,
+        )
+    finally:
+        services.target_files.discard(staged)
+
+
+def get_sprite(
+    request: SpriteGetRequest, services: OperationServices
+) -> SpriteGetResult:
+    observation = services.probe_runtime(request)
+    raw = services.invoke_kernel(
+        observation,
+        "sprite_get",
+        {
+            "sprite_file": request.sprite_file,
+            "inspection_scope": request.inspection_scope,
+        },
+        request.timeout_seconds,
+    )
+    inspection = SpriteInspection.model_validate(raw["sprite"])
+    return SpriteGetResult(
+        **inspection.model_dump(),
+        sprite_file=request.sprite_file,
+        scope=InspectionScope(
+            requested_sections=request.inspection_scope,
+            complete_sections=request.inspection_scope,
+            unrequested_sections=request.unrequested_sections,
+        ),
+    )
+
+
+SPRITE_OPERATIONS = (
+    OperationDescriptor(
+        "sprite create",
+        SpriteCreateRequest,
+        SpriteCreateResult,
+        create_sprite,
+        lambda result: result.target_commit.target_sprite_file,
+        SPRITE_CREATE_REQUIREMENTS,
+        RUNTIME_FAILURE_CODES,
+        execution_kind="mutation",
+        side_effects=("publishes the declared Target Sprite File",),
+    ),
+    OperationDescriptor(
+        "sprite get",
+        SpriteGetRequest,
+        SpriteGetResult,
+        get_sprite,
+        lambda result: (
+            f"{result.sprite_file}: {result.metadata.width}x{result.metadata.height} "
+            f"{result.metadata.color_mode}"
+        ),
+        SPRITE_GET_REQUIREMENTS,
+        RUNTIME_FAILURE_CODES,
+    ),
+)

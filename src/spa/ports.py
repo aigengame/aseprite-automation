@@ -2,7 +2,8 @@
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Literal
+from pathlib import Path
+from typing import Any, Literal, Protocol
 
 from spa.contracts import (
     Diagnostics,
@@ -27,6 +28,35 @@ class RuntimeObservation:
 
 
 RuntimeProbe = Callable[[RuntimeRequest], RuntimeObservation]
+
+KernelHandler = Literal["sprite_create", "sprite_get"]
+KernelInvoker = Callable[
+    [RuntimeObservation, KernelHandler, dict[str, Any], float], dict[str, Any]
+]
+
+
+@dataclass(frozen=True)
+class TargetCommitObservation:
+    target_sprite_file: str
+    byte_size: int
+    sha256: str
+
+
+class TargetFiles(Protocol):
+    """Domain-neutral staging and atomic Target Commit boundary."""
+
+    def staged_path(self, target: Path) -> Path: ...
+
+    def commit(self, staged: Path, target: Path) -> TargetCommitObservation: ...
+
+    def discard(self, staged: Path) -> None: ...
+
+
+@dataclass(frozen=True)
+class OperationServices:
+    probe_runtime: RuntimeProbe
+    invoke_kernel: KernelInvoker
+    target_files: TargetFiles
 
 
 @dataclass(frozen=True)

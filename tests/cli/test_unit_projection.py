@@ -12,8 +12,9 @@ def test_advertised_cli_flags_match_the_actual_typer_commands() -> None:
 
     typer_command = get_command(build_app(unused_probe))
     for descriptor in OPERATIONS:
-        actual = {
-            parameter.name: parameter.opts[0]
-            for parameter in typer_command.commands[descriptor.name].params
-        }
+        path = descriptor.name.split()
+        command = typer_command
+        for part in path:
+            command = command.commands[part]
+        actual = {parameter.name: parameter.opts[0] for parameter in command.params}
         assert actual == descriptor.schema().invocation_schema["x-cli-flags"]

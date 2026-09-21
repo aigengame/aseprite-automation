@@ -127,4 +127,6 @@ def test_installed_manifest_exposes_access_failures_without_real_aseprite(
         "spa info",
         "spa version",
         "spa schema",
+        "spa sprite create",
+        "spa sprite get",
     ]
