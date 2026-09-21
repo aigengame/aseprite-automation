@@ -10,7 +10,6 @@ from spa.contracts import (
     PublicModel,
     RuntimeRequest,
     RuntimeRequirements,
-    install_failure_codes,
 )
 from spa.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.ports import (
@@ -241,15 +240,13 @@ class TargetCommitDetails(PublicModel):
     reason: TargetCommitFailureReason
 
 
-install_failure_codes(
-    (
-        FailureCodeSpec(
-            "target_commit_failed",
-            "The validated staged Sprite could not be published at its declared target",
-            "execution",
-            TargetCommitDetails,
-        ),
-    )
+SPRITE_FAILURE_CODE_SPECS = (
+    FailureCodeSpec(
+        "target_commit_failed",
+        "The validated staged Sprite could not be published at its declared target",
+        "execution",
+        TargetCommitDetails,
+    ),
 )
 
 

@@ -1,6 +1,7 @@
 """Public Failure Code registration and schema conformance for issue #64."""
 
 from dataclasses import replace
+from types import MappingProxyType
 from typing import Literal
 
 import pytest
@@ -10,7 +11,6 @@ from pydantic import ValidationError
 
 from spa.application import _runtime_failure, dispatch
 from spa.contracts import (
-    FAILURE_CODES,
     FailureEnvelope,
     KernelExecutionDetails,
     KernelProtocolDetail,
@@ -28,6 +28,7 @@ from spa.contracts import (
     register_failure_codes,
 )
 from spa.descriptors import ACCESS_FAILURE_CODES, OPERATIONS
+from spa.failure_registry import FAILURE_CODES
 from spa.ports import (
     DiscoveryEvidence,
     HandlerEvidence,
@@ -76,6 +77,15 @@ def test_all_installed_failure_codes_are_registered_once() -> None:
     assert all(
         spec.meaning and spec.code == code for code, spec in FAILURE_CODES.items()
     )
+
+
+def test_installed_failure_registry_is_one_immutable_composition() -> None:
+    from spa import contracts
+
+    assert isinstance(FAILURE_CODES, MappingProxyType)
+    assert "FAILURE_CODES" not in vars(contracts)
+    assert "install_failure_codes" not in vars(contracts)
+    assert TargetCommitDetails.__module__ == "spa.sprite"
 
 
 def test_registration_refuses_duplicate_invalid_and_unsupported_entries() -> None:
