@@ -56,17 +56,24 @@ class PaintApplyRequest(RuntimeRequest):
     def validate_target_commit_intent(self) -> "PaintApplyRequest":
         source = _native_sprite_path(self.source_sprite_file)
         target = _native_sprite_path(self.target_sprite_file)
-        same_file = Path(source).expanduser().absolute() == Path(target).expanduser().absolute()
+        same_file = (
+            Path(source).expanduser().absolute() == Path(target).expanduser().absolute()
+        )
         if self.in_place:
             if not same_file:
-                raise ValueError("in_place requires identical Source and Target Sprite Files")
+                raise ValueError(
+                    "in_place requires identical Source and Target Sprite Files"
+                )
             if not self.overwrite:
                 raise ValueError("in_place requires overwrite permission")
         elif same_file:
-            raise ValueError("identical Source and Target Sprite Files require in_place")
-        if len(self.patch.runs) > MAX_PATCH_PIXELS or sum(
-            run.length for run in self.patch.runs
-        ) > MAX_PATCH_PIXELS:
+            raise ValueError(
+                "identical Source and Target Sprite Files require in_place"
+            )
+        if (
+            len(self.patch.runs) > MAX_PATCH_PIXELS
+            or sum(run.length for run in self.patch.runs) > MAX_PATCH_PIXELS
+        ):
             raise ValueError(
                 f"Pixel Patch exceeds the {MAX_PATCH_PIXELS}-pixel Operation Limit"
             )
@@ -116,15 +123,11 @@ class PaintApplyEvidence(PublicModel):
     pixels_changed: int = Field(ge=0)
     pixels_skipped_by_bounds: int = Field(ge=0)
     pixels_skipped_by_selection: int = Field(ge=0)
-    affected_cels: list[AffectedCel] = Field(
-        min_length=1, max_length=MAX_AFFECTED_CELS
-    )
+    affected_cels: list[AffectedCel] = Field(min_length=1, max_length=MAX_AFFECTED_CELS)
     linked_cels_preserved: Literal[True]
     geometry_unchanged: Literal[True]
     background_opaque: bool
-    effective_palettes: list[EffectivePaletteFact] = Field(
-        max_length=MAX_AFFECTED_CELS
-    )
+    effective_palettes: list[EffectivePaletteFact] = Field(max_length=MAX_AFFECTED_CELS)
     before_content_digest: ImageContentDigest
     after_content_digest: ImageContentDigest
 

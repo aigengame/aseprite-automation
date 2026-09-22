@@ -321,9 +321,10 @@ def test_empty_selection_is_a_reported_no_op(tmp_path: Path) -> None:
     assert empty_patch.returncode == 0, empty_patch.stdout
     empty_patch_result = json.loads(empty_patch.stdout)
     assert empty_patch_result["pixels_requested"] == 0
-    assert empty_patch_result["before_content_digest"] == empty_patch_result[
-        "after_content_digest"
-    ]
+    assert (
+        empty_patch_result["before_content_digest"]
+        == empty_patch_result["after_content_digest"]
+    )
 
 
 def test_background_and_grayscale_writes_preserve_native_mode_and_opacity(
