@@ -17,6 +17,7 @@ from spa.ports import (
     ResponseEvidence,
     RuntimeIssue,
 )
+from spa.raster import Point, Rectangle, RgbaColor, Size
 
 InspectionSection = Literal[
     "frames", "tags", "palettes", "layers", "cels", "slices", "tilesets"
@@ -36,13 +37,6 @@ def _native_sprite_path(value: str) -> str:
     if Path(value).suffix.lower() != ".aseprite":
         raise ValueError("Sprite file must use the .aseprite extension")
     return value
-
-
-class RgbaColor(PublicModel):
-    red: int = Field(ge=0, le=255)
-    green: int = Field(ge=0, le=255)
-    blue: int = Field(ge=0, le=255)
-    alpha: int = Field(ge=0, le=255)
 
 
 class BackgroundColor(RgbaColor):
@@ -92,20 +86,6 @@ class SpriteGetRequest(RuntimeRequest):
     def unrequested_sections(self) -> list[InspectionSection]:
         requested = set(self.inspection_scope)
         return [section for section in INSPECTION_SECTIONS if section not in requested]
-
-
-class Point(PublicModel):
-    x: int
-    y: int
-
-
-class Size(PublicModel):
-    width: int = Field(ge=0)
-    height: int = Field(ge=0)
-
-
-class Rectangle(Point, Size):
-    pass
 
 
 class SpriteMetadata(PublicModel):

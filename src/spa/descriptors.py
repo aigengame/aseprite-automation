@@ -18,6 +18,7 @@ from spa.operation import (
     OperationDescriptor,
 )
 from spa.ports import OperationServices
+from spa.paint import PAINT_OPERATIONS
 from spa.sprite import SPRITE_OPERATIONS
 
 KERNEL_RUNTIME_REQUIREMENTS = RuntimeRequirements(
@@ -158,4 +159,4 @@ META_OPERATIONS = (
     ),
 )
 
-OPERATIONS = (*META_OPERATIONS, *SPRITE_OPERATIONS)
+OPERATIONS = (*META_OPERATIONS, *SPRITE_OPERATIONS, *PAINT_OPERATIONS)
