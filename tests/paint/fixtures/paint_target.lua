@@ -24,11 +24,39 @@ elseif kind == "indexed" then
   palette:setColor(0, Color{ r=0, g=0, b=0, a=0 })
   palette:setColor(1, Color{ r=241, g=82, b=65, a=255 })
   sprite:setPalette(palette)
+elseif kind == "indexed-palette-change" then
+  sprite = Sprite(2, 2, ColorMode.INDEXED)
+  local layer = sprite.layers[1]
+  local palette = Palette(2)
+  palette:setColor(0, Color{ r=0, g=0, b=0, a=0 })
+  palette:setColor(1, Color{ r=241, g=82, b=65, a=255 })
+  sprite:setPalette(palette)
+  local first = assert(layer:cel(1))
+  sprite:newEmptyFrame()
+  local third_frame = sprite:newEmptyFrame()
+  sprite:newCel(layer, third_frame, Image(first.image), Point(0, 0))
 elseif kind == "group" then
   sprite = Sprite(2, 2, ColorMode.RGB)
   local image_layer = sprite.layers[1]
   sprite:newGroup()
   sprite:deleteLayer(image_layer)
+elseif kind == "reference" then
+  sprite = Sprite(2, 2, ColorMode.RGB)
+  app.activeSprite = sprite
+  app.activeLayer = sprite.layers[1]
+  app.command.NewLayer{ reference=true }
+elseif kind == "tilemap" then
+  sprite = Sprite(2, 2, ColorMode.RGB)
+  local image_layer = sprite.layers[1]
+  app.activeSprite = sprite
+  app.activeLayer = image_layer
+  app.command.NewLayer{ tilemap=true }
+  sprite:deleteLayer(image_layer)
+elseif kind == "absent" then
+  sprite = Sprite(2, 2, ColorMode.RGB)
+  sprite:newEmptyFrame()
+elseif kind == "large-rgb" then
+  sprite = Sprite(2048, 2048, ColorMode.RGB)
 else
   error("unknown Paint fixture kind")
 end

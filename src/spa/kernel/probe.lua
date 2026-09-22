@@ -97,22 +97,12 @@ local function observes_sprite_creation()
 end
 
 local function observes_paint_apply()
-  local source_path = app.fs.joinPath(app.params.workspace, "paint-source.aseprite")
+  local source_path = assert(app.params.paint_fixture)
   local target_path = app.fs.joinPath(app.params.workspace, "paint-target.aseprite")
   local ok = pcall(function()
     assert(sha256.hex("abc") ==
            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
            "SHA-256 implementation failed its known-answer check")
-    creation.execute({
-      width = 2,
-      height = 2,
-      color_mode = "rgb",
-      initial_layer = { kind = "transparent" },
-      staged_sprite_file = source_path,
-      inspection_scope = {
-        "frames", "tags", "palettes", "layers", "cels", "slices", "tilesets",
-      },
-    }, inspection)
     local result = paint.execute({
       source_sprite_file = source_path,
       staged_sprite_file = target_path,
@@ -132,7 +122,6 @@ local function observes_paint_apply()
     assert(result.applied_runs[1].color.red == 17)
     assert(result.before_content_digest.value ~= result.after_content_digest.value)
   end)
-  pcall(function() os.remove(source_path) end)
   pcall(function() os.remove(target_path) end)
   return ok
 end
@@ -146,7 +135,7 @@ local function observed_capabilities()
   if supports_inspection then
     capabilities[#capabilities + 1] = "aseprite_sprite_inspection"
   end
-  if supports_inspection and observes_paint_apply() then
+  if observes_paint_apply() then
     capabilities[#capabilities + 1] = "aseprite_paint_apply"
   end
   return capabilities

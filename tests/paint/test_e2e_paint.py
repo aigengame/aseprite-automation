@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import struct
 import subprocess
 import tempfile
 from pathlib import Path
@@ -46,8 +47,35 @@ def _fixture(target: Path, kind: str) -> None:
             check=False,
             env=prepared.environment,
         )
-    assert run.returncode == 0, run.stderr
+    assert run.returncode == 0, run.stdout + run.stderr
     assert target.is_file()
+    if kind == "indexed-palette-change":
+        _inject_palette_change(target)
+
+
+def _inject_palette_change(target: Path) -> None:
+    """Add a second-frame Palette Chunk unavailable through the public Lua API."""
+    payload = bytearray(target.read_bytes())
+    frame_offset = 128
+    frame_offset += struct.unpack_from("<I", payload, frame_offset)[0]
+
+    entries = struct.pack("<HBBBB", 0, 0, 0, 0, 0) + struct.pack(
+        "<HBBBB", 0, 65, 105, 225, 255
+    )
+    chunk_data = struct.pack("<III8x", 2, 0, 1) + entries
+    chunk = struct.pack("<IH", len(chunk_data) + 6, 0x2019) + chunk_data
+    frame_size = struct.unpack_from("<I", payload, frame_offset)[0]
+    insert_at = frame_offset + 16
+    old_chunk_count = struct.unpack_from("<H", payload, frame_offset + 6)[0]
+    new_chunk_count = struct.unpack_from("<I", payload, frame_offset + 12)[0]
+    struct.pack_into("<I", payload, frame_offset, frame_size + len(chunk))
+    if new_chunk_count:
+        struct.pack_into("<I", payload, frame_offset + 12, new_chunk_count + 1)
+    else:
+        struct.pack_into("<H", payload, frame_offset + 6, old_chunk_count + 1)
+    payload[insert_at:insert_at] = chunk
+    struct.pack_into("<I", payload, 0, len(payload))
+    target.write_bytes(payload)
 
 
 def _create(source: Path) -> None:
@@ -230,6 +258,29 @@ def test_reject_clipping_is_atomic_and_clip_reports_partial_and_empty_writes(
     assert empty_result["applied_rectangle"]["height"] == 0
     assert empty_result["pixels_written"] == 0
     assert empty_result["before_content_digest"] == empty_result["after_content_digest"]
+
+
+@pytest.mark.parametrize("runs", [[], None])
+def test_reject_clipping_validates_the_declared_rectangle_before_writes(
+    tmp_path: Path, runs: list[object] | None
+) -> None:
+    source = tmp_path / "source.aseprite"
+    target = tmp_path / "outside-rectangle.aseprite"
+    _create(source)
+    source_bytes = source.read_bytes()
+    patch = _rgba_patch(x=0, y=0, length=1, width=4)
+    if runs == []:
+        patch["runs"] = []
+
+    run = _apply(source, target, patch)
+
+    assert run.returncode == 1, run.stdout
+    assert (
+        "Rectangle is outside Image bounds"
+        in json.loads(run.stdout)["details"]["reason"]
+    )
+    assert not target.exists()
+    assert source.read_bytes() == source_bytes
 
 
 def test_selection_maps_image_pixels_through_the_target_cel_position(
@@ -448,6 +499,49 @@ def test_indexed_write_reports_effective_palette_and_rejects_missing_index_atomi
     assert source.read_bytes() == source_bytes
 
 
+def test_indexed_target_uses_the_palette_change_effective_for_its_frame(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "palette-change.aseprite"
+    target = tmp_path / "palette-change-target.aseprite"
+    _fixture(source, "indexed-palette-change")
+    patch = {
+        "coordinate_space": "image-pixel",
+        "rectangle": {"x": 0, "y": 0, "width": 1, "height": 1},
+        "runs": [
+            {
+                "x": 0,
+                "y": 0,
+                "length": 1,
+                "color": {"kind": "palette-index", "index": 1},
+            }
+        ],
+    }
+
+    run = _apply(
+        source,
+        target,
+        patch,
+        address={"layer_path": [1], "frame_number": 3},
+    )
+
+    assert run.returncode == 0, run.stdout
+    result = json.loads(run.stdout)
+    assert result["effective_palettes"] == [
+        {
+            "frame_number": 3,
+            "palette_frame_number": 2,
+            "palette_size": 2,
+            "indexes": [
+                {
+                    "index": 1,
+                    "color": {"red": 65, "green": 105, "blue": 225, "alpha": 255},
+                }
+            ],
+        }
+    ]
+
+
 def test_apply_supports_explicit_in_place_target_commit(tmp_path: Path) -> None:
     source = tmp_path / "in-place.aseprite"
     _create(source)
@@ -496,13 +590,78 @@ def test_apply_resolves_the_complete_target_before_any_write(tmp_path: Path) -> 
     assert source.read_bytes() == source_bytes
 
 
-def test_apply_rejects_a_non_cel_target(tmp_path: Path) -> None:
-    source = tmp_path / "group.aseprite"
-    target = tmp_path / "group-target.aseprite"
-    _fixture(source, "group")
+@pytest.mark.parametrize(
+    ("kind", "address", "reason"),
+    [
+        ("group", {"layer_path": [1], "frame_number": 1}, "not a regular"),
+        ("reference", {"layer_path": [1], "frame_number": 1}, "not a regular"),
+        ("tilemap", {"layer_path": [1], "frame_number": 1}, "not a regular"),
+        ("absent", {"layer_path": [1], "frame_number": 2}, "does not exist"),
+    ],
+)
+def test_apply_rejects_unsupported_or_absent_cel_targets(
+    tmp_path: Path, kind: str, address: dict[str, object], reason: str
+) -> None:
+    source = tmp_path / f"{kind}.aseprite"
+    target = tmp_path / f"{kind}-target.aseprite"
+    _fixture(source, kind)
+
+    run = _apply(source, target, _rgba_patch(x=0, y=0, length=1), address=address)
+
+    assert run.returncode == 1, run.stdout
+    assert reason in json.loads(run.stdout)["details"]["reason"]
+    assert not target.exists()
+
+
+def test_apply_ignores_ambient_editor_selection(tmp_path: Path) -> None:
+    source = tmp_path / "source.aseprite"
+    target = tmp_path / "ambient-selection-target.aseprite"
+    _create(source)
+    observation = probe(
+        RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
+    )
+    fixture = Path(__file__).parent / "fixtures" / "ambient_selection.lua"
+    support = Path(__file__).parents[2] / "src" / "spa" / "kernel"
+    with tempfile.TemporaryDirectory(prefix="spa-paint-selection-") as work:
+        prepared = prepare_invocation(
+            Path(observation.canonical_path),
+            Path(observation.resource_path),
+            Path(work),
+        )
+        run = subprocess.run(
+            [
+                str(prepared.executable),
+                "--batch",
+                "--script-param",
+                f"source={source}",
+                "--script-param",
+                f"target={target}",
+                "--script-param",
+                f"paint={support / 'paint_apply_support.lua'}",
+                "--script-param",
+                f"sha256={support / 'sha256.lua'}",
+                "--script",
+                str(fixture),
+            ],
+            text=True,
+            capture_output=True,
+            check=False,
+            env=prepared.environment,
+        )
+
+    assert run.returncode == 0, run.stderr
+    assert target.is_file()
+
+
+def test_single_pixel_patch_on_2k_sprite_completes_with_default_timeout(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "large.aseprite"
+    target = tmp_path / "large-target.aseprite"
+    _fixture(source, "large-rgb")
 
     run = _apply(source, target, _rgba_patch(x=0, y=0, length=1))
 
-    assert run.returncode == 1, run.stdout
-    assert "not a regular Image Layer" in json.loads(run.stdout)["details"]["reason"]
-    assert not target.exists()
+    assert run.returncode == 0, run.stdout
+    assert json.loads(run.stdout)["pixels_written"] == 1
+    assert target.is_file()

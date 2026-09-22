@@ -131,6 +131,18 @@ def test_apply_rejects_a_patch_above_its_bounded_tracer_limit() -> None:
         PaintApplyRequest.model_validate(payload)
 
 
+def test_pixel_patch_operation_limit_is_projected_to_json_schema() -> None:
+    schema = PaintApplyRequest.model_json_schema()
+    patch_schema = schema["$defs"]["PaintPixelPatch"]
+
+    assert patch_schema["x-spa-max-addressed-pixels"] == 256
+    assert patch_schema["properties"]["runs"]["maxItems"] == 256
+    assert (
+        "256 addressed Image Pixels"
+        in patch_schema["properties"]["runs"]["description"]
+    )
+
+
 @pytest.mark.parametrize(
     "selection",
     [

@@ -224,3 +224,44 @@ def test_apply_refuses_incoherent_pixel_accounting_before_target_commit() -> Non
     assert failure.value.kind == "postcondition_failed"
     assert files.commits == 0
     assert files.discarded == 1
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {
+            "applied_runs": [
+                {
+                    "x": 1,
+                    "y": 0,
+                    "length": 2,
+                    "color": {
+                        "kind": "rgba",
+                        "red": 1,
+                        "green": 2,
+                        "blue": 3,
+                        "alpha": 255,
+                    },
+                }
+            ]
+        },
+        {"applied_rectangle": {"x": 0, "y": 0, "width": 1, "height": 1}},
+        {
+            "pixels_changed": 0,
+            "before_content_digest": {"algorithm": "sha256", "value": "0" * 64},
+            "after_content_digest": {"algorithm": "sha256", "value": "1" * 64},
+        },
+    ],
+)
+def test_apply_refuses_false_pixel_postconditions_before_target_commit(
+    overrides: dict[str, Any],
+) -> None:
+    files = _TargetFiles()
+    services, _ = _services(_evidence(**overrides), files)
+
+    with pytest.raises(RuntimeIssue) as failure:
+        apply_paint(_request(), services)
+
+    assert failure.value.kind == "postcondition_failed"
+    assert files.commits == 0
+    assert files.discarded == 1

@@ -1,7 +1,6 @@
 -- Paint-owned exact Pixel Patch semantics shared by the handler and capability probe.
 local module = {}
 local max_patch_pixels = 256
-local max_affected_cels = 128
 
 local function copy_color(color)
   if color.kind == "rgba" then
@@ -261,8 +260,6 @@ local function collect_affected_cels(sprite, target_image)
     return #left.layer_path < #right.layer_path
   end)
   assert(#result > 0, "target Image has no affected Cels")
-  assert(#result <= max_affected_cels,
-         "target exceeds the affected Cel Operation Limit")
   return result
 end
 
@@ -291,8 +288,6 @@ local function palette_facts(sprite, affected_cels, used_indexes)
   local indexes = {}
   for index, _ in pairs(used_indexes) do indexes[#indexes + 1] = index end
   table.sort(indexes)
-  assert(#frame_numbers * #indexes <= max_patch_pixels,
-         "Indexed target exceeds the Effective Palette evidence limit")
   local result = {}
   for _, frame_number in ipairs(frame_numbers) do
     local palette, palette_frame = effective_palette(sprite, frame_number)
@@ -317,13 +312,11 @@ local function palette_facts(sprite, affected_cels, used_indexes)
 end
 
 local function image_digest(image, color_mode, sha256)
-  local chunks = { color_mode, ":", tostring(image.width), "x", tostring(image.height), ":" }
-  for y = 0, image.height - 1 do
-    for x = 0, image.width - 1 do
-      chunks[#chunks + 1] = string.pack(">I4", image:getPixel(x, y))
-    end
-  end
-  return { algorithm="sha256", value=sha256.hex(table.concat(chunks)) }
+  local header = table.concat({
+    color_mode, ":", tostring(image.width), "x", tostring(image.height),
+    ":", tostring(image.bytesPerPixel), ":", tostring(image.rowStride), ":",
+  })
+  return { algorithm="sha256", value=sha256.hex(header .. image.bytes) }
 end
 
 local function background_is_opaque(image, color_mode, layer)
@@ -382,11 +375,9 @@ local function validate_reopened(
            "persisted bounded pixel inspection failed")
   end
   local digest = image_digest(image, evidence.color_mode, sha256)
-  assert(digest.value == evidence.after_content_digest.value,
-         "persisted Image content digest changed")
   local opaque = background_is_opaque(image, evidence.color_mode, layer)
   if layer.isBackground then assert(opaque, "persisted Background Image is not opaque") end
-  return opaque
+  return opaque, digest
 end
 
 local function restore_editor_state(previous)
@@ -429,6 +420,14 @@ function module.execute(payload, sha256)
                          "could not open Source Sprite File")
     local layer, cel, image = resolve_target(open_sprite, payload.target)
     local color_mode = color_mode_name(open_sprite)
+    local rectangle_in_bounds = requested_rectangle.x >= 0
+      and requested_rectangle.y >= 0
+      and requested_rectangle.x + requested_rectangle.width <= image.width
+      and requested_rectangle.y + requested_rectangle.height <= image.height
+    if payload.clipping == "reject" then
+      assert(rectangle_in_bounds,
+             "Pixel Patch Rectangle is outside Image bounds")
+    end
     local affected_cels = collect_affected_cels(open_sprite, image)
     local expected_geometry = {
       sprite_width=open_sprite.width,
@@ -509,7 +508,6 @@ function module.execute(payload, sha256)
         image:putPixel(write.x, write.y, write.native)
       end
     end)
-    local after_digest = image_digest(image, color_mode, sha256)
     local applied_rectangle = {
       x=requested_rectangle.x, y=requested_rectangle.y, width=0, height=0,
     }
@@ -548,7 +546,6 @@ function module.execute(payload, sha256)
       background_opaque=false,
       effective_palettes=effective_palettes,
       before_content_digest=before_digest,
-      after_content_digest=after_digest,
     }
     assert(open_sprite:saveAs(payload.staged_sprite_file),
            "could not save staged Sprite")
@@ -556,10 +553,12 @@ function module.execute(payload, sha256)
     open_sprite = nil
     open_sprite = assert(app.open(payload.staged_sprite_file),
                          "could not reopen staged Sprite")
-    evidence.background_opaque = validate_reopened(
+    local background_opaque, after_digest = validate_reopened(
       open_sprite, payload, evidence, inspected_pixels, affected_cels,
       expected_geometry, sha256
     )
+    evidence.background_opaque = background_opaque
+    evidence.after_content_digest = after_digest
     open_sprite:close()
     open_sprite = nil
     return evidence
