@@ -108,6 +108,29 @@ another environment can have different capabilities._
   result before classifying the change.
 - **Last verified:** 2026-08 in another Python CLI repository.
 
+## Direct macOS Aseprite bundle launch in a managed agent sandbox
+
+- **Applies when:** A maintenance command or test in the verified managed macOS agent
+  sandbox needs to run the executable at
+  `<Aseprite.app>/Contents/MacOS/aseprite` directly, outside SPA's Runtime Integration
+  adapter.
+- **Symptom:** Even a minimal `--batch --script` invocation exits with status 134 and
+  no stdout or stderr before the Lua script produces its expected output. Setting only
+  `ASEPRITE_USER_FOLDER` to a writable directory does not resolve the failure.
+- **Cause:** This sandbox profile requires SPA's prepared invocation layout: a launch
+  symlink in a writable temporary workspace, adjacent linked Aseprite `data` resources,
+  and a writable `ASEPRITE_USER_FOLDER`. Direct bundle invocation bypasses that
+  environment-specific adaptation.
+- **Prevention:** Use SPA's normal runtime path. When a repository maintenance script
+  must invoke Aseprite directly, consider reusing
+  `spa.runtime.invocation.prepare_invocation()` with a task-scoped writable workspace
+  instead of launching the bundle binary itself.
+- **Recovery:** Retry the same script through `prepare_invocation()` and verify its
+  expected output before classifying the failure as a Lua or Aseprite behavior defect.
+  Do not assume this workaround applies outside the matching managed macOS profile.
+- **Last verified:** 2026-09-21 with Aseprite 1.3.18.5 in a managed Codex desktop
+  environment.
+
 ## GitHub CLI authentication does not satisfy SSH host-key verification
 
 - **Applies when:** A Git remote uses an SSH URL, `gh` is authenticated for HTTPS Git

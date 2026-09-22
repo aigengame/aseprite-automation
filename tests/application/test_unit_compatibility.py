@@ -5,7 +5,9 @@ from dataclasses import replace
 from spa.application import dispatch
 from spa.contracts import FailureEnvelope
 from spa.descriptors import OPERATIONS
+from spa.failure_registry import FAILURE_CODES
 from spa.ports import RuntimeObservation
+from tests.support import operation_services
 
 
 def test_incompatible_runtime_is_rejected_before_operation_execution() -> None:
@@ -39,7 +41,8 @@ def test_incompatible_runtime_is_rejected_before_operation_execution() -> None:
         replace(info, execute=execute),
         None,
         {"aseprite": "/aseprite"},
-        probe,
+        operation_services(probe),
+        FAILURE_CODES,
     )
 
     assert isinstance(outcome, FailureEnvelope)

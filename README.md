@@ -4,7 +4,7 @@ Aseprite Automation (SPA) provides agent-facing automation for Aseprite. `SPA` i
 short project name used in documentation; `spa` is the primary executable.
 
 > [!IMPORTANT]
-> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The first installed CLI slice provides runtime discovery and contract inspection; sprite authoring Operations are not yet shipped. Feature issues own delivery contracts, evidence requirements, provenance links, and curated evidence summaries, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
+> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery plus the first Sprite creation and inspection slice. Feature issues own delivery contracts, evidence requirements, provenance links, and curated evidence summaries, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
 
 This README owns the user-facing product introduction and promotion, value-proposition
 narrative, onboarding, adoption guidance, and project navigation. Its factual claims
@@ -100,7 +100,7 @@ actual dependencies. The operating model is a trusted
 local workspace. Asset Pipeline integration uses a downstream-owned Anti-Corruption
 Layer and the public `spa` CLI JSON contract.
 
-## Try the installed CLI tracer
+## Try the installed CLI
 
 Install the project with `uv sync`, then point the runtime probe at an installed
 Aseprite executable (on macOS, the binary inside `Aseprite.app/Contents/MacOS/`).
@@ -113,15 +113,19 @@ uv run spa schema --aseprite /path/to/Aseprite.app/Contents/MacOS/aseprite
 uv run spa info --schema
 uv run spa info --input-json '{"aseprite":"/path/to/Aseprite.app/Contents/MacOS/aseprite"}'
 printf '%s\n' '{"aseprite":"/path/to/Aseprite.app/Contents/MacOS/aseprite"}' | uv run spa info --input-json -
+uv run spa sprite create --input-json '{"aseprite":"/path/to/aseprite","target_sprite_file":"sprite.aseprite","width":16,"height":16,"color_mode":"rgb","initial_layer":{"kind":"transparent"},"overwrite":false}'
+uv run spa sprite get --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite","inspection_scope":["frames","layers","cels"]}'
 ```
 
 `--input-json -` reads one complete JSON request object from stdin; a literal
 `--input-json` value remains available for short invocations.
+`spa sprite create` requires an explicit `overwrite` boolean and refuses to replace an
+existing Target Sprite File when it is `false`.
 
 `--aseprite` and `SPA_ASEPRITE_EXECUTABLE` name an executable file, not a macOS
 `.app` directory. When `--aseprite` is absent, SPA checks
-`SPA_ASEPRITE_EXECUTABLE`, then `aseprite` on `PATH`. `spa schema` reports the
-installed callable Operations; currently these are `info`, `version`, and `schema`.
+`SPA_ASEPRITE_EXECUTABLE`, then `aseprite` on `PATH`. `spa schema` is the source
+of truth for the installed callable Operations and their contracts.
 `spa info` reports the selected Aseprite version, `app.apiVersion`, embedded Lua
 language version, fixed scripting, file I/O, and JSON probe prerequisites, and
 independently observed runtime capabilities. A prerequisite failure uses the typed

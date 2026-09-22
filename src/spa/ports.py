@@ -1,8 +1,10 @@
 """Inner-owned facts exchanged with the Aseprite Runtime Integration adapter."""
 
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Literal
+from pathlib import Path
+from typing import Any, Literal, Protocol
 
 from spa.contracts import (
     Diagnostics,
@@ -27,6 +29,74 @@ class RuntimeObservation:
 
 
 RuntimeProbe = Callable[[RuntimeRequest], RuntimeObservation]
+
+
+@dataclass(frozen=True)
+class PackagedResource:
+    """One packaged Kernel resource and its private script parameter."""
+
+    parameter_name: str
+    package_name: str
+
+    def __post_init__(self) -> None:
+        if not re.fullmatch(r"[a-z][a-z0-9_]*", self.parameter_name):
+            raise ValueError("Packaged resource parameter must be lower_snake_case")
+        if not re.fullmatch(r"[a-z][a-z0-9_]*\.(?:lua|aseprite)", self.package_name):
+            raise ValueError("Packaged resource must be a Lua or Aseprite file name")
+
+
+@dataclass(frozen=True)
+class PackagedHandler:
+    """Opaque packaged-resource identity selected by a Domain Module."""
+
+    resource_name: str
+    support_resources: tuple[PackagedResource, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not re.fullmatch(r"[a-z][a-z0-9_]*", self.resource_name):
+            raise ValueError("Packaged handler name must be lower_snake_case")
+        parameters = [resource.parameter_name for resource in self.support_resources]
+        if len(parameters) != len(set(parameters)):
+            raise ValueError("Packaged resource parameters must be unique")
+
+
+@dataclass(frozen=True)
+class KernelInvocationResult:
+    payload: dict[str, Any]
+    response_path: str
+    diagnostics: Diagnostics
+
+
+KernelInvoker = Callable[
+    [RuntimeObservation, PackagedHandler, dict[str, Any], float],
+    KernelInvocationResult,
+]
+
+
+@dataclass(frozen=True)
+class TargetCommitObservation:
+    target_sprite_file: str
+    byte_size: int
+    sha256: str
+
+
+class TargetFiles(Protocol):
+    """Domain-neutral staging and atomic Target Commit boundary."""
+
+    def staged_path(self, target: Path) -> Path: ...
+
+    def commit(
+        self, staged: Path, target: Path, *, overwrite: bool
+    ) -> TargetCommitObservation: ...
+
+    def discard(self, staged: Path) -> None: ...
+
+
+@dataclass(frozen=True)
+class OperationServices:
+    probe_runtime: RuntimeProbe
+    invoke_kernel: KernelInvoker
+    target_files: TargetFiles
 
 
 @dataclass(frozen=True)
@@ -64,6 +134,12 @@ class HandlerEvidence:
 
 
 @dataclass(frozen=True)
+class PostconditionEvidence:
+    response_path: str
+    reason: str
+
+
+@dataclass(frozen=True)
 class RuntimeCompatibilityEvidence:
     aseprite_version: str
     lua_version: str
@@ -73,6 +149,18 @@ class RuntimeCompatibilityEvidence:
     missing_capabilities: tuple[RuntimeCapability, ...]
 
 
+@dataclass(frozen=True)
+class TargetCommitEvidence:
+    target_sprite_file: str
+    reason: Literal[
+        "target_not_file",
+        "overwrite_not_allowed",
+        "staged_file_missing",
+        "staged_file_empty",
+        "replace_failed",
+    ]
+
+
 RuntimeEvidence = (
     DiscoveryEvidence
     | ResourceEvidence
@@ -80,7 +168,9 @@ RuntimeEvidence = (
     | ProcessEvidence
     | ResponseEvidence
     | HandlerEvidence
+    | PostconditionEvidence
     | RuntimeCompatibilityEvidence
+    | TargetCommitEvidence
 )
 RuntimeIssueKind = Literal[
     "discovery_absent",
@@ -92,8 +182,10 @@ RuntimeIssueKind = Literal[
     "response_absent",
     "response_malformed",
     "handler_rejected",
+    "postcondition_failed",
     "exit_mismatch",
     "runtime_incompatible",
+    "target_commit_failed",
 ]
 _EVIDENCE_TYPES: dict[RuntimeIssueKind, type[RuntimeEvidence]] = {
     "discovery_absent": DiscoveryEvidence,
@@ -105,8 +197,10 @@ _EVIDENCE_TYPES: dict[RuntimeIssueKind, type[RuntimeEvidence]] = {
     "response_absent": ResponseEvidence,
     "response_malformed": ResponseEvidence,
     "handler_rejected": HandlerEvidence,
+    "postcondition_failed": PostconditionEvidence,
     "exit_mismatch": ProcessEvidence,
     "runtime_incompatible": RuntimeCompatibilityEvidence,
+    "target_commit_failed": TargetCommitEvidence,
 }
 
 

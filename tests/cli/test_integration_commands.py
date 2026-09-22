@@ -9,6 +9,7 @@ from jsonschema import Draft202012Validator, validate
 
 from spa.contracts import failure_schema
 from spa.descriptors import ACCESS_FAILURE_CODES
+from spa.failure_registry import FAILURE_CODES
 from tests.support import fake_probe_response, spa
 
 
@@ -85,12 +86,24 @@ def test_unknown_command_uses_registered_access_failure() -> None:
     assert failure["category"] == "input"
 
 
+@pytest.mark.parametrize("args", [("sprite",), ("sprite", "no-such-operation")])
+def test_incomplete_or_unknown_nested_command_uses_access_failure(
+    args: tuple[str, ...],
+) -> None:
+    run = spa(*args)
+    assert run.returncode == 2
+    assert run.stderr == ""
+    failure = json.loads(run.stdout)
+    assert failure["operation"] == "spa"
+    validate(failure, failure_schema(ACCESS_FAILURE_CODES, "spa", FAILURE_CODES))
+
+
 def test_bare_invocation_emits_only_registered_access_failure() -> None:
     run = spa()
     assert run.returncode == 2
     assert run.stderr == ""
     failure = json.loads(run.stdout)
-    validate(failure, failure_schema(ACCESS_FAILURE_CODES, "spa"))
+    validate(failure, failure_schema(ACCESS_FAILURE_CODES, "spa", FAILURE_CODES))
     assert failure["operation"] == "spa"
     assert failure["code"] == "invalid_request"
 
@@ -128,3 +141,8 @@ def test_installed_manifest_exposes_access_failures_without_real_aseprite(
         "spa version",
         "spa schema",
     ]
+    gaps = {
+        item["capability"]: item["evidence"] for item in manifest["capability_gaps"]
+    }
+    assert "aseprite_sprite_create" in gaps["spa sprite create"]
+    assert "aseprite_sprite_inspection" in gaps["spa sprite get"]

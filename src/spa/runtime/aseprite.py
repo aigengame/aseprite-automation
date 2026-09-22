@@ -9,7 +9,7 @@ import tempfile
 import time
 from importlib.resources import files
 from pathlib import Path
-from typing import Literal, cast, get_args
+from typing import Any, Literal, cast, get_args
 
 from spa.contracts import (
     Diagnostics,
@@ -20,7 +20,10 @@ from spa.contracts import (
 from spa.ports import (
     DiscoveryEvidence,
     HandlerEvidence,
+    KernelInvocationResult,
     LaunchEvidence,
+    PackagedHandler,
+    PackagedResource,
     ProcessEvidence,
     ResourceEvidence,
     ResponseEvidence,
@@ -178,7 +181,17 @@ def _process_failure(
     )
 
 
-def probe(request: RuntimeRequest) -> RuntimeObservation:
+def _resource_arguments(resources: tuple[PackagedResource, ...]) -> list[str]:
+    arguments: list[str] = []
+    for resource in resources:
+        path = files("spa.kernel").joinpath(resource.package_name)
+        arguments.extend(("--script-param", f"{resource.parameter_name}={path}"))
+    return arguments
+
+
+def probe(
+    request: RuntimeRequest, resources: tuple[PackagedResource, ...] = ()
+) -> RuntimeObservation:
     discovered, canonical, resource, selection_source = _discover(request.aseprite)
     script = files("spa.kernel").joinpath("probe.lua")
     sentinel = {
@@ -197,6 +210,7 @@ def probe(request: RuntimeRequest) -> RuntimeObservation:
         request_file = Path(work) / "request.json"
         response_file = Path(work) / "response.json"
         echo_file = Path(work) / "echo.json"
+        capability_sprite = Path(work) / "capability.aseprite"
         try:
             request_file.write_text(
                 json.dumps(
@@ -223,6 +237,11 @@ def probe(request: RuntimeRequest) -> RuntimeObservation:
             f"response={response_file}",
             "--script-param",
             f"echo={echo_file}",
+            "--script-param",
+            f"capability_sprite={capability_sprite}",
+            "--script-param",
+            f"workspace={work}",
+            *_resource_arguments(resources),
             "--script",
             str(script),
         ]
@@ -338,3 +357,117 @@ def probe(request: RuntimeRequest) -> RuntimeObservation:
             tuple[RuntimeCapability, ...], tuple(verified_capabilities)
         ),
     )
+
+
+def invoke(
+    observation: RuntimeObservation,
+    handler: PackagedHandler,
+    payload: dict[str, Any],
+    timeout_seconds: float,
+) -> KernelInvocationResult:
+    """Invoke one fixed packaged handler and return its private result object."""
+    canonical = Path(observation.canonical_path)
+    resource = Path(observation.resource_path)
+    handler_name = handler.resource_name
+    script = files("spa.kernel").joinpath(f"{handler_name}.lua")
+    try:
+        workspace = tempfile.TemporaryDirectory(prefix=f"spa-{handler_name}-")
+    except OSError as exc:
+        raise RuntimeIssue(
+            "launch_failed",
+            f"Could not create Aseprite invocation workspace: {exc}",
+            LaunchEvidence(executable=str(canonical)),
+        ) from exc
+    with workspace as work:
+        request_file = Path(work) / "request.json"
+        response_file = Path(work) / "response.json"
+        try:
+            request_file.write_text(
+                json.dumps(
+                    {
+                        "kernel_protocol_version": KERNEL_PROTOCOL_VERSION,
+                        "payload": payload,
+                    },
+                    allow_nan=False,
+                ),
+                encoding="utf-8",
+            )
+        except (OSError, TypeError, ValueError) as exc:
+            raise RuntimeIssue(
+                "launch_failed",
+                f"Could not write Aseprite Kernel request: {exc}",
+                LaunchEvidence(executable=str(canonical)),
+            ) from exc
+        prepared = prepare_invocation(canonical, resource, Path(work))
+        command = [
+            str(prepared.executable),
+            "--batch",
+            "--script-param",
+            f"request={request_file}",
+            "--script-param",
+            f"response={response_file}",
+            "--script-param",
+            f"workspace={work}",
+            *_resource_arguments(handler.support_resources),
+            "--script",
+            str(script),
+        ]
+        status, diagnostics = _run(
+            command, prepared.environment, timeout_seconds, canonical
+        )
+        if not response_file.is_file():
+            if status != 0:
+                raise _process_failure(status, canonical, diagnostics)
+            raise RuntimeIssue(
+                "response_absent",
+                "Aseprite did not write a Kernel response",
+                ResponseEvidence(response_path=str(response_file)),
+                diagnostics,
+            )
+        try:
+            response = json.loads(response_file.read_text(encoding="utf-8"))
+            if (
+                not isinstance(response, dict)
+                or response.get("kernel_protocol_version") != KERNEL_PROTOCOL_VERSION
+            ):
+                raise ValueError("unexpected Kernel Protocol version")
+            response_status = response.get("status")
+            if response_status == "error":
+                cause = response.get("cause")
+                reason = response.get("message")
+                if not isinstance(cause, str) or not isinstance(reason, str):
+                    raise ValueError("Kernel error response has no typed cause/message")
+                raise RuntimeIssue(
+                    "handler_rejected",
+                    f"Packaged {handler_name} handler rejected execution",
+                    HandlerEvidence(response_path=str(response_file), reason=reason),
+                    diagnostics,
+                )
+            if response_status != "ok":
+                raise ValueError("unknown Kernel response status")
+            result = response.get("result")
+            if not isinstance(result, dict):
+                raise TypeError("Kernel success response has no result object")
+            if status != 0:
+                raise RuntimeIssue(
+                    "exit_mismatch",
+                    f"Aseprite exited with status {status} despite a success response",
+                    ProcessEvidence(executable=str(canonical), exit_status=status),
+                    diagnostics,
+                )
+            return KernelInvocationResult(
+                payload=result,
+                response_path=str(response_file),
+                diagnostics=diagnostics,
+            )
+        except RuntimeIssue:
+            raise
+        except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
+            if status != 0:
+                raise _process_failure(status, canonical, diagnostics) from exc
+            raise RuntimeIssue(
+                "response_malformed",
+                f"Invalid Kernel response: {exc}",
+                ResponseEvidence(response_path=str(response_file)),
+                diagnostics,
+            ) from exc
