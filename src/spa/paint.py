@@ -27,6 +27,8 @@ from spa.raster import (
 )
 
 OneBasedIndex = Annotated[int, Field(ge=1)]
+MAX_PATCH_PIXELS = 256
+MAX_AFFECTED_CELS = 128
 
 
 def _native_sprite_path(value: str) -> str:
@@ -62,6 +64,12 @@ class PaintApplyRequest(RuntimeRequest):
                 raise ValueError("in_place requires overwrite permission")
         elif same_file:
             raise ValueError("identical Source and Target Sprite Files require in_place")
+        if len(self.patch.runs) > MAX_PATCH_PIXELS or sum(
+            run.length for run in self.patch.runs
+        ) > MAX_PATCH_PIXELS:
+            raise ValueError(
+                f"Pixel Patch exceeds the {MAX_PATCH_PIXELS}-pixel Operation Limit"
+            )
         return self
 
 
@@ -82,7 +90,7 @@ class EffectivePaletteFact(PublicModel):
     frame_number: int = Field(ge=1)
     palette_frame_number: int = Field(ge=1)
     palette_size: int = Field(ge=1, le=256)
-    indexes: list[PaletteIndexFact]
+    indexes: list[PaletteIndexFact] = Field(max_length=MAX_PATCH_PIXELS)
 
 
 class ImageContentDigest(PublicModel):
@@ -96,7 +104,7 @@ class PaintApplyEvidence(PublicModel):
     target: CelAddress
     color_mode: Literal["rgb", "grayscale", "indexed"]
     clipping: Literal["reject", "clip"]
-    selection: SelectionApplication | None
+    selection: SelectionApplication | None = None
     requested_rectangle: Rectangle
     applied_rectangle: Rectangle
     requested_runs: list[PixelRun]
@@ -108,11 +116,15 @@ class PaintApplyEvidence(PublicModel):
     pixels_changed: int = Field(ge=0)
     pixels_skipped_by_bounds: int = Field(ge=0)
     pixels_skipped_by_selection: int = Field(ge=0)
-    affected_cels: list[AffectedCel] = Field(min_length=1)
+    affected_cels: list[AffectedCel] = Field(
+        min_length=1, max_length=MAX_AFFECTED_CELS
+    )
     linked_cels_preserved: Literal[True]
     geometry_unchanged: Literal[True]
     background_opaque: bool
-    effective_palettes: list[EffectivePaletteFact]
+    effective_palettes: list[EffectivePaletteFact] = Field(
+        max_length=MAX_AFFECTED_CELS
+    )
     before_content_digest: ImageContentDigest
     after_content_digest: ImageContentDigest
 

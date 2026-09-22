@@ -107,6 +107,30 @@ def test_pixel_patch_accepts_an_explicit_empty_run_list() -> None:
     assert PaintApplyRequest.model_validate(payload).patch.runs == []
 
 
+def test_apply_rejects_a_patch_above_its_bounded_tracer_limit() -> None:
+    payload = _request()
+    patch = dict(payload["patch"])  # type: ignore[arg-type]
+    patch["rectangle"] = {"x": 0, "y": 0, "width": 257, "height": 1}
+    patch["runs"] = [
+        {
+            "x": 0,
+            "y": 0,
+            "length": 257,
+            "color": {
+                "kind": "rgba",
+                "red": 1,
+                "green": 2,
+                "blue": 3,
+                "alpha": 255,
+            },
+        }
+    ]
+    payload["patch"] = patch
+
+    with pytest.raises(ValidationError, match="Operation Limit"):
+        PaintApplyRequest.model_validate(payload)
+
+
 @pytest.mark.parametrize(
     "selection",
     [

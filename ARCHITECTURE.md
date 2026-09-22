@@ -253,7 +253,7 @@ Sprite creation and inspection slice extends that same stack.
 | CLI adapter | Typer | Command access and human or machine presentation. |
 | Public contracts | Pydantic 2 and JSON Schema | Typed Operation Requests, Operation Results, Failure Envelopes, and discovery schemas. |
 | Project and packaging | `uv` | Environments, dependencies, builds, and installed-product tests. |
-| Ordinary Core Operations | Packaged Lua handlers | Core Operation Semantics and native mapping executed through Aseprite. The current package contains a fixed runtime probe and Sprite creation and inspection handlers. |
+| Ordinary Core Operations | Packaged Lua handlers | Core Operation Semantics and native mapping executed through Aseprite. The current package contains a fixed runtime probe plus Sprite creation, Sprite inspection, and exact Pixel Patch handlers. |
 | Aseprite integration | External `aseprite --batch --script` | Native document, Tool, Filter, color, and export behavior. |
 | Private transport | Versioned JSON request and response files | Data exchange through `--script-param`, separate from diagnostics. |
 | Agent access | Version-matched Agent Skill and planned local stdio MCP Adapter with CLI subprocess invocation | Guidance and equivalent tool projection from the installed surface. |
@@ -269,9 +269,11 @@ Python framework or packaging tool.
 The current view groups Core Domain responsibility into five cohesive areas. They guide
 feature ownership and can become Domain Modules as implementation evidence confirms
 their change boundaries. The delivered `spa.sprite` vertical slice owns Sprite creation
-and structural inspection within Document and Animation. ADR-0018 already establishes
-Raster Authoring as a Domain Module; the other groupings remain an integrated planning
-view rather than a frozen package graph.
+and structural inspection within Document and Animation. The delivered `spa.paint`
+slice owns exact Pixel Patch application, while `spa.raster` owns its reusable Color,
+Rectangle, Patch, and Selection values under the Raster Authoring boundary established
+by ADR-0018. The other groupings remain an integrated planning view rather than a frozen
+package graph.
 
 | Responsibility area | Owns | Important boundary |
 | --- | --- | --- |
