@@ -23,6 +23,19 @@ runs:
         test -z "${WAYLAND_DISPLAY:-}"
         "$SPA_TEST_ASEPRITE" --batch --version
 
+    - name: Install the wheel-only SPA CLI for handler evidence
+      shell: bash
+      run: |
+        uv build
+        uv export --frozen --no-dev --no-emit-project \
+          --format requirements-txt --output-file "$RUNNER_TEMP/spa-runtime-requirements.txt"
+        uv venv --python 3.13 "$RUNNER_TEMP/spa-e2e-wheel"
+        uv pip sync --python "$RUNNER_TEMP/spa-e2e-wheel/bin/python" \
+          "$RUNNER_TEMP/spa-runtime-requirements.txt"
+        uv pip install --python "$RUNNER_TEMP/spa-e2e-wheel/bin/python" \
+          --no-deps dist/*.whl
+        echo "SPA_TEST_INSTALLED_CLI=$RUNNER_TEMP/spa-e2e-wheel/bin/spa" >> "$GITHUB_ENV"
+
     - name: Run real Aseprite E2E tests
       shell: bash
       run: |
@@ -44,5 +57,5 @@ runs:
           echo "- Executable: \`${{ steps.aseprite.outputs.executable }}\`"
           echo "- Aseprite: \`${{ steps.aseprite.outputs.version }}\`"
           echo "- Display: \`DISPLAY\` and \`WAYLAND_DISPLAY\` absent"
-          echo "- Path: real \`--batch --script\` through the installed SPA CLI"
+          echo "- Path: real \`--batch --script\` through project and wheel-installed SPA CLIs"
         } >> "$GITHUB_STEP_SUMMARY"

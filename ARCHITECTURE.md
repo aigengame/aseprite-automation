@@ -11,11 +11,11 @@ fact in this integrated view. If this document conflicts with an owning source, 
 this view instead of treating it as another decision authority.
 
 > [!IMPORTANT]
-> SPA is at the bootstrap stage. The installed CLI tracer exposes `spa info`,
-> `spa version`, and `spa schema`; Sprite authoring
-> Operations have not shipped. The module ownership below includes planned work, not
-> additional installed capabilities. Feature issues own delivery status, while the
-> installed Surface Manifest reports the callable surface of each installation.
+> SPA is at the bootstrap stage. The installed CLI exposes `spa info`, `spa version`,
+> `spa schema`, and the first Sprite creation and inspection Operations. The module
+> ownership below includes both this delivered vertical slice and planned work. Feature
+> issues own delivery status, while the installed Surface Manifest reports the callable
+> surface of each installation.
 
 The document evolves with the product. An accepted change to the Bounded Context,
 module ownership, public contract, execution model, or integration boundary must be
@@ -242,10 +242,10 @@ will follow demonstrated change clusters as vertical slices are implemented.
 
 ### Technology profile
 
-The initial installed CLI tracer uses a replaceable outer stack around stable domain
-and public-contract boundaries. [Issue #3](https://github.com/aigengame/aseprite-automation/issues/3)
-delivers the bootstrap choices recorded in project metadata and its lockfile; later
-feature slices will extend the implemented surface.
+The installed CLI uses a replaceable outer stack around stable domain and
+public-contract boundaries. [Issue #3](https://github.com/aigengame/aseprite-automation/issues/3)
+delivers the bootstrap choices recorded in project metadata and its lockfile; the
+Sprite creation and inspection slice extends that same stack.
 
 | Component | Bootstrap choice | Role |
 | --- | --- | --- |
@@ -253,7 +253,7 @@ feature slices will extend the implemented surface.
 | CLI adapter | Typer | Command access and human or machine presentation. |
 | Public contracts | Pydantic 2 and JSON Schema | Typed Operation Requests, Operation Results, Failure Envelopes, and discovery schemas. |
 | Project and packaging | `uv` | Environments, dependencies, builds, and installed-product tests. |
-| Ordinary Core Operations | Packaged Lua handlers (planned for Core slices) | Core Operation Semantics and native mapping executed through Aseprite. The current tracer packages a fixed runtime probe, not a Sprite authoring handler. |
+| Ordinary Core Operations | Packaged Lua handlers | Core Operation Semantics and native mapping executed through Aseprite. The current package contains a fixed runtime probe and Sprite creation and inspection handlers. |
 | Aseprite integration | External `aseprite --batch --script` | Native document, Tool, Filter, color, and export behavior. |
 | Private transport | Versioned JSON request and response files | Data exchange through `--script-param`, separate from diagnostics. |
 | Agent access | Version-matched Agent Skill and planned local stdio MCP Adapter with CLI subprocess invocation | Guidance and equivalent tool projection from the installed surface. |
@@ -266,11 +266,12 @@ Python framework or packaging tool.
 
 ### Core Domain ownership view
 
-The current planning view groups Core Domain responsibility into five cohesive areas.
-They guide feature ownership and can become Domain Modules as implementation evidence
-confirms their change boundaries. ADR-0018 already establishes Raster Authoring as a
-Domain Module; the other groupings remain an integrated planning view rather than a
-frozen package graph.
+The current view groups Core Domain responsibility into five cohesive areas. They guide
+feature ownership and can become Domain Modules as implementation evidence confirms
+their change boundaries. The delivered `spa.sprite` vertical slice owns Sprite creation
+and structural inspection within Document and Animation. ADR-0018 already establishes
+Raster Authoring as a Domain Module; the other groupings remain an integrated planning
+view rather than a frozen package graph.
 
 | Responsibility area | Owns | Important boundary |
 | --- | --- | --- |

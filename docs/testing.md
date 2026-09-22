@@ -40,6 +40,10 @@ execution when the selected Descriptor requires it. Each later Operation adds
 real-runtime evidence for the native capabilities named by its Descriptor.
 The Sprite E2E fixture covers nonempty Frames, Tags, Palettes, nested Layers, Cels,
 Slices, and Tilesets in addition to empty-section and unrequested-section semantics.
+Slice inspection uses Aseprite's native sprite-sheet metadata export to observe the
+complete ordered Key list, converts its zero-based Frames to the public one-based model,
+and combines it with public Slice user data. The private metadata and texture remain in
+the invocation workspace.
 
 The initial evidence profiles use local macOS Aseprite 1.3.18.5-dev and the pinned
 Linux CI Aseprite 1.3.18.5 source release. Both expose `_VERSION == "Lua 5.4"` and
@@ -97,7 +101,7 @@ GitHub does not emit a second workflow event for a pull request updated with
 | Source quality | Ruff lint and formatting plus Pyright for production source. |
 | Fast tests | Unit and integration tests selected with `-m "not e2e"`. |
 | Build and smoke test distributions | One sdist and wheel, valid package metadata, and a successful `spa version` from a wheel-only environment populated from locked runtime dependencies. |
-| Linux real Aseprite E2E | The installed SPA CLI drives the pinned real Aseprite `--batch --script` path and records JUnit evidence. |
+| Linux real Aseprite E2E | The project CLI and a wheel-installed CLI drive the pinned real Aseprite `--batch --script` path. A wheel-only negative case reaches the packaged Sprite creation handler and proves that no Target Commit occurs after rejection. The job records JUnit evidence. |
 
 A failure in any job fails CI. Configure these four named jobs as required checks on
 `main` when repository branch protection is enabled.
@@ -120,7 +124,8 @@ tests do not execute.
 The Linux job builds the official source release and verifies the archive against the
 version and SHA-256 authority in `.github/actions/setup-linux-aseprite/action.yml`. It
 enables scripting with Aseprite's `LAF_BACKEND=none`, checks that both `DISPLAY` and
-`WAYLAND_DISPLAY` are absent, and then runs the real-runtime tier. The JUnit audit
+`WAYLAND_DISPLAY` are absent, builds and installs the current wheel in a separate
+environment, and then runs the real-runtime tier. The JUnit audit
 fails when the report is missing, contains zero tests, or all selected tests were
 skipped. The job summary records the tested commit, trigger, executable, Aseprite
 version, display state, and exercised path. A macOS-only skip remains visible and does
