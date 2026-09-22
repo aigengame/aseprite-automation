@@ -203,6 +203,20 @@ def test_apply_commits_only_validated_persisted_evidence() -> None:
     ]
 
 
+def test_apply_accepts_changed_pixels_when_content_digests_collide() -> None:
+    files = _TargetFiles()
+    digest = {"algorithm": "fnv1a64", "value": "0" * 16}
+    services, _ = _services(
+        _evidence(before_content_digest=digest, after_content_digest=digest), files
+    )
+
+    result = apply_paint(_request(), services)
+
+    assert result.pixels_changed == 2
+    assert result.before_content_digest == result.after_content_digest
+    assert files.commits == 1
+
+
 def test_apply_refuses_malformed_evidence_before_target_commit() -> None:
     files = _TargetFiles()
     services, _ = _services(_evidence(persisted_reopen_verified=False), files)

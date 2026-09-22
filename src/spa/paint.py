@@ -253,9 +253,8 @@ def _validate_evidence(
         and requested_pixels == applied_pixels + bounds_pixels + selection_pixels
         and evidence.pixels_changed <= evidence.pixels_written
         and (
-            evidence.before_content_digest == evidence.after_content_digest
-            if evidence.pixels_changed == 0
-            else evidence.before_content_digest != evidence.after_content_digest
+            evidence.pixels_changed != 0
+            or evidence.before_content_digest == evidence.after_content_digest
         )
         and target_cel is not None
     )
