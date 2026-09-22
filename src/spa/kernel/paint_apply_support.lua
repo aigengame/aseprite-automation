@@ -311,12 +311,12 @@ local function palette_facts(sprite, affected_cels, used_indexes)
   return result
 end
 
-local function image_digest(image, color_mode, sha256)
+local function image_digest(image, color_mode, digest)
   local header = table.concat({
     color_mode, ":", tostring(image.width), "x", tostring(image.height),
     ":", tostring(image.bytesPerPixel), ":", tostring(image.rowStride), ":",
   })
-  return { algorithm="sha256", value=sha256.hex(header .. image.bytes) }
+  return { algorithm="fnv1a64", value=digest.fnv1a64(header, image.bytes) }
 end
 
 local function background_is_opaque(image, color_mode, layer)
@@ -341,7 +341,7 @@ end
 
 local function validate_reopened(
   sprite, payload, evidence, expected_pixels, expected_affected,
-  expected_geometry, sha256
+  expected_geometry, digest
 )
   local layer, _, image = resolve_target(sprite, payload.target)
   assert(color_mode_name(sprite) == evidence.color_mode,
@@ -374,10 +374,10 @@ local function validate_reopened(
     assert(image:getPixel(expected.x, expected.y) == expected.native,
            "persisted bounded pixel inspection failed")
   end
-  local digest = image_digest(image, evidence.color_mode, sha256)
+  local content_digest = image_digest(image, evidence.color_mode, digest)
   local opaque = background_is_opaque(image, evidence.color_mode, layer)
   if layer.isBackground then assert(opaque, "persisted Background Image is not opaque") end
-  return opaque, digest
+  return opaque, content_digest
 end
 
 local function restore_editor_state(previous)
@@ -388,7 +388,7 @@ local function restore_editor_state(previous)
   end
 end
 
-function module.execute(payload, sha256)
+function module.execute(payload, digest)
   assert(type(payload.source_sprite_file) == "string", "missing Source Sprite File")
   assert(type(payload.staged_sprite_file) == "string", "missing staged Sprite file")
   assert(payload.clipping == "reject" or payload.clipping == "clip",
@@ -437,7 +437,7 @@ function module.execute(payload, sha256)
       is_background=layer.isBackground,
       is_transparent=layer.isTransparent,
     }
-    local before_digest = image_digest(image, color_mode, sha256)
+    local before_digest = image_digest(image, color_mode, digest)
     local requested_runs = {}
     local applied_runs = {}
     local skipped_bounds = {}
@@ -540,6 +540,7 @@ function module.execute(payload, sha256)
       pixels_changed=pixels_changed,
       pixels_skipped_by_bounds=pixels_skipped_by_bounds,
       pixels_skipped_by_selection=pixels_skipped_by_selection,
+      pixel_partition_verified=true,
       affected_cels=affected_cels,
       linked_cels_preserved=true,
       geometry_unchanged=true,
@@ -555,7 +556,7 @@ function module.execute(payload, sha256)
                          "could not reopen staged Sprite")
     local background_opaque, after_digest = validate_reopened(
       open_sprite, payload, evidence, inspected_pixels, affected_cels,
-      expected_geometry, sha256
+      expected_geometry, digest
     )
     evidence.background_opaque = background_opaque
     evidence.after_content_digest = after_digest

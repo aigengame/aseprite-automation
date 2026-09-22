@@ -3,7 +3,7 @@ local kernel_protocol_version = 1
 local inspection = dofile(app.params.inspection)
 local creation = dofile(app.params.creation)
 local paint = dofile(app.params.paint)
-local sha256 = dofile(app.params.sha256)
+local digest = dofile(app.params.digest)
 
 local function observes_sprite_inspection()
   local open_sprite = nil
@@ -100,9 +100,8 @@ local function observes_paint_apply()
   local source_path = assert(app.params.paint_fixture)
   local target_path = app.fs.joinPath(app.params.workspace, "paint-target.aseprite")
   local ok = pcall(function()
-    assert(sha256.hex("abc") ==
-           "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
-           "SHA-256 implementation failed its known-answer check")
+    assert(digest.fnv1a64("hello") == "a430d84680aabd0b",
+           "content digest implementation failed its known-answer check")
     local result = paint.execute({
       source_sprite_file = source_path,
       staged_sprite_file = target_path,
@@ -116,7 +115,7 @@ local function observes_paint_apply()
         }},
       },
       clipping="reject",
-    }, sha256)
+    }, digest)
     assert(result.persisted_reopen_verified)
     assert(result.pixels_written == 1 and result.pixels_changed == 1)
     assert(result.applied_runs[1].color.red == 17)

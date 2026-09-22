@@ -11,7 +11,7 @@ def test_probe_resources_are_packaged() -> None:
         "sprite_inspection_fixture.aseprite",
         "paint_apply_support.lua",
         "paint_apply_fixture.aseprite",
-        "sha256.lua",
+        "digest.lua",
     ):
         resource = kernel.joinpath(name)
         assert resource.is_file()

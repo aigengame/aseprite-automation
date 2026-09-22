@@ -1,6 +1,6 @@
 -- Exercise Paint with editor Selection state present but no explicit Selection Application.
 local paint = dofile(assert(app.params.paint))
-local sha256 = dofile(assert(app.params.sha256))
+local digest = dofile(assert(app.params.digest))
 local source = assert(app.open(assert(app.params.source)))
 source.selection:select(Rectangle(0, 0, 1, 1))
 
@@ -17,7 +17,7 @@ local result = paint.execute({
     }},
   },
   clipping="reject",
-}, sha256)
+}, digest)
 
 assert(result.selection == nil)
 assert(result.pixels_written == 2)

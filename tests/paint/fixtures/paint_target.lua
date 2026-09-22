@@ -31,10 +31,10 @@ elseif kind == "indexed-palette-change" then
   palette:setColor(0, Color{ r=0, g=0, b=0, a=0 })
   palette:setColor(1, Color{ r=241, g=82, b=65, a=255 })
   sprite:setPalette(palette)
-  local first = assert(layer:cel(1))
-  sprite:newEmptyFrame()
-  local third_frame = sprite:newEmptyFrame()
-  sprite:newCel(layer, third_frame, Image(first.image), Point(0, 0))
+  layer.isContinuous = true
+  sprite:newFrame(1)
+  layer.isContinuous = false
+  sprite:newEmptyFrame(2)
 elseif kind == "group" then
   sprite = Sprite(2, 2, ColorMode.RGB)
   local image_layer = sprite.layers[1]

@@ -1,7 +1,7 @@
 -- Fixed packaged Paint handler. Runtime files carry data only.
 local kernel_protocol_version = 1
 local paint = dofile(app.params.paint)
-local sha256 = dofile(app.params.sha256)
+local digest = dofile(app.params.digest)
 
 local function execute()
   local request_file = assert(io.open(app.params.request, "rb"))
@@ -9,7 +9,7 @@ local function execute()
   request_file:close()
   assert(request.kernel_protocol_version == kernel_protocol_version,
          "unsupported Kernel Protocol version")
-  return paint.execute(assert(request.payload), sha256)
+  return paint.execute(assert(request.payload), digest)
 end
 
 local ok, result = pcall(execute)

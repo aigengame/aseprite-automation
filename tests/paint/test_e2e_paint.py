@@ -499,7 +499,7 @@ def test_indexed_write_reports_effective_palette_and_rejects_missing_index_atomi
     assert source.read_bytes() == source_bytes
 
 
-def test_indexed_target_uses_the_palette_change_effective_for_its_frame(
+def test_indexed_linked_cels_report_each_frames_effective_palette(
     tmp_path: Path,
 ) -> None:
     source = tmp_path / "palette-change.aseprite"
@@ -527,7 +527,19 @@ def test_indexed_target_uses_the_palette_change_effective_for_its_frame(
 
     assert run.returncode == 0, run.stdout
     result = json.loads(run.stdout)
+    assert [cel["frame_number"] for cel in result["affected_cels"]] == [1, 3]
     assert result["effective_palettes"] == [
+        {
+            "frame_number": 1,
+            "palette_frame_number": 1,
+            "palette_size": 2,
+            "indexes": [
+                {
+                    "index": 1,
+                    "color": {"red": 241, "green": 82, "blue": 65, "alpha": 255},
+                }
+            ],
+        },
         {
             "frame_number": 3,
             "palette_frame_number": 2,
@@ -538,7 +550,7 @@ def test_indexed_target_uses_the_palette_change_effective_for_its_frame(
                     "color": {"red": 65, "green": 105, "blue": 225, "alpha": 255},
                 }
             ],
-        }
+        },
     ]
 
 
@@ -639,7 +651,7 @@ def test_apply_ignores_ambient_editor_selection(tmp_path: Path) -> None:
                 "--script-param",
                 f"paint={support / 'paint_apply_support.lua'}",
                 "--script-param",
-                f"sha256={support / 'sha256.lua'}",
+                f"digest={support / 'digest.lua'}",
                 "--script",
                 str(fixture),
             ],
