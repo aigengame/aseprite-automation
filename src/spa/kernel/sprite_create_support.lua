@@ -1,27 +1,38 @@
 -- Sprite-owned creation semantics shared by the handler and capability probe.
 local module = {}
 
-local function rgba_from_pixel(image)
-  local pixel = image:getPixel(0, 0)
-  return {
-    red = app.pixelColor.rgbaR(pixel),
-    green = app.pixelColor.rgbaG(pixel),
-    blue = app.pixelColor.rgbaB(pixel),
-    alpha = app.pixelColor.rgbaA(pixel),
-  }
-end
-
-local function persisted_initial_layer(sprite)
+function module.verify_persisted_initial_layer(sprite, initial_layer)
   assert(#sprite.layers == 1, "created Sprite does not have one Layer")
   local layer = sprite.layers[1]
-  if layer.isBackground then
+  if initial_layer.kind == "background" then
+    assert(layer.isBackground, "created Layer is not a Background Layer")
     assert(#layer.cels == 1, "created Background Layer does not have one Cel")
+    local cel = layer.cels[1]
+    assert(cel.bounds.x == 0 and cel.bounds.y == 0
+           and cel.bounds.width == sprite.width
+           and cel.bounds.height == sprite.height,
+           "created Background Cel does not cover the Sprite bounds")
+    local color = assert(initial_layer.background_color)
+    local expected = app.pixelColor.rgba(
+      color.red, color.green, color.blue, color.alpha
+    )
+    for pixel in cel.image:pixels() do
+      assert(pixel() == expected,
+             "created Background fill differs from the requested Color")
+    end
     return {
       kind = "background",
-      background_color = rgba_from_pixel(layer.cels[1].image),
+      background_color = {
+        red = color.red,
+        green = color.green,
+        blue = color.blue,
+        alpha = color.alpha,
+      },
     }
   end
-  assert(layer.isTransparent, "created Layer is neither Background nor transparent")
+  assert(initial_layer.kind == "transparent", "invalid initial Layer choice")
+  assert(layer.isTransparent and not layer.isBackground,
+         "created Layer is not a regular Transparent Layer")
   return { kind = "transparent" }
 end
 
@@ -74,7 +85,9 @@ function module.execute(payload, inspection)
                          "could not reopen staged Sprite")
     local created = {
       sprite = inspection.inspect(open_sprite, payload.inspection_scope),
-      persisted_initial_layer = persisted_initial_layer(open_sprite),
+      persisted_initial_layer = module.verify_persisted_initial_layer(
+        open_sprite, payload.initial_layer
+      ),
     }
     open_sprite:close()
     open_sprite = nil

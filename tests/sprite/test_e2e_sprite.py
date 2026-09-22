@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import tempfile
+from importlib.resources import files
 from pathlib import Path
 
 import pytest
@@ -94,6 +95,47 @@ def test_create_persists_explicit_transparent_and_background_layer_choices(
     background_layer = background["sprite"]["layers"][0]
     assert background_layer["is_transparent"] is False
     assert background_layer["is_background"] is True
+
+
+def test_background_postcondition_rejects_a_nonuniform_reopened_fill(
+    tmp_path: Path,
+) -> None:
+    observation = probe(
+        RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]),
+        SPRITE_PROBE_RESOURCES,
+    )
+    fixture = Path(__file__).parent / "fixtures" / "reject_nonuniform_background.lua"
+    target = tmp_path / "nonuniform-background.aseprite"
+    response = tmp_path / "verification.json"
+    with tempfile.TemporaryDirectory(prefix="spa-background-postcondition-") as work:
+        prepared = prepare_invocation(
+            Path(observation.canonical_path),
+            Path(observation.resource_path),
+            Path(work),
+        )
+        run = subprocess.run(
+            [
+                str(prepared.executable),
+                "--batch",
+                "--script-param",
+                f"creation={files('spa.kernel').joinpath('sprite_create_support.lua')}",
+                "--script-param",
+                f"target={target}",
+                "--script-param",
+                f"response={response}",
+                "--script",
+                str(fixture),
+            ],
+            text=True,
+            capture_output=True,
+            check=False,
+            env=prepared.environment,
+        )
+
+    assert run.returncode == 0, run.stderr
+    verification = json.loads(response.read_text(encoding="utf-8"))
+    assert verification["accepted"] is False
+    assert "Background fill differs" in verification["message"]
 
 
 def test_get_reports_complete_requested_sections_and_explicit_omissions(
