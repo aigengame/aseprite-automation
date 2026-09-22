@@ -5,12 +5,8 @@ from typing import Annotated, Literal, cast
 
 from pydantic import Field, TypeAdapter, ValidationError, field_validator
 
-from spa.contracts import (
-    FailureCodeSpec,
-    PublicModel,
-    RuntimeRequest,
-    RuntimeRequirements,
-)
+from spa.contracts import PublicModel, RuntimeRequest, RuntimeRequirements
+from spa.mutation import TargetCommit
 from spa.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.ports import (
     KernelInvocationResult,
@@ -214,37 +210,6 @@ class SpriteInspection(PublicModel):
     cels: list[CelFacts] | None
     slices: list[SliceFacts] | None
     tilesets: list[TilesetFacts] | None
-
-
-class TargetCommit(PublicModel):
-    target_sprite_file: str
-    byte_size: int = Field(gt=0)
-    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
-
-
-TargetCommitFailureReason = Literal[
-    "target_not_file",
-    "overwrite_not_allowed",
-    "staged_file_missing",
-    "staged_file_empty",
-    "replace_failed",
-]
-
-
-class TargetCommitDetails(PublicModel):
-    kind: Literal["target_commit"] = "target_commit"
-    target_sprite_file: str
-    reason: TargetCommitFailureReason
-
-
-SPRITE_FAILURE_CODE_SPECS = (
-    FailureCodeSpec(
-        "target_commit_failed",
-        "The validated staged Sprite could not be published at its declared target",
-        "execution",
-        TargetCommitDetails,
-    ),
-)
 
 
 class SpriteCreateResult(PublicModel):
