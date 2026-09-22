@@ -42,6 +42,7 @@ kernel = files("spa.kernel")
 for name in (
     "probe.lua",
     "sprite_create.lua",
+    "sprite_create_support.lua",
     "sprite_get.lua",
     "sprite_inspect.lua",
     "sprite_inspection_fixture.aseprite",

@@ -13,12 +13,20 @@ class LocalTargetFiles:
         token = uuid.uuid4().hex
         return target.with_name(f".{target.stem}.{token}.staged.aseprite")
 
-    def commit(self, staged: Path, target: Path) -> TargetCommitObservation:
+    def commit(
+        self, staged: Path, target: Path, *, overwrite: bool
+    ) -> TargetCommitObservation:
         if target.exists() and not target.is_file():
             raise RuntimeIssue(
                 "target_commit_failed",
                 "Target Sprite File exists but is not a regular file",
                 TargetCommitEvidence(str(target), "target_not_file"),
+            )
+        if target.is_file() and not overwrite:
+            raise RuntimeIssue(
+                "target_commit_failed",
+                "Target Sprite File already exists and overwrite is false",
+                TargetCommitEvidence(str(target), "overwrite_not_allowed"),
             )
         if not staged.is_file():
             raise RuntimeIssue(
@@ -43,11 +51,20 @@ class LocalTargetFiles:
         digest = hashlib.sha256(payload).hexdigest()
         byte_size = len(payload)
         try:
-            os.replace(staged, target)
+            if overwrite:
+                os.replace(staged, target)
+            else:
+                os.link(staged, target)
+        except FileExistsError as exc:
+            raise RuntimeIssue(
+                "target_commit_failed",
+                "Target Sprite File appeared before publication and overwrite is false",
+                TargetCommitEvidence(str(target), "overwrite_not_allowed"),
+            ) from exc
         except OSError as exc:
             raise RuntimeIssue(
                 "target_commit_failed",
-                "Staged Sprite file could not replace the declared target",
+                "Staged Sprite file could not be published at the declared target",
                 TargetCommitEvidence(str(target), "replace_failed"),
             ) from exc
         return TargetCommitObservation(

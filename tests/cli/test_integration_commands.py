@@ -146,24 +146,3 @@ def test_installed_manifest_exposes_access_failures_without_real_aseprite(
     }
     assert "aseprite_sprite_create" in gaps["spa sprite create"]
     assert "aseprite_sprite_inspection" in gaps["spa sprite get"]
-    assert "Slice Keys" in gaps["spa sprite get inspection_scope=slices"]
-
-
-@pytest.mark.skipif(os.name == "nt", reason="POSIX shell fixture")
-def test_manifest_derives_resolved_slice_gap_from_probe_evidence(
-    tmp_path: Path,
-) -> None:
-    binary = fake_probe_response(
-        tmp_path,
-        '{"kernel_protocol_version":1,"status":"ok","aseprite_version":"test","api_version":41,"lua_version":"Lua 5.4","verified_prerequisites":["aseprite_scripting","lua_file_io","aseprite_json"],"verified_capabilities":["aseprite_runtime_introspection","aseprite_sprite_create","aseprite_sprite_inspection","aseprite_sprite_slice_keys"]}',
-    )
-
-    run = spa("info", "--aseprite", str(binary), "--json")
-
-    assert run.returncode == 0, run.stdout
-    result = json.loads(run.stdout)
-    assert "spa sprite get" in result["supported_capabilities"]
-    assert all(
-        gap["capability"] != "spa sprite get inspection_scope=slices"
-        for gap in result["capability_gaps"]
-    )

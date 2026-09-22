@@ -44,6 +44,7 @@ fi
                 "height": 2,
                 "color_mode": "rgb",
                 "initial_layer": {"kind": "transparent"},
+                "overwrite": False,
                 "aseprite": str(binary),
             }
         ),

@@ -22,6 +22,7 @@ child_cel.zIndex = 4
 
 local slice = sprite:newSlice(Rectangle(1, 2, 3, 4))
 slice.name = "panel"
+slice.data = "panel-data"
 slice.center = Rectangle(1, 1, 1, 2)
 slice.pivot = Point(2, 3)
 

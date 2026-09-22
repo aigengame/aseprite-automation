@@ -75,7 +75,6 @@ def _inspection(**overrides: Any) -> dict[str, Any]:
                 "is_collapsed": False,
                 "is_transparent": True,
                 "is_background": False,
-                "background_color": None,
                 "children": [],
             }
         ],
@@ -98,12 +97,16 @@ def _inspection(**overrides: Any) -> dict[str, Any]:
 @dataclass
 class _TargetFiles:
     commits: int = 0
+    overwrite: bool | None = None
 
     def staged_path(self, target: Path) -> Path:
         return target.with_suffix(".staged.aseprite")
 
-    def commit(self, staged: Path, target: Path) -> TargetCommitObservation:
+    def commit(
+        self, staged: Path, target: Path, *, overwrite: bool
+    ) -> TargetCommitObservation:
         self.commits += 1
+        self.overwrite = overwrite
         return TargetCommitObservation(str(target), 1, "0" * 64)
 
     def discard(self, staged: Path) -> None:
@@ -117,7 +120,10 @@ def _services(
 
     def invoke(*_args: object) -> KernelInvocationResult:
         return KernelInvocationResult(
-            payload={"sprite": payload},
+            payload={
+                "sprite": payload,
+                "persisted_initial_layer": {"kind": "transparent"},
+            },
             response_path="/response.json",
             diagnostics=Diagnostics(exit_status=0),
         )
@@ -139,6 +145,7 @@ def test_create_refuses_mismatched_persisted_facts_before_target_commit() -> Non
         height=2,
         color_mode="rgb",
         initial_layer={"kind": "transparent"},
+        overwrite=False,
     )
 
     with pytest.raises(RuntimeIssue, match="postconditions") as failure:
@@ -156,12 +163,32 @@ def test_create_refuses_incomplete_section_before_target_commit() -> None:
         height=2,
         color_mode="rgb",
         initial_layer={"kind": "transparent"},
+        overwrite=False,
     )
 
     with pytest.raises(RuntimeIssue, match="metadata declares 1"):
         create_sprite(request, _services(_inspection(frames=[]), files))
 
     assert files.commits == 0
+
+
+@pytest.mark.parametrize("overwrite", [False, True])
+def test_create_forwards_explicit_overwrite_to_target_commit(overwrite: bool) -> None:
+    files = _TargetFiles()
+    request = SpriteCreateRequest(
+        target_sprite_file="created.aseprite",
+        width=3,
+        height=2,
+        color_mode="rgb",
+        initial_layer={"kind": "transparent"},
+        overwrite=overwrite,
+    )
+
+    result = create_sprite(request, _services(_inspection(), files))
+
+    assert result.persisted_reopen_verified is True
+    assert files.commits == 1
+    assert files.overwrite is overwrite
 
 
 @pytest.mark.parametrize(
@@ -188,9 +215,7 @@ def test_get_refuses_false_scope_completeness(inspection: dict[str, Any]) -> Non
     assert failure.value.kind == "postcondition_failed"
 
 
-def test_get_distinguishes_nonempty_unsupported_slices_from_empty_complete_slices() -> (
-    None
-):
+def test_get_refuses_incomplete_nonempty_slices() -> None:
     request = SpriteGetRequest(
         sprite_file="created.aseprite", inspection_scope=["slices"]
     )
@@ -205,10 +230,9 @@ def test_get_distinguishes_nonempty_unsupported_slices_from_empty_complete_slice
     )
     inspection["metadata"] = inspection["metadata"] | {"slice_count": 1}
 
-    result = get_sprite(request, _services(inspection))
-
-    assert result.scope.complete_sections == []
-    assert [item.section for item in result.scope.unsupported_sections] == ["slices"]
+    with pytest.raises(RuntimeIssue) as unsupported:
+        get_sprite(request, _services(inspection))
+    assert unsupported.value.kind == "postcondition_failed"
 
     inspection["metadata"] = inspection["metadata"] | {"slice_count": 0}
     with pytest.raises(RuntimeIssue) as failure:

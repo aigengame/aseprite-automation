@@ -23,6 +23,7 @@ from spa.ports import (
     KernelInvocationResult,
     LaunchEvidence,
     PackagedHandler,
+    PackagedResource,
     ProcessEvidence,
     ResourceEvidence,
     ResponseEvidence,
@@ -180,13 +181,19 @@ def _process_failure(
     )
 
 
-def probe(request: RuntimeRequest) -> RuntimeObservation:
+def _resource_arguments(resources: tuple[PackagedResource, ...]) -> list[str]:
+    arguments: list[str] = []
+    for resource in resources:
+        path = files("spa.kernel").joinpath(resource.package_name)
+        arguments.extend(("--script-param", f"{resource.parameter_name}={path}"))
+    return arguments
+
+
+def probe(
+    request: RuntimeRequest, resources: tuple[PackagedResource, ...] = ()
+) -> RuntimeObservation:
     discovered, canonical, resource, selection_source = _discover(request.aseprite)
     script = files("spa.kernel").joinpath("probe.lua")
-    support = files("spa.kernel").joinpath("sprite_inspect.lua")
-    inspection_fixture = files("spa.kernel").joinpath(
-        "sprite_inspection_fixture.aseprite"
-    )
     sentinel = {
         "nullable": None,
         "nested": [{"value": None}, [1, None, {"flag": True}]],
@@ -233,9 +240,8 @@ def probe(request: RuntimeRequest) -> RuntimeObservation:
             "--script-param",
             f"capability_sprite={capability_sprite}",
             "--script-param",
-            f"inspection_fixture={inspection_fixture}",
-            "--script-param",
-            f"support={support}",
+            f"workspace={work}",
+            *_resource_arguments(resources),
             "--script",
             str(script),
         ]
@@ -364,7 +370,6 @@ def invoke(
     resource = Path(observation.resource_path)
     handler_name = handler.resource_name
     script = files("spa.kernel").joinpath(f"{handler_name}.lua")
-    support = files("spa.kernel").joinpath("sprite_inspect.lua")
     try:
         workspace = tempfile.TemporaryDirectory(prefix=f"spa-{handler_name}-")
     except OSError as exc:
@@ -402,7 +407,8 @@ def invoke(
             "--script-param",
             f"response={response_file}",
             "--script-param",
-            f"support={support}",
+            f"workspace={work}",
+            *_resource_arguments(handler.support_resources),
             "--script",
             str(script),
         ]

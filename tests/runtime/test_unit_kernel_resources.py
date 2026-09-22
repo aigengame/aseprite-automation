@@ -3,8 +3,10 @@
 from importlib.resources import files
 
 
-def test_sprite_inspection_probe_fixture_is_packaged() -> None:
-    fixture = files("spa.kernel").joinpath("sprite_inspection_fixture.aseprite")
+def test_sprite_probe_resources_are_packaged() -> None:
+    kernel = files("spa.kernel")
 
-    assert fixture.is_file()
-    assert len(fixture.read_bytes()) > 0
+    for name in ("sprite_create_support.lua", "sprite_inspection_fixture.aseprite"):
+        resource = kernel.joinpath(name)
+        assert resource.is_file()
+        assert len(resource.read_bytes()) > 0

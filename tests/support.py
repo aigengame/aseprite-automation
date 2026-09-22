@@ -20,7 +20,9 @@ class _UnusedTargetFiles:
     def staged_path(self, _target: Path) -> Path:
         raise AssertionError("test did not configure Target Files")
 
-    def commit(self, _staged: Path, _target: Path) -> TargetCommitObservation:
+    def commit(
+        self, _staged: Path, _target: Path, *, overwrite: bool
+    ) -> TargetCommitObservation:
         raise AssertionError("test did not configure Target Files")
 
     def discard(self, _staged: Path) -> None:
@@ -42,13 +44,16 @@ def operation_services(probe: RuntimeProbe) -> OperationServices:
 
 
 def spa(
-    *args: str, env: dict[str, str] | None = None, stdin: str | None = None
+    *args: str,
+    env: dict[str, str] | None = None,
+    stdin: str | None = None,
+    executable: str | Path | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run the installed SPA command from the active project environment."""
-    executable = shutil.which("spa")
-    assert executable, "run tests in the installed project environment"
+    selected = str(executable) if executable is not None else shutil.which("spa")
+    assert selected, "run tests in an installed SPA environment"
     return subprocess.run(
-        [executable, *args],
+        [selected, *args],
         text=True,
         capture_output=True,
         check=False,

@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from spa.sprite import SpriteCreateRequest, SpriteGetRequest
+from spa.sprite import SliceFacts, SpriteCreateRequest, SpriteGetRequest, TagFacts
 
 
 def test_create_requires_explicit_target_dimensions_mode_and_layer_choice() -> None:
@@ -16,6 +16,7 @@ def test_create_requires_explicit_target_dimensions_mode_and_layer_choice() -> N
         ("height",),
         ("color_mode",),
         ("initial_layer",),
+        ("overwrite",),
     }
 
 
@@ -27,6 +28,7 @@ def test_create_rejects_source_and_in_place_mutation_fields(field: str) -> None:
         "height": 2,
         "color_mode": "rgb",
         "initial_layer": {"kind": "transparent"},
+        "overwrite": False,
         field: True,
     }
 
@@ -61,3 +63,48 @@ def test_sprite_files_have_the_native_extension() -> None:
         SpriteGetRequest.model_validate(
             {"sprite_file": "created.png", "inspection_scope": []}
         )
+
+
+@pytest.mark.parametrize(
+    "direction", ["forward", "reverse", "ping_pong", "ping_pong_reverse"]
+)
+def test_tag_facts_preserve_only_native_animation_directions(direction: str) -> None:
+    tag = TagFacts.model_validate(
+        {
+            "name": "walk",
+            "from_frame": 1,
+            "to_frame": 2,
+            "direction": direction,
+            "repeats": 65535,
+            "color": {"red": 1, "green": 2, "blue": 3, "alpha": 255},
+        }
+    )
+
+    assert tag.direction == direction
+
+
+@pytest.mark.parametrize(
+    ("field", "value"), [("direction", "unknown_7"), ("repeats", 65536)]
+)
+def test_tag_facts_reject_values_outside_the_native_contract(
+    field: str, value: object
+) -> None:
+    payload: dict[str, object] = {
+        "name": "walk",
+        "from_frame": 1,
+        "to_frame": 2,
+        "direction": "forward",
+        "repeats": 0,
+        "color": {"red": 1, "green": 2, "blue": 3, "alpha": 255},
+    }
+    payload[field] = value
+
+    with pytest.raises(ValidationError):
+        TagFacts.model_validate(payload)
+
+
+def test_slice_facts_require_persisted_user_data() -> None:
+    with pytest.raises(ValidationError) as missing:
+        SliceFacts.model_validate({"name": "panel", "keys": []})
+
+    assert missing.value.errors()[0]["loc"] == ("data",)

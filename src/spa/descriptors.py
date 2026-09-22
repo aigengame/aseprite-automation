@@ -72,18 +72,6 @@ def _surface(runtime: RuntimeFacts) -> tuple[list[str], list[CapabilityGap]]:
                 evidence="; ".join(evidence),
             )
         )
-    if "aseprite_sprite_slice_keys" not in runtime.verified_capabilities:
-        gaps.append(
-            CapabilityGap(
-                capability="spa sprite get inspection_scope=slices",
-                aseprite_version=runtime.aseprite_version,
-                evidence=(
-                    "The selected Aseprite runtime did not expose ordered "
-                    "frame-varying Slice Keys through the packaged inspector; "
-                    "nonempty Slices are reported as unsupported"
-                ),
-            )
-        )
     return supported, gaps
 
 

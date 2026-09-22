@@ -2,6 +2,7 @@
 
 import json
 import os
+import shlex
 import signal
 import sys
 from pathlib import Path
@@ -14,7 +15,8 @@ from spa.cli import build_app
 from spa.contracts import RuntimeRequest
 from spa.descriptors import OPERATIONS
 from spa.failure_registry import FAILURE_CODES
-from spa.runtime.aseprite import probe
+from spa.ports import PackagedHandler, RuntimeObservation
+from spa.runtime.aseprite import invoke, probe
 from tests.support import fake_aseprite, fake_probe_response, operation_services, spa
 
 
@@ -254,6 +256,43 @@ def test_probe_preserves_absent_optional_runtime_capability(tmp_path: Path) -> N
     observation = probe(RuntimeRequest(aseprite=str(binary)))
 
     assert observation.verified_capabilities == ()
+
+
+def test_adapter_passes_only_resources_declared_by_the_handler(tmp_path: Path) -> None:
+    recorded = tmp_path / "arguments.txt"
+    binary = fake_aseprite(
+        tmp_path,
+        f"""
+response=
+for argument in "$@"; do
+  printf '%s\n' "$argument" >> {shlex.quote(str(recorded))}
+  case "$argument" in response=*) response=${{argument#response=}};; esac
+done
+printf '%s' '{{"kernel_protocol_version":1,"status":"ok","result":{{}}}}' > "$response"
+""",
+    )
+    observation = RuntimeObservation(
+        selection_source="explicit",
+        requested_path=str(binary),
+        discovered_path=str(binary),
+        canonical_path=str(binary.resolve()),
+        resource_path=str(binary.parent.parent / "Resources" / "data" / "gui.xml"),
+        aseprite_version="test",
+        api_version=41,
+        lua_version="Lua 5.4",
+        verified_prerequisites=(
+            "aseprite_scripting",
+            "lua_file_io",
+            "aseprite_json",
+        ),
+        verified_capabilities=(),
+    )
+
+    invoke(observation, PackagedHandler("generic_test"), {}, 1)
+
+    arguments = recorded.read_text(encoding="utf-8").splitlines()
+    assert not any(argument.startswith("inspection=") for argument in arguments)
+    assert not any(argument.startswith("creation=") for argument in arguments)
 
 
 @pytest.mark.parametrize(

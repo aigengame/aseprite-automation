@@ -2,10 +2,6 @@
 local module = {}
 local json_null = json.decode("null")
 
-local function array(value)
-  return value
-end
-
 local function rgba(color)
   return {
     red = color.red,
@@ -67,18 +63,7 @@ local function tag_direction(value)
   if value == AniDir.REVERSE then return "reverse" end
   if value == AniDir.PING_PONG then return "ping_pong" end
   if value == AniDir.PING_PONG_REVERSE then return "ping_pong_reverse" end
-  return "unknown_" .. tostring(value)
-end
-
-local function background_color(layer)
-  if not layer.isBackground or #layer.cels == 0 then return json_null end
-  local pixel = layer.cels[1].image:getPixel(0, 0)
-  return {
-    red = app.pixelColor.rgbaR(pixel),
-    green = app.pixelColor.rgbaG(pixel),
-    blue = app.pixelColor.rgbaB(pixel),
-    alpha = app.pixelColor.rgbaA(pixel),
-  }
+  error("unsupported Tag Animation Direction")
 end
 
 local function copy_path(path, index)
@@ -114,11 +99,10 @@ local function inspect_layers(layers, parent_path, paths, counts)
       is_collapsed = layer.isCollapsed,
       is_transparent = layer.isTransparent,
       is_background = layer.isBackground,
-      background_color = background_color(layer),
-      children = array(children),
+      children = children,
     }
   end
-  return array(result)
+  return result
 end
 
 local function requested_set(scope)
@@ -138,29 +122,110 @@ local function cel_layer_path(sprite, layer)
   return path
 end
 
-local function inspect_slice_keys(slice)
-  local available, keys = pcall(function()
-    local native_keys = slice.keys
-    if native_keys == nil then return nil end
-    local decoded = {}
-    for index = 1, #native_keys do
-      local key = native_keys[index]
-      local frame_number = key.frameNumber
-      if frame_number == nil and key.frame ~= nil then
-        frame_number = key.frame.frameNumber
-      end
-      assert(type(frame_number) == "number", "Slice Key has no Frame number")
-      decoded[#decoded + 1] = {
-        frame_number = frame_number,
-        bounds = rectangle(key.bounds),
-        center = key.center == nil and json_null or rectangle(key.center),
-        pivot = key.pivot == nil and json_null or point(key.pivot),
+local function read_file(path)
+  local file = assert(io.open(path, "rb"), "could not open Slice vendor data")
+  local payload = file:read("*a")
+  file:close()
+  return payload
+end
+
+local function is_json_object(value)
+  local kind = type(value)
+  return kind == "table" or kind == "userdata"
+end
+
+local function vendor_rectangle(value)
+  assert(is_json_object(value), "Slice Key Rectangle is not an object")
+  assert(type(value.x) == "number" and type(value.y) == "number",
+         "Slice Key Rectangle has invalid coordinates")
+  assert(type(value.w) == "number" and type(value.h) == "number",
+         "Slice Key Rectangle has invalid dimensions")
+  return { x=value.x, y=value.y, width=value.w, height=value.h }
+end
+
+local function vendor_point(value)
+  assert(is_json_object(value), "Slice Key Point is not an object")
+  assert(type(value.x) == "number" and type(value.y) == "number",
+         "Slice Key Point has invalid coordinates")
+  return { x=value.x, y=value.y }
+end
+
+local function restore_editor_state(previous)
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
+end
+
+local function inspect_slices(sprite)
+  if #sprite.slices == 0 then return {} end
+  local workspace = assert(app.params.workspace, "missing Kernel workspace")
+  local data_path = workspace .. "/sprite-slices.json"
+  local texture_path = workspace .. "/sprite-slices.png"
+  local previous = {
+    sprite = app.activeSprite,
+    layer = app.activeLayer,
+    frame = app.activeFrame,
+  }
+  local exported, failure = pcall(function()
+    app.activeSprite = sprite
+    app.command.ExportSpriteSheet {
+      ui=false,
+      recent=false,
+      askOverwrite=false,
+      type=SpriteSheetType.HORIZONTAL,
+      textureFilename=texture_path,
+      dataFilename=data_path,
+      dataFormat=SpriteSheetDataFormat.JSON_HASH,
+      listLayers=false,
+      listTags=false,
+      listSlices=true,
+      openGenerated=false,
+    }
+  end)
+  restore_editor_state(previous)
+  if not exported then error(failure) end
+
+  local vendor = json.decode(read_file(data_path))
+  assert(is_json_object(vendor) and is_json_object(vendor.meta),
+         "Slice vendor data has no metadata object")
+  local vendor_slices = vendor.meta.slices
+  assert(is_json_object(vendor_slices), "Slice vendor data has no Slice array")
+  assert(#vendor_slices == #sprite.slices,
+         "Slice vendor count differs from the opened Sprite")
+
+  local slices = {}
+  for slice_index = 1, #sprite.slices do
+    local native_slice = sprite.slices[slice_index]
+    local vendor_slice = vendor_slices[slice_index]
+    assert(is_json_object(vendor_slice), "Slice vendor entry is not an object")
+    assert(vendor_slice.name == native_slice.name,
+           "Slice vendor order differs from the opened Sprite")
+    assert(type(native_slice.data) == "string", "Slice user data is not a string")
+    assert(is_json_object(vendor_slice.keys), "Slice vendor entry has no Keys")
+    local keys = {}
+    for key_index = 1, #vendor_slice.keys do
+      local key = vendor_slice.keys[key_index]
+      assert(is_json_object(key), "Slice Key vendor entry is not an object")
+      assert(type(key.frame) == "number" and key.frame >= 0
+             and key.frame < #sprite.frames and key.frame % 1 == 0,
+             "Slice Key has an invalid Frame")
+      keys[#keys + 1] = {
+        frame_number = key.frame + 1,
+        bounds = vendor_rectangle(key.bounds),
+        center = key.center == nil and json_null or vendor_rectangle(key.center),
+        pivot = key.pivot == nil and json_null or vendor_point(key.pivot),
       }
     end
-    return array(decoded)
-  end)
-  if not available then return nil end
-  return keys
+    assert(#keys > 0, "Slice vendor entry has no explicit Keys")
+    slices[#slices + 1] = {
+      name = native_slice.name,
+      data = native_slice.data,
+      keys = keys,
+    }
+  end
+  return slices
 end
 
 function module.inspect(sprite, scope)
@@ -202,7 +267,7 @@ function module.inspect(sprite, scope)
         duration_ms = math.floor(frame.duration * 1000 + 0.5),
       }
     end
-    result.frames = array(frames)
+    result.frames = frames
   end
 
   if requested.tags then
@@ -218,7 +283,7 @@ function module.inspect(sprite, scope)
         color = rgba(tag.color),
       }
     end
-    result.tags = array(tags)
+    result.tags = tags
   end
 
   if requested.palettes then
@@ -231,10 +296,10 @@ function module.inspect(sprite, scope)
       end
       palettes[#palettes + 1] = {
         frame_number = palette.frame.frameNumber,
-        entries = array(entries),
+        entries = entries,
       }
     end
-    result.palettes = array(palettes)
+    result.palettes = palettes
   end
 
   if requested.layers then result.layers = all_layers end
@@ -251,27 +316,11 @@ function module.inspect(sprite, scope)
         z_index = cel.zIndex,
       }
     end
-    result.cels = array(cels)
+    result.cels = cels
   end
 
   if requested.slices then
-    if #sprite.slices == 0 then
-      result.slices = array({})
-    else
-      local slices = {}
-      local complete = true
-      for index = 1, #sprite.slices do
-        local slice = sprite.slices[index]
-        local keys = inspect_slice_keys(slice)
-        if keys == nil then
-          complete = false
-          break
-        end
-        slices[#slices + 1] = { name=slice.name, keys=keys }
-      end
-      -- Current public APIs expose only the effective value when `keys` is absent.
-      result.slices = complete and array(slices) or json_null
-    end
+    result.slices = inspect_slices(sprite)
   end
 
   if requested.tilesets then
@@ -286,7 +335,7 @@ function module.inspect(sprite, scope)
         tile_size = size(tileset.grid.tileSize),
       }
     end
-    result.tilesets = array(tilesets)
+    result.tilesets = tilesets
   end
 
   return result

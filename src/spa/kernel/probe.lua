@@ -1,11 +1,12 @@
 -- Fixed, packaged Kernel Protocol probe. Runtime files carry data, never Lua behavior.
 local kernel_protocol_version = 1
-local inspection = dofile(app.params.support)
+local inspection = dofile(app.params.inspection)
+local creation = dofile(app.params.creation)
 
 local function observes_sprite_inspection()
   local open_sprite = nil
   local inspection_path = assert(app.params.inspection_fixture)
-  local ok, slice_keys = pcall(function()
+  local ok = pcall(function()
     open_sprite = assert(app.open(inspection_path))
     local result = inspection.inspect(open_sprite, {
       "frames", "tags", "palettes", "layers", "cels", "slices", "tilesets",
@@ -51,64 +52,56 @@ local function observes_sprite_inspection()
     assert(#result.tilesets == 1)
     assert(result.tilesets[1].base_index == 7)
     assert(result.tilesets[1].tile_size.width == 4)
-    local has_slice_keys = type(result.slices) == "table"
-    if has_slice_keys then
-      assert(#result.slices == 1 and result.slices[1].name == "panel")
-      assert(#result.slices[1].keys > 0)
-    end
+    assert(#result.slices == 1 and result.slices[1].name == "panel")
+    assert(result.slices[1].data == "panel-data")
+    assert(#result.slices[1].keys == 1)
+    assert(result.slices[1].keys[1].frame_number == 1)
     open_sprite:close()
     open_sprite = nil
-    return has_slice_keys
   end)
   if open_sprite ~= nil then pcall(function() open_sprite:close() end) end
-  if not ok then return false, false end
-  return true, slice_keys
+  return ok
 end
 
 local function observes_sprite_creation()
-  local open_sprite = nil
   local capability_path = assert(app.params.capability_sprite)
   local ok = pcall(function()
-    open_sprite = Sprite(2, 3, ColorMode.RGB)
-    app.activeSprite = open_sprite
-    app.activeLayer = open_sprite.layers[1]
-    app.activeFrame = open_sprite.frames[1]
-    app.bgColor = Color{ r=17, g=34, b=51, a=255 }
-    app.command.BackgroundFromLayer()
-    assert(open_sprite.layers[1].isBackground)
-    assert(open_sprite:saveAs(capability_path))
-    open_sprite:close()
-    open_sprite = nil
-
-    open_sprite = assert(app.open(capability_path))
-    local layer = open_sprite.layers[1]
-    assert(open_sprite.width == 2 and open_sprite.height == 3)
-    assert(#open_sprite.frames == 1 and #open_sprite.layers == 1)
-    assert(layer.isBackground and not layer.isTransparent)
-    local pixel = layer.cels[1].image:getPixel(0, 0)
-    assert(app.pixelColor.rgbaR(pixel) == 17)
-    assert(app.pixelColor.rgbaG(pixel) == 34)
-    assert(app.pixelColor.rgbaB(pixel) == 51)
-    assert(app.pixelColor.rgbaA(pixel) == 255)
-    open_sprite:close()
-    open_sprite = nil
+    local result = creation.execute({
+      width = 2,
+      height = 3,
+      color_mode = "rgb",
+      initial_layer = {
+        kind = "background",
+        background_color = { red=17, green=34, blue=51, alpha=255 },
+      },
+      staged_sprite_file = capability_path,
+      inspection_scope = {
+        "frames", "tags", "palettes", "layers", "cels", "slices", "tilesets",
+      },
+    }, inspection)
+    assert(result.sprite.metadata.width == 2 and result.sprite.metadata.height == 3)
+    assert(result.sprite.metadata.frame_count == 1)
+    assert(result.sprite.metadata.layer_count == 1)
+    assert(result.sprite.layers[1].is_background)
+    assert(not result.sprite.layers[1].is_transparent)
+    assert(result.persisted_initial_layer.kind == "background")
+    assert(result.persisted_initial_layer.background_color.red == 17)
+    assert(result.persisted_initial_layer.background_color.green == 34)
+    assert(result.persisted_initial_layer.background_color.blue == 51)
+    assert(result.persisted_initial_layer.background_color.alpha == 255)
   end)
-  if open_sprite ~= nil then pcall(function() open_sprite:close() end) end
   pcall(function() os.remove(capability_path) end)
   return ok
 end
 
 local function observed_capabilities()
   local capabilities = { "aseprite_runtime_introspection" }
-  local supports_inspection, supports_slice_keys = observes_sprite_inspection()
+  local supports_inspection = observes_sprite_inspection()
   if supports_inspection and observes_sprite_creation() then
     capabilities[#capabilities + 1] = "aseprite_sprite_create"
   end
   if supports_inspection then
     capabilities[#capabilities + 1] = "aseprite_sprite_inspection"
-  end
-  if supports_slice_keys then
-    capabilities[#capabilities + 1] = "aseprite_sprite_slice_keys"
   end
   return capabilities
 end

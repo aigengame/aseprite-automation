@@ -41,7 +41,6 @@ RuntimeCapability = Literal[
     "aseprite_runtime_introspection",
     "aseprite_sprite_create",
     "aseprite_sprite_inspection",
-    "aseprite_sprite_slice_keys",
 ]
 
 

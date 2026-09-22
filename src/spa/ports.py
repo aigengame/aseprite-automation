@@ -32,14 +32,32 @@ RuntimeProbe = Callable[[RuntimeRequest], RuntimeObservation]
 
 
 @dataclass(frozen=True)
+class PackagedResource:
+    """One packaged Kernel resource and its private script parameter."""
+
+    parameter_name: str
+    package_name: str
+
+    def __post_init__(self) -> None:
+        if not re.fullmatch(r"[a-z][a-z0-9_]*", self.parameter_name):
+            raise ValueError("Packaged resource parameter must be lower_snake_case")
+        if not re.fullmatch(r"[a-z][a-z0-9_]*\.(?:lua|aseprite)", self.package_name):
+            raise ValueError("Packaged resource must be a Lua or Aseprite file name")
+
+
+@dataclass(frozen=True)
 class PackagedHandler:
     """Opaque packaged-resource identity selected by a Domain Module."""
 
     resource_name: str
+    support_resources: tuple[PackagedResource, ...] = ()
 
     def __post_init__(self) -> None:
         if not re.fullmatch(r"[a-z][a-z0-9_]*", self.resource_name):
             raise ValueError("Packaged handler name must be lower_snake_case")
+        parameters = [resource.parameter_name for resource in self.support_resources]
+        if len(parameters) != len(set(parameters)):
+            raise ValueError("Packaged resource parameters must be unique")
 
 
 @dataclass(frozen=True)
@@ -67,7 +85,9 @@ class TargetFiles(Protocol):
 
     def staged_path(self, target: Path) -> Path: ...
 
-    def commit(self, staged: Path, target: Path) -> TargetCommitObservation: ...
+    def commit(
+        self, staged: Path, target: Path, *, overwrite: bool
+    ) -> TargetCommitObservation: ...
 
     def discard(self, staged: Path) -> None: ...
 
@@ -134,6 +154,7 @@ class TargetCommitEvidence:
     target_sprite_file: str
     reason: Literal[
         "target_not_file",
+        "overwrite_not_allowed",
         "staged_file_missing",
         "staged_file_empty",
         "replace_failed",

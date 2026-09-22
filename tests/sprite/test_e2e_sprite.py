@@ -12,13 +12,17 @@ from jsonschema import validate
 from spa.contracts import RuntimeRequest
 from spa.runtime.aseprite import probe
 from spa.runtime.invocation import prepare_invocation
+from spa.sprite import SPRITE_PROBE_RESOURCES
 from tests.support import spa
 
 pytestmark = pytest.mark.e2e
 
 
 def _populated_sprite(target: Path) -> None:
-    observation = probe(RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]))
+    observation = probe(
+        RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]),
+        SPRITE_PROBE_RESOURCES,
+    )
     fixture = Path(__file__).parent / "fixtures" / "populated_sprite.lua"
     with tempfile.TemporaryDirectory(prefix="spa-populated-fixture-") as work:
         prepared = prepare_invocation(
@@ -44,13 +48,16 @@ def _populated_sprite(target: Path) -> None:
     assert target.is_file()
 
 
-def _create(target: Path, initial_layer: dict[str, object]) -> dict[str, object]:
+def _create(
+    target: Path, initial_layer: dict[str, object], *, overwrite: bool = False
+) -> dict[str, object]:
     request = {
         "target_sprite_file": str(target),
         "width": 3,
         "height": 2,
         "color_mode": "rgb",
         "initial_layer": initial_layer,
+        "overwrite": overwrite,
         "aseprite": os.environ["SPA_TEST_ASEPRITE"],
     }
     run = spa("sprite", "create", "--input-json", json.dumps(request))
@@ -64,6 +71,7 @@ def _create(target: Path, initial_layer: dict[str, object]) -> dict[str, object]
     assert result["target_commit"]["byte_size"] == target.stat().st_size
     assert len(result["target_commit"]["sha256"]) == 64
     assert result["persisted_reopen_verified"] is True
+    assert result["persisted_initial_layer"] == initial_layer
     assert result["sprite"]["metadata"]["width"] == 3
     assert result["sprite"]["metadata"]["height"] == 2
     assert result["sprite"]["metadata"]["color_mode"] == "rgb"
@@ -77,7 +85,6 @@ def test_create_persists_explicit_transparent_and_background_layer_choices(
     transparent_layer = transparent["sprite"]["layers"][0]
     assert transparent_layer["is_transparent"] is True
     assert transparent_layer["is_background"] is False
-    assert transparent_layer["background_color"] is None
 
     color = {"red": 17, "green": 34, "blue": 51, "alpha": 255}
     background = _create(
@@ -87,7 +94,6 @@ def test_create_persists_explicit_transparent_and_background_layer_choices(
     background_layer = background["sprite"]["layers"][0]
     assert background_layer["is_transparent"] is False
     assert background_layer["is_background"] is True
-    assert background_layer["background_color"] == color
 
 
 def test_get_reports_complete_requested_sections_and_explicit_omissions(
@@ -116,7 +122,6 @@ def test_get_reports_complete_requested_sections_and_explicit_omissions(
     assert result["scope"] == {
         "requested_sections": sections,
         "complete_sections": sections,
-        "unsupported_sections": [],
         "unrequested_sections": [],
     }
     assert result["metadata"]["width"] == 3
@@ -149,7 +154,6 @@ def test_get_reports_complete_requested_sections_and_explicit_omissions(
     assert partial.returncode == 0, partial.stdout
     partial_result = json.loads(partial.stdout)
     assert partial_result["scope"]["complete_sections"] == ["frames"]
-    assert partial_result["scope"]["unsupported_sections"] == []
     assert partial_result["scope"]["unrequested_sections"] == [
         "tags",
         "palettes",
@@ -162,9 +166,12 @@ def test_get_reports_complete_requested_sections_and_explicit_omissions(
         assert partial_result[section] is None
 
 
-def test_handler_rejection_is_schema_valid_and_does_not_publish_target(
+def test_wheel_installed_handler_rejection_is_schema_valid_without_target_commit(
     tmp_path: Path,
 ) -> None:
+    installed_cli = os.environ.get("SPA_TEST_INSTALLED_CLI")
+    if installed_cli is None:
+        pytest.skip("SPA_TEST_INSTALLED_CLI does not select a wheel-installed CLI")
     parent_file = tmp_path / "not-a-directory"
     parent_file.write_text("occupied", encoding="utf-8")
     target = parent_file / "never-committed.aseprite"
@@ -174,12 +181,21 @@ def test_handler_rejection_is_schema_valid_and_does_not_publish_target(
         "height": 2,
         "color_mode": "rgb",
         "initial_layer": {"kind": "transparent"},
+        "overwrite": False,
         "aseprite": os.environ["SPA_TEST_ASEPRITE"],
     }
-    run = spa("sprite", "create", "--input-json", json.dumps(request))
+    run = spa(
+        "sprite",
+        "create",
+        "--input-json",
+        json.dumps(request),
+        executable=installed_cli,
+    )
     assert run.returncode == 1, run.stdout
     failure = json.loads(run.stdout)
-    schema = json.loads(spa("sprite", "create", "--schema").stdout)
+    schema = json.loads(
+        spa("sprite", "create", "--schema", executable=installed_cli).stdout
+    )
     validate(failure, schema["failure_schema"])
     assert failure["code"] == "kernel_execution_failed"
     assert failure["details"]["kind"] == "kernel_execution"
@@ -197,6 +213,7 @@ def test_invalid_existing_target_fails_without_target_commit(tmp_path: Path) -> 
         "height": 2,
         "color_mode": "rgb",
         "initial_layer": {"kind": "transparent"},
+        "overwrite": False,
         "aseprite": os.environ["SPA_TEST_ASEPRITE"],
     }
     run = spa("sprite", "create", "--input-json", json.dumps(request))
@@ -215,6 +232,34 @@ def test_invalid_existing_target_fails_without_target_commit(tmp_path: Path) -> 
     assert "target_commit" not in failure
     assert target.is_dir()
     assert list(target.iterdir()) == []
+
+
+def test_create_requires_explicit_permission_to_replace_an_existing_target(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "existing.aseprite"
+    target.write_bytes(b"existing")
+    request = {
+        "target_sprite_file": str(target),
+        "width": 3,
+        "height": 2,
+        "color_mode": "rgb",
+        "initial_layer": {"kind": "transparent"},
+        "overwrite": False,
+        "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+    }
+
+    refused = spa("sprite", "create", "--input-json", json.dumps(request))
+
+    assert refused.returncode == 1, refused.stdout
+    failure = json.loads(refused.stdout)
+    assert failure["code"] == "target_commit_failed"
+    assert failure["details"]["reason"] == "overwrite_not_allowed"
+    assert target.read_bytes() == b"existing"
+
+    replaced = _create(target, {"kind": "transparent"}, overwrite=True)
+    assert replaced["target_commit"]["target_sprite_file"] == str(target)
+    assert target.read_bytes() != b"existing"
 
 
 def test_get_reports_populated_native_structures_completely(tmp_path: Path) -> None:
@@ -261,21 +306,21 @@ def test_get_reports_populated_native_structures_completely(tmp_path: Path) -> N
     assert child_cel["bounds"] == {"x": 4, "y": 2, "width": 2, "height": 3}
     assert child_cel["opacity"] == 123
     assert child_cel["z_index"] == 4
-    assert result["slices"] is None
-    assert result["scope"]["complete_sections"] == [
-        "frames",
-        "tags",
-        "palettes",
-        "layers",
-        "cels",
-        "tilesets",
-    ]
-    assert result["scope"]["unsupported_sections"] == [
+    assert result["slices"] == [
         {
-            "section": "slices",
-            "reason": "aseprite_lua_slice_keys_unavailable",
+            "name": "panel",
+            "data": "panel-data",
+            "keys": [
+                {
+                    "frame_number": 1,
+                    "bounds": {"x": 1, "y": 2, "width": 3, "height": 4},
+                    "center": {"x": 1, "y": 1, "width": 1, "height": 2},
+                    "pivot": {"x": 2, "y": 3},
+                }
+            ],
         }
     ]
+    assert result["scope"]["complete_sections"] == sections
     assert result["tilesets"] == [
         {
             "name": "terrain",

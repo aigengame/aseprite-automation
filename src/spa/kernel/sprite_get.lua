@@ -1,6 +1,6 @@
 -- Fixed packaged Sprite inspection handler. Runtime files carry data only.
 local kernel_protocol_version = 1
-local inspection = dofile(app.params.support)
+local inspection = dofile(app.params.inspection)
 local open_sprite = nil
 
 local function execute()
