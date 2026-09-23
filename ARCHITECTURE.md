@@ -11,11 +11,12 @@ fact in this integrated view. If this document conflicts with an owning source, 
 this view instead of treating it as another decision authority.
 
 > [!IMPORTANT]
-> SPA is at the bootstrap stage. The installed CLI tracer exposes `spa info`,
-> `spa version`, and `spa schema`; Sprite authoring
-> Operations have not shipped. The module ownership below includes planned work, not
-> additional installed capabilities. Feature issues own delivery status, while the
-> installed Surface Manifest reports the callable surface of each installation.
+> SPA is at the bootstrap stage. The installed CLI exposes `spa info`, `spa version`,
+> `spa schema`, Sprite creation and inspection, bounded Pixel Patch application,
+> and verified RGB PNG Image Export. The module
+> ownership below includes both this delivered vertical slice and planned work. Feature
+> issues own delivery status, while the installed Surface Manifest reports the callable
+> surface of each installation.
 
 The document evolves with the product. An accepted change to the Bounded Context,
 module ownership, public contract, execution model, or integration boundary must be
@@ -242,10 +243,10 @@ will follow demonstrated change clusters as vertical slices are implemented.
 
 ### Technology profile
 
-The initial installed CLI tracer uses a replaceable outer stack around stable domain
-and public-contract boundaries. [Issue #3](https://github.com/aigengame/aseprite-automation/issues/3)
-delivers the bootstrap choices recorded in project metadata and its lockfile; later
-feature slices will extend the implemented surface.
+The installed CLI uses a replaceable outer stack around stable domain and
+public-contract boundaries. [Issue #3](https://github.com/aigengame/aseprite-automation/issues/3)
+delivers the bootstrap choices recorded in project metadata and its lockfile; the
+Sprite creation and inspection slice extends that same stack.
 
 | Component | Bootstrap choice | Role |
 | --- | --- | --- |
@@ -253,7 +254,7 @@ feature slices will extend the implemented surface.
 | CLI adapter | Typer | Command access and human or machine presentation. |
 | Public contracts | Pydantic 2 and JSON Schema | Typed Operation Requests, Operation Results, Failure Envelopes, and discovery schemas. |
 | Project and packaging | `uv` | Environments, dependencies, builds, and installed-product tests. |
-| Ordinary Core Operations | Packaged Lua handlers (planned for Core slices) | Core Operation Semantics and native mapping executed through Aseprite. The current tracer packages a fixed runtime probe, not a Sprite authoring handler. |
+| Ordinary Core Operations | Packaged Lua handlers | Core Operation Semantics and native mapping executed through Aseprite. The current package contains a fixed runtime probe, shared capability observations, Sprite creation, Sprite inspection, exact Pixel Patch, Export Image, and Operation Plan handlers. |
 | Aseprite integration | External `aseprite --batch --script` | Native document, Tool, Filter, color, and export behavior. |
 | Private transport | Versioned JSON request and response files | Data exchange through `--script-param`, separate from diagnostics. |
 | Agent access | Version-matched Agent Skill and planned local stdio MCP Adapter with CLI subprocess invocation | Guidance and equivalent tool projection from the installed surface. |
@@ -266,17 +267,20 @@ Python framework or packaging tool.
 
 ### Core Domain ownership view
 
-The current planning view groups Core Domain responsibility into five cohesive areas.
-They guide feature ownership and can become Domain Modules as implementation evidence
-confirms their change boundaries. ADR-0018 already establishes Raster Authoring as a
-Domain Module; the other groupings remain an integrated planning view rather than a
-frozen package graph.
+The current view groups Core Domain responsibility into five cohesive areas. They guide
+feature ownership and can become Domain Modules as implementation evidence confirms
+their change boundaries. The delivered `spa.sprite` vertical slice owns Sprite creation
+and structural inspection within Document and Animation. The delivered `spa.paint`
+slice owns exact Pixel Patch application, while `spa.raster` holds the shared Color Value,
+Rectangle, Patch, and Selection types. Raster Authoring owns their pixel and Color Value
+semantics under ADR-0018; Color and Palette owns Palette and conversion behavior. The
+other groupings remain an integrated planning view rather than a frozen package graph.
 
 | Responsibility area | Owns | Important boundary |
 | --- | --- | --- |
 | Document and Animation | Sprite; shared Layer, Frame, and Cel identity, addressing, hierarchy, and existence contracts; feature-declared general Layer/Cel Operations; Tag, Slice, timing, and animation Operations. | It does not claim Tilemap Layer creation and binding or Tilemap Cel/Image content; specialized tile variants depend one-way on the shared contracts. |
-| Raster Authoring | Image observation and transforms, Pixel Region Snapshot and Pixel Patch exchange, Selection value operations, Paint intent, native Tool invocation, native Filters, external raster import, and evidence-gated text rasterization. | Image, Paint, and Filter remain distinct operation families while sharing one pixel and target authority. |
-| Color and Palette | Color Value, Palette Change and Effective Palette behavior, quantization, Color Mode changes, Color Profile assignment/conversion, and Dithering choices. | Preserves native distinctions and makes result-affecting choices explicit. It does not implement a second color engine. |
+| Raster Authoring | Shared Color Value semantics, Image observation and transforms, Pixel Region Snapshot and Pixel Patch exchange, Selection value operations, Paint intent, native Tool invocation, native Filters, external raster import, and evidence-gated text rasterization. | Image, Paint, and Filter remain distinct operation families while sharing one pixel and target authority. |
+| Color and Palette | Palette Change and Effective Palette behavior, quantization, Color Mode changes, Color Profile assignment/conversion, and Dithering choices. | Preserves native distinctions and makes result-affecting choices explicit. It does not implement a second color engine. |
 | Tile Authoring | Grid, Tileset, Tile, Tile Key, Tilemap, Tile Placement, Tilemap Layer creation and binding, Tilemap Cel/Image content, bounded region exchange, and established Tileset-coupled lifecycle variants. | Reuses shared Layer/Cel contracts without duplicating them; support for other Layer/Cel variants remains with the owning feature issue until delivered. |
 | Delivery | Static image, animation, sheet, Tileset, preview, and metadata Export Operations with declared destinations and verified Artifacts. | Aseprite renders and encodes; SPA stages, validates, publishes, and reports the complete declared output set. |
 
@@ -308,6 +312,20 @@ them close.
 
 Each structured public capability has one **Operation Descriptor**. The descriptor
 binds schemas, execution metadata, presentation, and a declared execution definition.
+For an Operation that invokes Aseprite, it also declares the required Lua language
+profile, minimum `app.apiVersion`, and the Aseprite-provided runtime capabilities that
+the Operation actually uses. A complete probe establishes its scripting, file I/O, and
+JSON transport prerequisites. It reports native runtime capabilities independently of
+those fixed prerequisites. The Application compares the observed Lua language, API
+version, and capabilities with the selected Descriptor before it enters an ordinary
+Operation execution definition. For Plan, the selected Step Descriptors and mandatory
+final Sprite inspection determine the requirements. Shared capability observations and
+comparison run inside the single Plan process before its first Step, and Application
+maps an incompatibility to the same
+typed `runtime_incompatible` failure. Aggregate discovery uses the union of all
+currently eligible Step requirements to declare the complete Plan surface supported;
+an individual Plan may run with fewer observed capabilities because its execution
+gate uses its selected Steps plus final Sprite inspection.
 Descriptors are the registration authority; they do not implement native behavior.
 Under ADR-0013, the failure contract uses shared registration of each public
 Failure Code's meaning, Category, and Details kind. Each Descriptor declares its
@@ -317,10 +335,10 @@ aggregate `spa schema` discovery exposes their separate Access-level failure sch
 The Application classifies private runtime evidence for selected Operations; Access
 adapters project the same Failure Envelope.
 
-An Ordinary Core Operation binds one fixed packaged Lua handler. A capability whose
+Each standalone Ordinary Core Operation binds one fixed packaged Lua handler. A capability whose
 behavior is implemented by an Application use case can have no Kernel binding. An
-application-composed capability can order multiple packaged Ordinary Core Operation
-handlers without redefining their semantics. `script run` uses a separate caller-script
+application-composed capability can order packaged semantic entry points through its
+own fixed handler without redefining their semantics. `script run` uses a separate caller-script
 path. SPA registration, identity resolution, and Ordinary Core Operation dispatch cannot
 use that path to replace, override, rewrite, proxy, or bypass an existing Ordinary Core
 Operation.
@@ -388,8 +406,9 @@ Semantics executed inside Aseprite. Its handlers:
 - observe the resulting native state; and
 - return a versioned private Kernel response.
 
-Standalone Operations, Operation Plans, and private export composition call the same
-packaged handlers. Shared helpers can remove code duplication, but a second Python or
+Standalone handlers and the Plan handler call the same packaged native semantic entry
+points. Standalone handlers save and reopen their Operation output; the Plan handler
+keeps one Sprite live and applies one final save-and-reopen gate. A second Python or
 generated-Lua behavior path is prohibited. `spa script run` is a separate escape hatch
 for exact caller-owned Lua and does not inherit Ordinary Core Operation guarantees.
 
@@ -399,7 +418,9 @@ The Aseprite Adapter owns the external integration mechanics:
 
 - executable and resource discovery;
 - host-specific invocation preparation within the adapter;
-- collection and transport of Aseprite/API version and native-capability observations;
+- collection and transport of the Aseprite version, embedded Lua language version,
+  `app.apiVersion`, fixed probe prerequisites, and independently observed runtime
+  capabilities;
 - `--batch --script` process launch;
 - the versioned Kernel Protocol and transport files;
 - process exit and bounded diagnostic capture;
@@ -485,6 +506,18 @@ Protocol version. This private boundary can evolve without historical-version
 compatibility machinery; checking the installed Aseprite Lua runtime and scripting
 API remains a separate obligation.
 
+These are three independent compatibility axes. The packaged Kernel currently declares
+the `Lua 5.4` language profile. Each runtime-backed Descriptor declares its minimum
+`app.apiVersion` and required Aseprite-provided capabilities. The Adapter observes the
+selected process. A successful probe establishes its transport prerequisites; a
+prerequisite failure uses the existing typed process or Kernel failure channel. The
+Adapter preserves each independently observed runtime capability rather than requiring
+every known capability for every probe. The Application rejects an observed
+Lua-language or API-version mismatch, or a capability missing from the selected
+Descriptor's requirements, with typed evidence before Operation execution. The private
+Kernel Protocol continues to require an exact match with the one version co-packaged in
+the same pre-1.0 release.
+
 A completed Validation can return an Operation Result with typed Validation Findings.
 An invalid request, execution failure, or unmet commit gate returns a Failure Envelope;
 a Finding is not a command failure.
@@ -545,8 +578,9 @@ in one Aseprite invocation and adapter unit of work.
 
 ```text
 Plan Preflight
-    -> Step 1 Preconditions -> packaged handler -> Step 1 Postconditions
-    -> Step 2 Preconditions -> packaged handler -> Step 2 Postconditions
+    -> selected Step and final inspection capability observation and check
+    -> Step 1 Preconditions -> shared semantic entry point -> Step 1 Postconditions
+    -> Step 2 Preconditions -> shared semantic entry point -> Step 2 Postconditions
     -> ...
     -> Plan Postconditions
     -> zero commits for a read Plan, or one Target Commit for a mutation Plan

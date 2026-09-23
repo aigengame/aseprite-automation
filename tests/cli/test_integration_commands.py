@@ -9,7 +9,8 @@ from jsonschema import Draft202012Validator, validate
 
 from spa.contracts import failure_schema
 from spa.descriptors import ACCESS_FAILURE_CODES
-from tests.support import fake_aseprite, spa
+from spa.failure_registry import FAILURE_CODES
+from tests.support import fake_probe_response, spa
 
 
 def test_version_is_an_installed_structured_operation() -> None:
@@ -28,6 +29,20 @@ def test_version_is_an_installed_structured_operation() -> None:
             "description"
         ]
     )
+
+
+def test_runtime_operation_schema_declares_compatibility_requirements() -> None:
+    info_schema = json.loads(spa("info", "--schema").stdout)
+    assert info_schema["requires_runtime"] is True
+    assert info_schema["runtime_requirements"] == {
+        "lua_language": "Lua 5.4",
+        "minimum_api_version": 41,
+        "required_capabilities": ["aseprite_runtime_introspection"],
+    }
+
+    version_schema = json.loads(spa("version", "--schema").stdout)
+    assert version_schema["requires_runtime"] is False
+    assert version_schema["runtime_requirements"] is None
 
 
 def test_installed_cli_reads_json_request_from_stdin() -> None:
@@ -71,12 +86,24 @@ def test_unknown_command_uses_registered_access_failure() -> None:
     assert failure["category"] == "input"
 
 
+@pytest.mark.parametrize("args", [("sprite",), ("sprite", "no-such-operation")])
+def test_incomplete_or_unknown_nested_command_uses_access_failure(
+    args: tuple[str, ...],
+) -> None:
+    run = spa(*args)
+    assert run.returncode == 2
+    assert run.stderr == ""
+    failure = json.loads(run.stdout)
+    assert failure["operation"] == "spa"
+    validate(failure, failure_schema(ACCESS_FAILURE_CODES, "spa", FAILURE_CODES))
+
+
 def test_bare_invocation_emits_only_registered_access_failure() -> None:
     run = spa()
     assert run.returncode == 2
     assert run.stderr == ""
     failure = json.loads(run.stdout)
-    validate(failure, failure_schema(ACCESS_FAILURE_CODES, "spa"))
+    validate(failure, failure_schema(ACCESS_FAILURE_CODES, "spa", FAILURE_CODES))
     assert failure["operation"] == "spa"
     assert failure["code"] == "invalid_request"
 
@@ -99,22 +126,9 @@ def test_human_output_projects_the_same_version_result() -> None:
 def test_installed_manifest_exposes_access_failures_without_real_aseprite(
     tmp_path: Path,
 ) -> None:
-    binary = fake_aseprite(
+    binary = fake_probe_response(
         tmp_path,
-        """
-request=
-response=
-echo_file=
-for argument in "$@"; do
-  case "$argument" in
-    request=*) request=${argument#request=};;
-    response=*) response=${argument#response=};;
-    echo=*) echo_file=${argument#echo=};;
-  esac
-done
-cp "$request" "$echo_file"
-printf '{"kernel_protocol_version":1,"status":"ok","aseprite_version":"test","api_version":1}' > "$response"
-""",
+        '{"kernel_protocol_version":1,"status":"ok","aseprite_version":"test","api_version":41,"lua_version":"Lua 5.4","verified_prerequisites":["aseprite_scripting","lua_file_io","aseprite_json"],"verified_capabilities":["aseprite_runtime_introspection"]}',
     )
     run = spa("schema", "--aseprite", str(binary), "--json")
     assert run.returncode == 0, run.stdout
@@ -126,4 +140,10 @@ printf '{"kernel_protocol_version":1,"status":"ok","aseprite_version":"test","ap
         "spa info",
         "spa version",
         "spa schema",
+        "spa plan check",
     ]
+    gaps = {
+        item["capability"]: item["evidence"] for item in manifest["capability_gaps"]
+    }
+    assert "aseprite_sprite_create" in gaps["spa sprite create"]
+    assert "aseprite_sprite_inspection" in gaps["spa sprite get"]

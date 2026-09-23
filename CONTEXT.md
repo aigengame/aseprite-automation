@@ -449,6 +449,14 @@ metadata, presentation projection, and execution definition. An Ordinary Core
 Operation binds one packaged Lua handler; another capability can bind an Application
 use case or the separate `script run` adapter path without a Kernel binding.
 
+**Runtime Requirements**
+The Lua language profile, minimum Aseprite `app.apiVersion`, and set of
+Aseprite-provided capabilities declared by a runtime-backed Operation Descriptor. SPA
+establishes probe and transport prerequisites through a complete probe response and
+preserves independently observed native capabilities. The Application compares those
+capabilities, the Lua language, and the API version with the selected Descriptor before
+executing the Operation.
+
 **Command Group**
 A CLI navigation grouping based mainly on Aseprite language. It does not define a
 Domain Module or Bounded Context.
@@ -462,7 +470,9 @@ and Surface Manifest schemas shared with callers.
 
 **Surface Manifest**
 The installed aggregate description of callable Operations. It is the runtime authority
-for shipped capability.
+for shipped capability. A compositional Operation is listed as fully supported only
+when the runtime supports every currently eligible Step kind; a particular request
+can need fewer capabilities and remains independently executable.
 
 **Operation Request**
 The complete typed input to one Operation after public absent, null, and default

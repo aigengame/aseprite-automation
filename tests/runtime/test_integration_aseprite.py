@@ -2,6 +2,7 @@
 
 import json
 import os
+import shlex
 import signal
 import sys
 from pathlib import Path
@@ -11,9 +12,12 @@ from jsonschema import validate
 from typer.testing import CliRunner
 
 from spa.cli import build_app
+from spa.contracts import RuntimeRequest
 from spa.descriptors import OPERATIONS
-from spa.runtime.aseprite import probe
-from tests.support import fake_aseprite, spa
+from spa.failure_registry import FAILURE_CODES
+from spa.ports import PackagedHandler, RuntimeObservation
+from spa.runtime.aseprite import invoke, probe
+from tests.support import fake_aseprite, fake_probe_response, operation_services, spa
 
 
 def test_missing_runtime_has_structured_environment_failure() -> None:
@@ -196,22 +200,9 @@ printf '{"kernel_protocol_version":%s,"status":"ok","aseprite_version":"test","a
 
 
 def test_boolean_api_version_is_a_kernel_protocol_failure(tmp_path: Path) -> None:
-    binary = fake_aseprite(
+    binary = fake_probe_response(
         tmp_path,
-        """
-request=
-response=
-echo=
-for argument in "$@"; do
-  case "$argument" in
-    request=*) request=${argument#request=};;
-    response=*) response=${argument#response=};;
-    echo=*) echo=${argument#echo=};;
-  esac
-done
-cp "$request" "$echo"
-printf '{"kernel_protocol_version":1,"status":"ok","aseprite_version":"test","api_version":true}' > "$response"
-""",
+        '{"kernel_protocol_version":1,"status":"ok","aseprite_version":"test","api_version":true}',
     )
     run = spa("info", "--aseprite", str(binary), "--json")
     assert run.returncode == 1
@@ -219,6 +210,140 @@ printf '{"kernel_protocol_version":1,"status":"ok","aseprite_version":"test","ap
     assert failure["code"] == "kernel_response_invalid"
     assert failure["category"] == "kernel_protocol"
     assert "Traceback" not in run.stderr
+
+
+def test_unknown_runtime_capability_is_a_kernel_protocol_failure(
+    tmp_path: Path,
+) -> None:
+    binary = fake_probe_response(
+        tmp_path,
+        '{"kernel_protocol_version":1,"status":"ok","aseprite_version":"test","api_version":41,"lua_version":"Lua 5.4","verified_prerequisites":["aseprite_scripting","lua_file_io","aseprite_json"],"verified_capabilities":["aseprite_runtime_introspection","unknown"]}',
+    )
+
+    run = spa("info", "--aseprite", str(binary), "--json")
+
+    assert run.returncode == 1
+    failure = json.loads(run.stdout)
+    assert failure["code"] == "kernel_response_invalid"
+    assert failure["category"] == "kernel_protocol"
+    assert "runtime capability" in failure["message"]
+    assert "Traceback" not in run.stderr
+
+
+def test_incomplete_probe_prerequisites_are_a_kernel_protocol_failure(
+    tmp_path: Path,
+) -> None:
+    binary = fake_probe_response(
+        tmp_path,
+        '{"kernel_protocol_version":1,"status":"ok","aseprite_version":"test","api_version":41,"lua_version":"Lua 5.4","verified_prerequisites":["aseprite_scripting","lua_file_io"],"verified_capabilities":["aseprite_runtime_introspection"]}',
+    )
+
+    run = spa("info", "--aseprite", str(binary), "--json")
+
+    assert run.returncode == 1
+    failure = json.loads(run.stdout)
+    assert failure["code"] == "kernel_response_invalid"
+    assert failure["category"] == "kernel_protocol"
+    assert "probe prerequisite" in failure["message"]
+
+
+def test_probe_preserves_absent_optional_runtime_capability(tmp_path: Path) -> None:
+    binary = fake_probe_response(
+        tmp_path,
+        '{"kernel_protocol_version":1,"status":"ok","aseprite_version":"test","api_version":41,"lua_version":"Lua 5.4","verified_prerequisites":["aseprite_scripting","lua_file_io","aseprite_json"],"verified_capabilities":[]}',
+    )
+
+    observation = probe(RuntimeRequest(aseprite=str(binary)))
+
+    assert observation.verified_capabilities == ()
+
+
+def test_adapter_passes_only_resources_declared_by_the_handler(tmp_path: Path) -> None:
+    recorded = tmp_path / "arguments.txt"
+    binary = fake_aseprite(
+        tmp_path,
+        f"""
+response=
+for argument in "$@"; do
+  printf '%s\n' "$argument" >> {shlex.quote(str(recorded))}
+  case "$argument" in response=*) response=${{argument#response=}};; esac
+done
+printf '%s' '{{"kernel_protocol_version":1,"status":"ok","result":{{}}}}' > "$response"
+""",
+    )
+    observation = RuntimeObservation(
+        selection_source="explicit",
+        requested_path=str(binary),
+        discovered_path=str(binary),
+        canonical_path=str(binary.resolve()),
+        resource_path=str(binary.parent.parent / "Resources" / "data" / "gui.xml"),
+        aseprite_version="test",
+        api_version=41,
+        lua_version="Lua 5.4",
+        verified_prerequisites=(
+            "aseprite_scripting",
+            "lua_file_io",
+            "aseprite_json",
+        ),
+        verified_capabilities=(),
+    )
+
+    invoke(observation, PackagedHandler("generic_test"), {}, 1)
+
+    arguments = recorded.read_text(encoding="utf-8").splitlines()
+    assert not any(argument.startswith("inspection=") for argument in arguments)
+    assert not any(argument.startswith("creation=") for argument in arguments)
+
+
+@pytest.mark.parametrize(
+    ("lua_version", "api_version", "capabilities", "missing_capabilities"),
+    [
+        ("Lua 5.3", 41, ["aseprite_runtime_introspection"], []),
+        ("Lua 5.4", 40, ["aseprite_runtime_introspection"], []),
+        ("Lua 5.4", 41, [], ["aseprite_runtime_introspection"]),
+    ],
+)
+def test_incompatible_runtime_fails_with_observed_requirements(
+    tmp_path: Path,
+    lua_version: str,
+    api_version: int,
+    capabilities: list[str],
+    missing_capabilities: list[str],
+) -> None:
+    response = json.dumps(
+        {
+            "kernel_protocol_version": 1,
+            "status": "ok",
+            "aseprite_version": "old",
+            "api_version": api_version,
+            "lua_version": lua_version,
+            "verified_prerequisites": [
+                "aseprite_scripting",
+                "lua_file_io",
+                "aseprite_json",
+            ],
+            "verified_capabilities": capabilities,
+        },
+        separators=(",", ":"),
+    )
+    binary = fake_probe_response(tmp_path, response)
+
+    run = spa("info", "--aseprite", str(binary), "--json")
+
+    assert run.returncode == 1
+    failure = json.loads(run.stdout)
+    validate(failure, json.loads(spa("info", "--schema").stdout)["failure_schema"])
+    assert failure["code"] == "runtime_incompatible"
+    assert failure["category"] == "environment"
+    assert failure["details"] == {
+        "kind": "runtime_compatibility",
+        "aseprite_version": "old",
+        "lua_version": lua_version,
+        "api_version": api_version,
+        "required_lua_language": "Lua 5.4",
+        "minimum_api_version": 41,
+        "missing_capabilities": missing_capabilities,
+    }
 
 
 def test_json_echo_rejects_boolean_number_swap(tmp_path: Path) -> None:
@@ -332,7 +457,10 @@ def test_process_start_failure_keeps_installed_executable_identity(
 
 def _assert_preparation_failure(binary: Path) -> None:
     info = next(descriptor for descriptor in OPERATIONS if descriptor.name == "info")
-    run = CliRunner().invoke(build_app(probe), ["info", "--aseprite", str(binary)])
+    run = CliRunner().invoke(
+        build_app(operation_services(probe), FAILURE_CODES),
+        ["info", "--aseprite", str(binary)],
+    )
     assert run.exit_code == 1, run.stdout
     assert run.stderr == ""
     failure = json.loads(run.stdout)
@@ -342,7 +470,7 @@ def _assert_preparation_failure(binary: Path) -> None:
     assert failure["details"]["kind"] == "process_start"
     assert failure["details"]["exit_status"] is None
     assert failure["diagnostics"]["exit_status"] is None
-    validate(failure, info.schema().failure_schema)
+    validate(failure, info.schema(FAILURE_CODES).failure_schema)
 
 
 def test_unwritable_temporary_workspace_has_typed_start_failure(

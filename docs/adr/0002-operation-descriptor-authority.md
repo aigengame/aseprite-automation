@@ -17,11 +17,30 @@ synthetic Operation.
 Descriptors own registration, public shapes, Published Language metadata, and
 statically decidable contract invariants, not native behavior. Python contract types
 implement and validate those Descriptor-owned shapes; they are not a second contract
-authority. An Ordinary Core Operation binds one fixed packaged Lua handler, which owns
-its Core Operation Semantics and native mapping as defined by ADR-0010. A capability
-whose behavior is implemented by an Application use case can have no Kernel binding. An
-application-composed capability can select and order multiple packaged Ordinary Core
-Operation handlers without redefining their semantics.
+authority. An Ordinary Core Operation binds one fixed packaged Lua handler. Its fixed
+packaged semantic entry point owns Core Operation Semantics and native mapping as
+defined by ADR-0010. A capability implemented by an Application use case can have no
+Kernel binding. An Operation Plan selects and orders the same packaged semantic entry
+points through its fixed Plan handler without redefining their semantics.
+
+A runtime-backed Descriptor declares the Lua language profile, minimum Aseprite
+`app.apiVersion`, and Aseprite-provided capabilities required by that Operation. The
+Aseprite Adapter observes those facts from the selected process. A complete probe
+establishes the scripting, file I/O, and JSON facilities used by its own transport; a
+failure before that response uses the typed process or Kernel failure channel. The
+Adapter reports native runtime capabilities independently of those fixed
+prerequisites. For an ordinary Operation, the Application checks the observed Lua
+language, API version, and capabilities against its Descriptor before execution.
+An Operation Plan derives requirements from its selected Step Descriptors plus the
+mandatory final Sprite inspection and observes and checks them inside its one Aseprite
+process before the first Step. The fixed Plan handler reports incompatible facts through
+the typed Kernel Protocol; Application maps
+them to `runtime_incompatible`. This avoids a second Aseprite probe process while
+preserving the pre-Step gate and zero Target Commit on incompatibility. Aggregate
+discovery declares the complete Plan Step repertoire supported only when all eligible
+Step requirements are observed. An individual Plan can use a subset and is checked
+against its selected Step requirements plus final Sprite inspection. Aseprite product
+version remains provenance and does not replace runtime observations.
 
 The Aseprite Adapter and Lua Operation Kernel communicate through a versioned private
 Kernel Protocol. Public defaults and null semantics are resolved before transport.

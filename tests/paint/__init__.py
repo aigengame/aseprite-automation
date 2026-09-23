@@ -1,0 +1,1 @@
+"""Paint Domain Module tests."""

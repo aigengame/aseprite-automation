@@ -5,9 +5,14 @@ from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import Annotated, Any, Literal, get_args
+from typing import Any, Literal, get_args
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializeAsAny,
+)
 
 
 class PublicModel(BaseModel):
@@ -27,6 +32,26 @@ class RuntimeRequest(Request):
     timeout_seconds: float = Field(default=15.0, gt=0, le=120)
 
 
+ProbePrerequisite = Literal[
+    "aseprite_scripting",
+    "lua_file_io",
+    "aseprite_json",
+]
+RuntimeCapability = Literal[
+    "aseprite_runtime_introspection",
+    "aseprite_sprite_create",
+    "aseprite_sprite_inspection",
+    "aseprite_paint_apply",
+    "aseprite_export_image",
+]
+
+
+class RuntimeRequirements(PublicModel):
+    lua_language: str = Field(min_length=1)
+    minimum_api_version: int = Field(ge=1)
+    required_capabilities: list[RuntimeCapability]
+
+
 class RuntimeFacts(PublicModel):
     selection_source: Literal["explicit", "environment", "path"]
     requested_path: str | None
@@ -36,6 +61,9 @@ class RuntimeFacts(PublicModel):
     resource_path: str
     aseprite_version: str
     api_version: int
+    lua_version: str
+    verified_prerequisites: list[ProbePrerequisite]
+    verified_capabilities: list[RuntimeCapability]
 
 
 class CapabilityGap(PublicModel):
@@ -61,11 +89,13 @@ class InfoResult(PublicModel):
 
 class OperationSchema(PublicModel):
     operation: str
-    execution_kind: Literal["read"]
+    execution_kind: Literal["read", "mutation", "export"]
     determinism: Literal["deterministic"]
     side_effects: list[str]
     minimum_aseprite_version: str | None
     requires_runtime: bool
+    plan_eligible: bool = False
+    runtime_requirements: RuntimeRequirements | None
     request_schema: dict
     result_schema: dict
     failure_schema: dict
@@ -109,12 +139,26 @@ class ProcessStartDetails(PublicModel):
 class KernelProtocolDetail(PublicModel):
     kind: Literal["kernel_protocol"] = "kernel_protocol"
     response_path: str
+    failed_step: int | None = Field(default=None, ge=1)
+    failed_operation: str | None = None
 
 
 class KernelExecutionDetails(PublicModel):
     kind: Literal["kernel_execution"] = "kernel_execution"
     response_path: str
     reason: str
+    failed_step: int | None = Field(default=None, ge=1)
+    failed_operation: str | None = None
+
+
+class RuntimeCompatibilityDetails(PublicModel):
+    kind: Literal["runtime_compatibility"] = "runtime_compatibility"
+    aseprite_version: str
+    lua_version: str
+    api_version: int
+    required_lua_language: str
+    minimum_api_version: int
+    missing_capabilities: list[RuntimeCapability]
 
 
 class RequestDetails(PublicModel):
@@ -127,17 +171,6 @@ class ValidationIssue(PublicModel):
     code: str
     message: str
 
-
-FailureDetails = Annotated[
-    NotFoundDetails
-    | ResourceDetails
-    | ProcessStartDetails
-    | ProcessDetails
-    | KernelProtocolDetail
-    | KernelExecutionDetails
-    | RequestDetails,
-    Field(discriminator="kind"),
-]
 
 FailureCategory = Literal["input", "environment", "execution", "kernel_protocol"]
 
@@ -159,7 +192,6 @@ def register_failure_codes(
 ) -> Mapping[str, FailureCodeSpec]:
     """Reject invalid registration before it can become a public projection."""
     registered: dict[str, FailureCodeSpec] = {}
-    details_types = set(get_args(get_args(FailureDetails)[0]))
     for spec in specs:
         if not re.fullmatch(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*", spec.code):
             raise ValueError(f"Failure Code must be lower_snake_case: {spec.code}")
@@ -169,72 +201,84 @@ def register_failure_codes(
             raise ValueError(f"Failure Code has no meaning: {spec.code}")
         if spec.category not in get_args(FailureCategory):
             raise ValueError(f"Unknown Failure Category: {spec.category}")
-        if spec.details_type not in details_types:
+        kind_field = spec.details_type.model_fields.get("kind")
+        if (
+            not issubclass(spec.details_type, PublicModel)
+            or kind_field is None
+            or len(get_args(kind_field.annotation)) != 1
+        ):
             raise ValueError(f"Unsupported Failure Details type: {spec.details_type}")
         registered[spec.code] = spec
     return MappingProxyType(registered)
 
 
-FAILURE_CODES = register_failure_codes(
-    (
-        FailureCodeSpec(
-            "invalid_request",
-            "The public request or CLI invocation is invalid",
-            "input",
-            RequestDetails,
-        ),
-        FailureCodeSpec(
-            "executable_not_found",
-            "The selected Aseprite executable is unavailable",
-            "environment",
-            NotFoundDetails,
-        ),
-        FailureCodeSpec(
-            "resource_incomplete",
-            "Required Aseprite resources are unavailable",
-            "environment",
-            ResourceDetails,
-        ),
-        FailureCodeSpec(
-            "process_start_failed",
-            "Aseprite invocation could not be prepared or started",
-            "execution",
-            ProcessStartDetails,
-        ),
-        FailureCodeSpec(
-            "process_timeout",
-            "The Aseprite process exceeded its deadline",
-            "execution",
-            ProcessDetails,
-        ),
-        FailureCodeSpec(
-            "output_limit_exceeded",
-            "Aseprite process output exceeded the bound",
-            "execution",
-            ProcessDetails,
-        ),
-        FailureCodeSpec(
-            "process_failed", "The Aseprite process failed", "execution", ProcessDetails
-        ),
-        FailureCodeSpec(
-            "kernel_response_missing",
-            "The private Kernel response is absent",
-            "kernel_protocol",
-            KernelProtocolDetail,
-        ),
-        FailureCodeSpec(
-            "kernel_response_invalid",
-            "The private Kernel response is invalid",
-            "kernel_protocol",
-            KernelProtocolDetail,
-        ),
-        FailureCodeSpec(
-            "kernel_execution_failed",
-            "The packaged Kernel handler refused execution",
-            "execution",
-            KernelExecutionDetails,
-        ),
-    )
+CORE_FAILURE_CODE_SPECS = (
+    FailureCodeSpec(
+        "invalid_request",
+        "The public request or CLI invocation is invalid",
+        "input",
+        RequestDetails,
+    ),
+    FailureCodeSpec(
+        "executable_not_found",
+        "The selected Aseprite executable is unavailable",
+        "environment",
+        NotFoundDetails,
+    ),
+    FailureCodeSpec(
+        "resource_incomplete",
+        "Required Aseprite resources are unavailable",
+        "environment",
+        ResourceDetails,
+    ),
+    FailureCodeSpec(
+        "process_start_failed",
+        "Aseprite invocation could not be prepared or started",
+        "execution",
+        ProcessStartDetails,
+    ),
+    FailureCodeSpec(
+        "process_timeout",
+        "The Aseprite process exceeded its deadline",
+        "execution",
+        ProcessDetails,
+    ),
+    FailureCodeSpec(
+        "output_limit_exceeded",
+        "Aseprite process output exceeded the bound",
+        "execution",
+        ProcessDetails,
+    ),
+    FailureCodeSpec(
+        "process_failed",
+        "The Aseprite process failed",
+        "execution",
+        ProcessDetails,
+    ),
+    FailureCodeSpec(
+        "kernel_response_missing",
+        "The private Kernel response is absent",
+        "kernel_protocol",
+        KernelProtocolDetail,
+    ),
+    FailureCodeSpec(
+        "kernel_response_invalid",
+        "The private Kernel response is invalid",
+        "kernel_protocol",
+        KernelProtocolDetail,
+    ),
+    FailureCodeSpec(
+        "kernel_execution_failed",
+        "The packaged Kernel handler refused execution",
+        "execution",
+        KernelExecutionDetails,
+    ),
+    FailureCodeSpec(
+        "runtime_incompatible",
+        "The installed Aseprite Lua language or scripting API version does not meet the Operation requirements",
+        "environment",
+        RuntimeCompatibilityDetails,
+    ),
 )
 
 
@@ -250,21 +294,16 @@ class FailureEnvelope(PublicModel):
     code: str
     category: FailureCategory
     message: str
-    details: FailureDetails
+    details: SerializeAsAny[PublicModel]
     diagnostics: Diagnostics = Field(default_factory=Diagnostics)
 
-    @model_validator(mode="after")
-    def validate_registered_failure(self) -> "FailureEnvelope":
-        spec = _registered_spec(self.code, self.details)
-        if self.category != spec.category:
-            raise ValueError(
-                f"Failure Category for {self.code} must be {spec.category}"
-            )
-        return self
 
-
-def _registered_spec(code: str, details: FailureDetails) -> FailureCodeSpec:
-    spec = FAILURE_CODES.get(code)
+def _registered_spec(
+    code: str,
+    details: PublicModel,
+    failure_codes: Mapping[str, FailureCodeSpec],
+) -> FailureCodeSpec:
+    spec = failure_codes.get(code)
     if spec is None:
         raise ValueError(f"Unknown Failure Code: {code}")
     if not isinstance(details, spec.details_type):
@@ -278,13 +317,14 @@ def failure_envelope(
     operation: str,
     code: str,
     message: str,
-    details: FailureDetails,
+    details: PublicModel,
     *,
     applicable_codes: tuple[str, ...],
+    failure_codes: Mapping[str, FailureCodeSpec],
     diagnostics: Diagnostics | None = None,
 ) -> FailureEnvelope:
     """Construct a registered failure applicable to its public Operation or Access path."""
-    spec = _registered_spec(code, details)
+    spec = _registered_spec(code, details, failure_codes)
     if code not in applicable_codes:
         raise ValueError(f"Failure Code {code} is not applicable to {operation}")
     return FailureEnvelope(
@@ -297,19 +337,28 @@ def failure_envelope(
     )
 
 
-def failure_schema(codes: tuple[str, ...], operation: str) -> dict[str, Any]:
+def failure_schema(
+    codes: tuple[str, ...],
+    operation: str,
+    failure_codes: Mapping[str, FailureCodeSpec],
+) -> dict[str, Any]:
     """Project one registered code/Category/Details union as Draft 2020-12."""
     if not codes or len(codes) != len(set(codes)):
         raise ValueError("Failure schema needs unique applicable codes")
-    unknown = set(codes) - FAILURE_CODES.keys()
+    unknown = set(codes) - failure_codes.keys()
     if unknown:
         raise ValueError(f"Unknown Failure Code in schema: {sorted(unknown)}")
     base = FailureEnvelope.model_json_schema()
-    definitions = base.pop("$defs")
+    definitions = base.pop("$defs", {})
     base["required"] = list(dict.fromkeys([*base["required"], "status"]))
     branches = []
     for code in codes:
-        spec = FAILURE_CODES[code]
+        spec = failure_codes[code]
+        details_schema = spec.details_type.model_json_schema(
+            ref_template="#/$defs/{model}"
+        )
+        definitions.update(details_schema.pop("$defs", {}))
+        definitions[spec.details_type.__name__] = details_schema
         branch = deepcopy(base)
         branch["properties"]["operation"] = {"const": operation}
         branch["properties"]["code"] = {"const": code}

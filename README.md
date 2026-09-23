@@ -4,7 +4,7 @@ Aseprite Automation (SPA) provides agent-facing automation for Aseprite. `SPA` i
 short project name used in documentation; `spa` is the primary executable.
 
 > [!IMPORTANT]
-> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The first installed CLI slice provides runtime discovery and contract inspection; sprite authoring Operations are not yet shipped. Feature issues own delivery contracts, evidence requirements, provenance links, and curated evidence summaries, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
+> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery, Sprite creation and inspection, bounded Pixel Patch application, and verified RGB PNG Image Export. Feature issues own delivery contracts, evidence requirements, provenance links, and curated evidence summaries, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
 
 This README owns the user-facing product introduction and promotion, value-proposition
 narrative, onboarding, adoption guidance, and project navigation. Its factual claims
@@ -65,6 +65,7 @@ not a second public API.
 - Machine output contains a schema-valid Operation Result or Failure Envelope and stays separate from vendor diagnostics.
 - Stable Failure Codes drive automation; typed Failure Details and human Diagnostics have different roles.
 - The Surface Manifest describes every callable Operation, side effects, determinism, version constraints, and schemas.
+- Runtime-backed Operation Descriptors declare their Lua language, Aseprite API version, and native capability requirements. The Adapter verifies fixed probe prerequisites and reports runtime capabilities independently; the Application checks the selected Descriptor before Operation execution.
 - Each Operation defines Aseprite-aligned target fields, cardinality, Inspection Scope, Operation Limits, and result facts. SPA has no universal Selector or Locator.
 - Inspections report normalized coverage and completeness. Native absence, not requested, unsupported, and exceeded bounds remain distinct.
 - Coordinate-bearing requests name their Coordinate Space. Public Rectangles use Aseprite's `x`, `y`, `width`, and `height` vocabulary and half-open coverage.
@@ -99,7 +100,7 @@ actual dependencies. The operating model is a trusted
 local workspace. Asset Pipeline integration uses a downstream-owned Anti-Corruption
 Layer and the public `spa` CLI JSON contract.
 
-## Try the installed CLI tracer
+## Try the installed CLI
 
 Install the project with `uv sync`, then point the runtime probe at an installed
 Aseprite executable (on macOS, the binary inside `Aseprite.app/Contents/MacOS/`).
@@ -112,15 +113,59 @@ uv run spa schema --aseprite /path/to/Aseprite.app/Contents/MacOS/aseprite
 uv run spa info --schema
 uv run spa info --input-json '{"aseprite":"/path/to/Aseprite.app/Contents/MacOS/aseprite"}'
 printf '%s\n' '{"aseprite":"/path/to/Aseprite.app/Contents/MacOS/aseprite"}' | uv run spa info --input-json -
+uv run spa sprite create --input-json '{"aseprite":"/path/to/aseprite","target_sprite_file":"sprite.aseprite","width":16,"height":16,"color_mode":"rgb","initial_layer":{"kind":"transparent"},"overwrite":false}'
+uv run spa sprite get --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite","inspection_scope":["frames","layers","cels"]}'
+uv run spa paint apply --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"painted.aseprite","in_place":false,"overwrite":false,"target":{"layer_path":[1],"frame_number":1},"patch":{"coordinate_space":"image-pixel","rectangle":{"x":0,"y":0,"width":2,"height":1},"runs":[{"x":0,"y":0,"length":2,"color":{"kind":"rgba","red":255,"green":0,"blue":0,"alpha":255}}]}}'
+uv run spa plan check --input-json '{"plan":{"source_sprite_file":"sprite.aseprite","steps":[{"operation":"sprite get","input":{"inspection_scope":["frames","layers"]}}]}}'
+uv run spa plan run --input-json '{"aseprite":"/path/to/aseprite","plan":{"source_sprite_file":"sprite.aseprite","steps":[{"operation":"sprite get","input":{"inspection_scope":["frames","layers"]}}]}}'
+uv run spa export image --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","destination":{"path":"image.png","if_exists":"fail"},"frame_number":1,"color_mode":"preserve","color_profile":"preserve","transparency":"preserve"}'
 ```
 
 `--input-json -` reads one complete JSON request object from stdin; a literal
 `--input-json` value remains available for short invocations.
+`spa sprite create` requires an explicit `overwrite` boolean and refuses to replace an
+existing Target Sprite File when it is `false`.
+`spa paint apply` accepts at most 256 addressed Image Pixels per request. It defaults
+to rejecting out-of-bounds pixels; `clipping: "clip"` is the explicit clipping policy.
+In-place editing requires Source and Target to name the same publication entry,
+plus both `in_place: true` and `overwrite: true`.
+Standalone Paint rejects a Source alias that traverses the Target publication entry
+for either `in_place` value.
+
+`spa plan check` validates a bounded Plan, including current Source and Target path
+conditions, without starting Aseprite. `spa plan run`
+executes up to 64 Sprite-bound `sprite create`, `sprite get`, and `paint apply` Steps
+on one live Sprite in one Aseprite process. A read Plan publishes no file. A mutating
+Plan declares one Target Sprite File; the staged file is reopened and verified before
+one Target Commit. A failed Step reports its one-based `failed_step` and publishes no
+target. Each Paint Step retains its own 256-pixel Operation Limit. A Plan with an
+existing Source may edit in place only with `in_place: true` and `overwrite: true`.
+Plans reject a Source alias that traverses the Target publication entry for either
+`in_place` value. An explicit in-place edit uses the same Source and Target entry.
+
+`spa export image` renders one explicit Frame of the full canvas with persisted visible
+Layers. It accepts RGB Source Sprites with no Color Profile or sRGB. It rejects
+Tilemap Images in the selected Frame, including hidden Layers. It preserves native
+Alpha values, verifies the staged PNG with an independent decoder, and requires
+`if_exists: fail` or `replace` before publication.
 
 `--aseprite` and `SPA_ASEPRITE_EXECUTABLE` name an executable file, not a macOS
 `.app` directory. When `--aseprite` is absent, SPA checks
-`SPA_ASEPRITE_EXECUTABLE`, then `aseprite` on `PATH`. `spa schema` reports the
-installed callable Operations; currently these are `info`, `version`, and `schema`.
+`SPA_ASEPRITE_EXECUTABLE`, then `aseprite` on `PATH`. `spa schema` is the source
+of truth for the installed callable Operations and their contracts.
+`spa info` reports the selected Aseprite version, `app.apiVersion`, embedded Lua
+language version, fixed scripting, file I/O, and JSON probe prerequisites, and
+independently observed runtime capabilities. A prerequisite failure uses the typed
+process or Kernel failure channel. A Lua-language or API-version mismatch, or a
+capability required by the selected Operation but absent from the observation, returns
+`runtime_incompatible` before the Operation executes.
+`spa plan run` observes the selected Steps' requirements plus mandatory final Sprite
+inspection requirements inside its one execution process. Incompatibility returns
+`runtime_incompatible`
+before any Plan Step begins. Aggregate discovery lists Plan as supported only when
+the runtime supports every currently eligible Step kind. A Plan with fewer Step
+kinds can still run; its selected and final-inspection requirements are checked per
+request.
 It also includes `access_failure_schema` for CLI failures before an Operation is
 selected; each Operation entry has its own applicable `failure_schema`. Aggregate
 discovery probes Aseprite, while each command's `--schema` remains available without a

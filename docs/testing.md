@@ -7,10 +7,15 @@ verification tier. The layout does not mirror source packages or CLI Command Gro
 
 | Directory | Behavior owner |
 | --- | --- |
+| `tests/application/` | Application orchestration, including compatibility checks before Operation execution. |
 | `tests/cli/` | Access Projection through the installed CLI and its in-process projections. |
 | `tests/contracts/` | Shared Published Language rules, including Failure Code registration and Operation Descriptor constraints. |
+| `tests/export/` | Image Export contract, PNG Artifact verification and publication, and real Aseprite output evidence. |
+| `tests/paint/` | Paint Domain Module contract, bounded mutation evidence, and native Pixel Patch behavior. |
+| `tests/plan/` | Static Plan preflight, single-Sprite Step composition, and commit gates. |
 | `tests/release/` | Release metadata and publication gates. |
 | `tests/runtime/` | Aseprite Runtime Integration, including discovery, launch, private Kernel transport, and real-runtime evidence. |
+| `tests/sprite/` | Sprite Domain Module contracts plus real creation, persisted reopen, structural inspection, and Target Commit evidence. |
 
 Add an ownership directory only when tests for that behavior exist. Keep a helper in
 the narrowest ownership directory that uses it. Move a helper to `tests/support.py`
@@ -27,6 +32,51 @@ Use the tier in the file name:
   Aseprite behavior.
 - `test_e2e_*.py` invokes the installed `spa` CLI with a real Aseprite executable.
   Mark the module or each test with `pytest.mark.e2e`.
+
+Runtime integration fixtures cover incompatible Lua and API observations and structured
+failure without claiming native execution. Real-runtime tests execute the packaged
+probe and assert its observed embedded Lua version, `app.apiVersion`, JSON round trip,
+file I/O, and scripting evidence. These three facilities are prerequisites of a complete
+probe response. Runtime capabilities are reported independently: omitting a known
+capability does not invalidate the probe, while the Application rejects it before
+execution when the selected Descriptor requires it. Each later Operation adds
+real-runtime evidence for the native capabilities named by its Descriptor.
+The Sprite E2E fixture covers nonempty Frames, Tags, Palettes, nested Layers, Cels,
+Slices, and Tilesets in addition to empty-section and unrequested-section semantics.
+Slice inspection uses Aseprite's native sprite-sheet metadata export to observe the
+complete ordered Key list, converts its zero-based Frames to the public one-based model,
+and combines it with public Slice user data. The private metadata and texture remain in
+the invocation workspace.
+The Export Image E2E fixtures cover native visible Layer composition, RGB Alpha
+values, no-profile and sRGB files, unsupported source modes, Tilemap Images on visible
+and hidden Layers, unsupported Color Profiles, and explicit replacement. A wheel-installed
+test verifies the packaged Export handler and Pillow decoder on Linux CI.
+Paint E2E cases reject direct and two-link Source aliases for both `in_place` values
+without a Target Commit. Static integration cases confirm rejection before the
+runtime probe. A real Aseprite case accepts explicit in-place Paint through two path
+spellings of the same publication entry. On a case-insensitive filesystem, real
+Paint cases also check file-name case variants under both `in_place` values.
+Plan E2E cases cover read-only composition, create/paint/get on one live Sprite,
+failed-Step and failed-Postcondition publication gates, and in-place failure
+preserving the original file digest. A wheel-installed case verifies the packaged
+Plan handler. Static Plan checks execute without Aseprite and report missing Source,
+invalid Target parent, and existing Target conflicts. A controlled transport case
+verifies one process and typed failed-Step evidence; the real runtime verifies the
+shared capability probe before Plan Steps.
+Plan preflight also rejects Source aliases that would be replaced by Target Commit and
+Postconditions that contradict a first Sprite creation Step. Real Aseprite cases
+verify alias rejection with both `in_place` values, same-entry in-place success, and
+that a document-dependent Postcondition failure leaves the Target absent.
+Aggregate discovery conservatively requires every eligible Plan Step capability;
+the Plan execution gate checks selected Step requirements plus mandatory final Sprite
+inspection in its one Aseprite process.
+
+The initial evidence profiles use local macOS Aseprite 1.3.18.5-dev and the pinned
+Linux CI Aseprite 1.3.18.5 source release. Both expose `_VERSION == "Lua 5.4"` and
+`app.apiVersion == 41`; the macOS build's vendored Lua 5.4.6 records source provenance,
+not a patch-level compatibility rule. The E2E assertion pins this evidence family while
+the runtime compatibility decision continues to use the Descriptor's observed language
+and API requirements.
 
 Pytest rejects unregistered markers. The root e2e gate also rejects a selected e2e
 test when `SPA_TEST_ASEPRITE` is absent, is not a file, or is not executable. A missing
@@ -58,11 +108,21 @@ Run the same source checks used by CI with:
 uv run --frozen ruff check .
 uv run --frozen ruff format --check .
 uv run --frozen pyright
+uv run --frozen python scripts/lua_quality.py
 ```
 
 `pyright` checks production code under `src/`. Runtime tests deliberately construct
 invalid and partially controlled values, so their correctness is enforced by pytest
 instead of the production type gate.
+
+The Lua gate covers every tracked `*.lua` file, including production scripts and test
+fixtures. Install the Luacheck and StyLua versions pinned in
+`.github/actions/setup-lua-quality/action.yml` on your `PATH`. Run only the Lua linter
+with `uv run --frozen python scripts/lua_quality.py lint`, or format the Lua baseline
+with `uv run --frozen python scripts/lua_quality.py format`. The default command runs
+Luacheck and StyLua in check mode. Luacheck checks Lua syntax and known globals;
+StyLua checks formatting. Neither check verifies Aseprite API members or native
+behavior. Use the real-runtime E2E tier for that evidence.
 
 ## CI gates
 
@@ -74,10 +134,10 @@ GitHub does not emit a second workflow event for a pull request updated with
 
 | Job | Required evidence |
 | --- | --- |
-| Source quality | Ruff lint and formatting plus Pyright for production source. |
+| Source quality | Ruff lint and formatting, Pyright for production source, and Luacheck plus StyLua for all tracked Lua. |
 | Fast tests | Unit and integration tests selected with `-m "not e2e"`. |
 | Build and smoke test distributions | One sdist and wheel, valid package metadata, and a successful `spa version` from a wheel-only environment populated from locked runtime dependencies. |
-| Linux real Aseprite E2E | The installed SPA CLI drives the pinned real Aseprite `--batch --script` path and records JUnit evidence. |
+| Linux real Aseprite E2E | The project CLI and a wheel-installed CLI drive the pinned real Aseprite `--batch --script` path. A wheel-only negative case reaches the packaged Sprite creation handler and proves that no Target Commit occurs after rejection; a wheel-only Export case verifies a PNG Artifact. The job records JUnit evidence. |
 
 A failure in any job fails CI. Configure these four named jobs as required checks on
 `main` when repository branch protection is enabled.
@@ -100,7 +160,8 @@ tests do not execute.
 The Linux job builds the official source release and verifies the archive against the
 version and SHA-256 authority in `.github/actions/setup-linux-aseprite/action.yml`. It
 enables scripting with Aseprite's `LAF_BACKEND=none`, checks that both `DISPLAY` and
-`WAYLAND_DISPLAY` are absent, and then runs the real-runtime tier. The JUnit audit
+`WAYLAND_DISPLAY` are absent, builds and installs the current wheel in a separate
+environment, and then runs the real-runtime tier. The JUnit audit
 fails when the report is missing, contains zero tests, or all selected tests were
 skipped. The job summary records the tested commit, trigger, executable, Aseprite
 version, display state, and exercised path. A macOS-only skip remains visible and does

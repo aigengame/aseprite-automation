@@ -1,11 +1,14 @@
 """Application dispatch and outcome classification for descriptor-backed Operations."""
 
 import json
+from collections.abc import Mapping
+from dataclasses import replace
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
 from spa.contracts import (
+    FailureCodeSpec,
     FailureEnvelope,
     KernelExecutionDetails,
     KernelProtocolDetail,
@@ -14,24 +17,38 @@ from spa.contracts import (
     ProcessStartDetails,
     RequestDetails,
     ResourceDetails,
+    RuntimeCapability,
+    RuntimeCompatibilityDetails,
+    RuntimeRequest,
     ValidationIssue,
     failure_envelope,
 )
-from spa.descriptors import OperationDescriptor
+from spa.export import ArtifactFileDetails, ArtifactVerificationDetails
+from spa.mutation import TargetCommitDetails
+from spa.operation import OperationDescriptor
 from spa.ports import (
+    ArtifactFileEvidence,
+    ArtifactVerificationEvidence,
     DiscoveryEvidence,
     HandlerEvidence,
     LaunchEvidence,
+    OperationServices,
+    PostconditionEvidence,
     ProcessEvidence,
+    RequestIssue,
     ResourceEvidence,
     ResponseEvidence,
+    RuntimeCompatibilityEvidence,
     RuntimeIssue,
-    RuntimeProbe,
+    RuntimeObservation,
+    TargetCommitEvidence,
 )
 
 
 def _request_failure(
-    descriptor: OperationDescriptor[Any, Any], issues: list[ValidationIssue]
+    descriptor: OperationDescriptor[Any, Any],
+    issues: list[ValidationIssue],
+    failure_codes: Mapping[str, FailureCodeSpec],
 ) -> FailureEnvelope:
     return failure_envelope(
         operation=f"spa {descriptor.name}",
@@ -39,11 +56,14 @@ def _request_failure(
         message="Invalid Operation Request",
         details=RequestDetails(errors=issues),
         applicable_codes=descriptor.failure_codes,
+        failure_codes=failure_codes,
     )
 
 
 def _runtime_failure(
-    descriptor: OperationDescriptor[Any, Any], issue: RuntimeIssue
+    descriptor: OperationDescriptor[Any, Any],
+    issue: RuntimeIssue,
+    failure_codes: Mapping[str, FailureCodeSpec],
 ) -> FailureEnvelope:
     match issue.kind, issue.evidence:
         case "discovery_absent", DiscoveryEvidence() as evidence:
@@ -73,19 +93,61 @@ def _runtime_failure(
             )
         case "response_absent", ResponseEvidence() as evidence:
             code = "kernel_response_missing"
-            details = KernelProtocolDetail(response_path=evidence.response_path)
+            details = KernelProtocolDetail(
+                response_path=evidence.response_path,
+                failed_step=evidence.failed_step,
+                failed_operation=evidence.failed_operation,
+            )
         case "response_malformed", ResponseEvidence() as evidence:
             code = "kernel_response_invalid"
-            details = KernelProtocolDetail(response_path=evidence.response_path)
+            details = KernelProtocolDetail(
+                response_path=evidence.response_path,
+                failed_step=evidence.failed_step,
+                failed_operation=evidence.failed_operation,
+            )
         case "handler_rejected", HandlerEvidence() as evidence:
             code = "kernel_execution_failed"
             details = KernelExecutionDetails(
-                response_path=evidence.response_path, reason=evidence.reason
+                response_path=evidence.response_path,
+                reason=evidence.reason,
+                failed_step=evidence.failed_step,
+                failed_operation=evidence.failed_operation,
+            )
+        case "postcondition_failed", PostconditionEvidence() as evidence:
+            code = "kernel_response_invalid"
+            details = KernelProtocolDetail(
+                response_path=evidence.response_path,
+                failed_step=evidence.failed_step,
+                failed_operation=evidence.failed_operation,
             )
         case (("process_failed" | "exit_mismatch"), ProcessEvidence() as evidence):
             code = "process_failed"
             details = ProcessDetails(
                 executable=evidence.executable, exit_status=evidence.exit_status
+            )
+        case "runtime_incompatible", RuntimeCompatibilityEvidence() as evidence:
+            code = "runtime_incompatible"
+            details = RuntimeCompatibilityDetails(
+                aseprite_version=evidence.aseprite_version,
+                lua_version=evidence.lua_version,
+                api_version=evidence.api_version,
+                required_lua_language=evidence.required_lua_language,
+                minimum_api_version=evidence.minimum_api_version,
+                missing_capabilities=list(evidence.missing_capabilities),
+            )
+        case "target_commit_failed", TargetCommitEvidence() as evidence:
+            code = "target_commit_failed"
+            details = TargetCommitDetails(
+                target_sprite_file=evidence.target_sprite_file,
+                reason=evidence.reason,
+            )
+        case "artifact_file_failed", ArtifactFileEvidence() as evidence:
+            code = "artifact_file_failed"
+            details = ArtifactFileDetails(path=evidence.path, reason=evidence.reason)
+        case "artifact_verification_failed", ArtifactVerificationEvidence() as evidence:
+            code = "artifact_verification_failed"
+            details = ArtifactVerificationDetails(
+                path=evidence.path, reason=evidence.reason
             )
         case _:
             raise ValueError(f"Unknown runtime issue kind: {issue.kind}")
@@ -95,25 +157,28 @@ def _runtime_failure(
         message=str(issue),
         details=details,
         applicable_codes=descriptor.failure_codes,
+        failure_codes=failure_codes,
         diagnostics=issue.diagnostics,
     )
 
 
 def _validated_outcome(
-    descriptor: OperationDescriptor[Any, Any], outcome: BaseModel | FailureEnvelope
+    descriptor: OperationDescriptor[Any, Any],
+    outcome: BaseModel | FailureEnvelope,
+    failure_codes: Mapping[str, FailureCodeSpec],
 ) -> BaseModel | FailureEnvelope:
     operation = f"spa {descriptor.name}"
     if isinstance(outcome, FailureEnvelope):
-        validated = FailureEnvelope.model_validate(outcome.model_dump())
-        if validated.operation != operation:
+        if outcome.operation != operation:
             raise ValueError(f"Failure Operation does not match {operation}")
         return failure_envelope(
             operation=operation,
-            code=validated.code,
-            message=validated.message,
-            details=validated.details,
+            code=outcome.code,
+            message=outcome.message,
+            details=outcome.details,
             applicable_codes=descriptor.failure_codes,
-            diagnostics=validated.diagnostics,
+            failure_codes=failure_codes,
+            diagnostics=outcome.diagnostics,
         )
     if not isinstance(outcome, descriptor.result_type):
         raise TypeError(f"Operation Result does not match {operation}")
@@ -124,8 +189,10 @@ def dispatch(
     descriptor: OperationDescriptor[Any, Any],
     input_json: str | None,
     argv_values: dict[str, Any],
-    probe_runtime: RuntimeProbe,
+    dependencies: OperationServices,
+    failure_codes: Mapping[str, FailureCodeSpec],
 ) -> BaseModel | FailureEnvelope:
+    configured = dependencies
     try:
         values: dict[str, Any] = (
             json.loads(input_json) if input_json is not None else {}
@@ -147,14 +214,61 @@ def dispatch(
                 )
                 for error in exc.errors(include_context=False)
             ],
+            failure_codes,
         )
     except (json.JSONDecodeError, TypeError) as exc:
         return _request_failure(
             descriptor,
             [ValidationIssue(location=[], code="json_input", message=str(exc))],
+            failure_codes,
         )
+
+    observation: RuntimeObservation | None = None
+
+    def compatible_probe(runtime_request: RuntimeRequest) -> RuntimeObservation:
+        nonlocal observation
+        if observation is None:
+            observation = configured.probe_runtime(runtime_request)
+            requirements = descriptor.runtime_requirements
+            if requirements is None:
+                return observation
+            missing: tuple[RuntimeCapability, ...] = tuple(
+                capability
+                for capability in requirements.required_capabilities
+                if capability not in observation.verified_capabilities
+            )
+            if (
+                observation.lua_version != requirements.lua_language
+                or observation.api_version < requirements.minimum_api_version
+                or missing
+            ):
+                raise RuntimeIssue(
+                    "runtime_incompatible",
+                    "Installed Aseprite runtime does not meet the Operation requirements",
+                    RuntimeCompatibilityEvidence(
+                        aseprite_version=observation.aseprite_version,
+                        lua_version=observation.lua_version,
+                        api_version=observation.api_version,
+                        required_lua_language=requirements.lua_language,
+                        minimum_api_version=requirements.minimum_api_version,
+                        missing_capabilities=missing,
+                    ),
+                )
+        return observation
+
     try:
-        outcome = descriptor.execute(request, probe_runtime)
+        if (
+            descriptor.runtime_requirements is not None
+            and descriptor.probe_before_execute
+        ):
+            if not isinstance(request, RuntimeRequest):
+                raise TypeError("Runtime Operation Request must extend RuntimeRequest")
+            compatible_probe(request)
+        outcome = descriptor.execute(
+            request, replace(configured, probe_runtime=compatible_probe)
+        )
+    except RequestIssue as exc:
+        return _request_failure(descriptor, exc.issues, failure_codes)
     except RuntimeIssue as exc:
-        return _runtime_failure(descriptor, exc)
-    return _validated_outcome(descriptor, outcome)
+        return _runtime_failure(descriptor, exc, failure_codes)
+    return _validated_outcome(descriptor, outcome, failure_codes)

@@ -19,9 +19,35 @@ def test_info_reports_installed_runtime() -> None:
     result = json.loads(run.stdout)
     assert result["operation"] == "spa info"
     assert result["runtime"]["resource_complete"] is True
-    assert result["runtime"]["aseprite_version"]
-    assert result["runtime"]["api_version"]
+    # Pin the evidence profile without using the product version as a runtime gate.
+    assert result["runtime"]["aseprite_version"].startswith("1.3.18.5")
+    assert result["runtime"]["api_version"] == 41
+    assert result["runtime"]["lua_version"] == "Lua 5.4"
+    assert result["runtime"]["verified_prerequisites"] == [
+        "aseprite_scripting",
+        "lua_file_io",
+        "aseprite_json",
+    ]
+    assert result["runtime"]["verified_capabilities"] == [
+        "aseprite_runtime_introspection",
+        "aseprite_sprite_create",
+        "aseprite_sprite_inspection",
+        "aseprite_paint_apply",
+        "aseprite_export_image",
+    ]
     assert result["supported_capabilities"]
+    assert result["supported_capabilities"] == [
+        "spa info",
+        "spa version",
+        "spa schema",
+        "spa sprite create",
+        "spa sprite get",
+        "spa paint apply",
+        "spa export image",
+        "spa plan check",
+        "spa plan run",
+    ]
+    assert result["capability_gaps"] == []
     info_schema = json.loads(spa("info", "--schema").stdout)
     validate(result, info_schema["result_schema"])
     input_run = spa(
@@ -31,6 +57,9 @@ def test_info_reports_installed_runtime() -> None:
     )
     assert input_run.returncode == 0, input_run.stdout
     assert json.loads(input_run.stdout)["runtime"] == result["runtime"]
+    human_run = spa("info", "--aseprite", os.environ["SPA_TEST_ASEPRITE"], "--human")
+    assert human_run.returncode == 0, human_run.stdout
+    assert "Lua 5.4" in human_run.stdout
 
 
 def test_symlinked_executable_resolves_to_resource_complete_bundle(

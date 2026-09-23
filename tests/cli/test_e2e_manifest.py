@@ -24,10 +24,24 @@ def test_manifest_is_projected_from_command_descriptors() -> None:
         "spa info",
         "spa version",
         "spa schema",
+        "spa sprite create",
+        "spa sprite get",
+        "spa paint apply",
+        "spa export image",
+        "spa plan check",
+        "spa plan run",
     ]
+    eligibility = {
+        entry["operation"]: entry["plan_eligible"] for entry in manifest["operations"]
+    }
+    assert {name for name, eligible in eligibility.items() if eligible} == {
+        "spa sprite create",
+        "spa sprite get",
+        "spa paint apply",
+    }
     for entry in manifest["operations"]:
-        command = entry["operation"].split()[1]
-        assert entry == json.loads(spa(command, "--schema").stdout)
+        command = entry["operation"].split()[1:]
+        assert entry == json.loads(spa(*command, "--schema").stdout)
         Draft202012Validator.check_schema(entry["request_schema"])
         Draft202012Validator.check_schema(entry["result_schema"])
         Draft202012Validator.check_schema(entry["failure_schema"])

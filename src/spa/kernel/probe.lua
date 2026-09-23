@@ -1,5 +1,6 @@
 -- Fixed, packaged Kernel Protocol probe. Runtime files carry data, never Lua behavior.
 local kernel_protocol_version = 1
+local capability_probe = dofile(app.params.capability_probe)
 
 local function execute()
   local request_file = assert(io.open(app.params.request, "rb"))
@@ -17,6 +18,13 @@ local function execute()
     status = "ok",
     aseprite_version = tostring(app.version),
     api_version = app.apiVersion,
+    lua_version = _VERSION,
+    verified_prerequisites = {
+      "aseprite_scripting",
+      "lua_file_io",
+      "aseprite_json",
+    },
+    verified_capabilities = capability_probe.observe(),
   }
 end
 

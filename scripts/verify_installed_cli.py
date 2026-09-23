@@ -1,6 +1,7 @@
 """Smoke test a wheel-installed SPA executable against project metadata."""
 
 import json
+import os
 import subprocess
 import sys
 import tomllib
@@ -29,7 +30,39 @@ def main() -> None:
     if response != expected:
         raise SystemExit(f"installed CLI returned {response!r}; expected {expected!r}")
 
-    print(f"verified installed SPA {expected_version} at {executable}")
+    installed_python = executable.parent / (
+        "python.exe" if os.name == "nt" else "python"
+    )
+    subprocess.run(
+        [
+            str(installed_python),
+            "-c",
+            """from importlib.resources import files
+kernel = files("spa.kernel")
+for name in (
+    "probe.lua",
+    "sprite_create.lua",
+    "sprite_create_support.lua",
+    "sprite_get.lua",
+    "sprite_inspect.lua",
+    "sprite_inspection_fixture.aseprite",
+    "export_image.lua",
+    "export_image_support.lua",
+):
+    resource = kernel.joinpath(name)
+    if not resource.is_file() or not resource.read_bytes():
+        raise SystemExit(f"missing installed Kernel resource: {name}")
+""",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    print(
+        f"verified installed SPA {expected_version} and Kernel resources at "
+        f"{executable}"
+    )
 
 
 if __name__ == "__main__":
