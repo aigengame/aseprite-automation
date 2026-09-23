@@ -22,8 +22,7 @@ local function declared_profile(source_file)
       local frame_header = assert(file:read(16))
       local frame_size, frame_magic, old_chunks, _, new_chunks =
         string.unpack("<I4I2I2I2xxI4", frame_header)
-      assert(frame_magic == 0xf1fa and frame_size >= 16,
-             "invalid Sprite Frame")
+      assert(frame_magic == 0xf1fa and frame_size >= 16, "invalid Sprite Frame")
       local frame_end = frame_at + frame_size
       assert(frame_end <= file_size, "incomplete Sprite Frame")
       local chunks = old_chunks == 0xffff and new_chunks or old_chunks
@@ -33,8 +32,7 @@ local function declared_profile(source_file)
         assert(file:seek("set", chunk_at))
         local chunk_header = assert(file:read(6))
         local chunk_size, chunk_type = string.unpack("<I4I2", chunk_header)
-        assert(chunk_size >= 6 and chunk_at + chunk_size <= frame_end,
-               "invalid Sprite chunk")
+        assert(chunk_size >= 6 and chunk_at + chunk_size <= frame_end, "invalid Sprite chunk")
         if chunk_type == 0x2007 then
           assert(chunk_size >= 22, "incomplete Color Profile chunk")
           local profile_type, flags = string.unpack("<I2I2", assert(file:read(4)))
@@ -42,9 +40,9 @@ local function declared_profile(source_file)
           assert(flags == 0, "unsupported Source Sprite Color Profile")
           local kind = profile_type == 0 and "none"
             or profile_type == 1 and "srgb"
-            or profile_type == 2 and "icc" or "unsupported"
-          assert(observed == nil or observed == kind,
-                 "conflicting Color Profile chunks")
+            or profile_type == 2 and "icc"
+            or "unsupported"
+          assert(observed == nil or observed == kind, "conflicting Color Profile chunks")
           observed = kind
         end
         chunk_at = chunk_at + chunk_size
@@ -62,7 +60,7 @@ local function source_profile(sprite)
   local color_space = sprite.colorSpace
   assert(color_space ~= nil, "Source Sprite has no Color Profile observation")
   if color_space == ColorSpace() then return "none" end
-  if color_space == ColorSpace{ sRGB=true } then return "srgb" end
+  if color_space == ColorSpace { sRGB = true } then return "srgb" end
   error("unsupported Source Sprite Color Profile")
 end
 
@@ -92,16 +90,17 @@ function module.execute(payload)
   local source = nil
   local ok, result = pcall(function()
     local declared = declared_profile(payload.source_sprite_file)
-    assert(declared == "none" or declared == "srgb",
-           "unsupported Source Sprite Color Profile")
+    assert(declared == "none" or declared == "srgb", "unsupported Source Sprite Color Profile")
     app.preferences.color.manage = true
     app.preferences.color.files_with_profile = profile_embedded
     app.preferences.color.missing_profile = profile_disable
     app.preferences.experimental.compose_groups = true
     source = assert(app.open(payload.source_sprite_file), "could not open Source Sprite")
     assert(source.colorMode == ColorMode.RGB, "unsupported Source Color Mode")
-    assert(payload.frame_number >= 1 and payload.frame_number <= #source.frames,
-           "Frame Number is outside the Source Sprite")
+    assert(
+      payload.frame_number >= 1 and payload.frame_number <= #source.frames,
+      "Frame Number is outside the Source Sprite"
+    )
     reject_tilemap_images(source.layers, payload.frame_number)
     if declared == "none" then source:assignColorSpace(ColorSpace()) end
     local profile = source_profile(source)
@@ -109,8 +108,10 @@ function module.execute(payload)
     local rendered = Image(source.spec)
     rendered:drawSprite(source, payload.frame_number, 0, 0)
     assert(rendered.colorMode == ColorMode.RGB, "renderer changed Color Mode")
-    assert(rendered.bytesPerPixel == 4 and rendered.rowStride == source.width * 4,
-           "unexpected native RGB Image layout")
+    assert(
+      rendered.bytesPerPixel == 4 and rendered.rowStride == source.width * 4,
+      "unexpected native RGB Image layout"
+    )
     local bytes = rendered.bytes
     local alpha_min, alpha_max = 255, 0
     for offset = 4, #bytes, 4 do

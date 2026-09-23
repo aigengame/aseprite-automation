@@ -6,7 +6,7 @@ local sprite = Sprite(2, 1, native_mode)
 if app.params.profile == "none" then
   sprite:assignColorSpace(ColorSpace())
 elseif app.params.profile == "icc" then
-  sprite:assignColorSpace(ColorSpace{ fromFile=assert(app.params.icc_file) })
+  sprite:assignColorSpace(ColorSpace { fromFile = assert(app.params.icc_file) })
 end
 if mode == "rgb" then
   local image = sprite.layers[1].cels[1].image

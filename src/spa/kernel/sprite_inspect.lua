@@ -12,16 +12,12 @@ local function rgba(color)
 end
 
 local function rectangle(value)
-  return { x=value.x, y=value.y, width=value.width, height=value.height }
+  return { x = value.x, y = value.y, width = value.width, height = value.height }
 end
 
-local function point(value)
-  return { x=value.x, y=value.y }
-end
+local function point(value) return { x = value.x, y = value.y } end
 
-local function size(value)
-  return { width=value.width, height=value.height }
-end
+local function size(value) return { width = value.width, height = value.height } end
 
 local function color_mode(value)
   if value == ColorMode.RGB then return "rgb" end
@@ -68,7 +64,9 @@ end
 
 local function copy_path(path, index)
   local result = {}
-  for i, value in ipairs(path) do result[i] = value end
+  for i, value in ipairs(path) do
+    result[i] = value
+  end
   result[#result + 1] = index
   return result
 end
@@ -81,9 +79,7 @@ local function inspect_layers(layers, parent_path, paths, counts)
     paths[layer] = path
     counts.layers = counts.layers + 1
     local children = {}
-    if layer.isGroup then
-      children = inspect_layers(layer.layers, path, paths, counts)
-    end
+    if layer.isGroup then children = inspect_layers(layer.layers, path, paths, counts) end
     result[#result + 1] = {
       path = path,
       name = layer.name,
@@ -107,7 +103,9 @@ end
 
 local function requested_set(scope)
   local result = {}
-  for index = 1, #scope do result[scope[index]] = true end
+  for index = 1, #scope do
+    result[scope[index]] = true
+  end
   return result
 end
 
@@ -136,18 +134,24 @@ end
 
 local function vendor_rectangle(value)
   assert(is_json_object(value), "Slice Key Rectangle is not an object")
-  assert(type(value.x) == "number" and type(value.y) == "number",
-         "Slice Key Rectangle has invalid coordinates")
-  assert(type(value.w) == "number" and type(value.h) == "number",
-         "Slice Key Rectangle has invalid dimensions")
-  return { x=value.x, y=value.y, width=value.w, height=value.h }
+  assert(
+    type(value.x) == "number" and type(value.y) == "number",
+    "Slice Key Rectangle has invalid coordinates"
+  )
+  assert(
+    type(value.w) == "number" and type(value.h) == "number",
+    "Slice Key Rectangle has invalid dimensions"
+  )
+  return { x = value.x, y = value.y, width = value.w, height = value.h }
 end
 
 local function vendor_point(value)
   assert(is_json_object(value), "Slice Key Point is not an object")
-  assert(type(value.x) == "number" and type(value.y) == "number",
-         "Slice Key Point has invalid coordinates")
-  return { x=value.x, y=value.y }
+  assert(
+    type(value.x) == "number" and type(value.y) == "number",
+    "Slice Key Point has invalid coordinates"
+  )
+  return { x = value.x, y = value.y }
 end
 
 local function restore_editor_state(previous)
@@ -171,46 +175,53 @@ local function inspect_slices(sprite)
   local exported, failure = pcall(function()
     app.activeSprite = sprite
     app.command.ExportSpriteSheet {
-      ui=false,
-      recent=false,
-      askOverwrite=false,
-      type=SpriteSheetType.HORIZONTAL,
-      textureFilename=texture_path,
-      dataFilename=data_path,
-      dataFormat=SpriteSheetDataFormat.JSON_HASH,
-      listLayers=false,
-      listTags=false,
-      listSlices=true,
-      openGenerated=false,
+      ui = false,
+      recent = false,
+      askOverwrite = false,
+      type = SpriteSheetType.HORIZONTAL,
+      textureFilename = texture_path,
+      dataFilename = data_path,
+      dataFormat = SpriteSheetDataFormat.JSON_HASH,
+      listLayers = false,
+      listTags = false,
+      listSlices = true,
+      openGenerated = false,
     }
   end)
   restore_editor_state(previous)
   if not exported then error(failure) end
 
   local vendor = json.decode(read_file(data_path))
-  assert(is_json_object(vendor) and is_json_object(vendor.meta),
-         "Slice vendor data has no metadata object")
+  assert(
+    is_json_object(vendor) and is_json_object(vendor.meta),
+    "Slice vendor data has no metadata object"
+  )
   local vendor_slices = vendor.meta.slices
   assert(is_json_object(vendor_slices), "Slice vendor data has no Slice array")
-  assert(#vendor_slices == #sprite.slices,
-         "Slice vendor count differs from the opened Sprite")
+  assert(#vendor_slices == #sprite.slices, "Slice vendor count differs from the opened Sprite")
 
   local slices = {}
   for slice_index = 1, #sprite.slices do
     local native_slice = sprite.slices[slice_index]
     local vendor_slice = vendor_slices[slice_index]
     assert(is_json_object(vendor_slice), "Slice vendor entry is not an object")
-    assert(vendor_slice.name == native_slice.name,
-           "Slice vendor order differs from the opened Sprite")
+    assert(
+      vendor_slice.name == native_slice.name,
+      "Slice vendor order differs from the opened Sprite"
+    )
     assert(type(native_slice.data) == "string", "Slice user data is not a string")
     assert(is_json_object(vendor_slice.keys), "Slice vendor entry has no Keys")
     local keys = {}
     for key_index = 1, #vendor_slice.keys do
       local key = vendor_slice.keys[key_index]
       assert(is_json_object(key), "Slice Key vendor entry is not an object")
-      assert(type(key.frame) == "number" and key.frame >= 0
-             and key.frame < #sprite.frames and key.frame % 1 == 0,
-             "Slice Key has an invalid Frame")
+      assert(
+        type(key.frame) == "number"
+          and key.frame >= 0
+          and key.frame < #sprite.frames
+          and key.frame % 1 == 0,
+        "Slice Key has an invalid Frame"
+      )
       keys[#keys + 1] = {
         frame_number = key.frame + 1,
         bounds = vendor_rectangle(key.bounds),
@@ -292,7 +303,7 @@ function module.inspect(sprite, scope)
       local palette = sprite.palettes[palette_index]
       local entries = {}
       for index = 0, #palette - 1 do
-        entries[#entries + 1] = { index=index, color=rgba(palette:getColor(index)) }
+        entries[#entries + 1] = { index = index, color = rgba(palette:getColor(index)) }
       end
       palettes[#palettes + 1] = {
         frame_number = palette.frame.frameNumber,
@@ -319,9 +330,7 @@ function module.inspect(sprite, scope)
     result.cels = cels
   end
 
-  if requested.slices then
-    result.slices = inspect_slices(sprite)
-  end
+  if requested.slices then result.slices = inspect_slices(sprite) end
 
   if requested.tilesets then
     local tilesets = {}
