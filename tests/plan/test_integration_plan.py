@@ -92,6 +92,32 @@ def test_plan_check_rejects_unknown_step_and_operation_owned_pixel_limit(
                 },
             }
         ],
+        [
+            {
+                "operation": "paint apply",
+                "input": {
+                    "target": {"layer_path": [1], "frame_number": 1},
+                    "patch": {
+                        "coordinate_space": "image-pixel",
+                        "rectangle": {"x": 0, "y": 0, "width": 1, "height": 1},
+                        "runs": [
+                            {
+                                "x": 2,
+                                "y": 0,
+                                "length": 1,
+                                "color": {
+                                    "kind": "rgba",
+                                    "red": 255,
+                                    "green": 0,
+                                    "blue": 0,
+                                    "alpha": 255,
+                                },
+                            }
+                        ],
+                    },
+                },
+            }
+        ],
     ]
     for steps in cases:
         run = spa(

@@ -470,7 +470,9 @@ and Surface Manifest schemas shared with callers.
 
 **Surface Manifest**
 The installed aggregate description of callable Operations. It is the runtime authority
-for shipped capability.
+for shipped capability. A compositional Operation is listed as fully supported only
+when the runtime supports every currently eligible Step kind; a particular request
+can need fewer capabilities and remains independently executable.
 
 **Operation Request**
 The complete typed input to one Operation after public absent, null, and default

@@ -157,7 +157,9 @@ capability required by the selected Operation but absent from the observation, r
 `runtime_incompatible` before the Operation executes.
 `spa plan run` observes the selected Steps' Lua, API, and capability requirements
 inside its one execution process. Incompatibility returns `runtime_incompatible`
-before any Plan Step begins.
+before any Plan Step begins. Aggregate discovery lists Plan as supported only when
+the runtime supports every currently eligible Step kind. A Plan with fewer Step
+kinds can still run; its selected requirements are checked per request.
 It also includes `access_failure_schema` for CLI failures before an Operation is
 selected; each Operation entry has its own applicable `failure_schema`. Aggregate
 discovery probes Aseprite, while each command's `--schema` remains available without a

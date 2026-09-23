@@ -58,6 +58,8 @@ Plan handler. Static Plan checks execute without Aseprite and report missing Sou
 invalid Target parent, and existing Target conflicts. A controlled transport case
 verifies one process and typed failed-Step evidence; the real runtime verifies the
 shared capability probe before Plan Steps.
+Aggregate discovery conservatively requires every eligible Plan Step capability;
+the Plan execution gate checks only selected Steps in its one Aseprite process.
 
 The initial evidence profiles use local macOS Aseprite 1.3.18.5-dev and the pinned
 Linux CI Aseprite 1.3.18.5 source release. Both expose `_VERSION == "Lua 5.4"` and

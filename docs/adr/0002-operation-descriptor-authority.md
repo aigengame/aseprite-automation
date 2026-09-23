@@ -35,7 +35,10 @@ An Operation Plan derives requirements from its eligible Step Descriptors and ob
 and checks them inside its one Aseprite process before the first Step. The fixed Plan
 handler reports incompatible facts through the typed Kernel Protocol; Application maps
 them to `runtime_incompatible`. This avoids a second Aseprite probe process while
-preserving the pre-Step gate and zero Target Commit on incompatibility. Aseprite product
+preserving the pre-Step gate and zero Target Commit on incompatibility. Aggregate
+discovery declares the complete Plan Step repertoire supported only when all eligible
+Step requirements are observed. An individual Plan can use a subset and is checked
+against the requirements of its selected Steps. Aseprite product
 version remains provenance and does not replace runtime observations.
 
 The Aseprite Adapter and Lua Operation Kernel communicate through a versioned private

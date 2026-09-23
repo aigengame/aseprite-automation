@@ -321,7 +321,10 @@ version, and capabilities with the selected Descriptor before it enters an ordin
 Operation execution definition. For Plan, the selected Step Descriptors determine the
 requirements; the shared capability observations and comparison run inside the single
 Plan process before its first Step, and Application maps an incompatibility to the same
-typed `runtime_incompatible` failure.
+typed `runtime_incompatible` failure. Aggregate discovery uses the union of all
+currently eligible Step requirements to declare the complete Plan surface supported;
+an individual Plan may run with fewer observed capabilities because its execution
+gate uses only its selected Steps.
 Descriptors are the registration authority; they do not implement native behavior.
 Under ADR-0013, the failure contract uses shared registration of each public
 Failure Code's meaning, Category, and Details kind. Each Descriptor declares its

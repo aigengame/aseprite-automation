@@ -289,13 +289,9 @@ def _postcondition(
     )
 
 
-def _requirements(plan: PlanDefinition) -> RuntimeRequirements:
+def _combined_requirements(operations: list[str]) -> RuntimeRequirements:
     requirements = [
-        ELIGIBLE_OPERATIONS["sprite get"].runtime_requirements,
-        *(
-            ELIGIBLE_OPERATIONS[step.operation].runtime_requirements
-            for step in plan.steps
-        ),
+        ELIGIBLE_OPERATIONS[operation].runtime_requirements for operation in operations
     ]
     assert all(item is not None for item in requirements)
     versions = {item.lua_language for item in requirements if item is not None}
@@ -315,6 +311,15 @@ def _requirements(plan: PlanDefinition) -> RuntimeRequirements:
             )
         ),
     )
+
+
+def _requirements(plan: PlanDefinition) -> RuntimeRequirements:
+    return _combined_requirements(
+        ["sprite get", *(step.operation for step in plan.steps)]
+    )
+
+
+PLAN_DISCOVERY_REQUIREMENTS = _combined_requirements(list(ELIGIBLE_OPERATIONS))
 
 
 def _validated_steps(
@@ -493,11 +498,7 @@ PLAN_OPERATIONS = (
             if result.target_commit is not None
             else f"Plan completed: {len(result.steps)} Steps"
         ),
-        RuntimeRequirements(
-            lua_language="Lua 5.4",
-            minimum_api_version=41,
-            required_capabilities=["aseprite_sprite_inspection"],
-        ),
+        PLAN_DISCOVERY_REQUIREMENTS,
         (*RUNTIME_FAILURE_CODES, "target_commit_failed"),
         execution_kind="mutation",
         side_effects=("publishes one Target Sprite File for a mutating Plan",),
