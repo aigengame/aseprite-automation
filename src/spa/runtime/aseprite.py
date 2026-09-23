@@ -366,8 +366,33 @@ def invoke(
     timeout_seconds: float,
 ) -> KernelInvocationResult:
     """Invoke one fixed packaged handler and return its private result object."""
-    canonical = Path(observation.canonical_path)
-    resource = Path(observation.resource_path)
+    return _invoke_at(
+        Path(observation.canonical_path),
+        Path(observation.resource_path),
+        handler,
+        payload,
+        timeout_seconds,
+    )
+
+
+def invoke_direct(
+    request: RuntimeRequest,
+    handler: PackagedHandler,
+    payload: dict[str, Any],
+    timeout_seconds: float,
+) -> KernelInvocationResult:
+    """Discover and execute a handler in one Aseprite process without a probe process."""
+    _, canonical, resource, _ = _discover(request.aseprite)
+    return _invoke_at(canonical, resource, handler, payload, timeout_seconds)
+
+
+def _invoke_at(
+    canonical: Path,
+    resource: Path,
+    handler: PackagedHandler,
+    payload: dict[str, Any],
+    timeout_seconds: float,
+) -> KernelInvocationResult:
     handler_name = handler.resource_name
     script = files("spa.kernel").joinpath(f"{handler_name}.lua")
     try:
@@ -437,10 +462,27 @@ def invoke(
                 reason = response.get("message")
                 if not isinstance(cause, str) or not isinstance(reason, str):
                     raise ValueError("Kernel error response has no typed cause/message")
+                failed_step = response.get("failed_step")
+                failed_operation = response.get("failed_operation")
+                if failed_step is not None and (
+                    type(failed_step) is not int or failed_step < 1
+                ):
+                    raise ValueError("Kernel error response has invalid failed_step")
+                if failed_operation is not None and not isinstance(
+                    failed_operation, str
+                ):
+                    raise ValueError(
+                        "Kernel error response has invalid failed_operation"
+                    )
                 raise RuntimeIssue(
                     "handler_rejected",
                     f"Packaged {handler_name} handler rejected execution",
-                    HandlerEvidence(response_path=str(response_file), reason=reason),
+                    HandlerEvidence(
+                        response_path=str(response_file),
+                        reason=reason,
+                        failed_step=failed_step,
+                        failed_operation=failed_operation,
+                    ),
                     diagnostics,
                 )
             if response_status != "ok":

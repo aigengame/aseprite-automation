@@ -144,6 +144,8 @@ class KernelExecutionDetails(PublicModel):
     kind: Literal["kernel_execution"] = "kernel_execution"
     response_path: str
     reason: str
+    failed_step: int | None = Field(default=None, ge=1)
+    failed_operation: str | None = None
 
 
 class RuntimeCompatibilityDetails(PublicModel):

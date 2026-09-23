@@ -52,6 +52,8 @@ class OperationDescriptor[RequestT: BaseModel, ResultT: BaseModel]:
     failure_codes: tuple[str, ...]
     execution_kind: Literal["read", "mutation", "export"] = "read"
     side_effects: tuple[str, ...] = ()
+    plan_eligible: bool = False
+    probe_before_execute: bool = True
 
     def __post_init__(self) -> None:
         command = f"spa {self.name}"

@@ -57,22 +57,22 @@ InitialLayer = Annotated[
 ]
 
 
-class SpriteCreateRequest(RuntimeRequest):
-    target_sprite_file: str = Field(min_length=1)
+class SpriteCreateInput(PublicModel):
     width: int = Field(ge=1, le=65535)
     height: int = Field(ge=1, le=65535)
     color_mode: Literal["rgb"]
     initial_layer: InitialLayer
+
+
+class SpriteCreateRequest(RuntimeRequest, SpriteCreateInput):
+    target_sprite_file: str = Field(min_length=1)
     overwrite: bool
 
     _validate_target = field_validator("target_sprite_file")(_native_sprite_path)
 
 
-class SpriteGetRequest(RuntimeRequest):
-    sprite_file: str = Field(min_length=1)
+class SpriteGetInput(PublicModel):
     inspection_scope: list[InspectionSection]
-
-    _validate_source = field_validator("sprite_file")(_native_sprite_path)
 
     @field_validator("inspection_scope")
     @classmethod
@@ -86,6 +86,12 @@ class SpriteGetRequest(RuntimeRequest):
     def unrequested_sections(self) -> list[InspectionSection]:
         requested = set(self.inspection_scope)
         return [section for section in INSPECTION_SECTIONS if section not in requested]
+
+
+class SpriteGetRequest(RuntimeRequest, SpriteGetInput):
+    sprite_file: str = Field(min_length=1)
+
+    _validate_source = field_validator("sprite_file")(_native_sprite_path)
 
 
 class SpriteMetadata(PublicModel):
@@ -459,6 +465,7 @@ SPRITE_OPERATIONS = (
         SPRITE_CREATE_FAILURE_CODES,
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        plan_eligible=True,
     ),
     OperationDescriptor(
         "sprite get",
@@ -471,5 +478,6 @@ SPRITE_OPERATIONS = (
         ),
         SPRITE_GET_REQUIREMENTS,
         RUNTIME_FAILURE_CODES,
+        plan_eligible=True,
     ),
 )

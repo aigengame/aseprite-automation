@@ -72,6 +72,10 @@ KernelInvoker = Callable[
     [RuntimeObservation, PackagedHandler, dict[str, Any], float],
     KernelInvocationResult,
 ]
+DirectKernelInvoker = Callable[
+    [RuntimeRequest, PackagedHandler, dict[str, Any], float],
+    KernelInvocationResult,
+]
 
 
 @dataclass(frozen=True)
@@ -146,6 +150,7 @@ class OperationServices:
     target_files: TargetFiles
     artifact_files: ArtifactFiles | None = None
     verify_png: PngVerifier | None = None
+    invoke_kernel_direct: DirectKernelInvoker | None = None
 
 
 @dataclass(frozen=True)
@@ -180,6 +185,8 @@ class ResponseEvidence:
 class HandlerEvidence:
     response_path: str
     reason: str
+    failed_step: int | None = None
+    failed_operation: str | None = None
 
 
 @dataclass(frozen=True)

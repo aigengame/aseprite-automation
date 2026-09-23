@@ -99,7 +99,10 @@ def _runtime_failure(
         case "handler_rejected", HandlerEvidence() as evidence:
             code = "kernel_execution_failed"
             details = KernelExecutionDetails(
-                response_path=evidence.response_path, reason=evidence.reason
+                response_path=evidence.response_path,
+                reason=evidence.reason,
+                failed_step=evidence.failed_step,
+                failed_operation=evidence.failed_operation,
             )
         case "postcondition_failed", PostconditionEvidence() as evidence:
             code = "kernel_response_invalid"
@@ -241,7 +244,10 @@ def dispatch(
         return observation
 
     try:
-        if descriptor.runtime_requirements is not None:
+        if (
+            descriptor.runtime_requirements is not None
+            and descriptor.probe_before_execute
+        ):
             if not isinstance(request, RuntimeRequest):
                 raise TypeError("Runtime Operation Request must extend RuntimeRequest")
             compatible_probe(request)

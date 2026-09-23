@@ -1,65 +1,74 @@
-"""Bounded Operation Plan contracts and application orchestration."""
+"""Bounded, single-Sprite Operation Plan preflight and execution."""
 
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, ValidationError, model_validator
 
-from spa.contracts import PublicModel, Request
-from spa.operation import OperationDescriptor
-from spa.paint import CelAddress, PaintPixelPatch
-from spa.ports import OperationServices
-from spa.raster import SelectionApplication
-from spa.sprite import INSPECTION_SECTIONS, InitialLayer, InspectionSection
+from spa.contracts import PublicModel, Request, RuntimeRequest, RuntimeRequirements
+from spa.mutation import TargetCommit
+from spa.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
+from spa.paint import (
+    DIGEST_RESOURCE,
+    PAINT_OPERATIONS,
+    PAINT_SUPPORT_RESOURCE,
+    PaintApplyEvidence,
+    PaintApplyInput,
+    _validate_evidence,
+)
+from spa.ports import (
+    KernelInvocationResult,
+    OperationServices,
+    PackagedHandler,
+    PostconditionEvidence,
+    ResponseEvidence,
+    RuntimeIssue,
+)
+from spa.sprite import (
+    SPRITE_CREATION_RESOURCE,
+    SPRITE_INSPECTION_RESOURCE,
+    SPRITE_OPERATIONS,
+    InitialLayer,
+    InspectionScope,
+    SpriteCreateInput,
+    SpriteCreateRequest,
+    SpriteGetInput,
+    SpriteGetRequest,
+    SpriteInspection,
+    _validate_created_sprite,
+    _validated_scope,
+)
 
-MAX_PLAN_STEPS = 32
-
-
-class CreateInput(PublicModel):
-    width: int = Field(ge=1, le=65535)
-    height: int = Field(ge=1, le=65535)
-    color_mode: Literal["rgb"]
-    initial_layer: InitialLayer
-
-
-class GetInput(PublicModel):
-    inspection_scope: list[InspectionSection]
-
-    @field_validator("inspection_scope")
-    @classmethod
-    def normalize_scope(cls, value: list[InspectionSection]) -> list[InspectionSection]:
-        if len(value) != len(set(value)):
-            raise ValueError("Inspection Scope cannot contain duplicate sections")
-        requested = set(value)
-        return [section for section in INSPECTION_SECTIONS if section in requested]
-
-
-class PaintInput(PublicModel):
-    target: CelAddress
-    patch: PaintPixelPatch
-    clipping: Literal["reject", "clip"] = "reject"
-    selection: SelectionApplication | None = None
-
-    @model_validator(mode="after")
-    def bound_pixels(self) -> "PaintInput":
-        if sum(run.length for run in self.patch.runs) > 256:
-            raise ValueError("Pixel Patch exceeds the 256-pixel Operation Limit")
-        return self
+MAX_PLAN_STEPS = 64
+ELIGIBLE_OPERATIONS = {
+    descriptor.name: descriptor
+    for descriptor in (*SPRITE_OPERATIONS, *PAINT_OPERATIONS)
+    if descriptor.plan_eligible
+}
+PLAN_RUN_HANDLER = PackagedHandler(
+    "plan_run",
+    (
+        SPRITE_INSPECTION_RESOURCE,
+        SPRITE_CREATION_RESOURCE,
+        PAINT_SUPPORT_RESOURCE,
+        DIGEST_RESOURCE,
+    ),
+)
 
 
 class CreateStep(PublicModel):
     operation: Literal["sprite create"]
-    input: CreateInput
+    input: SpriteCreateInput
 
 
 class GetStep(PublicModel):
     operation: Literal["sprite get"]
-    input: GetInput
+    input: SpriteGetInput
 
 
 class PaintStep(PublicModel):
     operation: Literal["paint apply"]
-    input: PaintInput
+    input: PaintApplyInput
 
 
 PlanStep = Annotated[CreateStep | GetStep | PaintStep, Field(discriminator="operation")]
@@ -82,10 +91,10 @@ class PlanDefinition(PublicModel):
 
     @model_validator(mode="after")
     def validate_boundary(self) -> "PlanDefinition":
+        if any(step.operation not in ELIGIBLE_OPERATIONS for step in self.steps):
+            raise ValueError("Plan Step Operation is not declared Plan-eligible")
         create_indexes = [
-            index
-            for index, step in enumerate(self.steps)
-            if step.operation == "sprite create"
+            i for i, step in enumerate(self.steps) if step.operation == "sprite create"
         ]
         if create_indexes and create_indexes != [0]:
             raise ValueError("Sprite creation is allowed only as the first Plan Step")
@@ -138,12 +147,215 @@ class PlanCheckResult(PublicModel):
     commit_required: bool
 
 
+class PlanRunRequest(RuntimeRequest):
+    plan: PlanDefinition
+
+
+class CreateStepResult(PublicModel):
+    sprite: SpriteInspection
+    initial_layer: InitialLayer
+
+
+class GetStepResult(PublicModel):
+    sprite: SpriteInspection
+    scope: InspectionScope
+
+
+class PaintStepResult(PaintApplyEvidence):
+    persisted_reopen_verified: Literal[False]
+
+
+class CreateStepOutcome(PublicModel):
+    operation: Literal["sprite create"]
+    result: CreateStepResult
+
+
+class GetStepOutcome(PublicModel):
+    operation: Literal["sprite get"]
+    result: GetStepResult
+
+
+class PaintStepOutcome(PublicModel):
+    operation: Literal["paint apply"]
+    result: PaintStepResult
+
+
+StepOutcome = Annotated[
+    CreateStepOutcome | GetStepOutcome | PaintStepOutcome,
+    Field(discriminator="operation"),
+]
+
+
+class PlanRunResult(PublicModel):
+    status: Literal["success"] = "success"
+    operation: Literal["spa plan run"] = "spa plan run"
+    steps: list[StepOutcome] = Field(min_length=1, max_length=MAX_PLAN_STEPS)
+    final_sprite: SpriteInspection
+    persisted_reopen_verified: bool
+    target_commit: TargetCommit | None
+
+
 def check_plan(
     request: PlanCheckRequest, _services: OperationServices
 ) -> PlanCheckResult:
     return PlanCheckResult(
         step_count=len(request.plan.steps), commit_required=request.plan.commit_required
     )
+
+
+def _malformed(invocation: KernelInvocationResult, reason: str) -> RuntimeIssue:
+    return RuntimeIssue(
+        "response_malformed",
+        reason,
+        ResponseEvidence(response_path=invocation.response_path),
+        invocation.diagnostics,
+    )
+
+
+def _postcondition(invocation: KernelInvocationResult, reason: str) -> RuntimeIssue:
+    return RuntimeIssue(
+        "postcondition_failed",
+        reason,
+        PostconditionEvidence(response_path=invocation.response_path, reason=reason),
+        invocation.diagnostics,
+    )
+
+
+def _requirements(plan: PlanDefinition) -> RuntimeRequirements:
+    requirements = [
+        ELIGIBLE_OPERATIONS[step.operation].runtime_requirements for step in plan.steps
+    ]
+    assert all(item is not None for item in requirements)
+    versions = {item.lua_language for item in requirements if item is not None}
+    if len(versions) != 1:
+        raise ValueError("Plan Step Operations require incompatible Lua languages")
+    return RuntimeRequirements(
+        lua_language=versions.pop(),
+        minimum_api_version=max(
+            item.minimum_api_version for item in requirements if item is not None
+        ),
+        required_capabilities=list(
+            dict.fromkeys(
+                capability
+                for item in requirements
+                if item is not None
+                for capability in item.required_capabilities
+            )
+        ),
+    )
+
+
+def _validated_steps(
+    request: PlanRunRequest, invocation: KernelInvocationResult
+) -> list[StepOutcome]:
+    raw = invocation.payload.get("steps")
+    if not isinstance(raw, list) or len(raw) != len(request.plan.steps):
+        raise _malformed(invocation, "Plan Kernel returned an incomplete Step sequence")
+    outcomes: list[StepOutcome] = []
+    for step, item in zip(request.plan.steps, raw, strict=True):
+        if not isinstance(item, dict) or item.get("operation") != step.operation:
+            raise _malformed(
+                invocation, "Plan Kernel returned a mismatched Step Operation"
+            )
+        try:
+            if isinstance(step, CreateStep):
+                outcome: StepOutcome = CreateStepOutcome.model_validate(item)
+            elif isinstance(step, GetStep):
+                sprite = SpriteInspection.model_validate(item["result"]["sprite"])
+                scope_request = SpriteGetRequest(
+                    sprite_file=request.plan.source_sprite_file
+                    or request.plan.target_sprite_file
+                    or "plan.aseprite",
+                    inspection_scope=step.input.inspection_scope,
+                )
+                scope = _validated_scope(scope_request, sprite, invocation)
+                outcome = GetStepOutcome(
+                    operation="sprite get",
+                    result=GetStepResult(sprite=sprite, scope=scope),
+                )
+            else:
+                outcome = PaintStepOutcome.model_validate(item)
+                _validate_evidence(step.input, outcome.result, invocation)
+        except (KeyError, TypeError, ValidationError) as exc:
+            raise _malformed(
+                invocation, "Plan Kernel returned invalid Step evidence"
+            ) from exc
+        outcomes.append(outcome)
+    return outcomes
+
+
+def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunResult:
+    if services.invoke_kernel_direct is None:
+        raise TypeError("Plan run requires the direct Kernel invocation adapter")
+    plan = request.plan
+    staged = (
+        services.target_files.staged_path(Path(plan.target_sprite_file))
+        if plan.target_sprite_file is not None
+        else None
+    )
+    payload: dict[str, Any] = {
+        "source_sprite_file": plan.source_sprite_file,
+        "staged_sprite_file": str(staged) if staged is not None else None,
+        "steps": [step.model_dump(mode="json") for step in plan.steps],
+        "postconditions": plan.postconditions.model_dump(
+            mode="json", exclude_none=True
+        ),
+        "runtime_requirements": _requirements(plan).model_dump(mode="json"),
+    }
+    try:
+        invocation = services.invoke_kernel_direct(
+            request, PLAN_RUN_HANDLER, payload, request.timeout_seconds
+        )
+        try:
+            final_sprite = SpriteInspection.model_validate(
+                invocation.payload["final_sprite"]
+            )
+            persisted = invocation.payload["persisted_reopen_verified"]
+            if type(persisted) is not bool or persisted != plan.commit_required:
+                raise ValueError("Plan persistence flag differs from commit intent")
+        except (KeyError, TypeError, ValidationError, ValueError) as exc:
+            raise _malformed(
+                invocation, "Plan Kernel returned invalid final Sprite evidence"
+            ) from exc
+        outcomes = _validated_steps(request, invocation)
+        metadata = final_sprite.metadata
+        for field, expected in plan.postconditions.model_dump(
+            exclude_none=True
+        ).items():
+            if getattr(metadata, field) != expected:
+                raise _postcondition(invocation, f"Plan {field} Postcondition failed")
+        if isinstance(plan.steps[0], CreateStep):
+            first = outcomes[0]
+            assert isinstance(first, CreateStepOutcome)
+            create = plan.steps[0].input
+            create_request = SpriteCreateRequest(
+                target_sprite_file=plan.target_sprite_file or "plan.aseprite",
+                overwrite=plan.overwrite,
+                **create.model_dump(),
+            )
+            _validate_created_sprite(
+                create_request, final_sprite, first.result.initial_layer, invocation
+            )
+        target_commit = None
+        if staged is not None:
+            assert plan.target_sprite_file is not None
+            committed = services.target_files.commit(
+                staged, Path(plan.target_sprite_file), overwrite=plan.overwrite
+            )
+            target_commit = TargetCommit(
+                target_sprite_file=committed.target_sprite_file,
+                byte_size=committed.byte_size,
+                sha256=committed.sha256,
+            )
+        return PlanRunResult(
+            steps=outcomes,
+            final_sprite=final_sprite,
+            persisted_reopen_verified=persisted,
+            target_commit=target_commit,
+        )
+    finally:
+        if staged is not None:
+            services.target_files.discard(staged)
 
 
 PLAN_OPERATIONS = (
@@ -155,5 +367,23 @@ PLAN_OPERATIONS = (
         lambda result: f"Plan accepted: {result.step_count} Steps",
         None,
         ("invalid_request",),
+    ),
+    OperationDescriptor(
+        "plan run",
+        PlanRunRequest,
+        PlanRunResult,
+        run_plan,
+        lambda result: (
+            result.target_commit.target_sprite_file
+            if result.target_commit is not None
+            else f"Plan completed: {len(result.steps)} Steps"
+        ),
+        RuntimeRequirements(
+            lua_language="Lua 5.4", minimum_api_version=41, required_capabilities=[]
+        ),
+        (*RUNTIME_FAILURE_CODES, "target_commit_failed"),
+        execution_kind="mutation",
+        side_effects=("publishes one Target Sprite File for a mutating Plan",),
+        probe_before_execute=False,
     ),
 )
