@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.2.0](https://github.com/aigengame/aseprite-automation/compare/v0.1.0...v0.2.0) (2026-09-23)
+
+
+### Features
+
+* **export:** publish a verified RGB PNG Image Artifact ([#77](https://github.com/aigengame/aseprite-automation/issues/77)) ([39a4e90](https://github.com/aigengame/aseprite-automation/commit/39a4e9042dda627bce3a778e2bcc1cdda19b95a8))
+* **paint:** apply and verify canonical pixel patches ([#76](https://github.com/aigengame/aseprite-automation/issues/76)) ([e53bd19](https://github.com/aigengame/aseprite-automation/commit/e53bd194245375cb1873bda2a2a262a47fc17f6e))
+* **plan:** execute bounded single-Sprite operation plans ([#79](https://github.com/aigengame/aseprite-automation/issues/79)) ([672b562](https://github.com/aigengame/aseprite-automation/commit/672b56242154a9a61351f0c655dbca40feae9ada))
+* **runtime:** enforce Aseprite Lua compatibility ([#74](https://github.com/aigengame/aseprite-automation/issues/74)) ([2bd6747](https://github.com/aigengame/aseprite-automation/commit/2bd6747f619e07d31a298ac2ac4ebba5c7374a2b)), closes [#62](https://github.com/aigengame/aseprite-automation/issues/62)
+* **sprite:** create, reopen, and inspect RGB sprites ([#75](https://github.com/aigengame/aseprite-automation/issues/75)) ([a287134](https://github.com/aigengame/aseprite-automation/commit/a28713400e4ef47d30bbafcfede21a397417b845))
+
+
+### Bug Fixes
+
+* **mutation:** unify Source and Target publication identity ([#84](https://github.com/aigengame/aseprite-automation/issues/84)) ([e77b37e](https://github.com/aigengame/aseprite-automation/commit/e77b37e47a0d9a7672a69c06e5954b6c84030657))
+* **paint:** reject source aliases to target entries ([#82](https://github.com/aigengame/aseprite-automation/issues/82)) ([38a9414](https://github.com/aigengame/aseprite-automation/commit/38a94142f4acb186f6ae3349a0f2917c95e6ce44))
+
 ## 0.1.0 (2026-09-21)
 
 
