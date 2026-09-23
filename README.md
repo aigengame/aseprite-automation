@@ -129,6 +129,8 @@ existing Target Sprite File when it is `false`.
 to rejecting out-of-bounds pixels; `clipping: "clip"` is the explicit clipping policy.
 In-place editing requires identical Source and Target Sprite Files plus both
 `in_place: true` and `overwrite: true`.
+Standalone Paint rejects a Source alias that traverses the Target publication entry
+for either `in_place` value.
 
 `spa plan check` validates a bounded Plan, including current Source and Target path
 conditions, without starting Aseprite. `spa plan run`

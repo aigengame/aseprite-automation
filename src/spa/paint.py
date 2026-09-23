@@ -5,7 +5,12 @@ from typing import Annotated, Literal
 
 from pydantic import ConfigDict, Field, ValidationError, model_validator
 
-from spa.contracts import PublicModel, RuntimeRequest, RuntimeRequirements
+from spa.contracts import (
+    PublicModel,
+    RuntimeRequest,
+    RuntimeRequirements,
+    ValidationIssue,
+)
 from spa.mutation import TargetCommit
 from spa.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.ports import (
@@ -14,6 +19,7 @@ from spa.ports import (
     PackagedHandler,
     PackagedResource,
     PostconditionEvidence,
+    RequestIssue,
     ResponseEvidence,
     RuntimeIssue,
 )
@@ -181,8 +187,20 @@ PAINT_APPLY_HANDLER = PackagedHandler(
 def apply_paint(
     request: PaintApplyRequest, services: OperationServices
 ) -> PaintApplyResult:
-    observation = services.probe_runtime(request)
     target_file = Path(request.target_sprite_file)
+    if not request.in_place and services.target_files.same_publication_target(
+        Path(request.source_sprite_file), target_file
+    ):
+        raise RequestIssue(
+            [
+                ValidationIssue(
+                    location=["source_sprite_file"],
+                    code="source_target_identity",
+                    message="Source reads through the Target publication entry",
+                )
+            ]
+        )
+    observation = services.probe_runtime(request)
     staged_file = services.target_files.staged_path(target_file)
     payload = request.model_dump(
         mode="json",
@@ -289,5 +307,6 @@ PAINT_OPERATIONS = (
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
         plan_eligible=True,
+        probe_before_execute=False,
     ),
 )

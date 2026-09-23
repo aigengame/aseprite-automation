@@ -637,6 +637,37 @@ def test_apply_supports_explicit_in_place_target_commit(tmp_path: Path) -> None:
     assert source.read_bytes() != before
 
 
+@pytest.mark.parametrize("through_target_symlink", [False, True])
+def test_apply_rejects_source_alias_to_target_without_commit(
+    tmp_path: Path, through_target_symlink: bool
+) -> None:
+    real = tmp_path / "real.aseprite"
+    _create(real)
+    target = real
+    if through_target_symlink:
+        target = tmp_path / "target.aseprite"
+        target.symlink_to(real)
+    source = tmp_path / "source.aseprite"
+    source.symlink_to(target)
+    before = source.read_bytes()
+
+    for in_place in (False, True):
+        run = _apply(
+            source,
+            target,
+            _rgba_patch(x=0, y=0, length=1),
+            in_place=in_place,
+            overwrite=True,
+        )
+
+        assert run.returncode == 2, run.stdout + run.stderr
+        assert json.loads(run.stdout)["code"] == "invalid_request"
+        assert source.is_symlink()
+        assert target.is_symlink() is through_target_symlink
+        assert source.read_bytes() == before
+        assert real.read_bytes() == before
+
+
 def test_apply_resolves_the_complete_target_before_any_write(tmp_path: Path) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "never-published.aseprite"
