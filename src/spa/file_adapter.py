@@ -8,6 +8,7 @@ from pathlib import Path
 from spa.ports import (
     ArtifactFileEvidence,
     ArtifactFileObservation,
+    PathObservation,
     RuntimeIssue,
     StagedArtifact,
     TargetCommitEvidence,
@@ -15,7 +16,37 @@ from spa.ports import (
 )
 
 
+def _publication_entry(path: Path) -> Path:
+    return path.parent.resolve() / path.name
+
+
 class LocalTargetFiles:
+    def observe_path(self, path: Path) -> PathObservation:
+        return PathObservation(
+            exists=path.exists() or path.is_symlink(),
+            is_file=path.is_file(),
+            parent_is_dir=path.parent.is_dir(),
+        )
+
+    def same_publication_entry(self, source: Path, target: Path) -> bool:
+        """Whether Source and Target name the same entry replaced by Target Commit."""
+        return _publication_entry(source) == _publication_entry(target)
+
+    def same_publication_target(self, source: Path, target: Path) -> bool:
+        """Whether replacing the Target entry changes reads through Source."""
+        target_entry = _publication_entry(target)
+        source_entry = _publication_entry(source)
+        visited: set[Path] = set()
+        while source_entry not in visited:
+            if source_entry == target_entry:
+                return True
+            visited.add(source_entry)
+            if not source_entry.is_symlink():
+                return False
+            linked = source_entry.parent / source_entry.readlink()
+            source_entry = _publication_entry(linked)
+        return False
+
     def staged_path(self, target: Path) -> Path:
         token = uuid.uuid4().hex
         return target.with_name(f".{target.stem}.{token}.staged.aseprite")

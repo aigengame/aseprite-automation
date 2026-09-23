@@ -44,6 +44,8 @@ def test_info_reports_installed_runtime() -> None:
         "spa sprite get",
         "spa paint apply",
         "spa export image",
+        "spa plan check",
+        "spa plan run",
     ]
     assert result["capability_gaps"] == []
     info_schema = json.loads(spa("info", "--schema").stdout)

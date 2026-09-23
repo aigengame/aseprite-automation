@@ -408,9 +408,7 @@ local function restore_editor_state(previous)
   end
 end
 
-function module.execute(payload, digest)
-  assert(type(payload.source_sprite_file) == "string", "missing Source Sprite File")
-  assert(type(payload.staged_sprite_file) == "string", "missing staged Sprite file")
+function module.apply_live(sprite, payload, digest)
   assert(payload.clipping == "reject" or payload.clipping == "clip",
          "unsupported clipping policy")
   assert(payload.patch ~= nil
@@ -431,15 +429,8 @@ function module.execute(payload, digest)
   assert(payload.patch.runs ~= nil, "Pixel Patch runs are missing")
   validate_selection(payload.selection)
 
-  local previous = {
-    sprite=app.activeSprite, layer=app.activeLayer, frame=app.activeFrame,
-  }
-  local open_sprite = nil
-  local ok, result = pcall(function()
-    open_sprite = assert(app.open(payload.source_sprite_file),
-                         "could not open Source Sprite File")
-    local layer, cel, image = resolve_target(open_sprite, payload.target)
-    local color_mode = color_mode_name(open_sprite)
+    local layer, cel, image = resolve_target(sprite, payload.target)
+    local color_mode = color_mode_name(sprite)
     local rectangle_in_bounds = requested_rectangle.x >= 0
       and requested_rectangle.y >= 0
       and requested_rectangle.x + requested_rectangle.width <= image.width
@@ -448,10 +439,10 @@ function module.execute(payload, digest)
       assert(rectangle_in_bounds,
              "Pixel Patch Rectangle is outside Image bounds")
     end
-    local affected_cels = collect_affected_cels(open_sprite, image)
+    local affected_cels = collect_affected_cels(sprite, image)
     local expected_geometry = {
-      sprite_width=open_sprite.width,
-      sprite_height=open_sprite.height,
+      sprite_width=sprite.width,
+      sprite_height=sprite.height,
       image_width=image.width,
       image_height=image.height,
       is_background=layer.isBackground,
@@ -520,7 +511,7 @@ function module.execute(payload, digest)
       end
       previous_y, previous_end, previous_color = run.y, run.x + run.length, run.color
     end
-    local effective_palettes = palette_facts(open_sprite, affected_cels, used_indexes)
+    local effective_palettes = palette_facts(sprite, affected_cels, used_indexes)
     local pixels_changed = 0
     app.transaction("Apply Pixel Patch", function()
       for _, write in ipairs(plan) do
@@ -544,7 +535,7 @@ function module.execute(payload, digest)
     end
     local evidence = {
       input_form="inline",
-      persisted_reopen_verified=true,
+      persisted_reopen_verified=false,
       target=copy_address(payload.target),
       color_mode=color_mode,
       clipping=payload.clipping,
@@ -568,6 +559,27 @@ function module.execute(payload, digest)
       effective_palettes=effective_palettes,
       before_content_digest=before_digest,
     }
+    local background_opaque, after_digest = validate_reopened(
+      sprite, payload, evidence, inspected_pixels, affected_cels,
+      expected_geometry, digest
+    )
+    evidence.background_opaque = background_opaque
+    evidence.after_content_digest = after_digest
+    return evidence, inspected_pixels, affected_cels, expected_geometry
+end
+
+function module.execute(payload, digest)
+  assert(type(payload.source_sprite_file) == "string", "missing Source Sprite File")
+  assert(type(payload.staged_sprite_file) == "string", "missing staged Sprite file")
+  local previous = {
+    sprite=app.activeSprite, layer=app.activeLayer, frame=app.activeFrame,
+  }
+  local open_sprite = nil
+  local ok, result = pcall(function()
+    open_sprite = assert(app.open(payload.source_sprite_file),
+                         "could not open Source Sprite File")
+    local evidence, inspected_pixels, affected_cels, expected_geometry =
+      module.apply_live(open_sprite, payload, digest)
     assert(open_sprite:saveAs(payload.staged_sprite_file),
            "could not save staged Sprite")
     open_sprite:close()
@@ -580,6 +592,7 @@ function module.execute(payload, digest)
     )
     evidence.background_opaque = background_opaque
     evidence.after_content_digest = after_digest
+    evidence.persisted_reopen_verified = true
     open_sprite:close()
     open_sprite = nil
     return evidence

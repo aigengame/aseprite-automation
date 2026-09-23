@@ -55,15 +55,29 @@ class PaintPixelPatch(PixelPatch):
     )
 
 
-class PaintApplyRequest(RuntimeRequest):
-    source_sprite_file: str = Field(min_length=1)
-    target_sprite_file: str = Field(min_length=1)
-    in_place: bool
-    overwrite: bool
+class PaintApplyInput(PublicModel):
     target: CelAddress
     patch: PaintPixelPatch
     clipping: Literal["reject", "clip"] = "reject"
     selection: SelectionApplication | None = None
+
+    @model_validator(mode="after")
+    def bound_pixels(self) -> "PaintApplyInput":
+        if (
+            len(self.patch.runs) > MAX_PATCH_PIXELS
+            or sum(run.length for run in self.patch.runs) > MAX_PATCH_PIXELS
+        ):
+            raise ValueError(
+                f"Pixel Patch exceeds the {MAX_PATCH_PIXELS}-pixel Operation Limit"
+            )
+        return self
+
+
+class PaintApplyRequest(RuntimeRequest, PaintApplyInput):
+    source_sprite_file: str = Field(min_length=1)
+    target_sprite_file: str = Field(min_length=1)
+    in_place: bool
+    overwrite: bool
 
     @model_validator(mode="after")
     def validate_target_commit_intent(self) -> "PaintApplyRequest":
@@ -82,13 +96,6 @@ class PaintApplyRequest(RuntimeRequest):
         elif same_file:
             raise ValueError(
                 "identical Source and Target Sprite Files require in_place"
-            )
-        if (
-            len(self.patch.runs) > MAX_PATCH_PIXELS
-            or sum(run.length for run in self.patch.runs) > MAX_PATCH_PIXELS
-        ):
-            raise ValueError(
-                f"Pixel Patch exceeds the {MAX_PATCH_PIXELS}-pixel Operation Limit"
             )
         return self
 
@@ -193,7 +200,7 @@ def apply_paint(
             observation, PAINT_APPLY_HANDLER, payload, request.timeout_seconds
         )
         evidence = _paint_evidence(invocation)
-        _validate_evidence(request, evidence, invocation)
+        validate_paint_evidence(request, evidence, invocation)
         committed = services.target_files.commit(
             staged_file, target_file, overwrite=request.overwrite
         )
@@ -221,8 +228,8 @@ def _paint_evidence(invocation: KernelInvocationResult) -> PaintApplyEvidence:
         ) from exc
 
 
-def _validate_evidence(
-    request: PaintApplyRequest,
+def validate_paint_evidence(
+    request: PaintApplyInput,
     evidence: PaintApplyEvidence,
     invocation: KernelInvocationResult,
 ) -> None:
@@ -281,5 +288,6 @@ PAINT_OPERATIONS = (
         PAINT_APPLY_FAILURE_CODES,
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        plan_eligible=True,
     ),
 )

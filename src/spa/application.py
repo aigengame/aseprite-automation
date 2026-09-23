@@ -35,6 +35,7 @@ from spa.ports import (
     OperationServices,
     PostconditionEvidence,
     ProcessEvidence,
+    RequestIssue,
     ResourceEvidence,
     ResponseEvidence,
     RuntimeCompatibilityEvidence,
@@ -92,18 +93,33 @@ def _runtime_failure(
             )
         case "response_absent", ResponseEvidence() as evidence:
             code = "kernel_response_missing"
-            details = KernelProtocolDetail(response_path=evidence.response_path)
+            details = KernelProtocolDetail(
+                response_path=evidence.response_path,
+                failed_step=evidence.failed_step,
+                failed_operation=evidence.failed_operation,
+            )
         case "response_malformed", ResponseEvidence() as evidence:
             code = "kernel_response_invalid"
-            details = KernelProtocolDetail(response_path=evidence.response_path)
+            details = KernelProtocolDetail(
+                response_path=evidence.response_path,
+                failed_step=evidence.failed_step,
+                failed_operation=evidence.failed_operation,
+            )
         case "handler_rejected", HandlerEvidence() as evidence:
             code = "kernel_execution_failed"
             details = KernelExecutionDetails(
-                response_path=evidence.response_path, reason=evidence.reason
+                response_path=evidence.response_path,
+                reason=evidence.reason,
+                failed_step=evidence.failed_step,
+                failed_operation=evidence.failed_operation,
             )
         case "postcondition_failed", PostconditionEvidence() as evidence:
             code = "kernel_response_invalid"
-            details = KernelProtocolDetail(response_path=evidence.response_path)
+            details = KernelProtocolDetail(
+                response_path=evidence.response_path,
+                failed_step=evidence.failed_step,
+                failed_operation=evidence.failed_operation,
+            )
         case (("process_failed" | "exit_mismatch"), ProcessEvidence() as evidence):
             code = "process_failed"
             details = ProcessDetails(
@@ -241,13 +257,18 @@ def dispatch(
         return observation
 
     try:
-        if descriptor.runtime_requirements is not None:
+        if (
+            descriptor.runtime_requirements is not None
+            and descriptor.probe_before_execute
+        ):
             if not isinstance(request, RuntimeRequest):
                 raise TypeError("Runtime Operation Request must extend RuntimeRequest")
             compatible_probe(request)
         outcome = descriptor.execute(
             request, replace(configured, probe_runtime=compatible_probe)
         )
+    except RequestIssue as exc:
+        return _request_failure(descriptor, exc.issues, failure_codes)
     except RuntimeIssue as exc:
         return _runtime_failure(descriptor, exc, failure_codes)
     return _validated_outcome(descriptor, outcome, failure_codes)

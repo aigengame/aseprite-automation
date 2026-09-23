@@ -57,22 +57,22 @@ InitialLayer = Annotated[
 ]
 
 
-class SpriteCreateRequest(RuntimeRequest):
-    target_sprite_file: str = Field(min_length=1)
+class SpriteCreateInput(PublicModel):
     width: int = Field(ge=1, le=65535)
     height: int = Field(ge=1, le=65535)
     color_mode: Literal["rgb"]
     initial_layer: InitialLayer
+
+
+class SpriteCreateRequest(RuntimeRequest, SpriteCreateInput):
+    target_sprite_file: str = Field(min_length=1)
     overwrite: bool
 
     _validate_target = field_validator("target_sprite_file")(_native_sprite_path)
 
 
-class SpriteGetRequest(RuntimeRequest):
-    sprite_file: str = Field(min_length=1)
+class SpriteGetInput(PublicModel):
     inspection_scope: list[InspectionSection]
-
-    _validate_source = field_validator("sprite_file")(_native_sprite_path)
 
     @field_validator("inspection_scope")
     @classmethod
@@ -86,6 +86,12 @@ class SpriteGetRequest(RuntimeRequest):
     def unrequested_sections(self) -> list[InspectionSection]:
         requested = set(self.inspection_scope)
         return [section for section in INSPECTION_SECTIONS if section not in requested]
+
+
+class SpriteGetRequest(RuntimeRequest, SpriteGetInput):
+    sprite_file: str = Field(min_length=1)
+
+    _validate_source = field_validator("sprite_file")(_native_sprite_path)
 
 
 class SpriteMetadata(PublicModel):
@@ -286,7 +292,7 @@ def _section_count(
     return actual, expected
 
 
-def _validated_scope(
+def validated_scope(
     request: SpriteGetRequest,
     inspection: SpriteInspection,
     invocation: KernelInvocationResult,
@@ -318,7 +324,7 @@ def _validated_scope(
     )
 
 
-def _validate_created_sprite(
+def validate_created_sprite(
     request: SpriteCreateRequest,
     inspection: SpriteInspection,
     persisted_initial_layer: InitialLayer,
@@ -405,8 +411,8 @@ def create_sprite(
             sprite_file=request.target_sprite_file,
             inspection_scope=list(INSPECTION_SECTIONS),
         )
-        _validated_scope(create_scope, inspection, invocation)
-        _validate_created_sprite(
+        validated_scope(create_scope, inspection, invocation)
+        validate_created_sprite(
             request, inspection, persisted_initial_layer, invocation
         )
         committed = services.target_files.commit(
@@ -440,7 +446,7 @@ def get_sprite(
         request.timeout_seconds,
     )
     inspection = _inspection_from_kernel(invocation)
-    scope = _validated_scope(request, inspection, invocation)
+    scope = validated_scope(request, inspection, invocation)
     return SpriteGetResult(
         **inspection.model_dump(),
         sprite_file=request.sprite_file,
@@ -459,6 +465,7 @@ SPRITE_OPERATIONS = (
         SPRITE_CREATE_FAILURE_CODES,
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        plan_eligible=True,
     ),
     OperationDescriptor(
         "sprite get",
@@ -471,5 +478,6 @@ SPRITE_OPERATIONS = (
         ),
         SPRITE_GET_REQUIREMENTS,
         RUNTIME_FAILURE_CODES,
+        plan_eligible=True,
     ),
 )

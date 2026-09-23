@@ -45,13 +45,32 @@ local function restore_editor_state(previous)
   end
 end
 
-function module.execute(payload, inspection)
+function module.create_live(payload)
   assert(payload.color_mode == "rgb", "unsupported Color Mode")
   assert(type(payload.width) == "number" and type(payload.height) == "number",
          "invalid Sprite dimensions")
-  assert(type(payload.staged_sprite_file) == "string", "missing staged Sprite file")
   assert(payload.initial_layer ~= nil, "missing initial Layer choice")
+  local sprite = Sprite(payload.width, payload.height, ColorMode.RGB)
+  if payload.initial_layer.kind == "background" then
+    local color = assert(payload.initial_layer.background_color)
+    app.activeSprite = sprite
+    app.activeLayer = sprite.layers[1]
+    app.activeFrame = sprite.frames[1]
+    app.bgColor = Color{
+      r=color.red, g=color.green, b=color.blue, a=color.alpha,
+    }
+    app.transaction("Create Background Layer", function()
+      app.command.BackgroundFromLayer()
+    end)
+  else
+    assert(payload.initial_layer.kind == "transparent",
+           "invalid initial Layer choice")
+  end
+  return sprite
+end
 
+function module.execute(payload, inspection)
+  assert(type(payload.staged_sprite_file) == "string", "missing staged Sprite file")
   local previous = {
     sprite = app.activeSprite,
     layer = app.activeLayer,
@@ -60,22 +79,7 @@ function module.execute(payload, inspection)
   }
   local open_sprite = nil
   local ok, result = pcall(function()
-    open_sprite = Sprite(payload.width, payload.height, ColorMode.RGB)
-    if payload.initial_layer.kind == "background" then
-      local color = assert(payload.initial_layer.background_color)
-      app.activeSprite = open_sprite
-      app.activeLayer = open_sprite.layers[1]
-      app.activeFrame = open_sprite.frames[1]
-      app.bgColor = Color{
-        r=color.red, g=color.green, b=color.blue, a=color.alpha,
-      }
-      app.transaction("Create Background Layer", function()
-        app.command.BackgroundFromLayer()
-      end)
-    else
-      assert(payload.initial_layer.kind == "transparent",
-             "invalid initial Layer choice")
-    end
+    open_sprite = module.create_live(payload)
 
     assert(open_sprite:saveAs(payload.staged_sprite_file),
            "could not save staged Sprite")
