@@ -46,6 +46,8 @@ for name in (
     "sprite_get.lua",
     "sprite_inspect.lua",
     "sprite_inspection_fixture.aseprite",
+    "export_image.lua",
+    "export_image_support.lua",
 ):
     resource = kernel.joinpath(name)
     if not resource.is_file() or not resource.read_bytes():

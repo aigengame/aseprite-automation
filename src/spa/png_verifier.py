@@ -18,14 +18,7 @@ class PngFacts:
     alpha_channel_present: bool
     alpha_min: int
     alpha_max: int
-    content_digest: str
-
-
-def _fnv1a64(data: bytes) -> str:
-    value = 0xCBF29CE484222325
-    for byte in data:
-        value = ((value ^ byte) * 0x100000001B3) & 0xFFFFFFFFFFFFFFFF
-    return f"{value:016x}"
+    rgba_bytes: bytes
 
 
 def verify_png(payload: bytes, staged: Path) -> PngFacts:
@@ -61,7 +54,7 @@ def verify_png(payload: bytes, staged: Path) -> PngFacts:
                 alpha_channel_present=image.mode == "RGBA",
                 alpha_min=alpha_min,
                 alpha_max=alpha_max,
-                content_digest=_fnv1a64(rgba.tobytes()),
+                rgba_bytes=rgba.tobytes(),
             )
     except (OSError, ValueError, SyntaxError, UnidentifiedImageError) as exc:
         raise RuntimeIssue(

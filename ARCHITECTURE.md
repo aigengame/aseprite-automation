@@ -12,7 +12,8 @@ this view instead of treating it as another decision authority.
 
 > [!IMPORTANT]
 > SPA is at the bootstrap stage. The installed CLI exposes `spa info`, `spa version`,
-> `spa schema`, and the first Sprite creation and inspection Operations. The module
+> `spa schema`, the first Sprite creation and inspection Operations, and one
+> verified RGB PNG Export Image Operation. The module
 > ownership below includes both this delivered vertical slice and planned work. Feature
 > issues own delivery status, while the installed Surface Manifest reports the callable
 > surface of each installation.

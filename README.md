@@ -4,7 +4,7 @@ Aseprite Automation (SPA) provides agent-facing automation for Aseprite. `SPA` i
 short project name used in documentation; `spa` is the primary executable.
 
 > [!IMPORTANT]
-> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery plus the first Sprite creation and inspection slice. Feature issues own delivery contracts, evidence requirements, provenance links, and curated evidence summaries, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
+> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery, the first Sprite creation and inspection slice, and verified RGB PNG Image Export. Feature issues own delivery contracts, evidence requirements, provenance links, and curated evidence summaries, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
 
 This README owns the user-facing product introduction and promotion, value-proposition
 narrative, onboarding, adoption guidance, and project navigation. Its factual claims
@@ -115,12 +115,17 @@ uv run spa info --input-json '{"aseprite":"/path/to/Aseprite.app/Contents/MacOS/
 printf '%s\n' '{"aseprite":"/path/to/Aseprite.app/Contents/MacOS/aseprite"}' | uv run spa info --input-json -
 uv run spa sprite create --input-json '{"aseprite":"/path/to/aseprite","target_sprite_file":"sprite.aseprite","width":16,"height":16,"color_mode":"rgb","initial_layer":{"kind":"transparent"},"overwrite":false}'
 uv run spa sprite get --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite","inspection_scope":["frames","layers","cels"]}'
+uv run spa export image --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","destination":{"path":"image.png","if_exists":"fail"},"frame_number":1,"color_mode":"preserve","color_profile":"preserve","transparency":"preserve"}'
 ```
 
 `--input-json -` reads one complete JSON request object from stdin; a literal
 `--input-json` value remains available for short invocations.
 `spa sprite create` requires an explicit `overwrite` boolean and refuses to replace an
 existing Target Sprite File when it is `false`.
+`spa export image` renders one explicit Frame of the full canvas with persisted visible
+Layers. It accepts RGB Source Sprites with no Color Profile or sRGB, preserves native
+Alpha values, verifies the staged PNG with an independent decoder, and requires
+`if_exists: fail` or `replace` before publication.
 
 `--aseprite` and `SPA_ASEPRITE_EXECUTABLE` name an executable file, not a macOS
 `.app` directory. When `--aseprite` is absent, SPA checks

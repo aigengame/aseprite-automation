@@ -32,6 +32,7 @@ def test_info_reports_installed_runtime() -> None:
         "aseprite_runtime_introspection",
         "aseprite_sprite_create",
         "aseprite_sprite_inspection",
+        "aseprite_export_image",
     ]
     assert result["supported_capabilities"]
     assert result["supported_capabilities"] == [
@@ -40,6 +41,7 @@ def test_info_reports_installed_runtime() -> None:
         "spa schema",
         "spa sprite create",
         "spa sprite get",
+        "spa export image",
     ]
     assert result["capability_gaps"] == []
     info_schema = json.loads(spa("info", "--schema").stdout)

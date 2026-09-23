@@ -78,7 +78,7 @@ class NativeImageFacts(PublicModel):
     color_profile: Literal["none", "srgb"]
     alpha_min: int = Field(ge=0, le=255)
     alpha_max: int = Field(ge=0, le=255)
-    content_digest: str = Field(pattern=r"^[0-9a-f]{16}$")
+    rendered_byte_size: int = Field(gt=0)
 
 
 class ArtifactFileDetails(PublicModel):
@@ -122,8 +122,7 @@ EXPORT_REQUIREMENTS = RuntimeRequirements(
     required_capabilities=["aseprite_export_image"],
 )
 EXPORT_SUPPORT = PackagedResource("export_image_support", "export_image_support.lua")
-EXPORT_DIGEST = PackagedResource("digest", "digest.lua")
-EXPORT_PROBE_RESOURCES = (EXPORT_SUPPORT, EXPORT_DIGEST)
+EXPORT_PROBE_RESOURCES = (EXPORT_SUPPORT,)
 EXPORT_HANDLER = PackagedHandler("export_image", EXPORT_PROBE_RESOURCES)
 
 
@@ -147,6 +146,7 @@ def export_image(
         raise RuntimeError("Export Image requires the Artifact File Adapter")
     destination = Path(os.path.abspath(os.path.expanduser(request.destination.path)))
     staged = files.staged_path(destination, if_exists=request.destination.if_exists)
+    rendered = files.rendered_path(staged)
     try:
         observation = services.probe_runtime(request)
         invocation = services.invoke_kernel(
@@ -155,6 +155,7 @@ def export_image(
             {
                 "source_sprite_file": request.source_sprite_file,
                 "staged_png_file": str(staged),
+                "staged_rgba_file": str(rendered),
                 "frame_number": request.frame_number,
                 "color_mode": request.color_mode,
                 "color_profile": request.color_profile,
@@ -165,6 +166,7 @@ def export_image(
         native = _native_facts(invocation)
         staged_artifact = files.read_staged(staged)
         decoded = verify_png(staged_artifact.payload, staged)
+        rendered_bytes = files.read_staged(rendered).payload
         if (
             native.frame_number != request.frame_number
             or native.width != decoded.width
@@ -172,7 +174,9 @@ def export_image(
             or native.color_profile != decoded.color_profile
             or native.alpha_min != decoded.alpha_min
             or native.alpha_max != decoded.alpha_max
-            or native.content_digest != decoded.content_digest
+            or native.rendered_byte_size != native.width * native.height * 4
+            or len(rendered_bytes) != native.rendered_byte_size
+            or rendered_bytes != decoded.rgba_bytes
             or (native.alpha_min < 255 and not decoded.alpha_channel_present)
         ):
             raise RuntimeIssue(
@@ -217,6 +221,7 @@ def export_image(
         )
     finally:
         files.discard(staged)
+        files.discard(rendered)
 
 
 EXPORT_OPERATIONS = (

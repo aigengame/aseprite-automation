@@ -114,6 +114,9 @@ class LocalArtifactFiles:
             f".{destination.stem}.{uuid.uuid4().hex}.staged.png"
         )
 
+    def rendered_path(self, staged: Path) -> Path:
+        return staged.with_suffix(".rgba")
+
     def read_staged(self, staged: Path) -> StagedArtifact:
         try:
             payload = staged.read_bytes()

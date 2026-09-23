@@ -1,7 +1,6 @@
 -- Fixed packaged Export Image handler. Runtime files carry data only.
 local kernel_protocol_version = 1
 local exporter = dofile(assert(app.params.export_image_support))
-local digest = dofile(assert(app.params.digest))
 
 local function execute()
   local request_file = assert(io.open(app.params.request, "rb"))
@@ -9,7 +8,7 @@ local function execute()
   request_file:close()
   assert(request.kernel_protocol_version == kernel_protocol_version,
          "unsupported Kernel Protocol version")
-  return exporter.execute(assert(request.payload), digest)
+  return exporter.execute(assert(request.payload))
 end
 
 local ok, result = pcall(execute)
