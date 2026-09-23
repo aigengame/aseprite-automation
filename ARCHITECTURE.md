@@ -318,13 +318,14 @@ the Operation actually uses. A complete probe establishes its scripting, file I/
 JSON transport prerequisites. It reports native runtime capabilities independently of
 those fixed prerequisites. The Application compares the observed Lua language, API
 version, and capabilities with the selected Descriptor before it enters an ordinary
-Operation execution definition. For Plan, the selected Step Descriptors determine the
-requirements; the shared capability observations and comparison run inside the single
-Plan process before its first Step, and Application maps an incompatibility to the same
+Operation execution definition. For Plan, the selected Step Descriptors and mandatory
+final Sprite inspection determine the requirements. Shared capability observations and
+comparison run inside the single Plan process before its first Step, and Application
+maps an incompatibility to the same
 typed `runtime_incompatible` failure. Aggregate discovery uses the union of all
 currently eligible Step requirements to declare the complete Plan surface supported;
 an individual Plan may run with fewer observed capabilities because its execution
-gate uses only its selected Steps.
+gate uses its selected Steps plus final Sprite inspection.
 Descriptors are the registration authority; they do not implement native behavior.
 Under ADR-0013, the failure contract uses shared registration of each public
 Failure Code's meaning, Category, and Details kind. Each Descriptor declares its
@@ -334,10 +335,10 @@ aggregate `spa schema` discovery exposes their separate Access-level failure sch
 The Application classifies private runtime evidence for selected Operations; Access
 adapters project the same Failure Envelope.
 
-An Ordinary Core Operation binds one fixed packaged Lua handler. A capability whose
+Each standalone Ordinary Core Operation binds one fixed packaged Lua handler. A capability whose
 behavior is implemented by an Application use case can have no Kernel binding. An
-application-composed capability can order multiple packaged Ordinary Core Operation
-handlers without redefining their semantics. `script run` uses a separate caller-script
+application-composed capability can order packaged semantic entry points through its
+own fixed handler without redefining their semantics. `script run` uses a separate caller-script
 path. SPA registration, identity resolution, and Ordinary Core Operation dispatch cannot
 use that path to replace, override, rewrite, proxy, or bypass an existing Ordinary Core
 Operation.
@@ -405,8 +406,9 @@ Semantics executed inside Aseprite. Its handlers:
 - observe the resulting native state; and
 - return a versioned private Kernel response.
 
-Standalone Operations, Operation Plans, and private export composition call the same
-packaged handlers. Shared helpers can remove code duplication, but a second Python or
+Standalone handlers and the Plan handler call the same packaged native semantic entry
+points. Standalone handlers save and reopen their Operation output; the Plan handler
+keeps one Sprite live and applies one final save-and-reopen gate. A second Python or
 generated-Lua behavior path is prohibited. `spa script run` is a separate escape hatch
 for exact caller-owned Lua and does not inherit Ordinary Core Operation guarantees.
 

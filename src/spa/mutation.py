@@ -19,6 +19,7 @@ TargetCommitFailureReason = Literal[
     "staged_file_missing",
     "staged_file_empty",
     "replace_failed",
+    "source_target_identity_changed",
 ]
 
 

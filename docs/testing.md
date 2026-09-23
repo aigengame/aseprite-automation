@@ -58,6 +58,10 @@ Plan handler. Static Plan checks execute without Aseprite and report missing Sou
 invalid Target parent, and existing Target conflicts. A controlled transport case
 verifies one process and typed failed-Step evidence; the real runtime verifies the
 shared capability probe before Plan Steps.
+Plan preflight also rejects Source aliases that would be replaced by Target Commit and
+Postconditions that contradict a first Sprite creation Step. Real Aseprite cases
+verify that an alias requires explicit in-place intent and that a document-dependent
+Postcondition failure leaves the Target absent.
 Aggregate discovery conservatively requires every eligible Plan Step capability;
 the Plan execution gate checks only selected Steps in its one Aseprite process.
 

@@ -135,52 +135,88 @@ def test_plan_run_creates_paints_and_commits_once(tmp_path: Path) -> None:
 
 
 @pytest.mark.e2e
-def test_plan_failed_step_and_postcondition_leave_target_absent(tmp_path: Path) -> None:
-    for fail_kind in ("step", "postcondition"):
-        target = tmp_path / f"{fail_kind}.aseprite"
-        steps: list[dict[str, object]] = [
+def test_plan_failed_step_leaves_target_absent(tmp_path: Path) -> None:
+    target = tmp_path / "step.aseprite"
+    run = spa(
+        "plan",
+        "run",
+        "--input-json",
+        json.dumps(
             {
-                "operation": "sprite create",
-                "input": {
-                    "width": 3,
-                    "height": 2,
-                    "color_mode": "rgb",
-                    "initial_layer": {"kind": "transparent"},
+                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+                "plan": {
+                    "target_sprite_file": str(target),
+                    "steps": [
+                        {
+                            "operation": "sprite create",
+                            "input": {
+                                "width": 3,
+                                "height": 2,
+                                "color_mode": "rgb",
+                                "initial_layer": {"kind": "transparent"},
+                            },
+                        },
+                        {
+                            "operation": "paint apply",
+                            "input": {
+                                **_red_pixel(),
+                                "target": {"layer_path": [9], "frame_number": 1},
+                            },
+                        },
+                    ],
                 },
             }
-        ]
-        if fail_kind == "step":
-            steps.append(
-                {
-                    "operation": "paint apply",
-                    "input": {
-                        **_red_pixel(),
-                        "target": {"layer_path": [9], "frame_number": 1},
-                    },
-                }
-            )
-        run = spa(
-            "plan",
-            "run",
-            "--input-json",
-            json.dumps(
-                {
-                    "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-                    "plan": {
-                        "target_sprite_file": str(target),
-                        "steps": steps,
-                        "postconditions": {"width": 99}
-                        if fail_kind == "postcondition"
-                        else {},
-                    },
-                }
-            ),
-        )
-        assert run.returncode == 1, run.stdout + run.stderr
-        failure = json.loads(run.stdout)
-        assert failure["code"] == "kernel_execution_failed"
-        assert failure["details"]["failed_step"] == (2 if fail_kind == "step" else None)
-        assert not target.exists()
+        ),
+    )
+    assert run.returncode == 1, run.stdout + run.stderr
+    failure = json.loads(run.stdout)
+    assert failure["code"] == "kernel_execution_failed"
+    assert failure["details"]["failed_step"] == 2
+    assert not target.exists()
+
+
+@pytest.mark.e2e
+def test_plan_failed_dynamic_postcondition_leaves_target_absent(tmp_path: Path) -> None:
+    source = tmp_path / "source.aseprite"
+    created = spa(
+        "sprite",
+        "create",
+        "--input-json",
+        json.dumps(
+            {
+                "target_sprite_file": str(source),
+                "width": 3,
+                "height": 2,
+                "color_mode": "rgb",
+                "initial_layer": {"kind": "transparent"},
+                "overwrite": False,
+                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+            }
+        ),
+    )
+    assert created.returncode == 0, created.stdout + created.stderr
+    target = tmp_path / "postcondition.aseprite"
+    run = spa(
+        "plan",
+        "run",
+        "--input-json",
+        json.dumps(
+            {
+                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+                "plan": {
+                    "source_sprite_file": str(source),
+                    "target_sprite_file": str(target),
+                    "steps": [{"operation": "paint apply", "input": _red_pixel()}],
+                    "postconditions": {"width": 99},
+                },
+            }
+        ),
+    )
+    assert run.returncode == 1, run.stdout + run.stderr
+    failure = json.loads(run.stdout)
+    assert failure["code"] == "kernel_execution_failed"
+    assert failure["details"]["failed_step"] is None
+    assert not target.exists()
 
 
 @pytest.mark.e2e
@@ -256,6 +292,63 @@ def test_plan_in_place_failure_preserves_existing_file(tmp_path: Path) -> None:
     result = json.loads(success.stdout)
     assert result["target_commit"]["target_sprite_file"] == str(source)
     assert hashlib.sha256(source.read_bytes()).hexdigest() != before
+
+
+@pytest.mark.e2e
+def test_source_alias_requires_explicit_in_place_before_target_replacement(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "real.aseprite"
+    created = spa(
+        "sprite",
+        "create",
+        "--input-json",
+        json.dumps(
+            {
+                "target_sprite_file": str(target),
+                "width": 2,
+                "height": 2,
+                "color_mode": "rgb",
+                "initial_layer": {"kind": "transparent"},
+                "overwrite": False,
+                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+            }
+        ),
+    )
+    assert created.returncode == 0, created.stdout + created.stderr
+    alias = tmp_path / "alias.aseprite"
+    alias.symlink_to(target)
+    before = hashlib.sha256(target.read_bytes()).hexdigest()
+    plan = {
+        "source_sprite_file": str(alias),
+        "target_sprite_file": str(target),
+        "overwrite": True,
+        "steps": [{"operation": "paint apply", "input": _red_pixel()}],
+    }
+    rejected = spa(
+        "plan",
+        "run",
+        "--input-json",
+        json.dumps({"aseprite": os.environ["SPA_TEST_ASEPRITE"], "plan": plan}),
+    )
+    assert rejected.returncode == 2, rejected.stdout + rejected.stderr
+    assert json.loads(rejected.stdout)["code"] == "invalid_request"
+    assert hashlib.sha256(target.read_bytes()).hexdigest() == before
+
+    accepted = spa(
+        "plan",
+        "run",
+        "--input-json",
+        json.dumps(
+            {
+                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+                "plan": plan | {"in_place": True},
+            }
+        ),
+    )
+    assert accepted.returncode == 0, accepted.stdout + accepted.stderr
+    assert hashlib.sha256(target.read_bytes()).hexdigest() != before
+    assert alias.read_bytes() == target.read_bytes()
 
 
 @pytest.mark.e2e

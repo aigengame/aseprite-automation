@@ -225,6 +225,87 @@ def test_plan_run_rejects_missing_source_before_aseprite_discovery(
     ]
 
 
+def test_plan_preflight_rejects_source_alias_to_target_without_in_place(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "real.aseprite"
+    target.write_bytes(b"preflight only")
+    alias = tmp_path / "alias.aseprite"
+    alias.symlink_to(target)
+    plan = {
+        "source_sprite_file": str(alias),
+        "target_sprite_file": str(target),
+        "in_place": False,
+        "overwrite": True,
+        "steps": [
+            {
+                "operation": "paint apply",
+                "input": {
+                    "target": {"layer_path": [1], "frame_number": 1},
+                    "patch": {
+                        "coordinate_space": "image-pixel",
+                        "rectangle": {"x": 0, "y": 0, "width": 1, "height": 1},
+                        "runs": [],
+                    },
+                },
+            }
+        ],
+    }
+    for command in ("check", "run"):
+        request = {"plan": plan}
+        if command == "run":
+            request["aseprite"] = "/missing/aseprite"
+        run = spa("plan", command, "--input-json", json.dumps(request))
+        assert run.returncode == 2, run.stdout + run.stderr
+        failure = json.loads(run.stdout)
+        assert failure["code"] == "invalid_request"
+        assert failure["details"]["errors"][0]["location"] == ["plan", "in_place"]
+
+    target_alias = tmp_path / "target-alias.aseprite"
+    target_alias.symlink_to(target)
+    plan["source_sprite_file"] = str(target)
+    plan["target_sprite_file"] = str(target_alias)
+    accepted = spa("plan", "check", "--input-json", json.dumps({"plan": plan}))
+    assert accepted.returncode == 0, accepted.stdout + accepted.stderr
+
+
+def test_plan_check_rejects_known_creation_postcondition_conflicts(
+    tmp_path: Path,
+) -> None:
+    create = {
+        "operation": "sprite create",
+        "input": {
+            "width": 2,
+            "height": 2,
+            "color_mode": "rgb",
+            "initial_layer": {"kind": "transparent"},
+        },
+    }
+    for conditions in (
+        {"width": 3},
+        {"height": 3},
+        {"color_mode": "grayscale"},
+        {"frame_count": 2},
+    ):
+        run = spa(
+            "plan",
+            "check",
+            "--input-json",
+            json.dumps(
+                {
+                    "plan": {
+                        "target_sprite_file": str(tmp_path / "new.aseprite"),
+                        "steps": [create],
+                        "postconditions": conditions,
+                    }
+                }
+            ),
+            env=os.environ | {"SPA_ASEPRITE_EXECUTABLE": "/missing/aseprite"},
+        )
+        assert run.returncode == 2, run.stdout + run.stderr
+        assert json.loads(run.stdout)["code"] == "invalid_request"
+
+
 def test_plan_step_validation_reports_index_after_one_process(tmp_path: Path) -> None:
     source = tmp_path / "source.aseprite"
     source.write_bytes(b"controlled transport fixture")

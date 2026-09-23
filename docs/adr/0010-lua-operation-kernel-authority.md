@@ -7,9 +7,12 @@ status: accepted
 This decision consolidates ADR-0011.
 
 The versioned, packaged Lua Operation Kernel is the sole authority for each Ordinary
-Core Operation's Core Operation Semantics. One fixed handler defines what the Operation
-creates, edits, observes, validates, converts, or exports through Aseprite. Standalone,
-Plan, and application-composed execution invoke the same handlers.
+Core Operation's Core Operation Semantics. Fixed packaged semantic entry points define
+what an Operation creates, edits, observes, validates, converts, or exports through
+Aseprite. Standalone handlers and the Plan handler call these same entry points.
+Standalone handlers save and reopen their own Operation output. The Plan handler keeps
+one Sprite live across Steps and performs one final save-and-reopen verification before
+Target Commit.
 
 The Python Application layer validates requests and outcomes against the
 Descriptor-owned public contract and owns application orchestration: contract-type

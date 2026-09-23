@@ -24,6 +24,11 @@ class LocalTargetFiles:
             parent_is_dir=path.parent.is_dir(),
         )
 
+    def same_publication_target(self, source: Path, target: Path) -> bool:
+        source_entry = source.parent.resolve() / source.name
+        target_entry = target.parent.resolve() / target.name
+        return source_entry == target_entry or source.resolve() == target_entry
+
     def staged_path(self, target: Path) -> Path:
         token = uuid.uuid4().hex
         return target.with_name(f".{target.stem}.{token}.staged.aseprite")

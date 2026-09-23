@@ -31,6 +31,7 @@ from spa.ports import (
     RequestIssue,
     ResponseEvidence,
     RuntimeIssue,
+    TargetCommitEvidence,
 )
 from spa.sprite import (
     INSPECTION_SECTIONS,
@@ -111,6 +112,22 @@ class PlanDefinition(PublicModel):
         if create_indexes and create_indexes != [0]:
             raise ValueError("Sprite creation is allowed only as the first Plan Step")
         creates = bool(create_indexes)
+        if creates:
+            first = self.steps[0]
+            assert isinstance(first, CreateStep)
+            known = {
+                "width": first.input.width,
+                "height": first.input.height,
+                "color_mode": first.input.color_mode,
+                "frame_count": 1,
+            }
+            for field, expected in self.postconditions.model_dump(
+                exclude_none=True
+            ).items():
+                if expected != known[field]:
+                    raise ValueError(
+                        f"Plan {field} Postcondition contradicts Sprite creation"
+                    )
         mutates = creates or any(step.operation == "paint apply" for step in self.steps)
         if (creates and self.source_sprite_file is not None) or (
             not creates and self.source_sprite_file is None
@@ -131,12 +148,6 @@ class PlanDefinition(PublicModel):
         else:
             assert self.source_sprite_file is not None
             assert self.target_sprite_file is not None
-            same_file = (
-                Path(self.source_sprite_file).expanduser().absolute()
-                == Path(self.target_sprite_file).expanduser().absolute()
-            )
-            if same_file != self.in_place:
-                raise ValueError("Source/Target equality must match in_place intent")
             if self.in_place and not self.overwrite:
                 raise ValueError("In-place Plan requires overwrite permission")
         if not mutates and self.overwrite:
@@ -245,6 +256,20 @@ def _preflight_paths(plan: PlanDefinition, services: OperationServices) -> None:
                         location=["plan", "target_sprite_file"],
                         code="target_not_writable",
                         message=reason,
+                    )
+                ]
+            )
+    if plan.source_sprite_file is not None and plan.target_sprite_file is not None:
+        same_target = services.target_files.same_publication_target(
+            Path(plan.source_sprite_file), Path(plan.target_sprite_file)
+        )
+        if same_target != plan.in_place:
+            raise RequestIssue(
+                [
+                    ValidationIssue(
+                        location=["plan", "in_place"],
+                        code="source_target_identity",
+                        message="Source/Target publication identity must match in_place intent",
                     )
                 ]
             )
@@ -459,6 +484,18 @@ def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunRes
         target_commit = None
         if staged is not None:
             assert plan.target_sprite_file is not None
+            if plan.source_sprite_file is not None:
+                same_target = services.target_files.same_publication_target(
+                    Path(plan.source_sprite_file), Path(plan.target_sprite_file)
+                )
+                if same_target != plan.in_place:
+                    raise RuntimeIssue(
+                        "target_commit_failed",
+                        "Source/Target publication identity changed before Target Commit",
+                        TargetCommitEvidence(
+                            plan.target_sprite_file, "source_target_identity_changed"
+                        ),
+                    )
             committed = services.target_files.commit(
                 staged, Path(plan.target_sprite_file), overwrite=plan.overwrite
             )
