@@ -225,7 +225,7 @@ def test_plan_run_rejects_missing_source_before_aseprite_discovery(
     ]
 
 
-def test_plan_preflight_rejects_source_alias_to_target_without_in_place(
+def test_plan_preflight_checks_source_aliases_against_target_entry(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "real.aseprite"
@@ -267,6 +267,23 @@ def test_plan_preflight_rejects_source_alias_to_target_without_in_place(
     plan["target_sprite_file"] = str(target_alias)
     accepted = spa("plan", "check", "--input-json", json.dumps({"plan": plan}))
     assert accepted.returncode == 0, accepted.stdout + accepted.stderr
+
+    source_through_target = tmp_path / "source-through-target.aseprite"
+    source_through_target.symlink_to(target_alias)
+    plan["source_sprite_file"] = str(source_through_target)
+
+    for command in ("check", "run"):
+        request = {"plan": plan}
+        if command == "run":
+            request["aseprite"] = "/missing/aseprite"
+        result = spa("plan", command, "--input-json", json.dumps(request))
+        assert result.returncode == 2, result.stdout + result.stderr
+        failure = json.loads(result.stdout)
+        assert failure["code"] == "invalid_request"
+        assert failure["details"]["errors"][0]["location"] == ["plan", "in_place"]
+
+    assert target_alias.is_symlink()
+    assert source_through_target.read_bytes() == b"preflight only"
 
 
 def test_plan_check_rejects_known_creation_postcondition_conflicts(

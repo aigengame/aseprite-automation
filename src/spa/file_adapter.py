@@ -25,9 +25,19 @@ class LocalTargetFiles:
         )
 
     def same_publication_target(self, source: Path, target: Path) -> bool:
-        source_entry = source.parent.resolve() / source.name
+        """Whether replacing the Target entry changes reads through Source."""
         target_entry = target.parent.resolve() / target.name
-        return source_entry == target_entry or source.resolve() == target_entry
+        source_entry = source.parent.resolve() / source.name
+        visited: set[Path] = set()
+        while source_entry not in visited:
+            if source_entry == target_entry:
+                return True
+            visited.add(source_entry)
+            if not source_entry.is_symlink():
+                return False
+            linked = source_entry.parent / source_entry.readlink()
+            source_entry = linked.parent.resolve() / linked.name
+        return False
 
     def staged_path(self, target: Path) -> Path:
         token = uuid.uuid4().hex
