@@ -13,7 +13,7 @@ from spa.contracts import (
     RuntimeRequest,
     ValidationIssue,
 )
-from spa.mutation import TargetCommitFailureReason
+from spa.mutation import PublicationIdentityObserver, TargetCommitFailureReason
 
 
 @dataclass(frozen=True)
@@ -93,14 +93,10 @@ class PathObservation:
     parent_is_dir: bool
 
 
-class TargetFiles(Protocol):
+class TargetFiles(PublicationIdentityObserver, Protocol):
     """Domain-neutral staging and atomic Target Commit boundary."""
 
     def observe_path(self, path: Path) -> PathObservation: ...
-
-    def same_publication_entry(self, source: Path, target: Path) -> bool: ...
-
-    def same_publication_target(self, source: Path, target: Path) -> bool: ...
 
     def staged_path(self, target: Path) -> Path: ...
 

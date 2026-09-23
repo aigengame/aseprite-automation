@@ -54,7 +54,8 @@ test verifies the packaged Export handler and Pillow decoder on Linux CI.
 Paint E2E cases reject direct and two-link Source aliases for both `in_place` values
 without a Target Commit. Static integration cases confirm rejection before the
 runtime probe. A real Aseprite case accepts explicit in-place Paint through two path
-spellings of the same publication entry.
+spellings of the same publication entry. On a case-insensitive filesystem, real
+Paint cases also check file-name case variants under both `in_place` values.
 Plan E2E cases cover read-only composition, create/paint/get on one live Sprite,
 failed-Step and failed-Postcondition publication gates, and in-place failure
 preserving the original file digest. A wheel-installed case verifies the packaged

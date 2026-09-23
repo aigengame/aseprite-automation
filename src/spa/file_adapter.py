@@ -20,6 +20,29 @@ def _publication_entry(path: Path) -> Path:
     return path.parent.resolve() / path.name
 
 
+def _same_publication_entry(source: Path, target: Path) -> bool:
+    """Compare entries, including alternate spellings on insensitive filesystems."""
+    source_entry = _publication_entry(source)
+    target_entry = _publication_entry(target)
+    if source_entry == target_entry:
+        return True
+    try:
+        if not source_entry.parent.samefile(target_entry.parent):
+            return False
+    except (FileNotFoundError, NotADirectoryError):
+        return False
+    if source_entry.name == target_entry.name:
+        return True
+    try:
+        if not os.path.samestat(source_entry.lstat(), target_entry.lstat()):
+            return False
+    except (FileNotFoundError, NotADirectoryError):
+        return False
+    names = set(os.listdir(source_entry.parent))
+    # Hard links can share an inode while remaining separate directory entries.
+    return not (source_entry.name in names and target_entry.name in names)
+
+
 class LocalTargetFiles:
     def observe_path(self, path: Path) -> PathObservation:
         return PathObservation(
@@ -30,7 +53,7 @@ class LocalTargetFiles:
 
     def same_publication_entry(self, source: Path, target: Path) -> bool:
         """Whether Source and Target name the same entry replaced by Target Commit."""
-        return _publication_entry(source) == _publication_entry(target)
+        return _same_publication_entry(source, target)
 
     def same_publication_target(self, source: Path, target: Path) -> bool:
         """Whether replacing the Target entry changes reads through Source."""
@@ -38,7 +61,7 @@ class LocalTargetFiles:
         source_entry = _publication_entry(source)
         visited: set[Path] = set()
         while source_entry not in visited:
-            if source_entry == target_entry:
+            if _same_publication_entry(source_entry, target_entry):
                 return True
             visited.add(source_entry)
             if not source_entry.is_symlink():

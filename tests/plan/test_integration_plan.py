@@ -296,6 +296,20 @@ def test_plan_preflight_checks_source_aliases_against_target_entry(
     assert target_alias.is_symlink()
     assert source_through_target.read_bytes() == b"preflight only"
 
+    case_variant = tmp_path / "REAL.aseprite"
+    if case_variant.exists():
+        plan["source_sprite_file"] = str(target)
+        plan["target_sprite_file"] = str(case_variant)
+        plan["in_place"] = False
+        rejected = spa("plan", "check", "--input-json", json.dumps({"plan": plan}))
+        assert rejected.returncode == 2, rejected.stdout + rejected.stderr
+        failure = json.loads(rejected.stdout)
+        assert failure["details"]["errors"][0]["location"] == ["plan", "in_place"]
+
+        plan["in_place"] = True
+        accepted = spa("plan", "check", "--input-json", json.dumps({"plan": plan}))
+        assert accepted.returncode == 0, accepted.stdout + accepted.stderr
+
 
 def test_plan_check_rejects_known_creation_postcondition_conflicts(
     tmp_path: Path,

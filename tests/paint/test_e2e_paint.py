@@ -663,6 +663,36 @@ def test_apply_accepts_in_place_paths_to_the_same_publication_entry(
     assert source.read_bytes() == target.read_bytes() != before
 
 
+@pytest.mark.parametrize("in_place", [False, True])
+def test_apply_case_variant_publication_entry_requires_in_place_intent(
+    tmp_path: Path, in_place: bool
+) -> None:
+    marker = tmp_path / "CaseProbe"
+    marker.touch()
+    if not (tmp_path / "caseprobe").exists():
+        pytest.skip("requires a case-insensitive filesystem")
+    source = tmp_path / "Sprite.aseprite"
+    _create(source)
+    target = tmp_path / "sprite.aseprite"
+    before = source.read_bytes()
+
+    run = _apply(
+        source,
+        target,
+        _rgba_patch(x=2, y=1, length=1),
+        in_place=in_place,
+        overwrite=True,
+    )
+
+    if in_place:
+        assert run.returncode == 0, run.stdout + run.stderr
+        assert source.read_bytes() != before
+    else:
+        assert run.returncode == 2, run.stdout + run.stderr
+        assert json.loads(run.stdout)["code"] == "invalid_request"
+        assert source.read_bytes() == before
+
+
 @pytest.mark.parametrize("through_target_symlink", [False, True])
 def test_apply_rejects_source_alias_to_target_without_commit(
     tmp_path: Path, through_target_symlink: bool
