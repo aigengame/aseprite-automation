@@ -5,7 +5,14 @@ import os
 import uuid
 from pathlib import Path
 
-from spa.ports import RuntimeIssue, TargetCommitEvidence, TargetCommitObservation
+from spa.ports import (
+    ArtifactFileEvidence,
+    ArtifactFileObservation,
+    RuntimeIssue,
+    StagedArtifact,
+    TargetCommitEvidence,
+    TargetCommitObservation,
+)
 
 
 class LocalTargetFiles:
@@ -71,6 +78,92 @@ class LocalTargetFiles:
             target_sprite_file=str(target),
             byte_size=byte_size,
             sha256=digest,
+        )
+
+    def discard(self, staged: Path) -> None:
+        try:
+            staged.unlink()
+        except OSError:
+            pass
+
+
+class LocalArtifactFiles:
+    """File mechanics for the single-destination Export Image tracer."""
+
+    def staged_path(self, destination: Path, *, if_exists: str) -> Path:
+        if not destination.parent.is_dir():
+            raise RuntimeIssue(
+                "artifact_file_failed",
+                "Export Destination parent directory does not exist",
+                ArtifactFileEvidence(str(destination), "destination_parent_missing"),
+            )
+        if destination.exists() or destination.is_symlink():
+            if not destination.is_file() or destination.is_symlink():
+                raise RuntimeIssue(
+                    "artifact_file_failed",
+                    "Export Destination is not a regular file",
+                    ArtifactFileEvidence(str(destination), "destination_not_file"),
+                )
+            if if_exists == "fail":
+                raise RuntimeIssue(
+                    "artifact_file_failed",
+                    "Export Destination already exists",
+                    ArtifactFileEvidence(str(destination), "destination_exists"),
+                )
+        return destination.with_name(
+            f".{destination.stem}.{uuid.uuid4().hex}.staged.png"
+        )
+
+    def read_staged(self, staged: Path) -> StagedArtifact:
+        try:
+            payload = staged.read_bytes()
+        except OSError as exc:
+            raise RuntimeIssue(
+                "artifact_file_failed",
+                "Native encoder did not produce a readable staged Artifact",
+                ArtifactFileEvidence(str(staged), "staged_file_missing"),
+            ) from exc
+        if not payload:
+            raise RuntimeIssue(
+                "artifact_file_failed",
+                "Native encoder produced an empty staged Artifact",
+                ArtifactFileEvidence(str(staged), "staged_file_empty"),
+            )
+        return StagedArtifact(
+            payload, len(payload), hashlib.sha256(payload).hexdigest()
+        )
+
+    def publish(
+        self, staged: Path, destination: Path, *, if_exists: str, sha256: str
+    ) -> ArtifactFileObservation:
+        staged_artifact = self.read_staged(staged)
+        if staged_artifact.sha256 != sha256:
+            raise RuntimeIssue(
+                "artifact_file_failed",
+                "Staged Artifact changed after verification",
+                ArtifactFileEvidence(str(destination), "staged_file_changed"),
+            )
+        try:
+            if if_exists == "replace":
+                if destination.exists() and not destination.is_file():
+                    raise IsADirectoryError(str(destination))
+                os.replace(staged, destination)
+            else:
+                os.link(staged, destination)
+        except FileExistsError as exc:
+            raise RuntimeIssue(
+                "artifact_file_failed",
+                "Export Destination appeared before publication",
+                ArtifactFileEvidence(str(destination), "destination_exists"),
+            ) from exc
+        except OSError as exc:
+            raise RuntimeIssue(
+                "artifact_file_failed",
+                "Staged Artifact could not be published",
+                ArtifactFileEvidence(str(destination), "publication_failed"),
+            ) from exc
+        return ArtifactFileObservation(
+            str(destination), staged_artifact.byte_size, sha256
         )
 
     def discard(self, staged: Path) -> None:

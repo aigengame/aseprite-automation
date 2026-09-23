@@ -11,6 +11,7 @@ from spa.contracts import (
     VersionResult,
     failure_schema,
 )
+from spa.export import EXPORT_OPERATIONS
 from spa.failure_registry import FAILURE_CODES
 from spa.operation import (
     ACCESS_FAILURE_CODES,
@@ -158,4 +159,4 @@ META_OPERATIONS = (
     ),
 )
 
-OPERATIONS = (*META_OPERATIONS, *SPRITE_OPERATIONS)
+OPERATIONS = (*META_OPERATIONS, *SPRITE_OPERATIONS, *EXPORT_OPERATIONS)

@@ -41,6 +41,7 @@ RuntimeCapability = Literal[
     "aseprite_runtime_introspection",
     "aseprite_sprite_create",
     "aseprite_sprite_inspection",
+    "aseprite_export_image",
 ]
 
 
@@ -87,7 +88,7 @@ class InfoResult(PublicModel):
 
 class OperationSchema(PublicModel):
     operation: str
-    execution_kind: Literal["read", "mutation"]
+    execution_kind: Literal["read", "mutation", "export"]
     determinism: Literal["deterministic"]
     side_effects: list[str]
     minimum_aseprite_version: str | None
