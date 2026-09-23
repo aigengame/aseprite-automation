@@ -217,13 +217,16 @@ def test_export_rejects_tilemap_image_before_encoding(tmp_path: Path) -> None:
     source = _source(tmp_path, "rgb_tilemap.lua")
     source_sha = hashlib.sha256(source.read_bytes()).hexdigest()
     destination = tmp_path / "unsupported.png"
+    request = _request(source, destination)
+    schema = json.loads(spa("export", "image", "--schema").stdout)
+    validate(request, schema["request_schema"])
 
-    run = spa(
-        "export", "image", "--input-json", json.dumps(_request(source, destination))
-    )
+    run = spa("export", "image", "--input-json", json.dumps(request))
 
     assert run.returncode != 0
-    assert json.loads(run.stdout)["code"] == "kernel_execution_failed"
+    failure = json.loads(run.stdout)
+    validate(failure, schema["failure_schema"])
+    assert failure["code"] == "kernel_execution_failed"
     assert not destination.exists()
     assert not list(tmp_path.glob("*.staged.png"))
     assert hashlib.sha256(source.read_bytes()).hexdigest() == source_sha
