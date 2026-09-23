@@ -14,7 +14,7 @@ from spa.paint import (
     PAINT_SUPPORT_RESOURCE,
     PaintApplyEvidence,
     PaintApplyInput,
-    _validate_evidence,
+    validate_paint_evidence,
 )
 from spa.ports import (
     KernelInvocationResult,
@@ -25,6 +25,7 @@ from spa.ports import (
     RuntimeIssue,
 )
 from spa.sprite import (
+    INSPECTION_SECTIONS,
     SPRITE_CREATION_RESOURCE,
     SPRITE_INSPECTION_RESOURCE,
     SPRITE_OPERATIONS,
@@ -35,8 +36,8 @@ from spa.sprite import (
     SpriteGetInput,
     SpriteGetRequest,
     SpriteInspection,
-    _validate_created_sprite,
-    _validated_scope,
+    validate_created_sprite,
+    validated_scope,
 )
 
 MAX_PLAN_STEPS = 64
@@ -223,7 +224,11 @@ def _postcondition(invocation: KernelInvocationResult, reason: str) -> RuntimeIs
 
 def _requirements(plan: PlanDefinition) -> RuntimeRequirements:
     requirements = [
-        ELIGIBLE_OPERATIONS[step.operation].runtime_requirements for step in plan.steps
+        ELIGIBLE_OPERATIONS["sprite get"].runtime_requirements,
+        *(
+            ELIGIBLE_OPERATIONS[step.operation].runtime_requirements
+            for step in plan.steps
+        ),
     ]
     assert all(item is not None for item in requirements)
     versions = {item.lua_language for item in requirements if item is not None}
@@ -268,14 +273,14 @@ def _validated_steps(
                     or "plan.aseprite",
                     inspection_scope=step.input.inspection_scope,
                 )
-                scope = _validated_scope(scope_request, sprite, invocation)
+                scope = validated_scope(scope_request, sprite, invocation)
                 outcome = GetStepOutcome(
                     operation="sprite get",
                     result=GetStepResult(sprite=sprite, scope=scope),
                 )
             else:
                 outcome = PaintStepOutcome.model_validate(item)
-                _validate_evidence(step.input, outcome.result, invocation)
+                validate_paint_evidence(step.input, outcome.result, invocation)
         except (KeyError, TypeError, ValidationError) as exc:
             raise _malformed(
                 invocation, "Plan Kernel returned invalid Step evidence"
@@ -317,6 +322,13 @@ def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunRes
             raise _malformed(
                 invocation, "Plan Kernel returned invalid final Sprite evidence"
             ) from exc
+        final_scope_request = SpriteGetRequest(
+            sprite_file=plan.target_sprite_file
+            or plan.source_sprite_file
+            or "plan.aseprite",
+            inspection_scope=list(INSPECTION_SECTIONS),
+        )
+        validated_scope(final_scope_request, final_sprite, invocation)
         outcomes = _validated_steps(request, invocation)
         metadata = final_sprite.metadata
         for field, expected in plan.postconditions.model_dump(
@@ -333,7 +345,7 @@ def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunRes
                 overwrite=plan.overwrite,
                 **create.model_dump(),
             )
-            _validate_created_sprite(
+            validate_created_sprite(
                 create_request, final_sprite, first.result.initial_layer, invocation
             )
         target_commit = None
@@ -379,7 +391,9 @@ PLAN_OPERATIONS = (
             else f"Plan completed: {len(result.steps)} Steps"
         ),
         RuntimeRequirements(
-            lua_language="Lua 5.4", minimum_api_version=41, required_capabilities=[]
+            lua_language="Lua 5.4",
+            minimum_api_version=41,
+            required_capabilities=["aseprite_sprite_inspection"],
         ),
         (*RUNTIME_FAILURE_CODES, "target_commit_failed"),
         execution_kind="mutation",

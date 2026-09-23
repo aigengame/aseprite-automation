@@ -226,7 +226,7 @@ better Aseprite-aligned evidence.
 
 ## `plan`
 
-| Candidate command | Intended meaning |
+| Installed command | Intended meaning |
 | --- | --- |
 | `spa plan check` | Validate a bounded single-Sprite Operation Plan without opening Aseprite. |
 | `spa plan run` | Execute eligible Steps in one Aseprite process and commit at most one target. |

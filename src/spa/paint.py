@@ -200,7 +200,7 @@ def apply_paint(
             observation, PAINT_APPLY_HANDLER, payload, request.timeout_seconds
         )
         evidence = _paint_evidence(invocation)
-        _validate_evidence(request, evidence, invocation)
+        validate_paint_evidence(request, evidence, invocation)
         committed = services.target_files.commit(
             staged_file, target_file, overwrite=request.overwrite
         )
@@ -228,7 +228,7 @@ def _paint_evidence(invocation: KernelInvocationResult) -> PaintApplyEvidence:
         ) from exc
 
 
-def _validate_evidence(
+def validate_paint_evidence(
     request: PaintApplyInput,
     evidence: PaintApplyEvidence,
     invocation: KernelInvocationResult,

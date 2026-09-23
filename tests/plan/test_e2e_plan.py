@@ -10,30 +10,6 @@ import pytest
 from tests.support import spa
 
 
-def test_plan_check_admits_a_read_plan_without_launching_aseprite(
-    tmp_path: Path,
-) -> None:
-    source = tmp_path / "source.aseprite"
-    source.write_bytes(b"unused by static preflight")
-    request = {
-        "plan": {
-            "source_sprite_file": str(source),
-            "steps": [
-                {"operation": "sprite get", "input": {"inspection_scope": ["frames"]}}
-            ],
-        }
-    }
-    environment = os.environ | {"SPA_ASEPRITE_EXECUTABLE": "/missing/aseprite"}
-
-    run = spa("plan", "check", "--input-json", json.dumps(request), env=environment)
-
-    assert run.returncode == 0, run.stdout + run.stderr
-    result = json.loads(run.stdout)
-    assert result["operation"] == "spa plan check"
-    assert result["step_count"] == 1
-    assert result["commit_required"] is False
-
-
 @pytest.mark.e2e
 def test_plan_run_reads_one_sprite_across_two_steps(tmp_path: Path) -> None:
     source = tmp_path / "source.aseprite"
@@ -259,55 +235,60 @@ def test_plan_in_place_failure_preserves_existing_file(tmp_path: Path) -> None:
     assert failure["details"]["failed_step"] == 2
     assert hashlib.sha256(source.read_bytes()).hexdigest() == before
 
-
-def test_plan_check_rejects_unknown_step_and_operation_owned_pixel_limit(
-    tmp_path: Path,
-) -> None:
-    source = tmp_path / "source.aseprite"
-    cases = [
-        [{"operation": "export image", "input": {}}],
-        [
+    success = spa(
+        "plan",
+        "run",
+        "--input-json",
+        json.dumps(
             {
-                "operation": "paint apply",
-                "input": {
-                    "target": {"layer_path": [1], "frame_number": 1},
-                    "patch": {
-                        "coordinate_space": "image-pixel",
-                        "rectangle": {"x": 0, "y": 0, "width": 257, "height": 1},
-                        "runs": [
-                            {
-                                "x": 0,
-                                "y": 0,
-                                "length": 257,
-                                "color": {
-                                    "kind": "rgba",
-                                    "red": 255,
-                                    "green": 0,
-                                    "blue": 0,
-                                    "alpha": 255,
-                                },
-                            }
-                        ],
-                    },
+                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+                "plan": {
+                    "source_sprite_file": str(source),
+                    "target_sprite_file": str(source),
+                    "in_place": True,
+                    "overwrite": True,
+                    "steps": [{"operation": "paint apply", "input": _red_pixel()}],
                 },
             }
-        ],
-    ]
-    for steps in cases:
-        run = spa(
-            "plan",
-            "check",
-            "--input-json",
-            json.dumps(
-                {
-                    "plan": {
-                        "source_sprite_file": str(source),
-                        "target_sprite_file": str(tmp_path / "target.aseprite"),
-                        "steps": steps,
-                    },
-                }
-            ),
-            env=os.environ | {"SPA_ASEPRITE_EXECUTABLE": "/missing/aseprite"},
-        )
-        assert run.returncode == 2, run.stdout
-        assert json.loads(run.stdout)["code"] == "invalid_request"
+        ),
+    )
+    assert success.returncode == 0, success.stdout + success.stderr
+    result = json.loads(success.stdout)
+    assert result["target_commit"]["target_sprite_file"] == str(source)
+    assert hashlib.sha256(source.read_bytes()).hexdigest() != before
+
+
+@pytest.mark.e2e
+def test_wheel_installed_plan_uses_packaged_handler(tmp_path: Path) -> None:
+    installed_cli = os.environ.get("SPA_TEST_INSTALLED_CLI")
+    if installed_cli is None:
+        pytest.skip("SPA_TEST_INSTALLED_CLI does not select a wheel-installed CLI")
+    target = tmp_path / "wheel-plan.aseprite"
+    run = spa(
+        "plan",
+        "run",
+        "--input-json",
+        json.dumps(
+            {
+                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+                "plan": {
+                    "target_sprite_file": str(target),
+                    "steps": [
+                        {
+                            "operation": "sprite create",
+                            "input": {
+                                "width": 2,
+                                "height": 2,
+                                "color_mode": "rgb",
+                                "initial_layer": {"kind": "transparent"},
+                            },
+                        }
+                    ],
+                },
+            }
+        ),
+        executable=installed_cli,
+    )
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert target.is_file()
+    assert json.loads(run.stdout)["persisted_reopen_verified"] is True

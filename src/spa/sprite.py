@@ -292,7 +292,7 @@ def _section_count(
     return actual, expected
 
 
-def _validated_scope(
+def validated_scope(
     request: SpriteGetRequest,
     inspection: SpriteInspection,
     invocation: KernelInvocationResult,
@@ -324,7 +324,7 @@ def _validated_scope(
     )
 
 
-def _validate_created_sprite(
+def validate_created_sprite(
     request: SpriteCreateRequest,
     inspection: SpriteInspection,
     persisted_initial_layer: InitialLayer,
@@ -411,8 +411,8 @@ def create_sprite(
             sprite_file=request.target_sprite_file,
             inspection_scope=list(INSPECTION_SECTIONS),
         )
-        _validated_scope(create_scope, inspection, invocation)
-        _validate_created_sprite(
+        validated_scope(create_scope, inspection, invocation)
+        validate_created_sprite(
             request, inspection, persisted_initial_layer, invocation
         )
         committed = services.target_files.commit(
@@ -446,7 +446,7 @@ def get_sprite(
         request.timeout_seconds,
     )
     inspection = _inspection_from_kernel(invocation)
-    scope = _validated_scope(request, inspection, invocation)
+    scope = validated_scope(request, inspection, invocation)
     return SpriteGetResult(
         **inspection.model_dump(),
         sprite_file=request.sprite_file,

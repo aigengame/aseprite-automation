@@ -140,6 +140,7 @@ def test_installed_manifest_exposes_access_failures_without_real_aseprite(
         "spa info",
         "spa version",
         "spa schema",
+        "spa plan check",
     ]
     gaps = {
         item["capability"]: item["evidence"] for item in manifest["capability_gaps"]

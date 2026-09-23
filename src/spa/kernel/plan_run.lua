@@ -11,20 +11,6 @@ local open_sprite = nil
 local failed_step = nil
 local failed_operation = nil
 
-local function equal(left, right)
-  if type(left) ~= type(right) then
-    return tonumber(left) ~= nil and tonumber(left) == tonumber(right)
-  end
-  if type(left) ~= "table" then return left == right end
-  for key, value in pairs(left) do
-    if not equal(value, right[key]) then return false end
-  end
-  for key, _ in pairs(right) do
-    if left[key] == nil then return false end
-  end
-  return true
-end
-
 local function difference(left, right, at)
   if type(left) ~= type(right) then
     if tonumber(left) ~= nil and tonumber(left) == tonumber(right) then return nil end
@@ -147,11 +133,12 @@ local function execute()
       before.sprite.palettes = nil
       after.sprite.palettes = nil
     end
-    assert(equal(before.sprite, after.sprite),
-           "persisted Plan inspection differs at " ..
-           tostring(difference(before.sprite, after.sprite, "sprite")))
-    assert(equal(before.images, after.images),
-           "persisted Plan images differ from in-memory state")
+    local inspection_mismatch = difference(before.sprite, after.sprite, "sprite")
+    assert(inspection_mismatch == nil,
+           "persisted Plan inspection differs at " .. tostring(inspection_mismatch))
+    local image_mismatch = difference(before.images, after.images, "images")
+    assert(image_mismatch == nil,
+           "persisted Plan images differ at " .. tostring(image_mismatch))
     after.sprite.palettes = persisted_palettes
     verify_postconditions(open_sprite, conditions)
     persisted = true

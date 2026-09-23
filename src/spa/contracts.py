@@ -94,6 +94,7 @@ class OperationSchema(PublicModel):
     side_effects: list[str]
     minimum_aseprite_version: str | None
     requires_runtime: bool
+    plan_eligible: bool = False
     runtime_requirements: RuntimeRequirements | None
     request_schema: dict
     result_schema: dict
