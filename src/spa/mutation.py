@@ -1,10 +1,48 @@
-"""Shared contracts for staged Sprite mutation publication."""
+"""Shared Source/Target intent and Target Commit contracts."""
 
-from typing import Literal
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Literal, Protocol
 
 from pydantic import Field
 
-from spa.contracts import FailureCodeSpec, PublicModel
+from spa.contracts import FailureCodeSpec, PublicModel, ValidationIssue
+
+
+class PublicationIdentityObserver(Protocol):
+    def same_publication_entry(self, source: Path, target: Path) -> bool: ...
+
+    def same_publication_target(self, source: Path, target: Path) -> bool: ...
+
+
+def source_target_identity_issue(
+    files: PublicationIdentityObserver, source: Path, target: Path, in_place: bool
+) -> ValidationIssue | None:
+    try:
+        same_entry = files.same_publication_entry(source, target)
+        traverses_target = not same_entry and files.same_publication_target(
+            source, target
+        )
+    except OSError:
+        return ValidationIssue(
+            location=["source_sprite_file"],
+            code="source_target_identity",
+            message="Source/Target publication identity could not be verified",
+        )
+    if traverses_target:
+        return ValidationIssue(
+            location=["source_sprite_file"],
+            code="source_target_identity",
+            message="Source alias traverses the Target publication entry",
+        )
+    if same_entry != in_place:
+        return ValidationIssue(
+            location=["in_place"],
+            code="source_target_identity",
+            message="Source/Target publication identity must match in_place intent",
+        )
+    return None
 
 
 class TargetCommit(PublicModel):

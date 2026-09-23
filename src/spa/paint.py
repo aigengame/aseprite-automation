@@ -3,15 +3,20 @@
 from pathlib import Path
 from typing import Annotated, Literal
 
-from pydantic import ConfigDict, Field, ValidationError, model_validator
+from pydantic import (
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 from spa.contracts import (
     PublicModel,
     RuntimeRequest,
     RuntimeRequirements,
-    ValidationIssue,
 )
-from spa.mutation import TargetCommit
+from spa.mutation import TargetCommit, source_target_identity_issue
 from spa.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.ports import (
     KernelInvocationResult,
@@ -85,24 +90,13 @@ class PaintApplyRequest(RuntimeRequest, PaintApplyInput):
     in_place: bool
     overwrite: bool
 
+    _validate_source = field_validator("source_sprite_file")(_native_sprite_path)
+    _validate_target = field_validator("target_sprite_file")(_native_sprite_path)
+
     @model_validator(mode="after")
     def validate_target_commit_intent(self) -> "PaintApplyRequest":
-        source = _native_sprite_path(self.source_sprite_file)
-        target = _native_sprite_path(self.target_sprite_file)
-        same_file = (
-            Path(source).expanduser().absolute() == Path(target).expanduser().absolute()
-        )
-        if self.in_place:
-            if not same_file:
-                raise ValueError(
-                    "in_place requires identical Source and Target Sprite Files"
-                )
-            if not self.overwrite:
-                raise ValueError("in_place requires overwrite permission")
-        elif same_file:
-            raise ValueError(
-                "identical Source and Target Sprite Files require in_place"
-            )
+        if self.in_place and not self.overwrite:
+            raise ValueError("in_place requires overwrite permission")
         return self
 
 
@@ -188,18 +182,14 @@ def apply_paint(
     request: PaintApplyRequest, services: OperationServices
 ) -> PaintApplyResult:
     target_file = Path(request.target_sprite_file)
-    if not request.in_place and services.target_files.same_publication_target(
-        Path(request.source_sprite_file), target_file
-    ):
-        raise RequestIssue(
-            [
-                ValidationIssue(
-                    location=["source_sprite_file"],
-                    code="source_target_identity",
-                    message="Source reads through the Target publication entry",
-                )
-            ]
-        )
+    identity_issue = source_target_identity_issue(
+        services.target_files,
+        Path(request.source_sprite_file),
+        target_file,
+        request.in_place,
+    )
+    if identity_issue is not None:
+        raise RequestIssue([identity_issue])
     observation = services.probe_runtime(request)
     staged_file = services.target_files.staged_path(target_file)
     payload = request.model_dump(
