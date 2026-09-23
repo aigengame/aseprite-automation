@@ -12,6 +12,7 @@ from spa.contracts import (
     RuntimeCapability,
     RuntimeRequest,
 )
+from spa.mutation import TargetCommitFailureReason
 
 
 @dataclass(frozen=True)
@@ -152,13 +153,7 @@ class RuntimeCompatibilityEvidence:
 @dataclass(frozen=True)
 class TargetCommitEvidence:
     target_sprite_file: str
-    reason: Literal[
-        "target_not_file",
-        "overwrite_not_allowed",
-        "staged_file_missing",
-        "staged_file_empty",
-        "replace_failed",
-    ]
+    reason: TargetCommitFailureReason
 
 
 RuntimeEvidence = (

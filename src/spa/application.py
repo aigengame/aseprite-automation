@@ -23,6 +23,7 @@ from spa.contracts import (
     ValidationIssue,
     failure_envelope,
 )
+from spa.mutation import TargetCommitDetails
 from spa.operation import OperationDescriptor
 from spa.ports import (
     DiscoveryEvidence,
@@ -38,7 +39,6 @@ from spa.ports import (
     RuntimeObservation,
     TargetCommitEvidence,
 )
-from spa.sprite import TargetCommitDetails
 
 
 def _request_failure(

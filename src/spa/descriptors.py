@@ -17,8 +17,11 @@ from spa.operation import (
     RUNTIME_FAILURE_CODES,
     OperationDescriptor,
 )
+from spa.paint import PAINT_OPERATIONS, PAINT_PROBE_RESOURCES
 from spa.ports import OperationServices
-from spa.sprite import SPRITE_OPERATIONS
+from spa.sprite import SPRITE_OPERATIONS, SPRITE_PROBE_RESOURCES
+
+PROBE_RESOURCES = (*SPRITE_PROBE_RESOURCES, *PAINT_PROBE_RESOURCES)
 
 KERNEL_RUNTIME_REQUIREMENTS = RuntimeRequirements(
     lua_language="Lua 5.4",
@@ -158,4 +161,4 @@ META_OPERATIONS = (
     ),
 )
 
-OPERATIONS = (*META_OPERATIONS, *SPRITE_OPERATIONS)
+OPERATIONS = (*META_OPERATIONS, *SPRITE_OPERATIONS, *PAINT_OPERATIONS)
