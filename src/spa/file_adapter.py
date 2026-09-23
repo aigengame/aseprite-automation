@@ -8,6 +8,7 @@ from pathlib import Path
 from spa.ports import (
     ArtifactFileEvidence,
     ArtifactFileObservation,
+    PathObservation,
     RuntimeIssue,
     StagedArtifact,
     TargetCommitEvidence,
@@ -16,6 +17,13 @@ from spa.ports import (
 
 
 class LocalTargetFiles:
+    def observe_path(self, path: Path) -> PathObservation:
+        return PathObservation(
+            exists=path.exists() or path.is_symlink(),
+            is_file=path.is_file(),
+            parent_is_dir=path.parent.is_dir(),
+        )
+
     def staged_path(self, target: Path) -> Path:
         token = uuid.uuid4().hex
         return target.with_name(f".{target.stem}.{token}.staged.aseprite")

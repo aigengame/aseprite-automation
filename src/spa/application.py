@@ -35,6 +35,7 @@ from spa.ports import (
     OperationServices,
     PostconditionEvidence,
     ProcessEvidence,
+    RequestIssue,
     ResourceEvidence,
     ResponseEvidence,
     RuntimeCompatibilityEvidence,
@@ -266,6 +267,8 @@ def dispatch(
         outcome = descriptor.execute(
             request, replace(configured, probe_runtime=compatible_probe)
         )
+    except RequestIssue as exc:
+        return _request_failure(descriptor, exc.issues, failure_codes)
     except RuntimeIssue as exc:
         return _runtime_failure(descriptor, exc, failure_codes)
     return _validated_outcome(descriptor, outcome, failure_codes)

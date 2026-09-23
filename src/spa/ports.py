@@ -11,6 +11,7 @@ from spa.contracts import (
     ProbePrerequisite,
     RuntimeCapability,
     RuntimeRequest,
+    ValidationIssue,
 )
 from spa.mutation import TargetCommitFailureReason
 
@@ -85,8 +86,17 @@ class TargetCommitObservation:
     sha256: str
 
 
+@dataclass(frozen=True)
+class PathObservation:
+    exists: bool
+    is_file: bool
+    parent_is_dir: bool
+
+
 class TargetFiles(Protocol):
     """Domain-neutral staging and atomic Target Commit boundary."""
+
+    def observe_path(self, path: Path) -> PathObservation: ...
 
     def staged_path(self, target: Path) -> Path: ...
 
@@ -304,3 +314,11 @@ class RuntimeIssue(Exception):
         self.kind = kind
         self.evidence = evidence
         self.diagnostics = diagnostics or Diagnostics()
+
+
+class RequestIssue(Exception):
+    """Statically detected request failure after schema validation."""
+
+    def __init__(self, issues: list[ValidationIssue]):
+        super().__init__("Invalid Operation Request")
+        self.issues = issues

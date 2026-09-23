@@ -12,6 +12,22 @@ local open_sprite = nil
 local failed_step = nil
 local failed_operation = nil
 local runtime_incompatibility = nil
+local previous_editor_state = {
+  sprite=app.activeSprite,
+  layer=app.activeLayer,
+  frame=app.activeFrame,
+  background_color=app.bgColor,
+}
+
+local function restore_editor_state()
+  pcall(function() app.bgColor = previous_editor_state.background_color end)
+  local previous = previous_editor_state.sprite
+  if previous ~= nil and previous.isValid then
+    pcall(function() app.activeSprite = previous end)
+    pcall(function() app.activeLayer = previous_editor_state.layer end)
+    pcall(function() app.activeFrame = previous_editor_state.frame end)
+  end
+end
 
 local function verify_runtime(requirements)
   local observed = capability_probe.observe()
@@ -196,6 +212,7 @@ else
     runtime_compatibility=runtime_incompatibility,
   }
 end
+restore_editor_state()
 local response_file = assert(io.open(app.params.response, "wb"))
 response_file:write(json.encode(response))
 response_file:close()

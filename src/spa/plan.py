@@ -5,7 +5,13 @@ from typing import Annotated, Any, Literal
 
 from pydantic import Field, ValidationError, model_validator
 
-from spa.contracts import PublicModel, Request, RuntimeRequest, RuntimeRequirements
+from spa.contracts import (
+    PublicModel,
+    Request,
+    RuntimeRequest,
+    RuntimeRequirements,
+    ValidationIssue,
+)
 from spa.mutation import TargetCommit
 from spa.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.paint import (
@@ -22,6 +28,7 @@ from spa.ports import (
     OperationServices,
     PackagedHandler,
     PostconditionEvidence,
+    RequestIssue,
     ResponseEvidence,
     RuntimeIssue,
 )
@@ -134,20 +141,6 @@ class PlanDefinition(PublicModel):
                 raise ValueError("In-place Plan requires overwrite permission")
         if not mutates and self.overwrite:
             raise ValueError("Read Plan cannot request overwrite")
-        if (
-            self.source_sprite_file is not None
-            and not Path(self.source_sprite_file).is_file()
-        ):
-            raise ValueError("Source Sprite File does not exist as a regular file")
-        if self.target_sprite_file is not None:
-            target = Path(self.target_sprite_file)
-            if not target.parent.is_dir():
-                raise ValueError("Target Sprite File parent directory does not exist")
-            if target.exists() or target.is_symlink():
-                if not target.is_file():
-                    raise ValueError("Target Sprite File is not a regular file")
-                if not self.overwrite:
-                    raise ValueError("Target Sprite File exists and overwrite is false")
         return self
 
     @property
@@ -215,11 +208,46 @@ class PlanRunResult(PublicModel):
 
 
 def check_plan(
-    request: PlanCheckRequest, _services: OperationServices
+    request: PlanCheckRequest, services: OperationServices
 ) -> PlanCheckResult:
+    _preflight_paths(request.plan, services)
     return PlanCheckResult(
         step_count=len(request.plan.steps), commit_required=request.plan.commit_required
     )
+
+
+def _preflight_paths(plan: PlanDefinition, services: OperationServices) -> None:
+    if plan.source_sprite_file is not None:
+        source = services.target_files.observe_path(Path(plan.source_sprite_file))
+        if not source.is_file:
+            raise RequestIssue(
+                [
+                    ValidationIssue(
+                        location=["plan", "source_sprite_file"],
+                        code="source_not_file",
+                        message="Source Sprite File does not exist as a regular file",
+                    )
+                ]
+            )
+    if plan.target_sprite_file is not None:
+        target = services.target_files.observe_path(Path(plan.target_sprite_file))
+        reason = None
+        if not target.parent_is_dir:
+            reason = "Target Sprite File parent directory does not exist"
+        elif target.exists and not target.is_file:
+            reason = "Target Sprite File is not a regular file"
+        elif target.exists and not plan.overwrite:
+            reason = "Target Sprite File exists and overwrite is false"
+        if reason is not None:
+            raise RequestIssue(
+                [
+                    ValidationIssue(
+                        location=["plan", "target_sprite_file"],
+                        code="target_not_writable",
+                        message=reason,
+                    )
+                ]
+            )
 
 
 def _malformed(
@@ -359,6 +387,7 @@ def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunRes
     if services.invoke_kernel_direct is None:
         raise TypeError("Plan run requires the direct Kernel invocation adapter")
     plan = request.plan
+    _preflight_paths(plan, services)
     staged = (
         services.target_files.staged_path(Path(plan.target_sprite_file))
         if plan.target_sprite_file is not None
@@ -411,9 +440,17 @@ def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunRes
                 overwrite=plan.overwrite,
                 **create.model_dump(),
             )
-            validate_created_sprite(
-                create_request, final_sprite, first.result.initial_layer, invocation
-            )
+            try:
+                validate_created_sprite(
+                    create_request, final_sprite, first.result.initial_layer, invocation
+                )
+            except RuntimeIssue as exc:
+                raise _postcondition(
+                    invocation,
+                    str(exc),
+                    failed_step=1,
+                    failed_operation="sprite create",
+                ) from exc
         target_commit = None
         if staged is not None:
             assert plan.target_sprite_file is not None

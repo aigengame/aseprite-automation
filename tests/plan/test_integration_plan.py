@@ -8,6 +8,33 @@ from pathlib import Path
 from tests.support import fake_aseprite, spa
 
 
+def _one_frame_inspection() -> dict[str, object]:
+    return {
+        "metadata": {
+            "width": 1,
+            "height": 1,
+            "color_mode": "rgb",
+            "frame_count": 1,
+            "tag_count": 0,
+            "palette_count": 0,
+            "layer_count": 0,
+            "cel_count": 0,
+            "slice_count": 0,
+            "tileset_count": 0,
+            "transparent_color_index": 0,
+            "grid_bounds": {"x": 0, "y": 0, "width": 1, "height": 1},
+            "pixel_ratio": {"width": 1, "height": 1},
+        },
+        "frames": [{"frame_number": 1, "duration_ms": 100}],
+        "tags": [],
+        "palettes": [],
+        "layers": [],
+        "cels": [],
+        "slices": [],
+        "tilesets": [],
+    }
+
+
 def test_plan_check_admits_a_read_plan_without_launching_aseprite(
     tmp_path: Path,
 ) -> None:
@@ -141,35 +168,43 @@ def test_plan_check_reports_decidable_path_failures_without_aseprite(
         assert json.loads(run.stdout)["code"] == "invalid_request"
 
 
+def test_plan_run_rejects_missing_source_before_aseprite_discovery(
+    tmp_path: Path,
+) -> None:
+    run = spa(
+        "plan",
+        "run",
+        "--input-json",
+        json.dumps(
+            {
+                "aseprite": "/missing/aseprite",
+                "plan": {
+                    "source_sprite_file": str(tmp_path / "missing.aseprite"),
+                    "steps": [
+                        {
+                            "operation": "sprite get",
+                            "input": {"inspection_scope": ["frames"]},
+                        }
+                    ],
+                },
+            }
+        ),
+    )
+    assert run.returncode == 2, run.stdout + run.stderr
+    failure = json.loads(run.stdout)
+    assert failure["code"] == "invalid_request"
+    assert failure["details"]["errors"][0]["location"] == [
+        "plan",
+        "source_sprite_file",
+    ]
+
+
 def test_plan_step_validation_reports_index_after_one_process(tmp_path: Path) -> None:
     source = tmp_path / "source.aseprite"
     source.write_bytes(b"controlled transport fixture")
     count_file = tmp_path / "invocations.txt"
     response_file = tmp_path / "response.json"
-    final_sprite = {
-        "metadata": {
-            "width": 1,
-            "height": 1,
-            "color_mode": "rgb",
-            "frame_count": 1,
-            "tag_count": 0,
-            "palette_count": 0,
-            "layer_count": 0,
-            "cel_count": 0,
-            "slice_count": 0,
-            "tileset_count": 0,
-            "transparent_color_index": 0,
-            "grid_bounds": {"x": 0, "y": 0, "width": 1, "height": 1},
-            "pixel_ratio": {"width": 1, "height": 1},
-        },
-        "frames": [{"frame_number": 1, "duration_ms": 100}],
-        "tags": [],
-        "palettes": [],
-        "layers": [],
-        "cels": [],
-        "slices": [],
-        "tilesets": [],
-    }
+    final_sprite = _one_frame_inspection()
     bad_step_sprite = final_sprite | {"frames": []}
     response_file.write_text(
         json.dumps(
@@ -228,6 +263,74 @@ cp {shlex.quote(str(response_file))} "$response_file"
     assert failure["details"]["failed_step"] == 1
     assert failure["details"]["failed_operation"] == "sprite get"
     assert count_file.read_text(encoding="utf-8").splitlines() == ["1"]
+
+
+def test_plan_create_postcondition_failure_identifies_step(tmp_path: Path) -> None:
+    target = tmp_path / "target.aseprite"
+    response_file = tmp_path / "create-response.json"
+    final_sprite = _one_frame_inspection()
+    response_file.write_text(
+        json.dumps(
+            {
+                "kernel_protocol_version": 1,
+                "status": "ok",
+                "result": {
+                    "steps": [
+                        {
+                            "operation": "sprite create",
+                            "result": {
+                                "sprite": final_sprite,
+                                "initial_layer": {"kind": "transparent"},
+                            },
+                        }
+                    ],
+                    "final_sprite": final_sprite,
+                    "persisted_reopen_verified": True,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    fake = fake_aseprite(
+        tmp_path,
+        f"""
+response_file=
+for argument in "$@"; do
+  case "$argument" in response=*) response_file=${{argument#response=}};; esac
+done
+cp {shlex.quote(str(response_file))} "$response_file"
+""",
+    )
+    run = spa(
+        "plan",
+        "run",
+        "--input-json",
+        json.dumps(
+            {
+                "aseprite": str(fake),
+                "plan": {
+                    "target_sprite_file": str(target),
+                    "steps": [
+                        {
+                            "operation": "sprite create",
+                            "input": {
+                                "width": 2,
+                                "height": 1,
+                                "color_mode": "rgb",
+                                "initial_layer": {"kind": "transparent"},
+                            },
+                        }
+                    ],
+                },
+            }
+        ),
+    )
+    assert run.returncode == 1, run.stdout + run.stderr
+    failure = json.loads(run.stdout)
+    assert failure["code"] == "kernel_response_invalid"
+    assert failure["details"]["failed_step"] == 1
+    assert failure["details"]["failed_operation"] == "sprite create"
+    assert not target.exists()
 
 
 def test_plan_runtime_capability_failure_is_typed_before_steps(tmp_path: Path) -> None:
