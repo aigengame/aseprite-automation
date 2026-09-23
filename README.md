@@ -130,7 +130,8 @@ to rejecting out-of-bounds pixels; `clipping: "clip"` is the explicit clipping p
 In-place editing requires identical Source and Target Sprite Files plus both
 `in_place: true` and `overwrite: true`.
 
-`spa plan check` validates a bounded Plan without starting Aseprite. `spa plan run`
+`spa plan check` validates a bounded Plan, including current Source and Target path
+conditions, without starting Aseprite. `spa plan run`
 executes up to 64 Sprite-bound `sprite create`, `sprite get`, and `paint apply` Steps
 on one live Sprite in one Aseprite process. A read Plan publishes no file. A mutating
 Plan declares one Target Sprite File; the staged file is reopened and verified before
@@ -154,8 +155,9 @@ independently observed runtime capabilities. A prerequisite failure uses the typ
 process or Kernel failure channel. A Lua-language or API-version mismatch, or a
 capability required by the selected Operation but absent from the observation, returns
 `runtime_incompatible` before the Operation executes.
-`spa plan run` checks the selected Steps' Lua and API requirements inside its one
-execution process; Step capability failures abort the Plan before Target Commit.
+`spa plan run` observes the selected Steps' Lua, API, and capability requirements
+inside its one execution process. Incompatibility returns `runtime_incompatible`
+before any Plan Step begins.
 It also includes `access_failure_schema` for CLI failures before an Operation is
 selected; each Operation entry has its own applicable `failure_schema`. Aggregate
 discovery probes Aseprite, while each command's `--schema` remains available without a

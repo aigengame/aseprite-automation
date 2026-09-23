@@ -179,6 +179,8 @@ class ProcessEvidence:
 @dataclass(frozen=True)
 class ResponseEvidence:
     response_path: str
+    failed_step: int | None = None
+    failed_operation: str | None = None
 
 
 @dataclass(frozen=True)
@@ -193,6 +195,8 @@ class HandlerEvidence:
 class PostconditionEvidence:
     response_path: str
     reason: str
+    failed_step: int | None = None
+    failed_operation: str | None = None
 
 
 @dataclass(frozen=True)

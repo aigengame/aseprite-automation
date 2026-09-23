@@ -11,6 +11,7 @@ from spa.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.paint import (
     DIGEST_RESOURCE,
     PAINT_OPERATIONS,
+    PAINT_PROBE_FIXTURE,
     PAINT_SUPPORT_RESOURCE,
     PaintApplyEvidence,
     PaintApplyInput,
@@ -27,6 +28,7 @@ from spa.ports import (
 from spa.sprite import (
     INSPECTION_SECTIONS,
     SPRITE_CREATION_RESOURCE,
+    SPRITE_INSPECTION_FIXTURE,
     SPRITE_INSPECTION_RESOURCE,
     SPRITE_OPERATIONS,
     InitialLayer,
@@ -53,6 +55,8 @@ PLAN_RUN_HANDLER = PackagedHandler(
         SPRITE_CREATION_RESOURCE,
         PAINT_SUPPORT_RESOURCE,
         DIGEST_RESOURCE,
+        SPRITE_INSPECTION_FIXTURE,
+        PAINT_PROBE_FIXTURE,
     ),
 )
 
@@ -130,6 +134,20 @@ class PlanDefinition(PublicModel):
                 raise ValueError("In-place Plan requires overwrite permission")
         if not mutates and self.overwrite:
             raise ValueError("Read Plan cannot request overwrite")
+        if (
+            self.source_sprite_file is not None
+            and not Path(self.source_sprite_file).is_file()
+        ):
+            raise ValueError("Source Sprite File does not exist as a regular file")
+        if self.target_sprite_file is not None:
+            target = Path(self.target_sprite_file)
+            if not target.parent.is_dir():
+                raise ValueError("Target Sprite File parent directory does not exist")
+            if target.exists() or target.is_symlink():
+                if not target.is_file():
+                    raise ValueError("Target Sprite File is not a regular file")
+                if not self.overwrite:
+                    raise ValueError("Target Sprite File exists and overwrite is false")
         return self
 
     @property
@@ -204,20 +222,41 @@ def check_plan(
     )
 
 
-def _malformed(invocation: KernelInvocationResult, reason: str) -> RuntimeIssue:
+def _malformed(
+    invocation: KernelInvocationResult,
+    reason: str,
+    *,
+    failed_step: int | None = None,
+    failed_operation: str | None = None,
+) -> RuntimeIssue:
     return RuntimeIssue(
         "response_malformed",
         reason,
-        ResponseEvidence(response_path=invocation.response_path),
+        ResponseEvidence(
+            response_path=invocation.response_path,
+            failed_step=failed_step,
+            failed_operation=failed_operation,
+        ),
         invocation.diagnostics,
     )
 
 
-def _postcondition(invocation: KernelInvocationResult, reason: str) -> RuntimeIssue:
+def _postcondition(
+    invocation: KernelInvocationResult,
+    reason: str,
+    *,
+    failed_step: int | None = None,
+    failed_operation: str | None = None,
+) -> RuntimeIssue:
     return RuntimeIssue(
         "postcondition_failed",
         reason,
-        PostconditionEvidence(response_path=invocation.response_path, reason=reason),
+        PostconditionEvidence(
+            response_path=invocation.response_path,
+            reason=reason,
+            failed_step=failed_step,
+            failed_operation=failed_operation,
+        ),
         invocation.diagnostics,
     )
 
@@ -255,12 +294,29 @@ def _validated_steps(
 ) -> list[StepOutcome]:
     raw = invocation.payload.get("steps")
     if not isinstance(raw, list) or len(raw) != len(request.plan.steps):
-        raise _malformed(invocation, "Plan Kernel returned an incomplete Step sequence")
+        missing_index = (
+            len(raw) + 1
+            if isinstance(raw, list) and len(raw) < len(request.plan.steps)
+            else None
+        )
+        raise _malformed(
+            invocation,
+            "Plan Kernel returned an incomplete Step sequence",
+            failed_step=missing_index,
+            failed_operation=(
+                request.plan.steps[missing_index - 1].operation
+                if missing_index is not None
+                else None
+            ),
+        )
     outcomes: list[StepOutcome] = []
-    for step, item in zip(request.plan.steps, raw, strict=True):
+    for index, (step, item) in enumerate(zip(request.plan.steps, raw, strict=True), 1):
         if not isinstance(item, dict) or item.get("operation") != step.operation:
             raise _malformed(
-                invocation, "Plan Kernel returned a mismatched Step Operation"
+                invocation,
+                "Plan Kernel returned a mismatched Step Operation",
+                failed_step=index,
+                failed_operation=step.operation,
             )
         try:
             if isinstance(step, CreateStep):
@@ -283,7 +339,17 @@ def _validated_steps(
                 validate_paint_evidence(step.input, outcome.result, invocation)
         except (KeyError, TypeError, ValidationError) as exc:
             raise _malformed(
-                invocation, "Plan Kernel returned invalid Step evidence"
+                invocation,
+                "Plan Kernel returned invalid Step evidence",
+                failed_step=index,
+                failed_operation=step.operation,
+            ) from exc
+        except RuntimeIssue as exc:
+            raise _postcondition(
+                invocation,
+                str(exc),
+                failed_step=index,
+                failed_operation=step.operation,
             ) from exc
         outcomes.append(outcome)
     return outcomes

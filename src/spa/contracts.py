@@ -139,6 +139,8 @@ class ProcessStartDetails(PublicModel):
 class KernelProtocolDetail(PublicModel):
     kind: Literal["kernel_protocol"] = "kernel_protocol"
     response_path: str
+    failed_step: int | None = Field(default=None, ge=1)
+    failed_operation: str | None = None
 
 
 class KernelExecutionDetails(PublicModel):

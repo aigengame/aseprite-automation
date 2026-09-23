@@ -2,9 +2,10 @@
 
 import json
 import os
+import shlex
 from pathlib import Path
 
-from tests.support import spa
+from tests.support import fake_aseprite, spa
 
 
 def test_plan_check_admits_a_read_plan_without_launching_aseprite(
@@ -35,6 +36,7 @@ def test_plan_check_rejects_unknown_step_and_operation_owned_pixel_limit(
     tmp_path: Path,
 ) -> None:
     source = tmp_path / "source.aseprite"
+    source.write_bytes(b"unused by static preflight")
     cases = [
         [{"operation": "export image", "input": {}}],
         [
@@ -86,6 +88,7 @@ def test_plan_check_rejects_unknown_step_and_operation_owned_pixel_limit(
 
 def test_plan_step_limit_admits_the_issue_reference_size(tmp_path: Path) -> None:
     source = tmp_path / "source.aseprite"
+    source.write_bytes(b"unused by static preflight")
     steps = [{"operation": "sprite get", "input": {"inspection_scope": ["frames"]}}]
     for count, expected in ((42, 0), (65, 2)):
         run = spa(
@@ -100,3 +103,186 @@ def test_plan_step_limit_admits_the_issue_reference_size(tmp_path: Path) -> None
             env=os.environ | {"SPA_ASEPRITE_EXECUTABLE": "/missing/aseprite"},
         )
         assert run.returncode == expected, run.stdout
+
+
+def test_plan_check_reports_decidable_path_failures_without_aseprite(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source.aseprite"
+    target = tmp_path / "target.aseprite"
+    get = {"operation": "sprite get", "input": {"inspection_scope": ["frames"]}}
+    create = {
+        "operation": "sprite create",
+        "input": {
+            "width": 2,
+            "height": 2,
+            "color_mode": "rgb",
+            "initial_layer": {"kind": "transparent"},
+        },
+    }
+    cases = [
+        {"source_sprite_file": str(source), "steps": [get]},
+        {
+            "target_sprite_file": str(tmp_path / "missing" / "target.aseprite"),
+            "steps": [create],
+        },
+    ]
+    target.write_bytes(b"existing target")
+    cases.append({"target_sprite_file": str(target), "steps": [create]})
+    for plan in cases:
+        run = spa(
+            "plan",
+            "check",
+            "--input-json",
+            json.dumps({"plan": plan}),
+            env=os.environ | {"SPA_ASEPRITE_EXECUTABLE": "/missing/aseprite"},
+        )
+        assert run.returncode == 2, run.stdout
+        assert json.loads(run.stdout)["code"] == "invalid_request"
+
+
+def test_plan_step_validation_reports_index_after_one_process(tmp_path: Path) -> None:
+    source = tmp_path / "source.aseprite"
+    source.write_bytes(b"controlled transport fixture")
+    count_file = tmp_path / "invocations.txt"
+    response_file = tmp_path / "response.json"
+    final_sprite = {
+        "metadata": {
+            "width": 1,
+            "height": 1,
+            "color_mode": "rgb",
+            "frame_count": 1,
+            "tag_count": 0,
+            "palette_count": 0,
+            "layer_count": 0,
+            "cel_count": 0,
+            "slice_count": 0,
+            "tileset_count": 0,
+            "transparent_color_index": 0,
+            "grid_bounds": {"x": 0, "y": 0, "width": 1, "height": 1},
+            "pixel_ratio": {"width": 1, "height": 1},
+        },
+        "frames": [{"frame_number": 1, "duration_ms": 100}],
+        "tags": [],
+        "palettes": [],
+        "layers": [],
+        "cels": [],
+        "slices": [],
+        "tilesets": [],
+    }
+    bad_step_sprite = final_sprite | {"frames": []}
+    response_file.write_text(
+        json.dumps(
+            {
+                "kernel_protocol_version": 1,
+                "status": "ok",
+                "result": {
+                    "steps": [
+                        {
+                            "operation": "sprite get",
+                            "result": {
+                                "sprite": bad_step_sprite,
+                            },
+                        }
+                    ],
+                    "final_sprite": final_sprite,
+                    "persisted_reopen_verified": False,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    fake = fake_aseprite(
+        tmp_path,
+        f"""
+response_file=
+for argument in "$@"; do
+  case "$argument" in response=*) response_file=${{argument#response=}};; esac
+done
+printf '1\\n' >> {shlex.quote(str(count_file))}
+cp {shlex.quote(str(response_file))} "$response_file"
+""",
+    )
+    run = spa(
+        "plan",
+        "run",
+        "--input-json",
+        json.dumps(
+            {
+                "aseprite": str(fake),
+                "plan": {
+                    "source_sprite_file": str(source),
+                    "steps": [
+                        {
+                            "operation": "sprite get",
+                            "input": {"inspection_scope": ["frames"]},
+                        }
+                    ],
+                },
+            }
+        ),
+    )
+    assert run.returncode == 1, run.stdout + run.stderr
+    failure = json.loads(run.stdout)
+    assert failure["code"] == "kernel_response_invalid"
+    assert failure["details"]["failed_step"] == 1
+    assert failure["details"]["failed_operation"] == "sprite get"
+    assert count_file.read_text(encoding="utf-8").splitlines() == ["1"]
+
+
+def test_plan_runtime_capability_failure_is_typed_before_steps(tmp_path: Path) -> None:
+    source = tmp_path / "source.aseprite"
+    source.write_bytes(b"controlled transport fixture")
+    response_file = tmp_path / "runtime-response.json"
+    response_file.write_text(
+        json.dumps(
+            {
+                "kernel_protocol_version": 1,
+                "status": "error",
+                "cause": "runtime_incompatible",
+                "message": "Plan runtime does not meet Step requirements",
+                "runtime_compatibility": {
+                    "aseprite_version": "test",
+                    "lua_version": "Lua 5.4",
+                    "api_version": 41,
+                    "required_lua_language": "Lua 5.4",
+                    "minimum_api_version": 41,
+                    "missing_capabilities": ["aseprite_sprite_inspection"],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    fake = fake_aseprite(
+        tmp_path,
+        f"""
+response_file=
+for argument in "$@"; do
+  case "$argument" in response=*) response_file=${{argument#response=}};; esac
+done
+cp {shlex.quote(str(response_file))} "$response_file"
+""",
+    )
+    run = spa(
+        "plan",
+        "run",
+        "--input-json",
+        json.dumps(
+            {
+                "aseprite": str(fake),
+                "plan": {
+                    "source_sprite_file": str(source),
+                    "steps": [
+                        {
+                            "operation": "sprite get",
+                            "input": {"inspection_scope": ["frames"]},
+                        }
+                    ],
+                },
+            }
+        ),
+    )
+    assert run.returncode == 1, run.stdout + run.stderr
+    failure = json.loads(run.stdout)
+    assert failure["code"] == "runtime_incompatible"
+    assert failure["details"]["missing_capabilities"] == ["aseprite_sprite_inspection"]

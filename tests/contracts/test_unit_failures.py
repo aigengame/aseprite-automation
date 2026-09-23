@@ -217,7 +217,14 @@ def test_kernel_protocol_detail_does_not_expose_private_version() -> None:
     details = outcome["details"]
     assert outcome["category"] == "kernel_protocol"
     assert details["kind"] == "kernel_protocol"
-    assert set(details) == {"kind", "response_path"}
+    assert set(details) == {
+        "kind",
+        "response_path",
+        "failed_step",
+        "failed_operation",
+    }
+    assert details["failed_step"] is None
+    assert details["failed_operation"] is None
     validator = Draft202012Validator(
         registered_failure_schema(("kernel_response_invalid",), "spa info")
     )

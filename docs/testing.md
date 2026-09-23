@@ -54,7 +54,10 @@ test verifies the packaged Export handler and Pillow decoder on Linux CI.
 Plan E2E cases cover read-only composition, create/paint/get on one live Sprite,
 failed-Step and failed-Postcondition publication gates, and in-place failure
 preserving the original file digest. A wheel-installed case verifies the packaged
-Plan handler. Static Plan checks execute without Aseprite.
+Plan handler. Static Plan checks execute without Aseprite and report missing Source,
+invalid Target parent, and existing Target conflicts. A controlled transport case
+verifies one process and typed failed-Step evidence; the real runtime verifies the
+shared capability probe before Plan Steps.
 
 The initial evidence profiles use local macOS Aseprite 1.3.18.5-dev and the pinned
 Linux CI Aseprite 1.3.18.5 source release. Both expose `_VERSION == "Lua 5.4"` and

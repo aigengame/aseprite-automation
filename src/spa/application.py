@@ -92,10 +92,18 @@ def _runtime_failure(
             )
         case "response_absent", ResponseEvidence() as evidence:
             code = "kernel_response_missing"
-            details = KernelProtocolDetail(response_path=evidence.response_path)
+            details = KernelProtocolDetail(
+                response_path=evidence.response_path,
+                failed_step=evidence.failed_step,
+                failed_operation=evidence.failed_operation,
+            )
         case "response_malformed", ResponseEvidence() as evidence:
             code = "kernel_response_invalid"
-            details = KernelProtocolDetail(response_path=evidence.response_path)
+            details = KernelProtocolDetail(
+                response_path=evidence.response_path,
+                failed_step=evidence.failed_step,
+                failed_operation=evidence.failed_operation,
+            )
         case "handler_rejected", HandlerEvidence() as evidence:
             code = "kernel_execution_failed"
             details = KernelExecutionDetails(
@@ -106,7 +114,11 @@ def _runtime_failure(
             )
         case "postcondition_failed", PostconditionEvidence() as evidence:
             code = "kernel_response_invalid"
-            details = KernelProtocolDetail(response_path=evidence.response_path)
+            details = KernelProtocolDetail(
+                response_path=evidence.response_path,
+                failed_step=evidence.failed_step,
+                failed_operation=evidence.failed_operation,
+            )
         case (("process_failed" | "exit_mismatch"), ProcessEvidence() as evidence):
             code = "process_failed"
             details = ProcessDetails(

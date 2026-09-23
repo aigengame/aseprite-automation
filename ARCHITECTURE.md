@@ -254,7 +254,7 @@ Sprite creation and inspection slice extends that same stack.
 | CLI adapter | Typer | Command access and human or machine presentation. |
 | Public contracts | Pydantic 2 and JSON Schema | Typed Operation Requests, Operation Results, Failure Envelopes, and discovery schemas. |
 | Project and packaging | `uv` | Environments, dependencies, builds, and installed-product tests. |
-| Ordinary Core Operations | Packaged Lua handlers | Core Operation Semantics and native mapping executed through Aseprite. The current package contains a fixed runtime probe plus Sprite creation, Sprite inspection, exact Pixel Patch, and Export Image handlers. |
+| Ordinary Core Operations | Packaged Lua handlers | Core Operation Semantics and native mapping executed through Aseprite. The current package contains a fixed runtime probe, shared capability observations, Sprite creation, Sprite inspection, exact Pixel Patch, Export Image, and Operation Plan handlers. |
 | Aseprite integration | External `aseprite --batch --script` | Native document, Tool, Filter, color, and export behavior. |
 | Private transport | Versioned JSON request and response files | Data exchange through `--script-param`, separate from diagnostics. |
 | Agent access | Version-matched Agent Skill and planned local stdio MCP Adapter with CLI subprocess invocation | Guidance and equivalent tool projection from the installed surface. |
@@ -317,8 +317,11 @@ profile, minimum `app.apiVersion`, and the Aseprite-provided runtime capabilitie
 the Operation actually uses. A complete probe establishes its scripting, file I/O, and
 JSON transport prerequisites. It reports native runtime capabilities independently of
 those fixed prerequisites. The Application compares the observed Lua language, API
-version, and capabilities with the selected Descriptor before it enters the Operation
-execution definition.
+version, and capabilities with the selected Descriptor before it enters an ordinary
+Operation execution definition. For Plan, the selected Step Descriptors determine the
+requirements; the shared capability observations and comparison run inside the single
+Plan process before its first Step, and Application maps an incompatibility to the same
+typed `runtime_incompatible` failure.
 Descriptors are the registration authority; they do not implement native behavior.
 Under ADR-0013, the failure contract uses shared registration of each public
 Failure Code's meaning, Category, and Details kind. Each Descriptor declares its
@@ -570,6 +573,7 @@ in one Aseprite invocation and adapter unit of work.
 
 ```text
 Plan Preflight
+    -> selected Step capability observation and check
     -> Step 1 Preconditions -> packaged handler -> Step 1 Postconditions
     -> Step 2 Preconditions -> packaged handler -> Step 2 Postconditions
     -> ...

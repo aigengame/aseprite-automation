@@ -4,12 +4,36 @@ local inspection = dofile(app.params.inspection)
 local creation = dofile(app.params.creation)
 local paint = dofile(app.params.paint)
 local digest = dofile(app.params.digest)
+local capability_probe = dofile(app.params.capability_probe)
 local all_sections = {
   "frames", "tags", "palettes", "layers", "cels", "slices", "tilesets",
 }
 local open_sprite = nil
 local failed_step = nil
 local failed_operation = nil
+local runtime_incompatibility = nil
+
+local function verify_runtime(requirements)
+  local observed = capability_probe.observe()
+  local available = {}
+  for _, capability in ipairs(observed) do available[capability] = true end
+  local missing = {}
+  for _, capability in ipairs(requirements.required_capabilities) do
+    if not available[capability] then missing[#missing + 1] = capability end
+  end
+  if _VERSION ~= requirements.lua_language
+      or app.apiVersion < requirements.minimum_api_version or #missing > 0 then
+    runtime_incompatibility = {
+      aseprite_version=tostring(app.version),
+      lua_version=_VERSION,
+      api_version=app.apiVersion,
+      required_lua_language=requirements.lua_language,
+      minimum_api_version=requirements.minimum_api_version,
+      missing_capabilities=missing,
+    }
+    error("Plan runtime does not meet the selected Step requirements")
+  end
+end
 
 local function difference(left, right, at)
   if type(left) ~= type(right) then
@@ -95,9 +119,7 @@ local function execute()
          "unsupported Kernel Protocol version")
   local payload = assert(request.payload)
   local requirements = assert(payload.runtime_requirements)
-  assert(_VERSION == requirements.lua_language, "Plan Lua language requirement failed")
-  assert(app.apiVersion >= requirements.minimum_api_version,
-         "Plan Aseprite API requirement failed")
+  verify_runtime(requirements)
   assert(payload.steps ~= nil and #payload.steps > 0,
          "Plan has no Steps")
   if type(payload.source_sprite_file) == "string" then
@@ -167,10 +189,11 @@ else
   response = {
     kernel_protocol_version=kernel_protocol_version,
     status="error",
-    cause="operation_rejected",
+    cause=runtime_incompatibility and "runtime_incompatible" or "operation_rejected",
     message=tostring(result),
     failed_step=failed_step,
     failed_operation=failed_operation,
+    runtime_compatibility=runtime_incompatibility,
   }
 end
 local response_file = assert(io.open(app.params.response, "wb"))
