@@ -394,7 +394,9 @@ def test_export_schema_refuses_out_of_slice_choices(tmp_path: Path) -> None:
         assert not validator.is_valid(request), location
         run = spa("export", "image", "--input-json", json.dumps(request))
         assert run.returncode == 2, (location, run.stdout)
-        assert json.loads(run.stdout)["code"] == "invalid_request"
+        failure = json.loads(run.stdout)
+        validate(failure, schema["failure_schema"])
+        assert failure["code"] == "invalid_request"
         assert not destination.exists()
 
 
