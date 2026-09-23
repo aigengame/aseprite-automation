@@ -14,9 +14,9 @@ from jsonschema import Draft202012Validator, validate
 from PIL import Image, ImageCms
 
 from spa.contracts import RuntimeRequest
+from spa.descriptors import PROBE_RESOURCES
 from spa.runtime.aseprite import probe
 from spa.runtime.invocation import prepare_invocation
-from spa.sprite import SPRITE_PROBE_RESOURCES
 from tests.support import spa
 
 pytestmark = pytest.mark.e2e
@@ -30,7 +30,7 @@ def _source(
     source = tmp_path / "source.aseprite"
     observation = probe(
         RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]),
-        SPRITE_PROBE_RESOURCES,
+        PROBE_RESOURCES,
     )
     fixture = Path(__file__).parent / "fixtures" / fixture_name
     with tempfile.TemporaryDirectory(prefix="spa-export-fixture-") as work:

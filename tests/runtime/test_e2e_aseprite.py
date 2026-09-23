@@ -32,6 +32,7 @@ def test_info_reports_installed_runtime() -> None:
         "aseprite_runtime_introspection",
         "aseprite_sprite_create",
         "aseprite_sprite_inspection",
+        "aseprite_paint_apply",
         "aseprite_export_image",
     ]
     assert result["supported_capabilities"]
@@ -41,6 +42,7 @@ def test_info_reports_installed_runtime() -> None:
         "spa schema",
         "spa sprite create",
         "spa sprite get",
+        "spa paint apply",
         "spa export image",
     ]
     assert result["capability_gaps"] == []

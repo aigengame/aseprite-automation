@@ -26,6 +26,7 @@ def test_manifest_is_projected_from_command_descriptors() -> None:
         "spa schema",
         "spa sprite create",
         "spa sprite get",
+        "spa paint apply",
         "spa export image",
     ]
     for entry in manifest["operations"]:

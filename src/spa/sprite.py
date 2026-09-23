@@ -5,12 +5,8 @@ from typing import Annotated, Literal, cast
 
 from pydantic import Field, TypeAdapter, ValidationError, field_validator
 
-from spa.contracts import (
-    FailureCodeSpec,
-    PublicModel,
-    RuntimeRequest,
-    RuntimeRequirements,
-)
+from spa.contracts import PublicModel, RuntimeRequest, RuntimeRequirements
+from spa.mutation import TargetCommit
 from spa.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.ports import (
     KernelInvocationResult,
@@ -21,6 +17,7 @@ from spa.ports import (
     ResponseEvidence,
     RuntimeIssue,
 )
+from spa.raster import Point, Rectangle, RgbaColor, Size
 
 InspectionSection = Literal[
     "frames", "tags", "palettes", "layers", "cels", "slices", "tilesets"
@@ -40,13 +37,6 @@ def _native_sprite_path(value: str) -> str:
     if Path(value).suffix.lower() != ".aseprite":
         raise ValueError("Sprite file must use the .aseprite extension")
     return value
-
-
-class RgbaColor(PublicModel):
-    red: int = Field(ge=0, le=255)
-    green: int = Field(ge=0, le=255)
-    blue: int = Field(ge=0, le=255)
-    alpha: int = Field(ge=0, le=255)
 
 
 class BackgroundColor(RgbaColor):
@@ -96,20 +86,6 @@ class SpriteGetRequest(RuntimeRequest):
     def unrequested_sections(self) -> list[InspectionSection]:
         requested = set(self.inspection_scope)
         return [section for section in INSPECTION_SECTIONS if section not in requested]
-
-
-class Point(PublicModel):
-    x: int
-    y: int
-
-
-class Size(PublicModel):
-    width: int = Field(ge=0)
-    height: int = Field(ge=0)
-
-
-class Rectangle(Point, Size):
-    pass
 
 
 class SpriteMetadata(PublicModel):
@@ -214,37 +190,6 @@ class SpriteInspection(PublicModel):
     cels: list[CelFacts] | None
     slices: list[SliceFacts] | None
     tilesets: list[TilesetFacts] | None
-
-
-class TargetCommit(PublicModel):
-    target_sprite_file: str
-    byte_size: int = Field(gt=0)
-    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
-
-
-TargetCommitFailureReason = Literal[
-    "target_not_file",
-    "overwrite_not_allowed",
-    "staged_file_missing",
-    "staged_file_empty",
-    "replace_failed",
-]
-
-
-class TargetCommitDetails(PublicModel):
-    kind: Literal["target_commit"] = "target_commit"
-    target_sprite_file: str
-    reason: TargetCommitFailureReason
-
-
-SPRITE_FAILURE_CODE_SPECS = (
-    FailureCodeSpec(
-        "target_commit_failed",
-        "The validated staged Sprite could not be published at its declared target",
-        "execution",
-        TargetCommitDetails,
-    ),
-)
 
 
 class SpriteCreateResult(PublicModel):

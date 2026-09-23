@@ -32,6 +32,7 @@ from spa.contracts import (
 from spa.descriptors import ACCESS_FAILURE_CODES, OPERATIONS
 from spa.export import ArtifactFileDetails, ArtifactVerificationDetails
 from spa.failure_registry import FAILURE_CODES
+from spa.mutation import TargetCommitDetails
 from spa.ports import (
     ArtifactFileEvidence,
     ArtifactVerificationEvidence,
@@ -46,7 +47,6 @@ from spa.ports import (
     RuntimeIssue,
     TargetCommitEvidence,
 )
-from spa.sprite import TargetCommitDetails
 from tests.support import operation_services
 
 registered_failure_envelope = partial(failure_envelope, failure_codes=FAILURE_CODES)
@@ -97,7 +97,7 @@ def test_installed_failure_registry_is_one_immutable_composition() -> None:
     assert "FAILURE_CODES" not in vars(contracts)
     assert "install_failure_codes" not in vars(contracts)
     assert "failure_registry" not in getsource(contracts)
-    assert TargetCommitDetails.__module__ == "spa.sprite"
+    assert TargetCommitDetails.__module__ == "spa.mutation"
 
 
 def test_registration_refuses_duplicate_invalid_and_unsupported_entries() -> None:

@@ -11,9 +11,9 @@ import pytest
 from jsonschema import validate
 
 from spa.contracts import RuntimeRequest
+from spa.descriptors import PROBE_RESOURCES
 from spa.runtime.aseprite import probe
 from spa.runtime.invocation import prepare_invocation
-from spa.sprite import SPRITE_PROBE_RESOURCES
 from tests.support import spa
 
 pytestmark = pytest.mark.e2e
@@ -22,7 +22,7 @@ pytestmark = pytest.mark.e2e
 def _populated_sprite(target: Path) -> None:
     observation = probe(
         RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]),
-        SPRITE_PROBE_RESOURCES,
+        PROBE_RESOURCES,
     )
     fixture = Path(__file__).parent / "fixtures" / "populated_sprite.lua"
     with tempfile.TemporaryDirectory(prefix="spa-populated-fixture-") as work:
@@ -102,7 +102,7 @@ def test_background_postcondition_rejects_a_nonuniform_reopened_fill(
 ) -> None:
     observation = probe(
         RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]),
-        SPRITE_PROBE_RESOURCES,
+        PROBE_RESOURCES,
     )
     fixture = Path(__file__).parent / "fixtures" / "reject_nonuniform_background.lua"
     target = tmp_path / "nonuniform-background.aseprite"

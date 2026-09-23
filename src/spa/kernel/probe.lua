@@ -4,6 +4,8 @@ local inspection = dofile(app.params.inspection)
 local creation = dofile(app.params.creation)
 local exporter = app.params.export_image_support
   and dofile(app.params.export_image_support) or nil
+local paint = dofile(app.params.paint)
+local digest = dofile(app.params.digest)
 
 local function observes_sprite_inspection()
   local open_sprite = nil
@@ -96,6 +98,35 @@ local function observes_sprite_creation()
   return ok
 end
 
+local function observes_paint_apply()
+  local source_path = assert(app.params.paint_fixture)
+  local target_path = app.fs.joinPath(app.params.workspace, "paint-target.aseprite")
+  local ok = pcall(function()
+    assert(digest.fnv1a64("hello") == "a430d84680aabd0b",
+           "content digest implementation failed its known-answer check")
+    local result = paint.execute({
+      source_sprite_file = source_path,
+      staged_sprite_file = target_path,
+      target = { layer_path={ 1 }, frame_number=1 },
+      patch = {
+        coordinate_space="image-pixel",
+        rectangle={ x=0, y=0, width=1, height=1 },
+        runs={{
+          x=0, y=0, length=1,
+          color={ kind="rgba", red=17, green=34, blue=51, alpha=255 },
+        }},
+      },
+      clipping="reject",
+    }, digest)
+    assert(result.persisted_reopen_verified)
+    assert(result.pixels_written == 1 and result.pixels_changed == 1)
+    assert(result.applied_runs[1].color.red == 17)
+    assert(result.before_content_digest.value ~= result.after_content_digest.value)
+  end)
+  pcall(function() os.remove(target_path) end)
+  return ok
+end
+
 local function observed_capabilities()
   local capabilities = { "aseprite_runtime_introspection" }
   local supports_inspection = observes_sprite_inspection()
@@ -104,6 +135,9 @@ local function observed_capabilities()
   end
   if supports_inspection then
     capabilities[#capabilities + 1] = "aseprite_sprite_inspection"
+  end
+  if observes_paint_apply() then
+    capabilities[#capabilities + 1] = "aseprite_paint_apply"
   end
   if exporter ~= nil then
     local ok = pcall(function()

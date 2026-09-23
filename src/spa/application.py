@@ -24,6 +24,7 @@ from spa.contracts import (
     failure_envelope,
 )
 from spa.export import ArtifactFileDetails, ArtifactVerificationDetails
+from spa.mutation import TargetCommitDetails
 from spa.operation import OperationDescriptor
 from spa.ports import (
     ArtifactFileEvidence,
@@ -41,7 +42,6 @@ from spa.ports import (
     RuntimeObservation,
     TargetCommitEvidence,
 )
-from spa.sprite import TargetCommitDetails
 
 
 def _request_failure(
