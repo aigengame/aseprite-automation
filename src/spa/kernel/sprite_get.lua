@@ -7,32 +7,34 @@ local function execute()
   local request_file = assert(io.open(app.params.request, "rb"))
   local request = json.decode(request_file:read("*a"))
   request_file:close()
-  assert(request.kernel_protocol_version == kernel_protocol_version,
-         "unsupported Kernel Protocol version")
+  assert(
+    request.kernel_protocol_version == kernel_protocol_version,
+    "unsupported Kernel Protocol version"
+  )
   local payload = assert(request.payload)
   assert(type(payload.sprite_file) == "string", "missing Sprite file")
   open_sprite = assert(app.open(payload.sprite_file), "could not open Sprite file")
   local sprite = inspection.inspect(open_sprite, payload.inspection_scope)
   open_sprite:close()
   open_sprite = nil
-  return { sprite=sprite }
+  return { sprite = sprite }
 end
 
 local ok, result = pcall(execute)
 local response
 if ok then
   response = {
-    kernel_protocol_version=kernel_protocol_version,
-    status="ok",
-    result=result,
+    kernel_protocol_version = kernel_protocol_version,
+    status = "ok",
+    result = result,
   }
 else
   if open_sprite ~= nil then pcall(function() open_sprite:close() end) end
   response = {
-    kernel_protocol_version=kernel_protocol_version,
-    status="error",
-    cause="operation_rejected",
-    message=tostring(result),
+    kernel_protocol_version = kernel_protocol_version,
+    status = "error",
+    cause = "operation_rejected",
+    message = tostring(result),
   }
 end
 local response_file = assert(io.open(app.params.response, "wb"))

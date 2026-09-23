@@ -1,0 +1,31 @@
+name: Set up Lua source quality tools
+description: Install the pinned Luacheck and StyLua binaries for Linux quality gates.
+
+runs:
+  using: composite
+  steps:
+    - name: Install verified Lua quality tools
+      shell: bash
+      run: |
+        set -euo pipefail
+        tools_dir="$RUNNER_TEMP/spa-lua-quality"
+        mkdir -p "$tools_dir"
+
+        curl --fail --location --silent --show-error --retry 3 \
+          https://github.com/lunarmodules/luacheck/releases/download/v1.2.0/luacheck \
+          --output "$tools_dir/luacheck"
+        echo "d68da17fca0697d9e2fb04201f3884abd259fa558b3a449bccaed47f1390defc  $tools_dir/luacheck" \
+          | sha256sum --check --status
+        chmod +x "$tools_dir/luacheck"
+
+        curl --fail --location --silent --show-error --retry 3 \
+          https://github.com/JohnnyMorganz/StyLua/releases/download/v2.5.2/stylua-linux-x86_64.zip \
+          --output "$tools_dir/stylua.zip"
+        echo "bcb0d855e91f102f28a370e850f8566b3b44b79e6274d806ea5246837c0fd5ab  $tools_dir/stylua.zip" \
+          | sha256sum --check --status
+        unzip -q "$tools_dir/stylua.zip" -d "$tools_dir"
+        chmod +x "$tools_dir/stylua"
+
+        "$tools_dir/luacheck" --version
+        "$tools_dir/stylua" --version
+        echo "$tools_dir" >> "$GITHUB_PATH"

@@ -88,11 +88,15 @@ jobs:
       - name: Set up Python
         uses: ./.github/actions/setup-python-env
 
+      - name: Set up Lua quality tools
+        uses: ./.github/actions/setup-lua-quality
+
       - name: Check source quality
         run: |
           uv run --frozen ruff check .
           uv run --frozen ruff format --check .
           uv run --frozen pyright
+          uv run --frozen python scripts/lua_quality.py
 
       - name: Run fast tests
         run: uv run --frozen --group test pytest -m "not e2e"

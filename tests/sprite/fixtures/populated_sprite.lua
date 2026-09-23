@@ -7,7 +7,7 @@ local tag = sprite:newTag(1, 2)
 tag.name = "walk"
 tag.aniDir = AniDir.PING_PONG
 tag.repeats = 2
-tag.color = Color{ r=10, g=20, b=30, a=255 }
+tag.color = Color { r = 10, g = 20, b = 30, a = 255 }
 
 local group = sprite:newGroup()
 group.name = "body"
@@ -15,7 +15,7 @@ local child = sprite:newLayer()
 child.name = "outline"
 child.parent = group
 local image = Image(2, 3, ColorMode.RGB)
-image:clear(Color{ r=90, g=80, b=70, a=255 })
+image:clear(Color { r = 90, g = 80, b = 70, a = 255 })
 local child_cel = sprite:newCel(child, 2, image, Point(4, 2))
 child_cel.opacity = 123
 child_cel.zIndex = 4

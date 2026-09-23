@@ -2,8 +2,7 @@
 local module = {}
 local inspection = dofile(app.params.inspection)
 local creation = dofile(app.params.creation)
-local exporter = app.params.export_image_support
-  and dofile(app.params.export_image_support) or nil
+local exporter = app.params.export_image_support and dofile(app.params.export_image_support) or nil
 local paint = dofile(app.params.paint)
 local digest = dofile(app.params.digest)
 
@@ -13,7 +12,13 @@ local function observes_sprite_inspection()
   local ok = pcall(function()
     open_sprite = assert(app.open(inspection_path))
     local result = inspection.inspect(open_sprite, {
-      "frames", "tags", "palettes", "layers", "cels", "slices", "tilesets",
+      "frames",
+      "tags",
+      "palettes",
+      "layers",
+      "cels",
+      "slices",
+      "tilesets",
     })
     assert(result.metadata.width == 8 and result.metadata.height == 6)
     assert(result.metadata.color_mode == "rgb")
@@ -76,11 +81,17 @@ local function observes_sprite_creation()
       color_mode = "rgb",
       initial_layer = {
         kind = "background",
-        background_color = { red=17, green=34, blue=51, alpha=255 },
+        background_color = { red = 17, green = 34, blue = 51, alpha = 255 },
       },
       staged_sprite_file = capability_path,
       inspection_scope = {
-        "frames", "tags", "palettes", "layers", "cels", "slices", "tilesets",
+        "frames",
+        "tags",
+        "palettes",
+        "layers",
+        "cels",
+        "slices",
+        "tilesets",
       },
     }, inspection)
     assert(result.sprite.metadata.width == 2 and result.sprite.metadata.height == 3)
@@ -102,21 +113,27 @@ local function observes_paint_apply()
   local source_path = assert(app.params.paint_fixture)
   local target_path = app.fs.joinPath(app.params.workspace, "paint-target.aseprite")
   local ok = pcall(function()
-    assert(digest.fnv1a64("hello") == "a430d84680aabd0b",
-           "content digest implementation failed its known-answer check")
+    assert(
+      digest.fnv1a64("hello") == "a430d84680aabd0b",
+      "content digest implementation failed its known-answer check"
+    )
     local result = paint.execute({
       source_sprite_file = source_path,
       staged_sprite_file = target_path,
-      target = { layer_path={ 1 }, frame_number=1 },
+      target = { layer_path = { 1 }, frame_number = 1 },
       patch = {
-        coordinate_space="image-pixel",
-        rectangle={ x=0, y=0, width=1, height=1 },
-        runs={{
-          x=0, y=0, length=1,
-          color={ kind="rgba", red=17, green=34, blue=51, alpha=255 },
-        }},
+        coordinate_space = "image-pixel",
+        rectangle = { x = 0, y = 0, width = 1, height = 1 },
+        runs = {
+          {
+            x = 0,
+            y = 0,
+            length = 1,
+            color = { kind = "rgba", red = 17, green = 34, blue = 51, alpha = 255 },
+          },
+        },
       },
-      clipping="reject",
+      clipping = "reject",
     }, digest)
     assert(result.persisted_reopen_verified)
     assert(result.pixels_written == 1 and result.pixels_changed == 1)
@@ -133,12 +150,8 @@ function module.observe()
   if supports_inspection and observes_sprite_creation() then
     capabilities[#capabilities + 1] = "aseprite_sprite_create"
   end
-  if supports_inspection then
-    capabilities[#capabilities + 1] = "aseprite_sprite_inspection"
-  end
-  if observes_paint_apply() then
-    capabilities[#capabilities + 1] = "aseprite_paint_apply"
-  end
+  if supports_inspection then capabilities[#capabilities + 1] = "aseprite_sprite_inspection" end
+  if observes_paint_apply() then capabilities[#capabilities + 1] = "aseprite_paint_apply" end
   if exporter ~= nil then
     local ok = pcall(function()
       local fixture = Sprite(1, 1, ColorMode.RGB)
@@ -148,13 +161,13 @@ function module.observe()
       assert(fixture:saveAs(source))
       fixture:close()
       local facts = exporter.execute({
-        source_sprite_file=source,
-        staged_png_file=output,
-        staged_rgba_file=rendered,
-        frame_number=1,
-        color_mode="preserve",
-        color_profile="preserve",
-        transparency="preserve",
+        source_sprite_file = source,
+        staged_png_file = output,
+        staged_rgba_file = rendered,
+        frame_number = 1,
+        color_mode = "preserve",
+        color_profile = "preserve",
+        transparency = "preserve",
       })
       assert(facts.width == 1 and facts.height == 1)
       local pixel_file = assert(io.open(rendered, "rb"))

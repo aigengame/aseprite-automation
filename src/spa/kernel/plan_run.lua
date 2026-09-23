@@ -6,17 +6,23 @@ local paint = dofile(app.params.paint)
 local digest = dofile(app.params.digest)
 local capability_probe = dofile(app.params.capability_probe)
 local all_sections = {
-  "frames", "tags", "palettes", "layers", "cels", "slices", "tilesets",
+  "frames",
+  "tags",
+  "palettes",
+  "layers",
+  "cels",
+  "slices",
+  "tilesets",
 }
 local open_sprite = nil
 local failed_step = nil
 local failed_operation = nil
 local runtime_incompatibility = nil
 local previous_editor_state = {
-  sprite=app.activeSprite,
-  layer=app.activeLayer,
-  frame=app.activeFrame,
-  background_color=app.bgColor,
+  sprite = app.activeSprite,
+  layer = app.activeLayer,
+  frame = app.activeFrame,
+  background_color = app.bgColor,
 }
 
 local function restore_editor_state()
@@ -32,20 +38,25 @@ end
 local function verify_runtime(requirements)
   local observed = capability_probe.observe()
   local available = {}
-  for _, capability in ipairs(observed) do available[capability] = true end
+  for _, capability in ipairs(observed) do
+    available[capability] = true
+  end
   local missing = {}
   for _, capability in ipairs(requirements.required_capabilities) do
     if not available[capability] then missing[#missing + 1] = capability end
   end
-  if _VERSION ~= requirements.lua_language
-      or app.apiVersion < requirements.minimum_api_version or #missing > 0 then
+  if
+    _VERSION ~= requirements.lua_language
+    or app.apiVersion < requirements.minimum_api_version
+    or #missing > 0
+  then
     runtime_incompatibility = {
-      aseprite_version=tostring(app.version),
-      lua_version=_VERSION,
-      api_version=app.apiVersion,
-      required_lua_language=requirements.lua_language,
-      minimum_api_version=requirements.minimum_api_version,
-      missing_capabilities=missing,
+      aseprite_version = tostring(app.version),
+      lua_version = _VERSION,
+      api_version = app.apiVersion,
+      required_lua_language = requirements.lua_language,
+      minimum_api_version = requirements.minimum_api_version,
+      missing_capabilities = missing,
     }
     error("Plan runtime does not meet the selected Step requirements")
   end
@@ -58,7 +69,16 @@ local function difference(left, right, at)
   end
   if type(left) ~= "table" then
     if left == right then return nil end
-    return at .. " (" .. type(left) .. ":" .. tostring(left) .. " / " .. type(right) .. ":" .. tostring(right) .. ")"
+    return at
+      .. " ("
+      .. type(left)
+      .. ":"
+      .. tostring(left)
+      .. " / "
+      .. type(right)
+      .. ":"
+      .. tostring(right)
+      .. ")"
   end
   for key, value in pairs(left) do
     local found = difference(value, right[key], at .. "." .. tostring(key))
@@ -75,14 +95,14 @@ local function document_facts(sprite)
   for _, cel in ipairs(sprite.cels) do
     local image = cel.image
     images[#images + 1] = {
-      width=image.width,
-      height=image.height,
-      bytes_per_pixel=image.bytesPerPixel,
-      row_stride=image.rowStride,
-      content=digest.fnv1a64(image.bytes),
+      width = image.width,
+      height = image.height,
+      bytes_per_pixel = image.bytesPerPixel,
+      row_stride = image.rowStride,
+      content = digest.fnv1a64(image.bytes),
     }
   end
-  return { sprite=inspection.inspect(sprite, all_sections), images=images }
+  return { sprite = inspection.inspect(sprite, all_sections), images = images }
 end
 
 local function verify_postconditions(sprite, conditions)
@@ -93,13 +113,13 @@ local function verify_postconditions(sprite, conditions)
     assert(sprite.height == conditions.height, "Plan height Postcondition failed")
   end
   if conditions.frame_count ~= nil then
-    assert(#sprite.frames == conditions.frame_count,
-           "Plan frame_count Postcondition failed")
+    assert(#sprite.frames == conditions.frame_count, "Plan frame_count Postcondition failed")
   end
   if conditions.color_mode ~= nil then
     local actual = sprite.colorMode == ColorMode.RGB and "rgb"
       or sprite.colorMode == ColorMode.GRAY and "grayscale"
-      or sprite.colorMode == ColorMode.INDEXED and "indexed" or "unknown"
+      or sprite.colorMode == ColorMode.INDEXED and "indexed"
+      or "unknown"
     assert(actual == conditions.color_mode, "Plan color_mode Postcondition failed")
   end
 end
@@ -110,15 +130,13 @@ local function execute_step(step)
     assert(open_sprite == nil, "Sprite creation must be the first Step")
     open_sprite = creation.create_live(input)
     return {
-      sprite=inspection.inspect(open_sprite, all_sections),
-      initial_layer=creation.verify_persisted_initial_layer(
-        open_sprite, input.initial_layer
-      ),
+      sprite = inspection.inspect(open_sprite, all_sections),
+      initial_layer = creation.verify_persisted_initial_layer(open_sprite, input.initial_layer),
     }
   end
   assert(open_sprite ~= nil, "Plan has no active Sprite")
   if step.operation == "sprite get" then
-    return { sprite=inspection.inspect(open_sprite, input.inspection_scope) }
+    return { sprite = inspection.inspect(open_sprite, input.inspection_scope) }
   end
   if step.operation == "paint apply" then
     local evidence = paint.apply_live(open_sprite, input, digest)
@@ -131,23 +149,23 @@ local function execute()
   local request_file = assert(io.open(app.params.request, "rb"))
   local request = json.decode(request_file:read("*a"))
   request_file:close()
-  assert(request.kernel_protocol_version == kernel_protocol_version,
-         "unsupported Kernel Protocol version")
+  assert(
+    request.kernel_protocol_version == kernel_protocol_version,
+    "unsupported Kernel Protocol version"
+  )
   local payload = assert(request.payload)
   local requirements = assert(payload.runtime_requirements)
   verify_runtime(requirements)
-  assert(payload.steps ~= nil and #payload.steps > 0,
-         "Plan has no Steps")
+  assert(payload.steps ~= nil and #payload.steps > 0, "Plan has no Steps")
   if type(payload.source_sprite_file) == "string" then
-    open_sprite = assert(app.open(payload.source_sprite_file),
-                         "could not open Source Sprite File")
+    open_sprite = assert(app.open(payload.source_sprite_file), "could not open Source Sprite File")
   end
   local outcomes = {}
   for index, step in ipairs(payload.steps) do
     failed_step = index
     failed_operation = step.operation
     local result = execute_step(step)
-    outcomes[#outcomes + 1] = { operation=step.operation, result=result }
+    outcomes[#outcomes + 1] = { operation = step.operation, result = result }
     failed_step = nil
     failed_operation = nil
   end
@@ -157,12 +175,10 @@ local function execute()
   local before = document_facts(open_sprite)
   local persisted = false
   if type(payload.staged_sprite_file) == "string" then
-    assert(open_sprite:saveAs(payload.staged_sprite_file),
-           "could not save staged Sprite")
+    assert(open_sprite:saveAs(payload.staged_sprite_file), "could not save staged Sprite")
     open_sprite:close()
     open_sprite = nil
-    open_sprite = assert(app.open(payload.staged_sprite_file),
-                         "could not reopen staged Sprite")
+    open_sprite = assert(app.open(payload.staged_sprite_file), "could not reopen staged Sprite")
     local after = document_facts(open_sprite)
     local persisted_palettes = after.sprite.palettes
     if before.sprite.metadata.color_mode ~= "indexed" then
@@ -172,20 +188,21 @@ local function execute()
       after.sprite.palettes = nil
     end
     local inspection_mismatch = difference(before.sprite, after.sprite, "sprite")
-    assert(inspection_mismatch == nil,
-           "persisted Plan inspection differs at " .. tostring(inspection_mismatch))
+    assert(
+      inspection_mismatch == nil,
+      "persisted Plan inspection differs at " .. tostring(inspection_mismatch)
+    )
     local image_mismatch = difference(before.images, after.images, "images")
-    assert(image_mismatch == nil,
-           "persisted Plan images differ at " .. tostring(image_mismatch))
+    assert(image_mismatch == nil, "persisted Plan images differ at " .. tostring(image_mismatch))
     after.sprite.palettes = persisted_palettes
     verify_postconditions(open_sprite, conditions)
     persisted = true
     before = after
   end
   local response = {
-    steps=outcomes,
-    final_sprite=before.sprite,
-    persisted_reopen_verified=persisted,
+    steps = outcomes,
+    final_sprite = before.sprite,
+    persisted_reopen_verified = persisted,
   }
   open_sprite:close()
   open_sprite = nil
@@ -196,20 +213,20 @@ local ok, result = pcall(execute)
 local response
 if ok then
   response = {
-    kernel_protocol_version=kernel_protocol_version,
-    status="ok",
-    result=result,
+    kernel_protocol_version = kernel_protocol_version,
+    status = "ok",
+    result = result,
   }
 else
   if open_sprite ~= nil then pcall(function() open_sprite:close() end) end
   response = {
-    kernel_protocol_version=kernel_protocol_version,
-    status="error",
-    cause=runtime_incompatibility and "runtime_incompatible" or "operation_rejected",
-    message=tostring(result),
-    failed_step=failed_step,
-    failed_operation=failed_operation,
-    runtime_compatibility=runtime_incompatibility,
+    kernel_protocol_version = kernel_protocol_version,
+    status = "error",
+    cause = runtime_incompatibility and "runtime_incompatible" or "operation_rejected",
+    message = tostring(result),
+    failed_step = failed_step,
+    failed_operation = failed_operation,
+    runtime_compatibility = runtime_incompatibility,
   }
 end
 restore_editor_state()

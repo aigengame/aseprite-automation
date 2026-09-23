@@ -103,11 +103,21 @@ Run the same source checks used by CI with:
 uv run --frozen ruff check .
 uv run --frozen ruff format --check .
 uv run --frozen pyright
+uv run --frozen python scripts/lua_quality.py
 ```
 
 `pyright` checks production code under `src/`. Runtime tests deliberately construct
 invalid and partially controlled values, so their correctness is enforced by pytest
 instead of the production type gate.
+
+The Lua gate covers every tracked `*.lua` file, including production scripts and test
+fixtures. Install the Luacheck and StyLua versions pinned in
+`.github/actions/setup-lua-quality/action.yml` on your `PATH`. Run only the Lua linter
+with `uv run --frozen python scripts/lua_quality.py lint`, or format the Lua baseline
+with `uv run --frozen python scripts/lua_quality.py format`. The default command runs
+Luacheck and StyLua in check mode. Luacheck checks Lua syntax and known globals;
+StyLua checks formatting. Neither check verifies Aseprite API members or native
+behavior. Use the real-runtime E2E tier for that evidence.
 
 ## CI gates
 
@@ -119,7 +129,7 @@ GitHub does not emit a second workflow event for a pull request updated with
 
 | Job | Required evidence |
 | --- | --- |
-| Source quality | Ruff lint and formatting plus Pyright for production source. |
+| Source quality | Ruff lint and formatting, Pyright for production source, and Luacheck plus StyLua for all tracked Lua. |
 | Fast tests | Unit and integration tests selected with `-m "not e2e"`. |
 | Build and smoke test distributions | One sdist and wheel, valid package metadata, and a successful `spa version` from a wheel-only environment populated from locked runtime dependencies. |
 | Linux real Aseprite E2E | The project CLI and a wheel-installed CLI drive the pinned real Aseprite `--batch --script` path. A wheel-only negative case reaches the packaged Sprite creation handler and proves that no Target Commit occurs after rejection; a wheel-only Export case verifies a PNG Artifact. The job records JUnit evidence. |
