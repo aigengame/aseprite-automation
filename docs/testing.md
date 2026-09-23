@@ -46,9 +46,9 @@ complete ordered Key list, converts its zero-based Frames to the public one-base
 and combines it with public Slice user data. The private metadata and texture remain in
 the invocation workspace.
 The Export Image E2E fixtures cover native visible Layer composition, RGB Alpha
-values, no-profile and sRGB files, unsupported source modes, Tilemap Images,
-unsupported Color Profiles, and explicit replacement. A wheel-installed test verifies
-the packaged Export handler and Pillow decoder on Linux CI.
+values, no-profile and sRGB files, unsupported source modes, Tilemap Images on visible
+and hidden Layers, unsupported Color Profiles, and explicit replacement. A wheel-installed
+test verifies the packaged Export handler and Pillow decoder on Linux CI.
 
 The initial evidence profiles use local macOS Aseprite 1.3.18.5-dev and the pinned
 Linux CI Aseprite 1.3.18.5 source release. Both expose `_VERSION == "Lua 5.4"` and

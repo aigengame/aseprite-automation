@@ -123,9 +123,9 @@ uv run spa export image --input-json '{"aseprite":"/path/to/aseprite","source_sp
 `spa sprite create` requires an explicit `overwrite` boolean and refuses to replace an
 existing Target Sprite File when it is `false`.
 `spa export image` renders one explicit Frame of the full canvas with persisted visible
-Layers. It accepts RGB Source Sprites with no Color Profile or sRGB, rejects Tilemap
-Images in the selected visible composition, preserves native Alpha values, verifies
-the staged PNG with an independent decoder, and requires
+Layers. It accepts RGB Source Sprites with no Color Profile or sRGB. It rejects
+Tilemap Images in the selected Frame, including hidden Layers. It preserves native
+Alpha values, verifies the staged PNG with an independent decoder, and requires
 `if_exists: fail` or `replace` before publication.
 
 `--aseprite` and `SPA_ASEPRITE_EXECUTABLE` name an executable file, not a macOS

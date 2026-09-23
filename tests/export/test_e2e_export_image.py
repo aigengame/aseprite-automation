@@ -213,8 +213,11 @@ def test_export_rejects_unsupported_source_color_modes(
     assert not list(tmp_path.glob("*.staged.png"))
 
 
-def test_export_rejects_tilemap_image_before_encoding(tmp_path: Path) -> None:
-    source = _source(tmp_path, "rgb_tilemap.lua")
+@pytest.mark.parametrize("arrangement", ["visible", "hidden_layer", "hidden_group"])
+def test_export_rejects_tilemap_image_before_encoding(
+    tmp_path: Path, arrangement: str
+) -> None:
+    source = _source(tmp_path, "rgb_tilemap.lua", arrangement=arrangement)
     source_sha = hashlib.sha256(source.read_bytes()).hexdigest()
     destination = tmp_path / "unsupported.png"
     request = _request(source, destination)

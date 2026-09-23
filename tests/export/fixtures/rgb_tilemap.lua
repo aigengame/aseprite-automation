@@ -11,5 +11,15 @@ app.useTool{
   points={Point(0, 0)},
 }
 assert(layer:cel(1).image.colorMode == ColorMode.TILEMAP)
+local arrangement = app.params.arrangement or "visible"
+if arrangement == "hidden_layer" then
+  layer.isVisible = false
+elseif arrangement == "hidden_group" then
+  local group = sprite:newGroup()
+  layer.parent = group
+  group.isVisible = false
+else
+  assert(arrangement == "visible")
+end
 assert(sprite:saveAs(app.params.out))
 sprite:close()
