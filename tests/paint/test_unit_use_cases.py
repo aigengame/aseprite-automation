@@ -137,6 +137,9 @@ class _TargetFiles:
     commits: int = 0
     discarded: int = 0
 
+    def same_publication_target(self, _source: Path, _target: Path) -> bool:
+        return False
+
     def staged_path(self, target: Path) -> Path:
         return target.with_suffix(".staged.aseprite")
 

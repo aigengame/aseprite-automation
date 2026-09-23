@@ -51,6 +51,9 @@ The Export Image E2E fixtures cover native visible Layer composition, RGB Alpha
 values, no-profile and sRGB files, unsupported source modes, Tilemap Images on visible
 and hidden Layers, unsupported Color Profiles, and explicit replacement. A wheel-installed
 test verifies the packaged Export handler and Pillow decoder on Linux CI.
+Paint E2E cases reject direct and two-link Source aliases for both `in_place` values
+without a Target Commit. A static integration case confirms rejection before the
+runtime probe.
 Plan E2E cases cover read-only composition, create/paint/get on one live Sprite,
 failed-Step and failed-Postcondition publication gates, and in-place failure
 preserving the original file digest. A wheel-installed case verifies the packaged
