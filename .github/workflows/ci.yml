@@ -25,6 +25,9 @@ jobs:
       - name: Set up Python
         uses: ./.github/actions/setup-python-env
 
+      - name: Set up Lua quality tools
+        uses: ./.github/actions/setup-lua-quality
+
       - name: Check lint
         run: uv run --frozen ruff check .
 
@@ -33,6 +36,9 @@ jobs:
 
       - name: Check production types
         run: uv run --frozen pyright
+
+      - name: Check Lua source quality
+        run: uv run --frozen python scripts/lua_quality.py
 
   fast-tests:
     name: Fast tests
