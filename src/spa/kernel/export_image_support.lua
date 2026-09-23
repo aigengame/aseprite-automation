@@ -36,8 +36,10 @@ local function declared_profile(source_file)
         assert(chunk_size >= 6 and chunk_at + chunk_size <= frame_end,
                "invalid Sprite chunk")
         if chunk_type == 0x2007 then
-          assert(chunk_size >= 8, "incomplete Color Profile chunk")
-          local profile_type = string.unpack("<I2", assert(file:read(2)))
+          assert(chunk_size >= 22, "incomplete Color Profile chunk")
+          local profile_type, flags = string.unpack("<I2I2", assert(file:read(4)))
+          -- A gamma flag changes both None and sRGB to a gamma Color Space.
+          assert(flags == 0, "unsupported Source Sprite Color Profile")
           local kind = profile_type == 0 and "none"
             or profile_type == 1 and "srgb"
             or profile_type == 2 and "icc" or "unsupported"

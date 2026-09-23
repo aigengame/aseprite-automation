@@ -1,24 +1,12 @@
 """Independent decoding of the staged PNG Artifact."""
 
-from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
 from typing import Literal, cast
 
 from PIL import Image, UnidentifiedImageError
 
-from spa.ports import ArtifactVerificationEvidence, RuntimeIssue
-
-
-@dataclass(frozen=True)
-class PngFacts:
-    width: int
-    height: int
-    color_profile: Literal["none", "srgb"]
-    alpha_channel_present: bool
-    alpha_min: int
-    alpha_max: int
-    rgba_bytes: bytes
+from spa.ports import ArtifactVerificationEvidence, PngFacts, RuntimeIssue
 
 
 def verify_png(payload: bytes, staged: Path) -> PngFacts:

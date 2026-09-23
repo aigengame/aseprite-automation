@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import struct
 import subprocess
 import tempfile
 from copy import deepcopy
@@ -124,6 +125,7 @@ def test_export_frame_as_verified_visible_rgb_png(tmp_path: Path) -> None:
 
 def test_export_opaque_rgb_without_color_profile(tmp_path: Path) -> None:
     source = _source(tmp_path, "rgb_profile_alpha.lua", profile="none", alpha="opaque")
+    original_sha = hashlib.sha256(source.read_bytes()).hexdigest()
     destination = tmp_path / "opaque.png"
     request = _request(source, destination)
 
@@ -144,6 +146,7 @@ def test_export_opaque_rgb_without_color_profile(tmp_path: Path) -> None:
         assert image.getpixel((1, 0)) == (44, 55, 66, 255)
         assert "srgb" not in image.info
         assert "icc_profile" not in image.info
+    assert hashlib.sha256(source.read_bytes()).hexdigest() == original_sha
 
 
 def test_export_fully_transparent_rgb_preserves_alpha(tmp_path: Path) -> None:
@@ -218,6 +221,32 @@ def test_export_rejects_icc_source_before_encoding(tmp_path: Path) -> None:
     source = _source(
         tmp_path, "rgb_profile_alpha.lua", profile="icc", icc_file=str(icc_file)
     )
+    destination = tmp_path / "unsupported.png"
+
+    run = spa(
+        "export", "image", "--input-json", json.dumps(_request(source, destination))
+    )
+
+    assert run.returncode != 0
+    assert json.loads(run.stdout)["code"] == "kernel_execution_failed"
+    assert not destination.exists()
+    assert not list(tmp_path.glob("*.staged.png"))
+
+
+def test_export_rejects_gamma_profile_before_encoding(tmp_path: Path) -> None:
+    source = _source(tmp_path, "rgb_profile_alpha.lua")
+    payload = bytearray(source.read_bytes())
+    chunk_at = 128 + 16
+    while chunk_at + 6 <= len(payload):
+        chunk_size, chunk_type = struct.unpack_from("<IH", payload, chunk_at)
+        assert chunk_size >= 6
+        if chunk_type == 0x2007:
+            struct.pack_into("<HHI", payload, chunk_at + 6, 0, 1, 65536)
+            break
+        chunk_at += chunk_size
+    else:
+        pytest.fail("Aseprite fixture did not contain a Color Profile chunk")
+    source.write_bytes(payload)
     destination = tmp_path / "unsupported.png"
 
     run = spa(
@@ -311,6 +340,8 @@ def test_export_schema_refuses_out_of_slice_choices(tmp_path: Path) -> None:
     rejected: list[tuple[str, object]] = [
         ("destination.path", str(tmp_path / "image.jpg")),
         ("destination.path", str(tmp_path / "image.PNG")),
+        ("destination.path", str(tmp_path / "image.png") + "\n"),
+        ("source_sprite_file", str(source) + "\n"),
         ("destination.if_exists", None),
         ("frame_number", 0),
         ("frame_number", None),

@@ -6,6 +6,7 @@ from spa.cli import build_app, run_cli
 from spa.export import EXPORT_PROBE_RESOURCES
 from spa.failure_registry import FAILURE_CODES
 from spa.file_adapter import LocalArtifactFiles, LocalTargetFiles
+from spa.png_verifier import verify_png
 from spa.ports import OperationServices
 from spa.runtime.aseprite import invoke, probe
 from spa.sprite import SPRITE_PROBE_RESOURCES
@@ -21,6 +22,7 @@ def main() -> None:
                 invoke_kernel=invoke,
                 target_files=LocalTargetFiles(),
                 artifact_files=LocalArtifactFiles(),
+                verify_png=verify_png,
             ),
             FAILURE_CODES,
         ),

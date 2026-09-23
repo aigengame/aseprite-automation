@@ -109,6 +109,8 @@ class StagedArtifact:
 class ArtifactFiles(Protocol):
     """Domain-neutral staging and publication of one Export Destination."""
 
+    def normalize_destination(self, path: str) -> Path: ...
+
     def staged_path(self, destination: Path, *, if_exists: str) -> Path: ...
 
     def rendered_path(self, staged: Path) -> Path: ...
@@ -123,11 +125,26 @@ class ArtifactFiles(Protocol):
 
 
 @dataclass(frozen=True)
+class PngFacts:
+    width: int
+    height: int
+    color_profile: Literal["none", "srgb"]
+    alpha_channel_present: bool
+    alpha_min: int
+    alpha_max: int
+    rgba_bytes: bytes
+
+
+PngVerifier = Callable[[bytes, Path], PngFacts]
+
+
+@dataclass(frozen=True)
 class OperationServices:
     probe_runtime: RuntimeProbe
     invoke_kernel: KernelInvoker
     target_files: TargetFiles
     artifact_files: ArtifactFiles | None = None
+    verify_png: PngVerifier | None = None
 
 
 @dataclass(frozen=True)
@@ -192,18 +209,21 @@ class TargetCommitEvidence:
     ]
 
 
+ArtifactFileFailureReason = Literal[
+    "destination_exists",
+    "destination_not_file",
+    "destination_parent_missing",
+    "staged_file_missing",
+    "staged_file_empty",
+    "staged_file_changed",
+    "publication_failed",
+]
+
+
 @dataclass(frozen=True)
 class ArtifactFileEvidence:
     path: str
-    reason: Literal[
-        "destination_exists",
-        "destination_not_file",
-        "destination_parent_missing",
-        "staged_file_missing",
-        "staged_file_empty",
-        "staged_file_changed",
-        "publication_failed",
-    ]
+    reason: ArtifactFileFailureReason
 
 
 @dataclass(frozen=True)

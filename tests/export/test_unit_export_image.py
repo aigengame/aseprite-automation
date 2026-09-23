@@ -9,6 +9,7 @@ from PIL import Image
 from spa.contracts import Diagnostics
 from spa.export import ExportImageRequest, export_image
 from spa.file_adapter import LocalArtifactFiles, LocalTargetFiles
+from spa.png_verifier import verify_png
 from spa.ports import (
     KernelInvocationResult,
     OperationServices,
@@ -89,6 +90,7 @@ def test_export_does_not_publish_missing_malformed_or_mismatched_png(
         invoke_kernel=invoke,
         target_files=LocalTargetFiles(),
         artifact_files=LocalArtifactFiles(),
+        verify_png=verify_png,
     )
     with pytest.raises(RuntimeIssue) as failure:
         export_image(request, services)

@@ -90,6 +90,9 @@ class LocalTargetFiles:
 class LocalArtifactFiles:
     """File mechanics for the single-destination Export Image tracer."""
 
+    def normalize_destination(self, path: str) -> Path:
+        return Path(os.path.abspath(os.path.expanduser(path)))
+
     def staged_path(self, destination: Path, *, if_exists: str) -> Path:
         if not destination.parent.is_dir():
             raise RuntimeIssue(

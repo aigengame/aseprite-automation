@@ -1,7 +1,5 @@
 """Static Image Export contract and publication use case."""
 
-import os
-from pathlib import Path
 from typing import Literal
 
 from pydantic import Field, ValidationError
@@ -13,8 +11,8 @@ from spa.contracts import (
     RuntimeRequirements,
 )
 from spa.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
-from spa.png_verifier import verify_png
 from spa.ports import (
+    ArtifactFileFailureReason,
     ArtifactVerificationEvidence,
     KernelInvocationResult,
     OperationServices,
@@ -27,12 +25,20 @@ from spa.ports import (
 
 
 class ExportDestination(PublicModel):
-    path: str = Field(min_length=5, pattern=r"^.+\.png$")
+    path: str = Field(
+        min_length=5,
+        pattern=r"^.+\.png$",
+        json_schema_extra={"not": {"pattern": r"[\r\n]"}},
+    )
     if_exists: Literal["fail", "replace"]
 
 
 class ExportImageRequest(RuntimeRequest):
-    source_sprite_file: str = Field(min_length=10, pattern=r"^.+\.aseprite$")
+    source_sprite_file: str = Field(
+        min_length=10,
+        pattern=r"^.+\.aseprite$",
+        json_schema_extra={"not": {"pattern": r"[\r\n]"}},
+    )
     destination: ExportDestination
     frame_number: int = Field(ge=1)
     color_mode: Literal["preserve"]
@@ -84,15 +90,7 @@ class NativeImageFacts(PublicModel):
 class ArtifactFileDetails(PublicModel):
     kind: Literal["artifact_file"] = "artifact_file"
     path: str
-    reason: Literal[
-        "destination_exists",
-        "destination_not_file",
-        "destination_parent_missing",
-        "staged_file_missing",
-        "staged_file_empty",
-        "staged_file_changed",
-        "publication_failed",
-    ]
+    reason: ArtifactFileFailureReason
 
 
 class ArtifactVerificationDetails(PublicModel):
@@ -144,7 +142,10 @@ def export_image(
     files = services.artifact_files
     if files is None:
         raise RuntimeError("Export Image requires the Artifact File Adapter")
-    destination = Path(os.path.abspath(os.path.expanduser(request.destination.path)))
+    verify_png = services.verify_png
+    if verify_png is None:
+        raise RuntimeError("Export Image requires the PNG Artifact Verifier")
+    destination = files.normalize_destination(request.destination.path)
     staged = files.staged_path(destination, if_exists=request.destination.if_exists)
     rendered = files.rendered_path(staged)
     try:
