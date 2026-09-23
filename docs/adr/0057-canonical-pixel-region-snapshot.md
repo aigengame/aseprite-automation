@@ -39,10 +39,12 @@ Mode changes.
 - Inline JSON and JSON Artifact forms use the same schema. A value exceeding the
   inline Operation Limit is emitted as a complete Artifact without truncation or an
   alternate encoding.
-- Descriptor schemas validate the transport shape. The fixed Lua Kernel owns
-  semantic coverage checks, Color Value compatibility, canonicalization, Image reads,
-  and Image writes. Python transports schema-valid JSON or Artifact references and
-  does not own a second codec.
+- Descriptor JSON schemas validate the transport shape. Python request contracts can
+  reject static canonical wire violations, such as Patch runs outside their declared
+  Rectangle, out-of-order or overlapping runs, and adjacent equal runs. The fixed Lua
+  Kernel repeats these checks before mutation and owns document-dependent coverage,
+  native Color Mode compatibility, Image reads, and Image writes. Python does not own
+  a second Raster codec or normalize native pixel content.
 - Pixel Patch is the canonical sparse Raster mutation value for one declared positive
   Rectangle. Its ordered, non-overlapping runs use absolute Image Pixel coordinates,
   positive lengths, and compatible Color Values. Adjacent equal values are merged.
