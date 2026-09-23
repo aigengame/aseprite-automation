@@ -17,11 +17,11 @@ synthetic Operation.
 Descriptors own registration, public shapes, Published Language metadata, and
 statically decidable contract invariants, not native behavior. Python contract types
 implement and validate those Descriptor-owned shapes; they are not a second contract
-authority. An Ordinary Core Operation binds one fixed packaged Lua handler, which owns
-its Core Operation Semantics and native mapping as defined by ADR-0010. A capability
-whose behavior is implemented by an Application use case can have no Kernel binding. An
-application-composed capability can select and order multiple packaged Ordinary Core
-Operation handlers without redefining their semantics.
+authority. An Ordinary Core Operation binds one fixed packaged Lua handler. Its fixed
+packaged semantic entry point owns Core Operation Semantics and native mapping as
+defined by ADR-0010. A capability implemented by an Application use case can have no
+Kernel binding. An Operation Plan selects and orders the same packaged semantic entry
+points through its fixed Plan handler without redefining their semantics.
 
 A runtime-backed Descriptor declares the Lua language profile, minimum Aseprite
 `app.apiVersion`, and Aseprite-provided capabilities required by that Operation. The

@@ -63,7 +63,8 @@ Postconditions that contradict a first Sprite creation Step. Real Aseprite cases
 verify that an alias requires explicit in-place intent and that a document-dependent
 Postcondition failure leaves the Target absent.
 Aggregate discovery conservatively requires every eligible Plan Step capability;
-the Plan execution gate checks only selected Steps in its one Aseprite process.
+the Plan execution gate checks selected Step requirements plus mandatory final Sprite
+inspection in its one Aseprite process.
 
 The initial evidence profiles use local macOS Aseprite 1.3.18.5-dev and the pinned
 Linux CI Aseprite 1.3.18.5 source release. Both expose `_VERSION == "Lua 5.4"` and

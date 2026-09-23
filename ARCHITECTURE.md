@@ -578,9 +578,9 @@ in one Aseprite invocation and adapter unit of work.
 
 ```text
 Plan Preflight
-    -> selected Step capability observation and check
-    -> Step 1 Preconditions -> packaged handler -> Step 1 Postconditions
-    -> Step 2 Preconditions -> packaged handler -> Step 2 Postconditions
+    -> selected Step and final inspection capability observation and check
+    -> Step 1 Preconditions -> shared semantic entry point -> Step 1 Postconditions
+    -> Step 2 Preconditions -> shared semantic entry point -> Step 2 Postconditions
     -> ...
     -> Plan Postconditions
     -> zero commits for a read Plan, or one Target Commit for a mutation Plan
