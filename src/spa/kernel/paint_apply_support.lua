@@ -319,9 +319,27 @@ local function image_digest(image, color_mode, digest)
   return { algorithm="fnv1a64", value=digest.fnv1a64(header, image.bytes) }
 end
 
-local function background_is_opaque(image, color_mode, layer)
+local function background_is_opaque(sprite, image, color_mode, layer, affected_cels)
   if not layer.isBackground then return false end
-  if color_mode == "indexed" then return true end
+  if color_mode == "indexed" then
+    local indexes = {}
+    for pixel in image:pixels() do indexes[pixel()] = true end
+    local checked_frames = {}
+    for _, cel in ipairs(affected_cels) do
+      local frame_number = cel.frame_number
+      if not checked_frames[frame_number]
+          and resolve_layer(sprite, cel.layer_path).isBackground then
+        local palette = effective_palette(sprite, frame_number)
+        for index, _ in pairs(indexes) do
+          if index >= #palette or palette:getColor(index).alpha ~= 255 then
+            return false
+          end
+        end
+        checked_frames[frame_number] = true
+      end
+    end
+    return true
+  end
   for pixel in image:pixels() do
     local native = pixel()
     local alpha = color_mode == "rgb"
@@ -375,7 +393,9 @@ local function validate_reopened(
            "persisted bounded pixel inspection failed")
   end
   local content_digest = image_digest(image, evidence.color_mode, digest)
-  local opaque = background_is_opaque(image, evidence.color_mode, layer)
+  local opaque = background_is_opaque(
+    sprite, image, evidence.color_mode, layer, reopened_affected
+  )
   if layer.isBackground then assert(opaque, "persisted Background Image is not opaque") end
   return opaque, content_digest
 end

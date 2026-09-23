@@ -13,14 +13,16 @@ from jsonschema import validate
 
 from spa.contracts import RuntimeRequest
 from spa.descriptors import PROBE_RESOURCES
-from spa.runtime.aseprite import probe
+from spa.paint import PAINT_APPLY_HANDLER
+from spa.ports import HandlerEvidence, RuntimeIssue
+from spa.runtime.aseprite import invoke, probe
 from spa.runtime.invocation import prepare_invocation
 from tests.support import spa
 
 pytestmark = pytest.mark.e2e
 
 
-def _fixture(target: Path, kind: str) -> None:
+def _fixture(target: Path, kind: str, *, palette_alpha: int | None = None) -> None:
     observation = probe(
         RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
     )
@@ -31,17 +33,19 @@ def _fixture(target: Path, kind: str) -> None:
             Path(observation.resource_path),
             Path(work),
         )
+        arguments = [
+            str(prepared.executable),
+            "--batch",
+            "--script-param",
+            f"kind={kind}",
+            "--script-param",
+            f"out={target}",
+        ]
+        if palette_alpha is not None:
+            arguments.extend(["--script-param", f"palette_alpha={palette_alpha}"])
+        arguments.extend(["--script", str(fixture)])
         run = subprocess.run(
-            [
-                str(prepared.executable),
-                "--batch",
-                "--script-param",
-                f"kind={kind}",
-                "--script-param",
-                f"out={target}",
-                "--script",
-                str(fixture),
-            ],
+            arguments,
             text=True,
             capture_output=True,
             check=False,
@@ -499,6 +503,66 @@ def test_indexed_write_reports_effective_palette_and_rejects_missing_index_atomi
     assert source.read_bytes() == source_bytes
 
 
+@pytest.mark.parametrize("palette_alpha", [0, 128])
+def test_indexed_background_rejects_translucent_palette_write_atomically(
+    tmp_path: Path, palette_alpha: int
+) -> None:
+    source = tmp_path / "indexed-background.aseprite"
+    target = tmp_path / "indexed-background-target.aseprite"
+    _fixture(source, "indexed-background", palette_alpha=palette_alpha)
+    source_bytes = source.read_bytes()
+    patch = {
+        "coordinate_space": "image-pixel",
+        "rectangle": {"x": 1, "y": 0, "width": 1, "height": 1},
+        "runs": [
+            {
+                "x": 1,
+                "y": 0,
+                "length": 1,
+                "color": {"kind": "palette-index", "index": 0},
+            }
+        ],
+    }
+
+    run = _apply(source, target, patch)
+
+    assert run.returncode == 1, run.stdout
+    assert (
+        "persisted Background Image is not opaque"
+        in json.loads(run.stdout)["details"]["reason"]
+    )
+    assert not target.exists()
+    assert source.read_bytes() == source_bytes
+
+
+def test_indexed_background_accepts_opaque_transparent_index(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "indexed-background.aseprite"
+    target = tmp_path / "indexed-background-target.aseprite"
+    _fixture(source, "indexed-background", palette_alpha=255)
+    patch = {
+        "coordinate_space": "image-pixel",
+        "rectangle": {"x": 1, "y": 0, "width": 1, "height": 1},
+        "runs": [
+            {
+                "x": 1,
+                "y": 0,
+                "length": 1,
+                "color": {"kind": "palette-index", "index": 0},
+            }
+        ],
+    }
+
+    run = _apply(source, target, patch)
+
+    assert run.returncode == 0, run.stdout
+    result = json.loads(run.stdout)
+    assert result["pixels_changed"] == 1
+    assert result["background_opaque"] is True
+    assert target.is_file()
+
+
 def test_indexed_linked_cels_report_each_frames_effective_palette(
     tmp_path: Path,
 ) -> None:
@@ -677,3 +741,49 @@ def test_single_pixel_patch_on_2k_sprite_completes_with_default_timeout(
     assert run.returncode == 0, run.stdout
     assert json.loads(run.stdout)["pixels_written"] == 1
     assert target.is_file()
+
+
+def test_kernel_accepts_256_addressed_pixels_and_rejects_257(tmp_path: Path) -> None:
+    source = tmp_path / "limit.aseprite"
+    _fixture(source, "limit-rgb")
+    observation = probe(
+        RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
+    )
+
+    def payload(length: int) -> dict[str, object]:
+        return {
+            "source_sprite_file": str(source),
+            "staged_sprite_file": str(tmp_path / f"limit-{length}-staged.aseprite"),
+            "target": {"layer_path": [1], "frame_number": 1},
+            "patch": {
+                "coordinate_space": "image-pixel",
+                "rectangle": {"x": 0, "y": 0, "width": length, "height": 1},
+                "runs": [
+                    {
+                        "x": 0,
+                        "y": 0,
+                        "length": length,
+                        "color": {
+                            "kind": "rgba",
+                            "red": 1,
+                            "green": 2,
+                            "blue": 3,
+                            "alpha": 255,
+                        },
+                    }
+                ],
+            },
+            "clipping": "reject",
+            "selection": None,
+        }
+
+    accepted = invoke(observation, PAINT_APPLY_HANDLER, payload(256), 15.0)
+    assert accepted.payload["pixels_requested"] == 256
+    assert (tmp_path / "limit-256-staged.aseprite").is_file()
+
+    with pytest.raises(RuntimeIssue) as rejected:
+        invoke(observation, PAINT_APPLY_HANDLER, payload(257), 15.0)
+    assert rejected.value.kind == "handler_rejected"
+    assert isinstance(rejected.value.evidence, HandlerEvidence)
+    assert "Operation Limit" in rejected.value.evidence.reason
+    assert not (tmp_path / "limit-257-staged.aseprite").exists()

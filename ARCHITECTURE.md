@@ -12,7 +12,7 @@ this view instead of treating it as another decision authority.
 
 > [!IMPORTANT]
 > SPA is at the bootstrap stage. The installed CLI exposes `spa info`, `spa version`,
-> `spa schema`, and the first Sprite creation and inspection Operations. The module
+> `spa schema`, Sprite creation and inspection, and bounded Pixel Patch application. The module
 > ownership below includes both this delivered vertical slice and planned work. Feature
 > issues own delivery status, while the installed Surface Manifest reports the callable
 > surface of each installation.
@@ -270,16 +270,16 @@ The current view groups Core Domain responsibility into five cohesive areas. The
 feature ownership and can become Domain Modules as implementation evidence confirms
 their change boundaries. The delivered `spa.sprite` vertical slice owns Sprite creation
 and structural inspection within Document and Animation. The delivered `spa.paint`
-slice owns exact Pixel Patch application, while `spa.raster` owns its reusable Color,
-Rectangle, Patch, and Selection values under the Raster Authoring boundary established
-by ADR-0018. The other groupings remain an integrated planning view rather than a frozen
-package graph.
+slice owns exact Pixel Patch application, while `spa.raster` holds the shared Color Value,
+Rectangle, Patch, and Selection types. Raster Authoring owns their pixel and Color Value
+semantics under ADR-0018; Color and Palette owns Palette and conversion behavior. The
+other groupings remain an integrated planning view rather than a frozen package graph.
 
 | Responsibility area | Owns | Important boundary |
 | --- | --- | --- |
 | Document and Animation | Sprite; shared Layer, Frame, and Cel identity, addressing, hierarchy, and existence contracts; feature-declared general Layer/Cel Operations; Tag, Slice, timing, and animation Operations. | It does not claim Tilemap Layer creation and binding or Tilemap Cel/Image content; specialized tile variants depend one-way on the shared contracts. |
-| Raster Authoring | Image observation and transforms, Pixel Region Snapshot and Pixel Patch exchange, Selection value operations, Paint intent, native Tool invocation, native Filters, external raster import, and evidence-gated text rasterization. | Image, Paint, and Filter remain distinct operation families while sharing one pixel and target authority. |
-| Color and Palette | Color Value, Palette Change and Effective Palette behavior, quantization, Color Mode changes, Color Profile assignment/conversion, and Dithering choices. | Preserves native distinctions and makes result-affecting choices explicit. It does not implement a second color engine. |
+| Raster Authoring | Shared Color Value semantics, Image observation and transforms, Pixel Region Snapshot and Pixel Patch exchange, Selection value operations, Paint intent, native Tool invocation, native Filters, external raster import, and evidence-gated text rasterization. | Image, Paint, and Filter remain distinct operation families while sharing one pixel and target authority. |
+| Color and Palette | Palette Change and Effective Palette behavior, quantization, Color Mode changes, Color Profile assignment/conversion, and Dithering choices. | Preserves native distinctions and makes result-affecting choices explicit. It does not implement a second color engine. |
 | Tile Authoring | Grid, Tileset, Tile, Tile Key, Tilemap, Tile Placement, Tilemap Layer creation and binding, Tilemap Cel/Image content, bounded region exchange, and established Tileset-coupled lifecycle variants. | Reuses shared Layer/Cel contracts without duplicating them; support for other Layer/Cel variants remains with the owning feature issue until delivered. |
 | Delivery | Static image, animation, sheet, Tileset, preview, and metadata Export Operations with declared destinations and verified Artifacts. | Aseprite renders and encodes; SPA stages, validates, publishes, and reports the complete declared output set. |
 
