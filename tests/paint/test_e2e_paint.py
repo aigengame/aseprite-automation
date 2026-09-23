@@ -637,6 +637,32 @@ def test_apply_supports_explicit_in_place_target_commit(tmp_path: Path) -> None:
     assert source.read_bytes() != before
 
 
+def test_apply_accepts_in_place_paths_to_the_same_publication_entry(
+    tmp_path: Path,
+) -> None:
+    real_dir = tmp_path / "real"
+    real_dir.mkdir()
+    alias_dir = tmp_path / "alias"
+    alias_dir.symlink_to(real_dir, target_is_directory=True)
+    target = real_dir / "sprite.aseprite"
+    source = alias_dir / "sprite.aseprite"
+    _create(target)
+    before = source.read_bytes()
+
+    run = _apply(
+        source,
+        target,
+        _rgba_patch(x=2, y=1, length=1),
+        in_place=True,
+        overwrite=True,
+    )
+
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert json.loads(run.stdout)["target_commit"]["target_sprite_file"] == str(target)
+    assert alias_dir.is_symlink()
+    assert source.read_bytes() == target.read_bytes() != before
+
+
 @pytest.mark.parametrize("through_target_symlink", [False, True])
 def test_apply_rejects_source_alias_to_target_without_commit(
     tmp_path: Path, through_target_symlink: bool

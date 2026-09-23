@@ -12,7 +12,7 @@ from spa.contracts import (
     RuntimeRequirements,
     ValidationIssue,
 )
-from spa.mutation import TargetCommit
+from spa.mutation import TargetCommit, source_target_identity_issue
 from spa.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.paint import (
     DIGEST_RESOURCE,
@@ -32,7 +32,6 @@ from spa.ports import (
     ResponseEvidence,
     RuntimeIssue,
     TargetCommitEvidence,
-    TargetFiles,
 )
 from spa.sprite import (
     INSPECTION_SECTIONS,
@@ -228,17 +227,6 @@ def check_plan(
     )
 
 
-def _source_target_identity_issue(
-    files: TargetFiles, source: Path, target: Path, in_place: bool
-) -> Literal["alias", "in_place"] | None:
-    same_entry = files.same_publication_entry(source, target)
-    if not same_entry and files.same_publication_target(source, target):
-        return "alias"
-    if same_entry != in_place:
-        return "in_place"
-    return None
-
-
 def _preflight_paths(plan: PlanDefinition, services: OperationServices) -> None:
     if plan.source_sprite_file is not None:
         source = services.target_files.observe_path(Path(plan.source_sprite_file))
@@ -272,7 +260,7 @@ def _preflight_paths(plan: PlanDefinition, services: OperationServices) -> None:
                 ]
             )
     if plan.source_sprite_file is not None and plan.target_sprite_file is not None:
-        identity_issue = _source_target_identity_issue(
+        identity_issue = source_target_identity_issue(
             services.target_files,
             Path(plan.source_sprite_file),
             Path(plan.target_sprite_file),
@@ -282,18 +270,9 @@ def _preflight_paths(plan: PlanDefinition, services: OperationServices) -> None:
             raise RequestIssue(
                 [
                     ValidationIssue(
-                        location=[
-                            "plan",
-                            "source_sprite_file"
-                            if identity_issue == "alias"
-                            else "in_place",
-                        ],
-                        code="source_target_identity",
-                        message=(
-                            "Source alias traverses the Target publication entry"
-                            if identity_issue == "alias"
-                            else "Source/Target publication identity must match in_place intent"
-                        ),
+                        location=["plan", *identity_issue.location],
+                        code=identity_issue.code,
+                        message=identity_issue.message,
                     )
                 ]
             )
@@ -509,7 +488,7 @@ def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunRes
         if staged is not None:
             assert plan.target_sprite_file is not None
             if plan.source_sprite_file is not None:
-                identity_issue = _source_target_identity_issue(
+                identity_issue = source_target_identity_issue(
                     services.target_files,
                     Path(plan.source_sprite_file),
                     Path(plan.target_sprite_file),

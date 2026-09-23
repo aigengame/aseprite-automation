@@ -51,21 +51,11 @@ def test_apply_is_registered_as_a_mutation() -> None:
     assert descriptor.failure_codes[-1] == "target_commit_failed"
 
 
-@pytest.mark.parametrize(
-    ("in_place", "target_sprite_file", "overwrite"),
-    [
-        (True, "other.aseprite", True),
-        (True, "source.aseprite", False),
-        (False, "source.aseprite", True),
-    ],
-)
-def test_apply_requires_consistent_explicit_target_commit_intent(
-    in_place: bool, target_sprite_file: str, overwrite: bool
-) -> None:
+def test_apply_requires_overwrite_permission_for_in_place_intent() -> None:
     payload = _request() | {
-        "in_place": in_place,
-        "target_sprite_file": target_sprite_file,
-        "overwrite": overwrite,
+        "in_place": True,
+        "target_sprite_file": "source.aseprite",
+        "overwrite": False,
     }
 
     with pytest.raises(ValidationError):

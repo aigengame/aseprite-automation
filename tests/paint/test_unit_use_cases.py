@@ -137,6 +137,9 @@ class _TargetFiles:
     commits: int = 0
     discarded: int = 0
 
+    def same_publication_entry(self, source: Path, target: Path) -> bool:
+        return source == target
+
     def same_publication_target(self, _source: Path, _target: Path) -> bool:
         return False
 

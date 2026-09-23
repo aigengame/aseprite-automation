@@ -127,8 +127,8 @@ uv run spa export image --input-json '{"aseprite":"/path/to/aseprite","source_sp
 existing Target Sprite File when it is `false`.
 `spa paint apply` accepts at most 256 addressed Image Pixels per request. It defaults
 to rejecting out-of-bounds pixels; `clipping: "clip"` is the explicit clipping policy.
-In-place editing requires identical Source and Target Sprite Files plus both
-`in_place: true` and `overwrite: true`.
+In-place editing requires Source and Target to name the same publication entry,
+plus both `in_place: true` and `overwrite: true`.
 Standalone Paint rejects a Source alias that traverses the Target publication entry
 for either `in_place` value.
 
