@@ -254,7 +254,7 @@ Sprite creation and inspection slice extends that same stack.
 | CLI adapter | Typer | Command access and human or machine presentation. |
 | Public contracts | Pydantic 2 and JSON Schema | Typed Operation Requests, Operation Results, Failure Envelopes, and discovery schemas. |
 | Project and packaging | `uv` | Environments, dependencies, builds, and installed-product tests. |
-| Ordinary Core Operations | Packaged Lua handlers | Core Operation Semantics and native mapping executed through Aseprite. The current package contains a fixed runtime probe and Sprite creation and inspection handlers. |
+| Ordinary Core Operations | Packaged Lua handlers | Core Operation Semantics and native mapping executed through Aseprite. The current package contains a fixed runtime probe, Sprite creation and inspection handlers, and an Export Image handler. |
 | Aseprite integration | External `aseprite --batch --script` | Native document, Tool, Filter, color, and export behavior. |
 | Private transport | Versioned JSON request and response files | Data exchange through `--script-param`, separate from diagnostics. |
 | Agent access | Version-matched Agent Skill and planned local stdio MCP Adapter with CLI subprocess invocation | Guidance and equivalent tool projection from the installed surface. |

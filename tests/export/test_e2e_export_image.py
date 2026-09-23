@@ -213,6 +213,22 @@ def test_export_rejects_unsupported_source_color_modes(
     assert not list(tmp_path.glob("*.staged.png"))
 
 
+def test_export_rejects_tilemap_image_before_encoding(tmp_path: Path) -> None:
+    source = _source(tmp_path, "rgb_tilemap.lua")
+    source_sha = hashlib.sha256(source.read_bytes()).hexdigest()
+    destination = tmp_path / "unsupported.png"
+
+    run = spa(
+        "export", "image", "--input-json", json.dumps(_request(source, destination))
+    )
+
+    assert run.returncode != 0
+    assert json.loads(run.stdout)["code"] == "kernel_execution_failed"
+    assert not destination.exists()
+    assert not list(tmp_path.glob("*.staged.png"))
+    assert hashlib.sha256(source.read_bytes()).hexdigest() == source_sha
+
+
 def test_export_rejects_icc_source_before_encoding(tmp_path: Path) -> None:
     icc_file = tmp_path / "profile.icc"
     icc_file.write_bytes(
@@ -342,8 +358,10 @@ def test_export_schema_refuses_out_of_slice_choices(tmp_path: Path) -> None:
         ("destination.path", str(tmp_path / "image.PNG")),
         ("destination.path", str(tmp_path / "image.png") + "\n"),
         ("destination.path", str(tmp_path / "image\r.png")),
+        ("destination.path", str(tmp_path / "image\x00.png")),
         ("source_sprite_file", str(source) + "\n"),
         ("source_sprite_file", str(tmp_path / "source\r.aseprite")),
+        ("source_sprite_file", str(tmp_path / "source\x00.aseprite")),
         ("destination.if_exists", None),
         ("frame_number", 0),
         ("frame_number", None),

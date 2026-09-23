@@ -66,6 +66,18 @@ local function source_profile(sprite)
   error("unsupported Source Sprite Color Profile")
 end
 
+local function reject_visible_tilemap_images(layers, frame_number)
+  for _, layer in ipairs(layers) do
+    if layer.isVisible then
+      if layer.isGroup then
+        reject_visible_tilemap_images(layer.layers, frame_number)
+      elseif layer.isTilemap and layer:cel(frame_number) ~= nil then
+        error("unsupported Tilemap Image")
+      end
+    end
+  end
+end
+
 function module.execute(payload)
   assert(type(payload.source_sprite_file) == "string", "missing Source Sprite File")
   assert(type(payload.staged_png_file) == "string", "missing staged PNG file")
@@ -92,6 +104,7 @@ function module.execute(payload)
     assert(source.colorMode == ColorMode.RGB, "unsupported Source Color Mode")
     assert(payload.frame_number >= 1 and payload.frame_number <= #source.frames,
            "Frame Number is outside the Source Sprite")
+    reject_visible_tilemap_images(source.layers, payload.frame_number)
     if declared == "none" then source:assignColorSpace(ColorSpace()) end
     local profile = source_profile(source)
     assert(profile == declared, "loaded Sprite Color Profile differs from file")

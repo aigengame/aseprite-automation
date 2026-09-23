@@ -28,7 +28,7 @@ class ExportDestination(PublicModel):
     # JSON Schema's $ may match before a final newline; reject it explicitly.
     path: str = Field(
         min_length=5,
-        pattern=r"^[^\r\n]+\.png$",
+        pattern=r"^[^\x00\r\n]+\.png$",
         json_schema_extra={"not": {"pattern": r"[\r\n]"}},
     )
     if_exists: Literal["fail", "replace"]
@@ -37,7 +37,7 @@ class ExportDestination(PublicModel):
 class ExportImageRequest(RuntimeRequest):
     source_sprite_file: str = Field(
         min_length=10,
-        pattern=r"^[^\r\n]+\.aseprite$",
+        pattern=r"^[^\x00\r\n]+\.aseprite$",
         json_schema_extra={"not": {"pattern": r"[\r\n]"}},
     )
     destination: ExportDestination
