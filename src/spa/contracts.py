@@ -94,6 +94,7 @@ class OperationSchema(PublicModel):
     side_effects: list[str]
     minimum_aseprite_version: str | None
     requires_runtime: bool
+    plan_eligible: bool = False
     runtime_requirements: RuntimeRequirements | None
     request_schema: dict
     result_schema: dict
@@ -138,12 +139,16 @@ class ProcessStartDetails(PublicModel):
 class KernelProtocolDetail(PublicModel):
     kind: Literal["kernel_protocol"] = "kernel_protocol"
     response_path: str
+    failed_step: int | None = Field(default=None, ge=1)
+    failed_operation: str | None = None
 
 
 class KernelExecutionDetails(PublicModel):
     kind: Literal["kernel_execution"] = "kernel_execution"
     response_path: str
     reason: str
+    failed_step: int | None = Field(default=None, ge=1)
+    failed_operation: str | None = None
 
 
 class RuntimeCompatibilityDetails(PublicModel):

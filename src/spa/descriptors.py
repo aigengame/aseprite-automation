@@ -19,6 +19,7 @@ from spa.operation import (
     OperationDescriptor,
 )
 from spa.paint import PAINT_OPERATIONS, PAINT_PROBE_RESOURCES
+from spa.plan import PLAN_OPERATIONS
 from spa.ports import OperationServices
 from spa.sprite import SPRITE_OPERATIONS, SPRITE_PROBE_RESOURCES
 
@@ -171,4 +172,5 @@ OPERATIONS = (
     *SPRITE_OPERATIONS,
     *PAINT_OPERATIONS,
     *EXPORT_OPERATIONS,
+    *PLAN_OPERATIONS,
 )

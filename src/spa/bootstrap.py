@@ -8,7 +8,7 @@ from spa.failure_registry import FAILURE_CODES
 from spa.file_adapter import LocalArtifactFiles, LocalTargetFiles
 from spa.png_verifier import verify_png
 from spa.ports import OperationServices
-from spa.runtime.aseprite import invoke, probe
+from spa.runtime.aseprite import invoke, invoke_direct, probe
 
 
 def main() -> None:
@@ -17,6 +17,7 @@ def main() -> None:
             OperationServices(
                 probe_runtime=partial(probe, resources=PROBE_RESOURCES),
                 invoke_kernel=invoke,
+                invoke_kernel_direct=invoke_direct,
                 target_files=LocalTargetFiles(),
                 artifact_files=LocalArtifactFiles(),
                 verify_png=verify_png,

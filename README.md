@@ -116,6 +116,8 @@ printf '%s\n' '{"aseprite":"/path/to/Aseprite.app/Contents/MacOS/aseprite"}' | u
 uv run spa sprite create --input-json '{"aseprite":"/path/to/aseprite","target_sprite_file":"sprite.aseprite","width":16,"height":16,"color_mode":"rgb","initial_layer":{"kind":"transparent"},"overwrite":false}'
 uv run spa sprite get --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite","inspection_scope":["frames","layers","cels"]}'
 uv run spa paint apply --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"painted.aseprite","in_place":false,"overwrite":false,"target":{"layer_path":[1],"frame_number":1},"patch":{"coordinate_space":"image-pixel","rectangle":{"x":0,"y":0,"width":2,"height":1},"runs":[{"x":0,"y":0,"length":2,"color":{"kind":"rgba","red":255,"green":0,"blue":0,"alpha":255}}]}}'
+uv run spa plan check --input-json '{"plan":{"source_sprite_file":"sprite.aseprite","steps":[{"operation":"sprite get","input":{"inspection_scope":["frames","layers"]}}]}}'
+uv run spa plan run --input-json '{"aseprite":"/path/to/aseprite","plan":{"source_sprite_file":"sprite.aseprite","steps":[{"operation":"sprite get","input":{"inspection_scope":["frames","layers"]}}]}}'
 uv run spa export image --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","destination":{"path":"image.png","if_exists":"fail"},"frame_number":1,"color_mode":"preserve","color_profile":"preserve","transparency":"preserve"}'
 ```
 
@@ -127,6 +129,17 @@ existing Target Sprite File when it is `false`.
 to rejecting out-of-bounds pixels; `clipping: "clip"` is the explicit clipping policy.
 In-place editing requires identical Source and Target Sprite Files plus both
 `in_place: true` and `overwrite: true`.
+
+`spa plan check` validates a bounded Plan, including current Source and Target path
+conditions, without starting Aseprite. `spa plan run`
+executes up to 64 Sprite-bound `sprite create`, `sprite get`, and `paint apply` Steps
+on one live Sprite in one Aseprite process. A read Plan publishes no file. A mutating
+Plan declares one Target Sprite File; the staged file is reopened and verified before
+one Target Commit. A failed Step reports its one-based `failed_step` and publishes no
+target. Each Paint Step retains its own 256-pixel Operation Limit. A Plan with an
+existing Source may edit in place only with `in_place: true` and `overwrite: true`.
+Plans reject a Source alias that traverses the Target publication entry for either
+`in_place` value. An explicit in-place edit uses the same Source and Target entry.
 
 `spa export image` renders one explicit Frame of the full canvas with persisted visible
 Layers. It accepts RGB Source Sprites with no Color Profile or sRGB. It rejects
@@ -144,6 +157,13 @@ independently observed runtime capabilities. A prerequisite failure uses the typ
 process or Kernel failure channel. A Lua-language or API-version mismatch, or a
 capability required by the selected Operation but absent from the observation, returns
 `runtime_incompatible` before the Operation executes.
+`spa plan run` observes the selected Steps' requirements plus mandatory final Sprite
+inspection requirements inside its one execution process. Incompatibility returns
+`runtime_incompatible`
+before any Plan Step begins. Aggregate discovery lists Plan as supported only when
+the runtime supports every currently eligible Step kind. A Plan with fewer Step
+kinds can still run; its selected and final-inspection requirements are checked per
+request.
 It also includes `access_failure_schema` for CLI failures before an Operation is
 selected; each Operation entry has its own applicable `failure_schema`. Aggregate
 discovery probes Aseprite, while each command's `--schema` remains available without a

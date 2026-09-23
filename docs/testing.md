@@ -11,6 +11,8 @@ verification tier. The layout does not mirror source packages or CLI Command Gro
 | `tests/cli/` | Access Projection through the installed CLI and its in-process projections. |
 | `tests/contracts/` | Shared Published Language rules, including Failure Code registration and Operation Descriptor constraints. |
 | `tests/export/` | Image Export contract, PNG Artifact verification and publication, and real Aseprite output evidence. |
+| `tests/paint/` | Paint Domain Module contract, bounded mutation evidence, and native Pixel Patch behavior. |
+| `tests/plan/` | Static Plan preflight, single-Sprite Step composition, and commit gates. |
 | `tests/release/` | Release metadata and publication gates. |
 | `tests/runtime/` | Aseprite Runtime Integration, including discovery, launch, private Kernel transport, and real-runtime evidence. |
 | `tests/sprite/` | Sprite Domain Module contracts plus real creation, persisted reopen, structural inspection, and Target Commit evidence. |
@@ -49,6 +51,20 @@ The Export Image E2E fixtures cover native visible Layer composition, RGB Alpha
 values, no-profile and sRGB files, unsupported source modes, Tilemap Images on visible
 and hidden Layers, unsupported Color Profiles, and explicit replacement. A wheel-installed
 test verifies the packaged Export handler and Pillow decoder on Linux CI.
+Plan E2E cases cover read-only composition, create/paint/get on one live Sprite,
+failed-Step and failed-Postcondition publication gates, and in-place failure
+preserving the original file digest. A wheel-installed case verifies the packaged
+Plan handler. Static Plan checks execute without Aseprite and report missing Source,
+invalid Target parent, and existing Target conflicts. A controlled transport case
+verifies one process and typed failed-Step evidence; the real runtime verifies the
+shared capability probe before Plan Steps.
+Plan preflight also rejects Source aliases that would be replaced by Target Commit and
+Postconditions that contradict a first Sprite creation Step. Real Aseprite cases
+verify alias rejection with both `in_place` values, same-entry in-place success, and
+that a document-dependent Postcondition failure leaves the Target absent.
+Aggregate discovery conservatively requires every eligible Plan Step capability;
+the Plan execution gate checks selected Step requirements plus mandatory final Sprite
+inspection in its one Aseprite process.
 
 The initial evidence profiles use local macOS Aseprite 1.3.18.5-dev and the pinned
 Linux CI Aseprite 1.3.18.5 source release. Both expose `_VERSION == "Lua 5.4"` and

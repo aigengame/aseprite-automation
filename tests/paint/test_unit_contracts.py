@@ -107,6 +107,30 @@ def test_pixel_patch_accepts_an_explicit_empty_run_list() -> None:
     assert PaintApplyRequest.model_validate(payload).patch.runs == []
 
 
+@pytest.mark.parametrize("positions", [(1, 0), (0, 1)])
+def test_pixel_patch_rejects_noncanonical_runs(positions: tuple[int, int]) -> None:
+    payload = _request()
+    patch = dict(payload["patch"])  # type: ignore[arg-type]
+    original = dict(patch["runs"][0])  # type: ignore[index]
+    patch["runs"] = [original | {"x": x, "length": 1} for x in positions]
+    payload["patch"] = patch
+
+    with pytest.raises(ValidationError):
+        PaintApplyRequest.model_validate(payload)
+
+
+def test_mask_selection_rejects_untight_bounds() -> None:
+    payload = _request()
+    payload["selection"] = {
+        "kind": "mask",
+        "bounds": {"x": 0, "y": 0, "width": 2, "height": 1},
+        "rows": [{"y": 0, "runs": [{"x": 0, "length": 1}]}],
+    }
+
+    with pytest.raises(ValidationError, match="bounds are not tight"):
+        PaintApplyRequest.model_validate(payload)
+
+
 def test_apply_rejects_a_patch_above_its_bounded_tracer_limit() -> None:
     payload = _request()
     patch = dict(payload["patch"])  # type: ignore[arg-type]

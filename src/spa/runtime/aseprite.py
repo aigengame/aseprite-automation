@@ -15,6 +15,7 @@ from spa.contracts import (
     Diagnostics,
     ProbePrerequisite,
     RuntimeCapability,
+    RuntimeCompatibilityDetails,
     RuntimeRequest,
 )
 from spa.ports import (
@@ -27,6 +28,7 @@ from spa.ports import (
     ProcessEvidence,
     ResourceEvidence,
     ResponseEvidence,
+    RuntimeCompatibilityEvidence,
     RuntimeIssue,
     RuntimeObservation,
 )
@@ -34,6 +36,7 @@ from spa.runtime.invocation import prepare_invocation
 
 KERNEL_PROTOCOL_VERSION = 1
 OUTPUT_LIMIT_BYTES = 65536
+CAPABILITY_PROBE_RESOURCE = PackagedResource("capability_probe", "capability_probe.lua")
 PROBE_PREREQUISITES: frozenset[ProbePrerequisite] = frozenset(
     {"aseprite_scripting", "lua_file_io", "aseprite_json"}
 )
@@ -241,6 +244,7 @@ def probe(
             f"capability_sprite={capability_sprite}",
             "--script-param",
             f"workspace={work}",
+            *_resource_arguments((CAPABILITY_PROBE_RESOURCE,)),
             *_resource_arguments(resources),
             "--script",
             str(script),
@@ -366,8 +370,42 @@ def invoke(
     timeout_seconds: float,
 ) -> KernelInvocationResult:
     """Invoke one fixed packaged handler and return its private result object."""
-    canonical = Path(observation.canonical_path)
-    resource = Path(observation.resource_path)
+    return _invoke_at(
+        Path(observation.canonical_path),
+        Path(observation.resource_path),
+        handler,
+        payload,
+        timeout_seconds,
+    )
+
+
+def invoke_direct(
+    request: RuntimeRequest,
+    handler: PackagedHandler,
+    payload: dict[str, Any],
+    timeout_seconds: float,
+) -> KernelInvocationResult:
+    """Discover and execute a handler in one Aseprite process without a probe process."""
+    _, canonical, resource, _ = _discover(request.aseprite)
+    return _invoke_at(
+        canonical,
+        resource,
+        handler,
+        payload,
+        timeout_seconds,
+        with_capability_probe=True,
+    )
+
+
+def _invoke_at(
+    canonical: Path,
+    resource: Path,
+    handler: PackagedHandler,
+    payload: dict[str, Any],
+    timeout_seconds: float,
+    *,
+    with_capability_probe: bool = False,
+) -> KernelInvocationResult:
     handler_name = handler.resource_name
     script = files("spa.kernel").joinpath(f"{handler_name}.lua")
     try:
@@ -399,6 +437,15 @@ def invoke(
                 LaunchEvidence(executable=str(canonical)),
             ) from exc
         prepared = prepare_invocation(canonical, resource, Path(work))
+        capability_arguments = (
+            [
+                "--script-param",
+                f"capability_sprite={Path(work) / 'capability.aseprite'}",
+                *_resource_arguments((CAPABILITY_PROBE_RESOURCE,)),
+            ]
+            if with_capability_probe
+            else []
+        )
         command = [
             str(prepared.executable),
             "--batch",
@@ -408,6 +455,7 @@ def invoke(
             f"response={response_file}",
             "--script-param",
             f"workspace={work}",
+            *capability_arguments,
             *_resource_arguments(handler.support_resources),
             "--script",
             str(script),
@@ -437,10 +485,44 @@ def invoke(
                 reason = response.get("message")
                 if not isinstance(cause, str) or not isinstance(reason, str):
                     raise ValueError("Kernel error response has no typed cause/message")
+                if cause == "runtime_incompatible":
+                    facts = RuntimeCompatibilityDetails.model_validate(
+                        response.get("runtime_compatibility")
+                    )
+                    raise RuntimeIssue(
+                        "runtime_incompatible",
+                        "Installed Aseprite runtime does not meet the Plan Step requirements",
+                        RuntimeCompatibilityEvidence(
+                            aseprite_version=facts.aseprite_version,
+                            lua_version=facts.lua_version,
+                            api_version=facts.api_version,
+                            required_lua_language=facts.required_lua_language,
+                            minimum_api_version=facts.minimum_api_version,
+                            missing_capabilities=tuple(facts.missing_capabilities),
+                        ),
+                        diagnostics,
+                    )
+                failed_step = response.get("failed_step")
+                failed_operation = response.get("failed_operation")
+                if failed_step is not None and (
+                    type(failed_step) is not int or failed_step < 1
+                ):
+                    raise ValueError("Kernel error response has invalid failed_step")
+                if failed_operation is not None and not isinstance(
+                    failed_operation, str
+                ):
+                    raise ValueError(
+                        "Kernel error response has invalid failed_operation"
+                    )
                 raise RuntimeIssue(
                     "handler_rejected",
                     f"Packaged {handler_name} handler rejected execution",
-                    HandlerEvidence(response_path=str(response_file), reason=reason),
+                    HandlerEvidence(
+                        response_path=str(response_file),
+                        reason=reason,
+                        failed_step=failed_step,
+                        failed_operation=failed_operation,
+                    ),
                     diagnostics,
                 )
             if response_status != "ok":

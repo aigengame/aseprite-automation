@@ -479,9 +479,7 @@ local function restore_editor_state(previous)
   end
 end
 
-function module.execute(payload, digest)
-  assert(type(payload.source_sprite_file) == "string", "missing Source Sprite File")
-  assert(type(payload.staged_sprite_file) == "string", "missing staged Sprite file")
+function module.apply_live(sprite, payload, digest)
   assert(payload.clipping == "reject" or payload.clipping == "clip", "unsupported clipping policy")
   assert(
     payload.patch ~= nil and payload.patch.coordinate_space == "image-pixel",
@@ -504,6 +502,171 @@ function module.execute(payload, digest)
   assert(payload.patch.runs ~= nil, "Pixel Patch runs are missing")
   validate_selection(payload.selection)
 
+  local layer, cel, image = resolve_target(sprite, payload.target)
+  local color_mode = color_mode_name(sprite)
+  local rectangle_in_bounds = requested_rectangle.x >= 0
+    and requested_rectangle.y >= 0
+    and requested_rectangle.x + requested_rectangle.width <= image.width
+    and requested_rectangle.y + requested_rectangle.height <= image.height
+  if payload.clipping == "reject" then
+    assert(rectangle_in_bounds, "Pixel Patch Rectangle is outside Image bounds")
+  end
+  local affected_cels = collect_affected_cels(sprite, image)
+  local expected_geometry = {
+    sprite_width = sprite.width,
+    sprite_height = sprite.height,
+    image_width = image.width,
+    image_height = image.height,
+    is_background = layer.isBackground,
+    is_transparent = layer.isTransparent,
+  }
+  local before_digest = image_digest(image, color_mode, digest)
+  local requested_runs = {}
+  local applied_runs = {}
+  local skipped_bounds = {}
+  local skipped_selection = {}
+  local plan = {}
+  local inspected_pixels = {}
+  local used_indexes = {}
+  local pixels_requested = 0
+  local pixels_skipped_by_bounds = 0
+  local pixels_skipped_by_selection = 0
+  local previous_y, previous_end, previous_color = nil, nil, nil
+  for _, run in ipairs(payload.patch.runs) do
+    assert(
+      type(run.x) == "number"
+        and run.x % 1 == 0
+        and type(run.y) == "number"
+        and run.y % 1 == 0
+        and type(run.length) == "number"
+        and run.length % 1 == 0
+        and run.length > 0,
+      "invalid Pixel Patch run"
+    )
+    assert(
+      run.y >= requested_rectangle.y
+        and run.y < requested_rectangle.y + requested_rectangle.height
+        and run.x >= requested_rectangle.x
+        and run.x + run.length <= requested_rectangle.x + requested_rectangle.width,
+      "Pixel Patch run is outside its declared Rectangle"
+    )
+    assert(
+      previous_y == nil or run.y > previous_y or (run.y == previous_y and run.x >= previous_end),
+      "Pixel Patch runs must be ordered and non-overlapping"
+    )
+    if previous_y == run.y and run.x == previous_end then
+      assert(
+        not colors_equal(previous_color, run.color),
+        "adjacent equal Pixel Patch runs must be merged"
+      )
+    end
+    local native = native_color(run.color, color_mode, layer.isBackground)
+    if color_mode == "indexed" then used_indexes[run.color.index] = true end
+    requested_runs[#requested_runs + 1] = copy_run(run)
+    pixels_requested = pixels_requested + run.length
+    assert(
+      #requested_runs <= max_patch_pixels and pixels_requested <= max_patch_pixels,
+      "Pixel Patch exceeds the Operation Limit"
+    )
+    for x = run.x, run.x + run.length - 1 do
+      local in_bounds = x >= 0 and run.y >= 0 and x < image.width and run.y < image.height
+      if not in_bounds then
+        assert(payload.clipping == "clip", "Pixel Patch pixel is outside Image bounds")
+        append_segment(skipped_bounds, x, run.y, run.color)
+        pixels_skipped_by_bounds = pixels_skipped_by_bounds + 1
+      else
+        local before = image:getPixel(x, run.y)
+        local selected =
+          selection_contains(payload.selection, x + cel.position.x, run.y + cel.position.y)
+        if not selected then
+          append_segment(skipped_selection, x, run.y, run.color)
+          pixels_skipped_by_selection = pixels_skipped_by_selection + 1
+          inspected_pixels[#inspected_pixels + 1] = { x = x, y = run.y, native = before }
+        else
+          append_segment(applied_runs, x, run.y, run.color)
+          plan[#plan + 1] = {
+            x = x,
+            y = run.y,
+            native = native,
+            before = before,
+          }
+          inspected_pixels[#inspected_pixels + 1] = { x = x, y = run.y, native = native }
+        end
+      end
+    end
+    previous_y, previous_end, previous_color = run.y, run.x + run.length, run.color
+  end
+  local effective_palettes = palette_facts(sprite, affected_cels, used_indexes)
+  local pixels_changed = 0
+  app.transaction("Apply Pixel Patch", function()
+    for _, write in ipairs(plan) do
+      if write.before ~= write.native then pixels_changed = pixels_changed + 1 end
+      image:putPixel(write.x, write.y, write.native)
+    end
+  end)
+  local applied_rectangle = {
+    x = requested_rectangle.x,
+    y = requested_rectangle.y,
+    width = 0,
+    height = 0,
+  }
+  if #plan > 0 then
+    local min_x, min_y = plan[1].x, plan[1].y
+    local max_x, max_y = min_x + 1, min_y + 1
+    for _, write in ipairs(plan) do
+      min_x, min_y = math.min(min_x, write.x), math.min(min_y, write.y)
+      max_x, max_y = math.max(max_x, write.x + 1), math.max(max_y, write.y + 1)
+    end
+    applied_rectangle = {
+      x = min_x,
+      y = min_y,
+      width = max_x - min_x,
+      height = max_y - min_y,
+    }
+  end
+  local evidence = {
+    input_form = "inline",
+    persisted_reopen_verified = false,
+    target = copy_address(payload.target),
+    color_mode = color_mode,
+    clipping = payload.clipping,
+    selection = copy_selection(payload.selection),
+    requested_rectangle = copy_rectangle(requested_rectangle),
+    applied_rectangle = applied_rectangle,
+    requested_runs = requested_runs,
+    applied_runs = applied_runs,
+    skipped_by_bounds_runs = skipped_bounds,
+    skipped_by_selection_runs = skipped_selection,
+    pixels_requested = pixels_requested,
+    pixels_written = #plan,
+    pixels_changed = pixels_changed,
+    pixels_skipped_by_bounds = pixels_skipped_by_bounds,
+    pixels_skipped_by_selection = pixels_skipped_by_selection,
+    pixel_partition_verified = true,
+    affected_cels = affected_cels,
+    linked_cels_preserved = true,
+    geometry_unchanged = true,
+    background_opaque = false,
+    effective_palettes = effective_palettes,
+    before_content_digest = before_digest,
+  }
+  local background_opaque, after_digest = validate_reopened(
+    sprite,
+    payload,
+    evidence,
+    inspected_pixels,
+    affected_cels,
+    expected_geometry,
+    digest
+  )
+  evidence.background_opaque = background_opaque
+  evidence.after_content_digest = after_digest
+  return evidence, inspected_pixels, affected_cels, expected_geometry
+end
+
+function module.execute(payload, digest)
+  assert(type(payload.source_sprite_file) == "string", "missing Source Sprite File")
+  assert(type(payload.staged_sprite_file) == "string", "missing staged Sprite file")
   local previous = {
     sprite = app.activeSprite,
     layer = app.activeLayer,
@@ -512,154 +675,8 @@ function module.execute(payload, digest)
   local open_sprite = nil
   local ok, result = pcall(function()
     open_sprite = assert(app.open(payload.source_sprite_file), "could not open Source Sprite File")
-    local layer, cel, image = resolve_target(open_sprite, payload.target)
-    local color_mode = color_mode_name(open_sprite)
-    local rectangle_in_bounds = requested_rectangle.x >= 0
-      and requested_rectangle.y >= 0
-      and requested_rectangle.x + requested_rectangle.width <= image.width
-      and requested_rectangle.y + requested_rectangle.height <= image.height
-    if payload.clipping == "reject" then
-      assert(rectangle_in_bounds, "Pixel Patch Rectangle is outside Image bounds")
-    end
-    local affected_cels = collect_affected_cels(open_sprite, image)
-    local expected_geometry = {
-      sprite_width = open_sprite.width,
-      sprite_height = open_sprite.height,
-      image_width = image.width,
-      image_height = image.height,
-      is_background = layer.isBackground,
-      is_transparent = layer.isTransparent,
-    }
-    local before_digest = image_digest(image, color_mode, digest)
-    local requested_runs = {}
-    local applied_runs = {}
-    local skipped_bounds = {}
-    local skipped_selection = {}
-    local plan = {}
-    local inspected_pixels = {}
-    local used_indexes = {}
-    local pixels_requested = 0
-    local pixels_skipped_by_bounds = 0
-    local pixels_skipped_by_selection = 0
-    local previous_y, previous_end, previous_color = nil, nil, nil
-    for _, run in ipairs(payload.patch.runs) do
-      assert(
-        type(run.x) == "number"
-          and run.x % 1 == 0
-          and type(run.y) == "number"
-          and run.y % 1 == 0
-          and type(run.length) == "number"
-          and run.length % 1 == 0
-          and run.length > 0,
-        "invalid Pixel Patch run"
-      )
-      assert(
-        run.y >= requested_rectangle.y
-          and run.y < requested_rectangle.y + requested_rectangle.height
-          and run.x >= requested_rectangle.x
-          and run.x + run.length <= requested_rectangle.x + requested_rectangle.width,
-        "Pixel Patch run is outside its declared Rectangle"
-      )
-      assert(
-        previous_y == nil or run.y > previous_y or (run.y == previous_y and run.x >= previous_end),
-        "Pixel Patch runs must be ordered and non-overlapping"
-      )
-      if previous_y == run.y and run.x == previous_end then
-        assert(
-          not colors_equal(previous_color, run.color),
-          "adjacent equal Pixel Patch runs must be merged"
-        )
-      end
-      local native = native_color(run.color, color_mode, layer.isBackground)
-      if color_mode == "indexed" then used_indexes[run.color.index] = true end
-      requested_runs[#requested_runs + 1] = copy_run(run)
-      pixels_requested = pixels_requested + run.length
-      assert(
-        #requested_runs <= max_patch_pixels and pixels_requested <= max_patch_pixels,
-        "Pixel Patch exceeds the Operation Limit"
-      )
-      for x = run.x, run.x + run.length - 1 do
-        local in_bounds = x >= 0 and run.y >= 0 and x < image.width and run.y < image.height
-        if not in_bounds then
-          assert(payload.clipping == "clip", "Pixel Patch pixel is outside Image bounds")
-          append_segment(skipped_bounds, x, run.y, run.color)
-          pixels_skipped_by_bounds = pixels_skipped_by_bounds + 1
-        else
-          local before = image:getPixel(x, run.y)
-          local selected =
-            selection_contains(payload.selection, x + cel.position.x, run.y + cel.position.y)
-          if not selected then
-            append_segment(skipped_selection, x, run.y, run.color)
-            pixels_skipped_by_selection = pixels_skipped_by_selection + 1
-            inspected_pixels[#inspected_pixels + 1] = { x = x, y = run.y, native = before }
-          else
-            append_segment(applied_runs, x, run.y, run.color)
-            plan[#plan + 1] = {
-              x = x,
-              y = run.y,
-              native = native,
-              before = before,
-            }
-            inspected_pixels[#inspected_pixels + 1] = { x = x, y = run.y, native = native }
-          end
-        end
-      end
-      previous_y, previous_end, previous_color = run.y, run.x + run.length, run.color
-    end
-    local effective_palettes = palette_facts(open_sprite, affected_cels, used_indexes)
-    local pixels_changed = 0
-    app.transaction("Apply Pixel Patch", function()
-      for _, write in ipairs(plan) do
-        if write.before ~= write.native then pixels_changed = pixels_changed + 1 end
-        image:putPixel(write.x, write.y, write.native)
-      end
-    end)
-    local applied_rectangle = {
-      x = requested_rectangle.x,
-      y = requested_rectangle.y,
-      width = 0,
-      height = 0,
-    }
-    if #plan > 0 then
-      local min_x, min_y = plan[1].x, plan[1].y
-      local max_x, max_y = min_x + 1, min_y + 1
-      for _, write in ipairs(plan) do
-        min_x, min_y = math.min(min_x, write.x), math.min(min_y, write.y)
-        max_x, max_y = math.max(max_x, write.x + 1), math.max(max_y, write.y + 1)
-      end
-      applied_rectangle = {
-        x = min_x,
-        y = min_y,
-        width = max_x - min_x,
-        height = max_y - min_y,
-      }
-    end
-    local evidence = {
-      input_form = "inline",
-      persisted_reopen_verified = true,
-      target = copy_address(payload.target),
-      color_mode = color_mode,
-      clipping = payload.clipping,
-      selection = copy_selection(payload.selection),
-      requested_rectangle = copy_rectangle(requested_rectangle),
-      applied_rectangle = applied_rectangle,
-      requested_runs = requested_runs,
-      applied_runs = applied_runs,
-      skipped_by_bounds_runs = skipped_bounds,
-      skipped_by_selection_runs = skipped_selection,
-      pixels_requested = pixels_requested,
-      pixels_written = #plan,
-      pixels_changed = pixels_changed,
-      pixels_skipped_by_bounds = pixels_skipped_by_bounds,
-      pixels_skipped_by_selection = pixels_skipped_by_selection,
-      pixel_partition_verified = true,
-      affected_cels = affected_cels,
-      linked_cels_preserved = true,
-      geometry_unchanged = true,
-      background_opaque = false,
-      effective_palettes = effective_palettes,
-      before_content_digest = before_digest,
-    }
+    local evidence, inspected_pixels, affected_cels, expected_geometry =
+      module.apply_live(open_sprite, payload, digest)
     assert(open_sprite:saveAs(payload.staged_sprite_file), "could not save staged Sprite")
     open_sprite:close()
     open_sprite = nil
@@ -675,6 +692,7 @@ function module.execute(payload, digest)
     )
     evidence.background_opaque = background_opaque
     evidence.after_content_digest = after_digest
+    evidence.persisted_reopen_verified = true
     open_sprite:close()
     open_sprite = nil
     return evidence
