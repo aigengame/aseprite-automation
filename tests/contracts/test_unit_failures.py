@@ -30,9 +30,12 @@ from spa.contracts import (
     register_failure_codes,
 )
 from spa.descriptors import ACCESS_FAILURE_CODES, OPERATIONS
+from spa.export import ArtifactFileDetails, ArtifactVerificationDetails
 from spa.failure_registry import FAILURE_CODES
 from spa.mutation import TargetCommitDetails
 from spa.ports import (
+    ArtifactFileEvidence,
+    ArtifactVerificationEvidence,
     DiscoveryEvidence,
     HandlerEvidence,
     LaunchEvidence,
@@ -79,6 +82,8 @@ def test_all_installed_failure_codes_are_registered_once() -> None:
         "kernel_execution_failed",
         "runtime_incompatible",
         "target_commit_failed",
+        "artifact_file_failed",
+        "artifact_verification_failed",
     } <= set(FAILURE_CODES)
     assert all(
         spec.meaning and spec.code == code for code, spec in FAILURE_CODES.items()
@@ -166,6 +171,12 @@ def test_each_registered_code_has_a_constrained_public_schema() -> None:
         ),
         TargetCommitDetails: TargetCommitDetails(
             target_sprite_file="sprite.aseprite", reason="target_not_file"
+        ),
+        ArtifactFileDetails: ArtifactFileDetails(
+            path="image.png", reason="destination_exists"
+        ),
+        ArtifactVerificationDetails: ArtifactVerificationDetails(
+            path="image.png", reason="content mismatch"
         ),
     }
     for code, spec in FAILURE_CODES.items():
@@ -507,5 +518,38 @@ def test_target_commit_failure_is_owned_by_mutating_sprite_operation() -> None:
         target_sprite_file="sprite.aseprite", reason="target_not_file"
     )
     Draft202012Validator(create.schema(FAILURE_CODES).failure_schema).validate(
+        outcome.model_dump(mode="json")
+    )
+
+
+@pytest.mark.parametrize(
+    ("kind", "evidence", "details_type"),
+    [
+        (
+            "artifact_file_failed",
+            ArtifactFileEvidence("image.png", "destination_exists"),
+            ArtifactFileDetails,
+        ),
+        (
+            "artifact_verification_failed",
+            ArtifactVerificationEvidence("image.png", "content mismatch"),
+            ArtifactVerificationDetails,
+        ),
+    ],
+)
+def test_export_failures_are_owned_by_export_image(
+    kind: str,
+    evidence: ArtifactFileEvidence | ArtifactVerificationEvidence,
+    details_type: type[ArtifactFileDetails] | type[ArtifactVerificationDetails],
+) -> None:
+    export = next(
+        descriptor for descriptor in OPERATIONS if descriptor.name == "export image"
+    )
+    outcome = _runtime_failure(
+        export, RuntimeIssue(kind, "failed", evidence), FAILURE_CODES
+    )
+    assert outcome.code == kind
+    assert isinstance(outcome.details, details_type)
+    Draft202012Validator(export.schema(FAILURE_CODES).failure_schema).validate(
         outcome.model_dump(mode="json")
     )

@@ -50,7 +50,7 @@ class OperationDescriptor[RequestT: BaseModel, ResultT: BaseModel]:
     render_human: Callable[[ResultT], str]
     runtime_requirements: RuntimeRequirements | None
     failure_codes: tuple[str, ...]
-    execution_kind: Literal["read", "mutation"] = "read"
+    execution_kind: Literal["read", "mutation", "export"] = "read"
     side_effects: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:

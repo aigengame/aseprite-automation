@@ -10,6 +10,7 @@ verification tier. The layout does not mirror source packages or CLI Command Gro
 | `tests/application/` | Application orchestration, including compatibility checks before Operation execution. |
 | `tests/cli/` | Access Projection through the installed CLI and its in-process projections. |
 | `tests/contracts/` | Shared Published Language rules, including Failure Code registration and Operation Descriptor constraints. |
+| `tests/export/` | Image Export contract, PNG Artifact verification and publication, and real Aseprite output evidence. |
 | `tests/release/` | Release metadata and publication gates. |
 | `tests/runtime/` | Aseprite Runtime Integration, including discovery, launch, private Kernel transport, and real-runtime evidence. |
 | `tests/sprite/` | Sprite Domain Module contracts plus real creation, persisted reopen, structural inspection, and Target Commit evidence. |
@@ -44,6 +45,10 @@ Slice inspection uses Aseprite's native sprite-sheet metadata export to observe 
 complete ordered Key list, converts its zero-based Frames to the public one-based model,
 and combines it with public Slice user data. The private metadata and texture remain in
 the invocation workspace.
+The Export Image E2E fixtures cover native visible Layer composition, RGB Alpha
+values, no-profile and sRGB files, unsupported source modes, Tilemap Images on visible
+and hidden Layers, unsupported Color Profiles, and explicit replacement. A wheel-installed
+test verifies the packaged Export handler and Pillow decoder on Linux CI.
 
 The initial evidence profiles use local macOS Aseprite 1.3.18.5-dev and the pinned
 Linux CI Aseprite 1.3.18.5 source release. Both expose `_VERSION == "Lua 5.4"` and
@@ -101,7 +106,7 @@ GitHub does not emit a second workflow event for a pull request updated with
 | Source quality | Ruff lint and formatting plus Pyright for production source. |
 | Fast tests | Unit and integration tests selected with `-m "not e2e"`. |
 | Build and smoke test distributions | One sdist and wheel, valid package metadata, and a successful `spa version` from a wheel-only environment populated from locked runtime dependencies. |
-| Linux real Aseprite E2E | The project CLI and a wheel-installed CLI drive the pinned real Aseprite `--batch --script` path. A wheel-only negative case reaches the packaged Sprite creation handler and proves that no Target Commit occurs after rejection. The job records JUnit evidence. |
+| Linux real Aseprite E2E | The project CLI and a wheel-installed CLI drive the pinned real Aseprite `--batch --script` path. A wheel-only negative case reaches the packaged Sprite creation handler and proves that no Target Commit occurs after rejection; a wheel-only Export case verifies a PNG Artifact. The job records JUnit evidence. |
 
 A failure in any job fails CI. Configure these four named jobs as required checks on
 `main` when repository branch protection is enabled.

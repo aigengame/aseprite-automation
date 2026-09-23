@@ -23,9 +23,12 @@ from spa.contracts import (
     ValidationIssue,
     failure_envelope,
 )
+from spa.export import ArtifactFileDetails, ArtifactVerificationDetails
 from spa.mutation import TargetCommitDetails
 from spa.operation import OperationDescriptor
 from spa.ports import (
+    ArtifactFileEvidence,
+    ArtifactVerificationEvidence,
     DiscoveryEvidence,
     HandlerEvidence,
     LaunchEvidence,
@@ -121,6 +124,14 @@ def _runtime_failure(
             details = TargetCommitDetails(
                 target_sprite_file=evidence.target_sprite_file,
                 reason=evidence.reason,
+            )
+        case "artifact_file_failed", ArtifactFileEvidence() as evidence:
+            code = "artifact_file_failed"
+            details = ArtifactFileDetails(path=evidence.path, reason=evidence.reason)
+        case "artifact_verification_failed", ArtifactVerificationEvidence() as evidence:
+            code = "artifact_verification_failed"
+            details = ArtifactVerificationDetails(
+                path=evidence.path, reason=evidence.reason
             )
         case _:
             raise ValueError(f"Unknown runtime issue kind: {issue.kind}")

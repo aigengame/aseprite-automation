@@ -12,7 +12,8 @@ this view instead of treating it as another decision authority.
 
 > [!IMPORTANT]
 > SPA is at the bootstrap stage. The installed CLI exposes `spa info`, `spa version`,
-> `spa schema`, Sprite creation and inspection, and bounded Pixel Patch application. The module
+> `spa schema`, Sprite creation and inspection, bounded Pixel Patch application,
+> and verified RGB PNG Image Export. The module
 > ownership below includes both this delivered vertical slice and planned work. Feature
 > issues own delivery status, while the installed Surface Manifest reports the callable
 > surface of each installation.
@@ -253,7 +254,7 @@ Sprite creation and inspection slice extends that same stack.
 | CLI adapter | Typer | Command access and human or machine presentation. |
 | Public contracts | Pydantic 2 and JSON Schema | Typed Operation Requests, Operation Results, Failure Envelopes, and discovery schemas. |
 | Project and packaging | `uv` | Environments, dependencies, builds, and installed-product tests. |
-| Ordinary Core Operations | Packaged Lua handlers | Core Operation Semantics and native mapping executed through Aseprite. The current package contains a fixed runtime probe plus Sprite creation, Sprite inspection, and exact Pixel Patch handlers. |
+| Ordinary Core Operations | Packaged Lua handlers | Core Operation Semantics and native mapping executed through Aseprite. The current package contains a fixed runtime probe plus Sprite creation, Sprite inspection, exact Pixel Patch, and Export Image handlers. |
 | Aseprite integration | External `aseprite --batch --script` | Native document, Tool, Filter, color, and export behavior. |
 | Private transport | Versioned JSON request and response files | Data exchange through `--script-param`, separate from diagnostics. |
 | Agent access | Version-matched Agent Skill and planned local stdio MCP Adapter with CLI subprocess invocation | Guidance and equivalent tool projection from the installed surface. |

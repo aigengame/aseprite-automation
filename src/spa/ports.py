@@ -94,10 +94,58 @@ class TargetFiles(Protocol):
 
 
 @dataclass(frozen=True)
+class ArtifactFileObservation:
+    path: str
+    byte_size: int
+    sha256: str
+
+
+@dataclass(frozen=True)
+class StagedArtifact:
+    payload: bytes
+    byte_size: int
+    sha256: str
+
+
+class ArtifactFiles(Protocol):
+    """Domain-neutral staging and publication of one Export Destination."""
+
+    def normalize_destination(self, path: str) -> Path: ...
+
+    def staged_path(self, destination: Path, *, if_exists: str) -> Path: ...
+
+    def rendered_path(self, staged: Path) -> Path: ...
+
+    def read_staged(self, staged: Path) -> StagedArtifact: ...
+
+    def publish(
+        self, staged: Path, destination: Path, *, if_exists: str, sha256: str
+    ) -> ArtifactFileObservation: ...
+
+    def discard(self, staged: Path) -> None: ...
+
+
+@dataclass(frozen=True)
+class PngFacts:
+    width: int
+    height: int
+    color_profile: Literal["none", "srgb"]
+    alpha_channel_present: bool
+    alpha_min: int
+    alpha_max: int
+    rgba_bytes: bytes
+
+
+PngVerifier = Callable[[bytes, Path], PngFacts]
+
+
+@dataclass(frozen=True)
 class OperationServices:
     probe_runtime: RuntimeProbe
     invoke_kernel: KernelInvoker
     target_files: TargetFiles
+    artifact_files: ArtifactFiles | None = None
+    verify_png: PngVerifier | None = None
 
 
 @dataclass(frozen=True)
@@ -156,6 +204,29 @@ class TargetCommitEvidence:
     reason: TargetCommitFailureReason
 
 
+ArtifactFileFailureReason = Literal[
+    "destination_exists",
+    "destination_not_file",
+    "destination_parent_missing",
+    "staged_file_missing",
+    "staged_file_empty",
+    "staged_file_changed",
+    "publication_failed",
+]
+
+
+@dataclass(frozen=True)
+class ArtifactFileEvidence:
+    path: str
+    reason: ArtifactFileFailureReason
+
+
+@dataclass(frozen=True)
+class ArtifactVerificationEvidence:
+    path: str
+    reason: str
+
+
 RuntimeEvidence = (
     DiscoveryEvidence
     | ResourceEvidence
@@ -166,6 +237,8 @@ RuntimeEvidence = (
     | PostconditionEvidence
     | RuntimeCompatibilityEvidence
     | TargetCommitEvidence
+    | ArtifactFileEvidence
+    | ArtifactVerificationEvidence
 )
 RuntimeIssueKind = Literal[
     "discovery_absent",
@@ -181,6 +254,8 @@ RuntimeIssueKind = Literal[
     "exit_mismatch",
     "runtime_incompatible",
     "target_commit_failed",
+    "artifact_file_failed",
+    "artifact_verification_failed",
 ]
 _EVIDENCE_TYPES: dict[RuntimeIssueKind, type[RuntimeEvidence]] = {
     "discovery_absent": DiscoveryEvidence,
@@ -196,6 +271,8 @@ _EVIDENCE_TYPES: dict[RuntimeIssueKind, type[RuntimeEvidence]] = {
     "exit_mismatch": ProcessEvidence,
     "runtime_incompatible": RuntimeCompatibilityEvidence,
     "target_commit_failed": TargetCommitEvidence,
+    "artifact_file_failed": ArtifactFileEvidence,
+    "artifact_verification_failed": ArtifactVerificationEvidence,
 }
 
 

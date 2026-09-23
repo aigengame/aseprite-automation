@@ -2,6 +2,8 @@
 local kernel_protocol_version = 1
 local inspection = dofile(app.params.inspection)
 local creation = dofile(app.params.creation)
+local exporter = app.params.export_image_support
+  and dofile(app.params.export_image_support) or nil
 local paint = dofile(app.params.paint)
 local digest = dofile(app.params.digest)
 
@@ -136,6 +138,37 @@ local function observed_capabilities()
   end
   if observes_paint_apply() then
     capabilities[#capabilities + 1] = "aseprite_paint_apply"
+  end
+  if exporter ~= nil then
+    local ok = pcall(function()
+      local fixture = Sprite(1, 1, ColorMode.RGB)
+      local source = app.params.capability_sprite
+      local output = app.params.workspace .. "/capability.png"
+      local rendered = app.params.workspace .. "/capability.rgba"
+      assert(fixture:saveAs(source))
+      fixture:close()
+      local facts = exporter.execute({
+        source_sprite_file=source,
+        staged_png_file=output,
+        staged_rgba_file=rendered,
+        frame_number=1,
+        color_mode="preserve",
+        color_profile="preserve",
+        transparency="preserve",
+      })
+      assert(facts.width == 1 and facts.height == 1)
+      local pixel_file = assert(io.open(rendered, "rb"))
+      assert(#pixel_file:read("*a") == 4)
+      pixel_file:close()
+      local file = assert(io.open(output, "rb"))
+      local signature = file:read(8)
+      file:close()
+      assert(signature == "\137PNG\r\n\26\n")
+      os.remove(output)
+      os.remove(rendered)
+      os.remove(source)
+    end)
+    if ok then capabilities[#capabilities + 1] = "aseprite_export_image" end
   end
   return capabilities
 end
