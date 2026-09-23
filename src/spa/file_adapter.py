@@ -16,6 +16,10 @@ from spa.ports import (
 )
 
 
+def _publication_entry(path: Path) -> Path:
+    return path.parent.resolve() / path.name
+
+
 class LocalTargetFiles:
     def observe_path(self, path: Path) -> PathObservation:
         return PathObservation(
@@ -24,10 +28,14 @@ class LocalTargetFiles:
             parent_is_dir=path.parent.is_dir(),
         )
 
+    def same_publication_entry(self, source: Path, target: Path) -> bool:
+        """Whether Source and Target name the same entry replaced by Target Commit."""
+        return _publication_entry(source) == _publication_entry(target)
+
     def same_publication_target(self, source: Path, target: Path) -> bool:
         """Whether replacing the Target entry changes reads through Source."""
-        target_entry = target.parent.resolve() / target.name
-        source_entry = source.parent.resolve() / source.name
+        target_entry = _publication_entry(target)
+        source_entry = _publication_entry(source)
         visited: set[Path] = set()
         while source_entry not in visited:
             if source_entry == target_entry:
@@ -36,7 +44,7 @@ class LocalTargetFiles:
             if not source_entry.is_symlink():
                 return False
             linked = source_entry.parent / source_entry.readlink()
-            source_entry = linked.parent.resolve() / linked.name
+            source_entry = _publication_entry(linked)
         return False
 
     def staged_path(self, target: Path) -> Path:

@@ -10,10 +10,12 @@ A Mutation Operation distinguishes its Source Sprite File from its Target Sprite
 Creation has no Source and requires a Target. Editing requires a Source and either a
 distinct Target or explicit in-place intent. SPA does not infer an output name or
 interpret source-target equality as implicit overwrite.
-For a Plan, the File Adapter observes publication-aware path identity: a Source alias
-to the Target entry needs explicit in-place intent because Target Commit replaces the
-Source referent. Plan preflight rejects mismatched intent and checks identity again
-before Target Commit. A Target symlink that is itself replaced is a distinct entry.
+For a Plan, the File Adapter observes publication-aware path identity. A Source alias
+that traverses the Target entry is rejected with either `in_place` value because
+Target Commit would change the bytes read through Source. An explicit in-place edit
+uses the same Source and Target entry. Plan preflight checks this relation and checks
+it again before Target Commit. A Target symlink that is itself replaced is a distinct
+entry.
 
 Every Ordinary Core Operation with Execution Kind `mutation` is all-or-nothing over
 its complete resolved target set. Before

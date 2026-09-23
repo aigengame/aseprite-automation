@@ -138,8 +138,8 @@ Plan declares one Target Sprite File; the staged file is reopened and verified b
 one Target Commit. A failed Step reports its one-based `failed_step` and publishes no
 target. Each Paint Step retains its own 256-pixel Operation Limit. A Plan with an
 existing Source may edit in place only with `in_place: true` and `overwrite: true`.
-Source aliases that the Target Commit would replace also require explicit in-place
-intent.
+Plans reject a Source alias that traverses the Target publication entry for either
+`in_place` value. An explicit in-place edit uses the same Source and Target entry.
 
 `spa export image` renders one explicit Frame of the full canvas with persisted visible
 Layers. It accepts RGB Source Sprites with no Color Profile or sRGB. It rejects

@@ -32,6 +32,7 @@ from spa.ports import (
     ResponseEvidence,
     RuntimeIssue,
     TargetCommitEvidence,
+    TargetFiles,
 )
 from spa.sprite import (
     INSPECTION_SECTIONS,
@@ -227,6 +228,17 @@ def check_plan(
     )
 
 
+def _source_target_identity_issue(
+    files: TargetFiles, source: Path, target: Path, in_place: bool
+) -> Literal["alias", "in_place"] | None:
+    same_entry = files.same_publication_entry(source, target)
+    if not same_entry and files.same_publication_target(source, target):
+        return "alias"
+    if same_entry != in_place:
+        return "in_place"
+    return None
+
+
 def _preflight_paths(plan: PlanDefinition, services: OperationServices) -> None:
     if plan.source_sprite_file is not None:
         source = services.target_files.observe_path(Path(plan.source_sprite_file))
@@ -260,16 +272,28 @@ def _preflight_paths(plan: PlanDefinition, services: OperationServices) -> None:
                 ]
             )
     if plan.source_sprite_file is not None and plan.target_sprite_file is not None:
-        same_target = services.target_files.same_publication_target(
-            Path(plan.source_sprite_file), Path(plan.target_sprite_file)
+        identity_issue = _source_target_identity_issue(
+            services.target_files,
+            Path(plan.source_sprite_file),
+            Path(plan.target_sprite_file),
+            plan.in_place,
         )
-        if same_target != plan.in_place:
+        if identity_issue is not None:
             raise RequestIssue(
                 [
                     ValidationIssue(
-                        location=["plan", "in_place"],
+                        location=[
+                            "plan",
+                            "source_sprite_file"
+                            if identity_issue == "alias"
+                            else "in_place",
+                        ],
                         code="source_target_identity",
-                        message="Source/Target publication identity must match in_place intent",
+                        message=(
+                            "Source alias traverses the Target publication entry"
+                            if identity_issue == "alias"
+                            else "Source/Target publication identity must match in_place intent"
+                        ),
                     )
                 ]
             )
@@ -485,10 +509,13 @@ def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunRes
         if staged is not None:
             assert plan.target_sprite_file is not None
             if plan.source_sprite_file is not None:
-                same_target = services.target_files.same_publication_target(
-                    Path(plan.source_sprite_file), Path(plan.target_sprite_file)
+                identity_issue = _source_target_identity_issue(
+                    services.target_files,
+                    Path(plan.source_sprite_file),
+                    Path(plan.target_sprite_file),
+                    plan.in_place,
                 )
-                if same_target != plan.in_place:
+                if identity_issue is not None:
                     raise RuntimeIssue(
                         "target_commit_failed",
                         "Source/Target publication identity changed before Target Commit",

@@ -60,8 +60,8 @@ verifies one process and typed failed-Step evidence; the real runtime verifies t
 shared capability probe before Plan Steps.
 Plan preflight also rejects Source aliases that would be replaced by Target Commit and
 Postconditions that contradict a first Sprite creation Step. Real Aseprite cases
-verify that an alias requires explicit in-place intent and that a document-dependent
-Postcondition failure leaves the Target absent.
+verify alias rejection with both `in_place` values, same-entry in-place success, and
+that a document-dependent Postcondition failure leaves the Target absent.
 Aggregate discovery conservatively requires every eligible Plan Step capability;
 the Plan execution gate checks selected Step requirements plus mandatory final Sprite
 inspection in its one Aseprite process.

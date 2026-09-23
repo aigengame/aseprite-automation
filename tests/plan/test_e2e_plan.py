@@ -295,7 +295,7 @@ def test_plan_in_place_failure_preserves_existing_file(tmp_path: Path) -> None:
 
 
 @pytest.mark.e2e
-def test_source_alias_requires_explicit_in_place_before_target_replacement(
+def test_source_alias_is_rejected_for_both_in_place_values(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "real.aseprite"
@@ -325,30 +325,27 @@ def test_source_alias_requires_explicit_in_place_before_target_replacement(
         "overwrite": True,
         "steps": [{"operation": "paint apply", "input": _red_pixel()}],
     }
-    rejected = spa(
-        "plan",
-        "run",
-        "--input-json",
-        json.dumps({"aseprite": os.environ["SPA_TEST_ASEPRITE"], "plan": plan}),
-    )
-    assert rejected.returncode == 2, rejected.stdout + rejected.stderr
-    assert json.loads(rejected.stdout)["code"] == "invalid_request"
-    assert hashlib.sha256(target.read_bytes()).hexdigest() == before
-
-    accepted = spa(
-        "plan",
-        "run",
-        "--input-json",
-        json.dumps(
-            {
-                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-                "plan": plan | {"in_place": True},
-            }
-        ),
-    )
-    assert accepted.returncode == 0, accepted.stdout + accepted.stderr
-    assert hashlib.sha256(target.read_bytes()).hexdigest() != before
-    assert alias.read_bytes() == target.read_bytes()
+    for in_place in (False, True):
+        rejected = spa(
+            "plan",
+            "run",
+            "--input-json",
+            json.dumps(
+                {
+                    "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+                    "plan": plan | {"in_place": in_place},
+                }
+            ),
+        )
+        assert rejected.returncode == 2, rejected.stdout + rejected.stderr
+        failure = json.loads(rejected.stdout)
+        assert failure["code"] == "invalid_request"
+        assert failure["details"]["errors"][0]["location"] == [
+            "plan",
+            "source_sprite_file",
+        ]
+        assert hashlib.sha256(target.read_bytes()).hexdigest() == before
+        assert alias.is_symlink()
 
 
 @pytest.mark.e2e

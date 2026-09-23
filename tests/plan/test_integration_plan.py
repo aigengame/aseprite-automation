@@ -251,16 +251,22 @@ def test_plan_preflight_checks_source_aliases_against_target_entry(
             }
         ],
     }
-    for command in ("check", "run"):
-        request = {"plan": plan}
-        if command == "run":
-            request["aseprite"] = "/missing/aseprite"
-        run = spa("plan", command, "--input-json", json.dumps(request))
-        assert run.returncode == 2, run.stdout + run.stderr
-        failure = json.loads(run.stdout)
-        assert failure["code"] == "invalid_request"
-        assert failure["details"]["errors"][0]["location"] == ["plan", "in_place"]
+    for in_place in (False, True):
+        plan["in_place"] = in_place
+        for command in ("check", "run"):
+            request = {"plan": plan}
+            if command == "run":
+                request["aseprite"] = "/missing/aseprite"
+            run = spa("plan", command, "--input-json", json.dumps(request))
+            assert run.returncode == 2, run.stdout + run.stderr
+            failure = json.loads(run.stdout)
+            assert failure["code"] == "invalid_request"
+            assert failure["details"]["errors"][0]["location"] == [
+                "plan",
+                "source_sprite_file",
+            ]
 
+    plan["in_place"] = False
     target_alias = tmp_path / "target-alias.aseprite"
     target_alias.symlink_to(target)
     plan["source_sprite_file"] = str(target)
@@ -272,15 +278,20 @@ def test_plan_preflight_checks_source_aliases_against_target_entry(
     source_through_target.symlink_to(target_alias)
     plan["source_sprite_file"] = str(source_through_target)
 
-    for command in ("check", "run"):
-        request = {"plan": plan}
-        if command == "run":
-            request["aseprite"] = "/missing/aseprite"
-        result = spa("plan", command, "--input-json", json.dumps(request))
-        assert result.returncode == 2, result.stdout + result.stderr
-        failure = json.loads(result.stdout)
-        assert failure["code"] == "invalid_request"
-        assert failure["details"]["errors"][0]["location"] == ["plan", "in_place"]
+    for in_place in (False, True):
+        plan["in_place"] = in_place
+        for command in ("check", "run"):
+            request = {"plan": plan}
+            if command == "run":
+                request["aseprite"] = "/missing/aseprite"
+            result = spa("plan", command, "--input-json", json.dumps(request))
+            assert result.returncode == 2, result.stdout + result.stderr
+            failure = json.loads(result.stdout)
+            assert failure["code"] == "invalid_request"
+            assert failure["details"]["errors"][0]["location"] == [
+                "plan",
+                "source_sprite_file",
+            ]
 
     assert target_alias.is_symlink()
     assert source_through_target.read_bytes() == b"preflight only"
