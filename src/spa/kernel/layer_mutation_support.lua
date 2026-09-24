@@ -434,10 +434,10 @@ function module.execute(payload, inspection, selection, digest, persistence)
     local before_ordered, before_by_id = records(open_sprite, digest)
     local merge_effects = nil
     if payload.operation == "merge" then
-      local invalid
-      merge_effects, invalid =
+      local merge_invalid
+      merge_effects, merge_invalid =
         preflight_merge_effects(open_sprite, selected.layer, lower, before_by_id)
-      if invalid ~= nil then return invalid end
+      if merge_invalid ~= nil then return merge_invalid end
     end
     local source_uuids = {}
     for _, record in ipairs(before_ordered) do
