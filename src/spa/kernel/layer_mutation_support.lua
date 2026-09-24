@@ -26,7 +26,9 @@ local blend_modes = {
 
 local function copy_path(path, index)
   local result = {}
-  for _, value in ipairs(path) do result[#result + 1] = value end
+  for _, value in ipairs(path) do
+    result[#result + 1] = value
+  end
   if index ~= nil then result[#result + 1] = index end
   return result
 end
@@ -38,7 +40,9 @@ local function records(sprite)
       local path = copy_path(prefix, index)
       local children = {}
       if layer.isGroup then
-        for _, child in ipairs(layer.layers) do children[#children + 1] = child.id end
+        for _, child in ipairs(layer.layers) do
+          children[#children + 1] = child.id
+        end
       end
       local cels = {}
       for _, cel in ipairs(sprite.cels) do
@@ -105,18 +109,30 @@ end
 local function mark_subtree(layer, marked)
   marked[layer.id] = true
   if layer.isGroup then
-    for _, child in ipairs(layer.layers) do mark_subtree(child, marked) end
+    for _, child in ipairs(layer.layers) do
+      mark_subtree(child, marked)
+    end
   end
 end
 
 local function is_regular(layer)
-  return layer.isGroup or (layer.isImage and layer.isTransparent and not layer.isTilemap
-    and not layer.isReference and not layer.isBackground)
+  return layer.isGroup
+    or (
+      layer.isImage
+      and layer.isTransparent
+      and not layer.isTilemap
+      and not layer.isReference
+      and not layer.isBackground
+    )
 end
 
 local function is_regular_image(layer)
-  return layer.isImage and layer.isTransparent and not layer.isTilemap
-    and not layer.isReference and not layer.isBackground and not layer.isGroup
+  return layer.isImage
+    and layer.isTransparent
+    and not layer.isTilemap
+    and not layer.isReference
+    and not layer.isBackground
+    and not layer.isGroup
 end
 
 local function subtree_has_tilemap(layer)
@@ -129,15 +145,16 @@ local function subtree_has_tilemap(layer)
   return false
 end
 
-local function rejection(code, message)
-  return { rejection = { code = code, message = message } }
-end
+local function rejection(code, message) return { rejection = { code = code, message = message } } end
 
 local function prevalidate(sprite, selected, payload)
   local operation, layer = payload.operation, selected.layer
   if operation == "set" then
     if not is_regular(layer) then
-      return rejection("layer_unsupported_target", "Layer set requires a regular Transparent Image or Group")
+      return rejection(
+        "layer_unsupported_target",
+        "Layer set requires a regular Transparent Image or Group"
+      )
     end
     local properties = payload.properties
     if type(properties) ~= "table" and type(properties) ~= "userdata" then
@@ -155,22 +172,41 @@ local function prevalidate(sprite, selected, payload)
           return rejection("layer_unsupported_target", key .. " must be Boolean")
         end
       elseif key == "opacity" then
-        if not is_regular_image(layer) or type(value) ~= "number"
-          or value % 1 ~= 0 or value < 0 or value > 255 then
-          return rejection("layer_unsupported_target", "opacity requires a regular Image and 0..255")
+        if
+          not is_regular_image(layer)
+          or type(value) ~= "number"
+          or value % 1 ~= 0
+          or value < 0
+          or value > 255
+        then
+          return rejection(
+            "layer_unsupported_target",
+            "opacity requires a regular Image and 0..255"
+          )
         end
       elseif key == "blend_mode" then
         if not is_regular_image(layer) or blend_modes[value] == nil then
-          return rejection("layer_unsupported_target", "blend_mode requires a regular Image and supported mode")
+          return rejection(
+            "layer_unsupported_target",
+            "blend_mode requires a regular Image and supported mode"
+          )
         end
       else
-        return rejection("layer_unsupported_target", "unsupported Layer property: " .. tostring(key))
+        return rejection(
+          "layer_unsupported_target",
+          "unsupported Layer property: " .. tostring(key)
+        )
       end
     end
-    if not has_property then return rejection("layer_unsupported_target", "Layer set requires properties") end
+    if not has_property then
+      return rejection("layer_unsupported_target", "Layer set requires properties")
+    end
   elseif operation == "move" then
     if not is_regular(layer) then
-      return rejection("layer_unsupported_target", "Layer move requires a regular Transparent Image or Group")
+      return rejection(
+        "layer_unsupported_target",
+        "Layer move requires a regular Transparent Image or Group"
+      )
     end
     local siblings = layer.parent == sprite and sprite.layers or layer.parent.layers
     local index = payload.stack_index
@@ -183,12 +219,18 @@ local function prevalidate(sprite, selected, payload)
     end
   elseif operation == "merge" then
     if not is_regular_image(layer) then
-      return rejection("layer_unsupported_target", "Merge source must be a regular Transparent Image")
+      return rejection(
+        "layer_unsupported_target",
+        "Merge source must be a regular Transparent Image"
+      )
     end
     local siblings = layer.parent == sprite and sprite.layers or layer.parent.layers
     local lower = siblings[layer.stackIndex - 1]
     if lower == nil or not is_regular_image(lower) then
-      return rejection("layer_unsupported_target", "Merge requires the immediate lower regular Transparent Image sibling")
+      return rejection(
+        "layer_unsupported_target",
+        "Merge requires the immediate lower regular Transparent Image sibling"
+      )
     end
     return nil, lower
   else
@@ -225,7 +267,9 @@ local function apply(sprite, payload, layer, lower)
       if properties.blend_mode ~= nil then layer.blendMode = blend_modes[properties.blend_mode] end
     end)
     local properties = payload.properties
-    if properties.name ~= nil then assert(layer.name == properties.name, "native Layer name differs") end
+    if properties.name ~= nil then
+      assert(layer.name == properties.name, "native Layer name differs")
+    end
     if properties.is_visible ~= nil then
       assert(layer.isVisible == properties.is_visible, "native Layer visibility differs")
     end
@@ -236,7 +280,10 @@ local function apply(sprite, payload, layer, lower)
       assert(layer.opacity == properties.opacity, "native Layer opacity differs")
     end
     if properties.blend_mode ~= nil then
-      assert(layer.blendMode == blend_modes[properties.blend_mode], "native Layer blend mode differs")
+      assert(
+        layer.blendMode == blend_modes[properties.blend_mode],
+        "native Layer blend mode differs"
+      )
     end
   elseif payload.operation == "move" then
     app.transaction("Move Layer", function() layer.stackIndex = payload.stack_index end)
@@ -302,16 +349,21 @@ function module.execute(payload, inspection, selection, digest, persistence)
         after_digest = after_rendered[number],
       }
     end
-    local unsaved = persistence.snapshot(open_sprite, inspection, digest, all_sections, unsaved_uuids)
+    local unsaved =
+      persistence.snapshot(open_sprite, inspection, digest, all_sections, unsaved_uuids)
     assert(open_sprite:saveAs(payload.staged_sprite_file), "could not save staged Sprite")
     open_sprite:close()
     open_sprite = assert(app.open(payload.staged_sprite_file), "could not reopen staged Sprite")
     verified_uuids = inspection.saved_layer_uuids(open_sprite, payload.staged_sprite_file)
-    local persisted = persistence.snapshot(open_sprite, inspection, digest, all_sections, verified_uuids)
+    local persisted =
+      persistence.snapshot(open_sprite, inspection, digest, all_sections, verified_uuids)
     persistence.assert_same(unsaved, persisted, "Layer")
     local persisted_rendered = render_digests(open_sprite, digest)
     for number = 1, #persisted_rendered do
-      assert(persisted_rendered[number] == after_rendered[number], "persisted Layer rendering differs")
+      assert(
+        persisted_rendered[number] == after_rendered[number],
+        "persisted Layer rendering differs"
+      )
     end
     local after = inspection.inspect(open_sprite, result_sections, verified_uuids)
     return {

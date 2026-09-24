@@ -10,7 +10,10 @@ local function execute()
   local request_file = assert(io.open(app.params.request, "rb"))
   local request = json.decode(request_file:read("*a"))
   request_file:close()
-  assert(request.kernel_protocol_version == kernel_protocol_version, "unsupported Kernel Protocol version")
+  assert(
+    request.kernel_protocol_version == kernel_protocol_version,
+    "unsupported Kernel Protocol version"
+  )
   return mutation.execute(assert(request.payload), inspection, selection, digest, persistence)
 end
 

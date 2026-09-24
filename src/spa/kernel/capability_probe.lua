@@ -314,12 +314,8 @@ function module.observe()
   if observes_layer_hierarchy() then
     capabilities[#capabilities + 1] = "aseprite_layer_hierarchy"
   end
-  if observes_layer_mutation() then
-    capabilities[#capabilities + 1] = "aseprite_layer_mutation"
-  end
-  if observes_layer_merge() then
-    capabilities[#capabilities + 1] = "aseprite_layer_merge"
-  end
+  if observes_layer_mutation() then capabilities[#capabilities + 1] = "aseprite_layer_mutation" end
+  if observes_layer_merge() then capabilities[#capabilities + 1] = "aseprite_layer_merge" end
   if observes_paint_apply() then capabilities[#capabilities + 1] = "aseprite_paint_apply" end
   if observes_frame_authoring() then
     capabilities[#capabilities + 1] = "aseprite_frame_authoring"
