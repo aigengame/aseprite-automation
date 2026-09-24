@@ -180,9 +180,10 @@ or Cel facts reports empty affected sets; Group visibility and editability
 changes include descendants whose effective state changes.
 `spa layer convert-to-background` requires a visible, editable regular
 Transparent Image Layer, no existing Background, and an explicit opaque Color
-Value compatible with the Sprite Color Mode and each Frame Palette. Aseprite
-moves the converted Layer to the root bottom, names it `Background`, fills
-transparent pixels, and ensures an opaque, full-canvas Cel on every Frame.
+Value compatible with the Sprite Color Mode and, for Indexed Sprites, the
+Effective Palette at every Frame. Aseprite moves the converted Layer to the
+root bottom, names it `Background`, fills transparent pixels, and ensures an
+opaque, full-canvas Cel on every Frame.
 `spa layer convert-from-background` requires a visible, editable Background
 Layer and preserves its Cel images while accepting Aseprite's resulting Layer
 name. Both results report the before/after Layer facts, complete affected Frame

@@ -298,7 +298,7 @@ local function prevalidate(sprite, selected, payload, inspection, frame)
       if not valid then
         return rejection(
           "layer_unsupported_target",
-          "background_color is incompatible with Color Mode or Frame Palette"
+          "background_color is incompatible with Sprite Color Mode or an Effective Palette at a Frame"
         )
       end
     end
