@@ -300,12 +300,12 @@ LAYER_REQUIREMENTS = RuntimeRequirements(
 LAYER_MUTATION_REQUIREMENTS = RuntimeRequirements(
     lua_language="Lua 5.4",
     minimum_api_version=41,
-    required_capabilities=["aseprite_layer_mutation"],
+    required_capabilities=["aseprite_layer_hierarchy", "aseprite_layer_mutation"],
 )
 LAYER_MERGE_REQUIREMENTS = RuntimeRequirements(
     lua_language="Lua 5.4",
     minimum_api_version=41,
-    required_capabilities=["aseprite_layer_merge"],
+    required_capabilities=["aseprite_layer_hierarchy", "aseprite_layer_merge"],
 )
 LAYER_GET_FAILURE_CODES = (
     *RUNTIME_FAILURE_CODES,
@@ -319,7 +319,13 @@ LAYER_ADD_FAILURE_CODES = (
 )
 LAYER_MUTATION_FAILURE_CODES = (
     *RUNTIME_FAILURE_CODES,
-    *(code for code in LAYER_TARGET_FAILURE_CODES if code != "layer_parent_not_group"),
+    *LAYER_ADDRESS_FAILURE_CODES,
+    "layer_unsupported_target",
+    "target_commit_failed",
+)
+LAYER_MOVE_FAILURE_CODES = (
+    *LAYER_MUTATION_FAILURE_CODES[:-1],
+    "layer_invalid_position",
     "target_commit_failed",
 )
 LAYER_INSPECTION_RESOURCE = PackagedResource("inspection", "sprite_inspect.lua")
@@ -870,7 +876,7 @@ LAYER_OPERATIONS = (
         move_layer,
         lambda result: result.target_commit.target_sprite_file,
         LAYER_MUTATION_REQUIREMENTS,
-        LAYER_MUTATION_FAILURE_CODES,
+        LAYER_MOVE_FAILURE_CODES,
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
     ),

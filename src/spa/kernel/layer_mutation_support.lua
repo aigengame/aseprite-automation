@@ -144,17 +144,6 @@ local function affected(ordered, other)
   return result
 end
 
-local function is_regular(layer)
-  return layer.isGroup
-    or (
-      layer.isImage
-      and layer.isTransparent
-      and not layer.isTilemap
-      and not layer.isReference
-      and not layer.isBackground
-    )
-end
-
 local function is_regular_image(layer)
   return layer.isImage
     and layer.isTransparent
@@ -163,6 +152,8 @@ local function is_regular_image(layer)
     and not layer.isBackground
     and not layer.isGroup
 end
+
+local function is_regular(layer) return layer.isGroup or is_regular_image(layer) end
 
 local function subtree_has_tilemap(layer)
   if layer.isTilemap then return true end
@@ -277,6 +268,84 @@ local function prevalidate(sprite, selected, payload, inspection)
   return nil, nil
 end
 
+local function preflight_merge_effects(sprite, source, lower, before_by_id)
+  local expected = { layers = {}, cels = {} }
+  local function allow_cel(layer_id, frame_number)
+    expected.cels[tostring(layer_id) .. "/" .. tostring(frame_number)] = true
+  end
+  local function allow_layer(layer)
+    local record = assert(before_by_id[layer.id], "merge target has no Layer address")
+    expected.layers[layer.id] = true
+    for _, frame_number in ipairs(record.cels) do
+      allow_cel(layer.id, frame_number)
+    end
+  end
+  local function allow_subtree(layer)
+    allow_layer(layer)
+    if layer.isGroup then
+      for _, child in ipairs(layer.layers) do
+        allow_subtree(child)
+      end
+    end
+  end
+
+  allow_layer(source)
+  allow_layer(lower)
+  -- Native Merge Down can create a Cel in the lower Layer on any existing Frame.
+  for frame_number = 1, #sprite.frames do
+    allow_cel(lower.id, frame_number)
+  end
+  if source.parent ~= sprite then allow_layer(source.parent) end
+  local siblings = source.parent == sprite and sprite.layers or source.parent.layers
+  for index = source.stackIndex + 1, #siblings do
+    allow_subtree(siblings[index])
+  end
+
+  -- Expand native link effects before MergeDownLayer can unlink or remove Cels.
+  for _, cel in ipairs(sprite.cels) do
+    if cel.layer.id == source.id or cel.layer.id == lower.id then
+      for _, peer in ipairs(sprite.cels) do
+        if peer.image == cel.image then
+          local record = before_by_id[peer.layer.id]
+          if
+            record == nil
+            or peer.frameNumber < 1
+            or peer.frameNumber > #sprite.frames
+            or not is_regular_image(peer.layer)
+          then
+            return nil,
+              rejection(
+                "layer_unsupported_target",
+                "Merge would affect a linked Cel outside regular Transparent Image Layers"
+              )
+          end
+          expected.layers[peer.layer.id] = true
+          allow_cel(peer.layer.id, peer.frameNumber)
+        end
+      end
+    end
+  end
+  return expected, nil
+end
+
+local function assert_merge_effects_prevalidated(ordered, affected_set, expected)
+  local by_path = {}
+  for _, record in ipairs(ordered) do
+    by_path[table.concat(record.path, "/")] = record.id
+  end
+  for _, path in ipairs(affected_set.layer_paths) do
+    local id = assert(by_path[table.concat(path, "/")], "affected Layer has no address")
+    assert(expected.layers[id], "native Merge Down changed a Layer outside preflight")
+  end
+  for _, cel in ipairs(affected_set.cels) do
+    local id = assert(by_path[table.concat(cel.layer_path, "/")], "affected Cel has no Layer")
+    assert(
+      expected.cels[tostring(id) .. "/" .. tostring(cel.frame_number)],
+      "native Merge Down changed a Cel outside preflight"
+    )
+  end
+end
+
 local function render_digests(sprite, digest)
   local previous_compose_groups = app.preferences.experimental.compose_groups
   local ok, result = pcall(function()
@@ -363,6 +432,13 @@ function module.execute(payload, inspection, selection, digest, persistence)
     if invalid ~= nil then return invalid end
     local before = inspection.inspect(open_sprite, result_sections, verified_uuids)
     local before_ordered, before_by_id = records(open_sprite, digest)
+    local merge_effects = nil
+    if payload.operation == "merge" then
+      local invalid
+      merge_effects, invalid =
+        preflight_merge_effects(open_sprite, selected.layer, lower, before_by_id)
+      if invalid ~= nil then return invalid end
+    end
     local source_uuids = {}
     for _, record in ipairs(before_ordered) do
       source_uuids[record.id] = verified_uuids[table.concat(record.path, "/")]
@@ -378,6 +454,10 @@ function module.execute(payload, inspection, selection, digest, persistence)
     local after_rendered = render_digests(open_sprite, digest)
     local before_affected = affected(before_ordered, after_by_id)
     local after_affected = affected(after_ordered, before_by_id)
+    if merge_effects ~= nil then
+      assert_merge_effects_prevalidated(before_ordered, before_affected, merge_effects)
+      assert_merge_effects_prevalidated(after_ordered, after_affected, merge_effects)
+    end
     local rendered_frames = {}
     for number = 1, #open_sprite.frames do
       rendered_frames[number] = {

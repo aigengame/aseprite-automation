@@ -124,6 +124,7 @@ uv run spa layer add --input-json '{"aseprite":"/path/to/aseprite","source_sprit
 uv run spa layer set --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"layered.aseprite","target_sprite_file":"named.aseprite","in_place":false,"overwrite":false,"target":{"layer_path":[1]},"properties":{"name":"background-art","is_visible":true}}'
 uv run spa layer move --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"layered.aseprite","target_sprite_file":"moved.aseprite","in_place":false,"overwrite":false,"target":{"layer_path":[2]},"stack_index":1}'
 uv run spa layer remove --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"layered.aseprite","target_sprite_file":"removed.aseprite","in_place":false,"overwrite":false,"target":{"layer_path":[2]}}'
+uv run spa layer add --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"two-image-layers.aseprite","in_place":false,"overwrite":false,"kind":"transparent","name":"upper"}'
 uv run spa layer merge --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"two-image-layers.aseprite","target_sprite_file":"merged.aseprite","in_place":false,"overwrite":false,"target":{"layer_path":[2]}}'
 uv run spa paint apply --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"painted.aseprite","in_place":false,"overwrite":false,"target":{"layer_path":[1],"frame_number":1},"patch":{"coordinate_space":"image-pixel","rectangle":{"x":0,"y":0,"width":2,"height":1},"runs":[{"x":0,"y":0,"length":2,"color":{"kind":"rgba","red":255,"green":0,"blue":0,"alpha":255}}]}}'
 uv run spa plan check --input-json '{"plan":{"source_sprite_file":"sprite.aseprite","steps":[{"operation":"sprite get","input":{"inspection_scope":["frames","layers"]}}]}}'
@@ -149,8 +150,9 @@ Image or Group Layer; opacity and blend mode require a regular Transparent Image
 `spa layer move` changes only the sibling stack position under the current parent.
 `spa layer remove` deletes one addressed subtree but rejects Tilemap content.
 `spa layer merge` merges a regular Transparent Image into its immediate lower
-regular Transparent Image sibling. It fixes Aseprite's experimental new-blend
-behavior during the merge and restores the previous preference. All four return
+regular Transparent Image sibling. It sets Aseprite's experimental
+`new_blend=true` preference during native Merge Down and restores its previous
+value. All four return
 before/after Layer and Cel facts, directly affected object addresses, rendered
 Frame digests, and save/reopen verification before Target Commit. They are
 standalone mutations and are not Plan Steps. An operation that changes no Layer

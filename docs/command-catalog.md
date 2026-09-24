@@ -59,7 +59,7 @@ better Aseprite-aligned evidence.
 | `spa layer remove` | Remove one exactly addressed Layer and its subtree; reject Tilemap content in this slice. |
 | `spa layer set` | Set name, visibility, or editability on a regular Transparent Image or Group; set opacity or blend mode only on a regular Transparent Image. |
 | `spa layer move` | Reorder one regular Transparent Image or Group among its current parent's children. |
-| `spa layer merge` | Merge one regular Transparent Image into its immediate lower regular Transparent Image sibling with the fixed native new-blend behavior. |
+| `spa layer merge` | Merge one regular Transparent Image into its immediate lower regular Transparent Image sibling with Aseprite's experimental `new_blend=true` behavior. |
 | `spa layer set-tileset` | Rebind one Tilemap Layer through explicit Tile mapping and Grid policies. |
 | `spa layer convert-to-background` | Convert an eligible regular Transparent Layer to a Background Layer and report Cel normalization. |
 | `spa layer convert-from-background` | Convert the Background Layer to a regular Transparent Layer. |
