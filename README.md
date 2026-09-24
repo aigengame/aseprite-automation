@@ -192,6 +192,17 @@ after reopening it.
 The result also reports the effective Background fill or each duplicated Cel's
 Layer path and copy/link relationship.
 
+`spa tag list` and `spa tag get` inspect stored Tags with a one-based current
+`tag_index`. `get`, `set`, and `remove` accept exactly one of `tag_index` or
+`tag_name` inside `target`; a name must match exactly once. `spa tag add`
+requires an inclusive `from_frame`/`to_frame` range, native `direction`, and
+`repeats` (0–65535). `spa tag set` changes only supplied Tag properties. Add
+and set return the persisted Tag and its index after reopening; remove returns
+the removed Tag with its former index and the remaining Tag list. Native zero
+repeats stays a stored value without an inferred playback sequence. Indexes
+are snapshot-relative and can change after range edits. Mutations use the same
+explicit Source/Target publication intent as Frame authoring.
+
 `spa plan check` validates a bounded Plan, including current Source and Target path
 conditions, without starting Aseprite. `spa plan run`
 executes up to 64 Sprite-bound `sprite create`, `sprite get`, `frame list`,

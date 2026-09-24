@@ -38,6 +38,7 @@ def test_info_reports_installed_runtime() -> None:
         "aseprite_layer_merge",
         "aseprite_paint_apply",
         "aseprite_frame_authoring",
+        "aseprite_tag_authoring",
         "aseprite_export_image",
     ]
     assert result["supported_capabilities"]
@@ -62,6 +63,11 @@ def test_info_reports_installed_runtime() -> None:
         "spa frame get",
         "spa frame add",
         "spa frame duplicate",
+        "spa tag list",
+        "spa tag get",
+        "spa tag add",
+        "spa tag set",
+        "spa tag remove",
         "spa export image",
         "spa plan check",
         "spa plan run",

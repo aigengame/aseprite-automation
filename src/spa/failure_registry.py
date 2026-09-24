@@ -5,6 +5,7 @@ from spa.export import EXPORT_FAILURE_CODE_SPECS
 from spa.layer import LAYER_FAILURE_CODE_SPECS
 from spa.mutation import MUTATION_FAILURE_CODE_SPECS
 from spa.sprite import SPRITE_FAILURE_CODE_SPECS
+from spa.tag import TAG_FAILURE_CODE_SPECS
 
 FAILURE_CODES = register_failure_codes(
     (
@@ -13,5 +14,6 @@ FAILURE_CODES = register_failure_codes(
         *EXPORT_FAILURE_CODE_SPECS,
         *LAYER_FAILURE_CODE_SPECS,
         *SPRITE_FAILURE_CODE_SPECS,
+        *TAG_FAILURE_CODE_SPECS,
     )
 )

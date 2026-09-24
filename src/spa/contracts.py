@@ -47,6 +47,7 @@ RuntimeCapability = Literal[
     "aseprite_layer_merge",
     "aseprite_paint_apply",
     "aseprite_frame_authoring",
+    "aseprite_tag_authoring",
     "aseprite_export_image",
 ]
 
