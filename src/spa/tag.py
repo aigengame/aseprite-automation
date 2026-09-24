@@ -36,18 +36,25 @@ from spa.sprite import (
     SPRITE_INSPECTION_RESOURCE,
     SPRITE_PERSISTENCE_RESOURCE,
     SpriteInspection,
+    TagDirection,
     TagFacts,
     _inspection_from_kernel,
 )
 
-TagDirection = Literal["forward", "reverse", "ping_pong", "ping_pong_reverse"]
+
+def reject_nul_in_name(value: str | None) -> str | None:
+    if value is not None and "\x00" in value:
+        raise ValueError("Tag name cannot contain NUL")
+    return value
 
 
 class TagAddress(PublicModel):
     """Exactly one index or unique name in the current Sprite.tags snapshot."""
 
     tag_index: int | None = Field(default=None, ge=1, strict=True)
-    tag_name: str | None = Field(default=None, min_length=1)
+    tag_name: str | None = None
+
+    _validate_name = field_validator("tag_name")(reject_nul_in_name)
 
     @model_validator(mode="after")
     def exactly_one(self) -> "TagAddress":
@@ -114,12 +121,14 @@ class _TagMutationRequest(RuntimeRequest):
 
 
 class TagAddRequest(_TagMutationRequest):
-    name: str = Field(min_length=1)
+    name: str
     from_frame: int = Field(ge=1, strict=True)
     to_frame: int = Field(ge=1, strict=True)
     direction: TagDirection
     repeats: int = Field(ge=0, le=65535, strict=True)
     color: RgbaColor | None = None
+
+    _validate_name = field_validator("name")(reject_nul_in_name)
 
     @model_validator(mode="after")
     def validate_range(self) -> "TagAddRequest":
@@ -129,12 +138,14 @@ class TagAddRequest(_TagMutationRequest):
 
 
 class TagSetProperties(PublicModel):
-    name: str | None = Field(default=None, min_length=1)
+    name: str | None = None
     from_frame: int | None = Field(default=None, ge=1, strict=True)
     to_frame: int | None = Field(default=None, ge=1, strict=True)
     direction: TagDirection | None = None
     repeats: int | None = Field(default=None, ge=0, le=65535, strict=True)
     color: RgbaColor | None = None
+
+    _validate_name = field_validator("name")(reject_nul_in_name)
 
     @model_validator(mode="after")
     def require_patch(self) -> "TagSetProperties":
@@ -213,6 +224,10 @@ TAG_MUTATION_REQUIREMENTS = RuntimeRequirements(
     minimum_api_version=41,
     required_capabilities=["aseprite_tag_authoring"],
 )
+TAG_SELECT_RESOURCE = PackagedResource("tag_select", "tag_select.lua")
+TAG_GET_HANDLER = PackagedHandler(
+    "tag_get", (SPRITE_INSPECTION_RESOURCE, TAG_SELECT_RESOURCE)
+)
 TAG_MUTATE_HANDLER = PackagedHandler(
     "tag_mutate",
     (
@@ -220,6 +235,7 @@ TAG_MUTATE_HANDLER = PackagedHandler(
         SPRITE_PERSISTENCE_RESOURCE,
         PackagedResource("digest", "digest.lua"),
         PackagedResource("tag", "tag_support.lua"),
+        TAG_SELECT_RESOURCE,
     ),
 )
 
@@ -255,27 +271,6 @@ def _read_tags(
     return _indexed(sprite.tags)
 
 
-def _select(tags: list[IndexedTagFacts], address: TagAddress) -> IndexedTagFacts:
-    matches = (
-        [tag for tag in tags if tag.tag_index == address.tag_index]
-        if address.tag_index is not None
-        else [tag for tag in tags if tag.name == address.tag_name]
-    )
-    if not matches:
-        raise OperationIssue(
-            "tag_missing",
-            "No Tag matches the address",
-            TagTargetDetails(address=address),
-        )
-    if len(matches) > 1:
-        raise OperationIssue(
-            "tag_ambiguous",
-            "Tag name matches more than one Tag in the Sprite",
-            TagTargetDetails(address=address),
-        )
-    return matches[0]
-
-
 def list_tags(request: TagListRequest, services: OperationServices) -> TagListResult:
     return TagListResult(
         sprite_file=request.sprite_file, tags=_read_tags(request, services)
@@ -283,10 +278,37 @@ def list_tags(request: TagListRequest, services: OperationServices) -> TagListRe
 
 
 def get_tag(request: TagGetRequest, services: OperationServices) -> TagGetResult:
-    return TagGetResult(
-        sprite_file=request.sprite_file,
-        tag=_select(_read_tags(request, services), request.target),
+    observation = services.probe_runtime(request)
+    invocation = services.invoke_kernel(
+        observation,
+        TAG_GET_HANDLER,
+        {
+            "sprite_file": request.sprite_file,
+            "target": request.target.model_dump(exclude_none=True),
+        },
+        request.timeout_seconds,
     )
+    _reject(invocation, request.target)
+    try:
+        sprite = SpriteInspection.model_validate(invocation.payload["sprite"])
+        index = invocation.payload["selected_index"]
+        if (
+            sprite.tags is None
+            or len(sprite.tags) != sprite.metadata.tag_count
+            or type(index) is not int
+            or index < 1
+            or index > len(sprite.tags)
+        ):
+            raise ValueError("Tag Get evidence disagrees with Sprite inspection")
+        selected = _indexed(sprite.tags)[index - 1]
+    except (KeyError, TypeError, ValueError, ValidationError) as exc:
+        raise RuntimeIssue(
+            "response_malformed",
+            "Packaged Tag Get handler returned invalid Tag facts",
+            ResponseEvidence(response_path=invocation.response_path),
+            invocation.diagnostics,
+        ) from exc
+    return TagGetResult(sprite_file=request.sprite_file, tag=selected)
 
 
 def _reject(invocation: KernelInvocationResult, address: TagAddress | None) -> None:

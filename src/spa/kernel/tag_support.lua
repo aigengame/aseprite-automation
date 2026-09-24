@@ -23,27 +23,6 @@ local function selected_index(sprite, tag)
   error("mutated Tag is absent from Sprite.tags")
 end
 
-local function resolve(sprite, address)
-  if address.tag_index ~= nil then
-    local index = address.tag_index
-    if type(index) ~= "number" or index % 1 ~= 0 or index < 1 or index > #sprite.tags then
-      return nil, nil, "tag_missing", "Tag index is outside the current Sprite.tags order"
-    end
-    return sprite.tags[index], index
-  end
-  local match, number = nil, nil
-  for index, tag in ipairs(sprite.tags) do
-    if tag.name == address.tag_name then
-      if match ~= nil then
-        return nil, nil, "tag_ambiguous", "Tag name matches more than one Tag in the Sprite"
-      end
-      match, number = tag, index
-    end
-  end
-  if match == nil then return nil, nil, "tag_missing", "No Tag matches the address" end
-  return match, number
-end
-
 local function same_fact(a, b)
   return a.name == b.name
     and a.from_frame == b.from_frame
@@ -132,7 +111,7 @@ local function apply(sprite, operation, properties, selected)
   return tag
 end
 
-function module.execute(payload, inspection, digest, persistence)
+function module.execute(payload, inspection, digest, persistence, selection)
   local open_sprite = nil
   local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
   local ok, result = pcall(function()
@@ -141,7 +120,7 @@ function module.execute(payload, inspection, digest, persistence)
     local selected, old_index
     if payload.operation ~= "add" then
       local code, message
-      selected, old_index, code, message = resolve(open_sprite, assert(payload.target))
+      selected, old_index, code, message = selection.resolve(open_sprite, assert(payload.target))
       if selected == nil then return { rejection = { code = code, message = message } } end
     end
     local properties = payload.properties or {}

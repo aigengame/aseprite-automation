@@ -232,3 +232,29 @@ def test_unique_name_partial_set_color_and_explicit_in_place(tmp_path: Path) -> 
     )
     assert code == 0 and removed["removed_tag"] == changed["tag"]
     assert [tag["name"] for tag in removed["tags"]] == ["same"]
+
+
+def test_empty_names_are_preserved_and_addressed_exactly(tmp_path: Path) -> None:
+    source = tmp_path / "source.aseprite"
+    first = tmp_path / "first.aseprite"
+    second = tmp_path / "second.aseprite"
+    _fixture(source)
+    add = {
+        "name": "",
+        "from_frame": 1,
+        "to_frame": 1,
+        "direction": "forward",
+        "repeats": 0,
+    }
+    code, result = _run("tag", "add", request=_mutation(source, first, **add))
+    assert code == 0 and result["tag"]["name"] == ""
+    code, got = _run(
+        "tag", "get", request={"sprite_file": str(first), "target": {"tag_name": ""}}
+    )
+    assert code == 0 and got["tag"] == result["tag"]
+    code, added = _run("tag", "add", request=_mutation(first, second, **add))
+    assert code == 0 and added["tag"]["name"] == ""
+    code, ambiguous = _run(
+        "tag", "get", request={"sprite_file": str(second), "target": {"tag_name": ""}}
+    )
+    assert code != 0 and ambiguous["code"] == "tag_ambiguous"

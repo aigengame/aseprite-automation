@@ -8,7 +8,7 @@ from spa.tag import TagAddRequest, TagAddress, TagSetProperties
 
 @pytest.mark.parametrize(
     "address",
-    [{}, {"tag_index": 1, "tag_name": "walk"}, {"tag_index": 0}, {"tag_name": ""}],
+    [{}, {"tag_index": 1, "tag_name": "walk"}, {"tag_index": 0}],
 )
 def test_tag_address_requires_one_valid_current_selector(address: dict) -> None:
     with pytest.raises(ValidationError):
@@ -44,3 +44,28 @@ def test_tag_add_requires_ordered_inclusive_range() -> None:
     }
     with pytest.raises(ValidationError):
         TagAddRequest.model_validate(payload)
+
+
+def test_empty_tag_name_is_a_valid_present_name() -> None:
+    assert TagAddress(tag_name="").tag_name == ""
+    assert TagSetProperties(name="").name == ""
+
+
+@pytest.mark.parametrize("name", ["foo\x00bar", "\x00"])
+def test_nul_name_is_rejected_before_native_truncation(name: str) -> None:
+    with pytest.raises(ValidationError):
+        TagAddress(tag_name=name)
+    with pytest.raises(ValidationError):
+        TagSetProperties(name=name)
+    with pytest.raises(ValidationError):
+        TagAddRequest(
+            source_sprite_file="source.aseprite",
+            target_sprite_file="target.aseprite",
+            in_place=False,
+            overwrite=False,
+            name=name,
+            from_frame=1,
+            to_frame=1,
+            direction="forward",
+            repeats=0,
+        )
