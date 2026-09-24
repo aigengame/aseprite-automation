@@ -58,8 +58,8 @@ def _timeline_sprite(target: Path) -> None:
     _run_fixture("timeline.lua", out=str(target))
 
 
-def _add_second_slice_key(sprite_file: Path) -> None:
-    """Create an Aseprite file with a Frame 3 Slice Key (Lua only edits Key 1)."""
+def _add_second_slice_key(sprite_file: Path, frame_number: int = 3) -> None:
+    """Create a later Slice Key in a fixture (Lua only edits Key 1)."""
     payload = bytearray(sprite_file.read_bytes())
     frame_offset = 128
     frame_size, magic, chunk_count = struct.unpack_from("<IHH", payload, frame_offset)
@@ -70,7 +70,7 @@ def _add_second_slice_key(sprite_file: Path) -> None:
         if chunk_type == 0x2022:
             key_count, flags = struct.unpack_from("<II", payload, chunk_offset + 6)
             assert key_count == 1 and flags == 0
-            second_key = struct.pack("<IiiII", 2, 1, 0, 1, 1)
+            second_key = struct.pack("<IiiII", frame_number - 1, 1, 0, 1, 1)
             payload[chunk_offset + chunk_size : chunk_offset + chunk_size] = second_key
             struct.pack_into("<I", payload, chunk_offset, chunk_size + len(second_key))
             struct.pack_into("<I", payload, chunk_offset + 6, 2)
@@ -340,6 +340,39 @@ def test_move_and_remove_report_reopened_slice_keys(tmp_path: Path) -> None:
         assert edited["before"]["slices"] == before["slices"]
         assert edited["sprite"]["slices"] == reopened["slices"]
         assert edited["sprite"]["palettes"] is not None
+
+
+def test_remove_reports_slice_key_dropped_by_native_save(tmp_path: Path) -> None:
+    source = tmp_path / "source.aseprite"
+    target = tmp_path / "target.aseprite"
+    _timeline_sprite(source)
+    _add_second_slice_key(source, frame_number=4)
+    removed = _run(
+        "frame",
+        "remove",
+        request={
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": False,
+            "overwrite": False,
+            "frame_number": 4,
+        },
+    )
+    assert [key["frame_number"] for key in removed["before"]["slices"][0]["keys"]] == [
+        1,
+        4,
+    ]
+    assert [key["frame_number"] for key in removed["sprite"]["slices"][0]["keys"]] == [
+        1
+    ]
+    assert (
+        removed["sprite"]["slices"]
+        == _run(
+            "sprite",
+            "get",
+            request={"sprite_file": str(target), "inspection_scope": ["slices"]},
+        )["slices"]
+    )
 
 
 def test_move_same_frame_preserves_tag_and_does_not_report_renumbering(

@@ -461,15 +461,18 @@ function module.execute(payload, inspection, digest, persistence)
         and persistence.snapshot(open_sprite, inspection, digest, all_sections, verified_uuids)
       or nil
     local evidence = module.apply_live(open_sprite, payload.operation, input)
-    local before =
-      persistence.snapshot(open_sprite, inspection, digest, all_sections, verified_uuids)
+    -- Structural Frame edits can leave transient Slice Keys beyond the new
+    -- timeline. Aseprite removes them while saving; inspect the reopened file.
+    local live_snapshot = (not is_edit or payload.operation == "set")
+        and persistence.snapshot(open_sprite, inspection, digest, all_sections, verified_uuids)
+      or nil
     assert(open_sprite:saveAs(payload.staged_sprite_file), "could not save staged Sprite")
     open_sprite:close()
     open_sprite = assert(app.open(payload.staged_sprite_file), "could not reopen staged Sprite")
     verified_uuids = inspection.saved_layer_uuids(open_sprite, payload.staged_sprite_file)
     local after =
       persistence.snapshot(open_sprite, inspection, digest, all_sections, verified_uuids)
-    persistence.assert_same(before, after, "Frame")
+    if live_snapshot ~= nil then persistence.assert_same(live_snapshot, after, "Frame") end
     if is_edit then
       verify_edit(source_snapshot, after, payload.operation, input)
       evidence.before = source_snapshot.sprite
