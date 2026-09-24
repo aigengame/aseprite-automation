@@ -599,3 +599,46 @@ def test_duplicate_uses_one_inserted_frame_for_multiple_source_cels(
         (2,),
     }
     assert {item["kind"] for item in duplicated["cel_relationships"]} == {cel_mode}
+
+
+def test_frame_mutations_preserve_verified_layer_uuids(tmp_path: Path) -> None:
+    source = tmp_path / "uuid-source.aseprite"
+    standalone_target = tmp_path / "standalone.aseprite"
+    plan_target = tmp_path / "plan.aseprite"
+    _run_fixture("multi_cel.lua", out=str(source), uuids="true")
+    source_layers = _run(
+        "sprite",
+        "get",
+        request={"sprite_file": str(source), "inspection_scope": ["layers"]},
+    )["layers"]
+    assert all(layer["layer_uuid"] is not None for layer in source_layers)
+    standalone = _run(
+        "frame",
+        "duplicate",
+        request={
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(standalone_target),
+            "in_place": False,
+            "overwrite": False,
+            "source_frame_number": 1,
+            "cel_mode": "copy",
+        },
+    )
+    assert standalone["sprite"]["layers"] == source_layers
+    plan = _run(
+        "plan",
+        "run",
+        request={
+            "plan": {
+                "source_sprite_file": str(source),
+                "target_sprite_file": str(plan_target),
+                "steps": [
+                    {
+                        "operation": "frame duplicate",
+                        "input": {"source_frame_number": 1, "cel_mode": "link"},
+                    }
+                ],
+            }
+        },
+    )
+    assert plan["final_sprite"]["layers"] == source_layers

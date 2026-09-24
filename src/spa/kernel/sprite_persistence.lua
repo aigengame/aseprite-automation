@@ -2,6 +2,10 @@
 local module = {}
 
 local function difference(left, right, at)
+  if at:match("%.layer_uuid$") and type(left) ~= "string" and type(right) == "string" then
+    -- Aseprite may assign a UUID to a Layer when the Sprite is saved.
+    return nil
+  end
   if type(left) ~= type(right) then
     if tonumber(left) ~= nil and tonumber(left) == tonumber(right) then return nil end
     return at .. " (" .. type(left) .. " / " .. type(right) .. ")"
@@ -29,7 +33,7 @@ local function difference(left, right, at)
   return nil
 end
 
-function module.snapshot(sprite, inspection, digest, sections)
+function module.snapshot(sprite, inspection, digest, sections, verified_uuids)
   local images, links = {}, {}
   local cels = sprite.cels
   for index, cel in ipairs(cels) do
@@ -45,7 +49,11 @@ function module.snapshot(sprite, inspection, digest, sections)
       if image == cels[prior].image then links[#links + 1] = { prior, index } end
     end
   end
-  return { sprite = inspection.inspect(sprite, sections), images = images, links = links }
+  return {
+    sprite = inspection.inspect(sprite, sections, verified_uuids),
+    images = images,
+    links = links,
+  }
 end
 
 function module.assert_same(before, after, operation)

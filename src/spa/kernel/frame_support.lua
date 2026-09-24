@@ -293,13 +293,17 @@ function module.execute(payload, inspection, digest, persistence)
   }
   local ok, result = pcall(function()
     open_sprite = assert(app.open(payload.source_sprite_file), "could not open Source Sprite File")
+    local verified_uuids = inspection.saved_layer_uuids(open_sprite, payload.source_sprite_file)
     local input = assert(payload.input, "missing Frame input")
     local evidence = module.apply_live(open_sprite, payload.operation, input)
-    local before = persistence.snapshot(open_sprite, inspection, digest, all_sections)
+    local before =
+      persistence.snapshot(open_sprite, inspection, digest, all_sections, verified_uuids)
     assert(open_sprite:saveAs(payload.staged_sprite_file), "could not save staged Sprite")
     open_sprite:close()
     open_sprite = assert(app.open(payload.staged_sprite_file), "could not reopen staged Sprite")
-    local after = persistence.snapshot(open_sprite, inspection, digest, all_sections)
+    verified_uuids = inspection.saved_layer_uuids(open_sprite, payload.staged_sprite_file)
+    local after =
+      persistence.snapshot(open_sprite, inspection, digest, all_sections, verified_uuids)
     persistence.assert_same(before, after, "Frame")
     local expected_pixel = evidence._expected_pixel
     local verified_count, verified_relationships = verify_cels(
@@ -320,7 +324,7 @@ function module.execute(payload, inspection, digest, persistence)
         == evidence.inserted_frame.duration_ms,
       "persisted Frame duration differs"
     )
-    evidence.sprite = inspection.inspect(open_sprite, all_sections)
+    evidence.sprite = inspection.inspect(open_sprite, all_sections, verified_uuids)
     evidence.persisted_reopen_verified = true
     evidence._expected_pixel = nil
     open_sprite:close()

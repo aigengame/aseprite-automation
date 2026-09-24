@@ -55,6 +55,7 @@ def _inspection(**overrides: Any) -> dict[str, Any]:
             "transparent_color_index": 0,
             "grid_bounds": {"x": 0, "y": 0, "width": 1, "height": 1},
             "pixel_ratio": {"width": 1, "height": 1},
+            "use_layer_uuids": False,
         },
         "frames": [{"frame_number": 1, "duration_ms": 100}],
         "tags": [],
@@ -63,6 +64,7 @@ def _inspection(**overrides: Any) -> dict[str, Any]:
             {
                 "path": [1],
                 "name": "Layer 1",
+                "layer_uuid": None,
                 "opacity": 255,
                 "blend_mode": "normal",
                 "is_image": True,

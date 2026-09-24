@@ -32,6 +32,7 @@ from spa.ports import (
     DiscoveryEvidence,
     HandlerEvidence,
     LaunchEvidence,
+    OperationIssue,
     OperationServices,
     PostconditionEvidence,
     ProcessEvidence,
@@ -269,6 +270,15 @@ def dispatch(
         )
     except RequestIssue as exc:
         return _request_failure(descriptor, exc.issues, failure_codes)
+    except OperationIssue as exc:
+        return failure_envelope(
+            operation=f"spa {descriptor.name}",
+            code=exc.code,
+            message=str(exc),
+            details=exc.details,
+            applicable_codes=descriptor.failure_codes,
+            failure_codes=failure_codes,
+        )
     except RuntimeIssue as exc:
         return _runtime_failure(descriptor, exc, failure_codes)
     return _validated_outcome(descriptor, outcome, failure_codes)

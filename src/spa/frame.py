@@ -11,7 +11,11 @@ from spa.contracts import (
     RuntimeRequirements,
     ValidationIssue,
 )
-from spa.mutation import TargetCommit, source_target_identity_issue
+from spa.mutation import (
+    TargetCommit,
+    source_target_identity_issue,
+    validate_native_sprite_path,
+)
 from spa.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.paint import DIGEST_RESOURCE
 from spa.ports import (
@@ -39,16 +43,10 @@ from spa.sprite import (
 )
 
 
-def _native_sprite_path(value: str) -> str:
-    if Path(value).suffix.lower() != ".aseprite":
-        raise ValueError("Sprite file must use the .aseprite extension")
-    return value
-
-
 class FrameListRequest(RuntimeRequest):
     sprite_file: str = Field(min_length=1)
 
-    _validate_sprite = field_validator("sprite_file")(_native_sprite_path)
+    _validate_sprite = field_validator("sprite_file")(validate_native_sprite_path)
 
 
 class FrameGetRequest(FrameListRequest):
@@ -87,8 +85,12 @@ class _FrameMutationRequest(RuntimeRequest):
     in_place: bool
     overwrite: bool
 
-    _validate_source = field_validator("source_sprite_file")(_native_sprite_path)
-    _validate_target = field_validator("target_sprite_file")(_native_sprite_path)
+    _validate_source = field_validator("source_sprite_file")(
+        validate_native_sprite_path
+    )
+    _validate_target = field_validator("target_sprite_file")(
+        validate_native_sprite_path
+    )
 
     @model_validator(mode="after")
     def validate_target_commit_intent(self) -> "_FrameMutationRequest":

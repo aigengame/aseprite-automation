@@ -12,6 +12,7 @@ verification tier. The layout does not mirror source packages or CLI Command Gro
 | `tests/contracts/` | Shared Published Language rules, including Failure Code registration and Operation Descriptor constraints. |
 | `tests/export/` | Image Export contract, PNG Artifact verification and publication, and real Aseprite output evidence. |
 | `tests/frame/` | Frame timing, insertion, Cel copy/link intent, Tag adjustment, and native persistence. |
+| `tests/layer/` | Layer hierarchy, exact addressing, and native addition evidence. |
 | `tests/paint/` | Paint Domain Module contract, bounded mutation evidence, and native Pixel Patch behavior. |
 | `tests/plan/` | Static Plan preflight, single-Sprite Step composition, and commit gates. |
 | `tests/release/` | Release metadata and publication gates. |

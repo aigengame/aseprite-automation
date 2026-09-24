@@ -22,7 +22,11 @@ from spa.frame import (
     validate_frame_get_result,
     validate_frame_sequence,
 )
-from spa.mutation import TargetCommit, source_target_identity_issue
+from spa.mutation import (
+    TargetCommit,
+    source_target_identity_issue,
+    validate_native_sprite_path,
+)
 from spa.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.paint import (
     DIGEST_RESOURCE,
@@ -198,8 +202,8 @@ class PlanDefinition(PublicModel):
                 "Mutating Plan requires one Target Sprite File; read Plan has none"
             )
         for value in (self.source_sprite_file, self.target_sprite_file):
-            if value is not None and Path(value).suffix.lower() != ".aseprite":
-                raise ValueError("Sprite file must use the .aseprite extension")
+            if value is not None:
+                validate_native_sprite_path(value)
         if creates or not mutates:
             if self.in_place:
                 raise ValueError("In-place intent requires an existing Source Sprite")
