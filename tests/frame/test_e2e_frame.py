@@ -88,6 +88,8 @@ def test_add_empty_frame_persists_one_based_position_and_duration(
         },
     )
     assert added["inserted_frame"] == {"frame_number": 1, "duration_ms": 340}
+    assert added["background_fill"] is None
+    assert added["cel_relationships"] == []
     assert added["persisted_reopen_verified"] is True
     assert added["tag_adjustments"] == []
     assert added["sprite"]["frames"] == [
@@ -136,6 +138,10 @@ def test_duplicate_frame_uses_declared_cel_mode_and_persists(
     assert duplicated["source_cel_count"] == 1
     assert duplicated["inserted_cel_count"] == 1
     assert duplicated["cel_relationships_verified"] is True
+    assert duplicated["background_fill"] is None
+    assert duplicated["cel_relationships"] == [
+        {"layer_path": [1], "source_frame_number": 1, "kind": cel_mode}
+    ]
     assert duplicated["persisted_reopen_verified"] is True
     assert _native_link_status(target, tmp_path / "links.json") is (cel_mode == "link")
     assert _run("frame", "list", request={"sprite_file": str(source)})["frames"] == [
@@ -179,6 +185,8 @@ def test_add_background_frame_uses_explicit_color(tmp_path: Path) -> None:
         },
     )
     assert added["inserted_cel_count"] == 1
+    assert added["background_fill"] == color
+    assert added["cel_relationships"] == []
     _run(
         "export",
         "image",
@@ -193,6 +201,28 @@ def test_add_background_frame_uses_explicit_color(tmp_path: Path) -> None:
     )
     with Image.open(png) as image:
         assert image.convert("RGBA").getpixel((0, 0)) == (17, 34, 51, 255)
+    plan_target = tmp_path / "plan.aseprite"
+    plan = _run(
+        "plan",
+        "run",
+        request={
+            "plan": {
+                "source_sprite_file": str(source),
+                "target_sprite_file": str(plan_target),
+                "steps": [
+                    {
+                        "operation": "frame add",
+                        "input": {
+                            "frame_number": 2,
+                            "duration_ms": 100,
+                            "background_color": color,
+                        },
+                    }
+                ],
+            }
+        },
+    )
+    assert plan["steps"][0]["result"]["background_fill"] == color
 
 
 def test_add_reports_native_tag_range_adjustment(tmp_path: Path) -> None:
@@ -268,12 +298,81 @@ def test_plan_frame_steps_match_standalone_semantics(tmp_path: Path) -> None:
         "frame_number": 2,
         "duration_ms": 100,
     }
+    assert result["steps"][3]["result"]["cel_relationships"] == [
+        {"layer_path": [1], "source_frame_number": 1, "kind": "link"}
+    ]
     assert result["steps"][4]["result"]["frame"]["duration_ms"] == 100
     assert _run("frame", "list", request={"sprite_file": str(target)})["frames"] == [
         {"frame_number": 1, "duration_ms": 100},
         {"frame_number": 2, "duration_ms": 100},
         {"frame_number": 3, "duration_ms": 340},
     ]
+
+
+def test_missing_frame_get_has_standalone_and_plan_failure_parity(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source.aseprite"
+    target = tmp_path / "unpublished.aseprite"
+    _run(
+        "sprite",
+        "create",
+        request={
+            "target_sprite_file": str(source),
+            "width": 3,
+            "height": 2,
+            "color_mode": "rgb",
+            "initial_layer": {"kind": "transparent"},
+            "overwrite": False,
+        },
+    )
+    standalone = spa(
+        "frame",
+        "get",
+        "--input-json",
+        json.dumps(
+            {
+                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+                "sprite_file": str(source),
+                "frame_number": 2,
+            }
+        ),
+    )
+    plan = spa(
+        "plan",
+        "run",
+        "--input-json",
+        json.dumps(
+            {
+                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+                "plan": {
+                    "source_sprite_file": str(source),
+                    "target_sprite_file": str(target),
+                    "steps": [
+                        {"operation": "frame get", "input": {"frame_number": 2}},
+                        {
+                            "operation": "frame add",
+                            "input": {"frame_number": 2, "duration_ms": 100},
+                        },
+                    ],
+                },
+            }
+        ),
+    )
+    assert standalone.returncode != 0
+    assert plan.returncode != 0
+    standalone_failure = json.loads(standalone.stdout)
+    plan_failure = json.loads(plan.stdout)
+    assert standalone_failure["code"] == plan_failure["code"] == "invalid_request"
+    assert standalone_failure["details"]["errors"][0]["code"] == "frame_not_found"
+    assert plan_failure["details"]["errors"] == [
+        {
+            "location": ["plan", "steps", 0, "input", "frame_number"],
+            "code": "frame_not_found",
+            "message": "Frame Number is outside the Sprite timeline",
+        }
+    ]
+    assert not target.exists()
 
 
 @pytest.mark.parametrize(
@@ -401,6 +500,7 @@ def test_add_background_frame_accepts_color_compatible_with_sprite_mode(
         },
     )
     assert added["inserted_cel_count"] == 1
+    assert added["background_fill"] == color
     assert added["sprite"]["metadata"]["color_mode"] == mode
 
 
@@ -494,3 +594,8 @@ def test_duplicate_uses_one_inserted_frame_for_multiple_source_cels(
     assert duplicated["sprite"]["metadata"]["frame_count"] == 2
     assert duplicated["source_cel_count"] == 2
     assert duplicated["inserted_cel_count"] == 2
+    assert {tuple(item["layer_path"]) for item in duplicated["cel_relationships"]} == {
+        (1,),
+        (2,),
+    }
+    assert {item["kind"] for item in duplicated["cel_relationships"]} == {cel_mode}

@@ -1,7 +1,7 @@
 """Frame authoring and inspection contracts over Aseprite's timeline."""
 
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field, ValidationError, field_validator, model_validator
 
@@ -114,11 +114,19 @@ class TagRangeAdjustment(PublicModel):
     after_to_frame: int = Field(ge=1)
 
 
+class CelRelationship(PublicModel):
+    layer_path: list[int] = Field(min_length=1)
+    source_frame_number: int = Field(ge=1)
+    kind: Literal["copy", "link"]
+
+
 class FrameMutationEvidence(PublicModel):
     inserted_frame: FrameFacts
     tag_adjustments: list[TagRangeAdjustment]
     source_cel_count: int = Field(ge=0)
     inserted_cel_count: int = Field(ge=0)
+    background_fill: ColorValue | None
+    cel_relationships: list[CelRelationship]
     cel_relationships_verified: Literal[True]
     persisted_reopen_verified: bool
 
@@ -150,6 +158,9 @@ FRAME_MUTATION_REQUIREMENTS = RuntimeRequirements(
     required_capabilities=["aseprite_frame_authoring"],
 )
 FRAME_SUPPORT_RESOURCE = PackagedResource("frame", "frame_support.lua")
+FRAME_GET_HANDLER = PackagedHandler(
+    "frame_get", (SPRITE_INSPECTION_RESOURCE, FRAME_SUPPORT_RESOURCE)
+)
 FRAME_MUTATE_HANDLER = PackagedHandler(
     "frame_mutate",
     (
@@ -208,20 +219,65 @@ def list_frames(
 
 
 def get_frame(request: FrameGetRequest, services: OperationServices) -> FrameGetResult:
-    frames = _read_frames(request, services)
-    if request.frame_number > len(frames):
+    observation = services.probe_runtime(request)
+    invocation = services.invoke_kernel(
+        observation,
+        FRAME_GET_HANDLER,
+        {"sprite_file": request.sprite_file, "frame_number": request.frame_number},
+        request.timeout_seconds,
+    )
+    try:
+        frame = validate_frame_get_result(
+            invocation.payload, request.frame_number, invocation, ["frame_number"]
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise RuntimeIssue(
+            "response_malformed",
+            "Packaged Frame Get handler returned invalid Frame facts",
+            ResponseEvidence(response_path=invocation.response_path),
+            invocation.diagnostics,
+        ) from exc
+    return FrameGetResult(sprite_file=request.sprite_file, frame=frame)
+
+
+def validate_frame_get_result(
+    result: dict[str, Any],
+    frame_number: int,
+    invocation: KernelInvocationResult,
+    location: list[str | int],
+) -> FrameFacts:
+    count = result["frame_count"]
+    if type(count) is not int or count < 1:
+        raise ValueError("Frame Get has invalid Frame count")
+    frames = [FrameFacts.model_validate(value) for value in result["frames"]]
+    validate_frame_sequence(frames, count, invocation)
+    found = result["found"]
+    if type(found) is not bool:
+        raise ValueError("Frame Get has invalid found flag")
+    if not found:
+        if frame_number <= count or result["frame"] is not None:
+            raise ValueError("Frame Get missing target contradicts Frame facts")
         raise RequestIssue(
             [
                 ValidationIssue(
-                    location=["frame_number"],
+                    location=location,
                     code="frame_not_found",
                     message="Frame Number is outside the Sprite timeline",
                 )
             ]
         )
-    return FrameGetResult(
-        sprite_file=request.sprite_file, frame=frames[request.frame_number - 1]
-    )
+    frame = FrameFacts.model_validate(result["frame"])
+    if frame_number > count or frame != frames[frame_number - 1]:
+        raise RuntimeIssue(
+            "postcondition_failed",
+            "Frame Get address differs from Frame facts",
+            PostconditionEvidence(
+                response_path=invocation.response_path,
+                reason="selected Frame differs from Frame inspection",
+            ),
+            invocation.diagnostics,
+        )
+    return frame
 
 
 def validate_frame_evidence(
@@ -244,8 +300,28 @@ def validate_frame_evidence(
         or (isinstance(input, FrameAddInput) and evidence.source_cel_count != 0)
         or (isinstance(input, FrameAddInput) and evidence.inserted_cel_count > 1)
         or (
+            isinstance(input, FrameAddInput)
+            and (
+                evidence.background_fill != input.background_color
+                or evidence.cel_relationships
+                or evidence.inserted_cel_count
+                != (1 if input.background_color is not None else 0)
+            )
+        )
+        or (
             isinstance(input, FrameDuplicateInput)
-            and evidence.source_cel_count != evidence.inserted_cel_count
+            and (
+                evidence.source_cel_count != evidence.inserted_cel_count
+                or evidence.background_fill is not None
+                or len(evidence.cel_relationships) != evidence.inserted_cel_count
+                or len({tuple(item.layer_path) for item in evidence.cel_relationships})
+                != evidence.inserted_cel_count
+                or any(
+                    item.kind != input.cel_mode
+                    or item.source_frame_number != input.source_frame_number
+                    for item in evidence.cel_relationships
+                )
+            )
         )
     ):
         raise RuntimeIssue(
@@ -337,6 +413,11 @@ def _mutate(
             or frames[number - 1] != evidence.inserted_frame
             or sum(cel.frame_number == number for cel in cels)
             != evidence.inserted_cel_count
+            or (
+                isinstance(request, FrameDuplicateRequest)
+                and {tuple(item.layer_path) for item in evidence.cel_relationships}
+                != {tuple(cel.layer_path) for cel in cels if cel.frame_number == number}
+            )
             or any(
                 adjustment.tag_number > len(tags)
                 or tags[adjustment.tag_number - 1].name != adjustment.name

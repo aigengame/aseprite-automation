@@ -65,6 +65,22 @@ local function background_pixel(sprite, value, insert_number)
   error("unsupported Background Color Mode")
 end
 
+local function background_fill_fact(value)
+  if value == nil or value == json_null then return json_null end
+  if value.kind == "rgba" then
+    return {
+      kind = "rgba",
+      red = value.red,
+      green = value.green,
+      blue = value.blue,
+      alpha = value.alpha,
+    }
+  elseif value.kind == "grayscale" then
+    return { kind = "grayscale", gray = value.gray, alpha = value.alpha }
+  end
+  return { kind = "palette-index", index = value.index }
+end
+
 local function tags(sprite)
   local result = {}
   for number, tag in ipairs(sprite.tags) do
@@ -109,8 +125,34 @@ local function source_cels(sprite, number)
   return result
 end
 
+local function layer_path(sprite, layer)
+  local path = {}
+  local current = layer
+  while current ~= sprite do
+    table.insert(path, 1, current.stackIndex)
+    current = current.parent
+  end
+  return path
+end
+
+function module.get_live(sprite, frame_number, inspection)
+  assert(
+    type(frame_number) == "number" and frame_number % 1 == 0 and frame_number >= 1,
+    "Frame Number must be a positive integer"
+  )
+  local facts = inspection.inspect(sprite, { "frames" })
+  local found = frame_number <= #sprite.frames
+  return {
+    found = found,
+    frame = found and facts.frames[frame_number] or json_null,
+    frames = facts.frames,
+    frame_count = facts.metadata.frame_count,
+  }
+end
+
 local function verify_cels(sprite, operation, input, inserted_number, source_count, expected_pixel)
   local inserted = source_cels(sprite, inserted_number)
+  local relationships = {}
   if operation == "add" then
     local background = background_layer(sprite)
     assert(#inserted == (background and 1 or 0), "empty Frame has unexpected Cels")
@@ -141,9 +183,14 @@ local function verify_cels(sprite, operation, input, inserted_number, source_cou
       assert(original.opacity == copied.opacity, "duplicated Cel opacity differs")
       assert(original.zIndex == copied.zIndex, "duplicated Cel z-index differs")
       assert(original.image.bytes == copied.image.bytes, "duplicated Cel pixels differ")
+      relationships[#relationships + 1] = {
+        layer_path = layer_path(sprite, original.layer),
+        source_frame_number = source_number,
+        kind = shared and "link" or "copy",
+      }
     end
   end
-  return #inserted
+  return #inserted, relationships
 end
 
 local function insert(sprite, operation, input)
@@ -192,8 +239,9 @@ local function insert(sprite, operation, input)
     sprite.frames[number].duration = desired / 1000
   end
   assert(#sprite.frames == count + 1, "Frame insertion did not add exactly one Frame")
-  local inserted_count = verify_cels(sprite, operation, input, number, source_count, expected_pixel)
-  return number, source_count, inserted_count, expected_pixel
+  local inserted_count, relationships =
+    verify_cels(sprite, operation, input, number, source_count, expected_pixel)
+  return number, source_count, inserted_count, expected_pixel, relationships
 end
 
 function module.apply_live(sprite, operation, input)
@@ -207,12 +255,16 @@ function module.apply_live(sprite, operation, input)
   local evidence = nil
   local ok, failure = pcall(function()
     app.transaction(operation == "add" and "Add Frame" or "Duplicate Frame", function()
-      local number, source_count, inserted_count, expected_pixel = insert(sprite, operation, input)
+      local number, source_count, inserted_count, expected_pixel, relationships =
+        insert(sprite, operation, input)
       evidence = {
         inserted_frame = { frame_number = number, duration_ms = duration_ms(sprite.frames[number]) },
         tag_adjustments = tag_adjustments(before_tags, tags(sprite)),
         source_cel_count = source_count,
         inserted_cel_count = inserted_count,
+        background_fill = operation == "add" and background_fill_fact(input.background_color)
+          or json_null,
+        cel_relationships = relationships,
         cel_relationships_verified = true,
         persisted_reopen_verified = false,
         sprite = json_null,
@@ -250,7 +302,7 @@ function module.execute(payload, inspection, digest, persistence)
     local after = persistence.snapshot(open_sprite, inspection, digest, all_sections)
     persistence.assert_same(before, after, "Frame")
     local expected_pixel = evidence._expected_pixel
-    local verified_count = verify_cels(
+    local verified_count, verified_relationships = verify_cels(
       open_sprite,
       payload.operation,
       input,
@@ -259,6 +311,10 @@ function module.execute(payload, inspection, digest, persistence)
       expected_pixel
     )
     assert(verified_count == evidence.inserted_cel_count, "persisted Cel count differs")
+    assert(
+      #verified_relationships == #evidence.cel_relationships,
+      "persisted Cel relationships differ"
+    )
     assert(
       duration_ms(open_sprite.frames[evidence.inserted_frame.frame_number])
         == evidence.inserted_frame.duration_ms,

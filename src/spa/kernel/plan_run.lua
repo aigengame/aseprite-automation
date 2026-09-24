@@ -106,14 +106,7 @@ local function execute_step(step)
     return { frames = facts.frames, frame_count = facts.metadata.frame_count }
   end
   if step.operation == "frame get" then
-    local number = input.frame_number
-    assert(number >= 1 and number <= #open_sprite.frames, "Frame Number is out of range")
-    local facts = inspection.inspect(open_sprite, { "frames" })
-    return {
-      frame = facts.frames[number],
-      frames = facts.frames,
-      frame_count = facts.metadata.frame_count,
-    }
+    return frame.get_live(open_sprite, input.frame_number, inspection)
   end
   if step.operation == "frame add" or step.operation == "frame duplicate" then
     local evidence =
@@ -144,6 +137,11 @@ local function execute()
     failed_step = index
     failed_operation = step.operation
     local result = execute_step(step)
+    if step.operation == "frame get" and not result.found then
+      open_sprite:close()
+      open_sprite = nil
+      return { frame_get_rejection = { step_number = index, result = result } }
+    end
     outcomes[#outcomes + 1] = { operation = step.operation, result = result }
     failed_step = nil
     failed_operation = nil

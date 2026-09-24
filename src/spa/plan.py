@@ -19,6 +19,7 @@ from spa.frame import (
     FrameDuplicateInput,
     FrameMutationEvidence,
     validate_frame_evidence,
+    validate_frame_get_result,
     validate_frame_sequence,
 )
 from spa.mutation import TargetCommit, source_target_identity_issue
@@ -507,26 +508,12 @@ def _validated_steps(
                     operation="frame list", result=FrameListStepResult(frames=frames)
                 )
             elif isinstance(step, FrameGetStep):
-                result = item["result"]
-                count = result["frame_count"]
-                if type(count) is not int or count < 1:
-                    raise ValueError("Frame Get has invalid Frame count")
-                frames = [
-                    FrameFacts.model_validate(value) for value in result["frames"]
-                ]
-                validate_frame_sequence(frames, count, invocation)
-                frame = FrameFacts.model_validate(result["frame"])
-                if (
-                    frame.frame_number != step.input.frame_number
-                    or step.input.frame_number > count
-                    or frame != frames[step.input.frame_number - 1]
-                ):
-                    raise _postcondition(
-                        invocation,
-                        "Frame Get address differs",
-                        failed_step=index,
-                        failed_operation=step.operation,
-                    )
+                frame = validate_frame_get_result(
+                    item["result"],
+                    step.input.frame_number,
+                    invocation,
+                    ["plan", "steps", index - 1, "input", "frame_number"],
+                )
                 outcome = FrameGetStepOutcome(
                     operation="frame get", result=FrameGetStepResult(frame=frame)
                 )
@@ -578,6 +565,49 @@ def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunRes
         invocation = services.invoke_kernel_direct(
             request, PLAN_RUN_HANDLER, payload, request.timeout_seconds
         )
+        rejection = invocation.payload.get("frame_get_rejection")
+        if rejection is not None:
+            index = (
+                rejection.get("step_number") if isinstance(rejection, dict) else None
+            )
+            if (
+                type(index) is not int
+                or index < 1
+                or index > len(plan.steps)
+                or not isinstance(plan.steps[index - 1], FrameGetStep)
+            ):
+                raise _malformed(
+                    invocation, "Plan Kernel returned invalid Frame rejection"
+                )
+            step = plan.steps[index - 1]
+            assert isinstance(step, FrameGetStep)
+            try:
+                validate_frame_get_result(
+                    rejection["result"],
+                    step.input.frame_number,
+                    invocation,
+                    ["plan", "steps", index - 1, "input", "frame_number"],
+                )
+            except (KeyError, TypeError, ValueError) as exc:
+                raise _malformed(
+                    invocation,
+                    "Plan Kernel returned invalid Frame rejection",
+                    failed_step=index,
+                    failed_operation="frame get",
+                ) from exc
+            except RuntimeIssue as exc:
+                raise _postcondition(
+                    invocation,
+                    str(exc),
+                    failed_step=index,
+                    failed_operation="frame get",
+                ) from exc
+            raise _malformed(
+                invocation,
+                "Plan Kernel rejected an existing Frame",
+                failed_step=index,
+                failed_operation="frame get",
+            )
         try:
             final_sprite = SpriteInspection.model_validate(
                 invocation.payload["final_sprite"]
