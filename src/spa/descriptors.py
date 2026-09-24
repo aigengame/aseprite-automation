@@ -11,6 +11,7 @@ from spa.contracts import (
     VersionResult,
     failure_schema,
 )
+from spa.cel import CEL_OPERATIONS
 from spa.export import EXPORT_OPERATIONS, EXPORT_PROBE_RESOURCES
 from spa.failure_registry import FAILURE_CODES
 from spa.frame import FRAME_OPERATIONS, FRAME_SUPPORT_RESOURCE
@@ -178,6 +179,7 @@ OPERATIONS = (
     *LAYER_OPERATIONS,
     *PAINT_OPERATIONS,
     *FRAME_OPERATIONS,
+    *CEL_OPERATIONS,
     *TAG_OPERATIONS,
     *EXPORT_OPERATIONS,
     *PLAN_OPERATIONS,
