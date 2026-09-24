@@ -235,11 +235,12 @@ def _mutate(
                 and evidence.cel.layer_path != addressed.layer.layer_path
             )
             or evidence.cel.frame_number != addressed.frame_number
-            or set(before_keys) != set(affected_keys)
+            or not set(affected_keys).issubset(before_keys)
             or actual_count != expected_count
             or (operation in ("copy", "link") and prior[target_key].exists)
             or (operation in ("set", "unlink") and not prior[target_key].exists)
             or (operation == "copy" and evidence.cel.linked_cels)
+            or (operation == "copy" and set(affected_keys) != {target_key})
             or (operation == "unlink" and evidence.cel.linked_cels)
             or (
                 operation == "link"

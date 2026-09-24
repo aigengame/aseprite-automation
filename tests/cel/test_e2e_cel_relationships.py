@@ -240,6 +240,48 @@ def test_copy_remains_independent_after_source_paint(tmp_path: Path) -> None:
     assert _render_pixel(painted, 3, tmp_path / "copy.png") == (30, 40, 50, 210)
 
 
+def test_copy_from_linked_source_reports_only_changed_destination(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source.aseprite"
+    linked = tmp_path / "linked.aseprite"
+    copied = tmp_path / "copied.aseprite"
+    _fixture(source, "relationships.lua")
+    first = {"layer": {"layer_path": [1]}, "frame_number": 1}
+    fourth = {"layer": {"layer_path": [1]}, "frame_number": 4}
+    destination = {"layer": {"layer_path": [2]}, "frame_number": 3}
+    common = {"in_place": False, "overwrite": False}
+    code, result = _run(
+        "link",
+        {
+            **common,
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(linked),
+            "source": first,
+            "destination": fourth,
+        },
+    )
+    assert code == 0, result
+    code, result = _run(
+        "copy",
+        {
+            **common,
+            "source_sprite_file": str(linked),
+            "target_sprite_file": str(copied),
+            "source": first,
+            "destination": destination,
+        },
+    )
+    assert code == 0, result
+    assert [cel["frame_number"] for cel in result["before_cels"]] == [1, 3, 4]
+    assert [
+        (cel["layer_path"], cel["frame_number"]) for cel in result["affected_cels"]
+    ] == [([2], 3)]
+    code, peer = _run("get", {"sprite_file": str(copied), "target": fourth})
+    assert code == 0, peer
+    assert peer["cel"]["linked_cels"] == [{"layer_path": [1], "frame_number": 1}]
+
+
 def test_set_reports_full_linked_scope_and_preserves_native_link(
     tmp_path: Path,
 ) -> None:
@@ -283,6 +325,24 @@ def test_set_reports_full_linked_scope_and_preserves_native_link(
     code, peer = _run("get", {"sprite_file": str(updated), "target": fourth})
     assert code == 0, peer
     assert peer["cel"]["linked_cels"] == [{"layer_path": [1], "frame_number": 1}]
+
+    reordered = tmp_path / "reordered.aseprite"
+    code, result = _run(
+        "set",
+        {
+            "source_sprite_file": str(updated),
+            "target_sprite_file": str(reordered),
+            "in_place": False,
+            "overwrite": False,
+            "target": first,
+            "z_index": 6,
+        },
+    )
+    assert code == 0, result
+    assert [cel["frame_number"] for cel in result["affected_cels"]] == [1]
+    code, peer = _run("get", {"sprite_file": str(reordered), "target": fourth})
+    assert code == 0, peer
+    assert peer["cel"]["z_index"] == 2
 
 
 def test_link_to_earlier_absent_frame_preserves_timeline(tmp_path: Path) -> None:

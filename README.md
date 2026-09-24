@@ -4,7 +4,7 @@ Aseprite Automation (SPA) provides agent-facing automation for Aseprite. `SPA` i
 short project name used in documentation; `spa` is the primary executable.
 
 > [!IMPORTANT]
-> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery, Sprite creation, inspection, copy, flatten, and validation, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection and lifecycle, Tag inspection and authoring, bounded Pixel Patch application, and verified RGB PNG Image Export. Feature issues own delivery contracts, evidence requirements, provenance links, curated evidence summaries, and status, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
+> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery, Sprite creation, inspection, copy, flatten, and validation, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Tag inspection and authoring, bounded Pixel Patch application, and verified RGB PNG Image Export. Feature issues own delivery contracts, evidence requirements, provenance links, curated evidence summaries, and status, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
 
 This README owns the user-facing product introduction and promotion, value-proposition
 narrative, onboarding, adoption guidance, and project navigation. Its factual claims
@@ -229,6 +229,12 @@ Background Layer it requires an explicit compatible `background_color` and fills
 the Cel with that color. Clearing a shared Image preserves native links and reports
 every affected Cel in `affected_cels`. `cel remove` makes a regular Transparent Cel
 absent and rejects Background Cels. Mutations verify the staged Sprite after reopening it.
+`cel set` changes position, opacity, or z-index without replacing pixels. `cel copy`
+creates an independent Image at an absent destination; `cel link` shares the Image
+and position with an absent Frame on the same Layer. `cel unlink` makes one Linked
+Cel independent while retaining its pixels. `before_cels` records the validated
+input scope; `affected_cels` reports the Cel targets of the
+mutation after reopening the staged Sprite.
 Paint requires an existing Cel and Image and reports `cel_not_found` when absent.
 Tilemap Cel inspection reports existence and Canvas Pixel position with
 `image_bounds: null`; Tile Cell geometry belongs to Tilemap inspection.

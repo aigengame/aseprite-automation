@@ -13,22 +13,13 @@ local function reject(code, message, role)
   return { rejection = { code = code, message = message, role = role } }
 end
 
-local function regular(layer)
-  return layer.isImage
-    and layer.isTransparent
-    and not layer.isGroup
-    and not layer.isReference
-    and not layer.isTilemap
-    and not layer.isBackground
-end
-
 local function resolve(sprite, address, uuids, role)
   local layer, path, refused = cel.resolve(sprite, address, selection, uuids)
   if refused then
     refused.rejection.role = role
     return nil, nil, refused
   end
-  if not regular(layer) then
+  if not cel.is_regular_transparent(layer) then
     return nil,
       nil,
       reject("cel_unsupported_target", "Operation requires a regular Transparent Layer", role)
@@ -39,23 +30,9 @@ end
 local function key(state)
   local parts = {}
   for _, index in ipairs(state.layer_path) do
-    parts[#parts + 1] = tostring(index)
+    parts[#parts + 1] = tostring(assert(math.tointeger(index)))
   end
-  return table.concat(parts, "/") .. ":" .. state.frame_number
-end
-
-local function sort_states(states)
-  table.sort(states, function(left, right)
-    if left.frame_number ~= right.frame_number then
-      return left.frame_number < right.frame_number
-    end
-    for index = 1, math.min(#left.layer_path, #right.layer_path) do
-      if left.layer_path[index] ~= right.layer_path[index] then
-        return left.layer_path[index] < right.layer_path[index]
-      end
-    end
-    return #left.layer_path < #right.layer_path
-  end)
+  return table.concat(parts, "/") .. ":" .. tostring(assert(math.tointeger(state.frame_number)))
 end
 
 local function affected_before(sprite, layer, path, number)
@@ -65,7 +42,7 @@ local function affected_before(sprite, layer, path, number)
   for _, state in ipairs(group) do
     local selected = selection.resolve(sprite, { layer_path = state.layer_path }, {})
     assert(selected ~= nil, "linked Cel Layer disappeared")
-    if not regular(selected.layer) then
+    if not cel.is_regular_transparent(selected.layer) then
       return nil, reject("cel_unsupported_target", "Linked Cel includes an unsupported Layer")
     end
   end
@@ -130,7 +107,7 @@ local function execute()
   if dest_layer then
     before[#before + 1] = cel.inspect(open_sprite, dest_layer, dest_path, destination_number)
   end
-  sort_states(before)
+  cel.sort_states(before)
   local original_count = #open_sprite.cels
   local source_image_digest = digest.fnv1a64(source_cel.image.bytes)
   app.transaction(operation .. " Cel", function()
@@ -169,17 +146,25 @@ local function execute()
   assert(#open_sprite.cels == expected_count, "Cel operation changed unexpected Cel count")
   local affected = {}
   local seen = {}
+  local target_id = key(after)
   for _, state in ipairs(before) do
     local id = key(state)
     if not seen[id] then
-      local current_layer =
-        assert(selection.resolve(open_sprite, { layer_path = state.layer_path }, {})).layer
-      affected[#affected + 1] =
-        cel.inspect(open_sprite, current_layer, state.layer_path, state.frame_number)
+      local include = id == target_id
+        or operation == "link"
+        or operation == "unlink"
+        or (operation == "set" and (payload.changes.position or payload.changes.opacity))
+      if include then
+        local current_layer =
+          assert(selection.resolve(open_sprite, { layer_path = state.layer_path }, {})).layer
+        affected[#affected + 1] =
+          cel.inspect(open_sprite, current_layer, state.layer_path, state.frame_number)
+      end
       seen[id] = true
     end
   end
   assert(after.exists, "target Cel is absent")
+  assert(#affected > 0, "Cel operation lost affected target")
   if operation == "link" then
     assert(selected.image == layer:cel(number).image, "Cel link did not share Image")
   elseif operation == "unlink" then
@@ -190,7 +175,7 @@ local function execute()
   else
     assert(digest.fnv1a64(selected.image.bytes) == source_image_digest, "Cel set changed pixels")
   end
-  sort_states(affected)
+  cel.sort_states(affected)
   local live = persistence.snapshot(open_sprite, inspection, digest, all_sections, uuids)
   assert(open_sprite:saveAs(payload.staged_sprite_file), "could not save staged Sprite")
   open_sprite:close()
