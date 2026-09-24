@@ -28,6 +28,7 @@ from spa.ports import (
     RequestIssue,
     ResponseEvidence,
     RuntimeIssue,
+    TargetCommitEvidence,
 )
 from spa.sprite import (
     LayerFacts,
@@ -35,6 +36,7 @@ from spa.sprite import (
     SpriteGetResult,
     SpriteInspection,
     get_sprite,
+    validated_scope,
 )
 
 OneBasedIndex = Annotated[int, Field(ge=1)]
@@ -94,8 +96,21 @@ LAYER_FAILURE_CODE_SPECS = (
         "input",
         LayerTargetDetails,
     ),
+    FailureCodeSpec(
+        "layer_unsupported_target",
+        "The selected Layer does not support the requested mutation",
+        "input",
+        LayerTargetDetails,
+    ),
+    FailureCodeSpec(
+        "layer_invalid_position",
+        "The requested position is invalid for the selected Layer's parent",
+        "input",
+        LayerTargetDetails,
+    ),
 )
 LAYER_TARGET_FAILURE_CODES = tuple(spec.code for spec in LAYER_FAILURE_CODE_SPECS)
+LAYER_ADDRESS_FAILURE_CODES = LAYER_TARGET_FAILURE_CODES[:4]
 
 
 class LayerListRequest(RuntimeRequest):
@@ -130,6 +145,81 @@ class LayerAddRequest(RuntimeRequest):
         return self
 
 
+BlendModeName = Literal[
+    "normal",
+    "multiply",
+    "screen",
+    "overlay",
+    "darken",
+    "lighten",
+    "color_dodge",
+    "color_burn",
+    "hard_light",
+    "soft_light",
+    "difference",
+    "exclusion",
+    "hsl_hue",
+    "hsl_saturation",
+    "hsl_color",
+    "hsl_luminosity",
+    "addition",
+    "subtract",
+    "divide",
+]
+
+
+class LayerSetProperties(PublicModel):
+    name: str | None = Field(default=None, min_length=1)
+    is_visible: bool | None = None
+    is_editable: bool | None = None
+    opacity: int | None = Field(default=None, ge=0, le=255, strict=True)
+    blend_mode: BlendModeName | None = None
+
+    @model_validator(mode="after")
+    def require_patch(self) -> "LayerSetProperties":
+        if not self.model_fields_set:
+            raise ValueError("Set requires at least one Layer property")
+        if any(getattr(self, field) is None for field in self.model_fields_set):
+            raise ValueError("Set properties cannot be null")
+        return self
+
+
+class _LayerMutationRequest(RuntimeRequest):
+    source_sprite_file: str = Field(min_length=1)
+    target_sprite_file: str = Field(min_length=1)
+    in_place: bool
+    overwrite: bool
+    target: LayerAddress
+
+    _validate_source = field_validator("source_sprite_file")(
+        validate_native_sprite_path
+    )
+    _validate_target = field_validator("target_sprite_file")(
+        validate_native_sprite_path
+    )
+
+    @model_validator(mode="after")
+    def validate_commit_intent(self) -> "_LayerMutationRequest":
+        require_overwrite_for_in_place(self.in_place, self.overwrite)
+        return self
+
+
+class LayerSetRequest(_LayerMutationRequest):
+    properties: LayerSetProperties
+
+
+class LayerMoveRequest(_LayerMutationRequest):
+    stack_index: int = Field(ge=1, strict=True)
+
+
+class LayerRemoveRequest(_LayerMutationRequest):
+    pass
+
+
+class LayerMergeRequest(_LayerMutationRequest):
+    pass
+
+
 class LayerListResult(PublicModel):
     status: Literal["success"] = "success"
     operation: Literal["spa layer list"] = "spa layer list"
@@ -155,18 +245,87 @@ class LayerAddResult(PublicModel):
     layer: LayerFacts
 
 
+class LayerAffectedCel(PublicModel):
+    layer_path: list[OneBasedIndex] = Field(min_length=1)
+    frame_number: int = Field(ge=1, strict=True)
+
+
+class LayerAffectedSet(PublicModel):
+    layer_paths: list[list[OneBasedIndex]]
+    cels: list[LayerAffectedCel]
+
+
+class LayerRenderedFrame(PublicModel):
+    frame_number: int = Field(ge=1, strict=True)
+    before_digest: str = Field(pattern=r"^[0-9a-f]{16}$")
+    after_digest: str = Field(pattern=r"^[0-9a-f]{16}$")
+
+
+class LayerMutationEvidence(PublicModel):
+    before: SpriteInspection
+    after: SpriteInspection
+    affected_before: LayerAffectedSet
+    affected_after: LayerAffectedSet
+    rendered_frames: list[LayerRenderedFrame]
+    persisted_reopen_verified: bool
+
+
+class _LayerMutationResult(LayerMutationEvidence):
+    status: Literal["success"] = "success"
+    persisted_reopen_verified: Literal[True]
+    target_commit: TargetCommit
+
+
+class LayerSetResult(_LayerMutationResult):
+    operation: Literal["spa layer set"] = "spa layer set"
+
+
+class LayerMoveResult(_LayerMutationResult):
+    operation: Literal["spa layer move"] = "spa layer move"
+
+
+class LayerRemoveResult(_LayerMutationResult):
+    operation: Literal["spa layer remove"] = "spa layer remove"
+
+
+class LayerMergeResult(_LayerMutationResult):
+    operation: Literal["spa layer merge"] = "spa layer merge"
+
+
 LAYER_REQUIREMENTS = RuntimeRequirements(
     lua_language="Lua 5.4",
     minimum_api_version=41,
     required_capabilities=["aseprite_layer_hierarchy"],
 )
+LAYER_MUTATION_REQUIREMENTS = RuntimeRequirements(
+    lua_language="Lua 5.4",
+    minimum_api_version=41,
+    required_capabilities=["aseprite_layer_hierarchy", "aseprite_layer_mutation"],
+)
+LAYER_MERGE_REQUIREMENTS = RuntimeRequirements(
+    lua_language="Lua 5.4",
+    minimum_api_version=41,
+    required_capabilities=["aseprite_layer_hierarchy", "aseprite_layer_merge"],
+)
 LAYER_GET_FAILURE_CODES = (
     *RUNTIME_FAILURE_CODES,
-    *(code for code in LAYER_TARGET_FAILURE_CODES if code != "layer_parent_not_group"),
+    *LAYER_ADDRESS_FAILURE_CODES,
 )
 LAYER_ADD_FAILURE_CODES = (
     *RUNTIME_FAILURE_CODES,
-    *LAYER_TARGET_FAILURE_CODES,
+    *LAYER_ADDRESS_FAILURE_CODES,
+    "layer_parent_not_group",
+    "target_commit_failed",
+)
+LAYER_MUTATION_FAILURE_CODES = (
+    *RUNTIME_FAILURE_CODES,
+    *LAYER_ADDRESS_FAILURE_CODES,
+    "layer_unsupported_target",
+    "target_commit_failed",
+)
+LAYER_MOVE_FAILURE_CODES = (
+    *LAYER_MUTATION_FAILURE_CODES[:-1],
+    "layer_invalid_position",
     "target_commit_failed",
 )
 LAYER_INSPECTION_RESOURCE = PackagedResource("inspection", "sprite_inspect.lua")
@@ -176,6 +335,16 @@ LAYER_GET_HANDLER = PackagedHandler(
 )
 LAYER_ADD_HANDLER = PackagedHandler(
     "layer_add", (LAYER_INSPECTION_RESOURCE, LAYER_SELECT_RESOURCE)
+)
+LAYER_MUTATE_HANDLER = PackagedHandler(
+    "layer_mutate",
+    (
+        LAYER_INSPECTION_RESOURCE,
+        LAYER_SELECT_RESOURCE,
+        PackagedResource("layer_mutation", "layer_mutation_support.lua"),
+        PackagedResource("digest", "digest.lua"),
+        PackagedResource("persistence", "sprite_persistence.lua"),
+    ),
 )
 
 
@@ -427,6 +596,234 @@ def add_layer(request: LayerAddRequest, services: OperationServices) -> LayerAdd
         services.target_files.discard(staged)
 
 
+def _mutation_evidence(invocation: KernelInvocationResult) -> LayerMutationEvidence:
+    try:
+        return LayerMutationEvidence.model_validate(
+            {
+                field: invocation.payload[field]
+                for field in LayerMutationEvidence.model_fields
+            }
+        )
+    except (KeyError, TypeError, ValidationError) as exc:
+        raise RuntimeIssue(
+            "response_malformed",
+            "Packaged Layer handler returned invalid mutation evidence",
+            ResponseEvidence(response_path=invocation.response_path),
+            invocation.diagnostics,
+        ) from exc
+
+
+def _validate_affected_set(
+    affected: LayerAffectedSet,
+    inspection: SpriteInspection,
+    invocation: KernelInvocationResult,
+    phase: str,
+) -> None:
+    assert inspection.layers is not None and inspection.cels is not None
+    paths = {tuple(layer.path) for layer in _walk(inspection.layers)}
+    cel_addresses = {
+        (tuple(cel.layer_path), cel.frame_number) for cel in inspection.cels
+    }
+    affected_paths = [tuple(path) for path in affected.layer_paths]
+    affected_cels = [(tuple(cel.layer_path), cel.frame_number) for cel in affected.cels]
+    if (
+        len(set(affected_paths)) != len(affected_paths)
+        or len(set(affected_cels)) != len(affected_cels)
+        or any(path not in paths for path in affected_paths)
+        or any(address not in cel_addresses for address in affected_cels)
+        or any(address[0] not in affected_paths for address in affected_cels)
+    ):
+        raise RuntimeIssue(
+            "postcondition_failed",
+            f"Layer {phase} affected set disagrees with Sprite inspection",
+            PostconditionEvidence(
+                response_path=invocation.response_path,
+                reason=f"{phase} affected Layer or Cel address mismatch",
+            ),
+            invocation.diagnostics,
+        )
+
+
+def _validate_mutation_evidence(
+    request: _LayerMutationRequest,
+    evidence: LayerMutationEvidence,
+    invocation: KernelInvocationResult,
+) -> None:
+    if not evidence.persisted_reopen_verified:
+        raise RuntimeIssue(
+            "postcondition_failed",
+            "Layer mutation lacks persisted Sprite evidence",
+            PostconditionEvidence(
+                response_path=invocation.response_path,
+                reason="persisted Sprite verification is absent",
+            ),
+            invocation.diagnostics,
+        )
+    for inspection in (evidence.before, evidence.after):
+        validated_scope(
+            SpriteGetRequest(
+                sprite_file=request.source_sprite_file,
+                inspection_scope=["layers", "cels"],
+            ),
+            inspection,
+            invocation,
+        )
+    before = evidence.before.metadata
+    after = evidence.after.metadata
+    assert evidence.before.layers is not None
+    before_layers = _walk(evidence.before.layers)
+    address = request.target
+    addressed_layers = [
+        layer
+        for layer in before_layers
+        if (
+            (address.layer_path is not None and layer.path == address.layer_path)
+            or (
+                address.layer_uuid is not None
+                and layer.layer_uuid == address.layer_uuid
+            )
+            or (address.layer_name is not None and layer.name == address.layer_name)
+        )
+    ]
+    no_reported_change = not evidence.affected_before.layer_paths
+    changed_facts_without_impact = no_reported_change and (
+        evidence.before.layers != evidence.after.layers
+        or evidence.before.cels != evidence.after.cels
+        or any(
+            frame.before_digest != frame.after_digest
+            for frame in evidence.rendered_frames
+        )
+    )
+    if (
+        before.width != after.width
+        or before.height != after.height
+        or before.color_mode != after.color_mode
+        or before.frame_count != after.frame_count
+        or before.tag_count != after.tag_count
+        or before.tileset_count != after.tileset_count
+        or [frame.frame_number for frame in evidence.rendered_frames]
+        != list(range(1, before.frame_count + 1))
+        or len(addressed_layers) != 1
+        or changed_facts_without_impact
+        or (
+            not no_reported_change
+            and addressed_layers[0].path not in evidence.affected_before.layer_paths
+        )
+    ):
+        raise RuntimeIssue(
+            "postcondition_failed",
+            "Layer mutation evidence omits or changes unrelated Sprite facts",
+            PostconditionEvidence(
+                response_path=invocation.response_path,
+                reason="Sprite identity, frame digests, or affected target mismatch",
+            ),
+            invocation.diagnostics,
+        )
+    _validate_affected_set(
+        evidence.affected_before, evidence.before, invocation, "before"
+    )
+    _validate_affected_set(evidence.affected_after, evidence.after, invocation, "after")
+
+
+def _mutate_layer(
+    request: LayerSetRequest
+    | LayerMoveRequest
+    | LayerRemoveRequest
+    | LayerMergeRequest,
+    services: OperationServices,
+    operation: Literal["set", "move", "remove", "merge"],
+) -> LayerSetResult | LayerMoveResult | LayerRemoveResult | LayerMergeResult:
+    target_file = Path(request.target_sprite_file)
+    source_file = Path(request.source_sprite_file)
+    identity_issue = source_target_identity_issue(
+        services.target_files, source_file, target_file, request.in_place
+    )
+    if identity_issue is not None:
+        raise RequestIssue([identity_issue])
+    observation = services.probe_runtime(request)
+    staged_file = services.target_files.staged_path(target_file)
+    payload: dict[str, object] = {
+        "operation": operation,
+        "source_sprite_file": request.source_sprite_file,
+        "staged_sprite_file": str(staged_file),
+        "target": request.target.model_dump(mode="json", exclude_none=True),
+    }
+    if isinstance(request, LayerSetRequest):
+        payload["properties"] = request.properties.model_dump(
+            mode="json", exclude_unset=True
+        )
+    if isinstance(request, LayerMoveRequest):
+        payload["stack_index"] = request.stack_index
+    try:
+        invocation = services.invoke_kernel(
+            observation, LAYER_MUTATE_HANDLER, payload, request.timeout_seconds
+        )
+        _reject_target(invocation, "target", request.target)
+        evidence = _mutation_evidence(invocation)
+        _validate_mutation_evidence(request, evidence, invocation)
+        identity_issue = source_target_identity_issue(
+            services.target_files, source_file, target_file, request.in_place
+        )
+        if identity_issue is not None:
+            raise RuntimeIssue(
+                "target_commit_failed",
+                "Source/Target publication identity changed before Target Commit",
+                TargetCommitEvidence(
+                    str(target_file), "source_target_identity_changed"
+                ),
+            )
+        committed = services.target_files.commit(
+            staged_file, target_file, overwrite=request.overwrite
+        )
+        fields = {
+            **evidence.model_dump(mode="json"),
+            "target_commit": TargetCommit(
+                target_sprite_file=committed.target_sprite_file,
+                byte_size=committed.byte_size,
+                sha256=committed.sha256,
+            ),
+        }
+        result_types = {
+            "set": LayerSetResult,
+            "move": LayerMoveResult,
+            "remove": LayerRemoveResult,
+            "merge": LayerMergeResult,
+        }
+        return result_types[operation].model_validate(fields)
+    finally:
+        services.target_files.discard(staged_file)
+
+
+def set_layer(request: LayerSetRequest, services: OperationServices) -> LayerSetResult:
+    result = _mutate_layer(request, services, "set")
+    assert isinstance(result, LayerSetResult)
+    return result
+
+
+def move_layer(
+    request: LayerMoveRequest, services: OperationServices
+) -> LayerMoveResult:
+    result = _mutate_layer(request, services, "move")
+    assert isinstance(result, LayerMoveResult)
+    return result
+
+
+def remove_layer(
+    request: LayerRemoveRequest, services: OperationServices
+) -> LayerRemoveResult:
+    result = _mutate_layer(request, services, "remove")
+    assert isinstance(result, LayerRemoveResult)
+    return result
+
+
+def merge_layer(
+    request: LayerMergeRequest, services: OperationServices
+) -> LayerMergeResult:
+    result = _mutate_layer(request, services, "merge")
+    assert isinstance(result, LayerMergeResult)
+    return result
+
+
 LAYER_OPERATIONS = (
     OperationDescriptor(
         "layer list",
@@ -458,6 +855,50 @@ LAYER_OPERATIONS = (
         ),
         LAYER_REQUIREMENTS,
         LAYER_ADD_FAILURE_CODES,
+        execution_kind="mutation",
+        side_effects=("publishes the declared Target Sprite File",),
+    ),
+    OperationDescriptor(
+        "layer set",
+        LayerSetRequest,
+        LayerSetResult,
+        set_layer,
+        lambda result: result.target_commit.target_sprite_file,
+        LAYER_MUTATION_REQUIREMENTS,
+        LAYER_MUTATION_FAILURE_CODES,
+        execution_kind="mutation",
+        side_effects=("publishes the declared Target Sprite File",),
+    ),
+    OperationDescriptor(
+        "layer move",
+        LayerMoveRequest,
+        LayerMoveResult,
+        move_layer,
+        lambda result: result.target_commit.target_sprite_file,
+        LAYER_MUTATION_REQUIREMENTS,
+        LAYER_MOVE_FAILURE_CODES,
+        execution_kind="mutation",
+        side_effects=("publishes the declared Target Sprite File",),
+    ),
+    OperationDescriptor(
+        "layer remove",
+        LayerRemoveRequest,
+        LayerRemoveResult,
+        remove_layer,
+        lambda result: result.target_commit.target_sprite_file,
+        LAYER_MUTATION_REQUIREMENTS,
+        LAYER_MUTATION_FAILURE_CODES,
+        execution_kind="mutation",
+        side_effects=("publishes the declared Target Sprite File",),
+    ),
+    OperationDescriptor(
+        "layer merge",
+        LayerMergeRequest,
+        LayerMergeResult,
+        merge_layer,
+        lambda result: result.target_commit.target_sprite_file,
+        LAYER_MERGE_REQUIREMENTS,
+        LAYER_MUTATION_FAILURE_CODES,
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
     ),

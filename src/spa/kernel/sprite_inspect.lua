@@ -26,32 +26,40 @@ local function color_mode(value)
   error("unsupported Sprite Color Mode")
 end
 
+local blend_modes = {
+  { BlendMode.NORMAL, "normal" },
+  { BlendMode.MULTIPLY, "multiply" },
+  { BlendMode.SCREEN, "screen" },
+  { BlendMode.OVERLAY, "overlay" },
+  { BlendMode.DARKEN, "darken" },
+  { BlendMode.LIGHTEN, "lighten" },
+  { BlendMode.COLOR_DODGE, "color_dodge" },
+  { BlendMode.COLOR_BURN, "color_burn" },
+  { BlendMode.HARD_LIGHT, "hard_light" },
+  { BlendMode.SOFT_LIGHT, "soft_light" },
+  { BlendMode.DIFFERENCE, "difference" },
+  { BlendMode.EXCLUSION, "exclusion" },
+  { BlendMode.HSL_HUE, "hsl_hue" },
+  { BlendMode.HSL_SATURATION, "hsl_saturation" },
+  { BlendMode.HSL_COLOR, "hsl_color" },
+  { BlendMode.HSL_LUMINOSITY, "hsl_luminosity" },
+  { BlendMode.ADDITION, "addition" },
+  { BlendMode.SUBTRACT, "subtract" },
+  { BlendMode.DIVIDE, "divide" },
+}
+
 local function blend_mode(value)
-  local modes = {
-    { BlendMode.NORMAL, "normal" },
-    { BlendMode.MULTIPLY, "multiply" },
-    { BlendMode.SCREEN, "screen" },
-    { BlendMode.OVERLAY, "overlay" },
-    { BlendMode.DARKEN, "darken" },
-    { BlendMode.LIGHTEN, "lighten" },
-    { BlendMode.COLOR_DODGE, "color_dodge" },
-    { BlendMode.COLOR_BURN, "color_burn" },
-    { BlendMode.HARD_LIGHT, "hard_light" },
-    { BlendMode.SOFT_LIGHT, "soft_light" },
-    { BlendMode.DIFFERENCE, "difference" },
-    { BlendMode.EXCLUSION, "exclusion" },
-    { BlendMode.HSL_HUE, "hsl_hue" },
-    { BlendMode.HSL_SATURATION, "hsl_saturation" },
-    { BlendMode.HSL_COLOR, "hsl_color" },
-    { BlendMode.HSL_LUMINOSITY, "hsl_luminosity" },
-    { BlendMode.ADDITION, "addition" },
-    { BlendMode.SUBTRACT, "subtract" },
-    { BlendMode.DIVIDE, "divide" },
-  }
-  for _, item in ipairs(modes) do
+  for _, item in ipairs(blend_modes) do
     if value == item[1] then return item[2] end
   end
   return "unknown_" .. tostring(value)
+end
+
+function module.blend_mode_constant(name)
+  for _, item in ipairs(blend_modes) do
+    if name == item[2] then return item[1] end
+  end
+  return nil
 end
 
 local function tag_direction(value)
