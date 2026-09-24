@@ -57,6 +57,10 @@ for name in (
     "frame_mutate.lua",
     "frame_get.lua",
     "frame_support.lua",
+    "tag_mutate.lua",
+    "tag_support.lua",
+    "tag_select.lua",
+    "tag_get.lua",
     "export_image.lua",
     "export_image_support.lua",
 ):

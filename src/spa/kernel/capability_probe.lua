@@ -351,6 +351,33 @@ local function observes_sprite_flatten()
   return ok
 end
 
+local function observes_tag_authoring()
+  local sprite = nil
+  local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
+  local ok = pcall(function()
+    sprite = Sprite(2, 2, ColorMode.RGB)
+    sprite:newEmptyFrame(2)
+    local tag = sprite:newTag(1, 2)
+    tag.name = "probe"
+    tag.aniDir = AniDir.PING_PONG_REVERSE
+    tag.repeats = 0
+    tag.toFrame = 1
+    assert(#sprite.tags == 1 and tag.toFrame.frameNumber == 1)
+    assert(tag.aniDir == AniDir.PING_PONG_REVERSE and tag.repeats == 0)
+    sprite:deleteTag(tag)
+    assert(#sprite.tags == 0)
+    sprite:close()
+    sprite = nil
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
+  return ok
+end
+
 function module.observe()
   local capabilities = { "aseprite_runtime_introspection" }
   local supports_inspection = observes_sprite_inspection()
@@ -371,6 +398,7 @@ function module.observe()
   if observes_frame_authoring() then
     capabilities[#capabilities + 1] = "aseprite_frame_authoring"
   end
+  if observes_tag_authoring() then capabilities[#capabilities + 1] = "aseprite_tag_authoring" end
   if exporter ~= nil then
     local ok = pcall(function()
       local fixture = Sprite(1, 1, ColorMode.RGB)
