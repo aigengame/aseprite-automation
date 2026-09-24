@@ -11,15 +11,22 @@ from pydantic import (
     model_validator,
 )
 
-from spa.contracts import PublicModel, RuntimeRequest, RuntimeRequirements
+from spa.contracts import (
+    FailureCodeSpec,
+    PublicModel,
+    RuntimeRequest,
+    RuntimeRequirements,
+)
 from spa.mutation import (
     TargetCommit,
+    require_overwrite_for_in_place,
     source_target_identity_issue,
     validate_native_sprite_path,
 )
 from spa.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.ports import (
     KernelInvocationResult,
+    OperationIssue,
     OperationServices,
     PackagedHandler,
     PackagedResource,
@@ -136,6 +143,25 @@ class SpriteCopyRequest(RuntimeRequest):
     _validate_target = field_validator("target_sprite_file")(
         validate_native_sprite_path
     )
+
+
+class SpriteFlattenRequest(RuntimeRequest):
+    source_sprite_file: str = Field(min_length=1)
+    target_sprite_file: str = Field(min_length=1)
+    in_place: bool
+    overwrite: bool
+
+    _validate_source = field_validator("source_sprite_file")(
+        validate_native_sprite_path
+    )
+    _validate_target = field_validator("target_sprite_file")(
+        validate_native_sprite_path
+    )
+
+    @model_validator(mode="after")
+    def validate_commit_intent(self) -> "SpriteFlattenRequest":
+        require_overwrite_for_in_place(self.in_place, self.overwrite)
+        return self
 
 
 class SpriteMetadata(PublicModel):
@@ -296,6 +322,32 @@ class SpriteCopyResult(PublicModel):
     sprite: SpriteInspection
 
 
+class SpriteFlattenResult(PublicModel):
+    status: Literal["success"] = "success"
+    operation: Literal["spa sprite flatten"] = "spa sprite flatten"
+    target_commit: TargetCommit
+    persisted_reopen_verified: Literal[True]
+    before_sprite: SpriteInspection
+    sprite: SpriteInspection
+
+
+class SpriteUnsupportedContentDetails(PublicModel):
+    kind: Literal["sprite_content"] = "sprite_content"
+    source_sprite_file: str
+    tileset_count: int = Field(ge=0)
+    tilemap_layer_count: int = Field(ge=0)
+
+
+SPRITE_FAILURE_CODE_SPECS = (
+    FailureCodeSpec(
+        "sprite_flatten_unsupported_content",
+        "Flatten does not accept a Sprite with Tilesets or Tilemap Layers",
+        "input",
+        SpriteUnsupportedContentDetails,
+    ),
+)
+
+
 SPRITE_CREATE_REQUIREMENTS = RuntimeRequirements(
     lua_language="Lua 5.4",
     minimum_api_version=41,
@@ -306,9 +358,15 @@ SPRITE_GET_REQUIREMENTS = RuntimeRequirements(
     minimum_api_version=41,
     required_capabilities=["aseprite_sprite_inspection"],
 )
+SPRITE_FLATTEN_REQUIREMENTS = RuntimeRequirements(
+    lua_language="Lua 5.4",
+    minimum_api_version=41,
+    required_capabilities=["aseprite_sprite_flatten"],
+)
 SPRITE_CREATE_FAILURE_CODES = (*RUNTIME_FAILURE_CODES, "target_commit_failed")
 SPRITE_INSPECTION_RESOURCE = PackagedResource("inspection", "sprite_inspect.lua")
 SPRITE_PERSISTENCE_RESOURCE = PackagedResource("persistence", "sprite_persistence.lua")
+SPRITE_DIGEST_RESOURCE = PackagedResource("digest", "digest.lua")
 SPRITE_CREATION_RESOURCE = PackagedResource("creation", "sprite_create_support.lua")
 SPRITE_INSPECTION_FIXTURE = PackagedResource(
     "inspection_fixture", "sprite_inspection_fixture.aseprite"
@@ -322,6 +380,10 @@ SPRITE_CREATE_HANDLER = PackagedHandler(
     "sprite_create", (SPRITE_INSPECTION_RESOURCE, SPRITE_CREATION_RESOURCE)
 )
 SPRITE_GET_HANDLER = PackagedHandler("sprite_get", (SPRITE_INSPECTION_RESOURCE,))
+SPRITE_FLATTEN_HANDLER = PackagedHandler(
+    "sprite_flatten",
+    (SPRITE_INSPECTION_RESOURCE, SPRITE_PERSISTENCE_RESOURCE, SPRITE_DIGEST_RESOURCE),
+)
 
 
 def _inspection_from_kernel(
@@ -628,6 +690,86 @@ def copy_sprite(
         services.target_files.discard(staged)
 
 
+def flatten_sprite(
+    request: SpriteFlattenRequest, services: OperationServices
+) -> SpriteFlattenResult:
+    source = Path(request.source_sprite_file)
+    target = Path(request.target_sprite_file)
+    identity_issue = source_target_identity_issue(
+        services.target_files, source, target, request.in_place
+    )
+    if identity_issue is not None:
+        raise RequestIssue([identity_issue])
+    staged = services.target_files.staged_path(target)
+    observation = services.probe_runtime(request)
+    try:
+        invocation = services.invoke_kernel(
+            observation,
+            SPRITE_FLATTEN_HANDLER,
+            {
+                "source_sprite_file": request.source_sprite_file,
+                "staged_sprite_file": str(staged),
+            },
+            request.timeout_seconds,
+        )
+        rejection = invocation.payload.get("rejection")
+        if rejection is not None:
+            try:
+                details = SpriteUnsupportedContentDetails.model_validate(
+                    {
+                        "source_sprite_file": request.source_sprite_file,
+                        **rejection,
+                    }
+                )
+            except (TypeError, ValidationError) as exc:
+                raise RuntimeIssue(
+                    "response_malformed",
+                    "Packaged Sprite flatten handler returned invalid content rejection",
+                    ResponseEvidence(response_path=invocation.response_path),
+                    invocation.diagnostics,
+                ) from exc
+            raise OperationIssue(
+                "sprite_flatten_unsupported_content",
+                "Sprite flatten does not accept Tilesets or Tilemap Layers",
+                details,
+            )
+        try:
+            before = SpriteInspection.model_validate(
+                invocation.payload["before_sprite"]
+            )
+            after = SpriteInspection.model_validate(invocation.payload["sprite"])
+            if invocation.payload["persisted_reopen_verified"] is not True:
+                raise ValueError("staged Sprite was not reopened")
+        except (KeyError, TypeError, ValueError, ValidationError) as exc:
+            raise RuntimeIssue(
+                "response_malformed",
+                "Packaged Sprite flatten handler returned invalid inspection facts",
+                ResponseEvidence(response_path=invocation.response_path),
+                invocation.diagnostics,
+            ) from exc
+        scope = SpriteGetRequest(
+            sprite_file=request.source_sprite_file,
+            inspection_scope=list(INSPECTION_SECTIONS),
+        )
+        validated_scope(scope, before, invocation)
+        validated_scope(scope, after, invocation)
+        committed = services.target_files.commit(
+            staged, target, overwrite=request.overwrite
+        )
+        return SpriteFlattenResult(
+            target_commit=TargetCommit(
+                target_sprite_file=committed.target_sprite_file,
+                byte_size=committed.byte_size,
+                sha256=committed.sha256,
+            ),
+            persisted_reopen_verified=True,
+            before_sprite=before,
+            sprite=after,
+        )
+    finally:
+        services.target_files.discard(staged)
+
+
 SPRITE_OPERATIONS = (
     OperationDescriptor(
         "sprite create",
@@ -671,6 +813,21 @@ SPRITE_OPERATIONS = (
         lambda result: result.target_commit.target_sprite_file,
         SPRITE_GET_REQUIREMENTS,
         (*RUNTIME_FAILURE_CODES, "target_commit_failed"),
+        execution_kind="mutation",
+        side_effects=("publishes the declared Target Sprite File",),
+    ),
+    OperationDescriptor(
+        "sprite flatten",
+        SpriteFlattenRequest,
+        SpriteFlattenResult,
+        flatten_sprite,
+        lambda result: result.target_commit.target_sprite_file,
+        SPRITE_FLATTEN_REQUIREMENTS,
+        (
+            *RUNTIME_FAILURE_CODES,
+            "target_commit_failed",
+            "sprite_flatten_unsupported_content",
+        ),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
     ),

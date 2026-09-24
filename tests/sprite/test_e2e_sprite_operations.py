@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 from jsonschema import validate
+from PIL import Image
 
 from spa.contracts import RuntimeRequest
 from spa.descriptors import PROBE_RESOURCES
@@ -68,6 +69,29 @@ def _fixture(tmp_path: Path, name: str) -> Path:
     assert run.returncode == 0, run.stderr
     assert source.is_file()
     return source
+
+
+def _export_pixels(sprite_file: Path, destination: Path, frame_number: int) -> bytes:
+    run = spa(
+        "export",
+        "image",
+        "--input-json",
+        json.dumps(
+            {
+                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+                "source_sprite_file": str(sprite_file),
+                "destination": {"path": str(destination), "if_exists": "fail"},
+                "frame_number": frame_number,
+                "color_mode": "preserve",
+                "color_profile": "preserve",
+                "transparency": "preserve",
+            }
+        ),
+    )
+    assert run.returncode == 0, run.stdout
+    with Image.open(destination) as image:
+        image.load()
+        return image.convert("RGBA").tobytes()
 
 
 def test_validate_reports_only_declared_checks_and_mismatches(tmp_path: Path) -> None:
@@ -179,5 +203,112 @@ def test_copy_requires_a_distinct_target_and_overwrite_permission(
     assert refused.returncode != 0
     assert json.loads(refused.stdout)["code"] == "target_commit_failed"
     assert target.read_bytes() == b"existing"
+    assert source.read_bytes() == original
+    assert not list(tmp_path.glob("*.staged.aseprite"))
+
+
+def test_flatten_reports_all_structural_consequences_after_reopen(
+    tmp_path: Path,
+) -> None:
+    source = _fixture(tmp_path, "flatten_sprite.lua")
+    original = source.read_bytes()
+    target = tmp_path / "flattened.aseprite"
+    run = spa(
+        "sprite",
+        "flatten",
+        "--input-json",
+        json.dumps(
+            {
+                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+                "source_sprite_file": str(source),
+                "target_sprite_file": str(target),
+                "in_place": False,
+                "overwrite": False,
+            }
+        ),
+    )
+    assert run.returncode == 0, run.stdout
+    result = json.loads(run.stdout)
+    validate(
+        result,
+        json.loads(spa("sprite", "flatten", "--schema").stdout)["result_schema"],
+    )
+    assert result["persisted_reopen_verified"] is True
+    before = result["before_sprite"]
+    after = result["sprite"]
+    assert before["metadata"]["layer_count"] == 2
+    assert after["metadata"]["layer_count"] == 1
+    assert before["metadata"]["use_layer_uuids"] is True
+    assert after["metadata"]["use_layer_uuids"] is True
+    assert after["layers"][0]["layer_uuid"] is not None
+    assert after["metadata"]["frame_count"] == 2
+    assert after["metadata"]["color_mode"] == before["metadata"]["color_mode"]
+    assert after["palettes"] == before["palettes"]
+    assert after["tags"] == before["tags"]
+    assert after["slices"] == before["slices"]
+    assert len(after["cels"]) == after["metadata"]["cel_count"]
+    assert after["layers"] != before["layers"]
+    assert target.is_file()
+    assert source.read_bytes() == original
+    for frame_number in (1, 2):
+        assert _export_pixels(
+            source, tmp_path / f"before-{frame_number}.png", frame_number
+        ) == _export_pixels(
+            target, tmp_path / f"after-{frame_number}.png", frame_number
+        )
+
+
+def test_flatten_in_place_requires_explicit_intent(tmp_path: Path) -> None:
+    source = _fixture(tmp_path, "flatten_sprite.lua")
+    original = source.read_bytes()
+    request = {
+        "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+        "source_sprite_file": str(source),
+        "target_sprite_file": str(source),
+        "in_place": False,
+        "overwrite": True,
+    }
+    refused = spa("sprite", "flatten", "--input-json", json.dumps(request))
+    assert refused.returncode != 0
+    assert json.loads(refused.stdout)["code"] == "invalid_request"
+    assert source.read_bytes() == original
+
+    request["in_place"] = True
+    run = spa("sprite", "flatten", "--input-json", json.dumps(request))
+    assert run.returncode == 0, run.stdout
+    result = json.loads(run.stdout)
+    assert result["target_commit"]["target_sprite_file"] == str(source)
+    assert result["sprite"]["metadata"]["layer_count"] == 1
+    assert source.read_bytes() != original
+
+
+@pytest.mark.parametrize(
+    ("fixture", "tilemaps"),
+    [("populated_sprite.lua", 0), ("tilemap_sprite.lua", 1)],
+)
+def test_flatten_rejects_tile_content_before_target_commit(
+    tmp_path: Path, fixture: str, tilemaps: int
+) -> None:
+    source = _fixture(tmp_path, fixture)
+    original = source.read_bytes()
+    target = tmp_path / "unsupported.aseprite"
+    request = {
+        "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+        "source_sprite_file": str(source),
+        "target_sprite_file": str(target),
+        "in_place": False,
+        "overwrite": False,
+    }
+    run = spa("sprite", "flatten", "--input-json", json.dumps(request))
+    assert run.returncode != 0
+    failure = json.loads(run.stdout)
+    validate(
+        failure,
+        json.loads(spa("sprite", "flatten", "--schema").stdout)["failure_schema"],
+    )
+    assert failure["code"] == "sprite_flatten_unsupported_content"
+    assert failure["details"]["tileset_count"] > 0
+    assert failure["details"]["tilemap_layer_count"] == tilemaps
+    assert not target.exists()
     assert source.read_bytes() == original
     assert not list(tmp_path.glob("*.staged.aseprite"))
