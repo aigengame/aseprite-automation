@@ -422,3 +422,26 @@ def test_copy_mode_overrides_continuous_layer_policy(tmp_path: Path) -> None:
     )
     assert duplicated["sprite"]["layers"][0]["is_continuous"] is True
     assert _native_link_status(target, tmp_path / "links.json") is False
+
+
+def test_in_place_add_commits_to_the_source_entry(tmp_path: Path) -> None:
+    source = tmp_path / "source.aseprite"
+    _tagged_sprite(source)
+    added = _run(
+        "frame",
+        "add",
+        request={
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(source),
+            "in_place": True,
+            "overwrite": True,
+            "frame_number": 3,
+            "duration_ms": 200,
+        },
+    )
+    assert added["target_commit"]["target_sprite_file"] == str(source)
+    assert _run("frame", "list", request={"sprite_file": str(source)})["frames"] == [
+        {"frame_number": 1, "duration_ms": 120},
+        {"frame_number": 2, "duration_ms": 340},
+        {"frame_number": 3, "duration_ms": 200},
+    ]

@@ -33,6 +33,7 @@ def test_info_reports_installed_runtime() -> None:
         "aseprite_sprite_create",
         "aseprite_sprite_inspection",
         "aseprite_paint_apply",
+        "aseprite_frame_authoring",
         "aseprite_export_image",
     ]
     assert result["supported_capabilities"]
@@ -43,6 +44,10 @@ def test_info_reports_installed_runtime() -> None:
         "spa sprite create",
         "spa sprite get",
         "spa paint apply",
+        "spa frame list",
+        "spa frame get",
+        "spa frame add",
+        "spa frame duplicate",
         "spa export image",
         "spa plan check",
         "spa plan run",

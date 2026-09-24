@@ -27,6 +27,10 @@ def test_manifest_is_projected_from_command_descriptors() -> None:
         "spa sprite create",
         "spa sprite get",
         "spa paint apply",
+        "spa frame list",
+        "spa frame get",
+        "spa frame add",
+        "spa frame duplicate",
         "spa export image",
         "spa plan check",
         "spa plan run",
@@ -38,6 +42,10 @@ def test_manifest_is_projected_from_command_descriptors() -> None:
         "spa sprite create",
         "spa sprite get",
         "spa paint apply",
+        "spa frame list",
+        "spa frame get",
+        "spa frame add",
+        "spa frame duplicate",
     }
     for entry in manifest["operations"]:
         command = entry["operation"].split()[1:]

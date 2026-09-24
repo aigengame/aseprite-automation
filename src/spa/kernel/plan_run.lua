@@ -107,9 +107,7 @@ local function document_facts(sprite)
   local cels = sprite.cels
   for index, cel in ipairs(cels) do
     for prior = 1, index - 1 do
-      if cel.image == cels[prior].image then
-        links[#links + 1] = { prior, index }
-      end
+      if cel.image == cels[prior].image then links[#links + 1] = { prior, index } end
     end
   end
   return { sprite = inspection.inspect(sprite, all_sections), images = images, links = links }
@@ -163,9 +161,8 @@ local function execute_step(step)
     return { frame = facts.frames[number] }
   end
   if step.operation == "frame add" or step.operation == "frame duplicate" then
-    local evidence = frame.apply_live(
-      open_sprite, step.operation == "frame add" and "add" or "duplicate", input
-    )
+    local evidence =
+      frame.apply_live(open_sprite, step.operation == "frame add" and "add" or "duplicate", input)
     evidence._expected_pixel = nil
     return evidence
   end

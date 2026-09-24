@@ -46,6 +46,8 @@ for name in (
     "sprite_get.lua",
     "sprite_inspect.lua",
     "sprite_inspection_fixture.aseprite",
+    "frame_mutate.lua",
+    "frame_support.lua",
     "export_image.lua",
     "export_image_support.lua",
 ):

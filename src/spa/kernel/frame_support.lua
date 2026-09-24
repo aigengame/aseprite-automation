@@ -2,12 +2,16 @@
 local module = {}
 local json_null = json.decode("null")
 local all_sections = {
-  "frames", "tags", "palettes", "layers", "cels", "slices", "tilesets",
+  "frames",
+  "tags",
+  "palettes",
+  "layers",
+  "cels",
+  "slices",
+  "tilesets",
 }
 
-local function duration_ms(frame)
-  return math.floor(frame.duration * 1000 + 0.5)
-end
+local function duration_ms(frame) return math.floor(frame.duration * 1000 + 0.5) end
 
 local function validate_duration(value)
   assert(
@@ -94,8 +98,10 @@ local function verify_cels(sprite, operation, input, inserted_number, source_cou
     if background then
       local cel = assert(background:cel(inserted_number), "Background Cel is absent")
       assert(
-        cel.bounds.x == 0 and cel.bounds.y == 0
-          and cel.bounds.width == sprite.width and cel.bounds.height == sprite.height,
+        cel.bounds.x == 0
+          and cel.bounds.y == 0
+          and cel.bounds.width == sprite.width
+          and cel.bounds.height == sprite.height,
         "Background Cel does not cover the Sprite"
       )
       for pixel in cel.image:pixels() do
@@ -133,8 +139,10 @@ local function insert(sprite, operation, input)
       color, expected_pixel = background_pixel(sprite, input.background_color)
       app.bgColor = color
     else
-      assert(input.background_color == nil or input.background_color == json_null,
-        "background_color requires a Background Layer")
+      assert(
+        input.background_color == nil or input.background_color == json_null,
+        "background_color requires a Background Layer"
+      )
     end
     sprite:newEmptyFrame(number)
     sprite.frames[number].duration = input.duration_ms / 1000
@@ -213,9 +221,7 @@ local function document_facts(sprite, inspection, digest)
       content = digest.fnv1a64(image.bytes),
     }
     for prior = 1, index - 1 do
-      if image == cels[prior].image then
-        links[#links + 1] = { prior, index }
-      end
+      if image == cels[prior].image then links[#links + 1] = { prior, index } end
     end
   end
   return { sprite = inspection.inspect(sprite, all_sections), images = images, links = links }
@@ -224,7 +230,9 @@ end
 function module.execute(payload, inspection, digest)
   local open_sprite = nil
   local previous = {
-    sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame,
+    sprite = app.activeSprite,
+    layer = app.activeLayer,
+    frame = app.activeFrame,
     background_color = app.bgColor,
   }
   local ok, result = pcall(function()
@@ -244,12 +252,19 @@ function module.execute(payload, inspection, digest)
     assert(mismatch == nil, "persisted Frame differs at " .. tostring(mismatch))
     local expected_pixel = evidence._expected_pixel
     local verified_count = verify_cels(
-      open_sprite, payload.operation, input, evidence.inserted_frame.frame_number,
-      evidence.source_cel_count, expected_pixel
+      open_sprite,
+      payload.operation,
+      input,
+      evidence.inserted_frame.frame_number,
+      evidence.source_cel_count,
+      expected_pixel
     )
     assert(verified_count == evidence.inserted_cel_count, "persisted Cel count differs")
-    assert(duration_ms(open_sprite.frames[evidence.inserted_frame.frame_number]) ==
-      evidence.inserted_frame.duration_ms, "persisted Frame duration differs")
+    assert(
+      duration_ms(open_sprite.frames[evidence.inserted_frame.frame_number])
+        == evidence.inserted_frame.duration_ms,
+      "persisted Frame duration differs"
+    )
     evidence.sprite = inspection.inspect(open_sprite, all_sections)
     evidence.persisted_reopen_verified = true
     evidence._expected_pixel = nil
