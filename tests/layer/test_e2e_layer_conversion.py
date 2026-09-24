@@ -318,7 +318,9 @@ def test_nested_source_moves_to_root_bottom_and_reports_changed_addresses(
     assert [1] in result["affected_after"]["layer_paths"]
 
 
-@pytest.mark.parametrize("variant", ["hidden", "locked", "hidden-parent", "group"])
+@pytest.mark.parametrize(
+    "variant", ["hidden", "locked", "hidden-parent", "group", "reference"]
+)
 def test_ineligible_source_fails_without_publishing_or_mutating_source(
     tmp_path: Path, variant: str
 ) -> None:

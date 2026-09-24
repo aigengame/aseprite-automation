@@ -1,4 +1,4 @@
--- Frame-owned native insertion, Cel relationship, and persistence semantics.
+-- Frame insertion and shared Background Color validation over native Sprite facts.
 local module = {}
 local json_null = json.decode("null")
 local all_sections = {
@@ -66,8 +66,6 @@ local function background_pixel(sprite, value, insert_number)
   end
   error("unsupported Background Color Mode")
 end
-
-module.background_pixel = background_pixel
 
 function module.background_color_for_frame(sprite, value, frame_number)
   return background_pixel(sprite, value, frame_number + 1)

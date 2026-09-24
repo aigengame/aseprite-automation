@@ -15,6 +15,14 @@ elseif variant == "group" then
   layer.name = "base"
   layer = sprite:newGroup()
   layer.name = "subject"
+elseif variant == "reference" then
+  layer.name = "base"
+  app.activeSprite = sprite
+  app.activeLayer = layer
+  app.command.NewLayer { reference = true }
+  layer = sprite.layers[1]
+  assert(layer.isReference)
+  layer.name = "subject"
 else
   error("unknown fixture variant")
 end
