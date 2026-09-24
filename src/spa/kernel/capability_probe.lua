@@ -7,6 +7,7 @@ local exporter = app.params.export_image_support and dofile(app.params.export_im
 local paint = dofile(app.params.paint)
 local digest = dofile(app.params.digest)
 local frame = app.params.frame and dofile(app.params.frame) or nil
+local cel = app.params.cel and dofile(app.params.cel) or nil
 
 local function observes_sprite_inspection()
   local open_sprite = nil
@@ -363,6 +364,35 @@ local function observes_frame_editing()
   return ok
 end
 
+local function observes_cel_lifecycle()
+  if cel == nil or layer_select == nil then return false end
+  local sprite = nil
+  local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
+  local ok = pcall(function()
+    sprite = Sprite(2, 2, ColorMode.RGB)
+    sprite:newEmptyFrame(2)
+    local input = { target = { layer = { layer_path = { 1 } }, frame_number = 2 } }
+    local added = cel.add_live(sprite, input, layer_select, {})
+    assert(not added.before.exists and added.cel.exists)
+    local layer = sprite.layers[1]
+    assert(cel.prevalidate(sprite, layer, 2, "clear", nil, nil) == nil)
+    cel.apply(sprite, layer, 2, "clear", nil, nil)
+    assert(cel.inspect(sprite, layer, { 1 }, 2).content == "transparent")
+    assert(cel.prevalidate(sprite, layer, 2, "remove", nil, nil) == nil)
+    cel.apply(sprite, layer, 2, "remove", nil, nil)
+    assert(not cel.inspect(sprite, layer, { 1 }, 2).exists)
+    sprite:close()
+    sprite = nil
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
+  return ok
+end
+
 local function observes_sprite_flatten()
   local sprite = nil
   local ok = pcall(function()
@@ -426,6 +456,7 @@ function module.observe()
     capabilities[#capabilities + 1] = "aseprite_frame_authoring"
   end
   if observes_frame_editing() then capabilities[#capabilities + 1] = "aseprite_frame_editing" end
+  if observes_cel_lifecycle() then capabilities[#capabilities + 1] = "aseprite_cel_lifecycle" end
   if observes_tag_authoring() then capabilities[#capabilities + 1] = "aseprite_tag_authoring" end
   if exporter ~= nil then
     local ok = pcall(function()

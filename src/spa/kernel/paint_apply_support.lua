@@ -131,6 +131,16 @@ local function resolve_target(sprite, address)
   return layer, cel, cel.image
 end
 
+function module.missing_target_cel(sprite, address)
+  if address.frame_number > #sprite.frames then return false end
+  local layer = resolve_layer(sprite, address.layer_path)
+  if not layer.isImage or layer.isGroup or layer.isTilemap or layer.isReference then
+    return false
+  end
+  local cel = layer:cel(address.frame_number)
+  return cel == nil or cel.image == nil
+end
+
 local function color_mode_name(sprite)
   if sprite.colorMode == ColorMode.RGB then return "rgb" end
   if sprite.colorMode == ColorMode.GRAY then return "grayscale" end
@@ -675,6 +685,9 @@ function module.execute(payload, digest)
   local open_sprite = nil
   local ok, result = pcall(function()
     open_sprite = assert(app.open(payload.source_sprite_file), "could not open Source Sprite File")
+    if module.missing_target_cel(open_sprite, payload.target) then
+      return { rejection = { code = "cel_not_found", message = "Cel or Image does not exist" } }
+    end
     local evidence, inspected_pixels, affected_cels, expected_geometry =
       module.apply_live(open_sprite, payload, digest)
     assert(open_sprite:saveAs(payload.staged_sprite_file), "could not save staged Sprite")

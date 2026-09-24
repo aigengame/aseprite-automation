@@ -1,5 +1,6 @@
 """One registration authority for installed Operations."""
 
+from spa.cel import CEL_OPERATIONS, CEL_SUPPORT_RESOURCE
 from spa.contracts import (
     CapabilityGap,
     InfoResult,
@@ -11,7 +12,6 @@ from spa.contracts import (
     VersionResult,
     failure_schema,
 )
-from spa.cel import CEL_OPERATIONS
 from spa.export import EXPORT_OPERATIONS, EXPORT_PROBE_RESOURCES
 from spa.failure_registry import FAILURE_CODES
 from spa.frame import FRAME_OPERATIONS, FRAME_SUPPORT_RESOURCE
@@ -32,6 +32,7 @@ PROBE_RESOURCES = (
     LAYER_SELECT_RESOURCE,
     *PAINT_PROBE_RESOURCES,
     FRAME_SUPPORT_RESOURCE,
+    CEL_SUPPORT_RESOURCE,
     *EXPORT_PROBE_RESOURCES,
 )
 

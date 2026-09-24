@@ -274,7 +274,8 @@ their change boundaries. The delivered `spa.sprite` vertical slice owns Sprite c
 structural inspection, byte-preserving copy, native flattening, and bounded validation
 within Document and Animation; `spa.layer` owns Layer addressing and mutation;
 `spa.frame` owns Frame inspection, authoring, and editing; `spa.tag` owns Tag
-inspection and authoring. The delivered
+inspection and authoring; `spa.cel` owns Cel existence, inspection, and lifecycle.
+The delivered
 `spa.paint` slice owns exact Pixel Patch application, while `spa.raster` holds the
 shared Color Value, Rectangle, Patch, and Selection types. Raster Authoring owns their
 pixel and Color Value semantics under ADR-0018; Color and Palette owns Palette and

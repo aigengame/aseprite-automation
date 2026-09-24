@@ -5,6 +5,17 @@ from typing import Annotated, Any, Literal
 
 from pydantic import Field, ValidationError, model_validator
 
+from spa.cel import (
+    CEL_OPERATIONS,
+    CEL_SELECT_RESOURCE,
+    CEL_SUPPORT_RESOURCE,
+    CelAddInput,
+    CelState,
+    CelTargetDetails,
+)
+from spa.cel import (
+    CelAddress as LifecycleCelAddress,
+)
 from spa.contracts import (
     PublicModel,
     Request,
@@ -22,6 +33,7 @@ from spa.frame import (
     validate_frame_get_result,
     validate_frame_sequence,
 )
+from spa.layer import LayerAddress
 from spa.mutation import (
     TargetCommit,
     source_target_identity_issue,
@@ -39,6 +51,7 @@ from spa.paint import (
 )
 from spa.ports import (
     KernelInvocationResult,
+    OperationIssue,
     OperationServices,
     PackagedHandler,
     PostconditionEvidence,
@@ -69,7 +82,12 @@ from spa.sprite import (
 MAX_PLAN_STEPS = 64
 ELIGIBLE_OPERATIONS = {
     descriptor.name: descriptor
-    for descriptor in (*SPRITE_OPERATIONS, *PAINT_OPERATIONS, *FRAME_OPERATIONS)
+    for descriptor in (
+        *SPRITE_OPERATIONS,
+        *PAINT_OPERATIONS,
+        *FRAME_OPERATIONS,
+        *CEL_OPERATIONS,
+    )
     if descriptor.plan_eligible
 }
 PLAN_RUN_HANDLER = PackagedHandler(
@@ -80,6 +98,8 @@ PLAN_RUN_HANDLER = PackagedHandler(
         SPRITE_CREATION_RESOURCE,
         PAINT_SUPPORT_RESOURCE,
         FRAME_SUPPORT_RESOURCE,
+        CEL_SUPPORT_RESOURCE,
+        CEL_SELECT_RESOURCE,
         DIGEST_RESOURCE,
         SPRITE_INSPECTION_FIXTURE,
         PAINT_PROBE_FIXTURE,
@@ -130,6 +150,11 @@ class FrameDuplicateStep(PublicModel):
     input: FrameDuplicateInput
 
 
+class CelAddStep(PublicModel):
+    operation: Literal["cel add"]
+    input: CelAddInput
+
+
 PlanStep = Annotated[
     CreateStep
     | GetStep
@@ -137,7 +162,8 @@ PlanStep = Annotated[
     | FrameListStep
     | FrameGetStep
     | FrameAddStep
-    | FrameDuplicateStep,
+    | FrameDuplicateStep
+    | CelAddStep,
     Field(discriminator="operation"),
 ]
 
@@ -188,7 +214,7 @@ class PlanDefinition(PublicModel):
                         f"Plan {field} Postcondition contradicts Sprite creation"
                     )
         mutates = creates or any(
-            isinstance(step, (PaintStep, FrameAddStep, FrameDuplicateStep))
+            isinstance(step, (PaintStep, FrameAddStep, FrameDuplicateStep, CelAddStep))
             for step in self.steps
         )
         if (creates and self.source_sprite_file is not None) or (
@@ -263,6 +289,12 @@ class FrameMutationStepResult(FrameMutationEvidence):
     sprite: None = None
 
 
+class CelAddStepResult(PublicModel):
+    before: CelState
+    before_cel_count: int = Field(ge=0)
+    cel: CelState
+
+
 class CreateStepOutcome(PublicModel):
     operation: Literal["sprite create"]
     result: CreateStepResult
@@ -298,6 +330,11 @@ class FrameDuplicateStepOutcome(PublicModel):
     result: FrameMutationStepResult
 
 
+class CelAddStepOutcome(PublicModel):
+    operation: Literal["cel add"]
+    result: CelAddStepResult
+
+
 StepOutcome = Annotated[
     CreateStepOutcome
     | GetStepOutcome
@@ -305,7 +342,8 @@ StepOutcome = Annotated[
     | FrameListStepOutcome
     | FrameGetStepOutcome
     | FrameAddStepOutcome
-    | FrameDuplicateStepOutcome,
+    | FrameDuplicateStepOutcome
+    | CelAddStepOutcome,
     Field(discriminator="operation"),
 ]
 
@@ -524,6 +562,23 @@ def _validated_steps(
             elif isinstance(step, FrameAddStep):
                 outcome = FrameAddStepOutcome.model_validate(item)
                 validate_frame_evidence(step.input, outcome.result, invocation)
+            elif isinstance(step, CelAddStep):
+                outcome = CelAddStepOutcome.model_validate(item)
+                target = step.input.target
+                before, after = outcome.result.before, outcome.result.cel
+                if (
+                    before.exists
+                    or not after.exists
+                    or after.content != "transparent"
+                    or before.frame_number != target.frame_number
+                    or after.frame_number != target.frame_number
+                    or before.layer_path != after.layer_path
+                    or (
+                        target.layer.layer_path is not None
+                        and after.layer_path != target.layer.layer_path
+                    )
+                ):
+                    raise ValueError("Cel add Step evidence differs from its target")
             else:
                 assert isinstance(step, FrameDuplicateStep)
                 outcome = FrameDuplicateStepOutcome.model_validate(item)
@@ -569,6 +624,38 @@ def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunRes
         invocation = services.invoke_kernel_direct(
             request, PLAN_RUN_HANDLER, payload, request.timeout_seconds
         )
+        cel_rejection = invocation.payload.get("cel_rejection")
+        if cel_rejection is not None:
+            if not isinstance(cel_rejection, dict):
+                raise _malformed(
+                    invocation, "Plan Kernel returned invalid Cel rejection"
+                )
+            index = cel_rejection.get("step_number")
+            if type(index) is not int or index < 1 or index > len(plan.steps):
+                raise _malformed(
+                    invocation, "Plan Kernel returned invalid Cel rejection"
+                )
+            step = plan.steps[index - 1]
+            code = cel_rejection.get("code")
+            message = cel_rejection.get("message")
+            if not isinstance(message, str) or not (
+                (isinstance(step, CelAddStep) and code == "cel_already_exists")
+                or (isinstance(step, PaintStep) and code == "cel_not_found")
+            ):
+                raise _malformed(
+                    invocation, "Plan Kernel returned invalid Cel rejection"
+                )
+            target = (
+                step.input.target
+                if isinstance(step, CelAddStep)
+                else LifecycleCelAddress(
+                    layer=LayerAddress(layer_path=step.input.target.layer_path),
+                    frame_number=step.input.target.frame_number,
+                )
+            )
+            raise OperationIssue(
+                code, message, CelTargetDetails(target=target, step_number=index)
+            )
         rejection = invocation.payload.get("frame_get_rejection")
         if rejection is not None:
             index = (
@@ -718,7 +805,12 @@ PLAN_OPERATIONS = (
             else f"Plan completed: {len(result.steps)} Steps"
         ),
         PLAN_DISCOVERY_REQUIREMENTS,
-        (*RUNTIME_FAILURE_CODES, "target_commit_failed"),
+        (
+            *RUNTIME_FAILURE_CODES,
+            "cel_already_exists",
+            "cel_not_found",
+            "target_commit_failed",
+        ),
         execution_kind="mutation",
         side_effects=("publishes one Target Sprite File for a mutating Plan",),
         probe_before_execute=False,

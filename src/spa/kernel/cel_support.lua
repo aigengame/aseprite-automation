@@ -134,4 +134,19 @@ function module.apply(sprite, layer, frame_number, operation, background_color, 
   end)
 end
 
+function module.add_live(sprite, input, selection, verified_uuids)
+  local layer, path, rejected = module.resolve(sprite, input.target, selection, verified_uuids)
+  if rejected then return rejected end
+  local number = input.target.frame_number
+  rejected = module.prevalidate(sprite, layer, number, "add", nil, nil)
+  if rejected then return rejected end
+  local before = module.inspect(sprite, layer, path, number)
+  local before_count = #sprite.cels
+  module.apply(sprite, layer, number, "add", nil, nil)
+  local after = module.inspect(sprite, layer, path, number)
+  assert(after.exists and after.content == "transparent", "added Cel is not transparent")
+  assert(#sprite.cels == before_count + 1, "Cel add changed unexpected Cel count")
+  return { before = before, before_cel_count = before_count, cel = after }
+end
+
 return module

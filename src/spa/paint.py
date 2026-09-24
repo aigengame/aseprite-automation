@@ -11,11 +11,14 @@ from pydantic import (
     model_validator,
 )
 
+from spa.cel import CelAddress as LifecycleCelAddress
+from spa.cel import CelTargetDetails
 from spa.contracts import (
     PublicModel,
     RuntimeRequest,
     RuntimeRequirements,
 )
+from spa.layer import LayerAddress
 from spa.mutation import (
     TargetCommit,
     require_overwrite_for_in_place,
@@ -25,6 +28,7 @@ from spa.mutation import (
 from spa.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.ports import (
     KernelInvocationResult,
+    OperationIssue,
     OperationServices,
     PackagedHandler,
     PackagedResource,
@@ -166,7 +170,11 @@ PAINT_APPLY_REQUIREMENTS = RuntimeRequirements(
     minimum_api_version=41,
     required_capabilities=["aseprite_paint_apply"],
 )
-PAINT_APPLY_FAILURE_CODES = (*RUNTIME_FAILURE_CODES, "target_commit_failed")
+PAINT_APPLY_FAILURE_CODES = (
+    *RUNTIME_FAILURE_CODES,
+    "cel_not_found",
+    "target_commit_failed",
+)
 PAINT_SUPPORT_RESOURCE = PackagedResource("paint", "paint_apply_support.lua")
 DIGEST_RESOURCE = PackagedResource("digest", "digest.lua")
 PAINT_PROBE_FIXTURE = PackagedResource("paint_fixture", "paint_apply_fixture.aseprite")
@@ -209,6 +217,29 @@ def apply_paint(
         invocation = services.invoke_kernel(
             observation, PAINT_APPLY_HANDLER, payload, request.timeout_seconds
         )
+        rejection = invocation.payload.get("rejection")
+        if rejection is not None:
+            if (
+                isinstance(rejection, dict)
+                and rejection.get("code") == "cel_not_found"
+                and isinstance(rejection.get("message"), str)
+            ):
+                raise OperationIssue(
+                    "cel_not_found",
+                    rejection["message"],
+                    CelTargetDetails(
+                        target=LifecycleCelAddress(
+                            layer=LayerAddress(layer_path=request.target.layer_path),
+                            frame_number=request.target.frame_number,
+                        )
+                    ),
+                )
+            raise RuntimeIssue(
+                "response_malformed",
+                "Packaged Paint handler returned an invalid Cel rejection",
+                ResponseEvidence(response_path=invocation.response_path),
+                invocation.diagnostics,
+            )
         evidence = _paint_evidence(invocation)
         validate_paint_evidence(request, evidence, invocation)
         committed = services.target_files.commit(

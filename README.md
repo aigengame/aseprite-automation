@@ -124,6 +124,11 @@ uv run spa frame duplicate --input-json '{"aseprite":"/path/to/aseprite","source
 uv run spa frame set --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"duplicated.aseprite","target_sprite_file":"retimed.aseprite","in_place":false,"overwrite":false,"frame_number":1,"duration_ms":150}'
 uv run spa frame move --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"retimed.aseprite","target_sprite_file":"reordered.aseprite","in_place":false,"overwrite":false,"source_frame_number":1,"target_frame_number":3}'
 uv run spa frame remove --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"reordered.aseprite","target_sprite_file":"trimmed.aseprite","in_place":false,"overwrite":false,"frame_number":2}'
+uv run spa cel list --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite","layer":{"layer_path":[1]},"from_frame":1,"to_frame":1}'
+uv run spa cel get --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite","target":{"layer":{"layer_path":[1]},"frame_number":1}}'
+uv run spa cel add --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"timed.aseprite","target_sprite_file":"with-cel.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":2}}'
+uv run spa cel clear --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"with-cel.aseprite","target_sprite_file":"cleared.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":2}}'
+uv run spa cel remove --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"cleared.aseprite","target_sprite_file":"without-cel.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":2}}'
 uv run spa layer list --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite"}'
 uv run spa layer get --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite","target":{"layer_path":[1]}}'
 uv run spa layer add --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"layered.aseprite","in_place":false,"overwrite":false,"kind":"group","name":"effects"}'
@@ -214,6 +219,17 @@ remove the Sprite's final Frame. These standalone mutations report observed nati
 changes to Frame numbers, Cels, Tag ranges, Slice Keys, and Palette Changes when
 present, and verify the staged Sprite after reopening it before Target Commit.
 
+`spa cel list` inspects an inclusive Frame Range on one exactly addressed Layer;
+`spa cel get` inspects one Layer/Frame intersection. Both report absence separately
+from an existing transparent Image. Existing Cel facts include position, Image
+bounds, opacity, z-index, and other native Cels sharing the Image. `cel add`
+creates a full-canvas transparent Image only at an absent regular Transparent
+Layer intersection. `cel clear` preserves the Cel and its Image bounds; on a
+Background Layer it requires an explicit compatible `background_color` and fills
+the Cel with that color. `cel remove` makes a regular Transparent Cel absent and
+rejects Background Cels. Mutations verify the staged Sprite after reopening it.
+Paint requires an existing Cel and Image and reports `cel_not_found` when absent.
+
 `spa tag list` and `spa tag get` inspect stored Tags with a one-based current
 `tag_index`. `get`, `set`, and `remove` accept exactly one of `tag_index` or
 `tag_name` inside `target`; a name must match exactly once. `spa tag add`
@@ -228,7 +244,7 @@ explicit Source/Target publication intent as Frame authoring.
 `spa plan check` validates a bounded Plan, including current Source and Target path
 conditions, without starting Aseprite. `spa plan run`
 executes up to 64 Sprite-bound `sprite create`, `sprite get`, `frame list`,
-`frame get`, `frame add`, `frame duplicate`, and `paint apply` Steps
+`frame get`, `frame add`, `frame duplicate`, `cel add`, and `paint apply` Steps
 on one live Sprite in one Aseprite process. A read Plan publishes no file. A mutating
 Plan declares one Target Sprite File; the staged file is reopened and verified before
 one Target Commit. A failed Step reports its one-based `failed_step` and publishes no

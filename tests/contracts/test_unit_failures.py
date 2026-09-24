@@ -12,6 +12,8 @@ from jsonschema import ValidationError as SchemaError
 from pydantic import ValidationError
 
 from spa.application import _runtime_failure, dispatch
+from spa.cel import CelAddress as LifecycleCelAddress
+from spa.cel import CelFrameRangeDetails, CelTargetDetails
 from spa.contracts import (
     FailureEnvelope,
     KernelExecutionDetails,
@@ -189,6 +191,12 @@ def test_each_registered_code_has_a_constrained_public_schema() -> None:
         LayerTargetDetails: LayerTargetDetails(
             address_role="target", address=LayerAddress(layer_path=[1])
         ),
+        CelTargetDetails: CelTargetDetails(
+            target=LifecycleCelAddress(
+                layer=LayerAddress(layer_path=[1]), frame_number=1
+            )
+        ),
+        CelFrameRangeDetails: CelFrameRangeDetails(from_frame=1, to_frame=2),
         TagTargetDetails: TagTargetDetails(address=TagAddress(tag_index=1)),
         TagRangeDetails: TagRangeDetails(from_frame=1, to_frame=2, frame_count=1),
         SpriteUnsupportedContentDetails: SpriteUnsupportedContentDetails(

@@ -82,6 +82,7 @@ class CelState(PublicModel):
 class CelTargetDetails(PublicModel):
     kind: Literal["cel_target"] = "cel_target"
     target: CelAddress
+    step_number: int | None = Field(default=None, ge=1)
 
 
 class CelFrameRangeDetails(PublicModel):
@@ -167,12 +168,15 @@ class CelGetResult(PublicModel):
     cel: CelState
 
 
-class CelMutationRequest(RuntimeRequest):
+class CelAddInput(PublicModel):
+    target: CelAddress
+
+
+class CelMutationRequest(RuntimeRequest, CelAddInput):
     source_sprite_file: str = Field(min_length=1)
     target_sprite_file: str = Field(min_length=1)
     in_place: bool
     overwrite: bool
-    target: CelAddress
 
     _validate_source = field_validator("source_sprite_file")(
         validate_native_sprite_path
@@ -228,7 +232,7 @@ class CelRemoveResult(CelMutationEvidence):
 CEL_READ_REQUIREMENTS = RuntimeRequirements(
     lua_language="Lua 5.4",
     minimum_api_version=41,
-    required_capabilities=["aseprite_sprite_inspection", "aseprite_layer_hierarchy"],
+    required_capabilities=["aseprite_cel_lifecycle"],
 )
 CEL_SUPPORT_RESOURCE = PackagedResource("cel", "cel_support.lua")
 CEL_SELECT_RESOURCE = PackagedResource("layer_select", "layer_select.lua")
@@ -238,7 +242,7 @@ CEL_GET_HANDLER = PackagedHandler(
 CEL_MUTATION_REQUIREMENTS = RuntimeRequirements(
     lua_language="Lua 5.4",
     minimum_api_version=41,
-    required_capabilities=["aseprite_sprite_inspection", "aseprite_frame_authoring"],
+    required_capabilities=["aseprite_cel_lifecycle"],
 )
 CEL_MUTATE_HANDLER = PackagedHandler(
     "cel_mutate",
