@@ -41,7 +41,7 @@ def _create(tmp_path: Path) -> Path:
     return source
 
 
-def _fixture(tmp_path: Path, name: str) -> Path:
+def _fixture(tmp_path: Path, name: str, **params: str) -> Path:
     source = tmp_path / "source.aseprite"
     observation = probe(
         RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
@@ -58,6 +58,11 @@ def _fixture(tmp_path: Path, name: str) -> Path:
                 "--batch",
                 "--script-param",
                 f"out={source}",
+                *[
+                    argument
+                    for key, value in params.items()
+                    for argument in ("--script-param", f"{key}={value}")
+                ],
                 "--script",
                 str(Path(__file__).parent / "fixtures" / name),
             ],
@@ -280,6 +285,31 @@ def test_flatten_in_place_requires_explicit_intent(tmp_path: Path) -> None:
     assert result["target_commit"]["target_sprite_file"] == str(source)
     assert result["sprite"]["metadata"]["layer_count"] == 1
     assert source.read_bytes() != original
+
+
+def test_flatten_reports_indexed_palette_and_color_mode(tmp_path: Path) -> None:
+    source = _fixture(tmp_path, "flatten_sprite.lua", mode="indexed")
+    target = tmp_path / "indexed-flat.aseprite"
+    run = spa(
+        "sprite",
+        "flatten",
+        "--input-json",
+        json.dumps(
+            {
+                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+                "source_sprite_file": str(source),
+                "target_sprite_file": str(target),
+                "in_place": False,
+                "overwrite": False,
+            }
+        ),
+    )
+    assert run.returncode == 0, run.stdout
+    result = json.loads(run.stdout)
+    assert result["before_sprite"]["metadata"]["color_mode"] == "indexed"
+    assert result["sprite"]["metadata"]["color_mode"] == "indexed"
+    assert result["sprite"]["palettes"] == result["before_sprite"]["palettes"]
+    assert result["sprite"]["metadata"]["layer_count"] == 1
 
 
 @pytest.mark.parametrize(

@@ -797,15 +797,6 @@ SPRITE_OPERATIONS = (
         plan_eligible=True,
     ),
     OperationDescriptor(
-        "sprite validate",
-        SpriteValidateRequest,
-        SpriteValidateResult,
-        validate_sprite,
-        lambda result: f"{result.sprite_file}: {len(result.findings)} findings",
-        SPRITE_GET_REQUIREMENTS,
-        RUNTIME_FAILURE_CODES,
-    ),
-    OperationDescriptor(
         "sprite copy",
         SpriteCopyRequest,
         SpriteCopyResult,
@@ -830,5 +821,14 @@ SPRITE_OPERATIONS = (
         ),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+    ),
+    OperationDescriptor(
+        "sprite validate",
+        SpriteValidateRequest,
+        SpriteValidateResult,
+        validate_sprite,
+        lambda result: f"{result.sprite_file}: {len(result.findings)} findings",
+        SPRITE_GET_REQUIREMENTS,
+        RUNTIME_FAILURE_CODES,
     ),
 )

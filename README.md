@@ -4,7 +4,7 @@ Aseprite Automation (SPA) provides agent-facing automation for Aseprite. `SPA` i
 short project name used in documentation; `spa` is the primary executable.
 
 > [!IMPORTANT]
-> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery, Sprite creation and inspection, Layer addressing and creation, Frame inspection and authoring, bounded Pixel Patch application, and verified RGB PNG Image Export. Feature issues own delivery contracts, evidence requirements, provenance links, and curated evidence summaries, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
+> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery, Sprite creation, inspection, copy, flatten, and validation, Layer addressing and creation, Frame inspection and authoring, bounded Pixel Patch application, and verified RGB PNG Image Export. Feature issues own delivery contracts, evidence requirements, provenance links, and curated evidence summaries, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
 
 This README owns the user-facing product introduction and promotion, value-proposition
 narrative, onboarding, adoption guidance, and project navigation. Its factual claims
@@ -115,6 +115,9 @@ uv run spa info --input-json '{"aseprite":"/path/to/Aseprite.app/Contents/MacOS/
 printf '%s\n' '{"aseprite":"/path/to/Aseprite.app/Contents/MacOS/aseprite"}' | uv run spa info --input-json -
 uv run spa sprite create --input-json '{"aseprite":"/path/to/aseprite","target_sprite_file":"sprite.aseprite","width":16,"height":16,"color_mode":"rgb","initial_layer":{"kind":"transparent"},"overwrite":false}'
 uv run spa sprite get --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite","inspection_scope":["frames","layers","cels"]}'
+uv run spa sprite validate --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite","expected":{"width":16,"height":16,"color_mode":"rgb","frame_count":1}}'
+uv run spa sprite copy --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"copy.aseprite","overwrite":false}'
+uv run spa sprite flatten --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"copy.aseprite","target_sprite_file":"flat.aseprite","in_place":false,"overwrite":false}'
 uv run spa frame list --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite"}'
 uv run spa frame add --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"timed.aseprite","in_place":false,"overwrite":false,"frame_number":2,"duration_ms":120}'
 uv run spa frame duplicate --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"timed.aseprite","target_sprite_file":"duplicated.aseprite","in_place":false,"overwrite":false,"source_frame_number":1,"cel_mode":"copy"}'
@@ -131,6 +134,18 @@ uv run spa export image --input-json '{"aseprite":"/path/to/aseprite","source_sp
 `--input-json` value remains available for short invocations.
 `spa sprite create` requires an explicit `overwrite` boolean and refuses to replace an
 existing Target Sprite File when it is `false`.
+`spa sprite validate` requires at least one expected width, height, Color Mode, or
+Frame count. It lists only those checks with their actual values; a mismatch returns
+a typed Finding in a successful read result.
+`spa sprite copy` preserves the Source Sprite File byte for byte, including native
+Tile content, and reopens the staged copy before Target Commit. Source and Target must
+be distinct publication entries.
+`spa sprite flatten` uses native Aseprite flattening. Its result gives complete
+`before_sprite` and reopened `sprite` inspections so callers can see the effects on
+Layers, Cels, Color Mode, Palettes, Tags, and Slices. This slice rejects a Sprite with
+any Tileset or Tilemap Layer before mutation and reports
+`sprite_flatten_unsupported_content` without a Target Commit. In-place flattening
+requires `in_place: true` and `overwrite: true`.
 `spa layer list` returns the current hierarchy. `spa layer get` accepts one
 `layer_path`, `layer_uuid`, or `layer_name`. Paths use one-based native sibling
 positions. Names use exact case-sensitive matching and must be unique across the
