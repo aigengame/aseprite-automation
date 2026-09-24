@@ -58,6 +58,7 @@ class CelState(PublicModel):
     exists: bool
     content: Literal["absent", "transparent", "nonempty"]
     is_background: bool
+    is_tilemap: bool
     position: Point | None
     image_bounds: Rectangle | None
     opacity: int | None = Field(ge=0, le=255)
@@ -66,13 +67,23 @@ class CelState(PublicModel):
 
     @model_validator(mode="after")
     def validate_existence(self) -> "CelState":
-        facts = (self.position, self.image_bounds, self.opacity, self.z_index)
+        facts = (self.position, self.opacity, self.z_index)
         if (
             self.exists != (self.content != "absent")
-            or (self.exists and any(value is None for value in facts))
+            or (
+                self.exists
+                and (
+                    any(value is None for value in facts)
+                    or (self.image_bounds is None) != self.is_tilemap
+                )
+            )
             or (
                 not self.exists
-                and (any(value is not None for value in facts) or self.linked_cels)
+                and (
+                    any(value is not None for value in facts)
+                    or self.image_bounds is not None
+                    or self.linked_cels
+                )
             )
         ):
             raise ValueError("Cel existence contradicts Image or placement facts")
@@ -89,6 +100,7 @@ class CelFrameRangeDetails(PublicModel):
     kind: Literal["cel_frame_range"] = "cel_frame_range"
     from_frame: int = Field(ge=1)
     to_frame: int = Field(ge=1)
+    step_number: int | None = Field(default=None, ge=1)
 
 
 CEL_FAILURE_CODE_SPECS = (

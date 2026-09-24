@@ -39,6 +39,7 @@ function module.inspect(sprite, layer, path, frame_number)
     exists = cel ~= nil,
     content = cel == nil and "absent" or cel.image:isEmpty() and "transparent" or "nonempty",
     is_background = layer.isBackground,
+    is_tilemap = layer.isTilemap,
     position = json_null,
     image_bounds = json_null,
     opacity = json_null,
@@ -47,12 +48,14 @@ function module.inspect(sprite, layer, path, frame_number)
   }
   if cel == nil then return fact end
   fact.position = { x = cel.position.x, y = cel.position.y }
-  fact.image_bounds = {
-    x = cel.bounds.x,
-    y = cel.bounds.y,
-    width = cel.image.width,
-    height = cel.image.height,
-  }
+  if not layer.isTilemap then
+    fact.image_bounds = {
+      x = cel.bounds.x,
+      y = cel.bounds.y,
+      width = cel.image.width,
+      height = cel.image.height,
+    }
+  end
   fact.opacity = cel.opacity
   fact.z_index = cel.zIndex
   for _, other in ipairs(sprite.cels) do

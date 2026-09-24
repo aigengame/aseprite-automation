@@ -10,6 +10,7 @@ from spa.cel import (
     CEL_SELECT_RESOURCE,
     CEL_SUPPORT_RESOURCE,
     CelAddInput,
+    CelFrameRangeDetails,
     CelState,
     CelTargetDetails,
 )
@@ -33,7 +34,7 @@ from spa.frame import (
     validate_frame_get_result,
     validate_frame_sequence,
 )
-from spa.layer import LayerAddress
+from spa.layer import LAYER_ADDRESS_FAILURE_CODES, LayerAddress, LayerTargetDetails
 from spa.mutation import (
     TargetCommit,
     source_target_identity_issue,
@@ -638,24 +639,46 @@ def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunRes
             step = plan.steps[index - 1]
             code = cel_rejection.get("code")
             message = cel_rejection.get("message")
-            if not isinstance(message, str) or not (
-                (isinstance(step, CelAddStep) and code == "cel_already_exists")
-                or (isinstance(step, PaintStep) and code == "cel_not_found")
+            add_codes = {
+                *LAYER_ADDRESS_FAILURE_CODES,
+                "cel_already_exists",
+                "cel_unsupported_target",
+                "cel_frame_out_of_bounds",
+            }
+            if (
+                not isinstance(code, str)
+                or not isinstance(message, str)
+                or not (
+                    (isinstance(step, CelAddStep) and code in add_codes)
+                    or (isinstance(step, PaintStep) and code == "cel_not_found")
+                )
             ):
                 raise _malformed(
                     invocation, "Plan Kernel returned invalid Cel rejection"
                 )
-            target = (
-                step.input.target
-                if isinstance(step, CelAddStep)
-                else LifecycleCelAddress(
-                    layer=LayerAddress(layer_path=step.input.target.layer_path),
-                    frame_number=step.input.target.frame_number,
+            if isinstance(step, CelAddStep) and code in LAYER_ADDRESS_FAILURE_CODES:
+                details = LayerTargetDetails(
+                    address_role="target",
+                    address=step.input.target.layer,
+                    step_number=index,
                 )
-            )
-            raise OperationIssue(
-                code, message, CelTargetDetails(target=target, step_number=index)
-            )
+            elif isinstance(step, CelAddStep) and code == "cel_frame_out_of_bounds":
+                details = CelFrameRangeDetails(
+                    from_frame=step.input.target.frame_number,
+                    to_frame=step.input.target.frame_number,
+                    step_number=index,
+                )
+            else:
+                target = (
+                    step.input.target
+                    if isinstance(step, CelAddStep)
+                    else LifecycleCelAddress(
+                        layer=LayerAddress(layer_path=step.input.target.layer_path),
+                        frame_number=step.input.target.frame_number,
+                    )
+                )
+                details = CelTargetDetails(target=target, step_number=index)
+            raise OperationIssue(code, message, details)
         rejection = invocation.payload.get("frame_get_rejection")
         if rejection is not None:
             index = (
@@ -807,8 +830,11 @@ PLAN_OPERATIONS = (
         PLAN_DISCOVERY_REQUIREMENTS,
         (
             *RUNTIME_FAILURE_CODES,
+            *LAYER_ADDRESS_FAILURE_CODES,
             "cel_already_exists",
             "cel_not_found",
+            "cel_unsupported_target",
+            "cel_frame_out_of_bounds",
             "target_commit_failed",
         ),
         execution_kind="mutation",

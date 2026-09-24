@@ -75,6 +75,25 @@ def test_list_distinguishes_absent_transparent_and_nonempty_cels(
     }
 
 
+def test_tilemap_cel_existence_does_not_mix_canvas_and_tile_cell_bounds(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "tilemap.aseprite"
+    _fixture(source, "tilemap.lua")
+    code, result = _run(
+        "get",
+        {
+            "sprite_file": str(source),
+            "target": {"layer": {"layer_path": [2]}, "frame_number": 1},
+        },
+    )
+    assert code == 0, result
+    assert result["cel"]["exists"] is True
+    assert result["cel"]["is_tilemap"] is True
+    assert result["cel"]["position"] == {"x": 4, "y": 2}
+    assert result["cel"]["image_bounds"] is None
+
+
 def test_add_and_remove_preserve_explicit_cel_existence(tmp_path: Path) -> None:
     source = tmp_path / "source.aseprite"
     added_file = tmp_path / "added.aseprite"
@@ -502,3 +521,73 @@ def test_plan_duplicate_cel_add_rejects_without_commit(tmp_path: Path) -> None:
     assert failure["code"] == "cel_already_exists"
     assert failure["details"]["step_number"] == 1
     assert not target_file.exists()
+
+
+@pytest.mark.parametrize(
+    ("fixture", "target", "expected_code", "details_kind"),
+    [
+        (
+            "background.lua",
+            {"layer": {"layer_path": [1]}, "frame_number": 1},
+            "cel_unsupported_target",
+            "cel_target",
+        ),
+        (
+            "cels.lua",
+            {"layer": {"layer_path": [1]}, "frame_number": 99},
+            "cel_frame_out_of_bounds",
+            "cel_frame_range",
+        ),
+        (
+            "cels.lua",
+            {"layer": {"layer_path": [99]}, "frame_number": 1},
+            "layer_invalid_path",
+            "layer_target",
+        ),
+    ],
+)
+def test_plan_cel_add_preserves_standalone_typed_refusal(
+    tmp_path: Path,
+    fixture: str,
+    target: dict[str, object],
+    expected_code: str,
+    details_kind: str,
+) -> None:
+    source = tmp_path / "source.aseprite"
+    standalone_target = tmp_path / "standalone.aseprite"
+    plan_target = tmp_path / "plan.aseprite"
+    _fixture(source, fixture)
+    code, standalone = _run(
+        "add",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(standalone_target),
+            "in_place": False,
+            "overwrite": False,
+            "target": target,
+        },
+    )
+    assert code == 2, standalone
+    assert standalone["code"] == expected_code
+    assert not standalone_target.exists()
+    run = spa(
+        "plan",
+        "run",
+        "--input-json",
+        json.dumps(
+            {
+                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+                "plan": {
+                    "source_sprite_file": str(source),
+                    "target_sprite_file": str(plan_target),
+                    "steps": [{"operation": "cel add", "input": {"target": target}}],
+                },
+            }
+        ),
+    )
+    assert run.returncode == 2, run.stdout
+    failure = json.loads(run.stdout)
+    assert failure["code"] == standalone["code"]
+    assert failure["details"]["kind"] == details_kind
+    assert failure["details"]["step_number"] == 1
+    assert not plan_target.exists()

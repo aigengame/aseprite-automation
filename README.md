@@ -4,7 +4,7 @@ Aseprite Automation (SPA) provides agent-facing automation for Aseprite. `SPA` i
 short project name used in documentation; `spa` is the primary executable.
 
 > [!IMPORTANT]
-> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery, Sprite creation, inspection, copy, flatten, and validation, Layer addressing and mutation, Frame inspection, authoring, and editing, Tag inspection and authoring, bounded Pixel Patch application, and verified RGB PNG Image Export. Feature issues own delivery contracts, evidence requirements, provenance links, curated evidence summaries, and status, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
+> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery, Sprite creation, inspection, copy, flatten, and validation, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection and lifecycle, Tag inspection and authoring, bounded Pixel Patch application, and verified RGB PNG Image Export. Feature issues own delivery contracts, evidence requirements, provenance links, curated evidence summaries, and status, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
 
 This README owns the user-facing product introduction and promotion, value-proposition
 narrative, onboarding, adoption guidance, and project navigation. Its factual claims
@@ -230,6 +230,8 @@ the Cel with that color. Clearing a shared Image preserves native links and repo
 every affected Cel in `affected_cels`. `cel remove` makes a regular Transparent Cel
 absent and rejects Background Cels. Mutations verify the staged Sprite after reopening it.
 Paint requires an existing Cel and Image and reports `cel_not_found` when absent.
+Tilemap Cel inspection reports existence and Canvas Pixel position with
+`image_bounds: null`; Tile Cell geometry belongs to Tilemap inspection.
 
 `spa tag list` and `spa tag get` inspect stored Tags with a one-based current
 `tag_index`. `get`, `set`, and `remove` accept exactly one of `tag_index` or
@@ -248,8 +250,10 @@ executes up to 64 Sprite-bound `sprite create`, `sprite get`, `frame list`,
 `frame get`, `frame add`, `frame duplicate`, `cel add`, and `paint apply` Steps
 on one live Sprite in one Aseprite process. A read Plan publishes no file. A mutating
 Plan declares one Target Sprite File; the staged file is reopened and verified before
-one Target Commit. A failed Step reports its one-based `failed_step` and publishes no
-target. Each Paint Step retains its own 256-pixel Operation Limit. A Plan with an
+one Target Commit. A failed Step publishes no target. Typed Cel refusals identify the
+one-based Step in `details.step_number`; execution failures use
+`details.failed_step` when a Step was active. Each Paint Step retains its own
+256-pixel Operation Limit. A Plan with an
 existing Source may edit in place only with `in_place: true` and `overwrite: true`.
 Plans reject a Source alias that traverses the Target publication entry for either
 `in_place` value. An explicit in-place edit uses the same Source and Target entry.
