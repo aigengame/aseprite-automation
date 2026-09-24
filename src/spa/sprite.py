@@ -112,7 +112,7 @@ class SpriteMetadata(PublicModel):
 
 class FrameFacts(PublicModel):
     frame_number: int = Field(ge=1)
-    duration_ms: int = Field(ge=0)
+    duration_ms: int = Field(ge=1, le=65535)
 
 
 class TagFacts(PublicModel):

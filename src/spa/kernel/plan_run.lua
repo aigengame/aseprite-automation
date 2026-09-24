@@ -3,6 +3,7 @@ local kernel_protocol_version = 1
 local inspection = dofile(app.params.inspection)
 local creation = dofile(app.params.creation)
 local paint = dofile(app.params.paint)
+local frame = dofile(app.params.frame)
 local digest = dofile(app.params.digest)
 local capability_probe = dofile(app.params.capability_probe)
 local all_sections = {
@@ -92,6 +93,7 @@ end
 
 local function document_facts(sprite)
   local images = {}
+  local links = {}
   for _, cel in ipairs(sprite.cels) do
     local image = cel.image
     images[#images + 1] = {
@@ -102,7 +104,15 @@ local function document_facts(sprite)
       content = digest.fnv1a64(image.bytes),
     }
   end
-  return { sprite = inspection.inspect(sprite, all_sections), images = images }
+  local cels = sprite.cels
+  for index, cel in ipairs(cels) do
+    for prior = 1, index - 1 do
+      if cel.image == cels[prior].image then
+        links[#links + 1] = { prior, index }
+      end
+    end
+  end
+  return { sprite = inspection.inspect(sprite, all_sections), images = images, links = links }
 end
 
 local function verify_postconditions(sprite, conditions)
@@ -140,6 +150,23 @@ local function execute_step(step)
   end
   if step.operation == "paint apply" then
     local evidence = paint.apply_live(open_sprite, input, digest)
+    return evidence
+  end
+  if step.operation == "frame list" then
+    local facts = inspection.inspect(open_sprite, { "frames" })
+    return { frames = facts.frames }
+  end
+  if step.operation == "frame get" then
+    local number = input.frame_number
+    assert(number >= 1 and number <= #open_sprite.frames, "Frame Number is out of range")
+    local facts = inspection.inspect(open_sprite, { "frames" })
+    return { frame = facts.frames[number] }
+  end
+  if step.operation == "frame add" or step.operation == "frame duplicate" then
+    local evidence = frame.apply_live(
+      open_sprite, step.operation == "frame add" and "add" or "duplicate", input
+    )
+    evidence._expected_pixel = nil
     return evidence
   end
   error("Operation is not Plan-eligible")
@@ -194,6 +221,8 @@ local function execute()
     )
     local image_mismatch = difference(before.images, after.images, "images")
     assert(image_mismatch == nil, "persisted Plan images differ at " .. tostring(image_mismatch))
+    local link_mismatch = difference(before.links, after.links, "links")
+    assert(link_mismatch == nil, "persisted Plan Cel links differ at " .. tostring(link_mismatch))
     after.sprite.palettes = persisted_palettes
     verify_postconditions(open_sprite, conditions)
     persisted = true

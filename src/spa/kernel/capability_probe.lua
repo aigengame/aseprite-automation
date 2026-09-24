@@ -5,6 +5,7 @@ local creation = dofile(app.params.creation)
 local exporter = app.params.export_image_support and dofile(app.params.export_image_support) or nil
 local paint = dofile(app.params.paint)
 local digest = dofile(app.params.digest)
+local frame = app.params.frame and dofile(app.params.frame) or nil
 
 local function observes_sprite_inspection()
   local open_sprite = nil
@@ -144,6 +145,26 @@ local function observes_paint_apply()
   return ok
 end
 
+local function observes_frame_authoring()
+  if frame == nil then return false end
+  local sprite = nil
+  local ok = pcall(function()
+    sprite = Sprite(2, 2, ColorMode.RGB)
+    local duplicated = frame.apply_live(sprite, "duplicate", {
+      source_frame_number = 1, cel_mode = "copy", duration_ms = 340,
+    })
+    assert(duplicated.inserted_frame.frame_number == 2)
+    assert(duplicated.inserted_frame.duration_ms == 340)
+    local added = frame.apply_live(sprite, "add", { frame_number = 1, duration_ms = 1 })
+    assert(added.inserted_frame.frame_number == 1)
+    assert(added.inserted_frame.duration_ms == 1)
+    sprite:close()
+    sprite = nil
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  return ok
+end
+
 function module.observe()
   local capabilities = { "aseprite_runtime_introspection" }
   local supports_inspection = observes_sprite_inspection()
@@ -152,6 +173,7 @@ function module.observe()
   end
   if supports_inspection then capabilities[#capabilities + 1] = "aseprite_sprite_inspection" end
   if observes_paint_apply() then capabilities[#capabilities + 1] = "aseprite_paint_apply" end
+  if observes_frame_authoring() then capabilities[#capabilities + 1] = "aseprite_frame_authoring" end
   if exporter ~= nil then
     local ok = pcall(function()
       local fixture = Sprite(1, 1, ColorMode.RGB)

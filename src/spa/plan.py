@@ -12,6 +12,14 @@ from spa.contracts import (
     RuntimeRequirements,
     ValidationIssue,
 )
+from spa.frame import (
+    FRAME_OPERATIONS,
+    FRAME_SUPPORT_RESOURCE,
+    FrameAddInput,
+    FrameDuplicateInput,
+    FrameMutationEvidence,
+    validate_frame_evidence,
+)
 from spa.mutation import TargetCommit, source_target_identity_issue
 from spa.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.paint import (
@@ -39,6 +47,7 @@ from spa.sprite import (
     SPRITE_INSPECTION_FIXTURE,
     SPRITE_INSPECTION_RESOURCE,
     SPRITE_OPERATIONS,
+    FrameFacts,
     InitialLayer,
     InspectionScope,
     SpriteCreateInput,
@@ -53,7 +62,7 @@ from spa.sprite import (
 MAX_PLAN_STEPS = 64
 ELIGIBLE_OPERATIONS = {
     descriptor.name: descriptor
-    for descriptor in (*SPRITE_OPERATIONS, *PAINT_OPERATIONS)
+    for descriptor in (*SPRITE_OPERATIONS, *PAINT_OPERATIONS, *FRAME_OPERATIONS)
     if descriptor.plan_eligible
 }
 PLAN_RUN_HANDLER = PackagedHandler(
@@ -62,6 +71,7 @@ PLAN_RUN_HANDLER = PackagedHandler(
         SPRITE_INSPECTION_RESOURCE,
         SPRITE_CREATION_RESOURCE,
         PAINT_SUPPORT_RESOURCE,
+        FRAME_SUPPORT_RESOURCE,
         DIGEST_RESOURCE,
         SPRITE_INSPECTION_FIXTURE,
         PAINT_PROBE_FIXTURE,
@@ -84,7 +94,44 @@ class PaintStep(PublicModel):
     input: PaintApplyInput
 
 
-PlanStep = Annotated[CreateStep | GetStep | PaintStep, Field(discriminator="operation")]
+class FrameListInput(PublicModel):
+    pass
+
+
+class FrameListStep(PublicModel):
+    operation: Literal["frame list"]
+    input: FrameListInput = Field(default_factory=FrameListInput)
+
+
+class FrameGetInput(PublicModel):
+    frame_number: int = Field(ge=1, strict=True)
+
+
+class FrameGetStep(PublicModel):
+    operation: Literal["frame get"]
+    input: FrameGetInput
+
+
+class FrameAddStep(PublicModel):
+    operation: Literal["frame add"]
+    input: FrameAddInput
+
+
+class FrameDuplicateStep(PublicModel):
+    operation: Literal["frame duplicate"]
+    input: FrameDuplicateInput
+
+
+PlanStep = Annotated[
+    CreateStep
+    | GetStep
+    | PaintStep
+    | FrameListStep
+    | FrameGetStep
+    | FrameAddStep
+    | FrameDuplicateStep,
+    Field(discriminator="operation"),
+]
 
 
 class PlanPostconditions(PublicModel):
@@ -119,7 +166,11 @@ class PlanDefinition(PublicModel):
                 "width": first.input.width,
                 "height": first.input.height,
                 "color_mode": first.input.color_mode,
-                "frame_count": 1,
+                "frame_count": 1
+                + sum(
+                    isinstance(step, (FrameAddStep, FrameDuplicateStep))
+                    for step in self.steps
+                ),
             }
             for field, expected in self.postconditions.model_dump(
                 exclude_none=True
@@ -128,7 +179,10 @@ class PlanDefinition(PublicModel):
                     raise ValueError(
                         f"Plan {field} Postcondition contradicts Sprite creation"
                     )
-        mutates = creates or any(step.operation == "paint apply" for step in self.steps)
+        mutates = creates or any(
+            isinstance(step, (PaintStep, FrameAddStep, FrameDuplicateStep))
+            for step in self.steps
+        )
         if (creates and self.source_sprite_file is not None) or (
             not creates and self.source_sprite_file is None
         ):
@@ -188,6 +242,19 @@ class PaintStepResult(PaintApplyEvidence):
     persisted_reopen_verified: Literal[False]
 
 
+class FrameListStepResult(PublicModel):
+    frames: list[FrameFacts]
+
+
+class FrameGetStepResult(PublicModel):
+    frame: FrameFacts
+
+
+class FrameMutationStepResult(FrameMutationEvidence):
+    persisted_reopen_verified: Literal[False]
+    sprite: None = None
+
+
 class CreateStepOutcome(PublicModel):
     operation: Literal["sprite create"]
     result: CreateStepResult
@@ -203,8 +270,34 @@ class PaintStepOutcome(PublicModel):
     result: PaintStepResult
 
 
+class FrameListStepOutcome(PublicModel):
+    operation: Literal["frame list"]
+    result: FrameListStepResult
+
+
+class FrameGetStepOutcome(PublicModel):
+    operation: Literal["frame get"]
+    result: FrameGetStepResult
+
+
+class FrameAddStepOutcome(PublicModel):
+    operation: Literal["frame add"]
+    result: FrameMutationStepResult
+
+
+class FrameDuplicateStepOutcome(PublicModel):
+    operation: Literal["frame duplicate"]
+    result: FrameMutationStepResult
+
+
 StepOutcome = Annotated[
-    CreateStepOutcome | GetStepOutcome | PaintStepOutcome,
+    CreateStepOutcome
+    | GetStepOutcome
+    | PaintStepOutcome
+    | FrameListStepOutcome
+    | FrameGetStepOutcome
+    | FrameAddStepOutcome
+    | FrameDuplicateStepOutcome,
     Field(discriminator="operation"),
 ]
 
@@ -395,9 +488,27 @@ def _validated_steps(
                     operation="sprite get",
                     result=GetStepResult(sprite=sprite, scope=scope),
                 )
-            else:
+            elif isinstance(step, PaintStep):
                 outcome = PaintStepOutcome.model_validate(item)
                 validate_paint_evidence(step.input, outcome.result, invocation)
+            elif isinstance(step, FrameListStep):
+                outcome = FrameListStepOutcome.model_validate(item)
+            elif isinstance(step, FrameGetStep):
+                outcome = FrameGetStepOutcome.model_validate(item)
+                if outcome.result.frame.frame_number != step.input.frame_number:
+                    raise _postcondition(
+                        invocation,
+                        "Frame Get address differs",
+                        failed_step=index,
+                        failed_operation=step.operation,
+                    )
+            elif isinstance(step, FrameAddStep):
+                outcome = FrameAddStepOutcome.model_validate(item)
+                validate_frame_evidence(step.input, outcome.result, invocation)
+            else:
+                assert isinstance(step, FrameDuplicateStep)
+                outcome = FrameDuplicateStepOutcome.model_validate(item)
+                validate_frame_evidence(step.input, outcome.result, invocation)
         except (KeyError, TypeError, ValidationError) as exc:
             raise _malformed(
                 invocation,
@@ -475,7 +586,10 @@ def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunRes
             )
             try:
                 validate_created_sprite(
-                    create_request, final_sprite, first.result.initial_layer, invocation
+                    create_request,
+                    first.result.sprite,
+                    first.result.initial_layer,
+                    invocation,
                 )
             except RuntimeIssue as exc:
                 raise _postcondition(

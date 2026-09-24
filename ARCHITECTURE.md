@@ -12,8 +12,8 @@ this view instead of treating it as another decision authority.
 
 > [!IMPORTANT]
 > SPA is at the bootstrap stage. The installed CLI exposes `spa info`, `spa version`,
-> `spa schema`, Sprite creation and inspection, bounded Pixel Patch application,
-> and verified RGB PNG Image Export. The module
+> `spa schema`, Sprite creation and inspection, Frame inspection and authoring,
+> bounded Pixel Patch application, and verified RGB PNG Image Export. The module
 > ownership below includes both this delivered vertical slice and planned work. Feature
 > issues own delivery status, while the installed Surface Manifest reports the callable
 > surface of each installation.
