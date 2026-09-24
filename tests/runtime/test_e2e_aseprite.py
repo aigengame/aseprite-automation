@@ -82,6 +82,9 @@ def test_info_reports_installed_runtime() -> None:
         "spa tag set",
         "spa tag remove",
         "spa export image",
+        "spa animation audit",
+        "spa animation compare",
+        "spa animation preview",
         "spa plan check",
         "spa plan run",
     ]

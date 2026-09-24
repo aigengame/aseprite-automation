@@ -1,5 +1,6 @@
 """One registration authority for installed Operations."""
 
+from spa.animation import ANIMATION_OPERATIONS
 from spa.cel import CEL_OPERATIONS, CEL_SUPPORT_RESOURCE
 from spa.contracts import (
     CapabilityGap,
@@ -183,5 +184,6 @@ OPERATIONS = (
     *CEL_OPERATIONS,
     *TAG_OPERATIONS,
     *EXPORT_OPERATIONS,
+    *ANIMATION_OPERATIONS,
     *PLAN_OPERATIONS,
 )
