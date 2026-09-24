@@ -365,3 +365,72 @@ def test_set_group_properties_without_image_only_fields(tmp_path: Path) -> None:
         (2, 1),
         (2, 2),
     }
+
+
+@pytest.mark.parametrize(
+    ("path", "name"),
+    [([2], "renamed-image"), ([3], "renamed-group")],
+)
+def test_rename_reports_only_the_changed_layer(
+    tmp_path: Path, path: list[int], name: str
+) -> None:
+    source = tmp_path / "source.aseprite"
+    target = tmp_path / "renamed.aseprite"
+    _fixture(source)
+    code, result = _run(
+        "set",
+        {
+            **_mutation_request(source, target),
+            "target": {"layer_path": path},
+            "properties": {"name": name},
+        },
+    )
+    assert code == 0, result
+    assert result["affected_before"]["layer_paths"] == [path]
+    assert result["affected_after"]["layer_paths"] == [path]
+    assert result["affected_before"]["cels"] == []
+    assert result["affected_after"]["cels"] == []
+    assert all(
+        frame["before_digest"] == frame["after_digest"]
+        for frame in result["rendered_frames"]
+    )
+
+
+@pytest.mark.parametrize(
+    ("command", "extra"),
+    [("set", {"properties": {"name": "upper"}}), ("move", {"stack_index": 2})],
+)
+def test_noop_reports_no_changed_objects(
+    tmp_path: Path, command: str, extra: dict
+) -> None:
+    source = tmp_path / "source.aseprite"
+    target = tmp_path / "noop.aseprite"
+    _fixture(source)
+    code, result = _run(
+        command,
+        {**_mutation_request(source, target), "target": {"layer_path": [2]}, **extra},
+    )
+    assert code == 0, result
+    for phase in ("affected_before", "affected_after"):
+        assert result[phase] == {"layer_paths": [], "cels": []}
+    assert all(
+        frame["before_digest"] == frame["after_digest"]
+        for frame in result["rendered_frames"]
+    )
+
+
+def test_move_rejects_crossing_background_before_publishing(tmp_path: Path) -> None:
+    source = tmp_path / "source.aseprite"
+    target = tmp_path / "rejected.aseprite"
+    _fixture(source, "tilemap_subtree.lua")
+    code, result = _run(
+        "move",
+        {
+            **_mutation_request(source, target),
+            "target": {"layer_path": [2]},
+            "stack_index": 1,
+        },
+    )
+    assert code == 2, result
+    assert result["code"] == "layer_invalid_position"
+    assert not target.exists()

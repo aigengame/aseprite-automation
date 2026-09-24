@@ -679,6 +679,15 @@ def _validate_mutation_evidence(
             or (address.layer_name is not None and layer.name == address.layer_name)
         )
     ]
+    no_reported_change = not evidence.affected_before.layer_paths
+    changed_facts_without_impact = no_reported_change and (
+        evidence.before.layers != evidence.after.layers
+        or evidence.before.cels != evidence.after.cels
+        or any(
+            frame.before_digest != frame.after_digest
+            for frame in evidence.rendered_frames
+        )
+    )
     if (
         before.width != after.width
         or before.height != after.height
@@ -689,7 +698,11 @@ def _validate_mutation_evidence(
         or [frame.frame_number for frame in evidence.rendered_frames]
         != list(range(1, before.frame_count + 1))
         or len(addressed_layers) != 1
-        or addressed_layers[0].path not in evidence.affected_before.layer_paths
+        or changed_facts_without_impact
+        or (
+            not no_reported_change
+            and addressed_layers[0].path not in evidence.affected_before.layer_paths
+        )
     ):
         raise RuntimeIssue(
             "postcondition_failed",

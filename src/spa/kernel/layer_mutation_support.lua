@@ -2,27 +2,6 @@
 local module = {}
 local all_sections = { "frames", "tags", "palettes", "layers", "cels", "slices", "tilesets" }
 local result_sections = { "layers", "cels" }
-local blend_modes = {
-  normal = BlendMode.NORMAL,
-  multiply = BlendMode.MULTIPLY,
-  screen = BlendMode.SCREEN,
-  overlay = BlendMode.OVERLAY,
-  darken = BlendMode.DARKEN,
-  lighten = BlendMode.LIGHTEN,
-  color_dodge = BlendMode.COLOR_DODGE,
-  color_burn = BlendMode.COLOR_BURN,
-  hard_light = BlendMode.HARD_LIGHT,
-  soft_light = BlendMode.SOFT_LIGHT,
-  difference = BlendMode.DIFFERENCE,
-  exclusion = BlendMode.EXCLUSION,
-  hsl_hue = BlendMode.HSL_HUE,
-  hsl_saturation = BlendMode.HSL_SATURATION,
-  hsl_color = BlendMode.HSL_COLOR,
-  hsl_luminosity = BlendMode.HSL_LUMINOSITY,
-  addition = BlendMode.ADDITION,
-  subtract = BlendMode.SUBTRACT,
-  divide = BlendMode.DIVIDE,
-}
 
 local function copy_path(path, index)
   local result = {}
@@ -33,7 +12,7 @@ local function copy_path(path, index)
   return result
 end
 
-local function records(sprite)
+local function records(sprite, digest)
   local ordered, by_id = {}, {}
   local function visit(layers, prefix, parent_id)
     for index, layer in ipairs(layers) do
@@ -44,9 +23,26 @@ local function records(sprite)
           children[#children + 1] = child.id
         end
       end
-      local cels = {}
+      local cels, cel_facts = {}, {}
       for _, cel in ipairs(sprite.cels) do
-        if cel.layer.id == layer.id then cels[#cels + 1] = cel.frameNumber end
+        if cel.layer.id == layer.id then
+          local frame_number = cel.frameNumber
+          local bounds = cel.bounds
+          cels[#cels + 1] = frame_number
+          if digest ~= nil then
+            cel_facts[frame_number] = table.concat({
+              bounds.x,
+              bounds.y,
+              bounds.width,
+              bounds.height,
+              cel.opacity,
+              cel.zIndex,
+              cel.image.width,
+              cel.image.height,
+              digest.fnv1a64(cel.image.bytes),
+            }, ":")
+          end
+        end
       end
       local record = {
         id = layer.id,
@@ -54,6 +50,7 @@ local function records(sprite)
         parent_id = parent_id,
         children = children,
         cels = cels,
+        cel_facts = cel_facts,
         name = layer.name,
         is_visible = layer.isVisible,
         is_editable = layer.isEditable,
@@ -79,7 +76,8 @@ end
 
 local function record_changed(left, right)
   if left == nil or right == nil then return true end
-  return not equal_array(left.path, right.path)
+  if
+    not equal_array(left.path, right.path)
     or left.parent_id ~= right.parent_id
     or not equal_array(left.children, right.children)
     or not equal_array(left.cels, right.cels)
@@ -88,14 +86,29 @@ local function record_changed(left, right)
     or left.is_editable ~= right.is_editable
     or left.opacity ~= right.opacity
     or left.blend_mode ~= right.blend_mode
+  then
+    return true
+  end
+  for _, frame_number in ipairs(left.cels) do
+    if left.cel_facts[frame_number] ~= right.cel_facts[frame_number] then return true end
+  end
+  return false
 end
 
-local function affected(ordered, other, marked)
+local function affected(ordered, other, marked_layers, marked_cels)
   local result = { layer_paths = {}, cels = {} }
   for _, record in ipairs(ordered) do
-    if marked[record.id] or record_changed(record, other[record.id]) then
+    local counterpart = other[record.id]
+    if marked_layers[record.id] or record_changed(record, counterpart) then
       result.layer_paths[#result.layer_paths + 1] = record.path
-      for _, frame_number in ipairs(record.cels) do
+    end
+    for _, frame_number in ipairs(record.cels) do
+      if
+        marked_cels[record.id]
+        or counterpart == nil
+        or not equal_array(record.path, counterpart.path)
+        or record.cel_facts[frame_number] ~= counterpart.cel_facts[frame_number]
+      then
         result.cels[#result.cels + 1] = {
           layer_path = record.path,
           frame_number = frame_number,
@@ -112,6 +125,26 @@ local function mark_subtree(layer, marked)
     for _, child in ipairs(layer.layers) do
       mark_subtree(child, marked)
     end
+  end
+end
+
+local function mark_set_impacts(layer, properties, inspection, marked_layers, marked_cels)
+  local visible = properties.is_visible ~= nil and properties.is_visible ~= layer.isVisible
+  local editable = properties.is_editable ~= nil and properties.is_editable ~= layer.isEditable
+  if layer.isGroup and (visible or editable) then
+    -- Effective visibility and editability follow the Group hierarchy.
+    mark_subtree(layer, marked_layers)
+    mark_subtree(layer, marked_cels)
+  elseif
+    visible
+    or editable
+    or (properties.opacity ~= nil and properties.opacity ~= layer.opacity)
+    or (
+      properties.blend_mode ~= nil
+      and inspection.blend_mode_constant(properties.blend_mode) ~= layer.blendMode
+    )
+  then
+    marked_cels[layer.id] = true
   end
 end
 
@@ -147,7 +180,7 @@ end
 
 local function rejection(code, message) return { rejection = { code = code, message = message } } end
 
-local function prevalidate(sprite, selected, payload)
+local function prevalidate(sprite, selected, payload, inspection)
   local operation, layer = payload.operation, selected.layer
   if operation == "set" then
     if not is_regular(layer) then
@@ -185,7 +218,7 @@ local function prevalidate(sprite, selected, payload)
           )
         end
       elseif key == "blend_mode" then
-        if not is_regular_image(layer) or blend_modes[value] == nil then
+        if not is_regular_image(layer) or inspection.blend_mode_constant(value) == nil then
           return rejection(
             "layer_unsupported_target",
             "blend_mode requires a regular Image and supported mode"
@@ -212,6 +245,15 @@ local function prevalidate(sprite, selected, payload)
     local index = payload.stack_index
     if type(index) ~= "number" or index % 1 ~= 0 or index < 1 or index > #siblings then
       return rejection("layer_invalid_position", "stack_index is outside the current parent")
+    end
+    for position = math.min(layer.stackIndex, index), math.max(layer.stackIndex, index) do
+      local crossed = siblings[position]
+      if crossed ~= layer and not is_regular(crossed) then
+        return rejection(
+          "layer_invalid_position",
+          "Layer move would change the stack position of an unsupported sibling"
+        )
+      end
     end
   elseif operation == "remove" then
     if subtree_has_tilemap(layer) then
@@ -256,7 +298,7 @@ local function render_digests(sprite, digest)
   return result
 end
 
-local function apply(sprite, payload, layer, lower)
+local function apply(sprite, payload, layer, lower, inspection)
   if payload.operation == "set" then
     app.transaction("Set Layer", function()
       local properties = payload.properties
@@ -264,7 +306,9 @@ local function apply(sprite, payload, layer, lower)
       if properties.is_visible ~= nil then layer.isVisible = properties.is_visible end
       if properties.is_editable ~= nil then layer.isEditable = properties.is_editable end
       if properties.opacity ~= nil then layer.opacity = properties.opacity end
-      if properties.blend_mode ~= nil then layer.blendMode = blend_modes[properties.blend_mode] end
+      if properties.blend_mode ~= nil then
+        layer.blendMode = inspection.blend_mode_constant(properties.blend_mode)
+      end
     end)
     local properties = payload.properties
     if properties.name ~= nil then
@@ -281,7 +325,7 @@ local function apply(sprite, payload, layer, lower)
     end
     if properties.blend_mode ~= nil then
       assert(
-        layer.blendMode == blend_modes[properties.blend_mode],
+        layer.blendMode == inspection.blend_mode_constant(properties.blend_mode),
         "native Layer blend mode differs"
       )
     end
@@ -319,28 +363,29 @@ function module.execute(payload, inspection, selection, digest, persistence)
     local verified_uuids = inspection.saved_layer_uuids(open_sprite, payload.source_sprite_file)
     local selected, code, message = selection.resolve(open_sprite, payload.target, verified_uuids)
     if selected == nil then return rejection(code, message) end
-    local invalid, lower = prevalidate(open_sprite, selected, payload)
+    local invalid, lower = prevalidate(open_sprite, selected, payload, inspection)
     if invalid ~= nil then return invalid end
     local before = inspection.inspect(open_sprite, result_sections, verified_uuids)
-    local before_ordered, before_by_id = records(open_sprite)
+    local before_ordered, before_by_id = records(open_sprite, digest)
     local source_uuids = {}
     for _, record in ipairs(before_ordered) do
       source_uuids[record.id] = verified_uuids[table.concat(record.path, "/")]
     end
-    local marked = {}
-    mark_subtree(selected.layer, marked)
-    if lower ~= nil then marked[lower.id] = true end
+    local marked_layers, marked_cels = {}, {}
+    if payload.operation == "set" then
+      mark_set_impacts(selected.layer, payload.properties, inspection, marked_layers, marked_cels)
+    end
     local before_rendered = render_digests(open_sprite, digest)
-    apply(open_sprite, payload, selected.layer, lower)
-    local after_ordered, after_by_id = records(open_sprite)
+    apply(open_sprite, payload, selected.layer, lower, inspection)
+    local after_ordered, after_by_id = records(open_sprite, digest)
     local unsaved_uuids = {}
     for _, record in ipairs(after_ordered) do
       local uuid = source_uuids[record.id]
       if uuid ~= nil then unsaved_uuids[table.concat(record.path, "/")] = uuid end
     end
     local after_rendered = render_digests(open_sprite, digest)
-    local before_affected = affected(before_ordered, after_by_id, marked)
-    local after_affected = affected(after_ordered, before_by_id, marked)
+    local before_affected = affected(before_ordered, after_by_id, marked_layers, marked_cels)
+    local after_affected = affected(after_ordered, before_by_id, marked_layers, marked_cels)
     local rendered_frames = {}
     for number = 1, #open_sprite.frames do
       rendered_frames[number] = {

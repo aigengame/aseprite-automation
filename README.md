@@ -153,7 +153,9 @@ regular Transparent Image sibling. It fixes Aseprite's experimental new-blend
 behavior during the merge and restores the previous preference. All four return
 before/after Layer and Cel facts, directly affected object addresses, rendered
 Frame digests, and save/reopen verification before Target Commit. They are
-standalone mutations and are not Plan Steps.
+standalone mutations and are not Plan Steps. An operation that changes no Layer
+or Cel facts reports empty affected sets; Group visibility and editability
+changes include descendants whose effective state changes.
 `spa paint apply` accepts at most 256 addressed Image Pixels per request. It defaults
 to rejecting out-of-bounds pixels; `clipping: "clip"` is the explicit clipping policy.
 In-place editing requires Source and Target to name the same publication entry,
