@@ -105,7 +105,8 @@ better Aseprite-aligned evidence.
 | Candidate command | Intended meaning |
 | --- | --- |
 | `spa animation audit` | Inspect animation coverage, timing, ranges, overlaps, and declared structural constraints. |
-| `spa animation compare` | Compare bounded Frame regions and optionally publish continuity-review Preview Artifacts. |
+| `spa animation compare` | Compare two explicitly selected Frames and report objective pixel differences without publishing an Artifact. |
+| `spa animation preview` | Export a two-Frame continuity-review PNG Preview Artifact to an explicit destination. |
 
 ## `image`
 
