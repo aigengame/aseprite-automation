@@ -186,11 +186,14 @@ class FrameFacts(PublicModel):
     duration_ms: int = Field(ge=1, le=65535)
 
 
+TagDirection = Literal["forward", "reverse", "ping_pong", "ping_pong_reverse"]
+
+
 class TagFacts(PublicModel):
     name: str
     from_frame: int = Field(ge=1)
     to_frame: int = Field(ge=1)
-    direction: Literal["forward", "reverse", "ping_pong", "ping_pong_reverse"]
+    direction: TagDirection
     repeats: int = Field(ge=0, le=65535)
     color: RgbaColor
 

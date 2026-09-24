@@ -4,7 +4,7 @@ Aseprite Automation (SPA) provides agent-facing automation for Aseprite. `SPA` i
 short project name used in documentation; `spa` is the primary executable.
 
 > [!IMPORTANT]
-> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery, Sprite creation, inspection, copy, flatten, and validation, Layer addressing and mutation, Frame inspection, authoring, and editing, bounded Pixel Patch application, and verified RGB PNG Image Export. Feature issues own delivery contracts, evidence requirements, provenance links, curated evidence summaries, and status, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
+> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery, Sprite creation, inspection, copy, flatten, and validation, Layer addressing and mutation, Frame inspection, authoring, and editing, Tag inspection and authoring, bounded Pixel Patch application, and verified RGB PNG Image Export. Feature issues own delivery contracts, evidence requirements, provenance links, curated evidence summaries, and status, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
 
 This README owns the user-facing product introduction and promotion, value-proposition
 narrative, onboarding, adoption guidance, and project navigation. Its factual claims
@@ -132,6 +132,8 @@ uv run spa layer move --input-json '{"aseprite":"/path/to/aseprite","source_spri
 uv run spa layer remove --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"layered.aseprite","target_sprite_file":"removed.aseprite","in_place":false,"overwrite":false,"target":{"layer_path":[2]}}'
 uv run spa layer add --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"two-image-layers.aseprite","in_place":false,"overwrite":false,"kind":"transparent","name":"upper"}'
 uv run spa layer merge --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"two-image-layers.aseprite","target_sprite_file":"merged.aseprite","in_place":false,"overwrite":false,"target":{"layer_path":[2]}}'
+uv run spa layer convert-to-background --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"background.aseprite","in_place":false,"overwrite":false,"target":{"layer_path":[1]},"background_color":{"kind":"rgba","red":10,"green":20,"blue":30,"alpha":255}}'
+uv run spa layer convert-from-background --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"background.aseprite","target_sprite_file":"transparent.aseprite","in_place":false,"overwrite":false,"target":{"layer_path":[1]}}'
 uv run spa paint apply --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"painted.aseprite","in_place":false,"overwrite":false,"target":{"layer_path":[1],"frame_number":1},"patch":{"coordinate_space":"image-pixel","rectangle":{"x":0,"y":0,"width":2,"height":1},"runs":[{"x":0,"y":0,"length":2,"color":{"kind":"rgba","red":255,"green":0,"blue":0,"alpha":255}}]}}'
 uv run spa plan check --input-json '{"plan":{"source_sprite_file":"sprite.aseprite","steps":[{"operation":"sprite get","input":{"inspection_scope":["frames","layers"]}}]}}'
 uv run spa plan run --input-json '{"aseprite":"/path/to/aseprite","plan":{"source_sprite_file":"sprite.aseprite","steps":[{"operation":"sprite get","input":{"inspection_scope":["frames","layers"]}}]}}'
@@ -179,6 +181,17 @@ Frame digests, and save/reopen verification before Target Commit. They are
 standalone mutations and are not Plan Steps. An operation that changes no Layer
 or Cel facts reports empty affected sets; Group visibility and editability
 changes include descendants whose effective state changes.
+`spa layer convert-to-background` requires a visible, editable regular
+Transparent Image Layer, no existing Background, and an explicit opaque Color
+Value compatible with the Sprite Color Mode and, for Indexed Sprites, the
+Effective Palette at every Frame. Aseprite moves the converted Layer to the
+root bottom, names it `Background`, fills transparent pixels, and ensures an
+opaque, full-canvas Cel on every Frame.
+`spa layer convert-from-background` requires a visible, editable Background
+Layer and preserves its Cel images while accepting Aseprite's resulting Layer
+name. Both results report the before/after Layer facts, complete affected Frame
+numbers, created Cel count, and per-Frame before/after Cel facts. These are
+standalone mutations and are not Plan Steps.
 `spa paint apply` accepts at most 256 addressed Image Pixels per request. It defaults
 to rejecting out-of-bounds pixels; `clipping: "clip"` is the explicit clipping policy.
 In-place editing requires Source and Target to name the same publication entry,
@@ -200,6 +213,17 @@ produces `[B, C, A, D]`. `spa frame remove` deletes one Frame but refuses to
 remove the Sprite's final Frame. These standalone mutations report observed native
 changes to Frame numbers, Cels, Tag ranges, Slice Keys, and Palette Changes when
 present, and verify the staged Sprite after reopening it before Target Commit.
+
+`spa tag list` and `spa tag get` inspect stored Tags with a one-based current
+`tag_index`. `get`, `set`, and `remove` accept exactly one of `tag_index` or
+`tag_name` inside `target`; a name must match exactly once. `spa tag add`
+requires an inclusive `from_frame`/`to_frame` range, native `direction`, and
+`repeats` (0–65535). `spa tag set` changes only supplied Tag properties. Add
+and set return the persisted Tag and its index after reopening; remove returns
+the removed Tag with its former index and the remaining Tag list. Native zero
+repeats stays a stored value without an inferred playback sequence. Indexes
+are snapshot-relative and can change after range edits. Mutations use the same
+explicit Source/Target publication intent as Frame authoring.
 
 `spa plan check` validates a bounded Plan, including current Source and Target path
 conditions, without starting Aseprite. `spa plan run`

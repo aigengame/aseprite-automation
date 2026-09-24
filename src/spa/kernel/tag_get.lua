@@ -1,11 +1,8 @@
--- Fixed packaged Layer mutation handler. Runtime files carry data only.
+-- Fixed packaged Tag inspection handler. Runtime files carry data only.
 local kernel_protocol_version = 1
 local inspection = dofile(app.params.inspection)
-local selection = dofile(app.params.layer_select)
-local mutation = dofile(app.params.layer_mutation)
-local digest = dofile(app.params.digest)
-local persistence = dofile(app.params.persistence)
-local frame = dofile(app.params.frame)
+local selection = dofile(app.params.tag_select)
+local open_sprite = nil
 
 local function execute()
   local request_file = assert(io.open(app.params.request, "rb"))
@@ -15,17 +12,21 @@ local function execute()
     request.kernel_protocol_version == kernel_protocol_version,
     "unsupported Kernel Protocol version"
   )
-  return mutation.execute(
-    assert(request.payload),
-    inspection,
-    selection,
-    digest,
-    persistence,
-    frame
-  )
+  local payload = assert(request.payload)
+  open_sprite = assert(app.open(payload.sprite_file), "could not open Sprite File")
+  local selected, index, code, message = selection.resolve(open_sprite, assert(payload.target))
+  if selected == nil then return { rejection = { code = code, message = message } } end
+  local result = {
+    selected_index = index,
+    sprite = inspection.inspect(open_sprite, { "tags" }),
+  }
+  open_sprite:close()
+  open_sprite = nil
+  return result
 end
 
 local ok, result = pcall(execute)
+if open_sprite ~= nil then pcall(function() open_sprite:close() end) end
 local response
 if ok then
   response = { kernel_protocol_version = kernel_protocol_version, status = "ok", result = result }

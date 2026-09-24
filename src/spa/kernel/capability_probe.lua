@@ -276,6 +276,38 @@ local function observes_paint_apply()
   return ok
 end
 
+local function observes_background_conversion()
+  local sprite = nil
+  local previous = {
+    sprite = app.activeSprite,
+    layer = app.activeLayer,
+    frame = app.activeFrame,
+    background_color = app.bgColor,
+  }
+  local ok = pcall(function()
+    sprite = Sprite(2, 2, ColorMode.RGB)
+    app.activeSprite = sprite
+    local layer = sprite.layers[1]
+    app.activeLayer = layer
+    app.activeFrame = sprite.frames[1]
+    app.bgColor = Color { r = 17, g = 34, b = 51, a = 255 }
+    assert(app.command.BackgroundFromLayer())
+    assert(layer.isBackground and layer:cel(1) ~= nil)
+    assert(app.command.LayerFromBackground())
+    assert(layer.isTransparent and not layer.isBackground)
+    sprite:close()
+    sprite = nil
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  pcall(function() app.bgColor = previous.background_color end)
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
+  return ok
+end
+
 local function observes_frame_authoring()
   if frame == nil then return false end
   local sprite = nil
@@ -346,6 +378,33 @@ local function observes_sprite_flatten()
   return ok
 end
 
+local function observes_tag_authoring()
+  local sprite = nil
+  local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
+  local ok = pcall(function()
+    sprite = Sprite(2, 2, ColorMode.RGB)
+    sprite:newEmptyFrame(2)
+    local tag = sprite:newTag(1, 2)
+    tag.name = "probe"
+    tag.aniDir = AniDir.PING_PONG_REVERSE
+    tag.repeats = 0
+    tag.toFrame = 1
+    assert(#sprite.tags == 1 and tag.toFrame.frameNumber == 1)
+    assert(tag.aniDir == AniDir.PING_PONG_REVERSE and tag.repeats == 0)
+    sprite:deleteTag(tag)
+    assert(#sprite.tags == 0)
+    sprite:close()
+    sprite = nil
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
+  return ok
+end
+
 function module.observe()
   local capabilities = { "aseprite_runtime_introspection" }
   local supports_inspection = observes_sprite_inspection()
@@ -359,11 +418,15 @@ function module.observe()
   end
   if observes_layer_mutation() then capabilities[#capabilities + 1] = "aseprite_layer_mutation" end
   if observes_layer_merge() then capabilities[#capabilities + 1] = "aseprite_layer_merge" end
+  if observes_background_conversion() then
+    capabilities[#capabilities + 1] = "aseprite_background_conversion"
+  end
   if observes_paint_apply() then capabilities[#capabilities + 1] = "aseprite_paint_apply" end
   if observes_frame_authoring() then
     capabilities[#capabilities + 1] = "aseprite_frame_authoring"
   end
   if observes_frame_editing() then capabilities[#capabilities + 1] = "aseprite_frame_editing" end
+  if observes_tag_authoring() then capabilities[#capabilities + 1] = "aseprite_tag_authoring" end
   if exporter ~= nil then
     local ok = pcall(function()
       local fixture = Sprite(1, 1, ColorMode.RGB)

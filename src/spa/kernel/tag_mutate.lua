@@ -1,11 +1,10 @@
--- Fixed packaged Layer mutation handler. Runtime files carry data only.
+-- Fixed packaged Tag mutation handler. Runtime files carry data only.
 local kernel_protocol_version = 1
 local inspection = dofile(app.params.inspection)
-local selection = dofile(app.params.layer_select)
-local mutation = dofile(app.params.layer_mutation)
-local digest = dofile(app.params.digest)
 local persistence = dofile(app.params.persistence)
-local frame = dofile(app.params.frame)
+local digest = dofile(app.params.digest)
+local tag = dofile(app.params.tag)
+local selection = dofile(app.params.tag_select)
 
 local function execute()
   local request_file = assert(io.open(app.params.request, "rb"))
@@ -15,14 +14,7 @@ local function execute()
     request.kernel_protocol_version == kernel_protocol_version,
     "unsupported Kernel Protocol version"
   )
-  return mutation.execute(
-    assert(request.payload),
-    inspection,
-    selection,
-    digest,
-    persistence,
-    frame
-  )
+  return tag.execute(assert(request.payload), inspection, digest, persistence, selection)
 end
 
 local ok, result = pcall(execute)

@@ -1,4 +1,4 @@
--- Frame-owned native insertion, Cel relationship, and persistence semantics.
+-- Frame insertion and shared Background Color validation over native Sprite facts.
 local module = {}
 local json_null = json.decode("null")
 local all_sections = {
@@ -39,6 +39,8 @@ local function effective_palette(sprite, frame_number)
   return assert(selected, "Indexed Background has no Effective Palette")
 end
 
+module.effective_palette = effective_palette
+
 local function validate_indexed_background(sprite, frame_number, index)
   local palette = effective_palette(sprite, frame_number)
   assert(index < #palette, "Background Palette Index does not exist")
@@ -63,6 +65,10 @@ local function background_pixel(sprite, value, insert_number)
     return Color { index = value.index }, value.index
   end
   error("unsupported Background Color Mode")
+end
+
+function module.background_color_for_frame(sprite, value, frame_number)
+  return background_pixel(sprite, value, frame_number + 1)
 end
 
 local function background_fill_fact(value)

@@ -61,8 +61,8 @@ better Aseprite-aligned evidence.
 | `spa layer move` | Reorder one regular Transparent Image or Group among its current parent's children. |
 | `spa layer merge` | Merge one regular Transparent Image into its immediate lower regular Transparent Image sibling with Aseprite's experimental `new_blend=true` behavior. |
 | `spa layer set-tileset` | Rebind one Tilemap Layer through explicit Tile mapping and Grid policies. |
-| `spa layer convert-to-background` | Convert an eligible regular Transparent Layer to a Background Layer and report Cel normalization. |
-| `spa layer convert-from-background` | Convert the Background Layer to a regular Transparent Layer. |
+| `spa layer convert-to-background` | Explicitly convert a visible, editable regular Transparent Image Layer with a compatible Background Color Value; report native naming, stack movement, affected Frames, and per-Frame Cel normalization after save/reopen. |
+| `spa layer convert-from-background` | Explicitly convert a visible, editable Background Layer to a regular Transparent Image Layer; preserve Cel pixels and report the native result name after save/reopen. |
 
 ## `frame`
 

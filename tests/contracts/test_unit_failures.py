@@ -49,6 +49,7 @@ from spa.ports import (
     TargetCommitEvidence,
 )
 from spa.sprite import SpriteCopyStagingDetails, SpriteUnsupportedContentDetails
+from spa.tag import TagAddress, TagRangeDetails, TagTargetDetails
 from tests.support import operation_services
 
 registered_failure_envelope = partial(failure_envelope, failure_codes=FAILURE_CODES)
@@ -188,6 +189,8 @@ def test_each_registered_code_has_a_constrained_public_schema() -> None:
         LayerTargetDetails: LayerTargetDetails(
             address_role="target", address=LayerAddress(layer_path=[1])
         ),
+        TagTargetDetails: TagTargetDetails(address=TagAddress(tag_index=1)),
+        TagRangeDetails: TagRangeDetails(from_frame=1, to_frame=2, frame_count=1),
         SpriteUnsupportedContentDetails: SpriteUnsupportedContentDetails(
             source_sprite_file="sprite.aseprite",
             tileset_count=1,

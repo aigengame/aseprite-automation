@@ -24,6 +24,7 @@ from spa.paint import PAINT_OPERATIONS, PAINT_PROBE_RESOURCES
 from spa.plan import PLAN_OPERATIONS
 from spa.ports import OperationServices
 from spa.sprite import SPRITE_OPERATIONS, SPRITE_PROBE_RESOURCES
+from spa.tag import TAG_OPERATIONS
 
 PROBE_RESOURCES = (
     *SPRITE_PROBE_RESOURCES,
@@ -177,6 +178,7 @@ OPERATIONS = (
     *LAYER_OPERATIONS,
     *PAINT_OPERATIONS,
     *FRAME_OPERATIONS,
+    *TAG_OPERATIONS,
     *EXPORT_OPERATIONS,
     *PLAN_OPERATIONS,
 )
