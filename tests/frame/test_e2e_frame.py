@@ -2,6 +2,7 @@
 
 import json
 import os
+import struct
 import subprocess
 import tempfile
 from pathlib import Path
@@ -55,6 +56,30 @@ def _tagged_sprite(target: Path) -> None:
 
 def _timeline_sprite(target: Path) -> None:
     _run_fixture("timeline.lua", out=str(target))
+
+
+def _add_second_slice_key(sprite_file: Path) -> None:
+    """Create an Aseprite file with a Frame 3 Slice Key (Lua only edits Key 1)."""
+    payload = bytearray(sprite_file.read_bytes())
+    frame_offset = 128
+    frame_size, magic, chunk_count = struct.unpack_from("<IHH", payload, frame_offset)
+    assert magic == 0xF1FA
+    chunk_offset = frame_offset + 16
+    for _ in range(chunk_count):
+        chunk_size, chunk_type = struct.unpack_from("<IH", payload, chunk_offset)
+        if chunk_type == 0x2022:
+            key_count, flags = struct.unpack_from("<II", payload, chunk_offset + 6)
+            assert key_count == 1 and flags == 0
+            second_key = struct.pack("<IiiII", 2, 1, 0, 1, 1)
+            payload[chunk_offset + chunk_size : chunk_offset + chunk_size] = second_key
+            struct.pack_into("<I", payload, chunk_offset, chunk_size + len(second_key))
+            struct.pack_into("<I", payload, chunk_offset + 6, 2)
+            struct.pack_into("<I", payload, frame_offset, frame_size + len(second_key))
+            struct.pack_into("<I", payload, 0, len(payload))
+            sprite_file.write_bytes(payload)
+            return
+        chunk_offset += chunk_size
+    raise AssertionError("fixture has no Slice chunk")
 
 
 def _native_link_status(target: Path, out: Path) -> bool:
@@ -278,6 +303,187 @@ def test_remove_frame_shifts_retained_content_and_rejects_final_frame(
     assert _run("frame", "list", request={"sprite_file": str(one)})["frames"] == [
         {"frame_number": 1, "duration_ms": 100}
     ]
+
+
+def test_move_and_remove_report_reopened_slice_keys(tmp_path: Path) -> None:
+    source = tmp_path / "source.aseprite"
+    moved_file = tmp_path / "moved.aseprite"
+    removed_file = tmp_path / "removed.aseprite"
+    _timeline_sprite(source)
+    _add_second_slice_key(source)
+    before = _run(
+        "sprite",
+        "get",
+        request={"sprite_file": str(source), "inspection_scope": ["slices"]},
+    )
+    assert [key["frame_number"] for key in before["slices"][0]["keys"]] == [1, 3]
+    for operation, target_file, extra in (
+        ("move", moved_file, {"source_frame_number": 4, "target_frame_number": 1}),
+        ("remove", removed_file, {"frame_number": 3}),
+    ):
+        edited = _run(
+            "frame",
+            operation,
+            request={
+                "source_sprite_file": str(source),
+                "target_sprite_file": str(target_file),
+                "in_place": False,
+                "overwrite": False,
+                **extra,
+            },
+        )
+        reopened = _run(
+            "sprite",
+            "get",
+            request={"sprite_file": str(target_file), "inspection_scope": ["slices"]},
+        )
+        assert edited["before"]["slices"] == before["slices"]
+        assert edited["sprite"]["slices"] == reopened["slices"]
+        assert edited["sprite"]["palettes"] is not None
+
+
+def test_move_same_frame_preserves_tag_and_does_not_report_renumbering(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source.aseprite"
+    target = tmp_path / "target.aseprite"
+    _timeline_sprite(source)
+    moved = _run(
+        "frame",
+        "move",
+        request={
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": False,
+            "overwrite": False,
+            "source_frame_number": 2,
+            "target_frame_number": 2,
+        },
+    )
+    assert moved["frame_number_changes"] == []
+    assert moved["before"]["tags"] == moved["sprite"]["tags"]
+    assert moved["before"]["slices"] == moved["sprite"]["slices"]
+
+
+def test_move_linked_cels_preserves_native_link(tmp_path: Path) -> None:
+    source = tmp_path / "source.aseprite"
+    linked = tmp_path / "linked.aseprite"
+    target = tmp_path / "moved.aseprite"
+    _run(
+        "sprite",
+        "create",
+        request={
+            "target_sprite_file": str(source),
+            "width": 3,
+            "height": 2,
+            "color_mode": "rgb",
+            "initial_layer": {"kind": "transparent"},
+            "overwrite": False,
+        },
+    )
+    _run(
+        "frame",
+        "duplicate",
+        request={
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(linked),
+            "in_place": False,
+            "overwrite": False,
+            "source_frame_number": 1,
+            "cel_mode": "link",
+        },
+    )
+    moved = _run(
+        "frame",
+        "move",
+        request={
+            "source_sprite_file": str(linked),
+            "target_sprite_file": str(target),
+            "in_place": False,
+            "overwrite": False,
+            "source_frame_number": 1,
+            "target_frame_number": 2,
+        },
+    )
+    assert moved["cel_content_verified"] is True
+    assert _native_link_status(target, tmp_path / "link-status.json") is True
+
+
+def test_move_background_cel_preserves_opaque_content(tmp_path: Path) -> None:
+    source = tmp_path / "source.aseprite"
+    target = tmp_path / "target.aseprite"
+    _run_fixture("background_timeline.lua", out=str(source))
+    moved = _run(
+        "frame",
+        "move",
+        request={
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": False,
+            "overwrite": False,
+            "source_frame_number": 3,
+            "target_frame_number": 1,
+        },
+    )
+    assert moved["cel_content_verified"] is True
+    assert [cel["frame_number"] for cel in moved["sprite"]["cels"]] == [1, 2, 3]
+    for frame_number, color in enumerate((90, 30, 60), 1):
+        png = tmp_path / f"background-{frame_number}.png"
+        _run(
+            "export",
+            "image",
+            request={
+                "source_sprite_file": str(target),
+                "destination": {"path": str(png), "if_exists": "fail"},
+                "frame_number": frame_number,
+                "color_mode": "preserve",
+                "color_profile": "preserve",
+                "transparency": "preserve",
+            },
+        )
+        with Image.open(png) as image:
+            assert image.convert("RGBA").getpixel((0, 0)) == (color, 0, 0, 255)
+
+
+@pytest.mark.parametrize(
+    ("operation", "fields"),
+    [
+        ("set", {"frame_number": 5, "duration_ms": 100}),
+        ("set", {"frame_number": 1, "duration_ms": 0}),
+        ("move", {"source_frame_number": 5, "target_frame_number": 1}),
+        ("move", {"source_frame_number": 1, "target_frame_number": 5}),
+        ("remove", {"frame_number": 5}),
+    ],
+)
+def test_invalid_frame_edit_does_not_publish_target(
+    tmp_path: Path, operation: str, fields: dict[str, int]
+) -> None:
+    source = tmp_path / "source.aseprite"
+    target = tmp_path / "unpublished.aseprite"
+    _timeline_sprite(source)
+    invocation = spa(
+        "frame",
+        operation,
+        "--input-json",
+        json.dumps(
+            {
+                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+                "source_sprite_file": str(source),
+                "target_sprite_file": str(target),
+                "in_place": False,
+                "overwrite": False,
+                **fields,
+            }
+        ),
+    )
+    assert invocation.returncode != 0
+    assert not target.exists()
+    assert [
+        frame["duration_ms"]
+        for frame in _run("frame", "list", request={"sprite_file": str(source)})[
+            "frames"
+        ]
+    ] == [120, 300, 400, 500]
 
 
 def test_add_empty_frame_persists_one_based_position_and_duration(
