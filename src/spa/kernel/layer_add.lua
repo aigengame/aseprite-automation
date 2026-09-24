@@ -3,6 +3,7 @@ local kernel_protocol_version = 1
 local inspection = dofile(app.params.inspection)
 local selection = dofile(app.params.layer_select)
 local open_sprite = nil
+local verification_sprite = nil
 
 local function execute()
   local request_file = assert(io.open(app.params.request, "rb"))
@@ -14,9 +15,19 @@ local function execute()
   )
   local payload = assert(request.payload)
   open_sprite = assert(app.open(payload.source_sprite_file), "could not open Source Sprite")
+  local verified_uuids = {}
+  if open_sprite.useLayerUuids then
+    verification_sprite = assert(
+      app.open(payload.source_sprite_file),
+      "could not reopen Source Sprite for UUID verification"
+    )
+    verified_uuids = inspection.persisted_layer_uuids(open_sprite, verification_sprite)
+    verification_sprite:close()
+    verification_sprite = nil
+  end
   local parent = nil
   if payload.parent ~= nil then
-    local selected, code, message = selection.resolve(open_sprite, payload.parent)
+    local selected, code, message = selection.resolve(open_sprite, payload.parent, verified_uuids)
     if selected == nil then
       open_sprite:close()
       open_sprite = nil
@@ -57,11 +68,21 @@ local function execute()
   open_sprite:close()
   open_sprite = nil
   open_sprite = assert(app.open(payload.staged_sprite_file), "could not reopen staged Sprite")
+  verified_uuids = {}
+  if open_sprite.useLayerUuids then
+    verification_sprite = assert(
+      app.open(payload.staged_sprite_file),
+      "could not reopen staged Sprite for UUID verification"
+    )
+    verified_uuids = inspection.persisted_layer_uuids(open_sprite, verification_sprite)
+    verification_sprite:close()
+    verification_sprite = nil
+  end
   local result = {
     added_path = added_path,
     before_layer_count = before_layer_count,
     before_use_layer_uuids = before_use_layer_uuids,
-    sprite = inspection.inspect(open_sprite, payload.inspection_scope),
+    sprite = inspection.inspect(open_sprite, payload.inspection_scope, verified_uuids),
   }
   open_sprite:close()
   open_sprite = nil
@@ -70,6 +91,7 @@ end
 
 local ok, result = pcall(execute)
 if open_sprite ~= nil then pcall(function() open_sprite:close() end) end
+if verification_sprite ~= nil then pcall(function() verification_sprite:close() end) end
 local response
 if ok then
   response = { kernel_protocol_version = kernel_protocol_version, status = "ok", result = result }

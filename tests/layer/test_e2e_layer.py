@@ -2,11 +2,13 @@
 
 import json
 import os
+import struct
 import subprocess
 import tempfile
 from pathlib import Path
 
 import pytest
+from jsonschema import validate
 
 from spa.runtime.invocation import prepare_invocation
 from tests.support import spa
@@ -49,6 +51,32 @@ def _run(command: str, request: dict[str, object]) -> tuple[int, dict]:
     return result.returncode, json.loads(result.stdout)
 
 
+def _clear_duplicate_uuid(source: Path) -> None:
+    """Simulate an accepted file with one absent persisted Layer UUID."""
+    payload = bytearray(source.read_bytes())
+    frame_offset = 128
+    frame_size, frame_magic, chunk_count = struct.unpack_from(
+        "<IHH", payload, frame_offset
+    )
+    assert frame_magic == 0xF1FA and frame_size > 16
+    chunk_offset = frame_offset + 16
+    for _ in range(chunk_count):
+        chunk_size, chunk_type = struct.unpack_from("<IH", payload, chunk_offset)
+        assert chunk_size >= 6
+        if chunk_type == 0x2004:
+            assert chunk_size >= 24
+            name_length = struct.unpack_from("<H", payload, chunk_offset + 22)[0]
+            name = payload[chunk_offset + 24 : chunk_offset + 24 + name_length]
+            if name == b"duplicate":
+                uuid_offset = chunk_offset + 24 + name_length
+                assert any(payload[uuid_offset : uuid_offset + 16])
+                payload[uuid_offset : uuid_offset + 16] = bytes(16)
+                source.write_bytes(payload)
+                return
+        chunk_offset += chunk_size
+    raise AssertionError("fixture has no root duplicate Layer chunk")
+
+
 @pytest.mark.parametrize("persist", [False, True])
 def test_layer_addresses_and_add_survive_reopen(tmp_path: Path, persist: bool) -> None:
     source = tmp_path / "source.aseprite"
@@ -72,7 +100,7 @@ def test_layer_addresses_and_add_survive_reopen(tmp_path: Path, persist: bool) -
         "get", {"sprite_file": str(source), "target": {"layer_name": "duplicate"}}
     )
     assert code == 2
-    assert failure["details"]["errors"][0]["code"] == "layer_ambiguous"
+    assert failure["code"] == "layer_ambiguous"
 
     code, selected = _run(
         "get", {"sprite_file": str(source), "target": {"layer_path": [3, 1]}}
@@ -95,7 +123,7 @@ def test_layer_addresses_and_add_survive_reopen(tmp_path: Path, persist: bool) -
             {"sprite_file": str(source), "target": {"layer_uuid": runtime_uuid}},
         )
         assert code == 2
-        assert failure["details"]["errors"][0]["code"] == "layer_uuid_unpersisted"
+        assert failure["code"] == "layer_uuid_unpersisted"
 
     code, added = _run(
         "add",
@@ -137,7 +165,7 @@ def test_layer_invalid_path_and_background_inspection(tmp_path: Path) -> None:
         "get", {"sprite_file": str(source), "target": {"layer_path": [2, 1]}}
     )
     assert code == 2
-    assert failure["details"]["errors"][0]["code"] == "layer_invalid_path"
+    assert failure["code"] == "layer_invalid_path"
     code, background = _run(
         "get", {"sprite_file": str(source), "target": {"layer_path": [1]}}
     )
@@ -169,7 +197,9 @@ def test_layer_add_group_and_typed_target_failures(tmp_path: Path) -> None:
             },
         )
         assert code == 2, failure
-        assert failure["details"]["errors"][0]["code"] == expected
+        assert failure["code"] == expected
+        schema = json.loads(spa("layer", "add", "--schema").stdout)
+        validate(failure, schema["failure_schema"])
         assert not destination.exists()
 
     destination = tmp_path / "added-group.aseprite"
@@ -194,3 +224,30 @@ def test_layer_add_group_and_typed_target_failures(tmp_path: Path) -> None:
     )
     assert code == 0, inspected
     assert inspected["layer"]["layer_uuid"] == added["layer"]["layer_uuid"]
+
+
+def test_zero_saved_uuid_is_not_exposed_as_persistent_identity(tmp_path: Path) -> None:
+    source = tmp_path / "zero-uuid.aseprite"
+    _fixture(source, uuid_persistence=True)
+    code, original = _run("list", {"sprite_file": str(source)})
+    assert code == 0
+    old_uuid = original["layers"][1]["layer_uuid"]
+    assert isinstance(old_uuid, str)
+    _clear_duplicate_uuid(source)
+
+    for _ in range(2):
+        code, listing = _run("list", {"sprite_file": str(source)})
+        assert code == 0, listing
+        assert listing["use_layer_uuids"] is True
+        assert listing["layers"][1]["layer_uuid"] is None
+        assert listing["layers"][2]["layer_uuid"] is not None
+    code, selected = _run(
+        "get", {"sprite_file": str(source), "target": {"layer_path": [2]}}
+    )
+    assert code == 0, selected
+    assert selected["layer"]["layer_uuid"] is None
+    code, missing = _run(
+        "get", {"sprite_file": str(source), "target": {"layer_uuid": old_uuid}}
+    )
+    assert code == 2
+    assert missing["code"] == "layer_missing"

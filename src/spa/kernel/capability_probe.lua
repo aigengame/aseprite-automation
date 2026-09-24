@@ -127,12 +127,21 @@ local function observes_layer_hierarchy()
     local chosen = layer_select.resolve(sprite, { layer_path = { 2, 1 } })
     assert(chosen ~= nil and chosen.layer == child)
     sprite.useLayerUuids = true
-    local facts = inspection.inspect(sprite, { "layers" })
+    local proof_path = app.fs.joinPath(app.params.workspace, "layer-probe.aseprite")
+    assert(sprite:saveAs(proof_path))
+    local proof = assert(app.open(proof_path))
+    local verified_uuids = inspection.persisted_layer_uuids(sprite, proof)
+    proof:close()
+    local facts = inspection.inspect(sprite, { "layers" }, verified_uuids)
     assert(facts.metadata.use_layer_uuids)
     assert(facts.layers[2].is_group)
     assert(facts.layers[2].children[1].path[2] == 1)
     assert(type(facts.layers[2].children[1].layer_uuid) == "string")
-    chosen = layer_select.resolve(sprite, { layer_uuid = facts.layers[2].children[1].layer_uuid })
+    chosen = layer_select.resolve(
+      sprite,
+      { layer_uuid = facts.layers[2].children[1].layer_uuid },
+      verified_uuids
+    )
     assert(chosen ~= nil and chosen.layer == child)
     sprite.useLayerUuids = false
     local without_uuids = inspection.inspect(sprite, { "layers" })
@@ -141,6 +150,7 @@ local function observes_layer_hierarchy()
     assert(rejected == nil and code == "layer_uuid_unpersisted")
     sprite:close()
     sprite = nil
+    os.remove(proof_path)
   end)
   if sprite ~= nil then pcall(function() sprite:close() end) end
   if previous.sprite ~= nil and previous.sprite.isValid then
@@ -193,7 +203,7 @@ function module.observe()
     capabilities[#capabilities + 1] = "aseprite_sprite_create"
   end
   if supports_inspection then capabilities[#capabilities + 1] = "aseprite_sprite_inspection" end
-  if supports_inspection and observes_layer_hierarchy() then
+  if observes_layer_hierarchy() then
     capabilities[#capabilities + 1] = "aseprite_layer_hierarchy"
   end
   if observes_paint_apply() then capabilities[#capabilities + 1] = "aseprite_paint_apply" end

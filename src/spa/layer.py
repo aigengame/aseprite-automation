@@ -6,15 +6,21 @@ from typing import Annotated, Literal
 from pydantic import Field, ValidationError, field_validator, model_validator
 
 from spa.contracts import (
+    FailureCodeSpec,
     PublicModel,
     RuntimeRequest,
     RuntimeRequirements,
-    ValidationIssue,
 )
-from spa.mutation import TargetCommit, source_target_identity_issue
+from spa.mutation import (
+    TargetCommit,
+    require_overwrite_for_in_place,
+    source_target_identity_issue,
+    validate_native_sprite_path,
+)
 from spa.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.ports import (
     KernelInvocationResult,
+    OperationIssue,
     OperationServices,
     PackagedHandler,
     PackagedResource,
@@ -24,20 +30,14 @@ from spa.ports import (
     RuntimeIssue,
 )
 from spa.sprite import (
-    INSPECTION_SECTIONS,
     LayerFacts,
     SpriteGetRequest,
+    SpriteGetResult,
     SpriteInspection,
     get_sprite,
 )
 
 OneBasedIndex = Annotated[int, Field(ge=1)]
-
-
-def _native_sprite_path(value: str) -> str:
-    if Path(value).suffix.lower() != ".aseprite":
-        raise ValueError("Sprite file must use the .aseprite extension")
-    return value
 
 
 class LayerAddress(PublicModel):
@@ -60,10 +60,48 @@ class LayerAddress(PublicModel):
         return self
 
 
+class LayerTargetDetails(PublicModel):
+    kind: Literal["layer_target"] = "layer_target"
+    address_role: Literal["target", "parent"]
+    address: LayerAddress
+
+
+LAYER_FAILURE_CODE_SPECS = (
+    FailureCodeSpec(
+        "layer_missing", "No Layer matches the address", "input", LayerTargetDetails
+    ),
+    FailureCodeSpec(
+        "layer_ambiguous",
+        "More than one Layer matches the name",
+        "input",
+        LayerTargetDetails,
+    ),
+    FailureCodeSpec(
+        "layer_invalid_path",
+        "The path does not locate a Layer in the current hierarchy",
+        "input",
+        LayerTargetDetails,
+    ),
+    FailureCodeSpec(
+        "layer_uuid_unpersisted",
+        "The Sprite does not persist the addressed Layer UUID",
+        "input",
+        LayerTargetDetails,
+    ),
+    FailureCodeSpec(
+        "layer_parent_not_group",
+        "The selected parent is not a Group Layer",
+        "input",
+        LayerTargetDetails,
+    ),
+)
+LAYER_TARGET_FAILURE_CODES = tuple(spec.code for spec in LAYER_FAILURE_CODE_SPECS)
+
+
 class LayerListRequest(RuntimeRequest):
     sprite_file: str = Field(min_length=1)
 
-    _validate_source = field_validator("sprite_file")(_native_sprite_path)
+    _validate_source = field_validator("sprite_file")(validate_native_sprite_path)
 
 
 class LayerGetRequest(LayerListRequest):
@@ -79,13 +117,16 @@ class LayerAddRequest(RuntimeRequest):
     name: str = Field(min_length=1)
     parent: LayerAddress | None = None
 
-    _validate_source = field_validator("source_sprite_file")(_native_sprite_path)
-    _validate_target = field_validator("target_sprite_file")(_native_sprite_path)
+    _validate_source = field_validator("source_sprite_file")(
+        validate_native_sprite_path
+    )
+    _validate_target = field_validator("target_sprite_file")(
+        validate_native_sprite_path
+    )
 
     @model_validator(mode="after")
     def validate_commit_intent(self) -> "LayerAddRequest":
-        if self.in_place and not self.overwrite:
-            raise ValueError("in_place requires overwrite permission")
+        require_overwrite_for_in_place(self.in_place, self.overwrite)
         return self
 
 
@@ -119,7 +160,15 @@ LAYER_REQUIREMENTS = RuntimeRequirements(
     minimum_api_version=41,
     required_capabilities=["aseprite_layer_hierarchy"],
 )
-LAYER_ADD_FAILURE_CODES = (*RUNTIME_FAILURE_CODES, "target_commit_failed")
+LAYER_GET_FAILURE_CODES = (
+    *RUNTIME_FAILURE_CODES,
+    *(code for code in LAYER_TARGET_FAILURE_CODES if code != "layer_parent_not_group"),
+)
+LAYER_ADD_FAILURE_CODES = (
+    *RUNTIME_FAILURE_CODES,
+    *LAYER_TARGET_FAILURE_CODES,
+    "target_commit_failed",
+)
 LAYER_INSPECTION_RESOURCE = PackagedResource("inspection", "sprite_inspect.lua")
 LAYER_SELECT_RESOURCE = PackagedResource("layer_select", "layer_select.lua")
 LAYER_GET_HANDLER = PackagedHandler(
@@ -134,27 +183,19 @@ def _walk(layers: list[LayerFacts]) -> list[LayerFacts]:
     return [item for layer in layers for item in (layer, *_walk(layer.children))]
 
 
-def _issue(code: str, message: str, location: list[str | int]) -> RequestIssue:
-    return RequestIssue(
-        [ValidationIssue(location=location, code=code, message=message)]
-    )
-
-
-def _reject_target(invocation: KernelInvocationResult, location: str) -> None:
+def _reject_target(
+    invocation: KernelInvocationResult,
+    address_role: Literal["target", "parent"],
+    address: LayerAddress | None,
+) -> None:
     rejection = invocation.payload.get("rejection")
     if rejection is None:
         return
     if (
         not isinstance(rejection, dict)
-        or rejection.get("code")
-        not in {
-            "layer_invalid_path",
-            "layer_uuid_unpersisted",
-            "layer_missing",
-            "layer_ambiguous",
-            "layer_parent_not_group",
-        }
+        or rejection.get("code") not in LAYER_TARGET_FAILURE_CODES
         or not isinstance(rejection.get("message"), str)
+        or address is None
     ):
         raise RuntimeIssue(
             "response_malformed",
@@ -162,12 +203,16 @@ def _reject_target(invocation: KernelInvocationResult, location: str) -> None:
             ResponseEvidence(response_path=invocation.response_path),
             invocation.diagnostics,
         )
-    raise _issue(rejection["code"], rejection["message"], [location])
+    raise OperationIssue(
+        rejection["code"],
+        rejection["message"],
+        LayerTargetDetails(address_role=address_role, address=address),
+    )
 
 
 def _kernel_inspection(invocation: KernelInvocationResult) -> SpriteInspection:
     try:
-        return SpriteInspection.model_validate(invocation.payload["sprite"])
+        inspection = SpriteInspection.model_validate(invocation.payload["sprite"])
     except (KeyError, TypeError, ValidationError) as exc:
         raise RuntimeIssue(
             "response_malformed",
@@ -175,6 +220,19 @@ def _kernel_inspection(invocation: KernelInvocationResult) -> SpriteInspection:
             ResponseEvidence(response_path=invocation.response_path),
             invocation.diagnostics,
         ) from exc
+    if (
+        inspection.layers is None
+        or len(_walk(inspection.layers)) != inspection.metadata.layer_count
+    ):
+        raise RuntimeIssue(
+            "postcondition_failed",
+            "Layer hierarchy is incomplete",
+            PostconditionEvidence(
+                response_path=invocation.response_path, reason="Layer count mismatch"
+            ),
+            invocation.diagnostics,
+        )
+    return inspection
 
 
 def _selected_layer(
@@ -210,8 +268,8 @@ def _selected_layer(
 
 def _inspect(
     sprite_file: str, request: RuntimeRequest, services: OperationServices
-) -> SpriteInspection:
-    result = get_sprite(
+) -> SpriteGetResult:
+    return get_sprite(
         SpriteGetRequest(
             sprite_file=sprite_file,
             inspection_scope=["layers"],
@@ -219,9 +277,6 @@ def _inspect(
             timeout_seconds=request.timeout_seconds,
         ),
         services,
-    )
-    return SpriteInspection.model_validate(
-        result.model_dump(exclude={"status", "operation", "sprite_file", "scope"})
     )
 
 
@@ -248,7 +303,7 @@ def get_layer(request: LayerGetRequest, services: OperationServices) -> LayerGet
         },
         request.timeout_seconds,
     )
-    _reject_target(invocation, "target")
+    _reject_target(invocation, "target", request.target)
     inspection = _kernel_inspection(invocation)
     layer = _selected_layer(invocation, inspection, "selected_path")
     return LayerGetResult(
@@ -290,7 +345,7 @@ def add_layer(request: LayerAddRequest, services: OperationServices) -> LayerAdd
         "staged_sprite_file": str(staged),
         "kind": request.kind,
         "name": request.name,
-        "inspection_scope": list(INSPECTION_SECTIONS),
+        "inspection_scope": ["layers"],
     }
     if request.parent is not None:
         payload["parent"] = request.parent.model_dump(exclude_none=True)
@@ -299,7 +354,7 @@ def add_layer(request: LayerAddRequest, services: OperationServices) -> LayerAdd
         invocation = services.invoke_kernel(
             observation, LAYER_ADD_HANDLER, payload, request.timeout_seconds
         )
-        _reject_target(invocation, "parent")
+        _reject_target(invocation, "parent", request.parent)
         reopened, added_path = _reopened(invocation)
         try:
             before_count = invocation.payload["before_layer_count"]
@@ -340,6 +395,7 @@ def add_layer(request: LayerAddRequest, services: OperationServices) -> LayerAdd
                 )
             )
             and reopened.metadata.layer_count == before_count + 1
+            and len(_walk(reopened.layers)) == reopened.metadata.layer_count
             and reopened.metadata.use_layer_uuids == before_uuids
             and (added.layer_uuid is not None) == before_uuids
         )
@@ -390,7 +446,7 @@ LAYER_OPERATIONS = (
             f"{result.sprite_file}: {result.layer.name} at {result.layer.path}"
         ),
         LAYER_REQUIREMENTS,
-        RUNTIME_FAILURE_CODES,
+        LAYER_GET_FAILURE_CODES,
     ),
     OperationDescriptor(
         "layer add",

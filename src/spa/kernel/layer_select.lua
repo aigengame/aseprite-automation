@@ -9,12 +9,12 @@ local function find_by_value(layers, prefix, predicate, found)
       path[#path + 1] = item
     end
     path[#path + 1] = index
-    if predicate(layer) then found[#found + 1] = { layer = layer, path = path } end
+    if predicate(layer, path) then found[#found + 1] = { layer = layer, path = path } end
     if layer.isGroup then find_by_value(layer.layers, path, predicate, found) end
   end
 end
 
-function module.resolve(sprite, address)
+function module.resolve(sprite, address, verified_uuids)
   if address.layer_path ~= nil then
     local siblings = sprite.layers
     local layer = nil
@@ -39,10 +39,11 @@ function module.resolve(sprite, address)
   end
   local matches = {}
   if address.layer_uuid ~= nil then
+    verified_uuids = verified_uuids or {}
     find_by_value(
       sprite.layers,
       {},
-      function(layer) return tostring(layer.uuid) == address.layer_uuid end,
+      function(_, path) return verified_uuids[table.concat(path, "/")] == address.layer_uuid end,
       matches
     )
   else

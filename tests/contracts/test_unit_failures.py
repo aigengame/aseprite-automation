@@ -32,6 +32,7 @@ from spa.contracts import (
 from spa.descriptors import ACCESS_FAILURE_CODES, OPERATIONS
 from spa.export import ArtifactFileDetails, ArtifactVerificationDetails
 from spa.failure_registry import FAILURE_CODES
+from spa.layer import LayerAddress, LayerTargetDetails
 from spa.mutation import TargetCommitDetails
 from spa.ports import (
     ArtifactFileEvidence,
@@ -177,6 +178,9 @@ def test_each_registered_code_has_a_constrained_public_schema() -> None:
         ),
         ArtifactVerificationDetails: ArtifactVerificationDetails(
             path="image.png", reason="content mismatch"
+        ),
+        LayerTargetDetails: LayerTargetDetails(
+            address_role="target", address=LayerAddress(layer_path=[1])
         ),
     }
     for code, spec in FAILURE_CODES.items():

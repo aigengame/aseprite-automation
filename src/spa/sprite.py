@@ -6,7 +6,7 @@ from typing import Annotated, Literal, cast
 from pydantic import Field, TypeAdapter, ValidationError, field_validator
 
 from spa.contracts import PublicModel, RuntimeRequest, RuntimeRequirements
-from spa.mutation import TargetCommit
+from spa.mutation import TargetCommit, validate_native_sprite_path
 from spa.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.ports import (
     KernelInvocationResult,
@@ -31,12 +31,6 @@ INSPECTION_SECTIONS: tuple[InspectionSection, ...] = (
     "slices",
     "tilesets",
 )
-
-
-def _native_sprite_path(value: str) -> str:
-    if Path(value).suffix.lower() != ".aseprite":
-        raise ValueError("Sprite file must use the .aseprite extension")
-    return value
 
 
 class BackgroundColor(RgbaColor):
@@ -68,7 +62,9 @@ class SpriteCreateRequest(RuntimeRequest, SpriteCreateInput):
     target_sprite_file: str = Field(min_length=1)
     overwrite: bool
 
-    _validate_target = field_validator("target_sprite_file")(_native_sprite_path)
+    _validate_target = field_validator("target_sprite_file")(
+        validate_native_sprite_path
+    )
 
 
 class SpriteGetInput(PublicModel):
@@ -91,7 +87,7 @@ class SpriteGetInput(PublicModel):
 class SpriteGetRequest(RuntimeRequest, SpriteGetInput):
     sprite_file: str = Field(min_length=1)
 
-    _validate_source = field_validator("sprite_file")(_native_sprite_path)
+    _validate_source = field_validator("sprite_file")(validate_native_sprite_path)
 
 
 class SpriteMetadata(PublicModel):
@@ -136,7 +132,7 @@ class PaletteFacts(PublicModel):
 
 
 class LayerFacts(PublicModel):
-    path: list[int] = Field(min_length=1)
+    path: list[Annotated[int, Field(ge=1)]] = Field(min_length=1)
     name: str
     layer_uuid: str | None
     opacity: int | None = Field(default=None, ge=0, le=255)

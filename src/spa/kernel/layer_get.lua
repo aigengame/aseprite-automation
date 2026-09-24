@@ -3,6 +3,7 @@ local kernel_protocol_version = 1
 local inspection = dofile(app.params.inspection)
 local selection = dofile(app.params.layer_select)
 local open_sprite = nil
+local verification_sprite = nil
 
 local function execute()
   local request_file = assert(io.open(app.params.request, "rb"))
@@ -14,7 +15,15 @@ local function execute()
   )
   local payload = assert(request.payload)
   open_sprite = assert(app.open(payload.sprite_file), "could not open Sprite file")
-  local selected, code, message = selection.resolve(open_sprite, payload.target)
+  local verified_uuids = {}
+  if open_sprite.useLayerUuids then
+    verification_sprite =
+      assert(app.open(payload.sprite_file), "could not reopen Sprite for UUID verification")
+    verified_uuids = inspection.persisted_layer_uuids(open_sprite, verification_sprite)
+    verification_sprite:close()
+    verification_sprite = nil
+  end
+  local selected, code, message = selection.resolve(open_sprite, payload.target, verified_uuids)
   if selected == nil then
     open_sprite:close()
     open_sprite = nil
@@ -22,7 +31,7 @@ local function execute()
   end
   local result = {
     selected_path = selected.path,
-    sprite = inspection.inspect(open_sprite, { "layers" }),
+    sprite = inspection.inspect(open_sprite, { "layers" }, verified_uuids),
   }
   open_sprite:close()
   open_sprite = nil
@@ -31,6 +40,7 @@ end
 
 local ok, result = pcall(execute)
 if open_sprite ~= nil then pcall(function() open_sprite:close() end) end
+if verification_sprite ~= nil then pcall(function() verification_sprite:close() end) end
 local response
 if ok then
   response = { kernel_protocol_version = kernel_protocol_version, status = "ok", result = result }

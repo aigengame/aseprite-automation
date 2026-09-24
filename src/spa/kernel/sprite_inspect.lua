@@ -71,7 +71,30 @@ local function copy_path(path, index)
   return result
 end
 
-local function inspect_layers(layers, parent_path, paths, counts, persist_uuids)
+local function path_key(path) return table.concat(path, "/") end
+
+local function verified_layer_uuids(left, right, prefix, verified)
+  for index = 1, math.min(#left, #right) do
+    local layer = left[index]
+    local other = right[index]
+    local path = copy_path(prefix, index)
+    if layer.name == other.name and layer.isGroup == other.isGroup then
+      local uuid = tostring(layer.uuid)
+      if uuid == tostring(other.uuid) then verified[path_key(path)] = uuid end
+      if layer.isGroup then verified_layer_uuids(layer.layers, other.layers, path, verified) end
+    end
+  end
+end
+
+function module.persisted_layer_uuids(sprite, other)
+  local verified = {}
+  if sprite.useLayerUuids and other.useLayerUuids then
+    verified_layer_uuids(sprite.layers, other.layers, {}, verified)
+  end
+  return verified
+end
+
+local function inspect_layers(layers, parent_path, paths, counts, verified_uuids)
   local result = {}
   for index = 1, #layers do
     local layer = layers[index]
@@ -80,12 +103,12 @@ local function inspect_layers(layers, parent_path, paths, counts, persist_uuids)
     counts.layers = counts.layers + 1
     local children = {}
     if layer.isGroup then
-      children = inspect_layers(layer.layers, path, paths, counts, persist_uuids)
+      children = inspect_layers(layer.layers, path, paths, counts, verified_uuids)
     end
     result[#result + 1] = {
       path = path,
       name = layer.name,
-      layer_uuid = persist_uuids and tostring(layer.uuid) or json_null,
+      layer_uuid = verified_uuids[path_key(path)] or json_null,
       opacity = layer.opacity == nil and json_null or layer.opacity,
       blend_mode = layer.blendMode == nil and json_null or blend_mode(layer.blendMode),
       is_image = layer.isImage,
@@ -242,11 +265,11 @@ local function inspect_slices(sprite)
   return slices
 end
 
-function module.inspect(sprite, scope)
+function module.inspect(sprite, scope, verified_uuids)
   local requested = requested_set(scope)
   local paths = {}
   local counts = { layers = 0 }
-  local all_layers = inspect_layers(sprite.layers, {}, paths, counts, sprite.useLayerUuids)
+  local all_layers = inspect_layers(sprite.layers, {}, paths, counts, verified_uuids or {})
   local result = {
     metadata = {
       width = sprite.width,

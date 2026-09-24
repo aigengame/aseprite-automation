@@ -130,8 +130,10 @@ uv run spa export image --input-json '{"aseprite":"/path/to/aseprite","source_sp
 existing Target Sprite File when it is `false`.
 `spa layer list` returns the current hierarchy. `spa layer get` accepts one
 `layer_path`, `layer_uuid`, or `layer_name`. Paths use one-based native sibling
-positions. Names must be unique across the Sprite. UUIDs are available only when
-the Sprite persists Layer UUIDs; SPA preserves its existing `useLayerUuids` value.
+positions. Names use exact case-sensitive matching and must be unique across the
+Sprite. UUIDs are returned only when verified across independent opens of the saved
+Sprite; a Layer with no verified saved UUID reports `null`. SPA preserves the
+Sprite's existing `useLayerUuids` value.
 `spa layer add` creates a regular Transparent or Group Layer at the root, or as
 the last child of the Group selected by `parent`. Its result reports the Layer's
 address after save and reopen. These Layer commands are not Plan Steps.

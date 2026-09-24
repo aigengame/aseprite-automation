@@ -10,6 +10,17 @@ from pydantic import Field
 from spa.contracts import FailureCodeSpec, PublicModel, ValidationIssue
 
 
+def validate_native_sprite_path(value: str) -> str:
+    if Path(value).suffix.lower() != ".aseprite":
+        raise ValueError("Sprite file must use the .aseprite extension")
+    return value
+
+
+def require_overwrite_for_in_place(in_place: bool, overwrite: bool) -> None:
+    if in_place and not overwrite:
+        raise ValueError("in_place requires overwrite permission")
+
+
 class PublicationIdentityObserver(Protocol):
     def same_publication_entry(self, source: Path, target: Path) -> bool: ...
 

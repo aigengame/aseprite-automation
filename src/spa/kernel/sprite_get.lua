@@ -2,6 +2,7 @@
 local kernel_protocol_version = 1
 local inspection = dofile(app.params.inspection)
 local open_sprite = nil
+local verification_sprite = nil
 
 local function execute()
   local request_file = assert(io.open(app.params.request, "rb"))
@@ -14,7 +15,15 @@ local function execute()
   local payload = assert(request.payload)
   assert(type(payload.sprite_file) == "string", "missing Sprite file")
   open_sprite = assert(app.open(payload.sprite_file), "could not open Sprite file")
-  local sprite = inspection.inspect(open_sprite, payload.inspection_scope)
+  local verified_uuids = {}
+  if open_sprite.useLayerUuids then
+    verification_sprite =
+      assert(app.open(payload.sprite_file), "could not reopen Sprite for UUID verification")
+    verified_uuids = inspection.persisted_layer_uuids(open_sprite, verification_sprite)
+    verification_sprite:close()
+    verification_sprite = nil
+  end
+  local sprite = inspection.inspect(open_sprite, payload.inspection_scope, verified_uuids)
   open_sprite:close()
   open_sprite = nil
   return { sprite = sprite }
@@ -29,6 +38,7 @@ if ok then
     result = result,
   }
 else
+  if verification_sprite ~= nil then pcall(function() verification_sprite:close() end) end
   if open_sprite ~= nil then pcall(function() open_sprite:close() end) end
   response = {
     kernel_protocol_version = kernel_protocol_version,
