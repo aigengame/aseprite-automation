@@ -79,7 +79,7 @@ class FrameDuplicateInput(PublicModel):
     duration_ms: int | None = Field(default=None, ge=1, le=65535, strict=True)
 
 
-class _FrameMutationRequest(RuntimeRequest):
+class FrameMutationRequest(RuntimeRequest):
     source_sprite_file: str = Field(min_length=1)
     target_sprite_file: str = Field(min_length=1)
     in_place: bool
@@ -93,17 +93,45 @@ class _FrameMutationRequest(RuntimeRequest):
     )
 
     @model_validator(mode="after")
-    def validate_target_commit_intent(self) -> "_FrameMutationRequest":
+    def validate_target_commit_intent(self) -> "FrameMutationRequest":
         if self.in_place and not self.overwrite:
             raise ValueError("in_place requires overwrite permission")
         return self
 
 
-class FrameAddRequest(_FrameMutationRequest, FrameAddInput):
+class FrameAddRequest(FrameMutationRequest, FrameAddInput):
     pass
 
 
-class FrameDuplicateRequest(_FrameMutationRequest, FrameDuplicateInput):
+class FrameDuplicateRequest(FrameMutationRequest, FrameDuplicateInput):
+    pass
+
+
+class FrameSetInput(PublicModel):
+    frame_number: int = Field(ge=1, strict=True)
+    duration_ms: int = Field(ge=1, le=65535, strict=True)
+
+
+class FrameMoveInput(PublicModel):
+    source_frame_number: int = Field(ge=1, strict=True)
+    target_frame_number: int = Field(
+        ge=1, strict=True, description="One-based final position of the moved Frame"
+    )
+
+
+class FrameRemoveInput(PublicModel):
+    frame_number: int = Field(ge=1, strict=True)
+
+
+class FrameSetRequest(FrameMutationRequest, FrameSetInput):
+    pass
+
+
+class FrameMoveRequest(FrameMutationRequest, FrameMoveInput):
+    pass
+
+
+class FrameRemoveRequest(FrameMutationRequest, FrameRemoveInput):
     pass
 
 
@@ -149,6 +177,44 @@ class FrameDuplicateResult(FrameMutationEvidence):
     target_commit: TargetCommit
 
 
+class FrameNumberChange(PublicModel):
+    before_frame_number: int = Field(ge=1)
+    after_frame_number: int | None = Field(default=None, ge=1)
+
+
+class FrameEditEvidence(PublicModel):
+    # Full native inspections expose the observed Cel, Tag, Slice, and Palette
+    # effects, including native changes outside the addressed Frame.
+    before: SpriteInspection
+    frame_number_changes: list[FrameNumberChange]
+    cel_content_verified: Literal[True]
+    persisted_reopen_verified: bool
+
+
+class FrameSetResult(FrameEditEvidence):
+    status: Literal["success"] = "success"
+    operation: Literal["spa frame set"] = "spa frame set"
+    persisted_reopen_verified: Literal[True]
+    sprite: SpriteInspection
+    target_commit: TargetCommit
+
+
+class FrameMoveResult(FrameEditEvidence):
+    status: Literal["success"] = "success"
+    operation: Literal["spa frame move"] = "spa frame move"
+    persisted_reopen_verified: Literal[True]
+    sprite: SpriteInspection
+    target_commit: TargetCommit
+
+
+class FrameRemoveResult(FrameEditEvidence):
+    status: Literal["success"] = "success"
+    operation: Literal["spa frame remove"] = "spa frame remove"
+    persisted_reopen_verified: Literal[True]
+    sprite: SpriteInspection
+    target_commit: TargetCommit
+
+
 FRAME_READ_REQUIREMENTS = RuntimeRequirements(
     lua_language="Lua 5.4",
     minimum_api_version=41,
@@ -157,7 +223,12 @@ FRAME_READ_REQUIREMENTS = RuntimeRequirements(
 FRAME_MUTATION_REQUIREMENTS = RuntimeRequirements(
     lua_language="Lua 5.4",
     minimum_api_version=41,
-    required_capabilities=["aseprite_frame_authoring"],
+    required_capabilities=["aseprite_sprite_inspection", "aseprite_frame_authoring"],
+)
+FRAME_EDIT_REQUIREMENTS = RuntimeRequirements(
+    lua_language="Lua 5.4",
+    minimum_api_version=41,
+    required_capabilities=["aseprite_sprite_inspection", "aseprite_frame_editing"],
 )
 FRAME_SUPPORT_RESOURCE = PackagedResource("frame", "frame_support.lua")
 FRAME_GET_HANDLER = PackagedHandler(
@@ -337,11 +408,109 @@ def validate_frame_evidence(
         )
 
 
+def validate_frame_edit_evidence(
+    request: FrameSetRequest | FrameMoveRequest | FrameRemoveRequest,
+    evidence: FrameEditEvidence,
+    sprite: SpriteInspection,
+    invocation: KernelInvocationResult,
+) -> None:
+    validated_scope(
+        SpriteGetRequest(
+            sprite_file=request.source_sprite_file,
+            inspection_scope=list(INSPECTION_SECTIONS),
+        ),
+        evidence.before,
+        invocation,
+    )
+    before_frames = evidence.before.frames
+    after_frames = sprite.frames
+    if before_frames is None or after_frames is None:
+        raise ValueError("Frame edit requires complete Frame facts")
+    count = len(before_frames)
+    expected: list[FrameNumberChange] = []
+    for number in range(1, count + 1):
+        after_number: int | None = number
+        if isinstance(request, FrameMoveRequest):
+            source, target = request.source_frame_number, request.target_frame_number
+            if number == source:
+                after_number = target
+            elif source < number <= target:
+                after_number = number - 1
+            elif target <= number < source:
+                after_number = number + 1
+        elif isinstance(request, FrameRemoveRequest):
+            if number == request.frame_number:
+                after_number = None
+            elif number > request.frame_number:
+                after_number = number - 1
+        if after_number != number:
+            expected.append(
+                FrameNumberChange(
+                    before_frame_number=number,
+                    after_frame_number=after_number,
+                )
+            )
+        if after_number is not None:
+            duration = before_frames[number - 1].duration_ms
+            if isinstance(request, FrameSetRequest) and number == request.frame_number:
+                duration = request.duration_ms
+            if (
+                after_number > len(after_frames)
+                or after_frames[after_number - 1].duration_ms != duration
+            ):
+                raise RuntimeIssue(
+                    "postcondition_failed",
+                    "Persisted Frame duration differs from the request",
+                    PostconditionEvidence(
+                        response_path=invocation.response_path,
+                        reason="Frame duration or renumbering disagrees",
+                    ),
+                    invocation.diagnostics,
+                )
+    if (
+        evidence.frame_number_changes != expected
+        or len(after_frames) != count - isinstance(request, FrameRemoveRequest)
+        or (
+            isinstance(request, FrameSetRequest)
+            and any(
+                getattr(evidence.before, section) != getattr(sprite, section)
+                for section in (
+                    "cels",
+                    "tags",
+                    "slices",
+                    "palettes",
+                    "layers",
+                    "tilesets",
+                )
+            )
+        )
+    ):
+        raise RuntimeIssue(
+            "postcondition_failed",
+            "Persisted Sprite differs from Frame edit evidence",
+            PostconditionEvidence(
+                response_path=invocation.response_path,
+                reason="Frame mapping or unchanged structures disagree",
+            ),
+            invocation.diagnostics,
+        )
+
+
 def _mutate(
-    request: FrameAddRequest | FrameDuplicateRequest,
+    request: FrameAddRequest
+    | FrameDuplicateRequest
+    | FrameSetRequest
+    | FrameMoveRequest
+    | FrameRemoveRequest,
     services: OperationServices,
-    operation: Literal["add", "duplicate"],
-) -> FrameAddResult | FrameDuplicateResult:
+    operation: Literal["add", "duplicate", "set", "move", "remove"],
+) -> (
+    FrameAddResult
+    | FrameDuplicateResult
+    | FrameSetResult
+    | FrameMoveResult
+    | FrameRemoveResult
+):
     target = Path(request.target_sprite_file)
     identity_issue = source_target_identity_issue(
         services.target_files,
@@ -353,11 +522,13 @@ def _mutate(
         raise RequestIssue([identity_issue])
     observation = services.probe_runtime(request)
     staged = services.target_files.staged_path(target)
-    input_fields = (
-        FrameAddInput.model_fields
-        if operation == "add"
-        else FrameDuplicateInput.model_fields
-    )
+    input_fields = {
+        "add": FrameAddInput,
+        "duplicate": FrameDuplicateInput,
+        "set": FrameSetInput,
+        "move": FrameMoveInput,
+        "remove": FrameRemoveInput,
+    }[operation].model_fields
     payload = {
         "operation": operation,
         "source_sprite_file": request.source_sprite_file,
@@ -369,7 +540,12 @@ def _mutate(
             observation, FRAME_MUTATE_HANDLER, payload, request.timeout_seconds
         )
         try:
-            evidence = FrameMutationEvidence.model_validate(
+            evidence_type = (
+                FrameMutationEvidence
+                if operation in ("add", "duplicate")
+                else FrameEditEvidence
+            )
+            evidence = evidence_type.model_validate(
                 {
                     key: value
                     for key, value in invocation.payload.items()
@@ -384,7 +560,9 @@ def _mutate(
                 ResponseEvidence(response_path=invocation.response_path),
                 invocation.diagnostics,
             ) from exc
-        validate_frame_evidence(request, evidence, invocation)
+        if isinstance(evidence, FrameMutationEvidence):
+            assert isinstance(request, (FrameAddRequest, FrameDuplicateRequest))
+            validate_frame_evidence(request, evidence, invocation)
         if not evidence.persisted_reopen_verified:
             raise RuntimeIssue(
                 "postcondition_failed",
@@ -403,41 +581,52 @@ def _mutate(
             sprite,
             invocation,
         )
-        frames = sprite.frames
-        cels = sprite.cels
-        tags = sprite.tags
-        number = evidence.inserted_frame.frame_number
-        if (
-            frames is None
-            or cels is None
-            or tags is None
-            or number > len(frames)
-            or frames[number - 1] != evidence.inserted_frame
-            or sum(cel.frame_number == number for cel in cels)
-            != evidence.inserted_cel_count
-            or (
-                isinstance(request, FrameDuplicateRequest)
-                and {tuple(item.layer_path) for item in evidence.cel_relationships}
-                != {tuple(cel.layer_path) for cel in cels if cel.frame_number == number}
+        if isinstance(evidence, FrameEditEvidence):
+            assert isinstance(
+                request, (FrameSetRequest, FrameMoveRequest, FrameRemoveRequest)
             )
-            or any(
-                adjustment.tag_number > len(tags)
-                or tags[adjustment.tag_number - 1].name != adjustment.name
-                or tags[adjustment.tag_number - 1].from_frame
-                != adjustment.after_from_frame
-                or tags[adjustment.tag_number - 1].to_frame != adjustment.after_to_frame
-                for adjustment in evidence.tag_adjustments
-            )
-        ):
-            raise RuntimeIssue(
-                "postcondition_failed",
-                "Persisted Sprite differs from Frame mutation evidence",
-                PostconditionEvidence(
-                    response_path=invocation.response_path,
-                    reason="Frame, Cel, or Tag facts disagree",
-                ),
-                invocation.diagnostics,
-            )
+            validate_frame_edit_evidence(request, evidence, sprite, invocation)
+        else:
+            frames = sprite.frames
+            cels = sprite.cels
+            tags = sprite.tags
+            number = evidence.inserted_frame.frame_number
+            if (
+                frames is None
+                or cels is None
+                or tags is None
+                or number > len(frames)
+                or frames[number - 1] != evidence.inserted_frame
+                or sum(cel.frame_number == number for cel in cels)
+                != evidence.inserted_cel_count
+                or (
+                    isinstance(request, FrameDuplicateRequest)
+                    and {tuple(item.layer_path) for item in evidence.cel_relationships}
+                    != {
+                        tuple(cel.layer_path)
+                        for cel in cels
+                        if cel.frame_number == number
+                    }
+                )
+                or any(
+                    adjustment.tag_number > len(tags)
+                    or tags[adjustment.tag_number - 1].name != adjustment.name
+                    or tags[adjustment.tag_number - 1].from_frame
+                    != adjustment.after_from_frame
+                    or tags[adjustment.tag_number - 1].to_frame
+                    != adjustment.after_to_frame
+                    for adjustment in evidence.tag_adjustments
+                )
+            ):
+                raise RuntimeIssue(
+                    "postcondition_failed",
+                    "Persisted Sprite differs from Frame mutation evidence",
+                    PostconditionEvidence(
+                        response_path=invocation.response_path,
+                        reason="Frame, Cel, or Tag facts disagree",
+                    ),
+                    invocation.diagnostics,
+                )
         identity_issue = source_target_identity_issue(
             services.target_files,
             Path(request.source_sprite_file),
@@ -464,7 +653,13 @@ def _mutate(
         }
         if operation == "add":
             return FrameAddResult.model_validate(result)
-        return FrameDuplicateResult.model_validate(result)
+        if operation == "duplicate":
+            return FrameDuplicateResult.model_validate(result)
+        if operation == "set":
+            return FrameSetResult.model_validate(result)
+        if operation == "move":
+            return FrameMoveResult.model_validate(result)
+        return FrameRemoveResult.model_validate(result)
     finally:
         services.target_files.discard(staged)
 
@@ -480,6 +675,28 @@ def duplicate_frame(
 ) -> FrameDuplicateResult:
     result = _mutate(request, services, "duplicate")
     assert isinstance(result, FrameDuplicateResult)
+    return result
+
+
+def set_frame(request: FrameSetRequest, services: OperationServices) -> FrameSetResult:
+    result = _mutate(request, services, "set")
+    assert isinstance(result, FrameSetResult)
+    return result
+
+
+def move_frame(
+    request: FrameMoveRequest, services: OperationServices
+) -> FrameMoveResult:
+    result = _mutate(request, services, "move")
+    assert isinstance(result, FrameMoveResult)
+    return result
+
+
+def remove_frame(
+    request: FrameRemoveRequest, services: OperationServices
+) -> FrameRemoveResult:
+    result = _mutate(request, services, "remove")
+    assert isinstance(result, FrameRemoveResult)
     return result
 
 
@@ -530,6 +747,42 @@ FRAME_OPERATIONS = (
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
         plan_eligible=True,
+        probe_before_execute=False,
+    ),
+    OperationDescriptor(
+        "frame set",
+        FrameSetRequest,
+        FrameSetResult,
+        set_frame,
+        lambda result: result.target_commit.target_sprite_file,
+        FRAME_EDIT_REQUIREMENTS,
+        (*RUNTIME_FAILURE_CODES, "target_commit_failed"),
+        execution_kind="mutation",
+        side_effects=("publishes the declared Target Sprite File",),
+        probe_before_execute=False,
+    ),
+    OperationDescriptor(
+        "frame move",
+        FrameMoveRequest,
+        FrameMoveResult,
+        move_frame,
+        lambda result: result.target_commit.target_sprite_file,
+        FRAME_EDIT_REQUIREMENTS,
+        (*RUNTIME_FAILURE_CODES, "target_commit_failed"),
+        execution_kind="mutation",
+        side_effects=("publishes the declared Target Sprite File",),
+        probe_before_execute=False,
+    ),
+    OperationDescriptor(
+        "frame remove",
+        FrameRemoveRequest,
+        FrameRemoveResult,
+        remove_frame,
+        lambda result: result.target_commit.target_sprite_file,
+        FRAME_EDIT_REQUIREMENTS,
+        (*RUNTIME_FAILURE_CODES, "target_commit_failed"),
+        execution_kind="mutation",
+        side_effects=("publishes the declared Target Sprite File",),
         probe_before_execute=False,
     ),
 )

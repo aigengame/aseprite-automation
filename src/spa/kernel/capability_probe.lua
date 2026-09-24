@@ -336,6 +336,33 @@ local function observes_frame_authoring()
   return ok
 end
 
+local function observes_frame_editing()
+  if frame == nil then return false end
+  local sprite = nil
+  local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
+  local ok = pcall(function()
+    sprite = Sprite(2, 2, ColorMode.RGB)
+    sprite:newEmptyFrame(2)
+    sprite:newEmptyFrame(3)
+    frame.apply_live(sprite, "set", { frame_number = 1, duration_ms = 250 })
+    assert(math.floor(sprite.frames[1].duration * 1000 + 0.5) == 250)
+    frame.apply_live(sprite, "move", { source_frame_number = 1, target_frame_number = 3 })
+    assert(math.floor(sprite.frames[3].duration * 1000 + 0.5) == 250)
+    assert(sprite.layers[1]:cel(3) ~= nil)
+    frame.apply_live(sprite, "remove", { frame_number = 2 })
+    assert(#sprite.frames == 2 and sprite.layers[1]:cel(2) ~= nil)
+    sprite:close()
+    sprite = nil
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
+  return ok
+end
+
 local function observes_sprite_flatten()
   local sprite = nil
   local ok = pcall(function()
@@ -398,6 +425,7 @@ function module.observe()
   if observes_frame_authoring() then
     capabilities[#capabilities + 1] = "aseprite_frame_authoring"
   end
+  if observes_frame_editing() then capabilities[#capabilities + 1] = "aseprite_frame_editing" end
   if observes_tag_authoring() then capabilities[#capabilities + 1] = "aseprite_tag_authoring" end
   if exporter ~= nil then
     local ok = pcall(function()

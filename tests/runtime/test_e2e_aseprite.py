@@ -39,6 +39,7 @@ def test_info_reports_installed_runtime() -> None:
         "aseprite_background_conversion",
         "aseprite_paint_apply",
         "aseprite_frame_authoring",
+        "aseprite_frame_editing",
         "aseprite_tag_authoring",
         "aseprite_export_image",
     ]
@@ -66,6 +67,9 @@ def test_info_reports_installed_runtime() -> None:
         "spa frame get",
         "spa frame add",
         "spa frame duplicate",
+        "spa frame set",
+        "spa frame move",
+        "spa frame remove",
         "spa tag list",
         "spa tag get",
         "spa tag add",
