@@ -223,12 +223,12 @@ FRAME_READ_REQUIREMENTS = RuntimeRequirements(
 FRAME_MUTATION_REQUIREMENTS = RuntimeRequirements(
     lua_language="Lua 5.4",
     minimum_api_version=41,
-    required_capabilities=["aseprite_frame_authoring"],
+    required_capabilities=["aseprite_sprite_inspection", "aseprite_frame_authoring"],
 )
 FRAME_EDIT_REQUIREMENTS = RuntimeRequirements(
     lua_language="Lua 5.4",
     minimum_api_version=41,
-    required_capabilities=["aseprite_frame_editing"],
+    required_capabilities=["aseprite_sprite_inspection", "aseprite_frame_editing"],
 )
 FRAME_SUPPORT_RESOURCE = PackagedResource("frame", "frame_support.lua")
 FRAME_GET_HANDLER = PackagedHandler(

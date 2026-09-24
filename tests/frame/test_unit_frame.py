@@ -32,3 +32,20 @@ def test_frame_editing_gap_does_not_hide_existing_add_and_duplicate() -> None:
         assert "aseprite_frame_editing" in next(
             gap.evidence for gap in gaps if gap.capability == name
         )
+
+    without_inspection = runtime.model_copy(
+        update={
+            "verified_capabilities": [
+                "aseprite_runtime_introspection",
+                "aseprite_frame_authoring",
+                "aseprite_frame_editing",
+            ]
+        }
+    )
+    supported, gaps = _surface(without_inspection)
+    for operation in ("add", "duplicate", "set", "move", "remove"):
+        name = f"spa frame {operation}"
+        assert name not in supported
+        assert "aseprite_sprite_inspection" in next(
+            gap.evidence for gap in gaps if gap.capability == name
+        )
