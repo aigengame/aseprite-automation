@@ -15,6 +15,7 @@ local all_sections = {
   "tilesets",
 }
 local open_sprite = nil
+local verified_uuids = {}
 local failed_step = nil
 local failed_operation = nil
 local runtime_incompatibility = nil
@@ -63,6 +64,10 @@ local function verify_runtime(requirements)
 end
 
 local function difference(left, right, at)
+  if at:match("%.layer_uuid$") and type(left) ~= "string" and type(right) == "string" then
+    -- Saving may assign a UUID to a Layer whose source had none on disk.
+    return nil
+  end
   if type(left) ~= type(right) then
     if tonumber(left) ~= nil and tonumber(left) == tonumber(right) then return nil end
     return at .. " (" .. type(left) .. " / " .. type(right) .. ")"
@@ -102,7 +107,7 @@ local function document_facts(sprite)
       content = digest.fnv1a64(image.bytes),
     }
   end
-  return { sprite = inspection.inspect(sprite, all_sections), images = images }
+  return { sprite = inspection.inspect(sprite, all_sections, verified_uuids), images = images }
 end
 
 local function verify_postconditions(sprite, conditions)
@@ -129,14 +134,15 @@ local function execute_step(step)
   if step.operation == "sprite create" then
     assert(open_sprite == nil, "Sprite creation must be the first Step")
     open_sprite = creation.create_live(input)
+    verified_uuids = {}
     return {
-      sprite = inspection.inspect(open_sprite, all_sections),
+      sprite = inspection.inspect(open_sprite, all_sections, verified_uuids),
       initial_layer = creation.verify_persisted_initial_layer(open_sprite, input.initial_layer),
     }
   end
   assert(open_sprite ~= nil, "Plan has no active Sprite")
   if step.operation == "sprite get" then
-    return { sprite = inspection.inspect(open_sprite, input.inspection_scope) }
+    return { sprite = inspection.inspect(open_sprite, input.inspection_scope, verified_uuids) }
   end
   if step.operation == "paint apply" then
     local evidence = paint.apply_live(open_sprite, input, digest)
@@ -159,6 +165,7 @@ local function execute()
   assert(payload.steps ~= nil and #payload.steps > 0, "Plan has no Steps")
   if type(payload.source_sprite_file) == "string" then
     open_sprite = assert(app.open(payload.source_sprite_file), "could not open Source Sprite File")
+    verified_uuids = inspection.saved_layer_uuids(open_sprite, payload.source_sprite_file)
   end
   local outcomes = {}
   for index, step in ipairs(payload.steps) do
@@ -179,6 +186,7 @@ local function execute()
     open_sprite:close()
     open_sprite = nil
     open_sprite = assert(app.open(payload.staged_sprite_file), "could not reopen staged Sprite")
+    verified_uuids = inspection.saved_layer_uuids(open_sprite, payload.staged_sprite_file)
     local after = document_facts(open_sprite)
     local persisted_palettes = after.sprite.palettes
     if before.sprite.metadata.color_mode ~= "indexed" then

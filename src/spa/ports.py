@@ -9,6 +9,7 @@ from typing import Any, Literal, Protocol
 from spa.contracts import (
     Diagnostics,
     ProbePrerequisite,
+    PublicModel,
     RuntimeCapability,
     RuntimeRequest,
     ValidationIssue,
@@ -322,3 +323,12 @@ class RequestIssue(Exception):
     def __init__(self, issues: list[ValidationIssue]):
         super().__init__("Invalid Operation Request")
         self.issues = issues
+
+
+class OperationIssue(Exception):
+    """Dynamic domain refusal with a registered public Failure Code."""
+
+    def __init__(self, code: str, message: str, details: PublicModel):
+        super().__init__(message)
+        self.code = code
+        self.details = details

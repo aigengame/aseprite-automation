@@ -16,7 +16,12 @@ from spa.contracts import (
     RuntimeRequest,
     RuntimeRequirements,
 )
-from spa.mutation import TargetCommit, source_target_identity_issue
+from spa.mutation import (
+    TargetCommit,
+    require_overwrite_for_in_place,
+    source_target_identity_issue,
+    validate_native_sprite_path,
+)
 from spa.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.ports import (
     KernelInvocationResult,
@@ -39,12 +44,6 @@ from spa.raster import (
 
 OneBasedIndex = Annotated[int, Field(ge=1)]
 MAX_PATCH_PIXELS = 256
-
-
-def _native_sprite_path(value: str) -> str:
-    if Path(value).suffix.lower() != ".aseprite":
-        raise ValueError("Sprite file must use the .aseprite extension")
-    return value
 
 
 class CelAddress(PublicModel):
@@ -90,13 +89,16 @@ class PaintApplyRequest(RuntimeRequest, PaintApplyInput):
     in_place: bool
     overwrite: bool
 
-    _validate_source = field_validator("source_sprite_file")(_native_sprite_path)
-    _validate_target = field_validator("target_sprite_file")(_native_sprite_path)
+    _validate_source = field_validator("source_sprite_file")(
+        validate_native_sprite_path
+    )
+    _validate_target = field_validator("target_sprite_file")(
+        validate_native_sprite_path
+    )
 
     @model_validator(mode="after")
     def validate_target_commit_intent(self) -> "PaintApplyRequest":
-        if self.in_place and not self.overwrite:
-            raise ValueError("in_place requires overwrite permission")
+        require_overwrite_for_in_place(self.in_place, self.overwrite)
         return self
 
 
