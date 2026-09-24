@@ -222,7 +222,7 @@ TAG_READ_REQUIREMENTS = RuntimeRequirements(
 TAG_MUTATION_REQUIREMENTS = RuntimeRequirements(
     lua_language="Lua 5.4",
     minimum_api_version=41,
-    required_capabilities=["aseprite_tag_authoring"],
+    required_capabilities=["aseprite_sprite_inspection", "aseprite_tag_authoring"],
 )
 TAG_SELECT_RESOURCE = PackagedResource("tag_select", "tag_select.lua")
 TAG_GET_HANDLER = PackagedHandler(
