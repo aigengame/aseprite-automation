@@ -53,9 +53,231 @@ def _tagged_sprite(target: Path) -> None:
     _run_fixture("tagged.lua", out=str(target))
 
 
+def _timeline_sprite(target: Path) -> None:
+    _run_fixture("timeline.lua", out=str(target))
+
+
 def _native_link_status(target: Path, out: Path) -> bool:
     _run_fixture("inspect_links.lua", source=str(target), out=str(out))
     return json.loads(out.read_text(encoding="utf-8"))["linked"]
+
+
+def test_set_changes_only_one_frame_duration_and_reports_observed_facts(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source.aseprite"
+    target = tmp_path / "target.aseprite"
+    _timeline_sprite(source)
+    before = _run(
+        "sprite",
+        "get",
+        request={
+            "sprite_file": str(source),
+            "inspection_scope": ["frames", "cels", "tags", "slices", "palettes"],
+        },
+    )
+    changed = _run(
+        "frame",
+        "set",
+        request={
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": False,
+            "overwrite": False,
+            "frame_number": 2,
+            "duration_ms": 65535,
+        },
+    )
+    assert changed["persisted_reopen_verified"] is True
+    assert changed["before"]["frames"] == before["frames"]
+    assert changed["sprite"]["frames"] == [
+        {"frame_number": 1, "duration_ms": 120},
+        {"frame_number": 2, "duration_ms": 65535},
+        {"frame_number": 3, "duration_ms": 400},
+        {"frame_number": 4, "duration_ms": 500},
+    ]
+    assert changed["frame_number_changes"] == []
+    for section in ("cels", "tags", "slices", "palettes"):
+        assert changed["before"][section] == changed["sprite"][section]
+    assert (
+        _run("frame", "list", request={"sprite_file": str(target)})["frames"]
+        == changed["sprite"]["frames"]
+    )
+
+
+@pytest.mark.parametrize(
+    (
+        "source_number",
+        "target_number",
+        "expected_durations",
+        "expected_colors",
+        "expected_changes",
+    ),
+    [
+        (
+            4,
+            1,
+            [500, 120, 300, 400],
+            [120, 30, 60, 90],
+            [(1, 2), (2, 3), (3, 4), (4, 1)],
+        ),
+        (1, 2, [300, 120, 400, 500], [60, 30, 90, 120], [(1, 2), (2, 1)]),
+        (
+            1,
+            4,
+            [300, 400, 500, 120],
+            [60, 90, 120, 30],
+            [(1, 4), (2, 1), (3, 2), (4, 3)],
+        ),
+    ],
+)
+def test_move_frame_preserves_timing_pixels_and_reports_native_references(
+    tmp_path: Path,
+    source_number: int,
+    target_number: int,
+    expected_durations: list[int],
+    expected_colors: list[int],
+    expected_changes: list[tuple[int, int]],
+) -> None:
+    source = tmp_path / "source.aseprite"
+    target = tmp_path / "target.aseprite"
+    _timeline_sprite(source)
+    before = _run(
+        "sprite",
+        "get",
+        request={
+            "sprite_file": str(source),
+            "inspection_scope": ["frames", "cels", "tags", "slices", "palettes"],
+        },
+    )
+    moved = _run(
+        "frame",
+        "move",
+        request={
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": False,
+            "overwrite": False,
+            "source_frame_number": source_number,
+            "target_frame_number": target_number,
+        },
+    )
+    assert moved["cel_content_verified"] is True
+    assert moved["persisted_reopen_verified"] is True
+    assert moved["before"]["tags"] == before["tags"]
+    assert moved["before"]["slices"] == before["slices"]
+    assert [
+        frame["duration_ms"] for frame in moved["sprite"]["frames"]
+    ] == expected_durations
+    assert moved["frame_number_changes"] == [
+        {"before_frame_number": old, "after_frame_number": new}
+        for old, new in expected_changes
+    ]
+    assert moved["sprite"]["tags"] != before["tags"]
+    reopened = _run(
+        "sprite",
+        "get",
+        request={
+            "sprite_file": str(target),
+            "inspection_scope": ["frames", "cels", "tags", "slices", "palettes"],
+        },
+    )
+    for section in ("frames", "cels", "tags", "slices", "palettes"):
+        assert reopened[section] == moved["sprite"][section]
+    for frame_number, color in enumerate(expected_colors, 1):
+        png = tmp_path / f"frame-{frame_number}.png"
+        _run(
+            "export",
+            "image",
+            request={
+                "source_sprite_file": str(target),
+                "destination": {"path": str(png), "if_exists": "fail"},
+                "frame_number": frame_number,
+                "color_mode": "preserve",
+                "color_profile": "preserve",
+                "transparency": "preserve",
+            },
+        )
+        with Image.open(png) as image:
+            assert image.convert("RGBA").getpixel((0, 0)) == (color, 0, 0, 255)
+
+
+def test_remove_frame_shifts_retained_content_and_rejects_final_frame(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source.aseprite"
+    target = tmp_path / "target.aseprite"
+    _timeline_sprite(source)
+    removed = _run(
+        "frame",
+        "remove",
+        request={
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": False,
+            "overwrite": False,
+            "frame_number": 2,
+        },
+    )
+    assert removed["persisted_reopen_verified"] is True
+    assert removed["cel_content_verified"] is True
+    assert removed["frame_number_changes"] == [
+        {"before_frame_number": 2, "after_frame_number": None},
+        {"before_frame_number": 3, "after_frame_number": 2},
+        {"before_frame_number": 4, "after_frame_number": 3},
+    ]
+    assert [frame["duration_ms"] for frame in removed["sprite"]["frames"]] == [
+        120,
+        400,
+        500,
+    ]
+    assert [cel["frame_number"] for cel in removed["sprite"]["cels"]] == [1, 2, 3]
+    assert removed["before"]["tags"] != removed["sprite"]["tags"]
+    reopened = _run(
+        "sprite",
+        "get",
+        request={
+            "sprite_file": str(target),
+            "inspection_scope": ["frames", "cels", "tags", "slices", "palettes"],
+        },
+    )
+    for section in ("frames", "cels", "tags", "slices", "palettes"):
+        assert reopened[section] == removed["sprite"][section]
+
+    one = tmp_path / "single.aseprite"
+    final_target = tmp_path / "unpublished.aseprite"
+    _run(
+        "sprite",
+        "create",
+        request={
+            "target_sprite_file": str(one),
+            "width": 3,
+            "height": 2,
+            "color_mode": "rgb",
+            "initial_layer": {"kind": "transparent"},
+            "overwrite": False,
+        },
+    )
+    failed = spa(
+        "frame",
+        "remove",
+        "--input-json",
+        json.dumps(
+            {
+                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+                "source_sprite_file": str(one),
+                "target_sprite_file": str(final_target),
+                "in_place": False,
+                "overwrite": False,
+                "frame_number": 1,
+            }
+        ),
+    )
+    assert failed.returncode != 0
+    assert not final_target.exists()
+    assert _run("frame", "list", request={"sprite_file": str(one)})["frames"] == [
+        {"frame_number": 1, "duration_ms": 100}
+    ]
 
 
 def test_add_empty_frame_persists_one_based_position_and_duration(

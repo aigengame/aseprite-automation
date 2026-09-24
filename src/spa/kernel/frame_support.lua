@@ -244,7 +244,166 @@ local function insert(sprite, operation, input)
   return number, source_count, inserted_count, expected_pixel, relationships
 end
 
+local function mapped_number(operation, input, number)
+  if operation == "remove" then
+    if number == input.frame_number then return nil end
+    if number > input.frame_number then return number - 1 end
+  elseif operation == "move" then
+    local source, target = input.source_frame_number, input.target_frame_number
+    if number == source then return target end
+    if source < number and number <= target then return number - 1 end
+    if target <= number and number < source then return number + 1 end
+  end
+  return number
+end
+
+local function frame_number_changes(operation, input, count)
+  local changes = {}
+  for number = 1, count do
+    local mapped = mapped_number(operation, input, number)
+    if mapped ~= number then
+      changes[#changes + 1] = {
+        before_frame_number = number,
+        after_frame_number = mapped or json_null,
+      }
+    end
+  end
+  return changes
+end
+
+local function edit(sprite, operation, input)
+  local count = #sprite.frames
+  local selected = operation == "move" and input.source_frame_number or input.frame_number
+  assert(
+    type(selected) == "number" and selected % 1 == 0 and selected >= 1 and selected <= count,
+    "Frame Number is outside the Sprite timeline"
+  )
+  if operation == "set" then
+    validate_duration(input.duration_ms)
+    sprite.frames[selected].duration = input.duration_ms / 1000
+  elseif operation == "remove" then
+    assert(count > 1, "cannot remove the final Frame")
+    sprite:deleteFrame(selected)
+  else
+    assert(operation == "move", "unsupported Frame Operation")
+    local target = input.target_frame_number
+    assert(
+      type(target) == "number" and target % 1 == 0 and target >= 1 and target <= count,
+      "target Frame Number is outside the Sprite timeline"
+    )
+    if selected ~= target then
+      local duration = duration_ms(sprite.frames[selected])
+      local originals = source_cels(sprite, selected)
+      local insertion = selected < target and target + 1 or target
+      sprite:newEmptyFrame(insertion)
+      local shifted_source = selected >= insertion and selected + 1 or selected
+      for _, cel in ipairs(originals) do
+        cel.frameNumber = insertion
+      end
+      sprite.frames[insertion].duration = duration / 1000
+      sprite:deleteFrame(shifted_source)
+    end
+  end
+  return {
+    frame_number_changes = frame_number_changes(operation, input, count),
+    cel_content_verified = false,
+    persisted_reopen_verified = false,
+    sprite = json_null,
+    before = json_null,
+  }
+end
+
+local function cel_key(cel)
+  local path = {}
+  for index, number in ipairs(cel.layer_path) do
+    path[index] = string.format("%d", number)
+  end
+  return table.concat(path, "/") .. ":" .. string.format("%d", cel.frame_number)
+end
+
+local function same_cel(before, after)
+  local left, right = before.bounds, after.bounds
+  return before.opacity == after.opacity
+    and before.z_index == after.z_index
+    and left.x == right.x
+    and left.y == right.y
+    and left.width == right.width
+    and left.height == right.height
+end
+
+local function same_image(before, after)
+  return before.width == after.width
+    and before.height == after.height
+    and before.bytes_per_pixel == after.bytes_per_pixel
+    and before.row_stride == after.row_stride
+    and before.content == after.content
+end
+
+local function verify_edit(before, after, operation, input)
+  local old_frames, new_frames = before.sprite.frames, after.sprite.frames
+  local expected_count = #old_frames - (operation == "remove" and 1 or 0)
+  assert(#new_frames == expected_count, "Frame edit changed the wrong number of Frames")
+  for number, old in ipairs(old_frames) do
+    local mapped = mapped_number(operation, input, number)
+    if mapped ~= nil then
+      local new = assert(new_frames[mapped], "mapped Frame is absent")
+      local expected_duration = old.duration_ms
+      if operation == "set" and number == input.frame_number then
+        expected_duration = input.duration_ms
+      end
+      assert(new.duration_ms == expected_duration, "Frame edit changed a retained duration")
+    end
+  end
+  local new_cels = {}
+  for index, cel in ipairs(after.sprite.cels) do
+    local key = cel_key(cel)
+    assert(new_cels[key] == nil, "Frame edit produced duplicate Cel address")
+    new_cels[key] = index
+  end
+  local old_to_new = {}
+  local retained_count = 0
+  for index, cel in ipairs(before.sprite.cels) do
+    local mapped = mapped_number(operation, input, cel.frame_number)
+    if mapped ~= nil then
+      local target = {
+        layer_path = cel.layer_path,
+        frame_number = mapped,
+      }
+      local target_key = cel_key(target)
+      local new_index = assert(new_cels[target_key], "retained Cel is absent at " .. target_key)
+      assert(same_cel(cel, after.sprite.cels[new_index]), "retained Cel facts changed")
+      assert(
+        same_image(before.images[index], after.images[new_index]),
+        "retained Cel Image changed"
+      )
+      old_to_new[index] = new_index
+      retained_count = retained_count + 1
+    end
+  end
+  assert(retained_count == #after.sprite.cels, "Frame edit produced extra Cels")
+  local expected_links = {}
+  for _, pair in ipairs(before.links) do
+    local a, b = old_to_new[pair[1]], old_to_new[pair[2]]
+    if a ~= nil and b ~= nil then expected_links[math.min(a, b) .. ":" .. math.max(a, b)] = true end
+  end
+  local actual_links = {}
+  for _, pair in ipairs(after.links) do
+    actual_links[math.min(pair[1], pair[2]) .. ":" .. math.max(pair[1], pair[2])] = true
+  end
+  for key in pairs(expected_links) do
+    assert(actual_links[key], "linked Cel relationship changed")
+  end
+  for key in pairs(actual_links) do
+    assert(expected_links[key], "new linked Cel relationship appeared")
+  end
+end
+
 function module.apply_live(sprite, operation, input)
+  if operation == "set" or operation == "move" or operation == "remove" then
+    local evidence = nil
+    app.transaction(operation .. " Frame", function() evidence = edit(sprite, operation, input) end)
+    return assert(evidence)
+  end
   local before_tags = tags(sprite)
   local previous = {
     sprite = app.activeSprite,
@@ -295,6 +454,12 @@ function module.execute(payload, inspection, digest, persistence)
     open_sprite = assert(app.open(payload.source_sprite_file), "could not open Source Sprite File")
     local verified_uuids = inspection.saved_layer_uuids(open_sprite, payload.source_sprite_file)
     local input = assert(payload.input, "missing Frame input")
+    local is_edit = payload.operation == "set"
+      or payload.operation == "move"
+      or payload.operation == "remove"
+    local source_snapshot = is_edit
+        and persistence.snapshot(open_sprite, inspection, digest, all_sections, verified_uuids)
+      or nil
     local evidence = module.apply_live(open_sprite, payload.operation, input)
     local before =
       persistence.snapshot(open_sprite, inspection, digest, all_sections, verified_uuids)
@@ -305,28 +470,34 @@ function module.execute(payload, inspection, digest, persistence)
     local after =
       persistence.snapshot(open_sprite, inspection, digest, all_sections, verified_uuids)
     persistence.assert_same(before, after, "Frame")
-    local expected_pixel = evidence._expected_pixel
-    local verified_count, verified_relationships = verify_cels(
-      open_sprite,
-      payload.operation,
-      input,
-      evidence.inserted_frame.frame_number,
-      evidence.source_cel_count,
-      expected_pixel
-    )
-    assert(verified_count == evidence.inserted_cel_count, "persisted Cel count differs")
-    assert(
-      #verified_relationships == #evidence.cel_relationships,
-      "persisted Cel relationships differ"
-    )
-    assert(
-      duration_ms(open_sprite.frames[evidence.inserted_frame.frame_number])
-        == evidence.inserted_frame.duration_ms,
-      "persisted Frame duration differs"
-    )
+    if is_edit then
+      verify_edit(source_snapshot, after, payload.operation, input)
+      evidence.before = source_snapshot.sprite
+      evidence.cel_content_verified = true
+    else
+      local expected_pixel = evidence._expected_pixel
+      local verified_count, verified_relationships = verify_cels(
+        open_sprite,
+        payload.operation,
+        input,
+        evidence.inserted_frame.frame_number,
+        evidence.source_cel_count,
+        expected_pixel
+      )
+      assert(verified_count == evidence.inserted_cel_count, "persisted Cel count differs")
+      assert(
+        #verified_relationships == #evidence.cel_relationships,
+        "persisted Cel relationships differ"
+      )
+      assert(
+        duration_ms(open_sprite.frames[evidence.inserted_frame.frame_number])
+          == evidence.inserted_frame.duration_ms,
+        "persisted Frame duration differs"
+      )
+      evidence._expected_pixel = nil
+    end
     evidence.sprite = inspection.inspect(open_sprite, all_sections, verified_uuids)
     evidence.persisted_reopen_verified = true
-    evidence._expected_pixel = nil
     open_sprite:close()
     open_sprite = nil
     return evidence
