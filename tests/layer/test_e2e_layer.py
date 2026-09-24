@@ -279,11 +279,14 @@ def test_zero_saved_uuid_is_not_exposed_as_persistent_identity(tmp_path: Path) -
 
 
 @pytest.mark.parametrize("persist_plan", [False, True])
+@pytest.mark.parametrize("zero_saved_uuid", [False, True])
 def test_plan_sprite_get_preserves_verified_layer_uuids(
-    tmp_path: Path, persist_plan: bool
+    tmp_path: Path, persist_plan: bool, zero_saved_uuid: bool
 ) -> None:
     source = tmp_path / "source.aseprite"
     _fixture(source, uuid_persistence=True)
+    if zero_saved_uuid:
+        _clear_duplicate_uuid(source)
     direct = spa(
         "sprite",
         "get",
@@ -299,6 +302,8 @@ def test_plan_sprite_get_preserves_verified_layer_uuids(
     assert direct.returncode == 0, direct.stdout + direct.stderr
     expected_layers = json.loads(direct.stdout)["layers"]
     assert expected_layers[2]["children"][0]["layer_uuid"] is not None
+    if zero_saved_uuid:
+        assert expected_layers[1]["layer_uuid"] is None
 
     plan: dict[str, object] = {
         "source_sprite_file": str(source),
@@ -344,5 +349,26 @@ def test_plan_sprite_get_preserves_verified_layer_uuids(
     assert run.returncode == 0, run.stdout + run.stderr
     result = json.loads(run.stdout)
     assert result["steps"][0]["result"]["sprite"]["layers"] == expected_layers
-    assert result["final_sprite"]["layers"] == expected_layers
+    if persist_plan and zero_saved_uuid:
+        assert result["final_sprite"]["layers"][1]["layer_uuid"] is not None
+        target = spa(
+            "sprite",
+            "get",
+            "--input-json",
+            json.dumps(
+                {
+                    "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+                    "sprite_file": str(plan["target_sprite_file"]),
+                    "inspection_scope": ["layers"],
+                }
+            ),
+        )
+        assert target.returncode == 0, target.stdout + target.stderr
+        assert result["final_sprite"]["layers"] == json.loads(target.stdout)["layers"]
+        assert (
+            result["final_sprite"]["layers"][0]["layer_uuid"]
+            == (expected_layers[0]["layer_uuid"])
+        )
+    else:
+        assert result["final_sprite"]["layers"] == expected_layers
     assert result["persisted_reopen_verified"] is persist_plan

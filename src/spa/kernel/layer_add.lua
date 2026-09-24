@@ -14,7 +14,10 @@ local function execute()
   )
   local payload = assert(request.payload)
   open_sprite = assert(app.open(payload.source_sprite_file), "could not open Source Sprite")
-  local verified_uuids = inspection.saved_layer_uuids(open_sprite, payload.source_sprite_file)
+  local verified_uuids = {}
+  if payload.parent ~= nil and payload.parent.layer_uuid ~= nil then
+    verified_uuids = inspection.saved_layer_uuids(open_sprite, payload.source_sprite_file)
+  end
   local parent = nil
   if payload.parent ~= nil then
     local selected, code, message = selection.resolve(open_sprite, payload.parent, verified_uuids)

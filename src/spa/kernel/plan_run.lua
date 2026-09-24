@@ -64,6 +64,10 @@ local function verify_runtime(requirements)
 end
 
 local function difference(left, right, at)
+  if at:match("%.layer_uuid$") and type(left) ~= "string" and type(right) == "string" then
+    -- Saving may assign a UUID to a Layer whose source had none on disk.
+    return nil
+  end
   if type(left) ~= type(right) then
     if tonumber(left) ~= nil and tonumber(left) == tonumber(right) then return nil end
     return at .. " (" .. type(left) .. " / " .. type(right) .. ")"
