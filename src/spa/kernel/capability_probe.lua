@@ -160,6 +160,87 @@ local function observes_layer_hierarchy()
   return ok
 end
 
+local function observes_layer_mutation()
+  local sprite = nil
+  local proof_path = app.fs.joinPath(app.params.workspace, "layer-mutation-probe.aseprite")
+  local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
+  local ok = pcall(function()
+    sprite = Sprite(2, 2, ColorMode.RGB)
+    local lower = sprite.layers[1]
+    local lower_name = lower.name
+    local upper = sprite:newLayer()
+    upper.name = "upper"
+    upper.isVisible = false
+    upper.isEditable = false
+    upper.opacity = 128
+    upper.blendMode = BlendMode.MULTIPLY
+    assert(not upper.isVisible and not upper.isEditable)
+    assert(upper.opacity == 128 and upper.blendMode == BlendMode.MULTIPLY)
+    upper.stackIndex = 1
+    assert(upper.stackIndex == 1 and lower.stackIndex == 2)
+    sprite:deleteLayer(upper)
+    assert(#sprite.layers == 1 and sprite.layers[1] == lower)
+    assert(sprite:saveAs(proof_path))
+    sprite:close()
+    sprite = assert(app.open(proof_path))
+    assert(#sprite.layers == 1 and sprite.layers[1].name == lower_name)
+    sprite:close()
+    sprite = nil
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  pcall(function() os.remove(proof_path) end)
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
+  return ok
+end
+
+local function observes_layer_merge()
+  local sprite = nil
+  local proof_path = app.fs.joinPath(app.params.workspace, "layer-merge-probe.aseprite")
+  local previous = {
+    sprite = app.activeSprite,
+    layer = app.activeLayer,
+    frame = app.activeFrame,
+    new_blend = app.preferences.experimental.new_blend,
+  }
+  local ok = pcall(function()
+    sprite = Sprite(2, 2, ColorMode.RGB)
+    local lower = sprite.layers[1]
+    lower.name = "lower"
+    lower:cel(1).image:putPixel(0, 0, app.pixelColor.rgba(0, 0, 255, 255))
+    local upper = sprite:newLayer()
+    upper.name = "upper"
+    local image = Image(2, 2, ColorMode.RGB)
+    image:putPixel(0, 0, app.pixelColor.rgba(255, 0, 0, 128))
+    sprite:newCel(upper, 1, image)
+    app.activeSprite = sprite
+    app.activeLayer = upper
+    app.activeFrame = sprite.frames[1]
+    app.preferences.experimental.new_blend = true
+    assert(app.command.MergeDownLayer())
+    assert(#sprite.layers == 1 and sprite.layers[1] == lower)
+    assert(sprite:saveAs(proof_path))
+    sprite:close()
+    sprite = assert(app.open(proof_path))
+    assert(#sprite.layers == 1 and sprite.layers[1].name == "lower")
+    assert(sprite.layers[1]:cel(1) ~= nil)
+    sprite:close()
+    sprite = nil
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  pcall(function() os.remove(proof_path) end)
+  pcall(function() app.preferences.experimental.new_blend = previous.new_blend end)
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
+  return ok
+end
+
 local function observes_paint_apply()
   local source_path = assert(app.params.paint_fixture)
   local target_path = app.fs.joinPath(app.params.workspace, "paint-target.aseprite")
@@ -233,6 +314,8 @@ function module.observe()
   if observes_layer_hierarchy() then
     capabilities[#capabilities + 1] = "aseprite_layer_hierarchy"
   end
+  if observes_layer_mutation() then capabilities[#capabilities + 1] = "aseprite_layer_mutation" end
+  if observes_layer_merge() then capabilities[#capabilities + 1] = "aseprite_layer_merge" end
   if observes_paint_apply() then capabilities[#capabilities + 1] = "aseprite_paint_apply" end
   if observes_frame_authoring() then
     capabilities[#capabilities + 1] = "aseprite_frame_authoring"

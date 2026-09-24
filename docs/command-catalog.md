@@ -56,10 +56,10 @@ better Aseprite-aligned evidence.
 | `spa layer list` | List the native Layer hierarchy and current address facts. |
 | `spa layer get` | Inspect one exactly addressed Layer. |
 | `spa layer add` | Add a regular Transparent or Group Layer; Tilemap creation belongs to its own slice. |
-| `spa layer remove` | Remove exactly addressed Layers under an explicit target-count rule. |
-| `spa layer set` | Set supported Layer properties. |
-| `spa layer move` | Reorder or reparent selected Layers. |
-| `spa layer merge` | Apply an explicitly selected native merge behavior. |
+| `spa layer remove` | Remove one exactly addressed Layer and its subtree; reject Tilemap content in this slice. |
+| `spa layer set` | Set name, visibility, or editability on a regular Transparent Image or Group; set opacity or blend mode only on a regular Transparent Image. |
+| `spa layer move` | Reorder one regular Transparent Image or Group among its current parent's children. |
+| `spa layer merge` | Merge one regular Transparent Image into its immediate lower regular Transparent Image sibling with Aseprite's experimental `new_blend=true` behavior. |
 | `spa layer set-tileset` | Rebind one Tilemap Layer through explicit Tile mapping and Grid policies. |
 | `spa layer convert-to-background` | Convert an eligible regular Transparent Layer to a Background Layer and report Cel normalization. |
 | `spa layer convert-from-background` | Convert the Background Layer to a regular Transparent Layer. |
