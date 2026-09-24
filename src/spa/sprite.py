@@ -373,7 +373,7 @@ SPRITE_GET_REQUIREMENTS = RuntimeRequirements(
 SPRITE_FLATTEN_REQUIREMENTS = RuntimeRequirements(
     lua_language="Lua 5.4",
     minimum_api_version=41,
-    required_capabilities=["aseprite_sprite_flatten"],
+    required_capabilities=["aseprite_sprite_flatten", "aseprite_sprite_inspection"],
 )
 SPRITE_CREATE_FAILURE_CODES = (*RUNTIME_FAILURE_CODES, "target_commit_failed")
 SPRITE_INSPECTION_RESOURCE = PackagedResource("inspection", "sprite_inspect.lua")

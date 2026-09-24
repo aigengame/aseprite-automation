@@ -49,7 +49,7 @@ local function execute()
 
   local verified_uuids = inspection.saved_layer_uuids(open_sprite, payload.source_sprite_file)
   local before = inspection.inspect(open_sprite, all_sections, verified_uuids)
-  open_sprite:flatten()
+  app.transaction("Flatten Sprite", function() open_sprite:flatten() end)
   local after_live = persistence.snapshot(open_sprite, inspection, digest, all_sections, {})
   assert(open_sprite:saveAs(payload.staged_sprite_file), "could not save staged Sprite")
   open_sprite:close()
