@@ -46,6 +46,7 @@ for name in (
     "sprite_get.lua",
     "sprite_inspect.lua",
     "sprite_flatten.lua",
+    "sprite_geometry.lua",
     "sprite_persistence.lua",
     "layer_add.lua",
     "layer_get.lua",

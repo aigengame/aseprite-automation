@@ -19,9 +19,7 @@ local function tilemap_content(sprite)
   local cels, images = 0, 0
   for _, cel in ipairs(sprite.cels) do
     if cel.layer.isTilemap then cels = cels + 1 end
-    if cel.image ~= nil and cel.image.colorMode == ColorMode.TILEMAP then
-      images = images + 1
-    end
+    if cel.image ~= nil and cel.image.colorMode == ColorMode.TILEMAP then images = images + 1 end
   end
   return {
     kind = "sprite_content",
@@ -36,9 +34,15 @@ local function execute()
   local request_file = assert(io.open(app.params.request, "rb"))
   local request = json.decode(request_file:read("*a"))
   request_file:close()
-  assert(request.kernel_protocol_version == kernel_protocol_version, "unsupported Kernel Protocol version")
+  assert(
+    request.kernel_protocol_version == kernel_protocol_version,
+    "unsupported Kernel Protocol version"
+  )
   local payload = assert(request.payload)
-  assert(payload.operation == "resize" or payload.operation == "crop", "unsupported Sprite geometry operation")
+  assert(
+    payload.operation == "resize" or payload.operation == "crop",
+    "unsupported Sprite geometry operation"
+  )
   open_sprite = assert(app.open(payload.source_sprite_file), "could not open Source Sprite File")
   local content = tilemap_content(open_sprite)
   if
@@ -72,7 +76,9 @@ local function execute()
       }
       open_sprite:close()
       open_sprite = nil
-      return { rejection = { kind = "crop_bounds", rectangle = rejected_rectangle, canvas = canvas } }
+      return {
+        rejection = { kind = "crop_bounds", rectangle = rejected_rectangle, canvas = canvas },
+      }
     end
   end
 
