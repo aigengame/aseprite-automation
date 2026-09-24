@@ -118,6 +118,8 @@ uv run spa sprite get --input-json '{"aseprite":"/path/to/aseprite","sprite_file
 uv run spa sprite validate --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite","expected":{"width":16,"height":16,"color_mode":"rgb","frame_count":1}}'
 uv run spa sprite copy --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"copy.aseprite","overwrite":false}'
 uv run spa sprite flatten --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"copy.aseprite","target_sprite_file":"flat.aseprite","in_place":false,"overwrite":false}'
+uv run spa sprite resize --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"resized.aseprite","in_place":false,"overwrite":false,"width":32,"height":32}'
+uv run spa sprite crop --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"cropped.aseprite","in_place":false,"overwrite":false,"coordinate_space":"canvas-pixel","rectangle":{"x":2,"y":2,"width":12,"height":12}}'
 uv run spa frame list --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite"}'
 uv run spa frame add --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"timed.aseprite","in_place":false,"overwrite":false,"frame_number":2,"duration_ms":120}'
 uv run spa frame duplicate --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"timed.aseprite","target_sprite_file":"duplicated.aseprite","in_place":false,"overwrite":false,"source_frame_number":1,"cel_mode":"copy"}'
@@ -164,6 +166,16 @@ visible composite. This slice rejects a Sprite with
 any Tileset or Tilemap Layer before mutation and reports
 `sprite_flatten_unsupported_content` without a Target Commit. In-place flattening
 requires `in_place: true` and `overwrite: true`.
+`spa sprite resize` uses Aseprite's nearest-neighbor resize at Canvas origin `(0, 0)`
+with explicit positive dimensions. `spa sprite crop` requires a non-empty, half-open
+Canvas Pixel Rectangle wholly within the current canvas and trims outside Cel
+content. Both operations reject a Sprite containing any Tileset, Tilemap Layer,
+Tilemap Cel, or Tilemap Image before native mutation and Target Commit. Their
+results include before and reopened Sprite inspections, old and new canvas sizes,
+and observed Cel bounds, Tags, Slices, and Grid. Crop also reports `clipped_cels`
+with each affected Cel's bounds before and after clipping; these are geometry facts,
+not a count of colored pixels. In-place edits require `in_place: true` and
+`overwrite: true`.
 `spa layer list` returns the current hierarchy. `spa layer get` accepts one
 `layer_path`, `layer_uuid`, or `layer_name`. Paths use one-based native sibling
 positions. Names use exact case-sensitive matching and must be unique across the

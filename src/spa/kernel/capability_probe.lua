@@ -408,6 +408,39 @@ local function observes_sprite_flatten()
   return ok
 end
 
+local function observes_sprite_resize()
+  local sprite = nil
+  local ok = pcall(function()
+    sprite = Sprite(2, 2, ColorMode.RGB)
+    sprite:resize(Size(4, 4))
+    assert(sprite.width == 4 and sprite.height == 4)
+    sprite:close()
+    sprite = nil
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  return ok
+end
+
+local function observes_sprite_crop()
+  local sprite = nil
+  local previous = app.activeSprite
+  local ok = pcall(function()
+    sprite = Sprite(3, 3, ColorMode.RGB)
+    app.activeSprite = sprite
+    app.command.CanvasSize {
+      bounds = Rectangle(1, 1, 2, 2),
+      trimOutside = true,
+      ui = false,
+    }
+    assert(sprite.width == 2 and sprite.height == 2)
+    sprite:close()
+    sprite = nil
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  if previous ~= nil and previous.isValid then pcall(function() app.activeSprite = previous end) end
+  return ok
+end
+
 local function observes_tag_authoring()
   local sprite = nil
   local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
@@ -443,6 +476,8 @@ function module.observe()
   end
   if supports_inspection then capabilities[#capabilities + 1] = "aseprite_sprite_inspection" end
   if observes_sprite_flatten() then capabilities[#capabilities + 1] = "aseprite_sprite_flatten" end
+  if observes_sprite_resize() then capabilities[#capabilities + 1] = "aseprite_sprite_resize" end
+  if observes_sprite_crop() then capabilities[#capabilities + 1] = "aseprite_sprite_crop" end
   if observes_layer_hierarchy() then
     capabilities[#capabilities + 1] = "aseprite_layer_hierarchy"
   end

@@ -36,7 +36,7 @@ from spa.ports import (
     ResponseEvidence,
     RuntimeIssue,
 )
-from spa.raster import Point, Rectangle, RgbaColor, Size
+from spa.raster import Point, PositiveRectangle, Rectangle, RgbaColor, Size
 
 InspectionSection = Literal[
     "frames", "tags", "palettes", "layers", "cels", "slices", "tilesets"
@@ -162,6 +162,35 @@ class SpriteFlattenRequest(RuntimeRequest):
     def validate_commit_intent(self) -> "SpriteFlattenRequest":
         require_overwrite_for_in_place(self.in_place, self.overwrite)
         return self
+
+
+class SpriteGeometryRequest(RuntimeRequest):
+    source_sprite_file: str = Field(min_length=1)
+    target_sprite_file: str = Field(min_length=1)
+    in_place: bool
+    overwrite: bool
+
+    _validate_source = field_validator("source_sprite_file")(
+        validate_native_sprite_path
+    )
+    _validate_target = field_validator("target_sprite_file")(
+        validate_native_sprite_path
+    )
+
+    @model_validator(mode="after")
+    def validate_commit_intent(self) -> "SpriteGeometryRequest":
+        require_overwrite_for_in_place(self.in_place, self.overwrite)
+        return self
+
+
+class SpriteResizeRequest(SpriteGeometryRequest):
+    width: int = Field(ge=1, le=65535)
+    height: int = Field(ge=1, le=65535)
+
+
+class SpriteCropRequest(SpriteGeometryRequest):
+    coordinate_space: Literal["canvas-pixel"]
+    rectangle: PositiveRectangle
 
 
 class SpriteMetadata(PublicModel):
@@ -334,6 +363,38 @@ class SpriteFlattenResult(PublicModel):
     sprite: SpriteInspection
 
 
+class SpriteGeometryResult(PublicModel):
+    target_commit: TargetCommit
+    persisted_reopen_verified: Literal[True]
+    old_canvas: Size
+    new_canvas: Size
+    before_sprite: SpriteInspection
+    sprite: SpriteInspection
+
+
+class SpriteResizeResult(SpriteGeometryResult):
+    status: Literal["success"] = "success"
+    operation: Literal["spa sprite resize"] = "spa sprite resize"
+    sampling: Literal["nearest_neighbor"] = "nearest_neighbor"
+    origin: Point
+
+
+class ClippedCel(PublicModel):
+    layer_path: list[int]
+    frame_number: int = Field(ge=1)
+    before_bounds: Rectangle
+    retained_canvas_bounds: Rectangle | None
+    after_bounds: Rectangle | None
+
+
+class SpriteCropResult(SpriteGeometryResult):
+    status: Literal["success"] = "success"
+    operation: Literal["spa sprite crop"] = "spa sprite crop"
+    coordinate_space: Literal["canvas-pixel"] = "canvas-pixel"
+    rectangle: PositiveRectangle
+    clipped_cels: list[ClippedCel]
+
+
 class SpriteCopyStagingDetails(PublicModel):
     kind: Literal["sprite_copy_staging"] = "sprite_copy_staging"
     source_sprite_file: str
@@ -345,6 +406,17 @@ class SpriteUnsupportedContentDetails(PublicModel):
     source_sprite_file: str
     tileset_count: int = Field(ge=0)
     tilemap_layer_count: int = Field(ge=0)
+
+
+class SpriteGeometryUnsupportedDetails(SpriteUnsupportedContentDetails):
+    tilemap_cel_count: int = Field(ge=0)
+    tilemap_image_count: int = Field(ge=0)
+
+
+class SpriteCropBoundsDetails(PublicModel):
+    kind: Literal["crop_bounds"] = "crop_bounds"
+    rectangle: PositiveRectangle
+    canvas: Size
 
 
 SPRITE_FAILURE_CODE_SPECS = (
@@ -359,6 +431,18 @@ SPRITE_FAILURE_CODE_SPECS = (
         "Flatten does not accept a Sprite with Tilesets or Tilemap Layers",
         "input",
         SpriteUnsupportedContentDetails,
+    ),
+    FailureCodeSpec(
+        "sprite_geometry_unsupported_content",
+        "Resize and crop do not accept Tilesets or Tilemap content",
+        "input",
+        SpriteGeometryUnsupportedDetails,
+    ),
+    FailureCodeSpec(
+        "sprite_crop_out_of_bounds",
+        "Crop Rectangle must be wholly inside the current Sprite canvas",
+        "input",
+        SpriteCropBoundsDetails,
     ),
 )
 
@@ -377,6 +461,16 @@ SPRITE_FLATTEN_REQUIREMENTS = RuntimeRequirements(
     lua_language="Lua 5.4",
     minimum_api_version=41,
     required_capabilities=["aseprite_sprite_flatten", "aseprite_sprite_inspection"],
+)
+SPRITE_RESIZE_REQUIREMENTS = RuntimeRequirements(
+    lua_language="Lua 5.4",
+    minimum_api_version=41,
+    required_capabilities=["aseprite_sprite_resize", "aseprite_sprite_inspection"],
+)
+SPRITE_CROP_REQUIREMENTS = RuntimeRequirements(
+    lua_language="Lua 5.4",
+    minimum_api_version=41,
+    required_capabilities=["aseprite_sprite_crop", "aseprite_sprite_inspection"],
 )
 SPRITE_CREATE_FAILURE_CODES = (*RUNTIME_FAILURE_CODES, "target_commit_failed")
 SPRITE_INSPECTION_RESOURCE = PackagedResource("inspection", "sprite_inspect.lua")
@@ -397,6 +491,10 @@ SPRITE_CREATE_HANDLER = PackagedHandler(
 SPRITE_GET_HANDLER = PackagedHandler("sprite_get", (SPRITE_INSPECTION_RESOURCE,))
 SPRITE_FLATTEN_HANDLER = PackagedHandler(
     "sprite_flatten",
+    (SPRITE_INSPECTION_RESOURCE, SPRITE_PERSISTENCE_RESOURCE, SPRITE_DIGEST_RESOURCE),
+)
+SPRITE_GEOMETRY_HANDLER = PackagedHandler(
+    "sprite_geometry",
     (SPRITE_INSPECTION_RESOURCE, SPRITE_PERSISTENCE_RESOURCE, SPRITE_DIGEST_RESOURCE),
 )
 
@@ -793,6 +891,174 @@ def flatten_sprite(
         services.target_files.discard(staged)
 
 
+def _clipped_cels(
+    before: SpriteInspection, after: SpriteInspection, rectangle: PositiveRectangle
+) -> list[ClippedCel]:
+    assert before.cels is not None and after.cels is not None
+    after_by_address = {
+        (tuple(cel.layer_path), cel.frame_number): cel for cel in after.cels
+    }
+    clipped: list[ClippedCel] = []
+    for cel in before.cels:
+        bounds = cel.bounds
+        left = max(bounds.x, rectangle.x)
+        top = max(bounds.y, rectangle.y)
+        right = min(bounds.x + bounds.width, rectangle.x + rectangle.width)
+        bottom = min(bounds.y + bounds.height, rectangle.y + rectangle.height)
+        retained = (
+            Rectangle(x=left, y=top, width=right - left, height=bottom - top)
+            if right > left and bottom > top
+            else None
+        )
+        surviving = after_by_address.get((tuple(cel.layer_path), cel.frame_number))
+        actual = surviving.bounds if surviving is not None else None
+        if (
+            retained != bounds
+            or actual is None
+            or actual.x + rectangle.x != bounds.x
+            or actual.y + rectangle.y != bounds.y
+            or actual.width != bounds.width
+            or actual.height != bounds.height
+        ):
+            clipped.append(
+                ClippedCel(
+                    layer_path=cel.layer_path,
+                    frame_number=cel.frame_number,
+                    before_bounds=bounds,
+                    retained_canvas_bounds=retained,
+                    after_bounds=actual,
+                )
+            )
+    return clipped
+
+
+def _transform_sprite(
+    request: SpriteResizeRequest | SpriteCropRequest,
+    services: OperationServices,
+    operation: Literal["resize", "crop"],
+) -> SpriteResizeResult | SpriteCropResult:
+    source = Path(request.source_sprite_file)
+    target = Path(request.target_sprite_file)
+    identity_issue = source_target_identity_issue(
+        services.target_files, source, target, request.in_place
+    )
+    if identity_issue is not None:
+        raise RequestIssue([identity_issue])
+    staged = services.target_files.staged_path(target)
+    observation = services.probe_runtime(request)
+    payload: dict[str, object] = {
+        "operation": operation,
+        "source_sprite_file": request.source_sprite_file,
+        "staged_sprite_file": str(staged),
+    }
+    if isinstance(request, SpriteResizeRequest):
+        payload.update(width=request.width, height=request.height)
+    else:
+        payload["rectangle"] = request.rectangle.model_dump(mode="json")
+    try:
+        invocation = services.invoke_kernel(
+            observation, SPRITE_GEOMETRY_HANDLER, payload, request.timeout_seconds
+        )
+        rejection = invocation.payload.get("rejection")
+        if rejection is not None:
+            if not isinstance(rejection, dict):
+                raise _postcondition_failure(invocation, "invalid geometry rejection")
+            kind = rejection.get("kind")
+            try:
+                if kind == "sprite_content":
+                    details = SpriteGeometryUnsupportedDetails.model_validate(
+                        {"source_sprite_file": request.source_sprite_file, **rejection}
+                    )
+                    code = "sprite_geometry_unsupported_content"
+                    message = "Sprite contains Tilesets or Tilemap content"
+                elif kind == "crop_bounds" and operation == "crop":
+                    details = SpriteCropBoundsDetails.model_validate(rejection)
+                    code = "sprite_crop_out_of_bounds"
+                    message = "Crop Rectangle is outside the current Sprite canvas"
+                else:
+                    raise ValueError("unknown geometry rejection")
+            except (TypeError, ValueError, ValidationError) as exc:
+                raise RuntimeIssue(
+                    "response_malformed",
+                    "Packaged Sprite geometry handler returned invalid rejection",
+                    ResponseEvidence(response_path=invocation.response_path),
+                    invocation.diagnostics,
+                ) from exc
+            raise OperationIssue(code, message, details)
+        try:
+            before = SpriteInspection.model_validate(
+                invocation.payload["before_sprite"]
+            )
+            after = SpriteInspection.model_validate(invocation.payload["sprite"])
+            if invocation.payload["persisted_reopen_verified"] is not True:
+                raise ValueError("staged Sprite was not reopened")
+        except (KeyError, TypeError, ValueError, ValidationError) as exc:
+            raise RuntimeIssue(
+                "response_malformed",
+                "Packaged Sprite geometry handler returned invalid inspection facts",
+                ResponseEvidence(response_path=invocation.response_path),
+                invocation.diagnostics,
+            ) from exc
+        scope = SpriteGetRequest(
+            sprite_file=request.source_sprite_file,
+            inspection_scope=list(INSPECTION_SECTIONS),
+        )
+        validated_scope(scope, before, invocation)
+        validated_scope(scope, after, invocation)
+        old_canvas = Size(width=before.metadata.width, height=before.metadata.height)
+        new_canvas = Size(width=after.metadata.width, height=after.metadata.height)
+        expected = (
+            Size(width=request.width, height=request.height)
+            if isinstance(request, SpriteResizeRequest)
+            else Size(width=request.rectangle.width, height=request.rectangle.height)
+        )
+        if new_canvas != expected:
+            raise _postcondition_failure(
+                invocation, "persisted canvas differs from request"
+            )
+        clipped_cels = (
+            _clipped_cels(before, after, request.rectangle)
+            if isinstance(request, SpriteCropRequest)
+            else None
+        )
+        committed = services.target_files.commit(
+            staged, target, overwrite=request.overwrite
+        )
+        common = {
+            "target_commit": TargetCommit(
+                target_sprite_file=committed.target_sprite_file,
+                byte_size=committed.byte_size,
+                sha256=committed.sha256,
+            ),
+            "persisted_reopen_verified": True,
+            "old_canvas": old_canvas,
+            "new_canvas": new_canvas,
+            "before_sprite": before,
+            "sprite": after,
+        }
+        if isinstance(request, SpriteResizeRequest):
+            return SpriteResizeResult(**common, origin=Point(x=0, y=0))
+        return SpriteCropResult(
+            **common,
+            rectangle=request.rectangle,
+            clipped_cels=cast(list[ClippedCel], clipped_cels),
+        )
+    finally:
+        services.target_files.discard(staged)
+
+
+def resize_sprite(
+    request: SpriteResizeRequest, services: OperationServices
+) -> SpriteResizeResult:
+    return cast(SpriteResizeResult, _transform_sprite(request, services, "resize"))
+
+
+def crop_sprite(
+    request: SpriteCropRequest, services: OperationServices
+) -> SpriteCropResult:
+    return cast(SpriteCropResult, _transform_sprite(request, services, "crop"))
+
+
 SPRITE_OPERATIONS = (
     OperationDescriptor(
         "sprite create",
@@ -841,6 +1107,37 @@ SPRITE_OPERATIONS = (
             *RUNTIME_FAILURE_CODES,
             "target_commit_failed",
             "sprite_flatten_unsupported_content",
+        ),
+        execution_kind="mutation",
+        side_effects=("publishes the declared Target Sprite File",),
+    ),
+    OperationDescriptor(
+        "sprite resize",
+        SpriteResizeRequest,
+        SpriteResizeResult,
+        resize_sprite,
+        lambda result: result.target_commit.target_sprite_file,
+        SPRITE_RESIZE_REQUIREMENTS,
+        (
+            *RUNTIME_FAILURE_CODES,
+            "target_commit_failed",
+            "sprite_geometry_unsupported_content",
+        ),
+        execution_kind="mutation",
+        side_effects=("publishes the declared Target Sprite File",),
+    ),
+    OperationDescriptor(
+        "sprite crop",
+        SpriteCropRequest,
+        SpriteCropResult,
+        crop_sprite,
+        lambda result: result.target_commit.target_sprite_file,
+        SPRITE_CROP_REQUIREMENTS,
+        (
+            *RUNTIME_FAILURE_CODES,
+            "target_commit_failed",
+            "sprite_geometry_unsupported_content",
+            "sprite_crop_out_of_bounds",
         ),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
