@@ -41,15 +41,17 @@ local function execute()
   local before_layer_count = inspection.inspect(open_sprite, { "layers" }).metadata.layer_count
   local before_use_layer_uuids = open_sprite.useLayerUuids
   local new_layer
-  if payload.kind == "transparent" then
-    new_layer = open_sprite:newLayer()
-  elseif payload.kind == "group" then
-    new_layer = open_sprite:newGroup()
-  else
-    error("unsupported Layer kind")
-  end
-  new_layer.name = payload.name
-  if parent ~= nil then new_layer.parent = parent end
+  app.transaction("Add Layer", function()
+    if payload.kind == "transparent" then
+      new_layer = open_sprite:newLayer()
+    elseif payload.kind == "group" then
+      new_layer = open_sprite:newGroup()
+    else
+      error("unsupported Layer kind")
+    end
+    new_layer.name = payload.name
+    if parent ~= nil then new_layer.parent = parent end
+  end)
   local added_path = {}
   local current = new_layer
   while current.parent ~= open_sprite do
