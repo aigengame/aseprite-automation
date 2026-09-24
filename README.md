@@ -139,10 +139,13 @@ Frame count. It lists only those checks with their actual values; a mismatch ret
 a typed Finding in a successful read result.
 `spa sprite copy` preserves the Source Sprite File byte for byte, including native
 Tile content, and reopens the staged copy before Target Commit. Source and Target must
-be distinct publication entries.
+be distinct publication entries. A Source read or staging I/O failure reports
+`sprite_copy_staging_failed` without a Target Commit.
 `spa sprite flatten` uses native Aseprite flattening. Its result gives complete
 `before_sprite` and reopened `sprite` inspections so callers can see the effects on
-Layers, Cels, Color Mode, Palettes, Tags, and Slices. This slice rejects a Sprite with
+Layers, Cels, Color Mode, Palettes, Tags, and Slices. Native flattening includes
+pixels from hidden Layers, so the flattened image can differ from the Source's
+visible composite. This slice rejects a Sprite with
 any Tileset or Tilemap Layer before mutation and reports
 `sprite_flatten_unsupported_content` without a Target Commit. In-place flattening
 requires `in_place: true` and `overwrite: true`.

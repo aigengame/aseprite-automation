@@ -198,7 +198,9 @@ def test_copy_requires_a_distinct_target_and_overwrite_permission(
     }
     same_target = spa("sprite", "copy", "--input-json", json.dumps(request))
     assert same_target.returncode != 0
-    assert json.loads(same_target.stdout)["code"] == "invalid_request"
+    same_failure = json.loads(same_target.stdout)
+    assert same_failure["code"] == "invalid_request"
+    assert same_failure["details"]["errors"][0]["location"] == ["target_sprite_file"]
     assert source.read_bytes() == original
 
     target = tmp_path / "existing.aseprite"
@@ -209,6 +211,39 @@ def test_copy_requires_a_distinct_target_and_overwrite_permission(
     assert json.loads(refused.stdout)["code"] == "target_commit_failed"
     assert target.read_bytes() == b"existing"
     assert source.read_bytes() == original
+    assert not list(tmp_path.glob("*.staged.aseprite"))
+
+
+def test_copy_reports_source_staging_failure_without_target_commit(
+    tmp_path: Path,
+) -> None:
+    missing = tmp_path / "missing.aseprite"
+    target = tmp_path / "copy.aseprite"
+    run = spa(
+        "sprite",
+        "copy",
+        "--input-json",
+        json.dumps(
+            {
+                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+                "source_sprite_file": str(missing),
+                "target_sprite_file": str(target),
+                "overwrite": False,
+            }
+        ),
+    )
+    assert run.returncode != 0
+    failure = json.loads(run.stdout)
+    validate(
+        failure, json.loads(spa("sprite", "copy", "--schema").stdout)["failure_schema"]
+    )
+    assert failure["code"] == "sprite_copy_staging_failed"
+    assert failure["details"] == {
+        "kind": "sprite_copy_staging",
+        "source_sprite_file": str(missing),
+        "target_sprite_file": str(target),
+    }
+    assert not target.exists()
     assert not list(tmp_path.glob("*.staged.aseprite"))
 
 
@@ -310,6 +345,33 @@ def test_flatten_reports_indexed_palette_and_color_mode(tmp_path: Path) -> None:
     assert result["sprite"]["metadata"]["color_mode"] == "indexed"
     assert result["sprite"]["palettes"] == result["before_sprite"]["palettes"]
     assert result["sprite"]["metadata"]["layer_count"] == 1
+
+
+def test_flatten_includes_hidden_layer_pixels_in_native_result(tmp_path: Path) -> None:
+    source = _fixture(tmp_path, "hidden_layer_sprite.lua")
+    target = tmp_path / "hidden-flat.aseprite"
+    before_pixel = _export_pixels(source, tmp_path / "hidden-before.png", 1)
+    assert before_pixel[:4] == bytes((0, 0, 255, 255))
+    run = spa(
+        "sprite",
+        "flatten",
+        "--input-json",
+        json.dumps(
+            {
+                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+                "source_sprite_file": str(source),
+                "target_sprite_file": str(target),
+                "in_place": False,
+                "overwrite": False,
+            }
+        ),
+    )
+    assert run.returncode == 0, run.stdout
+    result = json.loads(run.stdout)
+    assert result["before_sprite"]["layers"][1]["is_visible"] is False
+    assert result["sprite"]["metadata"]["layer_count"] == 1
+    after_pixel = _export_pixels(target, tmp_path / "hidden-after.png", 1)
+    assert after_pixel[:4] == bytes((255, 0, 0, 255))
 
 
 @pytest.mark.parametrize(

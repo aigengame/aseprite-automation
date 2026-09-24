@@ -16,6 +16,7 @@ from spa.contracts import (
     PublicModel,
     RuntimeRequest,
     RuntimeRequirements,
+    ValidationIssue,
 )
 from spa.mutation import (
     TargetCommit,
@@ -34,7 +35,6 @@ from spa.ports import (
     RequestIssue,
     ResponseEvidence,
     RuntimeIssue,
-    TargetCommitEvidence,
 )
 from spa.raster import Point, Rectangle, RgbaColor, Size
 
@@ -331,6 +331,12 @@ class SpriteFlattenResult(PublicModel):
     sprite: SpriteInspection
 
 
+class SpriteCopyStagingDetails(PublicModel):
+    kind: Literal["sprite_copy_staging"] = "sprite_copy_staging"
+    source_sprite_file: str
+    target_sprite_file: str
+
+
 class SpriteUnsupportedContentDetails(PublicModel):
     kind: Literal["sprite_content"] = "sprite_content"
     source_sprite_file: str
@@ -339,6 +345,12 @@ class SpriteUnsupportedContentDetails(PublicModel):
 
 
 SPRITE_FAILURE_CODE_SPECS = (
+    FailureCodeSpec(
+        "sprite_copy_staging_failed",
+        "The Source Sprite File could not be copied to Target staging",
+        "execution",
+        SpriteCopyStagingDetails,
+    ),
     FailureCodeSpec(
         "sprite_flatten_unsupported_content",
         "Flatten does not accept a Sprite with Tilesets or Tilemap Layers",
@@ -645,16 +657,24 @@ def copy_sprite(
         services.target_files, source, target, False
     )
     if identity_issue is not None:
+        if identity_issue.location == ["in_place"]:
+            identity_issue = ValidationIssue(
+                location=["target_sprite_file"],
+                code=identity_issue.code,
+                message="Sprite copy requires a distinct Target Sprite File",
+            )
         raise RequestIssue([identity_issue])
     staged = services.target_files.staged_path(target)
     try:
         try:
             services.target_files.stage_copy(source, staged)
         except OSError as exc:
-            raise RuntimeIssue(
-                "target_commit_failed",
+            raise OperationIssue(
+                "sprite_copy_staging_failed",
                 "Source Sprite File could not be copied to the staged Target",
-                TargetCommitEvidence(str(target), "staged_file_missing"),
+                SpriteCopyStagingDetails(
+                    source_sprite_file=str(source), target_sprite_file=str(target)
+                ),
             ) from exc
         observation = services.probe_runtime(request)
         scope_request = SpriteGetRequest(
@@ -803,7 +823,7 @@ SPRITE_OPERATIONS = (
         copy_sprite,
         lambda result: result.target_commit.target_sprite_file,
         SPRITE_GET_REQUIREMENTS,
-        (*RUNTIME_FAILURE_CODES, "target_commit_failed"),
+        (*RUNTIME_FAILURE_CODES, "target_commit_failed", "sprite_copy_staging_failed"),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
     ),
