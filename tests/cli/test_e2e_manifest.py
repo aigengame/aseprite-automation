@@ -46,6 +46,11 @@ def test_manifest_is_projected_from_command_descriptors() -> None:
         "spa frame set",
         "spa frame move",
         "spa frame remove",
+        "spa cel list",
+        "spa cel get",
+        "spa cel add",
+        "spa cel clear",
+        "spa cel remove",
         "spa tag list",
         "spa tag get",
         "spa tag add",
@@ -66,6 +71,7 @@ def test_manifest_is_projected_from_command_descriptors() -> None:
         "spa frame get",
         "spa frame add",
         "spa frame duplicate",
+        "spa cel add",
     }
     for entry in manifest["operations"]:
         command = entry["operation"].split()[1:]

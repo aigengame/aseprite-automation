@@ -68,6 +68,7 @@ class LayerTargetDetails(PublicModel):
     kind: Literal["layer_target"] = "layer_target"
     address_role: Literal["target", "parent"]
     address: LayerAddress
+    step_number: int | None = Field(default=None, ge=1)
 
 
 LAYER_FAILURE_CODE_SPECS = (

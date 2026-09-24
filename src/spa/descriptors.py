@@ -1,5 +1,6 @@
 """One registration authority for installed Operations."""
 
+from spa.cel import CEL_OPERATIONS, CEL_SUPPORT_RESOURCE
 from spa.contracts import (
     CapabilityGap,
     InfoResult,
@@ -31,6 +32,7 @@ PROBE_RESOURCES = (
     LAYER_SELECT_RESOURCE,
     *PAINT_PROBE_RESOURCES,
     FRAME_SUPPORT_RESOURCE,
+    CEL_SUPPORT_RESOURCE,
     *EXPORT_PROBE_RESOURCES,
 )
 
@@ -178,6 +180,7 @@ OPERATIONS = (
     *LAYER_OPERATIONS,
     *PAINT_OPERATIONS,
     *FRAME_OPERATIONS,
+    *CEL_OPERATIONS,
     *TAG_OPERATIONS,
     *EXPORT_OPERATIONS,
     *PLAN_OPERATIONS,

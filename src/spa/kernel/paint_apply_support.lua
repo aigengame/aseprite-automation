@@ -112,7 +112,7 @@ local function find_layer_path(layers, target, prefix)
   return nil
 end
 
-local function resolve_target(sprite, address)
+local function resolve_target(sprite, address, allow_missing_cel)
   assert(address ~= nil, "missing target Cel address")
   assert(
     type(address.frame_number) == "number"
@@ -127,8 +127,15 @@ local function resolve_target(sprite, address)
     "target Layer is not a regular Image Layer"
   )
   local cel = layer:cel(address.frame_number)
-  assert(cel ~= nil and cel.image ~= nil, "target Cel does not exist")
-  return layer, cel, cel.image
+  local image = cel ~= nil and cel.image or nil
+  if not allow_missing_cel then assert(image ~= nil, "target Cel does not exist") end
+  return layer, cel, image
+end
+
+function module.missing_target_cel(sprite, address)
+  if address.frame_number > #sprite.frames then return false end
+  local _, _, image = resolve_target(sprite, address, true)
+  return image == nil
 end
 
 local function color_mode_name(sprite)
@@ -675,6 +682,9 @@ function module.execute(payload, digest)
   local open_sprite = nil
   local ok, result = pcall(function()
     open_sprite = assert(app.open(payload.source_sprite_file), "could not open Source Sprite File")
+    if module.missing_target_cel(open_sprite, payload.target) then
+      return { rejection = { code = "cel_not_found", message = "Cel or Image does not exist" } }
+    end
     local evidence, inspected_pixels, affected_cels, expected_geometry =
       module.apply_live(open_sprite, payload, digest)
     assert(open_sprite:saveAs(payload.staged_sprite_file), "could not save staged Sprite")

@@ -771,8 +771,12 @@ def test_apply_rejects_unsupported_or_absent_cel_targets(
 
     run = _apply(source, target, _rgba_patch(x=0, y=0, length=1), address=address)
 
-    assert run.returncode == 1, run.stdout
-    assert reason in json.loads(run.stdout)["details"]["reason"]
+    if kind == "absent":
+        assert run.returncode == 2, run.stdout
+        assert json.loads(run.stdout)["code"] == "cel_not_found"
+    else:
+        assert run.returncode == 1, run.stdout
+        assert reason in json.loads(run.stdout)["details"]["reason"]
     assert not target.exists()
 
 

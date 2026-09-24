@@ -4,6 +4,8 @@ local inspection = dofile(app.params.inspection)
 local creation = dofile(app.params.creation)
 local paint = dofile(app.params.paint)
 local frame = dofile(app.params.frame)
+local cel = dofile(app.params.cel)
+local layer_select = dofile(app.params.layer_select)
 local digest = dofile(app.params.digest)
 local persistence = dofile(app.params.persistence)
 local capability_probe = dofile(app.params.capability_probe)
@@ -100,6 +102,9 @@ local function execute_step(step)
     return { sprite = inspection.inspect(open_sprite, input.inspection_scope, verified_uuids) }
   end
   if step.operation == "paint apply" then
+    if paint.missing_target_cel(open_sprite, input.target) then
+      return { rejection = { code = "cel_not_found", message = "Cel or Image does not exist" } }
+    end
     local evidence = paint.apply_live(open_sprite, input, digest)
     return evidence
   end
@@ -115,6 +120,9 @@ local function execute_step(step)
       frame.apply_live(open_sprite, step.operation == "frame add" and "add" or "duplicate", input)
     evidence._expected_pixel = nil
     return evidence
+  end
+  if step.operation == "cel add" then
+    return cel.add_live(open_sprite, input, layer_select, verified_uuids)
   end
   error("Operation is not Plan-eligible")
 end
@@ -140,6 +148,17 @@ local function execute()
     failed_step = index
     failed_operation = step.operation
     local result = execute_step(step)
+    if result.rejection ~= nil then
+      open_sprite:close()
+      open_sprite = nil
+      return {
+        cel_rejection = {
+          step_number = index,
+          code = result.rejection.code,
+          message = result.rejection.message,
+        },
+      }
+    end
     if step.operation == "frame get" and not result.found then
       open_sprite:close()
       open_sprite = nil
