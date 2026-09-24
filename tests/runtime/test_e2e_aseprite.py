@@ -32,6 +32,7 @@ def test_info_reports_installed_runtime() -> None:
         "aseprite_runtime_introspection",
         "aseprite_sprite_create",
         "aseprite_sprite_inspection",
+        "aseprite_layer_hierarchy",
         "aseprite_paint_apply",
         "aseprite_export_image",
     ]
@@ -42,6 +43,9 @@ def test_info_reports_installed_runtime() -> None:
         "spa schema",
         "spa sprite create",
         "spa sprite get",
+        "spa layer list",
+        "spa layer get",
+        "spa layer add",
         "spa paint apply",
         "spa export image",
         "spa plan check",

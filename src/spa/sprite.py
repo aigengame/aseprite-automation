@@ -108,6 +108,7 @@ class SpriteMetadata(PublicModel):
     transparent_color_index: int = Field(ge=0)
     grid_bounds: Rectangle
     pixel_ratio: Size
+    use_layer_uuids: bool
 
 
 class FrameFacts(PublicModel):
@@ -137,6 +138,7 @@ class PaletteFacts(PublicModel):
 class LayerFacts(PublicModel):
     path: list[int] = Field(min_length=1)
     name: str
+    layer_uuid: str | None
     opacity: int | None = Field(default=None, ge=0, le=255)
     blend_mode: str | None
     is_image: bool

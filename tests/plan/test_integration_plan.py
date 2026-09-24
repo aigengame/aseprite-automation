@@ -24,6 +24,7 @@ def _one_frame_inspection() -> dict[str, object]:
             "transparent_color_index": 0,
             "grid_bounds": {"x": 0, "y": 0, "width": 1, "height": 1},
             "pixel_ratio": {"width": 1, "height": 1},
+            "use_layer_uuids": False,
         },
         "frames": [{"frame_number": 1, "duration_ms": 100}],
         "tags": [],

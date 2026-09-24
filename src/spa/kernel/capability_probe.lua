@@ -2,6 +2,7 @@
 local module = {}
 local inspection = dofile(app.params.inspection)
 local creation = dofile(app.params.creation)
+local layer_select = app.params.layer_select and dofile(app.params.layer_select) or nil
 local exporter = app.params.export_image_support and dofile(app.params.export_image_support) or nil
 local paint = dofile(app.params.paint)
 local digest = dofile(app.params.digest)
@@ -109,6 +110,47 @@ local function observes_sprite_creation()
   return ok
 end
 
+local function observes_layer_hierarchy()
+  if layer_select == nil then return false end
+  local previous = {
+    sprite = app.activeSprite,
+    layer = app.activeLayer,
+    frame = app.activeFrame,
+  }
+  local sprite = nil
+  local ok = pcall(function()
+    sprite = Sprite(2, 2, ColorMode.RGB)
+    local group = sprite:newGroup()
+    group.name = "parent"
+    local child = sprite:newLayer()
+    child.parent = group
+    local chosen = layer_select.resolve(sprite, { layer_path = { 2, 1 } })
+    assert(chosen ~= nil and chosen.layer == child)
+    sprite.useLayerUuids = true
+    local facts = inspection.inspect(sprite, { "layers" })
+    assert(facts.metadata.use_layer_uuids)
+    assert(facts.layers[2].is_group)
+    assert(facts.layers[2].children[1].path[2] == 1)
+    assert(type(facts.layers[2].children[1].layer_uuid) == "string")
+    chosen = layer_select.resolve(sprite, { layer_uuid = facts.layers[2].children[1].layer_uuid })
+    assert(chosen ~= nil and chosen.layer == child)
+    sprite.useLayerUuids = false
+    local without_uuids = inspection.inspect(sprite, { "layers" })
+    assert(without_uuids.layers[2].children[1].layer_uuid == json.decode("null"))
+    local rejected, code = layer_select.resolve(sprite, { layer_uuid = "runtime-only" })
+    assert(rejected == nil and code == "layer_uuid_unpersisted")
+    sprite:close()
+    sprite = nil
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
+  return ok
+end
+
 local function observes_paint_apply()
   local source_path = assert(app.params.paint_fixture)
   local target_path = app.fs.joinPath(app.params.workspace, "paint-target.aseprite")
@@ -151,6 +193,9 @@ function module.observe()
     capabilities[#capabilities + 1] = "aseprite_sprite_create"
   end
   if supports_inspection then capabilities[#capabilities + 1] = "aseprite_sprite_inspection" end
+  if supports_inspection and observes_layer_hierarchy() then
+    capabilities[#capabilities + 1] = "aseprite_layer_hierarchy"
+  end
   if observes_paint_apply() then capabilities[#capabilities + 1] = "aseprite_paint_apply" end
   if exporter ~= nil then
     local ok = pcall(function()

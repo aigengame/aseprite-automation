@@ -71,7 +71,7 @@ local function copy_path(path, index)
   return result
 end
 
-local function inspect_layers(layers, parent_path, paths, counts)
+local function inspect_layers(layers, parent_path, paths, counts, persist_uuids)
   local result = {}
   for index = 1, #layers do
     local layer = layers[index]
@@ -79,10 +79,13 @@ local function inspect_layers(layers, parent_path, paths, counts)
     paths[layer] = path
     counts.layers = counts.layers + 1
     local children = {}
-    if layer.isGroup then children = inspect_layers(layer.layers, path, paths, counts) end
+    if layer.isGroup then
+      children = inspect_layers(layer.layers, path, paths, counts, persist_uuids)
+    end
     result[#result + 1] = {
       path = path,
       name = layer.name,
+      layer_uuid = persist_uuids and tostring(layer.uuid) or json_null,
       opacity = layer.opacity == nil and json_null or layer.opacity,
       blend_mode = layer.blendMode == nil and json_null or blend_mode(layer.blendMode),
       is_image = layer.isImage,
@@ -243,7 +246,7 @@ function module.inspect(sprite, scope)
   local requested = requested_set(scope)
   local paths = {}
   local counts = { layers = 0 }
-  local all_layers = inspect_layers(sprite.layers, {}, paths, counts)
+  local all_layers = inspect_layers(sprite.layers, {}, paths, counts, sprite.useLayerUuids)
   local result = {
     metadata = {
       width = sprite.width,
@@ -259,6 +262,7 @@ function module.inspect(sprite, scope)
       transparent_color_index = sprite.transparentColor,
       grid_bounds = rectangle(sprite.gridBounds),
       pixel_ratio = size(sprite.pixelRatio),
+      use_layer_uuids = sprite.useLayerUuids,
     },
     frames = json_null,
     tags = json_null,

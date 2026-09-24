@@ -55,7 +55,7 @@ better Aseprite-aligned evidence.
 | --- | --- |
 | `spa layer list` | List the native Layer hierarchy and current address facts. |
 | `spa layer get` | Inspect one exactly addressed Layer. |
-| `spa layer add` | Add a declared native Layer kind with explicit Tilemap/Tileset intent when applicable. |
+| `spa layer add` | Add a regular Transparent or Group Layer; Tilemap creation belongs to its own slice. |
 | `spa layer remove` | Remove exactly addressed Layers under an explicit target-count rule. |
 | `spa layer set` | Set supported Layer properties. |
 | `spa layer move` | Reorder or reparent selected Layers. |
