@@ -224,11 +224,28 @@ local function apply(sprite, payload, layer, lower)
       if properties.opacity ~= nil then layer.opacity = properties.opacity end
       if properties.blend_mode ~= nil then layer.blendMode = blend_modes[properties.blend_mode] end
     end)
+    local properties = payload.properties
+    if properties.name ~= nil then assert(layer.name == properties.name, "native Layer name differs") end
+    if properties.is_visible ~= nil then
+      assert(layer.isVisible == properties.is_visible, "native Layer visibility differs")
+    end
+    if properties.is_editable ~= nil then
+      assert(layer.isEditable == properties.is_editable, "native Layer editability differs")
+    end
+    if properties.opacity ~= nil then
+      assert(layer.opacity == properties.opacity, "native Layer opacity differs")
+    end
+    if properties.blend_mode ~= nil then
+      assert(layer.blendMode == blend_modes[properties.blend_mode], "native Layer blend mode differs")
+    end
   elseif payload.operation == "move" then
     app.transaction("Move Layer", function() layer.stackIndex = payload.stack_index end)
     assert(layer.stackIndex == payload.stack_index, "native Layer move did not reach stack_index")
   elseif payload.operation == "remove" then
+    local removed_id = layer.id
     app.transaction("Remove Layer", function() sprite:deleteLayer(layer) end)
+    local _, current = records(sprite)
+    assert(current[removed_id] == nil, "native Layer remove retained its target")
   else
     local source_id, lower_id = layer.id, lower.id
     local previous_blend = app.preferences.experimental.new_blend
