@@ -109,7 +109,11 @@ local function execute_step(step)
     local number = input.frame_number
     assert(number >= 1 and number <= #open_sprite.frames, "Frame Number is out of range")
     local facts = inspection.inspect(open_sprite, { "frames" })
-    return { frame = facts.frames[number], frame_count = facts.metadata.frame_count }
+    return {
+      frame = facts.frames[number],
+      frames = facts.frames,
+      frame_count = facts.metadata.frame_count,
+    }
   end
   if step.operation == "frame add" or step.operation == "frame duplicate" then
     local evidence =

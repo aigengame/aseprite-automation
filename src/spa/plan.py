@@ -511,10 +511,15 @@ def _validated_steps(
                 count = result["frame_count"]
                 if type(count) is not int or count < 1:
                     raise ValueError("Frame Get has invalid Frame count")
+                frames = [
+                    FrameFacts.model_validate(value) for value in result["frames"]
+                ]
+                validate_frame_sequence(frames, count, invocation)
                 frame = FrameFacts.model_validate(result["frame"])
                 if (
                     frame.frame_number != step.input.frame_number
-                    or frame.frame_number > count
+                    or step.input.frame_number > count
+                    or frame != frames[step.input.frame_number - 1]
                 ):
                     raise _postcondition(
                         invocation,
@@ -532,7 +537,7 @@ def _validated_steps(
                 assert isinstance(step, FrameDuplicateStep)
                 outcome = FrameDuplicateStepOutcome.model_validate(item)
                 validate_frame_evidence(step.input, outcome.result, invocation)
-        except (KeyError, TypeError, ValidationError) as exc:
+        except (KeyError, TypeError, ValueError, ValidationError) as exc:
             raise _malformed(
                 invocation,
                 "Plan Kernel returned invalid Step evidence",

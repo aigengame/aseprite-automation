@@ -5,6 +5,8 @@ import os
 import shlex
 from pathlib import Path
 
+import pytest
+
 from tests.support import fake_aseprite, spa
 
 
@@ -414,7 +416,28 @@ cp {shlex.quote(str(response_file))} "$response_file"
     assert count_file.read_text(encoding="utf-8").splitlines() == ["1"]
 
 
-def test_plan_frame_list_rejects_incomplete_step_facts(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("operation", "step_input", "step_result"),
+    [
+        ("frame list", {}, {"frame_count": 1, "frames": []}),
+        ("frame list", {}, {"frame_count": 0, "frames": []}),
+        (
+            "frame get",
+            {"frame_number": 1},
+            {
+                "frame_count": 2,
+                "frames": [{"frame_number": 1, "duration_ms": 100}],
+                "frame": {"frame_number": 1, "duration_ms": 100},
+            },
+        ),
+    ],
+)
+def test_plan_frame_inspection_rejects_incomplete_step_facts(
+    tmp_path: Path,
+    operation: str,
+    step_input: dict[str, int],
+    step_result: dict[str, object],
+) -> None:
     source = tmp_path / "source.aseprite"
     source.write_bytes(b"controlled transport fixture")
     response_file = tmp_path / "response.json"
@@ -426,8 +449,8 @@ def test_plan_frame_list_rejects_incomplete_step_facts(tmp_path: Path) -> None:
                 "result": {
                     "steps": [
                         {
-                            "operation": "frame list",
-                            "result": {"frame_count": 1, "frames": []},
+                            "operation": operation,
+                            "result": step_result,
                         }
                     ],
                     "final_sprite": _one_frame_inspection(),
@@ -456,7 +479,7 @@ cp {shlex.quote(str(response_file))} "$response_file"
                 "aseprite": str(fake),
                 "plan": {
                     "source_sprite_file": str(source),
-                    "steps": [{"operation": "frame list", "input": {}}],
+                    "steps": [{"operation": operation, "input": step_input}],
                 },
             }
         ),
@@ -465,7 +488,7 @@ cp {shlex.quote(str(response_file))} "$response_file"
     failure = json.loads(run.stdout)
     assert failure["code"] == "kernel_response_invalid"
     assert failure["details"]["failed_step"] == 1
-    assert failure["details"]["failed_operation"] == "frame list"
+    assert failure["details"]["failed_operation"] == operation
 
 
 def test_plan_create_postcondition_failure_identifies_step(tmp_path: Path) -> None:
