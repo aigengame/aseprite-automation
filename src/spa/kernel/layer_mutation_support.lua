@@ -293,7 +293,7 @@ local function prevalidate(sprite, selected, payload, inspection, frame)
       return rejection("layer_unsupported_target", "Sprite already has a Background Layer")
     end
     for number = 1, #sprite.frames do
-      local valid = pcall(frame.background_pixel, sprite, payload.background_color, number)
+      local valid = pcall(frame.background_color_for_frame, sprite, payload.background_color, number)
       if not valid then
         return rejection(
           "layer_unsupported_target",
@@ -464,7 +464,7 @@ local function apply(sprite, payload, layer, lower, inspection, frame)
     assert(current[lower_id] ~= nil, "native Merge Down removed the lower Layer")
     assert(current[source_id] == nil, "native Merge Down retained the source Layer")
   elseif payload.operation == "convert-to-background" then
-    local color = frame.background_pixel(sprite, payload.background_color, 1)
+    local color = frame.background_color_for_frame(sprite, payload.background_color, 1)
     app.activeSprite = sprite
     app.activeLayer = layer
     app.activeFrame = sprite.frames[1]

@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import struct
 import subprocess
 import tempfile
 from pathlib import Path
@@ -97,6 +98,29 @@ def _assert_native_fill(source: Path, mode: str) -> None:
             check=False,
         )
     assert run.returncode == 0, run.stderr
+
+
+def _make_second_frame_fill_index_transparent(source: Path) -> None:
+    """Write a frame-local Palette Chunk; the Lua API cannot author one."""
+    payload = bytearray(source.read_bytes())
+    frame_offset = 128 + struct.unpack_from("<I", payload, 128)[0]
+    entries = b"".join(
+        struct.pack("<HBBBB", 0, *rgba)
+        for rgba in ((0, 0, 0, 0), (241, 82, 65, 255), (20, 40, 200, 0))
+    )
+    chunk_data = struct.pack("<III8x", 3, 0, 2) + entries
+    chunk = struct.pack("<IH", len(chunk_data) + 6, 0x2019) + chunk_data
+    frame_size = struct.unpack_from("<I", payload, frame_offset)[0]
+    chunk_count = struct.unpack_from("<H", payload, frame_offset + 6)[0]
+    extended_count = struct.unpack_from("<I", payload, frame_offset + 12)[0]
+    struct.pack_into("<I", payload, frame_offset, frame_size + len(chunk))
+    if extended_count:
+        struct.pack_into("<I", payload, frame_offset + 12, extended_count + 1)
+    else:
+        struct.pack_into("<H", payload, frame_offset + 6, chunk_count + 1)
+    payload[frame_offset + 16 : frame_offset + 16] = chunk
+    struct.pack_into("<I", payload, 0, len(payload))
+    source.write_bytes(payload)
 
 
 def test_convert_transparent_layer_to_background_persists_full_canvas_cels(
@@ -245,6 +269,22 @@ def test_convert_to_background_uses_compatible_color_in_each_mode(
     assert result["created_cels"] == 1
     assert result["after_layer"]["is_background"] is True
     _assert_native_fill(target, mode)
+    transparent = tmp_path / "transparent.aseprite"
+    code, reversed_result = _run(
+        "convert-from-background",
+        {
+            "source_sprite_file": str(target),
+            "target_sprite_file": str(transparent),
+            "in_place": False,
+            "overwrite": False,
+            "target": {"layer_path": [1]},
+        },
+    )
+    assert code == 0, reversed_result
+    assert reversed_result["after_layer"]["is_transparent"] is True
+    assert reversed_result["after_layer"]["name"] == "Layer 0"
+    assert reversed_result["before"]["cels"] == reversed_result["after"]["cels"]
+    assert reversed_result["created_cels"] == 0
 
 
 def test_nested_source_moves_to_root_bottom_and_reports_changed_addresses(
@@ -387,4 +427,77 @@ def test_incompatible_fill_rejects_before_publication(
     assert code == 2, result
     assert result["code"] == expected_code
     assert not target.exists()
+    assert hashlib.sha256(source.read_bytes()).hexdigest() == source_sha
+
+
+@pytest.mark.parametrize("variant", ["hidden", "locked"])
+def test_ineligible_background_fails_without_mutating_source(
+    tmp_path: Path, variant: str
+) -> None:
+    source = tmp_path / "source.aseprite"
+    target = tmp_path / "target.aseprite"
+    _fixture(source, "conversion_background_ineligible.lua", variant)
+    source_sha = hashlib.sha256(source.read_bytes()).hexdigest()
+    code, result = _run(
+        "convert-from-background",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": False,
+            "overwrite": False,
+            "target": {"layer_path": [1]},
+        },
+    )
+    assert code == 2, result
+    assert result["code"] == "layer_unsupported_target"
+    assert not target.exists()
+    assert hashlib.sha256(source.read_bytes()).hexdigest() == source_sha
+
+
+def test_indexed_fill_must_be_opaque_in_every_frame_palette(tmp_path: Path) -> None:
+    source = tmp_path / "source.aseprite"
+    target = tmp_path / "target.aseprite"
+    _fixture(source, "conversion_modes.lua", "indexed")
+    _make_second_frame_fill_index_transparent(source)
+    source_sha = hashlib.sha256(source.read_bytes()).hexdigest()
+    code, result = _run(
+        "convert-to-background",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": False,
+            "overwrite": False,
+            "target": {"layer_name": "subject"},
+            "background_color": {"kind": "palette-index", "index": 2},
+        },
+    )
+    assert code == 2, result
+    assert result["code"] == "layer_unsupported_target"
+    assert not target.exists()
+    assert hashlib.sha256(source.read_bytes()).hexdigest() == source_sha
+
+
+def test_invalid_in_place_conversion_does_not_change_source(tmp_path: Path) -> None:
+    source = tmp_path / "source.aseprite"
+    _fixture(source, "conversion_rgb.lua")
+    source_sha = hashlib.sha256(source.read_bytes()).hexdigest()
+    code, result = _run(
+        "convert-to-background",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(source),
+            "in_place": True,
+            "overwrite": True,
+            "target": {"layer_name": "subject"},
+            "background_color": {
+                "kind": "rgba",
+                "red": 10,
+                "green": 20,
+                "blue": 30,
+                "alpha": 0,
+            },
+        },
+    )
+    assert code == 2, result
+    assert result["code"] == "layer_unsupported_target"
     assert hashlib.sha256(source.read_bytes()).hexdigest() == source_sha

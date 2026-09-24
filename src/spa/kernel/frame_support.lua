@@ -69,6 +69,10 @@ end
 
 module.background_pixel = background_pixel
 
+function module.background_color_for_frame(sprite, value, frame_number)
+  return background_pixel(sprite, value, frame_number + 1)
+end
+
 local function background_fill_fact(value)
   if value == nil or value == json_null then return json_null end
   if value.kind == "rgba" then
