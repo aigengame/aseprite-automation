@@ -30,7 +30,9 @@ from spa.ports import (
     RuntimeIssue,
     TargetCommitEvidence,
 )
+from spa.raster import ColorValue
 from spa.sprite import (
+    CelFacts,
     LayerFacts,
     SpriteGetRequest,
     SpriteGetResult,
@@ -220,6 +222,14 @@ class LayerMergeRequest(_LayerMutationRequest):
     pass
 
 
+class LayerConvertToBackgroundRequest(_LayerMutationRequest):
+    background_color: ColorValue
+
+
+class LayerConvertFromBackgroundRequest(_LayerMutationRequest):
+    pass
+
+
 class LayerListResult(PublicModel):
     status: Literal["success"] = "success"
     operation: Literal["spa layer list"] = "spa layer list"
@@ -292,6 +302,32 @@ class LayerMergeResult(_LayerMutationResult):
     operation: Literal["spa layer merge"] = "spa layer merge"
 
 
+class LayerCelChange(PublicModel):
+    frame_number: int = Field(ge=1, strict=True)
+    before: CelFacts | None
+    after: CelFacts | None
+
+
+class _LayerConversionResult(_LayerMutationResult):
+    before_layer: LayerFacts
+    after_layer: LayerFacts
+    affected_frame_numbers: list[int]
+    created_cels: int = Field(ge=0)
+    cel_changes: list[LayerCelChange]
+
+
+class LayerConvertToBackgroundResult(_LayerConversionResult):
+    operation: Literal["spa layer convert-to-background"] = (
+        "spa layer convert-to-background"
+    )
+
+
+class LayerConvertFromBackgroundResult(_LayerConversionResult):
+    operation: Literal["spa layer convert-from-background"] = (
+        "spa layer convert-from-background"
+    )
+
+
 LAYER_REQUIREMENTS = RuntimeRequirements(
     lua_language="Lua 5.4",
     minimum_api_version=41,
@@ -306,6 +342,14 @@ LAYER_MERGE_REQUIREMENTS = RuntimeRequirements(
     lua_language="Lua 5.4",
     minimum_api_version=41,
     required_capabilities=["aseprite_layer_hierarchy", "aseprite_layer_merge"],
+)
+LAYER_CONVERSION_REQUIREMENTS = RuntimeRequirements(
+    lua_language="Lua 5.4",
+    minimum_api_version=41,
+    required_capabilities=[
+        "aseprite_layer_hierarchy",
+        "aseprite_background_conversion",
+    ],
 )
 LAYER_GET_FAILURE_CODES = (
     *RUNTIME_FAILURE_CODES,
@@ -323,6 +367,7 @@ LAYER_MUTATION_FAILURE_CODES = (
     "layer_unsupported_target",
     "target_commit_failed",
 )
+LAYER_CONVERSION_FAILURE_CODES = LAYER_MUTATION_FAILURE_CODES
 LAYER_MOVE_FAILURE_CODES = (
     *LAYER_MUTATION_FAILURE_CODES[:-1],
     "layer_invalid_position",
@@ -344,6 +389,7 @@ LAYER_MUTATE_HANDLER = PackagedHandler(
         PackagedResource("layer_mutation", "layer_mutation_support.lua"),
         PackagedResource("digest", "digest.lua"),
         PackagedResource("persistence", "sprite_persistence.lua"),
+        PackagedResource("frame", "frame_support.lua"),
     ),
 )
 
@@ -729,10 +775,26 @@ def _mutate_layer(
     request: LayerSetRequest
     | LayerMoveRequest
     | LayerRemoveRequest
-    | LayerMergeRequest,
+    | LayerMergeRequest
+    | LayerConvertToBackgroundRequest
+    | LayerConvertFromBackgroundRequest,
     services: OperationServices,
-    operation: Literal["set", "move", "remove", "merge"],
-) -> LayerSetResult | LayerMoveResult | LayerRemoveResult | LayerMergeResult:
+    operation: Literal[
+        "set",
+        "move",
+        "remove",
+        "merge",
+        "convert-to-background",
+        "convert-from-background",
+    ],
+) -> (
+    LayerSetResult
+    | LayerMoveResult
+    | LayerRemoveResult
+    | LayerMergeResult
+    | LayerConvertToBackgroundResult
+    | LayerConvertFromBackgroundResult
+):
     target_file = Path(request.target_sprite_file)
     source_file = Path(request.source_sprite_file)
     identity_issue = source_target_identity_issue(
@@ -754,6 +816,8 @@ def _mutate_layer(
         )
     if isinstance(request, LayerMoveRequest):
         payload["stack_index"] = request.stack_index
+    if isinstance(request, LayerConvertToBackgroundRequest):
+        payload["background_color"] = request.background_color.model_dump(mode="json")
     try:
         invocation = services.invoke_kernel(
             observation, LAYER_MUTATE_HANDLER, payload, request.timeout_seconds
@@ -761,6 +825,154 @@ def _mutate_layer(
         _reject_target(invocation, "target", request.target)
         evidence = _mutation_evidence(invocation)
         _validate_mutation_evidence(request, evidence, invocation)
+        fields = evidence.model_dump(mode="json")
+        if operation in {"convert-to-background", "convert-from-background"}:
+            paths = invocation.payload.get("conversion_paths")
+            if not isinstance(paths, dict):
+                raise RuntimeIssue(
+                    "response_malformed",
+                    "Packaged Layer handler omitted conversion addresses",
+                    ResponseEvidence(response_path=invocation.response_path),
+                    invocation.diagnostics,
+                )
+            before_path, after_path = paths.get("before"), paths.get("after")
+            if not isinstance(before_path, list) or not isinstance(after_path, list):
+                raise RuntimeIssue(
+                    "response_malformed",
+                    "Packaged Layer handler returned invalid conversion addresses",
+                    ResponseEvidence(response_path=invocation.response_path),
+                    invocation.diagnostics,
+                )
+            before_layer = next(
+                (
+                    layer
+                    for layer in _walk(evidence.before.layers or [])
+                    if layer.path == before_path
+                ),
+                None,
+            )
+            after_layer = next(
+                (
+                    layer
+                    for layer in _walk(evidence.after.layers or [])
+                    if layer.path == after_path
+                ),
+                None,
+            )
+            if (
+                before_layer is None
+                or after_layer is None
+                or before_layer.path not in evidence.affected_before.layer_paths
+                or after_layer.path not in evidence.affected_after.layer_paths
+                or not (
+                    (
+                        request.target.layer_path is not None
+                        and before_path == request.target.layer_path
+                    )
+                    or (
+                        request.target.layer_uuid is not None
+                        and before_layer.layer_uuid == request.target.layer_uuid
+                    )
+                    or (
+                        request.target.layer_name is not None
+                        and before_layer.name == request.target.layer_name
+                    )
+                )
+            ):
+                raise RuntimeIssue(
+                    "postcondition_failed",
+                    "Converted Layer is absent from affected Sprite facts",
+                    PostconditionEvidence(
+                        response_path=invocation.response_path,
+                        reason="conversion identity or impact mismatch",
+                    ),
+                    invocation.diagnostics,
+                )
+            if operation == "convert-to-background":
+                valid_types = (
+                    before_layer.is_transparent
+                    and not before_layer.is_background
+                    and after_layer.is_background
+                )
+            else:
+                valid_types = (
+                    before_layer.is_background
+                    and after_layer.is_transparent
+                    and not after_layer.is_background
+                )
+            if not valid_types:
+                raise RuntimeIssue(
+                    "postcondition_failed",
+                    "Converted Layer types disagree with the operation",
+                    PostconditionEvidence(
+                        response_path=invocation.response_path,
+                        reason="conversion type mismatch",
+                    ),
+                    invocation.diagnostics,
+                )
+            before_cels = {
+                cel.frame_number: cel
+                for cel in evidence.before.cels or []
+                if cel.layer_path == before_path
+            }
+            after_cels = {
+                cel.frame_number: cel
+                for cel in evidence.after.cels or []
+                if cel.layer_path == after_path
+            }
+            if operation == "convert-to-background" and set(after_cels) != set(
+                range(1, evidence.after.metadata.frame_count + 1)
+            ):
+                raise RuntimeIssue(
+                    "postcondition_failed",
+                    "Converted Background does not cover every Frame",
+                    PostconditionEvidence(
+                        response_path=invocation.response_path,
+                        reason="missing Background Cel",
+                    ),
+                    invocation.diagnostics,
+                )
+            if operation == "convert-to-background" and any(
+                cel.bounds.x != 0
+                or cel.bounds.y != 0
+                or cel.bounds.width != evidence.after.metadata.width
+                or cel.bounds.height != evidence.after.metadata.height
+                or cel.opacity != 255
+                for cel in after_cels.values()
+            ):
+                raise RuntimeIssue(
+                    "postcondition_failed",
+                    "Converted Background Cel coverage or opacity is invalid",
+                    PostconditionEvidence(
+                        response_path=invocation.response_path,
+                        reason="Background Cel invariant mismatch",
+                    ),
+                    invocation.diagnostics,
+                )
+            fields.update(
+                before_layer=before_layer,
+                after_layer=after_layer,
+                affected_frame_numbers=list(
+                    range(1, evidence.after.metadata.frame_count + 1)
+                ),
+                created_cels=len(set(after_cels) - set(before_cels)),
+                cel_changes=[
+                    LayerCelChange(
+                        frame_number=number,
+                        before=before_cels.get(number),
+                        after=after_cels.get(number),
+                    )
+                    for number in sorted(set(before_cels) | set(after_cels))
+                ],
+            )
+        result_types = {
+            "set": LayerSetResult,
+            "move": LayerMoveResult,
+            "remove": LayerRemoveResult,
+            "merge": LayerMergeResult,
+            "convert-to-background": LayerConvertToBackgroundResult,
+            "convert-from-background": LayerConvertFromBackgroundResult,
+        }
         identity_issue = source_target_identity_issue(
             services.target_files, source_file, target_file, request.in_place
         )
@@ -775,20 +987,11 @@ def _mutate_layer(
         committed = services.target_files.commit(
             staged_file, target_file, overwrite=request.overwrite
         )
-        fields = {
-            **evidence.model_dump(mode="json"),
-            "target_commit": TargetCommit(
-                target_sprite_file=committed.target_sprite_file,
-                byte_size=committed.byte_size,
-                sha256=committed.sha256,
-            ),
-        }
-        result_types = {
-            "set": LayerSetResult,
-            "move": LayerMoveResult,
-            "remove": LayerRemoveResult,
-            "merge": LayerMergeResult,
-        }
+        fields["target_commit"] = TargetCommit(
+            target_sprite_file=committed.target_sprite_file,
+            byte_size=committed.byte_size,
+            sha256=committed.sha256,
+        )
         return result_types[operation].model_validate(fields)
     finally:
         services.target_files.discard(staged_file)
@@ -821,6 +1024,22 @@ def merge_layer(
 ) -> LayerMergeResult:
     result = _mutate_layer(request, services, "merge")
     assert isinstance(result, LayerMergeResult)
+    return result
+
+
+def convert_to_background(
+    request: LayerConvertToBackgroundRequest, services: OperationServices
+) -> LayerConvertToBackgroundResult:
+    result = _mutate_layer(request, services, "convert-to-background")
+    assert isinstance(result, LayerConvertToBackgroundResult)
+    return result
+
+
+def convert_from_background(
+    request: LayerConvertFromBackgroundRequest, services: OperationServices
+) -> LayerConvertFromBackgroundResult:
+    result = _mutate_layer(request, services, "convert-from-background")
+    assert isinstance(result, LayerConvertFromBackgroundResult)
     return result
 
 
@@ -899,6 +1118,28 @@ LAYER_OPERATIONS = (
         lambda result: result.target_commit.target_sprite_file,
         LAYER_MERGE_REQUIREMENTS,
         LAYER_MUTATION_FAILURE_CODES,
+        execution_kind="mutation",
+        side_effects=("publishes the declared Target Sprite File",),
+    ),
+    OperationDescriptor(
+        "layer convert-to-background",
+        LayerConvertToBackgroundRequest,
+        LayerConvertToBackgroundResult,
+        convert_to_background,
+        lambda result: result.target_commit.target_sprite_file,
+        LAYER_CONVERSION_REQUIREMENTS,
+        LAYER_CONVERSION_FAILURE_CODES,
+        execution_kind="mutation",
+        side_effects=("publishes the declared Target Sprite File",),
+    ),
+    OperationDescriptor(
+        "layer convert-from-background",
+        LayerConvertFromBackgroundRequest,
+        LayerConvertFromBackgroundResult,
+        convert_from_background,
+        lambda result: result.target_commit.target_sprite_file,
+        LAYER_CONVERSION_REQUIREMENTS,
+        LAYER_CONVERSION_FAILURE_CODES,
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
     ),

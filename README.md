@@ -129,6 +129,8 @@ uv run spa layer move --input-json '{"aseprite":"/path/to/aseprite","source_spri
 uv run spa layer remove --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"layered.aseprite","target_sprite_file":"removed.aseprite","in_place":false,"overwrite":false,"target":{"layer_path":[2]}}'
 uv run spa layer add --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"two-image-layers.aseprite","in_place":false,"overwrite":false,"kind":"transparent","name":"upper"}'
 uv run spa layer merge --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"two-image-layers.aseprite","target_sprite_file":"merged.aseprite","in_place":false,"overwrite":false,"target":{"layer_path":[2]}}'
+uv run spa layer convert-to-background --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"background.aseprite","in_place":false,"overwrite":false,"target":{"layer_path":[1]},"background_color":{"kind":"rgba","red":10,"green":20,"blue":30,"alpha":255}}'
+uv run spa layer convert-from-background --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"background.aseprite","target_sprite_file":"transparent.aseprite","in_place":false,"overwrite":false,"target":{"layer_path":[1]}}'
 uv run spa paint apply --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"painted.aseprite","in_place":false,"overwrite":false,"target":{"layer_path":[1],"frame_number":1},"patch":{"coordinate_space":"image-pixel","rectangle":{"x":0,"y":0,"width":2,"height":1},"runs":[{"x":0,"y":0,"length":2,"color":{"kind":"rgba","red":255,"green":0,"blue":0,"alpha":255}}]}}'
 uv run spa plan check --input-json '{"plan":{"source_sprite_file":"sprite.aseprite","steps":[{"operation":"sprite get","input":{"inspection_scope":["frames","layers"]}}]}}'
 uv run spa plan run --input-json '{"aseprite":"/path/to/aseprite","plan":{"source_sprite_file":"sprite.aseprite","steps":[{"operation":"sprite get","input":{"inspection_scope":["frames","layers"]}}]}}'
@@ -176,6 +178,17 @@ Frame digests, and save/reopen verification before Target Commit. They are
 standalone mutations and are not Plan Steps. An operation that changes no Layer
 or Cel facts reports empty affected sets; Group visibility and editability
 changes include descendants whose effective state changes.
+`spa layer convert-to-background` requires a visible, editable regular
+Transparent Image Layer, no existing Background, and an explicit opaque Color
+Value compatible with the Sprite Color Mode and, for Indexed Sprites, the
+Effective Palette at every Frame. Aseprite moves the converted Layer to the
+root bottom, names it `Background`, fills transparent pixels, and ensures an
+opaque, full-canvas Cel on every Frame.
+`spa layer convert-from-background` requires a visible, editable Background
+Layer and preserves its Cel images while accepting Aseprite's resulting Layer
+name. Both results report the before/after Layer facts, complete affected Frame
+numbers, created Cel count, and per-Frame before/after Cel facts. These are
+standalone mutations and are not Plan Steps.
 `spa paint apply` accepts at most 256 addressed Image Pixels per request. It defaults
 to rejecting out-of-bounds pixels; `clipping: "clip"` is the explicit clipping policy.
 In-place editing requires Source and Target to name the same publication entry,
