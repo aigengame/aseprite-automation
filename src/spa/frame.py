@@ -114,7 +114,9 @@ class FrameSetInput(PublicModel):
 
 class FrameMoveInput(PublicModel):
     source_frame_number: int = Field(ge=1, strict=True)
-    target_frame_number: int = Field(ge=1, strict=True)
+    target_frame_number: int = Field(
+        ge=1, strict=True, description="One-based final position of the moved Frame"
+    )
 
 
 class FrameRemoveInput(PublicModel):
