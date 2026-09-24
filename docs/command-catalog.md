@@ -72,9 +72,9 @@ better Aseprite-aligned evidence.
 | `spa frame get` | Inspect one Frame Number and persisted duration. |
 | `spa frame add` | Add an explicitly timed empty Frame. |
 | `spa frame duplicate` | Duplicate one Frame with explicit copied-or-linked Cel behavior. |
-| `spa frame set` | Set supported Frame properties. |
-| `spa frame move` | Move one exactly addressed Frame to an explicit one-based insertion position and report shifted references. |
-| `spa frame remove` | Remove exactly selected Frames and report shifted references. |
+| `spa frame set` | Set one exactly addressed Frame's duration. |
+| `spa frame move` | Move one exactly addressed Frame to its explicit one-based final Frame Number and report shifted references. |
+| `spa frame remove` | Remove one exactly addressed Frame and report shifted references. |
 
 ## `cel`
 
