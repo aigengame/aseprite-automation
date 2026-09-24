@@ -293,7 +293,8 @@ local function prevalidate(sprite, selected, payload, inspection, frame)
       return rejection("layer_unsupported_target", "Sprite already has a Background Layer")
     end
     for number = 1, #sprite.frames do
-      local valid = pcall(frame.background_color_for_frame, sprite, payload.background_color, number)
+      local valid =
+        pcall(frame.background_color_for_frame, sprite, payload.background_color, number)
       if not valid then
         return rejection(
           "layer_unsupported_target",
@@ -476,13 +477,16 @@ local function apply(sprite, payload, layer, lower, inspection, frame)
       local cel = assert(layer:cel(number), "converted Background is missing a Cel")
       local bounds = cel.bounds
       assert(
-        bounds.x == 0 and bounds.y == 0
-          and bounds.width == sprite.width and bounds.height == sprite.height
+        bounds.x == 0
+          and bounds.y == 0
+          and bounds.width == sprite.width
+          and bounds.height == sprite.height
           and cel.opacity == 255,
         "converted Background Cel does not cover the Frame opaquely"
       )
       local palette = sprite.colorMode == ColorMode.INDEXED
-          and frame.effective_palette(sprite, number) or nil
+          and frame.effective_palette(sprite, number)
+        or nil
       for pixel in cel.image:pixels() do
         local value = pixel()
         local alpha
@@ -520,8 +524,10 @@ local function apply(sprite, payload, layer, lower, inspection, frame)
       local bounds = cel.bounds
       assert(
         cel.image.bytes == before_cel.image
-          and bounds.x == before_cel.x and bounds.y == before_cel.y
-          and bounds.width == before_cel.width and bounds.height == before_cel.height
+          and bounds.x == before_cel.x
+          and bounds.y == before_cel.y
+          and bounds.width == before_cel.width
+          and bounds.height == before_cel.height
           and cel.opacity == before_cel.opacity,
         "native conversion changed Background Cel content"
       )
@@ -563,7 +569,10 @@ function module.execute(payload, inspection, selection, digest, persistence, fra
     apply(open_sprite, payload, selected.layer, lower, inspection, frame)
     local after_ordered, after_by_id = records(open_sprite, digest)
     local conversion_paths = nil
-    if payload.operation == "convert-to-background" or payload.operation == "convert-from-background" then
+    if
+      payload.operation == "convert-to-background"
+      or payload.operation == "convert-from-background"
+    then
       conversion_paths = {
         before = before_by_id[selected.layer.id].path,
         after = assert(after_by_id[selected.layer.id], "converted Layer identity changed").path,
