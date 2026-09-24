@@ -3,7 +3,13 @@
 import pytest
 from pydantic import ValidationError
 
-from spa.sprite import SliceFacts, SpriteCreateRequest, SpriteGetRequest, TagFacts
+from spa.sprite import (
+    SliceFacts,
+    SpriteCreateRequest,
+    SpriteExpectedFacts,
+    SpriteGetRequest,
+    TagFacts,
+)
 
 
 def test_create_requires_explicit_target_dimensions_mode_and_layer_choice() -> None:
@@ -63,6 +69,11 @@ def test_sprite_files_have_the_native_extension() -> None:
         SpriteGetRequest.model_validate(
             {"sprite_file": "created.png", "inspection_scope": []}
         )
+
+
+def test_validation_requires_at_least_one_expected_sprite_fact() -> None:
+    with pytest.raises(ValidationError):
+        SpriteExpectedFacts.model_validate({})
 
 
 @pytest.mark.parametrize(

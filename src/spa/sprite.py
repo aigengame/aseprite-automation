@@ -3,7 +3,13 @@
 from pathlib import Path
 from typing import Annotated, Literal, cast
 
-from pydantic import Field, TypeAdapter, ValidationError, field_validator
+from pydantic import (
+    Field,
+    TypeAdapter,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 from spa.contracts import PublicModel, RuntimeRequest, RuntimeRequirements
 from spa.mutation import TargetCommit, validate_native_sprite_path
@@ -86,6 +92,29 @@ class SpriteGetInput(PublicModel):
 
 class SpriteGetRequest(RuntimeRequest, SpriteGetInput):
     sprite_file: str = Field(min_length=1)
+
+    _validate_source = field_validator("sprite_file")(validate_native_sprite_path)
+
+
+class SpriteExpectedFacts(PublicModel):
+    width: int | None = Field(default=None, ge=1, le=65535)
+    height: int | None = Field(default=None, ge=1, le=65535)
+    color_mode: Literal["rgb", "grayscale", "indexed"] | None = None
+    frame_count: int | None = Field(default=None, ge=1)
+
+    @model_validator(mode="after")
+    def require_one_fact(self) -> "SpriteExpectedFacts":
+        if all(
+            value is None
+            for value in (self.width, self.height, self.color_mode, self.frame_count)
+        ):
+            raise ValueError("At least one expected Sprite fact is required")
+        return self
+
+
+class SpriteValidateRequest(RuntimeRequest):
+    sprite_file: str = Field(min_length=1)
+    expected: SpriteExpectedFacts
 
     _validate_source = field_validator("sprite_file")(validate_native_sprite_path)
 
@@ -210,6 +239,34 @@ class SpriteGetResult(SpriteInspection):
     operation: Literal["spa sprite get"] = "spa sprite get"
     sprite_file: str
     scope: InspectionScope
+
+
+SpriteFactName = Literal["width", "height", "color_mode", "frame_count"]
+SpriteFactValue = int | Literal["rgb", "grayscale", "indexed"]
+
+
+class SpriteFactCheck(PublicModel):
+    fact: SpriteFactName
+    expected: SpriteFactValue
+    actual: SpriteFactValue
+    matches: bool
+
+
+class SpriteValidationFinding(PublicModel):
+    kind: Literal["sprite_fact_mismatch"] = "sprite_fact_mismatch"
+    subject: Literal["sprite"] = "sprite"
+    fact: SpriteFactName
+    expected: SpriteFactValue
+    actual: SpriteFactValue
+
+
+class SpriteValidateResult(PublicModel):
+    status: Literal["success"] = "success"
+    operation: Literal["spa sprite validate"] = "spa sprite validate"
+    sprite_file: str
+    valid: bool
+    checks: list[SpriteFactCheck]
+    findings: list[SpriteValidationFinding]
 
 
 SPRITE_CREATE_REQUIREMENTS = RuntimeRequirements(
@@ -453,6 +510,43 @@ def get_sprite(
     )
 
 
+def validate_sprite(
+    request: SpriteValidateRequest, services: OperationServices
+) -> SpriteValidateResult:
+    inspected = get_sprite(
+        SpriteGetRequest(
+            sprite_file=request.sprite_file,
+            inspection_scope=[],
+            aseprite=request.aseprite,
+            timeout_seconds=request.timeout_seconds,
+        ),
+        services,
+    )
+    checks: list[SpriteFactCheck] = []
+    findings: list[SpriteValidationFinding] = []
+    for fact in ("width", "height", "color_mode", "frame_count"):
+        expected = getattr(request.expected, fact)
+        if expected is None:
+            continue
+        actual = getattr(inspected.metadata, fact)
+        matches = actual == expected
+        checks.append(
+            SpriteFactCheck(
+                fact=fact, expected=expected, actual=actual, matches=matches
+            )
+        )
+        if not matches:
+            findings.append(
+                SpriteValidationFinding(fact=fact, expected=expected, actual=actual)
+            )
+    return SpriteValidateResult(
+        sprite_file=request.sprite_file,
+        valid=not findings,
+        checks=checks,
+        findings=findings,
+    )
+
+
 SPRITE_OPERATIONS = (
     OperationDescriptor(
         "sprite create",
@@ -478,5 +572,14 @@ SPRITE_OPERATIONS = (
         SPRITE_GET_REQUIREMENTS,
         RUNTIME_FAILURE_CODES,
         plan_eligible=True,
+    ),
+    OperationDescriptor(
+        "sprite validate",
+        SpriteValidateRequest,
+        SpriteValidateResult,
+        validate_sprite,
+        lambda result: f"{result.sprite_file}: {len(result.findings)} findings",
+        SPRITE_GET_REQUIREMENTS,
+        RUNTIME_FAILURE_CODES,
     ),
 )
