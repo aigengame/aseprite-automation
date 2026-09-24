@@ -412,7 +412,7 @@ local function observes_sprite_resize()
   local sprite = nil
   local ok = pcall(function()
     sprite = Sprite(2, 2, ColorMode.RGB)
-    sprite:resize(Size(4, 4))
+    sprite:resize(4, 4)
     assert(sprite.width == 4 and sprite.height == 4)
     sprite:close()
     sprite = nil

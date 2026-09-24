@@ -86,7 +86,7 @@ local function execute()
   local before = inspection.inspect(open_sprite, all_sections, verified_uuids)
   if payload.operation == "resize" then
     -- Sprite:resize delegates to SpriteSize with UI disabled; its fixed default is nearest neighbor.
-    open_sprite:resize(Size(payload.width, payload.height))
+    open_sprite:resize(payload.width, payload.height)
   else
     -- Unlike Sprite:crop, CanvasSize with trimOutside removes outside Cel pixels.
     app.activeSprite = open_sprite
