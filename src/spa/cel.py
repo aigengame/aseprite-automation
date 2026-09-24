@@ -220,6 +220,7 @@ class CelAddResult(CelMutationEvidence):
 class CelClearResult(CelMutationEvidence):
     status: Literal["success"] = "success"
     operation: Literal["spa cel clear"] = "spa cel clear"
+    affected_cels: list[CelState] = Field(min_length=1)
     target_commit: TargetCommit
 
 
@@ -398,11 +399,20 @@ def _mutate(
         number = request.target.frame_number
         _reject(invocation, request.target.layer, request.target, (number, number))
         try:
-            evidence = CelMutationEvidence.model_validate(invocation.payload)
-        except (TypeError, ValidationError) as exc:
+            mutation_payload = dict(invocation.payload)
+            raw_affected = mutation_payload.pop("affected_cels", None)
+            evidence = CelMutationEvidence.model_validate(mutation_payload)
+            if operation == "clear" and not isinstance(raw_affected, list):
+                raise TypeError("Cel clear did not report affected Cels")
+            affected_cels = (
+                [CelState.model_validate(item) for item in raw_affected]
+                if operation == "clear"
+                else []
+            )
+        except (KeyError, TypeError, ValidationError) as exc:
             raise RuntimeIssue(
                 "response_malformed",
-                "Packaged Cel handler returned invalid mutation evidence",
+                f"Packaged Cel handler returned invalid mutation evidence: {exc}",
                 ResponseEvidence(response_path=invocation.response_path),
                 invocation.diagnostics,
             ) from exc
@@ -421,6 +431,15 @@ def _mutate(
             cel
             for cel in evidence.sprite.cels or []
             if cel.layer_path == evidence.cel.layer_path and cel.frame_number == number
+        ]
+        expected_affected = {
+            (tuple(evidence.cel.layer_path), evidence.cel.frame_number)
+        } | {
+            (tuple(link.layer_path), link.frame_number)
+            for link in evidence.before.linked_cels
+        }
+        observed_affected = [
+            (tuple(cel.layer_path), cel.frame_number) for cel in affected_cels
         ]
         if (
             evidence.cel.frame_number != number
@@ -441,6 +460,31 @@ def _mutate(
                 and evidence.cel.content != "transparent"
             )
             or (operation == "add" and evidence.cel.content != "transparent")
+            or (
+                operation == "clear"
+                and (
+                    len(observed_affected) != len(expected_affected)
+                    or set(observed_affected) != expected_affected
+                    or evidence.cel not in affected_cels
+                    or evidence.cel.linked_cels != evidence.before.linked_cels
+                    or any(
+                        not cel.exists
+                        or cel.content != evidence.cel.content
+                        or cel.is_background != evidence.cel.is_background
+                        or len(
+                            [
+                                item
+                                for item in evidence.sprite.cels or []
+                                if item.layer_path == cel.layer_path
+                                and item.frame_number == cel.frame_number
+                                and item.bounds == cel.image_bounds
+                            ]
+                        )
+                        != 1
+                        for cel in affected_cels
+                    )
+                )
+            )
         ):
             raise RuntimeIssue(
                 "postcondition_failed",
@@ -476,6 +520,7 @@ def _mutate(
         if operation == "add":
             return CelAddResult.model_validate(fields)
         if operation == "clear":
+            fields["affected_cels"] = affected_cels
             return CelClearResult.model_validate(fields)
         return CelRemoveResult.model_validate(fields)
     finally:

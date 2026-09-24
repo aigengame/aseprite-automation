@@ -252,6 +252,61 @@ def test_get_reports_native_linked_cels_after_reopen(tmp_path: Path) -> None:
         ]
 
 
+def test_clear_reports_and_preserves_all_native_linked_cels(tmp_path: Path) -> None:
+    source = tmp_path / "source.aseprite"
+    linked_file = tmp_path / "linked.aseprite"
+    cleared_file = tmp_path / "cleared.aseprite"
+    _fixture(source)
+    duplicate = spa(
+        "frame",
+        "duplicate",
+        "--input-json",
+        json.dumps(
+            {
+                "source_sprite_file": str(source),
+                "target_sprite_file": str(linked_file),
+                "in_place": False,
+                "overwrite": False,
+                "source_frame_number": 3,
+                "cel_mode": "link",
+                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+            }
+        ),
+    )
+    assert duplicate.returncode == 0, duplicate.stdout
+    target = {"layer": {"layer_path": [1]}, "frame_number": 3}
+    code, result = _run(
+        "clear",
+        {
+            "source_sprite_file": str(linked_file),
+            "target_sprite_file": str(cleared_file),
+            "in_place": False,
+            "overwrite": False,
+            "target": target,
+        },
+    )
+    assert code == 0, result
+    assert result["before"]["content"] == "nonempty"
+    assert result["persisted_reopen_verified"] is True
+    assert [
+        (cel["layer_path"], cel["frame_number"], cel["content"])
+        for cel in result["affected_cels"]
+    ] == [([1], 3, "transparent"), ([1], 4, "transparent")]
+    for number, other in ((3, 4), (4, 3)):
+        code, reopened = _run(
+            "get",
+            {
+                "sprite_file": str(cleared_file),
+                "target": {"layer": {"layer_path": [1]}, "frame_number": number},
+            },
+        )
+        assert code == 0, reopened
+        assert reopened["cel"]["content"] == "transparent"
+        assert reopened["cel"]["linked_cels"] == [
+            {"layer_path": [1], "frame_number": other}
+        ]
+
+
 def test_plan_adds_cel_then_paints_it_in_one_commit(tmp_path: Path) -> None:
     source = tmp_path / "source.aseprite"
     target_file = tmp_path / "painted.aseprite"

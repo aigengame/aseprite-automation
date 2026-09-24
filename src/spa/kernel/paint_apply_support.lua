@@ -112,7 +112,7 @@ local function find_layer_path(layers, target, prefix)
   return nil
 end
 
-local function resolve_target(sprite, address)
+local function resolve_target(sprite, address, allow_missing_cel)
   assert(address ~= nil, "missing target Cel address")
   assert(
     type(address.frame_number) == "number"
@@ -127,18 +127,15 @@ local function resolve_target(sprite, address)
     "target Layer is not a regular Image Layer"
   )
   local cel = layer:cel(address.frame_number)
-  assert(cel ~= nil and cel.image ~= nil, "target Cel does not exist")
-  return layer, cel, cel.image
+  local image = cel ~= nil and cel.image or nil
+  if not allow_missing_cel then assert(image ~= nil, "target Cel does not exist") end
+  return layer, cel, image
 end
 
 function module.missing_target_cel(sprite, address)
   if address.frame_number > #sprite.frames then return false end
-  local layer = resolve_layer(sprite, address.layer_path)
-  if not layer.isImage or layer.isGroup or layer.isTilemap or layer.isReference then
-    return false
-  end
-  local cel = layer:cel(address.frame_number)
-  return cel == nil or cel.image == nil
+  local _, _, image = resolve_target(sprite, address, true)
+  return image == nil
 end
 
 local function color_mode_name(sprite)

@@ -66,6 +66,32 @@ function module.inspect(sprite, layer, path, frame_number)
   return fact
 end
 
+function module.affected(sprite, image)
+  local result = {}
+  for _, current in ipairs(sprite.cels) do
+    if current.image == image then
+      result[#result + 1] = module.inspect(
+        sprite,
+        current.layer,
+        layer_path(sprite, current.layer),
+        current.frameNumber
+      )
+    end
+  end
+  table.sort(result, function(left, right)
+    if left.frame_number ~= right.frame_number then
+      return left.frame_number < right.frame_number
+    end
+    for index = 1, math.min(#left.layer_path, #right.layer_path) do
+      if left.layer_path[index] ~= right.layer_path[index] then
+        return left.layer_path[index] < right.layer_path[index]
+      end
+    end
+    return #left.layer_path < #right.layer_path
+  end)
+  return result
+end
+
 function module.resolve(sprite, address, selection, verified_uuids)
   local selected, code, message = selection.resolve(sprite, address.layer, verified_uuids)
   if selected == nil then return nil, nil, rejection(code, message) end

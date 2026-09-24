@@ -226,8 +226,9 @@ bounds, opacity, z-index, and other native Cels sharing the Image. `cel add`
 creates a full-canvas transparent Image only at an absent regular Transparent
 Layer intersection. `cel clear` preserves the Cel and its Image bounds; on a
 Background Layer it requires an explicit compatible `background_color` and fills
-the Cel with that color. `cel remove` makes a regular Transparent Cel absent and
-rejects Background Cels. Mutations verify the staged Sprite after reopening it.
+the Cel with that color. Clearing a shared Image preserves native links and reports
+every affected Cel in `affected_cels`. `cel remove` makes a regular Transparent Cel
+absent and rejects Background Cels. Mutations verify the staged Sprite after reopening it.
 Paint requires an existing Cel and Image and reports `cel_not_found` when absent.
 
 `spa tag list` and `spa tag get` inspect stored Tags with a one-based current
