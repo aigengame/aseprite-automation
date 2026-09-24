@@ -404,6 +404,31 @@ def test_add_background_frame_accepts_color_compatible_with_sprite_mode(
     assert added["sprite"]["metadata"]["color_mode"] == mode
 
 
+@pytest.mark.parametrize("index", [0, 200])
+def test_indexed_background_rejects_transparent_or_absent_palette_color(
+    tmp_path: Path, index: int
+) -> None:
+    source = tmp_path / "indexed.aseprite"
+    target = tmp_path / "target.aseprite"
+    _run_fixture("background_modes.lua", mode="indexed", out=str(source))
+    request = {
+        "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+        "source_sprite_file": str(source),
+        "target_sprite_file": str(target),
+        "in_place": False,
+        "overwrite": False,
+        "frame_number": 2,
+        "duration_ms": 100,
+        "background_color": {"kind": "palette-index", "index": index},
+    }
+    result = spa("frame", "add", "--input-json", json.dumps(request))
+    assert result.returncode != 0
+    failure = json.loads(result.stdout)
+    assert failure["code"] == "kernel_execution_failed"
+    assert "Background Palette" in failure["details"]["reason"]
+    assert not target.exists()
+
+
 def test_copy_mode_overrides_continuous_layer_policy(tmp_path: Path) -> None:
     source = tmp_path / "continuous.aseprite"
     target = tmp_path / "copy.aseprite"
@@ -445,3 +470,27 @@ def test_in_place_add_commits_to_the_source_entry(tmp_path: Path) -> None:
         {"frame_number": 2, "duration_ms": 340},
         {"frame_number": 3, "duration_ms": 200},
     ]
+
+
+@pytest.mark.parametrize("cel_mode", ["copy", "link"])
+def test_duplicate_uses_one_inserted_frame_for_multiple_source_cels(
+    tmp_path: Path, cel_mode: str
+) -> None:
+    source = tmp_path / "multi.aseprite"
+    target = tmp_path / "target.aseprite"
+    _run_fixture("multi_cel.lua", out=str(source))
+    duplicated = _run(
+        "frame",
+        "duplicate",
+        request={
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": False,
+            "overwrite": False,
+            "source_frame_number": 1,
+            "cel_mode": cel_mode,
+        },
+    )
+    assert duplicated["sprite"]["metadata"]["frame_count"] == 2
+    assert duplicated["source_cel_count"] == 2
+    assert duplicated["inserted_cel_count"] == 2

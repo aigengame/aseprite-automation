@@ -45,6 +45,7 @@ for name in (
     "sprite_create_support.lua",
     "sprite_get.lua",
     "sprite_inspect.lua",
+    "sprite_persistence.lua",
     "sprite_inspection_fixture.aseprite",
     "frame_mutate.lua",
     "frame_support.lua",

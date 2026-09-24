@@ -414,6 +414,60 @@ cp {shlex.quote(str(response_file))} "$response_file"
     assert count_file.read_text(encoding="utf-8").splitlines() == ["1"]
 
 
+def test_plan_frame_list_rejects_incomplete_step_facts(tmp_path: Path) -> None:
+    source = tmp_path / "source.aseprite"
+    source.write_bytes(b"controlled transport fixture")
+    response_file = tmp_path / "response.json"
+    response_file.write_text(
+        json.dumps(
+            {
+                "kernel_protocol_version": 1,
+                "status": "ok",
+                "result": {
+                    "steps": [
+                        {
+                            "operation": "frame list",
+                            "result": {"frame_count": 1, "frames": []},
+                        }
+                    ],
+                    "final_sprite": _one_frame_inspection(),
+                    "persisted_reopen_verified": False,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    fake = fake_aseprite(
+        tmp_path,
+        f"""
+response_file=
+for argument in "$@"; do
+  case "$argument" in response=*) response_file=${{argument#response=}};; esac
+done
+cp {shlex.quote(str(response_file))} "$response_file"
+""",
+    )
+    run = spa(
+        "plan",
+        "run",
+        "--input-json",
+        json.dumps(
+            {
+                "aseprite": str(fake),
+                "plan": {
+                    "source_sprite_file": str(source),
+                    "steps": [{"operation": "frame list", "input": {}}],
+                },
+            }
+        ),
+    )
+    assert run.returncode == 1, run.stdout
+    failure = json.loads(run.stdout)
+    assert failure["code"] == "kernel_response_invalid"
+    assert failure["details"]["failed_step"] == 1
+    assert failure["details"]["failed_operation"] == "frame list"
+
+
 def test_plan_create_postcondition_failure_identifies_step(tmp_path: Path) -> None:
     target = tmp_path / "target.aseprite"
     response_file = tmp_path / "create-response.json"

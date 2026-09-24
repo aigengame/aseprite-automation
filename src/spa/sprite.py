@@ -226,6 +226,7 @@ SPRITE_GET_REQUIREMENTS = RuntimeRequirements(
 )
 SPRITE_CREATE_FAILURE_CODES = (*RUNTIME_FAILURE_CODES, "target_commit_failed")
 SPRITE_INSPECTION_RESOURCE = PackagedResource("inspection", "sprite_inspect.lua")
+SPRITE_PERSISTENCE_RESOURCE = PackagedResource("persistence", "sprite_persistence.lua")
 SPRITE_CREATION_RESOURCE = PackagedResource("creation", "sprite_create_support.lua")
 SPRITE_INSPECTION_FIXTURE = PackagedResource(
     "inspection_fixture", "sprite_inspection_fixture.aseprite"

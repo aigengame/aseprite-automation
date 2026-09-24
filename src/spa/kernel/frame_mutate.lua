@@ -3,6 +3,7 @@ local kernel_protocol_version = 1
 local inspection = dofile(app.params.inspection)
 local frame = dofile(app.params.frame)
 local digest = dofile(app.params.digest)
+local persistence = dofile(app.params.persistence)
 
 local function execute()
   local request_file = assert(io.open(app.params.request, "rb"))
@@ -12,7 +13,7 @@ local function execute()
     request.kernel_protocol_version == kernel_protocol_version,
     "unsupported Kernel Protocol version"
   )
-  return frame.execute(assert(request.payload), inspection, digest)
+  return frame.execute(assert(request.payload), inspection, digest, persistence)
 end
 
 local ok, result = pcall(execute)

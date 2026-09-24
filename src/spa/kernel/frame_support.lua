@@ -27,7 +27,25 @@ local function background_layer(sprite)
   return nil
 end
 
-local function background_pixel(sprite, value)
+local function effective_palette(sprite, frame_number)
+  local selected, selected_frame = nil, -1
+  for palette_index = 1, #sprite.palettes do
+    local palette = sprite.palettes[palette_index]
+    local palette_frame = palette.frame.frameNumber
+    if palette_frame <= frame_number and palette_frame > selected_frame then
+      selected, selected_frame = palette, palette_frame
+    end
+  end
+  return assert(selected, "Indexed Background has no Effective Palette")
+end
+
+local function validate_indexed_background(sprite, frame_number, index)
+  local palette = effective_palette(sprite, frame_number)
+  assert(index < #palette, "Background Palette Index does not exist")
+  assert(palette:getColor(index).alpha == 255, "Background Palette Color is not opaque")
+end
+
+local function background_pixel(sprite, value, insert_number)
   assert(value ~= nil, "Background Layer requires background_color")
   if sprite.colorMode == ColorMode.RGB then
     assert(value.kind == "rgba" and value.alpha == 255, "RGB Background requires opaque rgba")
@@ -41,6 +59,7 @@ local function background_pixel(sprite, value)
     return Color { gray = value.gray, alpha = 255 }, app.pixelColor.graya(value.gray, 255)
   elseif sprite.colorMode == ColorMode.INDEXED then
     assert(value.kind == "palette-index", "Indexed Background requires palette-index")
+    validate_indexed_background(sprite, math.max(1, insert_number - 1), value.index)
     return Color { index = value.index }, value.index
   end
   error("unsupported Background Color Mode")
@@ -107,6 +126,9 @@ local function verify_cels(sprite, operation, input, inserted_number, source_cou
       for pixel in cel.image:pixels() do
         assert(pixel() == expected_pixel, "Background Cel differs from requested Color")
       end
+      if sprite.colorMode == ColorMode.INDEXED then
+        validate_indexed_background(sprite, inserted_number, expected_pixel)
+      end
     end
   else
     assert(#inserted == source_count, "duplicate Frame did not preserve Cel presence")
@@ -136,7 +158,7 @@ local function insert(sprite, operation, input)
     local background = background_layer(sprite)
     if background then
       local color
-      color, expected_pixel = background_pixel(sprite, input.background_color)
+      color, expected_pixel = background_pixel(sprite, input.background_color, number)
       app.bgColor = color
     else
       assert(
@@ -176,58 +198,40 @@ end
 
 function module.apply_live(sprite, operation, input)
   local before_tags = tags(sprite)
-  local number, source_count, inserted_count, expected_pixel = insert(sprite, operation, input)
-  return {
-    inserted_frame = { frame_number = number, duration_ms = duration_ms(sprite.frames[number]) },
-    tag_adjustments = tag_adjustments(before_tags, tags(sprite)),
-    source_cel_count = source_count,
-    inserted_cel_count = inserted_count,
-    cel_relationships_verified = true,
-    persisted_reopen_verified = false,
-    sprite = json_null,
-    -- These are private to the fixed handler; never returned as public evidence.
-    _expected_pixel = expected_pixel,
+  local previous = {
+    sprite = app.activeSprite,
+    layer = app.activeLayer,
+    frame = app.activeFrame,
+    background_color = app.bgColor,
   }
+  local evidence = nil
+  local ok, failure = pcall(function()
+    app.transaction(operation == "add" and "Add Frame" or "Duplicate Frame", function()
+      local number, source_count, inserted_count, expected_pixel = insert(sprite, operation, input)
+      evidence = {
+        inserted_frame = { frame_number = number, duration_ms = duration_ms(sprite.frames[number]) },
+        tag_adjustments = tag_adjustments(before_tags, tags(sprite)),
+        source_cel_count = source_count,
+        inserted_cel_count = inserted_count,
+        cel_relationships_verified = true,
+        persisted_reopen_verified = false,
+        sprite = json_null,
+        -- Private to the fixed handler; never returned as public evidence.
+        _expected_pixel = expected_pixel,
+      }
+    end)
+  end)
+  pcall(function() app.bgColor = previous.background_color end)
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
+  if not ok then error(failure) end
+  return assert(evidence)
 end
 
-local function difference(left, right, at)
-  if type(left) ~= type(right) then
-    if tonumber(left) ~= nil and tonumber(left) == tonumber(right) then return nil end
-    return at
-  end
-  if type(left) ~= "table" then
-    if left == right then return nil end
-    return at
-  end
-  for key, value in pairs(left) do
-    local found = difference(value, right[key], at .. "." .. tostring(key))
-    if found then return found end
-  end
-  for key, _ in pairs(right) do
-    if left[key] == nil then return at .. "." .. tostring(key) end
-  end
-  return nil
-end
-
-local function document_facts(sprite, inspection, digest)
-  local images, links = {}, {}
-  local cels = sprite.cels
-  for index, cel in ipairs(cels) do
-    local image = cel.image
-    images[index] = {
-      width = image.width,
-      height = image.height,
-      bytes_per_pixel = image.bytesPerPixel,
-      content = digest.fnv1a64(image.bytes),
-    }
-    for prior = 1, index - 1 do
-      if image == cels[prior].image then links[#links + 1] = { prior, index } end
-    end
-  end
-  return { sprite = inspection.inspect(sprite, all_sections), images = images, links = links }
-end
-
-function module.execute(payload, inspection, digest)
+function module.execute(payload, inspection, digest, persistence)
   local open_sprite = nil
   local previous = {
     sprite = app.activeSprite,
@@ -239,17 +243,12 @@ function module.execute(payload, inspection, digest)
     open_sprite = assert(app.open(payload.source_sprite_file), "could not open Source Sprite File")
     local input = assert(payload.input, "missing Frame input")
     local evidence = module.apply_live(open_sprite, payload.operation, input)
-    local before = document_facts(open_sprite, inspection, digest)
+    local before = persistence.snapshot(open_sprite, inspection, digest, all_sections)
     assert(open_sprite:saveAs(payload.staged_sprite_file), "could not save staged Sprite")
     open_sprite:close()
     open_sprite = assert(app.open(payload.staged_sprite_file), "could not reopen staged Sprite")
-    local after = document_facts(open_sprite, inspection, digest)
-    if before.sprite.metadata.color_mode ~= "indexed" then
-      before.sprite.palettes = nil
-      after.sprite.palettes = nil
-    end
-    local mismatch = difference(before, after, "document")
-    assert(mismatch == nil, "persisted Frame differs at " .. tostring(mismatch))
+    local after = persistence.snapshot(open_sprite, inspection, digest, all_sections)
+    persistence.assert_same(before, after, "Frame")
     local expected_pixel = evidence._expected_pixel
     local verified_count = verify_cels(
       open_sprite,

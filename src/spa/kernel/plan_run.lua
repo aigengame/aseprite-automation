@@ -5,6 +5,7 @@ local creation = dofile(app.params.creation)
 local paint = dofile(app.params.paint)
 local frame = dofile(app.params.frame)
 local digest = dofile(app.params.digest)
+local persistence = dofile(app.params.persistence)
 local capability_probe = dofile(app.params.capability_probe)
 local all_sections = {
   "frames",
@@ -63,56 +64,6 @@ local function verify_runtime(requirements)
   end
 end
 
-local function difference(left, right, at)
-  if type(left) ~= type(right) then
-    if tonumber(left) ~= nil and tonumber(left) == tonumber(right) then return nil end
-    return at .. " (" .. type(left) .. " / " .. type(right) .. ")"
-  end
-  if type(left) ~= "table" then
-    if left == right then return nil end
-    return at
-      .. " ("
-      .. type(left)
-      .. ":"
-      .. tostring(left)
-      .. " / "
-      .. type(right)
-      .. ":"
-      .. tostring(right)
-      .. ")"
-  end
-  for key, value in pairs(left) do
-    local found = difference(value, right[key], at .. "." .. tostring(key))
-    if found ~= nil then return found end
-  end
-  for key, _ in pairs(right) do
-    if left[key] == nil then return at .. "." .. tostring(key) end
-  end
-  return nil
-end
-
-local function document_facts(sprite)
-  local images = {}
-  local links = {}
-  for _, cel in ipairs(sprite.cels) do
-    local image = cel.image
-    images[#images + 1] = {
-      width = image.width,
-      height = image.height,
-      bytes_per_pixel = image.bytesPerPixel,
-      row_stride = image.rowStride,
-      content = digest.fnv1a64(image.bytes),
-    }
-  end
-  local cels = sprite.cels
-  for index, cel in ipairs(cels) do
-    for prior = 1, index - 1 do
-      if cel.image == cels[prior].image then links[#links + 1] = { prior, index } end
-    end
-  end
-  return { sprite = inspection.inspect(sprite, all_sections), images = images, links = links }
-end
-
 local function verify_postconditions(sprite, conditions)
   if conditions.width ~= nil then
     assert(sprite.width == conditions.width, "Plan width Postcondition failed")
@@ -152,13 +103,13 @@ local function execute_step(step)
   end
   if step.operation == "frame list" then
     local facts = inspection.inspect(open_sprite, { "frames" })
-    return { frames = facts.frames }
+    return { frames = facts.frames, frame_count = facts.metadata.frame_count }
   end
   if step.operation == "frame get" then
     local number = input.frame_number
     assert(number >= 1 and number <= #open_sprite.frames, "Frame Number is out of range")
     local facts = inspection.inspect(open_sprite, { "frames" })
-    return { frame = facts.frames[number] }
+    return { frame = facts.frames[number], frame_count = facts.metadata.frame_count }
   end
   if step.operation == "frame add" or step.operation == "frame duplicate" then
     local evidence =
@@ -196,31 +147,15 @@ local function execute()
   assert(open_sprite ~= nil, "Plan has no Sprite")
   local conditions = assert(payload.postconditions)
   verify_postconditions(open_sprite, conditions)
-  local before = document_facts(open_sprite)
+  local before = persistence.snapshot(open_sprite, inspection, digest, all_sections)
   local persisted = false
   if type(payload.staged_sprite_file) == "string" then
     assert(open_sprite:saveAs(payload.staged_sprite_file), "could not save staged Sprite")
     open_sprite:close()
     open_sprite = nil
     open_sprite = assert(app.open(payload.staged_sprite_file), "could not reopen staged Sprite")
-    local after = document_facts(open_sprite)
-    local persisted_palettes = after.sprite.palettes
-    if before.sprite.metadata.color_mode ~= "indexed" then
-      -- RGB/Grayscale palette entries are not image semantics; Aseprite may
-      -- normalize their alpha when it serializes the document.
-      before.sprite.palettes = nil
-      after.sprite.palettes = nil
-    end
-    local inspection_mismatch = difference(before.sprite, after.sprite, "sprite")
-    assert(
-      inspection_mismatch == nil,
-      "persisted Plan inspection differs at " .. tostring(inspection_mismatch)
-    )
-    local image_mismatch = difference(before.images, after.images, "images")
-    assert(image_mismatch == nil, "persisted Plan images differ at " .. tostring(image_mismatch))
-    local link_mismatch = difference(before.links, after.links, "links")
-    assert(link_mismatch == nil, "persisted Plan Cel links differ at " .. tostring(link_mismatch))
-    after.sprite.palettes = persisted_palettes
+    local after = persistence.snapshot(open_sprite, inspection, digest, all_sections)
+    persistence.assert_same(before, after, "Plan")
     verify_postconditions(open_sprite, conditions)
     persisted = true
     before = after

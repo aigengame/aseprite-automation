@@ -1,0 +1,7 @@
+local sprite = Sprite(3, 2, ColorMode.RGB)
+local second = sprite:newLayer()
+local image = Image(1, 1, ColorMode.RGB)
+image:drawPixel(0, 0, Color { r = 10, g = 20, b = 30, a = 255 })
+sprite:newCel(second, 1, image, Point(1, 0))
+assert(sprite:saveAs(app.params.out))
+sprite:close()

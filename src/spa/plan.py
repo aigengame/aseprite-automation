@@ -19,6 +19,7 @@ from spa.frame import (
     FrameDuplicateInput,
     FrameMutationEvidence,
     validate_frame_evidence,
+    validate_frame_sequence,
 )
 from spa.mutation import TargetCommit, source_target_identity_issue
 from spa.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
@@ -47,6 +48,7 @@ from spa.sprite import (
     SPRITE_INSPECTION_FIXTURE,
     SPRITE_INSPECTION_RESOURCE,
     SPRITE_OPERATIONS,
+    SPRITE_PERSISTENCE_RESOURCE,
     FrameFacts,
     InitialLayer,
     InspectionScope,
@@ -69,6 +71,7 @@ PLAN_RUN_HANDLER = PackagedHandler(
     "plan_run",
     (
         SPRITE_INSPECTION_RESOURCE,
+        SPRITE_PERSISTENCE_RESOURCE,
         SPRITE_CREATION_RESOURCE,
         PAINT_SUPPORT_RESOURCE,
         FRAME_SUPPORT_RESOURCE,
@@ -492,16 +495,36 @@ def _validated_steps(
                 outcome = PaintStepOutcome.model_validate(item)
                 validate_paint_evidence(step.input, outcome.result, invocation)
             elif isinstance(step, FrameListStep):
-                outcome = FrameListStepOutcome.model_validate(item)
+                result = item["result"]
+                count = result["frame_count"]
+                if type(count) is not int or count < 1:
+                    raise ValueError("Frame List has invalid Frame count")
+                frames = [
+                    FrameFacts.model_validate(value) for value in result["frames"]
+                ]
+                validate_frame_sequence(frames, count, invocation)
+                outcome = FrameListStepOutcome(
+                    operation="frame list", result=FrameListStepResult(frames=frames)
+                )
             elif isinstance(step, FrameGetStep):
-                outcome = FrameGetStepOutcome.model_validate(item)
-                if outcome.result.frame.frame_number != step.input.frame_number:
+                result = item["result"]
+                count = result["frame_count"]
+                if type(count) is not int or count < 1:
+                    raise ValueError("Frame Get has invalid Frame count")
+                frame = FrameFacts.model_validate(result["frame"])
+                if (
+                    frame.frame_number != step.input.frame_number
+                    or frame.frame_number > count
+                ):
                     raise _postcondition(
                         invocation,
                         "Frame Get address differs",
                         failed_step=index,
                         failed_operation=step.operation,
                     )
+                outcome = FrameGetStepOutcome(
+                    operation="frame get", result=FrameGetStepResult(frame=frame)
+                )
             elif isinstance(step, FrameAddStep):
                 outcome = FrameAddStepOutcome.model_validate(item)
                 validate_frame_evidence(step.input, outcome.result, invocation)

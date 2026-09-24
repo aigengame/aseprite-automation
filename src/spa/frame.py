@@ -30,6 +30,7 @@ from spa.sprite import (
     INSPECTION_SECTIONS,
     SPRITE_GET_HANDLER,
     SPRITE_INSPECTION_RESOURCE,
+    SPRITE_PERSISTENCE_RESOURCE,
     FrameFacts,
     SpriteGetRequest,
     SpriteInspection,
@@ -151,7 +152,12 @@ FRAME_MUTATION_REQUIREMENTS = RuntimeRequirements(
 FRAME_SUPPORT_RESOURCE = PackagedResource("frame", "frame_support.lua")
 FRAME_MUTATE_HANDLER = PackagedHandler(
     "frame_mutate",
-    (SPRITE_INSPECTION_RESOURCE, FRAME_SUPPORT_RESOURCE, DIGEST_RESOURCE),
+    (
+        SPRITE_INSPECTION_RESOURCE,
+        SPRITE_PERSISTENCE_RESOURCE,
+        FRAME_SUPPORT_RESOURCE,
+        DIGEST_RESOURCE,
+    ),
 )
 
 
@@ -166,10 +172,19 @@ def _read_frames(
         request.timeout_seconds,
     )
     sprite = _inspection_from_kernel(invocation)
-    frames = sprite.frames
+    return validate_frame_sequence(
+        sprite.frames, sprite.metadata.frame_count, invocation
+    )
+
+
+def validate_frame_sequence(
+    frames: list[FrameFacts] | None,
+    declared_count: int,
+    invocation: KernelInvocationResult,
+) -> list[FrameFacts]:
     if (
         frames is None
-        or len(frames) != sprite.metadata.frame_count
+        or len(frames) != declared_count
         or any(frame.frame_number != index for index, frame in enumerate(frames, 1))
     ):
         raise RuntimeIssue(
