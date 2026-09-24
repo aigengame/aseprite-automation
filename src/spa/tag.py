@@ -301,6 +301,13 @@ def get_tag(request: TagGetRequest, services: OperationServices) -> TagGetResult
         ):
             raise ValueError("Tag Get evidence disagrees with Sprite inspection")
         selected = _indexed(sprite.tags)[index - 1]
+        if (
+            request.target.tag_index is not None and request.target.tag_index != index
+        ) or (
+            request.target.tag_name is not None
+            and request.target.tag_name != selected.name
+        ):
+            raise ValueError("Tag Get address differs from selected Tag facts")
     except (KeyError, TypeError, ValueError, ValidationError) as exc:
         raise RuntimeIssue(
             "response_malformed",
