@@ -12,7 +12,11 @@ from pydantic import (
 )
 
 from spa.contracts import PublicModel, RuntimeRequest, RuntimeRequirements
-from spa.mutation import TargetCommit, validate_native_sprite_path
+from spa.mutation import (
+    TargetCommit,
+    source_target_identity_issue,
+    validate_native_sprite_path,
+)
 from spa.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.ports import (
     KernelInvocationResult,
@@ -20,8 +24,10 @@ from spa.ports import (
     PackagedHandler,
     PackagedResource,
     PostconditionEvidence,
+    RequestIssue,
     ResponseEvidence,
     RuntimeIssue,
+    TargetCommitEvidence,
 )
 from spa.raster import Point, Rectangle, RgbaColor, Size
 
@@ -117,6 +123,19 @@ class SpriteValidateRequest(RuntimeRequest):
     expected: SpriteExpectedFacts
 
     _validate_source = field_validator("sprite_file")(validate_native_sprite_path)
+
+
+class SpriteCopyRequest(RuntimeRequest):
+    source_sprite_file: str = Field(min_length=1)
+    target_sprite_file: str = Field(min_length=1)
+    overwrite: bool
+
+    _validate_source = field_validator("source_sprite_file")(
+        validate_native_sprite_path
+    )
+    _validate_target = field_validator("target_sprite_file")(
+        validate_native_sprite_path
+    )
 
 
 class SpriteMetadata(PublicModel):
@@ -267,6 +286,14 @@ class SpriteValidateResult(PublicModel):
     valid: bool
     checks: list[SpriteFactCheck]
     findings: list[SpriteValidationFinding]
+
+
+class SpriteCopyResult(PublicModel):
+    status: Literal["success"] = "success"
+    operation: Literal["spa sprite copy"] = "spa sprite copy"
+    target_commit: TargetCommit
+    persisted_reopen_verified: Literal[True]
+    sprite: SpriteInspection
 
 
 SPRITE_CREATE_REQUIREMENTS = RuntimeRequirements(
@@ -547,6 +574,60 @@ def validate_sprite(
     )
 
 
+def copy_sprite(
+    request: SpriteCopyRequest, services: OperationServices
+) -> SpriteCopyResult:
+    source = Path(request.source_sprite_file)
+    target = Path(request.target_sprite_file)
+    identity_issue = source_target_identity_issue(
+        services.target_files, source, target, False
+    )
+    if identity_issue is not None:
+        raise RequestIssue([identity_issue])
+    staged = services.target_files.staged_path(target)
+    try:
+        try:
+            services.target_files.stage_copy(source, staged)
+        except OSError as exc:
+            raise RuntimeIssue(
+                "target_commit_failed",
+                "Source Sprite File could not be copied to the staged Target",
+                TargetCommitEvidence(str(target), "staged_file_missing"),
+            ) from exc
+        observation = services.probe_runtime(request)
+        scope_request = SpriteGetRequest(
+            sprite_file=str(staged),
+            inspection_scope=list(INSPECTION_SECTIONS),
+            aseprite=request.aseprite,
+            timeout_seconds=request.timeout_seconds,
+        )
+        invocation = services.invoke_kernel(
+            observation,
+            SPRITE_GET_HANDLER,
+            {
+                "sprite_file": str(staged),
+                "inspection_scope": scope_request.inspection_scope,
+            },
+            request.timeout_seconds,
+        )
+        inspection = _inspection_from_kernel(invocation)
+        validated_scope(scope_request, inspection, invocation)
+        committed = services.target_files.commit(
+            staged, target, overwrite=request.overwrite
+        )
+        return SpriteCopyResult(
+            target_commit=TargetCommit(
+                target_sprite_file=committed.target_sprite_file,
+                byte_size=committed.byte_size,
+                sha256=committed.sha256,
+            ),
+            persisted_reopen_verified=True,
+            sprite=inspection,
+        )
+    finally:
+        services.target_files.discard(staged)
+
+
 SPRITE_OPERATIONS = (
     OperationDescriptor(
         "sprite create",
@@ -581,5 +662,16 @@ SPRITE_OPERATIONS = (
         lambda result: f"{result.sprite_file}: {len(result.findings)} findings",
         SPRITE_GET_REQUIREMENTS,
         RUNTIME_FAILURE_CODES,
+    ),
+    OperationDescriptor(
+        "sprite copy",
+        SpriteCopyRequest,
+        SpriteCopyResult,
+        copy_sprite,
+        lambda result: result.target_commit.target_sprite_file,
+        SPRITE_GET_REQUIREMENTS,
+        (*RUNTIME_FAILURE_CODES, "target_commit_failed"),
+        execution_kind="mutation",
+        side_effects=("publishes the declared Target Sprite File",),
     ),
 )
