@@ -376,6 +376,7 @@ class SpriteResizeResult(SpriteGeometryResult):
     status: Literal["success"] = "success"
     operation: Literal["spa sprite resize"] = "spa sprite resize"
     sampling: Literal["nearest_neighbor"] = "nearest_neighbor"
+    coordinate_space: Literal["canvas-pixel"] = "canvas-pixel"
     origin: Point
 
 
@@ -895,11 +896,21 @@ def _clipped_cels(
     before: SpriteInspection, after: SpriteInspection, rectangle: PositiveRectangle
 ) -> list[ClippedCel]:
     assert before.cels is not None and after.cels is not None
+    assert before.layers is not None
+    reference_paths: set[tuple[int, ...]] = set()
+    layers = list(before.layers)
+    while layers:
+        layer = layers.pop()
+        if layer.is_reference:
+            reference_paths.add(tuple(layer.path))
+        layers.extend(layer.children)
     after_by_address = {
         (tuple(cel.layer_path), cel.frame_number): cel for cel in after.cels
     }
     clipped: list[ClippedCel] = []
     for cel in before.cels:
+        if tuple(cel.layer_path) in reference_paths:
+            continue
         bounds = cel.bounds
         left = max(bounds.x, rectangle.x)
         top = max(bounds.y, rectangle.y)

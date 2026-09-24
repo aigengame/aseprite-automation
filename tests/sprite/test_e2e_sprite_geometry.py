@@ -99,6 +99,8 @@ def test_resize_uses_fixed_nearest_neighbor_and_reports_persisted_geometry(
         result, json.loads(spa("sprite", "resize", "--schema").stdout)["result_schema"]
     )
     assert result["sampling"] == "nearest_neighbor"
+    assert result["coordinate_space"] == "canvas-pixel"
+    assert result["origin"] == {"x": 0, "y": 0}
     assert result["old_canvas"] == {"width": 4, "height": 4}
     assert result["new_canvas"] == {"width": 8, "height": 8}
     assert result["sprite"]["cels"][0]["bounds"] == {
@@ -290,3 +292,36 @@ def test_crop_reports_transparent_cel_removed_by_native_trimming(
         }
     ]
     assert target.is_file()
+
+
+def test_crop_keeps_reference_image_content_while_moving_its_cel(
+    tmp_path: Path,
+) -> None:
+    source = _fixture(tmp_path, "reference_geometry_sprite.lua")
+    target = tmp_path / "reference-crop.aseprite"
+    run, result = _run(
+        "crop",
+        {
+            "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": False,
+            "overwrite": False,
+            "coordinate_space": "canvas-pixel",
+            "rectangle": {"x": 1, "y": 1, "width": 2, "height": 2},
+        },
+    )
+    assert run.returncode == 0, run.stdout
+    assert result["before_sprite"]["cels"][0]["bounds"] == {
+        "x": 0,
+        "y": 0,
+        "width": 3,
+        "height": 3,
+    }
+    assert result["sprite"]["cels"][0]["bounds"] == {
+        "x": -1,
+        "y": -1,
+        "width": 3,
+        "height": 3,
+    }
+    assert all(cel["layer_path"] != [1] for cel in result["clipped_cels"])

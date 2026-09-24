@@ -174,8 +174,9 @@ Tilemap Cel, or Tilemap Image before native mutation and Target Commit. Their
 results include before and reopened Sprite inspections, old and new canvas sizes,
 and observed Cel bounds, Tags, Slices, and Grid. Crop also reports `clipped_cels`
 with each affected Cel's bounds before and after clipping; these are geometry facts,
-not a count of colored pixels. In-place edits require `in_place: true` and
-`overwrite: true`.
+not a count of colored pixels. Aseprite moves Reference Layer Cels without trimming
+their images, so they do not appear in `clipped_cels`. In-place edits require
+`in_place: true` and `overwrite: true`.
 `spa layer list` returns the current hierarchy. `spa layer get` accepts one
 `layer_path`, `layer_uuid`, or `layer_name`. Paths use one-based native sibling
 positions. Names use exact case-sensitive matching and must be unique across the
