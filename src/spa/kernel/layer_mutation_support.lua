@@ -66,6 +66,8 @@ local function records(sprite, digest)
         cels = cels,
         cel_facts = cel_facts,
         name = layer.name,
+        is_background = layer.isBackground,
+        is_transparent = layer.isTransparent,
         is_visible = layer.isVisible,
         is_editable = layer.isEditable,
         effective_visible = effective_visible,
@@ -100,6 +102,8 @@ local function record_changed(left, right)
     or not equal_array(left.children, right.children)
     or not equal_array(left.cels, right.cels)
     or left.name ~= right.name
+    or left.is_background ~= right.is_background
+    or left.is_transparent ~= right.is_transparent
     or left.is_visible ~= right.is_visible
     or left.is_editable ~= right.is_editable
     or left.effective_visible ~= right.effective_visible
@@ -167,7 +171,23 @@ end
 
 local function rejection(code, message) return { rejection = { code = code, message = message } } end
 
-local function prevalidate(sprite, selected, payload, inspection)
+local function effectively_enabled(layer)
+  local current = layer
+  while current ~= nil and current ~= layer.sprite do
+    if not current.isVisible or not current.isEditable then return false end
+    current = current.parent
+  end
+  return true
+end
+
+local function background_layer(sprite)
+  for _, layer in ipairs(sprite.layers) do
+    if layer.isBackground then return layer end
+  end
+  return nil
+end
+
+local function prevalidate(sprite, selected, payload, inspection, frame)
   local operation, layer = payload.operation, selected.layer
   if operation == "set" then
     if not is_regular(layer) then
@@ -262,6 +282,33 @@ local function prevalidate(sprite, selected, payload, inspection)
       )
     end
     return nil, lower
+  elseif operation == "convert-to-background" then
+    if not is_regular_image(layer) or not effectively_enabled(layer) then
+      return rejection(
+        "layer_unsupported_target",
+        "Background conversion requires a visible, editable regular Transparent Image Layer"
+      )
+    end
+    if background_layer(sprite) ~= nil then
+      return rejection("layer_unsupported_target", "Sprite already has a Background Layer")
+    end
+    for number = 1, #sprite.frames do
+      local valid =
+        pcall(frame.background_color_for_frame, sprite, payload.background_color, number)
+      if not valid then
+        return rejection(
+          "layer_unsupported_target",
+          "background_color is incompatible with Sprite Color Mode or an Effective Palette at a Frame"
+        )
+      end
+    end
+  elseif operation == "convert-from-background" then
+    if not layer.isBackground or not effectively_enabled(layer) then
+      return rejection(
+        "layer_unsupported_target",
+        "Transparent conversion requires a visible, editable Background Layer"
+      )
+    end
   else
     return rejection("layer_unsupported_target", "unsupported Layer operation")
   end
@@ -363,7 +410,7 @@ local function render_digests(sprite, digest)
   return result
 end
 
-local function apply(sprite, payload, layer, lower, inspection)
+local function apply(sprite, payload, layer, lower, inspection, frame)
   if payload.operation == "set" then
     app.transaction("Set Layer", function()
       local properties = payload.properties
@@ -402,7 +449,7 @@ local function apply(sprite, payload, layer, lower, inspection)
     app.transaction("Remove Layer", function() sprite:deleteLayer(layer) end)
     local _, current = records(sprite)
     assert(current[removed_id] == nil, "native Layer remove retained its target")
-  else
+  elseif payload.operation == "merge" then
     local source_id, lower_id = layer.id, lower.id
     local previous_blend = app.preferences.experimental.new_blend
     local ok, failure = pcall(function()
@@ -417,18 +464,93 @@ local function apply(sprite, payload, layer, lower, inspection)
     local _, current = records(sprite)
     assert(current[lower_id] ~= nil, "native Merge Down removed the lower Layer")
     assert(current[source_id] == nil, "native Merge Down retained the source Layer")
+  elseif payload.operation == "convert-to-background" then
+    local color = frame.background_color_for_frame(sprite, payload.background_color, 1)
+    app.activeSprite = sprite
+    app.activeLayer = layer
+    app.activeFrame = sprite.frames[1]
+    app.bgColor = color
+    assert(app.command.BackgroundFromLayer(), "native Background conversion failed")
+    assert(layer.isBackground, "native conversion did not create Background Layer")
+    assert(background_layer(sprite) == layer, "native conversion changed Background identity")
+    for number = 1, #sprite.frames do
+      local cel = assert(layer:cel(number), "converted Background is missing a Cel")
+      local bounds = cel.bounds
+      assert(
+        bounds.x == 0
+          and bounds.y == 0
+          and bounds.width == sprite.width
+          and bounds.height == sprite.height
+          and cel.opacity == 255,
+        "converted Background Cel does not cover the Frame opaquely"
+      )
+      local palette = sprite.colorMode == ColorMode.INDEXED
+          and frame.effective_palette(sprite, number)
+        or nil
+      for pixel in cel.image:pixels() do
+        local value = pixel()
+        local alpha
+        if sprite.colorMode == ColorMode.RGB then
+          alpha = app.pixelColor.rgbaA(value)
+        elseif sprite.colorMode == ColorMode.GRAY then
+          alpha = app.pixelColor.grayaA(value)
+        else
+          alpha = palette:getColor(value).alpha
+        end
+        assert(alpha == 255, "converted Background contains a transparent pixel")
+      end
+    end
+  elseif payload.operation == "convert-from-background" then
+    local before_cels = {}
+    for number = 1, #sprite.frames do
+      local cel = assert(layer:cel(number), "Background is missing a source Cel")
+      before_cels[number] = {
+        image = cel.image.bytes,
+        x = cel.bounds.x,
+        y = cel.bounds.y,
+        width = cel.bounds.width,
+        height = cel.bounds.height,
+        opacity = cel.opacity,
+      }
+    end
+    app.activeSprite = sprite
+    app.activeLayer = layer
+    app.activeFrame = sprite.frames[1]
+    assert(app.command.LayerFromBackground(), "native Transparent conversion failed")
+    assert(is_regular_image(layer), "native conversion did not create Transparent Image Layer")
+    assert(background_layer(sprite) == nil, "native conversion retained Background Layer")
+    for number, before_cel in ipairs(before_cels) do
+      local cel = assert(layer:cel(number), "native conversion removed a Cel")
+      local bounds = cel.bounds
+      assert(
+        cel.image.bytes == before_cel.image
+          and bounds.x == before_cel.x
+          and bounds.y == before_cel.y
+          and bounds.width == before_cel.width
+          and bounds.height == before_cel.height
+          and cel.opacity == before_cel.opacity,
+        "native conversion changed Background Cel content"
+      )
+    end
+  else
+    error("unsupported Layer operation")
   end
 end
 
-function module.execute(payload, inspection, selection, digest, persistence)
+function module.execute(payload, inspection, selection, digest, persistence, frame)
   local open_sprite = nil
-  local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
+  local previous = {
+    sprite = app.activeSprite,
+    layer = app.activeLayer,
+    frame = app.activeFrame,
+    background_color = app.bgColor,
+  }
   local ok, result = pcall(function()
     open_sprite = assert(app.open(payload.source_sprite_file), "could not open Source Sprite File")
     local verified_uuids = inspection.saved_layer_uuids(open_sprite, payload.source_sprite_file)
     local selected, code, message = selection.resolve(open_sprite, payload.target, verified_uuids)
     if selected == nil then return rejection(code, message) end
-    local invalid, lower = prevalidate(open_sprite, selected, payload, inspection)
+    local invalid, lower = prevalidate(open_sprite, selected, payload, inspection, frame)
     if invalid ~= nil then return invalid end
     local before = inspection.inspect(open_sprite, result_sections, verified_uuids)
     local before_ordered, before_by_id = records(open_sprite, digest)
@@ -444,8 +566,18 @@ function module.execute(payload, inspection, selection, digest, persistence)
       source_uuids[record.id] = verified_uuids[table.concat(record.path, "/")]
     end
     local before_rendered = render_digests(open_sprite, digest)
-    apply(open_sprite, payload, selected.layer, lower, inspection)
+    apply(open_sprite, payload, selected.layer, lower, inspection, frame)
     local after_ordered, after_by_id = records(open_sprite, digest)
+    local conversion_paths = nil
+    if
+      payload.operation == "convert-to-background"
+      or payload.operation == "convert-from-background"
+    then
+      conversion_paths = {
+        before = before_by_id[selected.layer.id].path,
+        after = assert(after_by_id[selected.layer.id], "converted Layer identity changed").path,
+      }
+    end
     local unsaved_uuids = {}
     for _, record in ipairs(after_ordered) do
       local uuid = source_uuids[record.id]
@@ -490,9 +622,11 @@ function module.execute(payload, inspection, selection, digest, persistence)
       affected_after = after_affected,
       rendered_frames = rendered_frames,
       persisted_reopen_verified = true,
+      conversion_paths = conversion_paths,
     }
   end)
   if open_sprite ~= nil then pcall(function() open_sprite:close() end) end
+  pcall(function() app.bgColor = previous.background_color end)
   if previous.sprite ~= nil and previous.sprite.isValid then
     pcall(function() app.activeSprite = previous.sprite end)
     pcall(function() app.activeLayer = previous.layer end)
