@@ -251,3 +251,98 @@ def test_zero_saved_uuid_is_not_exposed_as_persistent_identity(tmp_path: Path) -
     )
     assert code == 2
     assert missing["code"] == "layer_missing"
+    plan = spa(
+        "plan",
+        "run",
+        "--input-json",
+        json.dumps(
+            {
+                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+                "plan": {
+                    "source_sprite_file": str(source),
+                    "steps": [
+                        {
+                            "operation": "sprite get",
+                            "input": {"inspection_scope": ["layers"]},
+                        }
+                    ],
+                },
+            }
+        ),
+    )
+    assert plan.returncode == 0, plan.stdout + plan.stderr
+    plan_result = json.loads(plan.stdout)
+    assert (
+        plan_result["steps"][0]["result"]["sprite"]["layers"][1]["layer_uuid"] is None
+    )
+    assert plan_result["final_sprite"]["layers"][1]["layer_uuid"] is None
+
+
+@pytest.mark.parametrize("persist_plan", [False, True])
+def test_plan_sprite_get_preserves_verified_layer_uuids(
+    tmp_path: Path, persist_plan: bool
+) -> None:
+    source = tmp_path / "source.aseprite"
+    _fixture(source, uuid_persistence=True)
+    direct = spa(
+        "sprite",
+        "get",
+        "--input-json",
+        json.dumps(
+            {
+                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+                "sprite_file": str(source),
+                "inspection_scope": ["layers"],
+            }
+        ),
+    )
+    assert direct.returncode == 0, direct.stdout + direct.stderr
+    expected_layers = json.loads(direct.stdout)["layers"]
+    assert expected_layers[2]["children"][0]["layer_uuid"] is not None
+
+    plan: dict[str, object] = {
+        "source_sprite_file": str(source),
+        "steps": [
+            {"operation": "sprite get", "input": {"inspection_scope": ["layers"]}}
+        ],
+    }
+    if persist_plan:
+        plan["target_sprite_file"] = str(tmp_path / "target.aseprite")
+        plan["steps"] = [
+            *plan["steps"],
+            {
+                "operation": "paint apply",
+                "input": {
+                    "target": {"layer_path": [1], "frame_number": 1},
+                    "patch": {
+                        "coordinate_space": "image-pixel",
+                        "rectangle": {"x": 0, "y": 0, "width": 1, "height": 1},
+                        "runs": [
+                            {
+                                "x": 0,
+                                "y": 0,
+                                "length": 1,
+                                "color": {
+                                    "kind": "rgba",
+                                    "red": 255,
+                                    "green": 0,
+                                    "blue": 0,
+                                    "alpha": 255,
+                                },
+                            }
+                        ],
+                    },
+                },
+            },
+        ]
+    run = spa(
+        "plan",
+        "run",
+        "--input-json",
+        json.dumps({"aseprite": os.environ["SPA_TEST_ASEPRITE"], "plan": plan}),
+    )
+    assert run.returncode == 0, run.stdout + run.stderr
+    result = json.loads(run.stdout)
+    assert result["steps"][0]["result"]["sprite"]["layers"] == expected_layers
+    assert result["final_sprite"]["layers"] == expected_layers
+    assert result["persisted_reopen_verified"] is persist_plan

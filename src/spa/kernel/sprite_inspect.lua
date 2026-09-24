@@ -94,6 +94,25 @@ function module.persisted_layer_uuids(sprite, other)
   return verified
 end
 
+function module.saved_layer_uuids(sprite, path)
+  if not sprite.useLayerUuids then return {} end
+  local previous = {
+    sprite = app.activeSprite,
+    layer = app.activeLayer,
+    frame = app.activeFrame,
+  }
+  local other = assert(app.open(path), "could not reopen Sprite for UUID verification")
+  local ok, verified = pcall(module.persisted_layer_uuids, sprite, other)
+  other:close()
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
+  if not ok then error(verified) end
+  return verified
+end
+
 local function inspect_layers(layers, parent_path, paths, counts, verified_uuids)
   local result = {}
   for index = 1, #layers do
