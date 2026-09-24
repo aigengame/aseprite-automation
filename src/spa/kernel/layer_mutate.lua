@@ -5,6 +5,7 @@ local selection = dofile(app.params.layer_select)
 local mutation = dofile(app.params.layer_mutation)
 local digest = dofile(app.params.digest)
 local persistence = dofile(app.params.persistence)
+local frame = dofile(app.params.frame)
 
 local function execute()
   local request_file = assert(io.open(app.params.request, "rb"))
@@ -14,7 +15,7 @@ local function execute()
     request.kernel_protocol_version == kernel_protocol_version,
     "unsupported Kernel Protocol version"
   )
-  return mutation.execute(assert(request.payload), inspection, selection, digest, persistence)
+  return mutation.execute(assert(request.payload), inspection, selection, digest, persistence, frame)
 end
 
 local ok, result = pcall(execute)

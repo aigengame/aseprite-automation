@@ -14,6 +14,8 @@ def test_layer_mutations_require_hierarchy_capability() -> None:
             "layer move",
             "layer remove",
             "layer merge",
+            "layer convert-to-background",
+            "layer convert-from-background",
         }:
             continue
         assert "aseprite_layer_hierarchy" in (
@@ -28,6 +30,8 @@ def test_invalid_position_applies_only_to_move() -> None:
             "layer move",
             "layer remove",
             "layer merge",
+            "layer convert-to-background",
+            "layer convert-from-background",
         }:
             continue
         assert ("layer_invalid_position" in descriptor.failure_codes) is (

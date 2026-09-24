@@ -39,6 +39,8 @@ local function effective_palette(sprite, frame_number)
   return assert(selected, "Indexed Background has no Effective Palette")
 end
 
+module.effective_palette = effective_palette
+
 local function validate_indexed_background(sprite, frame_number, index)
   local palette = effective_palette(sprite, frame_number)
   assert(index < #palette, "Background Palette Index does not exist")
@@ -64,6 +66,8 @@ local function background_pixel(sprite, value, insert_number)
   end
   error("unsupported Background Color Mode")
 end
+
+module.background_pixel = background_pixel
 
 local function background_fill_fact(value)
   if value == nil or value == json_null then return json_null end
