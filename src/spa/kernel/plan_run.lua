@@ -149,7 +149,9 @@ local function execute()
     failed_operation = step.operation
     local result = execute_step(step)
     if result.rejection ~= nil then
-      if result.rejection.code ~= "cel_not_found" and result.rejection.code ~= "cel_already_exists" then
+      if
+        result.rejection.code ~= "cel_not_found" and result.rejection.code ~= "cel_already_exists"
+      then
         error(result.rejection.message)
       end
       open_sprite:close()

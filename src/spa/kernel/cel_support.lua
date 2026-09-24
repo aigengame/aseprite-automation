@@ -2,13 +2,13 @@
 local module = {}
 local json_null = json.decode("null")
 
-local function rejection(code, message)
-  return { rejection = { code = code, message = message } }
-end
+local function rejection(code, message) return { rejection = { code = code, message = message } } end
 
 local function path_copy(path)
   local result = {}
-  for index, value in ipairs(path) do result[index] = value end
+  for index, value in ipairs(path) do
+    result[index] = value
+  end
   return result
 end
 
@@ -23,8 +23,12 @@ local function layer_path(sprite, layer)
 end
 
 local function is_regular_transparent(layer)
-  return layer.isImage and layer.isTransparent and not layer.isGroup
-    and not layer.isReference and not layer.isTilemap and not layer.isBackground
+  return layer.isImage
+    and layer.isTransparent
+    and not layer.isGroup
+    and not layer.isReference
+    and not layer.isTilemap
+    and not layer.isBackground
 end
 
 function module.inspect(sprite, layer, path, frame_number)
@@ -67,7 +71,9 @@ function module.resolve(sprite, address, selection, verified_uuids)
   if selected == nil then return nil, nil, rejection(code, message) end
   local number = address.frame_number
   if type(number) ~= "number" or number % 1 ~= 0 or number < 1 or number > #sprite.frames then
-    return nil, nil, rejection("cel_frame_out_of_bounds", "Frame Number is outside the Sprite timeline")
+    return nil,
+      nil,
+      rejection("cel_frame_out_of_bounds", "Frame Number is outside the Sprite timeline")
   end
   return selected.layer, selected.path, nil
 end
@@ -97,21 +103,33 @@ function module.prevalidate(sprite, layer, frame_number, operation, background_c
     if cel == nil then return rejection("cel_not_found", "Cel does not exist") end
   elseif operation == "clear" then
     if not is_regular_transparent(layer) and not layer.isBackground then
-      return rejection("cel_unsupported_target", "Cel clear requires a regular Transparent or Background Layer")
+      return rejection(
+        "cel_unsupported_target",
+        "Cel clear requires a regular Transparent or Background Layer"
+      )
     end
     if cel == nil or cel.image == nil then
       return rejection("cel_not_found", "Cel or Image does not exist")
     end
     if layer.isBackground then
       if background_color == nil then
-        return rejection("cel_background_color_required", "Background Cel clear requires background_color")
+        return rejection(
+          "cel_background_color_required",
+          "Background Cel clear requires background_color"
+        )
       end
       local valid = pcall(frame.background_color_for_frame, sprite, background_color, frame_number)
       if not valid then
-        return rejection("cel_background_color_incompatible", "Background Color is incompatible with Sprite Color Mode or Frame Palette")
+        return rejection(
+          "cel_background_color_incompatible",
+          "Background Color is incompatible with Sprite Color Mode or Frame Palette"
+        )
       end
     elseif background_color ~= nil then
-      return rejection("cel_unsupported_target", "Transparent Cel clear does not accept background_color")
+      return rejection(
+        "cel_unsupported_target",
+        "Transparent Cel clear does not accept background_color"
+      )
     end
   else
     error("unsupported Cel operation")
