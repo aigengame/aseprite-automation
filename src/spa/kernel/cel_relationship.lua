@@ -121,7 +121,8 @@ local function execute()
   elseif operation == "unlink" and #cel.affected(open_sprite, source_cel.image) < 2 then
     return reject("cel_unsupported_target", "Cel is not linked", "target")
   end
-  local before, refused = affected_before(open_sprite, layer, path, number)
+  local before
+  before, refused = affected_before(open_sprite, layer, path, number)
   if refused then
     refused.rejection.role = role
     return refused
