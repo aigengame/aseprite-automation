@@ -69,7 +69,7 @@ better Aseprite-aligned evidence.
 | Candidate command | Intended meaning |
 | --- | --- |
 | `spa frame list` | List Frames and persisted `duration_ms`. |
-| `spa frame get` | Inspect one Frame and its animation facts. |
+| `spa frame get` | Inspect one Frame Number and persisted duration. |
 | `spa frame add` | Add an explicitly timed empty Frame. |
 | `spa frame duplicate` | Duplicate one Frame with explicit copied-or-linked Cel behavior. |
 | `spa frame set` | Set supported Frame properties. |

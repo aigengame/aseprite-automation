@@ -12,6 +12,16 @@ from spa.contracts import (
     RuntimeRequirements,
     ValidationIssue,
 )
+from spa.frame import (
+    FRAME_OPERATIONS,
+    FRAME_SUPPORT_RESOURCE,
+    FrameAddInput,
+    FrameDuplicateInput,
+    FrameMutationEvidence,
+    validate_frame_evidence,
+    validate_frame_get_result,
+    validate_frame_sequence,
+)
 from spa.mutation import (
     TargetCommit,
     source_target_identity_issue,
@@ -43,6 +53,8 @@ from spa.sprite import (
     SPRITE_INSPECTION_FIXTURE,
     SPRITE_INSPECTION_RESOURCE,
     SPRITE_OPERATIONS,
+    SPRITE_PERSISTENCE_RESOURCE,
+    FrameFacts,
     InitialLayer,
     InspectionScope,
     SpriteCreateInput,
@@ -57,15 +69,17 @@ from spa.sprite import (
 MAX_PLAN_STEPS = 64
 ELIGIBLE_OPERATIONS = {
     descriptor.name: descriptor
-    for descriptor in (*SPRITE_OPERATIONS, *PAINT_OPERATIONS)
+    for descriptor in (*SPRITE_OPERATIONS, *PAINT_OPERATIONS, *FRAME_OPERATIONS)
     if descriptor.plan_eligible
 }
 PLAN_RUN_HANDLER = PackagedHandler(
     "plan_run",
     (
         SPRITE_INSPECTION_RESOURCE,
+        SPRITE_PERSISTENCE_RESOURCE,
         SPRITE_CREATION_RESOURCE,
         PAINT_SUPPORT_RESOURCE,
+        FRAME_SUPPORT_RESOURCE,
         DIGEST_RESOURCE,
         SPRITE_INSPECTION_FIXTURE,
         PAINT_PROBE_FIXTURE,
@@ -88,7 +102,44 @@ class PaintStep(PublicModel):
     input: PaintApplyInput
 
 
-PlanStep = Annotated[CreateStep | GetStep | PaintStep, Field(discriminator="operation")]
+class FrameListInput(PublicModel):
+    pass
+
+
+class FrameListStep(PublicModel):
+    operation: Literal["frame list"]
+    input: FrameListInput = Field(default_factory=FrameListInput)
+
+
+class FrameGetInput(PublicModel):
+    frame_number: int = Field(ge=1, strict=True)
+
+
+class FrameGetStep(PublicModel):
+    operation: Literal["frame get"]
+    input: FrameGetInput
+
+
+class FrameAddStep(PublicModel):
+    operation: Literal["frame add"]
+    input: FrameAddInput
+
+
+class FrameDuplicateStep(PublicModel):
+    operation: Literal["frame duplicate"]
+    input: FrameDuplicateInput
+
+
+PlanStep = Annotated[
+    CreateStep
+    | GetStep
+    | PaintStep
+    | FrameListStep
+    | FrameGetStep
+    | FrameAddStep
+    | FrameDuplicateStep,
+    Field(discriminator="operation"),
+]
 
 
 class PlanPostconditions(PublicModel):
@@ -123,7 +174,11 @@ class PlanDefinition(PublicModel):
                 "width": first.input.width,
                 "height": first.input.height,
                 "color_mode": first.input.color_mode,
-                "frame_count": 1,
+                "frame_count": 1
+                + sum(
+                    isinstance(step, (FrameAddStep, FrameDuplicateStep))
+                    for step in self.steps
+                ),
             }
             for field, expected in self.postconditions.model_dump(
                 exclude_none=True
@@ -132,7 +187,10 @@ class PlanDefinition(PublicModel):
                     raise ValueError(
                         f"Plan {field} Postcondition contradicts Sprite creation"
                     )
-        mutates = creates or any(step.operation == "paint apply" for step in self.steps)
+        mutates = creates or any(
+            isinstance(step, (PaintStep, FrameAddStep, FrameDuplicateStep))
+            for step in self.steps
+        )
         if (creates and self.source_sprite_file is not None) or (
             not creates and self.source_sprite_file is None
         ):
@@ -192,6 +250,19 @@ class PaintStepResult(PaintApplyEvidence):
     persisted_reopen_verified: Literal[False]
 
 
+class FrameListStepResult(PublicModel):
+    frames: list[FrameFacts]
+
+
+class FrameGetStepResult(PublicModel):
+    frame: FrameFacts
+
+
+class FrameMutationStepResult(FrameMutationEvidence):
+    persisted_reopen_verified: Literal[False]
+    sprite: None = None
+
+
 class CreateStepOutcome(PublicModel):
     operation: Literal["sprite create"]
     result: CreateStepResult
@@ -207,8 +278,34 @@ class PaintStepOutcome(PublicModel):
     result: PaintStepResult
 
 
+class FrameListStepOutcome(PublicModel):
+    operation: Literal["frame list"]
+    result: FrameListStepResult
+
+
+class FrameGetStepOutcome(PublicModel):
+    operation: Literal["frame get"]
+    result: FrameGetStepResult
+
+
+class FrameAddStepOutcome(PublicModel):
+    operation: Literal["frame add"]
+    result: FrameMutationStepResult
+
+
+class FrameDuplicateStepOutcome(PublicModel):
+    operation: Literal["frame duplicate"]
+    result: FrameMutationStepResult
+
+
 StepOutcome = Annotated[
-    CreateStepOutcome | GetStepOutcome | PaintStepOutcome,
+    CreateStepOutcome
+    | GetStepOutcome
+    | PaintStepOutcome
+    | FrameListStepOutcome
+    | FrameGetStepOutcome
+    | FrameAddStepOutcome
+    | FrameDuplicateStepOutcome,
     Field(discriminator="operation"),
 ]
 
@@ -399,10 +496,39 @@ def _validated_steps(
                     operation="sprite get",
                     result=GetStepResult(sprite=sprite, scope=scope),
                 )
-            else:
+            elif isinstance(step, PaintStep):
                 outcome = PaintStepOutcome.model_validate(item)
                 validate_paint_evidence(step.input, outcome.result, invocation)
-        except (KeyError, TypeError, ValidationError) as exc:
+            elif isinstance(step, FrameListStep):
+                result = item["result"]
+                count = result["frame_count"]
+                if type(count) is not int or count < 1:
+                    raise ValueError("Frame List has invalid Frame count")
+                frames = [
+                    FrameFacts.model_validate(value) for value in result["frames"]
+                ]
+                validate_frame_sequence(frames, count, invocation)
+                outcome = FrameListStepOutcome(
+                    operation="frame list", result=FrameListStepResult(frames=frames)
+                )
+            elif isinstance(step, FrameGetStep):
+                frame = validate_frame_get_result(
+                    item["result"],
+                    step.input.frame_number,
+                    invocation,
+                    ["plan", "steps", index - 1, "input", "frame_number"],
+                )
+                outcome = FrameGetStepOutcome(
+                    operation="frame get", result=FrameGetStepResult(frame=frame)
+                )
+            elif isinstance(step, FrameAddStep):
+                outcome = FrameAddStepOutcome.model_validate(item)
+                validate_frame_evidence(step.input, outcome.result, invocation)
+            else:
+                assert isinstance(step, FrameDuplicateStep)
+                outcome = FrameDuplicateStepOutcome.model_validate(item)
+                validate_frame_evidence(step.input, outcome.result, invocation)
+        except (KeyError, TypeError, ValueError, ValidationError) as exc:
             raise _malformed(
                 invocation,
                 "Plan Kernel returned invalid Step evidence",
@@ -443,6 +569,49 @@ def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunRes
         invocation = services.invoke_kernel_direct(
             request, PLAN_RUN_HANDLER, payload, request.timeout_seconds
         )
+        rejection = invocation.payload.get("frame_get_rejection")
+        if rejection is not None:
+            index = (
+                rejection.get("step_number") if isinstance(rejection, dict) else None
+            )
+            if (
+                type(index) is not int
+                or index < 1
+                or index > len(plan.steps)
+                or not isinstance(plan.steps[index - 1], FrameGetStep)
+            ):
+                raise _malformed(
+                    invocation, "Plan Kernel returned invalid Frame rejection"
+                )
+            step = plan.steps[index - 1]
+            assert isinstance(step, FrameGetStep)
+            try:
+                validate_frame_get_result(
+                    rejection["result"],
+                    step.input.frame_number,
+                    invocation,
+                    ["plan", "steps", index - 1, "input", "frame_number"],
+                )
+            except (KeyError, TypeError, ValueError) as exc:
+                raise _malformed(
+                    invocation,
+                    "Plan Kernel returned invalid Frame rejection",
+                    failed_step=index,
+                    failed_operation="frame get",
+                ) from exc
+            except RuntimeIssue as exc:
+                raise _postcondition(
+                    invocation,
+                    str(exc),
+                    failed_step=index,
+                    failed_operation="frame get",
+                ) from exc
+            raise _malformed(
+                invocation,
+                "Plan Kernel rejected an existing Frame",
+                failed_step=index,
+                failed_operation="frame get",
+            )
         try:
             final_sprite = SpriteInspection.model_validate(
                 invocation.payload["final_sprite"]
@@ -479,7 +648,10 @@ def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunRes
             )
             try:
                 validate_created_sprite(
-                    create_request, final_sprite, first.result.initial_layer, invocation
+                    create_request,
+                    first.result.sprite,
+                    first.result.initial_layer,
+                    invocation,
                 )
             except RuntimeIssue as exc:
                 raise _postcondition(

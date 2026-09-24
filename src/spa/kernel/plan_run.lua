@@ -3,7 +3,9 @@ local kernel_protocol_version = 1
 local inspection = dofile(app.params.inspection)
 local creation = dofile(app.params.creation)
 local paint = dofile(app.params.paint)
+local frame = dofile(app.params.frame)
 local digest = dofile(app.params.digest)
+local persistence = dofile(app.params.persistence)
 local capability_probe = dofile(app.params.capability_probe)
 local all_sections = {
   "frames",
@@ -63,53 +65,6 @@ local function verify_runtime(requirements)
   end
 end
 
-local function difference(left, right, at)
-  if at:match("%.layer_uuid$") and type(left) ~= "string" and type(right) == "string" then
-    -- Saving may assign a UUID to a Layer whose source had none on disk.
-    return nil
-  end
-  if type(left) ~= type(right) then
-    if tonumber(left) ~= nil and tonumber(left) == tonumber(right) then return nil end
-    return at .. " (" .. type(left) .. " / " .. type(right) .. ")"
-  end
-  if type(left) ~= "table" then
-    if left == right then return nil end
-    return at
-      .. " ("
-      .. type(left)
-      .. ":"
-      .. tostring(left)
-      .. " / "
-      .. type(right)
-      .. ":"
-      .. tostring(right)
-      .. ")"
-  end
-  for key, value in pairs(left) do
-    local found = difference(value, right[key], at .. "." .. tostring(key))
-    if found ~= nil then return found end
-  end
-  for key, _ in pairs(right) do
-    if left[key] == nil then return at .. "." .. tostring(key) end
-  end
-  return nil
-end
-
-local function document_facts(sprite)
-  local images = {}
-  for _, cel in ipairs(sprite.cels) do
-    local image = cel.image
-    images[#images + 1] = {
-      width = image.width,
-      height = image.height,
-      bytes_per_pixel = image.bytesPerPixel,
-      row_stride = image.rowStride,
-      content = digest.fnv1a64(image.bytes),
-    }
-  end
-  return { sprite = inspection.inspect(sprite, all_sections, verified_uuids), images = images }
-end
-
 local function verify_postconditions(sprite, conditions)
   if conditions.width ~= nil then
     assert(sprite.width == conditions.width, "Plan width Postcondition failed")
@@ -148,6 +103,19 @@ local function execute_step(step)
     local evidence = paint.apply_live(open_sprite, input, digest)
     return evidence
   end
+  if step.operation == "frame list" then
+    local facts = inspection.inspect(open_sprite, { "frames" })
+    return { frames = facts.frames, frame_count = facts.metadata.frame_count }
+  end
+  if step.operation == "frame get" then
+    return frame.get_live(open_sprite, input.frame_number, inspection)
+  end
+  if step.operation == "frame add" or step.operation == "frame duplicate" then
+    local evidence =
+      frame.apply_live(open_sprite, step.operation == "frame add" and "add" or "duplicate", input)
+    evidence._expected_pixel = nil
+    return evidence
+  end
   error("Operation is not Plan-eligible")
 end
 
@@ -172,6 +140,11 @@ local function execute()
     failed_step = index
     failed_operation = step.operation
     local result = execute_step(step)
+    if step.operation == "frame get" and not result.found then
+      open_sprite:close()
+      open_sprite = nil
+      return { frame_get_rejection = { step_number = index, result = result } }
+    end
     outcomes[#outcomes + 1] = { operation = step.operation, result = result }
     failed_step = nil
     failed_operation = nil
@@ -179,7 +152,7 @@ local function execute()
   assert(open_sprite ~= nil, "Plan has no Sprite")
   local conditions = assert(payload.postconditions)
   verify_postconditions(open_sprite, conditions)
-  local before = document_facts(open_sprite)
+  local before = persistence.snapshot(open_sprite, inspection, digest, all_sections, verified_uuids)
   local persisted = false
   if type(payload.staged_sprite_file) == "string" then
     assert(open_sprite:saveAs(payload.staged_sprite_file), "could not save staged Sprite")
@@ -187,22 +160,9 @@ local function execute()
     open_sprite = nil
     open_sprite = assert(app.open(payload.staged_sprite_file), "could not reopen staged Sprite")
     verified_uuids = inspection.saved_layer_uuids(open_sprite, payload.staged_sprite_file)
-    local after = document_facts(open_sprite)
-    local persisted_palettes = after.sprite.palettes
-    if before.sprite.metadata.color_mode ~= "indexed" then
-      -- RGB/Grayscale palette entries are not image semantics; Aseprite may
-      -- normalize their alpha when it serializes the document.
-      before.sprite.palettes = nil
-      after.sprite.palettes = nil
-    end
-    local inspection_mismatch = difference(before.sprite, after.sprite, "sprite")
-    assert(
-      inspection_mismatch == nil,
-      "persisted Plan inspection differs at " .. tostring(inspection_mismatch)
-    )
-    local image_mismatch = difference(before.images, after.images, "images")
-    assert(image_mismatch == nil, "persisted Plan images differ at " .. tostring(image_mismatch))
-    after.sprite.palettes = persisted_palettes
+    local after =
+      persistence.snapshot(open_sprite, inspection, digest, all_sections, verified_uuids)
+    persistence.assert_same(before, after, "Plan")
     verify_postconditions(open_sprite, conditions)
     persisted = true
     before = after
