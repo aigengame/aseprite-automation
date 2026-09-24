@@ -1,9 +1,24 @@
 """Published contracts owned by the Sprite Domain Module."""
 
+import json
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
-from spa.sprite import SliceFacts, SpriteCreateRequest, SpriteGetRequest, TagFacts
+from spa.application import dispatch
+from spa.contracts import FailureEnvelope
+from spa.failure_registry import FAILURE_CODES
+from spa.ports import RuntimeObservation
+from spa.sprite import (
+    SPRITE_OPERATIONS,
+    SliceFacts,
+    SpriteCreateRequest,
+    SpriteExpectedFacts,
+    SpriteGetRequest,
+    TagFacts,
+)
+from tests.support import operation_services
 
 
 def test_create_requires_explicit_target_dimensions_mode_and_layer_choice() -> None:
@@ -65,6 +80,11 @@ def test_sprite_files_have_the_native_extension() -> None:
         )
 
 
+def test_validation_requires_at_least_one_expected_sprite_fact() -> None:
+    with pytest.raises(ValidationError):
+        SpriteExpectedFacts.model_validate({})
+
+
 @pytest.mark.parametrize(
     "direction", ["forward", "reverse", "ping_pong", "ping_pong_reverse"]
 )
@@ -108,3 +128,47 @@ def test_slice_facts_require_persisted_user_data() -> None:
         SliceFacts.model_validate({"name": "panel", "keys": []})
 
     assert missing.value.errors()[0]["loc"] == ("data",)
+
+
+def test_flatten_requires_inspection_capability_before_execution(
+    tmp_path: Path,
+) -> None:
+    observation = RuntimeObservation(
+        selection_source="explicit",
+        requested_path="/aseprite",
+        discovered_path="/aseprite",
+        canonical_path="/aseprite",
+        resource_path="/resources",
+        aseprite_version="test",
+        api_version=41,
+        lua_version="Lua 5.4",
+        verified_prerequisites=(
+            "aseprite_scripting",
+            "lua_file_io",
+            "aseprite_json",
+        ),
+        verified_capabilities=("aseprite_sprite_flatten",),
+    )
+    descriptor = next(
+        operation
+        for operation in SPRITE_OPERATIONS
+        if operation.name == "sprite flatten"
+    )
+    outcome = dispatch(
+        descriptor,
+        json.dumps(
+            {
+                "aseprite": "/aseprite",
+                "source_sprite_file": str(tmp_path / "source.aseprite"),
+                "target_sprite_file": str(tmp_path / "target.aseprite"),
+                "in_place": False,
+                "overwrite": False,
+            }
+        ),
+        {},
+        operation_services(lambda _request: observation),
+        FAILURE_CODES,
+    )
+    assert isinstance(outcome, FailureEnvelope)
+    assert outcome.code == "runtime_incompatible"
+    assert outcome.details.missing_capabilities == ["aseprite_sprite_inspection"]

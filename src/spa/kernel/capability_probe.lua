@@ -304,6 +304,21 @@ local function observes_frame_authoring()
   return ok
 end
 
+local function observes_sprite_flatten()
+  local sprite = nil
+  local ok = pcall(function()
+    sprite = Sprite(2, 2, ColorMode.RGB)
+    sprite:newLayer()
+    assert(#sprite.layers == 2)
+    sprite:flatten()
+    assert(#sprite.layers == 1)
+    sprite:close()
+    sprite = nil
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  return ok
+end
+
 function module.observe()
   local capabilities = { "aseprite_runtime_introspection" }
   local supports_inspection = observes_sprite_inspection()
@@ -311,6 +326,7 @@ function module.observe()
     capabilities[#capabilities + 1] = "aseprite_sprite_create"
   end
   if supports_inspection then capabilities[#capabilities + 1] = "aseprite_sprite_inspection" end
+  if observes_sprite_flatten() then capabilities[#capabilities + 1] = "aseprite_sprite_flatten" end
   if observes_layer_hierarchy() then
     capabilities[#capabilities + 1] = "aseprite_layer_hierarchy"
   end

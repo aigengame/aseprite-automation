@@ -48,6 +48,7 @@ from spa.ports import (
     RuntimeIssue,
     TargetCommitEvidence,
 )
+from spa.sprite import SpriteCopyStagingDetails, SpriteUnsupportedContentDetails
 from tests.support import operation_services
 
 registered_failure_envelope = partial(failure_envelope, failure_codes=FAILURE_CODES)
@@ -85,6 +86,8 @@ def test_all_installed_failure_codes_are_registered_once() -> None:
         "target_commit_failed",
         "artifact_file_failed",
         "artifact_verification_failed",
+        "sprite_copy_staging_failed",
+        "sprite_flatten_unsupported_content",
     } <= set(FAILURE_CODES)
     assert all(
         spec.meaning and spec.code == code for code, spec in FAILURE_CODES.items()
@@ -173,6 +176,9 @@ def test_each_registered_code_has_a_constrained_public_schema() -> None:
         TargetCommitDetails: TargetCommitDetails(
             target_sprite_file="sprite.aseprite", reason="target_not_file"
         ),
+        SpriteCopyStagingDetails: SpriteCopyStagingDetails(
+            source_sprite_file="source.aseprite", target_sprite_file="copy.aseprite"
+        ),
         ArtifactFileDetails: ArtifactFileDetails(
             path="image.png", reason="destination_exists"
         ),
@@ -181,6 +187,11 @@ def test_each_registered_code_has_a_constrained_public_schema() -> None:
         ),
         LayerTargetDetails: LayerTargetDetails(
             address_role="target", address=LayerAddress(layer_path=[1])
+        ),
+        SpriteUnsupportedContentDetails: SpriteUnsupportedContentDetails(
+            source_sprite_file="sprite.aseprite",
+            tileset_count=1,
+            tilemap_layer_count=0,
         ),
     }
     for code, spec in FAILURE_CODES.items():

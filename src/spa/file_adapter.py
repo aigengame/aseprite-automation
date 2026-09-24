@@ -2,6 +2,7 @@
 
 import hashlib
 import os
+import shutil
 import uuid
 from pathlib import Path
 
@@ -73,6 +74,9 @@ class LocalTargetFiles:
     def staged_path(self, target: Path) -> Path:
         token = uuid.uuid4().hex
         return target.with_name(f".{target.stem}.{token}.staged.aseprite")
+
+    def stage_copy(self, source: Path, staged: Path) -> None:
+        shutil.copyfile(source, staged)
 
     def commit(
         self, staged: Path, target: Path, *, overwrite: bool

@@ -41,6 +41,7 @@ RuntimeCapability = Literal[
     "aseprite_runtime_introspection",
     "aseprite_sprite_create",
     "aseprite_sprite_inspection",
+    "aseprite_sprite_flatten",
     "aseprite_layer_hierarchy",
     "aseprite_layer_mutation",
     "aseprite_layer_merge",
