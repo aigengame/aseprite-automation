@@ -8,7 +8,10 @@ local function execute()
   local request_file = assert(io.open(app.params.request, "rb"))
   local request = json.decode(request_file:read("*a"))
   request_file:close()
-  assert(request.kernel_protocol_version == kernel_protocol_version, "unsupported Kernel Protocol version")
+  assert(
+    request.kernel_protocol_version == kernel_protocol_version,
+    "unsupported Kernel Protocol version"
+  )
   local payload = assert(request.payload)
   open_sprite = assert(app.open(payload.source_sprite_file), "could not open Source Sprite")
   local parent = nil
@@ -23,10 +26,12 @@ local function execute()
     if not parent.isGroup then
       open_sprite:close()
       open_sprite = nil
-      return { rejection = {
-        code = "layer_parent_not_group",
-        message = "New Layers require a Group parent",
-      } }
+      return {
+        rejection = {
+          code = "layer_parent_not_group",
+          message = "New Layers require a Group parent",
+        },
+      }
     end
   end
   local before_layer_count = inspection.inspect(open_sprite, { "layers" }).metadata.layer_count

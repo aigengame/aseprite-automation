@@ -8,7 +8,10 @@ local function execute()
   local request_file = assert(io.open(app.params.request, "rb"))
   local request = json.decode(request_file:read("*a"))
   request_file:close()
-  assert(request.kernel_protocol_version == kernel_protocol_version, "unsupported Kernel Protocol version")
+  assert(
+    request.kernel_protocol_version == kernel_protocol_version,
+    "unsupported Kernel Protocol version"
+  )
   local payload = assert(request.payload)
   open_sprite = assert(app.open(payload.sprite_file), "could not open Sprite file")
   local selected, code, message = selection.resolve(open_sprite, payload.target)
