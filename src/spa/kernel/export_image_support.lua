@@ -127,31 +127,35 @@ function module.execute(payload)
   assert(payload.color_profile == "preserve", "unsupported Color Profile behavior")
   assert(payload.transparency == "preserve", "unsupported transparency behavior")
 
-  return module.with_source(payload.source_sprite_file, { payload.frame_number }, function(source, profile)
-    local rendered = module.render_frame(source, payload.frame_number)
-    local bytes = rendered.bytes
-    local alpha_min, alpha_max = 255, 0
-    for offset = 4, #bytes, 4 do
-      local alpha = string.byte(bytes, offset)
-      if alpha < alpha_min then alpha_min = alpha end
-      if alpha > alpha_max then alpha_max = alpha end
+  return module.with_source(
+    payload.source_sprite_file,
+    { payload.frame_number },
+    function(source, profile)
+      local rendered = module.render_frame(source, payload.frame_number)
+      local bytes = rendered.bytes
+      local alpha_min, alpha_max = 255, 0
+      for offset = 4, #bytes, 4 do
+        local alpha = string.byte(bytes, offset)
+        if alpha < alpha_min then alpha_min = alpha end
+        if alpha > alpha_max then alpha_max = alpha end
+      end
+      local facts = {
+        frame_number = payload.frame_number,
+        width = source.width,
+        height = source.height,
+        color_mode = "rgb",
+        color_profile = profile,
+        alpha_min = alpha_min,
+        alpha_max = alpha_max,
+        rendered_byte_size = #bytes,
+      }
+      local rendered_file = assert(io.open(payload.staged_rgba_file, "wb"))
+      assert(rendered_file:write(bytes))
+      assert(rendered_file:close())
+      assert(rendered:saveAs(payload.staged_png_file), "native PNG encoding failed")
+      return facts
     end
-    local facts = {
-      frame_number = payload.frame_number,
-      width = source.width,
-      height = source.height,
-      color_mode = "rgb",
-      color_profile = profile,
-      alpha_min = alpha_min,
-      alpha_max = alpha_max,
-      rendered_byte_size = #bytes,
-    }
-    local rendered_file = assert(io.open(payload.staged_rgba_file, "wb"))
-    assert(rendered_file:write(bytes))
-    assert(rendered_file:close())
-    assert(rendered:saveAs(payload.staged_png_file), "native PNG encoding failed")
-    return facts
-  end)
+  )
 end
 
 return module

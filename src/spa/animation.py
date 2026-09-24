@@ -150,6 +150,7 @@ class AnimationCompareResult(PublicModel):
     status: Literal["success"] = "success"
     operation: Literal["spa animation compare"] = "spa animation compare"
     sprite_file: str
+    complete: Literal[True]
     earlier_frame: int = Field(ge=1)
     later_frame: int = Field(ge=1)
     color_mode: Literal["rgb"]
@@ -316,14 +317,54 @@ def audit_animation(
             raise ValueError("reported Frame coverage differs from request")
         if len(result.required_cels) != len(request.required_cels):
             raise ValueError("required Cel coverage incomplete")
+        for requested, inspected in zip(
+            request.required_cels, result.required_cels, strict=True
+        ):
+            if inspected.frame_number != requested.frame_number or (
+                requested.layer.layer_path is not None
+                and inspected.layer_path != requested.layer.layer_path
+            ):
+                raise ValueError("required Cel coverage differs from declared target")
         if len(result.durations) != (
             request.to_frame - request.from_frame + 1 if request.duration_bounds else 0
         ):
             raise ValueError("duration coverage incomplete")
+        if any(
+            inspected.frame_number != number
+            for number, inspected in enumerate(result.durations, request.from_frame)
+        ):
+            raise ValueError("duration coverage differs from declared Frame Range")
         if len(result.overlaps) != len(request.non_overlap) * (
             request.to_frame - request.from_frame + 1
         ):
             raise ValueError("overlap coverage incomplete")
+        frame_count = request.to_frame - request.from_frame + 1
+        for index, pair in enumerate(request.non_overlap):
+            inspected_pair = result.overlaps[
+                index * frame_count : (index + 1) * frame_count
+            ]
+            first_path = inspected_pair[0].first_layer_path
+            second_path = inspected_pair[0].second_layer_path
+            if (
+                first_path == second_path
+                or (
+                    pair.first_layer.layer_path is not None
+                    and first_path != pair.first_layer.layer_path
+                )
+                or (
+                    pair.second_layer.layer_path is not None
+                    and second_path != pair.second_layer.layer_path
+                )
+                or any(
+                    item.frame_number != number
+                    or item.first_layer_path != first_path
+                    or item.second_layer_path != second_path
+                    for number, item in enumerate(inspected_pair, request.from_frame)
+                )
+            ):
+                raise ValueError(
+                    "overlap coverage differs from declared pair and Frame Range"
+                )
     except (ValueError, ValidationError) as exc:
         raise RuntimeIssue(
             "response_malformed",

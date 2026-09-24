@@ -6,7 +6,9 @@ local exporter = dofile(assert(app.params.export_image_support))
 
 local function resolve(sprite, address, uuids)
   local selected, code, message = selection.resolve(sprite, address, uuids)
-  if selected == nil then return nil, { rejection = { code = code, message = message, address = address } } end
+  if selected == nil then
+    return nil, { rejection = { code = code, message = message, address = address } }
+  end
   return selected, nil
 end
 
@@ -20,27 +22,42 @@ local function visible(layer, sprite)
 end
 
 local function regular_transparent(layer)
-  return layer.isImage and layer.isTransparent and not layer.isGroup
-    and not layer.isReference and not layer.isTilemap and not layer.isBackground
+  return layer.isImage
+    and layer.isTransparent
+    and not layer.isGroup
+    and not layer.isReference
+    and not layer.isTilemap
+    and not layer.isBackground
+end
+
+local function effective_alpha_bytes(sprite, layer, number)
+  local cel = layer:cel(number)
+  if cel == nil or not visible(layer, sprite) then return nil end
+  local isolated = Sprite(sprite.width, sprite.height, ColorMode.RGB)
+  local ok, bytes = pcall(function()
+    local leaf = isolated.layers[1]
+    leaf.opacity = layer.opacity
+    leaf.blendMode = layer.blendMode
+    local copied = isolated:newCel(leaf, 1, cel.image, Point(cel.position.x, cel.position.y))
+    copied.opacity = cel.opacity
+    local rendered = Image(isolated.spec)
+    rendered:drawSprite(isolated, 1, 0, 0)
+    assert(rendered.rowStride == sprite.width * 4, "unexpected native RGB Image layout")
+    return rendered.bytes
+  end)
+  isolated:close()
+  if not ok then error(bytes) end
+  return bytes
 end
 
 local function overlap_pixels(sprite, first, second, number)
-  if not visible(first, sprite) or not visible(second, sprite) then return 0 end
-  local left, right = first:cel(number), second:cel(number)
-  if left == nil or right == nil or left.opacity == 0 or right.opacity == 0 then return 0 end
-  local lx, ly = left.position.x, left.position.y
-  local rx, ry = right.position.x, right.position.y
-  local x0 = math.max(0, lx, rx)
-  local y0 = math.max(0, ly, ry)
-  local x1 = math.min(sprite.width, lx + left.image.width, rx + right.image.width)
-  local y1 = math.min(sprite.height, ly + left.image.height, ry + right.image.height)
+  local left = effective_alpha_bytes(sprite, first, number)
+  local right = effective_alpha_bytes(sprite, second, number)
+  if left == nil or right == nil then return 0 end
+  assert(#left == #right and #left == sprite.width * sprite.height * 4)
   local count = 0
-  for y = y0, y1 - 1 do
-    for x = x0, x1 - 1 do
-      local alpha_left = app.pixelColor.rgbaA(left.image:getPixel(x - lx, y - ly))
-      local alpha_right = app.pixelColor.rgbaA(right.image:getPixel(x - rx, y - ry))
-      if alpha_left > 0 and alpha_right > 0 then count = count + 1 end
-    end
+  for offset = 4, #left, 4 do
+    if string.byte(left, offset) > 0 and string.byte(right, offset) > 0 then count = count + 1 end
   end
   return count
 end
@@ -48,19 +65,27 @@ end
 local function audit(payload)
   local sprite = assert(app.open(payload.sprite_file), "could not open Sprite File")
   local ok, result = pcall(function()
-    assert(payload.from_frame >= 1 and payload.to_frame <= #sprite.frames, "Frame Range is outside Sprite")
+    assert(
+      payload.from_frame >= 1 and payload.to_frame <= #sprite.frames,
+      "Frame Range is outside Sprite"
+    )
     local uuids = inspection.saved_layer_uuids(sprite, payload.sprite_file)
     local required, durations, overlaps, findings = {}, {}, {}, {}
     for _, address in ipairs(payload.required_cels) do
       local selected, rejected = resolve(sprite, address.layer, uuids)
       if rejected then return rejected end
-      local exists = selected.layer.isImage and selected.layer:cel(address.frame_number) ~= nil or false
+      local exists = selected.layer.isImage and selected.layer:cel(address.frame_number) ~= nil
+        or false
       required[#required + 1] = {
-        layer_path = selected.path, frame_number = address.frame_number, exists = exists,
+        layer_path = selected.path,
+        frame_number = address.frame_number,
+        exists = exists,
       }
       if not exists then
         findings[#findings + 1] = {
-          kind = "required_cel_missing", layer_path = selected.path, frame_number = address.frame_number,
+          kind = "required_cel_missing",
+          layer_path = selected.path,
+          frame_number = address.frame_number,
         }
       end
     end
@@ -68,9 +93,14 @@ local function audit(payload)
       for number = payload.from_frame, payload.to_frame do
         local duration = math.floor(sprite.frames[number].duration * 1000 + 0.5)
         durations[#durations + 1] = { frame_number = number, duration_ms = duration }
-        if duration < payload.duration_bounds.minimum_ms or duration > payload.duration_bounds.maximum_ms then
+        if
+          duration < payload.duration_bounds.minimum_ms
+          or duration > payload.duration_bounds.maximum_ms
+        then
           findings[#findings + 1] = {
-            kind = "duration_out_of_bounds", frame_number = number, duration_ms = duration,
+            kind = "duration_out_of_bounds",
+            frame_number = number,
+            duration_ms = duration,
             minimum_ms = payload.duration_bounds.minimum_ms,
             maximum_ms = payload.duration_bounds.maximum_ms,
           }
@@ -85,26 +115,37 @@ local function audit(payload)
       if first_rejected then return first_rejected end
       local second, second_rejected = resolve(sprite, pair.second_layer, uuids)
       if second_rejected then return second_rejected end
-      assert(regular_transparent(first.layer) and regular_transparent(second.layer),
-        "non-overlap requires regular Transparent Layers")
+      assert(
+        regular_transparent(first.layer) and regular_transparent(second.layer),
+        "non-overlap requires regular Transparent Layers"
+      )
       assert(first.layer ~= second.layer, "non-overlap requires distinct Layers")
       for number = payload.from_frame, payload.to_frame do
         local count = overlap_pixels(sprite, first.layer, second.layer, number)
         overlaps[#overlaps + 1] = {
-          first_layer_path = first.path, second_layer_path = second.path,
-          frame_number = number, overlap_pixels = count,
+          first_layer_path = first.path,
+          second_layer_path = second.path,
+          frame_number = number,
+          overlap_pixels = count,
         }
         if count > 0 then
           findings[#findings + 1] = {
-            kind = "layer_overlap", first_layer_path = first.path,
-            second_layer_path = second.path, frame_number = number, overlap_pixels = count,
+            kind = "layer_overlap",
+            first_layer_path = first.path,
+            second_layer_path = second.path,
+            frame_number = number,
+            overlap_pixels = count,
           }
         end
       end
     end
     return {
-      complete = true, scope = { from_frame = payload.from_frame, to_frame = payload.to_frame },
-      required_cels = required, durations = durations, overlaps = overlaps, findings = findings,
+      complete = true,
+      scope = { from_frame = payload.from_frame, to_frame = payload.to_frame },
+      required_cels = required,
+      durations = durations,
+      overlaps = overlaps,
+      findings = findings,
     }
   end)
   sprite:close()
@@ -123,8 +164,10 @@ local function alpha_bounds(bytes)
 end
 
 local function compare(payload)
-  return exporter.with_source(payload.sprite_file,
-    { payload.earlier_frame, payload.later_frame }, function(source)
+  return exporter.with_source(
+    payload.sprite_file,
+    { payload.earlier_frame, payload.later_frame },
+    function(source)
       local earlier = exporter.render_frame(source, payload.earlier_frame).bytes
       local later = exporter.render_frame(source, payload.later_frame).bytes
       assert(#earlier == #later and #earlier == source.width * source.height * 4)
@@ -135,17 +178,22 @@ local function compare(payload)
         end
       end
       return {
-        earlier_frame = payload.earlier_frame, later_frame = payload.later_frame,
+        complete = true,
+        earlier_frame = payload.earlier_frame,
+        later_frame = payload.later_frame,
         color_mode = "rgb",
         bounds = { x = 0, y = 0, width = source.width, height = source.height },
         differing_pixels = count,
       }
-    end)
+    end
+  )
 end
 
 local function preview(payload)
-  return exporter.with_source(payload.source_sprite_file,
-    { payload.earlier_frame, payload.later_frame }, function(source, profile)
+  return exporter.with_source(
+    payload.source_sprite_file,
+    { payload.earlier_frame, payload.later_frame },
+    function(source, profile)
       local earlier = exporter.render_frame(source, payload.earlier_frame)
       local later = exporter.render_frame(source, payload.later_frame)
       local disposable = Sprite(source.width, source.height, ColorMode.RGB)
@@ -167,17 +215,25 @@ local function preview(payload)
         assert(file:close())
         assert(rendered:saveAs(payload.staged_png_file), "native PNG encoding failed")
         return {
-          earlier_frame = payload.earlier_frame, later_frame = payload.later_frame,
-          width = source.width, height = source.height, color_mode = "rgb",
-          color_profile = profile, alpha_min = alpha_min, alpha_max = alpha_max,
-          rendered_byte_size = #bytes, layer_order = { "later", "earlier" },
-          earlier_blend_mode = "normal", earlier_opacity = 128,
+          earlier_frame = payload.earlier_frame,
+          later_frame = payload.later_frame,
+          width = source.width,
+          height = source.height,
+          color_mode = "rgb",
+          color_profile = profile,
+          alpha_min = alpha_min,
+          alpha_max = alpha_max,
+          rendered_byte_size = #bytes,
+          layer_order = { "later", "earlier" },
+          earlier_blend_mode = "normal",
+          earlier_opacity = 128,
         }
       end)
       disposable:close()
       if not ok then error(result) end
       return result
-    end)
+    end
+  )
 end
 
 function module.execute(payload)

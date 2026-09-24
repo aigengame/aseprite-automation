@@ -114,11 +114,54 @@ def test_audit_allows_undeclared_absent_cel(tmp_path: Path) -> None:
     assert result["findings"] == []
 
 
+def test_audit_uses_quantized_native_effective_alpha(tmp_path: Path) -> None:
+    source = _source(tmp_path, "low_opacity.lua")
+    code, result = _run(
+        "audit",
+        {
+            "sprite_file": str(source),
+            "from_frame": 1,
+            "to_frame": 1,
+            "non_overlap": [
+                {
+                    "first_layer": {"layer_path": [1]},
+                    "second_layer": {"layer_path": [2]},
+                }
+            ],
+        },
+    )
+    assert code == 0, result
+    assert result["overlaps"][0]["overlap_pixels"] == 0
+    assert result["findings"] == []
+
+
+def test_audit_ignores_hidden_cel_in_declared_pair(tmp_path: Path) -> None:
+    source = _source(tmp_path, "rgb_frames.lua")
+    code, result = _run(
+        "audit",
+        {
+            "sprite_file": str(source),
+            "from_frame": 2,
+            "to_frame": 2,
+            "non_overlap": [
+                {
+                    "first_layer": {"layer_path": [1]},
+                    "second_layer": {"layer_path": [2]},
+                }
+            ],
+        },
+    )
+    assert code == 0, result
+    assert result["overlaps"][0]["overlap_pixels"] == 0
+    assert result["findings"] == []
+
+
 def test_compare_counts_full_canvas_rgba_differences(tmp_path: Path) -> None:
     source = _source(tmp_path, "rgb_frames.lua")
     request = {"sprite_file": str(source), "earlier_frame": 1, "later_frame": 2}
     code, different = _run("compare", request)
     assert code == 0, different
+    assert different["complete"] is True
     assert different["color_mode"] == "rgb"
     assert different["bounds"] == {"x": 0, "y": 0, "width": 3, "height": 2}
     assert different["differing_pixels"] == 2
