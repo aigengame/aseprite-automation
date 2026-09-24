@@ -38,6 +38,7 @@ def test_info_reports_installed_runtime() -> None:
         "aseprite_layer_merge",
         "aseprite_paint_apply",
         "aseprite_frame_authoring",
+        "aseprite_frame_editing",
         "aseprite_export_image",
     ]
     assert result["supported_capabilities"]

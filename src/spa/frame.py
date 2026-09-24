@@ -225,6 +225,11 @@ FRAME_MUTATION_REQUIREMENTS = RuntimeRequirements(
     minimum_api_version=41,
     required_capabilities=["aseprite_frame_authoring"],
 )
+FRAME_EDIT_REQUIREMENTS = RuntimeRequirements(
+    lua_language="Lua 5.4",
+    minimum_api_version=41,
+    required_capabilities=["aseprite_frame_editing"],
+)
 FRAME_SUPPORT_RESOURCE = PackagedResource("frame", "frame_support.lua")
 FRAME_GET_HANDLER = PackagedHandler(
     "frame_get", (SPRITE_INSPECTION_RESOURCE, FRAME_SUPPORT_RESOURCE)
@@ -750,7 +755,7 @@ FRAME_OPERATIONS = (
         FrameSetResult,
         set_frame,
         lambda result: result.target_commit.target_sprite_file,
-        FRAME_MUTATION_REQUIREMENTS,
+        FRAME_EDIT_REQUIREMENTS,
         (*RUNTIME_FAILURE_CODES, "target_commit_failed"),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
@@ -762,7 +767,7 @@ FRAME_OPERATIONS = (
         FrameMoveResult,
         move_frame,
         lambda result: result.target_commit.target_sprite_file,
-        FRAME_MUTATION_REQUIREMENTS,
+        FRAME_EDIT_REQUIREMENTS,
         (*RUNTIME_FAILURE_CODES, "target_commit_failed"),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
@@ -774,7 +779,7 @@ FRAME_OPERATIONS = (
         FrameRemoveResult,
         remove_frame,
         lambda result: result.target_commit.target_sprite_file,
-        FRAME_MUTATION_REQUIREMENTS,
+        FRAME_EDIT_REQUIREMENTS,
         (*RUNTIME_FAILURE_CODES, "target_commit_failed"),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
