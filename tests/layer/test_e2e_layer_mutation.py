@@ -434,3 +434,110 @@ def test_move_rejects_crossing_background_before_publishing(tmp_path: Path) -> N
     assert code == 2, result
     assert result["code"] == "layer_invalid_position"
     assert not target.exists()
+
+
+@pytest.mark.parametrize("field", ["is_visible", "is_editable"])
+def test_group_flag_change_omits_descendants_already_effectively_disabled(
+    tmp_path: Path, field: str
+) -> None:
+    source = tmp_path / "source.aseprite"
+    child_disabled = tmp_path / "child-disabled.aseprite"
+    group_disabled = tmp_path / "group-disabled.aseprite"
+    _fixture(source)
+    code, child = _run(
+        "set",
+        {
+            **_mutation_request(source, child_disabled),
+            "target": {"layer_path": [3, 1]},
+            "properties": {field: False},
+        },
+    )
+    assert code == 0, child
+    code, group = _run(
+        "set",
+        {
+            **_mutation_request(child_disabled, group_disabled),
+            "target": {"layer_path": [3]},
+            "properties": {field: False},
+        },
+    )
+    assert code == 0, group
+    for phase in ("affected_before", "affected_after"):
+        assert group[phase] == {"layer_paths": [[3]], "cels": []}
+    assert all(
+        frame["before_digest"] == frame["after_digest"]
+        for frame in group["rendered_frames"]
+    )
+
+
+def test_regular_move_can_cross_tilemap_sibling_without_editing_its_content(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source.aseprite"
+    target = tmp_path / "moved.aseprite"
+    _fixture(source, "tilemap_subtree.lua")
+    code, result = _run(
+        "move",
+        {
+            **_mutation_request(source, target),
+            "target": {"layer_path": [2, 2]},
+            "stack_index": 1,
+        },
+    )
+    assert code == 0, result
+    assert [layer["name"] for layer in result["after"]["layers"][1]["children"]] == [
+        "regular",
+        "Tilemap 1",
+    ]
+    assert result["before"]["metadata"]["tileset_count"] == 1
+    assert result["after"]["metadata"]["tileset_count"] == 1
+
+
+def _linked_cels(sprite_file: Path) -> bool:
+    aseprite = Path(os.environ["SPA_TEST_ASEPRITE"]).resolve()
+    resource = aseprite.parent.parent / "Resources" / "data" / "gui.xml"
+    script = Path(__file__).parents[1] / "frame" / "fixtures" / "inspect_links.lua"
+    with tempfile.TemporaryDirectory(prefix="spa-layer-links-") as work:
+        report = Path(work) / "links.json"
+        prepared = prepare_invocation(aseprite, resource, Path(work))
+        run = subprocess.run(
+            [
+                str(prepared.executable),
+                "--batch",
+                "--script-param",
+                f"source={sprite_file}",
+                "--script-param",
+                f"out={report}",
+                "--script",
+                str(script),
+            ],
+            text=True,
+            capture_output=True,
+            env=prepared.environment,
+            check=False,
+        )
+        assert run.returncode == 0, run.stdout + run.stderr
+        return json.loads(report.read_text())["linked"]
+
+
+def test_merge_reports_unlinked_surviving_cels_even_when_pixels_match(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "linked.aseprite"
+    target = tmp_path / "merged.aseprite"
+    _fixture(source, "linked_merge.lua")
+    assert _linked_cels(source) is True
+    code, result = _run(
+        "merge",
+        {**_mutation_request(source, target), "target": {"layer_path": [2]}},
+    )
+    assert code == 0, result
+    assert _linked_cels(target) is False
+    for phase in ("affected_before", "affected_after"):
+        assert {
+            tuple(cel["layer_path"] + [cel["frame_number"]])
+            for cel in result[phase]["cels"]
+        } >= {
+            (1, 1),
+            (1, 2),
+        }

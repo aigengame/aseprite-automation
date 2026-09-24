@@ -14,9 +14,11 @@ end
 
 local function records(sprite, digest)
   local ordered, by_id = {}, {}
-  local function visit(layers, prefix, parent_id)
+  local function visit(layers, prefix, parent_id, parent_visible, parent_editable)
     for index, layer in ipairs(layers) do
       local path = copy_path(prefix, index)
+      local effective_visible = parent_visible and layer.isVisible
+      local effective_editable = parent_editable and layer.isEditable
       local children = {}
       if layer.isGroup then
         for _, child in ipairs(layer.layers) do
@@ -30,6 +32,17 @@ local function records(sprite, digest)
           local bounds = cel.bounds
           cels[#cels + 1] = frame_number
           if digest ~= nil then
+            -- Merge Down can unlink surviving Cels without changing their pixels.
+            local linked = {}
+            for _, other in ipairs(sprite.cels) do
+              if
+                (other.layer.id ~= layer.id or other.frameNumber ~= frame_number)
+                and other.image == cel.image
+              then
+                linked[#linked + 1] = tostring(other.layer.id) .. "/" .. tostring(other.frameNumber)
+              end
+            end
+            table.sort(linked)
             cel_facts[frame_number] = table.concat({
               bounds.x,
               bounds.y,
@@ -40,6 +53,7 @@ local function records(sprite, digest)
               cel.image.width,
               cel.image.height,
               digest.fnv1a64(cel.image.bytes),
+              table.concat(linked, ","),
             }, ":")
           end
         end
@@ -54,15 +68,19 @@ local function records(sprite, digest)
         name = layer.name,
         is_visible = layer.isVisible,
         is_editable = layer.isEditable,
+        effective_visible = effective_visible,
+        effective_editable = effective_editable,
         opacity = layer.opacity,
         blend_mode = layer.blendMode,
       }
       ordered[#ordered + 1] = record
       by_id[layer.id] = record
-      if layer.isGroup then visit(layer.layers, path, layer.id) end
+      if layer.isGroup then
+        visit(layer.layers, path, layer.id, effective_visible, effective_editable)
+      end
     end
   end
-  visit(sprite.layers, {}, nil)
+  visit(sprite.layers, {}, nil, true, true)
   return ordered, by_id
 end
 
@@ -84,6 +102,8 @@ local function record_changed(left, right)
     or left.name ~= right.name
     or left.is_visible ~= right.is_visible
     or left.is_editable ~= right.is_editable
+    or left.effective_visible ~= right.effective_visible
+    or left.effective_editable ~= right.effective_editable
     or left.opacity ~= right.opacity
     or left.blend_mode ~= right.blend_mode
   then
@@ -95,19 +115,24 @@ local function record_changed(left, right)
   return false
 end
 
-local function affected(ordered, other, marked_layers, marked_cels)
+local function affected(ordered, other)
   local result = { layer_paths = {}, cels = {} }
   for _, record in ipairs(ordered) do
     local counterpart = other[record.id]
-    if marked_layers[record.id] or record_changed(record, counterpart) then
+    if record_changed(record, counterpart) then
       result.layer_paths[#result.layer_paths + 1] = record.path
     end
     for _, frame_number in ipairs(record.cels) do
       if
-        marked_cels[record.id]
-        or counterpart == nil
+        counterpart == nil
         or not equal_array(record.path, counterpart.path)
         or record.cel_facts[frame_number] ~= counterpart.cel_facts[frame_number]
+        or record.effective_visible ~= counterpart.effective_visible
+        or record.effective_editable ~= counterpart.effective_editable
+        or (
+          (record.effective_visible or counterpart.effective_visible)
+          and (record.opacity ~= counterpart.opacity or record.blend_mode ~= counterpart.blend_mode)
+        )
       then
         result.cels[#result.cels + 1] = {
           layer_path = record.path,
@@ -117,35 +142,6 @@ local function affected(ordered, other, marked_layers, marked_cels)
     end
   end
   return result
-end
-
-local function mark_subtree(layer, marked)
-  marked[layer.id] = true
-  if layer.isGroup then
-    for _, child in ipairs(layer.layers) do
-      mark_subtree(child, marked)
-    end
-  end
-end
-
-local function mark_set_impacts(layer, properties, inspection, marked_layers, marked_cels)
-  local visible = properties.is_visible ~= nil and properties.is_visible ~= layer.isVisible
-  local editable = properties.is_editable ~= nil and properties.is_editable ~= layer.isEditable
-  if layer.isGroup and (visible or editable) then
-    -- Effective visibility and editability follow the Group hierarchy.
-    mark_subtree(layer, marked_layers)
-    mark_subtree(layer, marked_cels)
-  elseif
-    visible
-    or editable
-    or (properties.opacity ~= nil and properties.opacity ~= layer.opacity)
-    or (
-      properties.blend_mode ~= nil
-      and inspection.blend_mode_constant(properties.blend_mode) ~= layer.blendMode
-    )
-  then
-    marked_cels[layer.id] = true
-  end
 end
 
 local function is_regular(layer)
@@ -248,10 +244,10 @@ local function prevalidate(sprite, selected, payload, inspection)
     end
     for position = math.min(layer.stackIndex, index), math.max(layer.stackIndex, index) do
       local crossed = siblings[position]
-      if crossed ~= layer and not is_regular(crossed) then
+      if crossed ~= layer and crossed.isBackground then
         return rejection(
           "layer_invalid_position",
-          "Layer move would change the stack position of an unsupported sibling"
+          "Layer move would change the Background stack position"
         )
       end
     end
@@ -371,10 +367,6 @@ function module.execute(payload, inspection, selection, digest, persistence)
     for _, record in ipairs(before_ordered) do
       source_uuids[record.id] = verified_uuids[table.concat(record.path, "/")]
     end
-    local marked_layers, marked_cels = {}, {}
-    if payload.operation == "set" then
-      mark_set_impacts(selected.layer, payload.properties, inspection, marked_layers, marked_cels)
-    end
     local before_rendered = render_digests(open_sprite, digest)
     apply(open_sprite, payload, selected.layer, lower, inspection)
     local after_ordered, after_by_id = records(open_sprite, digest)
@@ -384,8 +376,8 @@ function module.execute(payload, inspection, selection, digest, persistence)
       if uuid ~= nil then unsaved_uuids[table.concat(record.path, "/")] = uuid end
     end
     local after_rendered = render_digests(open_sprite, digest)
-    local before_affected = affected(before_ordered, after_by_id, marked_layers, marked_cels)
-    local after_affected = affected(after_ordered, before_by_id, marked_layers, marked_cels)
+    local before_affected = affected(before_ordered, after_by_id)
+    local after_affected = affected(after_ordered, before_by_id)
     local rendered_frames = {}
     for number = 1, #open_sprite.frames do
       rendered_frames[number] = {

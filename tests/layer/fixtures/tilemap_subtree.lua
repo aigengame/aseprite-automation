@@ -11,5 +11,8 @@ assert(app.command.NewLayer { tilemap = true })
 local tilemap = assert(group.layers[#group.layers])
 assert(tilemap.isTilemap)
 assert(group.layers[1] == tilemap)
+local regular = sprite:newLayer()
+regular.name = "regular"
+regular.parent = group
 assert(sprite:saveAs(app.params.out))
 sprite:close()
