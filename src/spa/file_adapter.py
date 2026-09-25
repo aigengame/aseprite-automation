@@ -44,6 +44,22 @@ def _same_publication_entry(source: Path, target: Path) -> bool:
     return not (source_entry.name in names and target_entry.name in names)
 
 
+def _same_publication_target(source: Path, target: Path) -> bool:
+    """Whether replacing the Target entry changes reads through Source."""
+    target_entry = _publication_entry(target)
+    source_entry = _publication_entry(source)
+    visited: set[Path] = set()
+    while source_entry not in visited:
+        if _same_publication_entry(source_entry, target_entry):
+            return True
+        visited.add(source_entry)
+        if not source_entry.is_symlink():
+            return False
+        linked = source_entry.parent / source_entry.readlink()
+        source_entry = _publication_entry(linked)
+    return False
+
+
 class LocalTargetFiles:
     def observe_path(self, path: Path) -> PathObservation:
         return PathObservation(
@@ -58,18 +74,7 @@ class LocalTargetFiles:
 
     def same_publication_target(self, source: Path, target: Path) -> bool:
         """Whether replacing the Target entry changes reads through Source."""
-        target_entry = _publication_entry(target)
-        source_entry = _publication_entry(source)
-        visited: set[Path] = set()
-        while source_entry not in visited:
-            if _same_publication_entry(source_entry, target_entry):
-                return True
-            visited.add(source_entry)
-            if not source_entry.is_symlink():
-                return False
-            linked = source_entry.parent / source_entry.readlink()
-            source_entry = _publication_entry(linked)
-        return False
+        return _same_publication_target(source, target)
 
     def staged_path(self, target: Path) -> Path:
         token = uuid.uuid4().hex
@@ -146,10 +151,28 @@ class LocalTargetFiles:
 
 
 class LocalArtifactFiles:
-    """File mechanics for the single-destination Export Image tracer."""
+    """File mechanics for verified single-destination Export Operations."""
 
     def normalize_destination(self, path: str) -> Path:
         return Path(os.path.abspath(os.path.expanduser(path)))
+
+    def ensure_source_separate(self, source: Path, destination: Path) -> None:
+        try:
+            aliases_source = _same_publication_target(source, destination)
+        except OSError as exc:
+            raise RuntimeIssue(
+                "artifact_file_failed",
+                "Source/Destination publication identity could not be verified",
+                ArtifactFileEvidence(
+                    str(destination), "source_destination_identity_unverified"
+                ),
+            ) from exc
+        if aliases_source:
+            raise RuntimeIssue(
+                "artifact_file_failed",
+                "Export Destination would replace the Source Sprite File",
+                ArtifactFileEvidence(str(destination), "source_destination_alias"),
+            )
 
     def staged_path(self, destination: Path, *, if_exists: str) -> Path:
         if not destination.parent.is_dir():

@@ -20,5 +20,10 @@ if mode == "rgb" then
     image:putPixel(0, 0, app.pixelColor.rgba(11, 22, 33, 127))
   end
 end
+if app.params.two_frames == "true" then
+  local first_cel = sprite.layers[1]:cel(1)
+  sprite:newEmptyFrame()
+  sprite:newCel(sprite.layers[1], 2, Image(first_cel.image))
+end
 assert(sprite:saveAs(app.params.out))
 sprite:close()

@@ -63,6 +63,9 @@ def test_manifest_is_projected_from_command_descriptors() -> None:
         "spa tag set",
         "spa tag remove",
         "spa export image",
+        "spa animation audit",
+        "spa animation compare",
+        "spa animation preview",
         "spa plan check",
         "spa plan run",
     ]

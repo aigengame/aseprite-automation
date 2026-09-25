@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from spa.file_adapter import LocalTargetFiles
+from spa.file_adapter import LocalArtifactFiles, LocalTargetFiles
 from spa.mutation import source_target_identity_issue
 
 
@@ -35,6 +35,7 @@ def test_distinct_hard_links_are_distinct_publication_entries(tmp_path: Path) ->
     assert source.samefile(target)
     assert not files.same_publication_entry(source, target)
     assert not files.same_publication_target(source, target)
+    LocalArtifactFiles().ensure_source_separate(source, target)
 
 
 def test_case_variant_source_alias_traverses_target_entry(tmp_path: Path) -> None:
