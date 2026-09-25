@@ -33,6 +33,7 @@ testpaths = ["tests"]
 addopts = ["--strict-markers"]
 markers = [
   "e2e: uses the installed SPA CLI with a real Aseprite executable",
+  "slow: rebuilds a complete example; included in full E2E runs",
 ]
 
 [tool.pyright]

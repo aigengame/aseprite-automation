@@ -6,6 +6,9 @@ short project name used in documentation; `spa` is the primary executable.
 > [!IMPORTANT]
 > This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery, Sprite creation, inspection, copy, resize, crop, flatten, and validation, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Tag inspection and authoring, Cel-targeted Image Resize, bounded Pixel Patch application, verified RGB PNG Image Export, animation audit, Frame comparison, and verified continuity Preview export. Feature issues own delivery contracts, evidence requirements, provenance links, curated evidence summaries, and status, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
 
+For a complete authoring example, see [Moonlit Spell Practice](examples/wizard_cast/README.md):
+a reproducible SPA wizard animation, reusable pixel assets, and a Godot target-practice demo.
+
 This README owns the user-facing product introduction and promotion, value-proposition
 narrative, onboarding, adoption guidance, and project navigation. Its factual claims
 derive from the applicable product, architecture, delivery, and installed-runtime
@@ -101,6 +104,10 @@ local workspace. Asset Pipeline integration uses a downstream-owned Anti-Corrupt
 Layer and the public `spa` CLI JSON contract.
 
 ## Try the installed CLI
+
+For a source checkout, install Git LFS and run `git lfs install` followed by
+`git lfs pull` before installing or building SPA. The packaged `.aseprite` probe
+fixtures and example assets use LFS; the wheel needs their actual binary contents.
 
 Install the project with `uv sync`, then point the runtime probe at an installed
 Aseprite executable (on macOS, the binary inside `Aseprite.app/Contents/MacOS/`).
@@ -322,7 +329,9 @@ run `uv run --frozen --group test pytest -m e2e -rs`. See
 platform, and display-environment conventions.
 
 Pull requests and `main` run locked source, fast-test, distribution, and Linux
-real-Aseprite gates. Releases use a reviewed version and changelog change, then
+real-Aseprite gates. Complete example rebuilds run on relevant changes, nightly on
+`main`, manual CI, and release verification; routine CI retains the other E2E cases.
+Releases use a reviewed version and changelog change, then
 repeat all gates on the exact release commit before publishing a GitHub Release. See
 [`docs/releasing.md`](docs/releasing.md) for the release and recovery procedure.
 

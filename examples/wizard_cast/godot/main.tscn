@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://main.gd" id="1_7d7po"]
+
+[node name="WizardTiming" type="Node" unique_id=164822457]
+script = ExtResource("1_7d7po")
