@@ -216,8 +216,8 @@ def resize_image(
         rejection = invocation.payload.get("rejection")
         if (
             isinstance(rejection, dict)
-            and rejection.get("code")
-            in {spec.code for spec in IMAGE_RESIZE_FAILURE_CODE_SPECS}
+            and isinstance(rejection.get("code"), str)
+            and rejection["code"] in {spec.code for spec in IMAGE_RESIZE_FAILURE_CODE_SPECS}
             and isinstance(rejection.get("message"), str)
         ):
             raise OperationIssue(
