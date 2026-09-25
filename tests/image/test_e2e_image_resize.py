@@ -92,7 +92,13 @@ def _export(source: Path, output: Path, frame_number: int = 1) -> Image.Image:
 
 
 def _inspect_native(
-    source: Path, tmp_path: Path, x: int, y: int, frame_number: int = 1
+    source: Path,
+    tmp_path: Path,
+    x: int,
+    y: int,
+    frame_number: int = 1,
+    *,
+    row: bool = False,
 ) -> dict:
     observation = probe(
         RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
@@ -111,6 +117,7 @@ def _inspect_native(
             "x": x,
             "y": y,
             "out": output,
+            "row": "true" if row else "false",
         }.items():
             arguments.extend(("--script-param", f"{key}={value}"))
         arguments.extend(
@@ -281,6 +288,44 @@ def test_indexed_bilinear_preserves_transparent_index_edge(tmp_path: Path) -> No
     assert source.read_bytes() == original
     assert _inspect_native(target, tmp_path, 0, 0)["pixel"] == 1
     assert _inspect_native(target, tmp_path, 3, 3)["pixel"] == 0
+
+
+@pytest.mark.parametrize(
+    ("mode", "expected_row"),
+    [
+        ("indexed-offset-mask", [1, 3, 3, 2]),
+        ("indexed-offset-mask-zero-before", [1, 3, 3, 2]),
+        ("indexed-offset-mask-zero-after", [1, 4, 4, 2]),
+        ("indexed-offset-mask-black", [0, 0, 0, 2]),
+        ("indexed-offset-mask-duplicate", [1, 1, 0, 2]),
+        ("indexed-offset-mask-large-palette", [1, 3, 3, 2]),
+    ],
+)
+def test_indexed_bilinear_honors_nonzero_transparent_index(
+    tmp_path: Path, mode: str, expected_row: list[int]
+) -> None:
+    source = _fixture(tmp_path, mode)
+    original = source.read_bytes()
+    target = tmp_path / "offset-mask-resized.aseprite"
+
+    code, result = _resize(source, target, method="bilinear", palette_frame_number=1)
+
+    assert code == 0, result
+    assert result["effective_palette"]["transparent_color_index"] == 2
+    assert result["effective_palette"]["palette_size"] == (
+        257 if mode.endswith("large-palette") else 5
+    )
+    assert source.read_bytes() == original
+    persisted = _inspect_native(target, tmp_path, 0, 0, row=True)
+    assert persisted["row"] == expected_row
+    assert persisted["pixel"] == expected_row[0]
+    assert persisted["transparent_index"] == 2
+    assert persisted["transparent_entry"] == {
+        "red": 0,
+        "green": 0,
+        "blue": 255,
+        "alpha": 255,
+    }
 
 
 def test_shared_resize_restores_active_context_on_success_and_failure(
@@ -481,6 +526,19 @@ def test_out_of_range_pivot_refuses_in_place_change_atomically(tmp_path: Path) -
         ({"method": "bicubic"}, "invalid_request"),
         ({"method": "nearest-neighbor", "palette_frame_number": 1}, "invalid_request"),
         ({"position_policy": {"kind": "pivot", "pivot_x": 1}}, "invalid_request"),
+        (
+            {
+                "width": 2,
+                "height": 2,
+                "position_policy": {
+                    "kind": "pivot",
+                    "pivot_x": 2**31,
+                    "pivot_y": 0,
+                    "rounding": "floor",
+                },
+            },
+            "invalid_request",
+        ),
         (
             {"method": "bilinear", "palette_frame_number": 1},
             "image_resize_palette_basis_invalid",

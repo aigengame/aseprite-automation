@@ -8,6 +8,7 @@ read_globals = {
   "ColorMode",
   "ColorSpace",
   "Image",
+  "ImageSpec",
   "Palette",
   "Point",
   "Rectangle",

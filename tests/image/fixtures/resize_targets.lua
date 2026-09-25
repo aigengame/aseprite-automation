@@ -1,23 +1,57 @@
 local mode = app.params.mode or "rgb"
-local color_mode = (mode == "indexed" or mode == "indexed-two-frame" or mode == "indexed-edge")
-    and ColorMode.INDEXED
+local indexed = mode:sub(1, 7) == "indexed"
+local color_mode = indexed and ColorMode.INDEXED
   or mode == "grayscale" and ColorMode.GRAY
   or ColorMode.RGB
 local sprite = Sprite(8, 8, color_mode)
 local layer = sprite.layers[1]
 layer.name = "subject"
 local image = Image(2, 2, color_mode)
-if mode == "indexed" or mode == "indexed-two-frame" or mode == "indexed-edge" then
-  local palette = Palette(4)
-  palette:setColor(0, Color { r = 0, g = 0, b = 0, a = 0 })
+if indexed then
+  local offset_mask = mode:find("indexed-offset-mask", 1, true) == 1
+  local zero_after = mode == "indexed-offset-mask-zero-after"
+  local duplicate = mode == "indexed-offset-mask-duplicate"
+  local palette =
+    Palette(mode == "indexed-offset-mask-large-palette" and 257 or offset_mask and 5 or 4)
+  palette:setColor(
+    0,
+    Color {
+      r = 0,
+      g = 0,
+      b = 0,
+      a = offset_mask and mode ~= "indexed-offset-mask-zero-before" and 255 or 0,
+    }
+  )
   palette:setColor(1, Color { r = 255, g = 0, b = 0, a = 255 })
   palette:setColor(2, Color { r = 0, g = 0, b = 255, a = 255 })
-  palette:setColor(3, Color { r = 127, g = 0, b = 127, a = 255 })
+  local third_color = (zero_after or duplicate) and 0 or 127
+  palette:setColor(
+    3,
+    Color {
+      r = third_color,
+      g = 0,
+      b = third_color,
+      a = zero_after and 0 or 255,
+    }
+  )
+  if offset_mask then
+    palette:setColor(
+      4,
+      Color {
+        r = duplicate and 255 or zero_after and 127 or 25,
+        g = 0,
+        b = zero_after and 127 or 0,
+        a = 255,
+      }
+    )
+  end
   sprite:setPalette(palette)
-  image:putPixel(0, 0, 1)
+  if offset_mask then sprite.transparentColor = 2 end
+  local left_index = mode == "indexed-offset-mask-black" and 0 or 1
+  image:putPixel(0, 0, left_index)
   if mode ~= "indexed-edge" then
     image:putPixel(1, 0, 2)
-    image:putPixel(0, 1, 1)
+    image:putPixel(0, 1, left_index)
     image:putPixel(1, 1, 2)
   end
 elseif mode == "grayscale" then

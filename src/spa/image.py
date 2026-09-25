@@ -95,7 +95,7 @@ class RationalOffset(PublicModel):
 class EffectivePaletteBasis(PublicModel):
     requested_frame_number: int = Field(ge=1)
     palette_frame_number: int = Field(ge=1)
-    palette_size: int = Field(ge=1, le=256)
+    palette_size: int = Field(ge=1)
     transparent_color_index: int = Field(ge=0, le=255)
 
 
