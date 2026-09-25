@@ -8,6 +8,7 @@ import pytest
 from PIL import Image
 
 from tests.cel.test_e2e_cel import _fixture, _run
+from tests.layer.test_e2e_layer_mutation import _run as _run_layer
 from tests.support import spa
 
 pytestmark = pytest.mark.e2e
@@ -325,6 +326,8 @@ def test_set_reports_full_linked_scope_and_preserves_native_link(
     code, peer = _run("get", {"sprite_file": str(updated), "target": fourth})
     assert code == 0, peer
     assert peer["cel"]["linked_cels"] == [{"layer_path": [1], "frame_number": 1}]
+    assert peer["cel"]["opacity"] == 120
+    assert peer["cel"]["z_index"] == 2
 
     reordered = tmp_path / "reordered.aseprite"
     code, result = _run(
@@ -450,4 +453,115 @@ def test_refusal_keeps_target_absent(
     code, result = _run(operation, request)
     assert code == 2, result
     assert result["code"] == code_expected
+    assert not output.exists()
+
+
+@pytest.mark.parametrize("invalid_role", ["source", "destination"])
+def test_pair_layer_failure_identifies_address_role(
+    tmp_path: Path, invalid_role: str
+) -> None:
+    source = tmp_path / "source.aseprite"
+    output = tmp_path / "output.aseprite"
+    _fixture(source, "relationships.lua")
+    addresses = {
+        "source": {"layer": {"layer_path": [1]}, "frame_number": 1},
+        "destination": {"layer": {"layer_path": [2]}, "frame_number": 3},
+    }
+    addresses[invalid_role] = {"layer": {"layer_path": [9]}, "frame_number": 1}
+    code, result = _run(
+        "copy",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(output),
+            "in_place": False,
+            "overwrite": False,
+            **addresses,
+        },
+    )
+    assert code == 2, result
+    assert result["details"]["address_role"] == invalid_role
+    assert result["details"]["address"]["layer_path"] == [9]
+    assert not output.exists()
+
+
+@pytest.mark.parametrize("locked_path", [[2], [2, 1]])
+def test_unlink_refuses_locked_layer_hierarchy(
+    tmp_path: Path, locked_path: list[int]
+) -> None:
+    source = tmp_path / "source.aseprite"
+    linked = tmp_path / "linked.aseprite"
+    locked = tmp_path / "locked.aseprite"
+    output = tmp_path / "output.aseprite"
+    _fixture(source, "relationships_group.lua")
+    first = {"layer": {"layer_path": [2, 1]}, "frame_number": 1}
+    second = {"layer": {"layer_path": [2, 1]}, "frame_number": 2}
+    code, result = _run(
+        "link",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(linked),
+            "in_place": False,
+            "overwrite": False,
+            "source": first,
+            "destination": second,
+        },
+    )
+    assert code == 0, result
+    code, result = _run_layer(
+        "set",
+        {
+            "source_sprite_file": str(linked),
+            "target_sprite_file": str(locked),
+            "in_place": False,
+            "overwrite": False,
+            "target": {"layer_path": locked_path},
+            "properties": {"is_editable": False},
+        },
+    )
+    assert code == 0, result
+    code, result = _run(
+        "unlink",
+        {
+            "source_sprite_file": str(locked),
+            "target_sprite_file": str(output),
+            "in_place": False,
+            "overwrite": False,
+            "target": second,
+        },
+    )
+    assert code == 2, result
+    assert result["code"] == "cel_unsupported_target"
+    assert not output.exists()
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"position": {"x": 32768, "y": 0}},
+        {"position": {"x": -32769, "y": 0}},
+        {"position": {"x": 0, "y": 32768}},
+        {"position": {"x": 0, "y": -32769}},
+        {"z_index": 32768},
+        {"z_index": -32769},
+    ],
+)
+def test_set_rejects_unpersistable_cel_values(
+    tmp_path: Path, changes: dict[str, object]
+) -> None:
+    source = tmp_path / "source.aseprite"
+    output = tmp_path / "output.aseprite"
+    _fixture(source, "relationships.lua")
+    code, result = _run(
+        "set",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(output),
+            "in_place": False,
+            "overwrite": False,
+            "target": {"layer": {"layer_path": [1]}, "frame_number": 1},
+            **changes,
+        },
+    )
+    assert code == 2, result
+    assert result["code"] == "invalid_request"
     assert not output.exists()

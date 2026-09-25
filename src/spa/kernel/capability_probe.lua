@@ -394,6 +394,7 @@ local function observes_cel_lifecycle()
 end
 
 local function observes_cel_relationships()
+  if cel_support == nil or layer_select == nil then return false end
   local sprite = nil
   local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
   local ok = pcall(function()
@@ -402,6 +403,13 @@ local function observes_cel_relationships()
     sprite:newEmptyFrame(2)
     sprite:newEmptyFrame(3)
     local original = assert(layer:cel(1))
+    local resolved, path = cel_support.resolve(
+      sprite, { layer = { layer_path = { 1 } }, frame_number = 1 }, layer_select, {}
+    )
+    assert(resolved == layer and path[1] == 1)
+    assert(cel_support.is_regular_transparent(layer))
+    assert(cel_support.inspect(sprite, layer, path, 1).exists)
+    assert(#cel_support.affected(sprite, original.image) == 1)
     original.position = Point(1, 0)
     original.opacity = 200
     original.zIndex = 1
@@ -415,6 +423,7 @@ local function observes_cel_relationships()
     app.command.NewFrame { content = "cellinked" }
     local linked = assert(layer:cel(2))
     assert(linked.image == original.image)
+    assert(#cel_support.affected(sprite, original.image) == 2)
     linked.frameNumber = 4
     sprite:deleteFrame(2)
     linked = assert(layer:cel(3))

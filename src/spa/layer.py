@@ -66,7 +66,7 @@ class LayerAddress(PublicModel):
 
 class LayerTargetDetails(PublicModel):
     kind: Literal["layer_target"] = "layer_target"
-    address_role: Literal["target", "parent"]
+    address_role: Literal["target", "parent", "source", "destination"]
     address: LayerAddress
     step_number: int | None = Field(default=None, ge=1)
 

@@ -60,11 +60,16 @@ class CelRelationshipRequest(RuntimeRequest):
         return self
 
 
+class CelPosition(Point):
+    x: int = Field(ge=-32768, le=32767, strict=True)
+    y: int = Field(ge=-32768, le=32767, strict=True)
+
+
 class CelSetRequest(CelRelationshipRequest):
     target: CelAddress
-    position: Point | None = None
+    position: CelPosition | None = None
     opacity: int | None = Field(default=None, ge=0, le=255, strict=True)
-    z_index: int | None = Field(default=None, strict=True)
+    z_index: int | None = Field(default=None, ge=-32768, le=32767, strict=True)
 
     @model_validator(mode="after")
     def require_change(self) -> "CelSetRequest":
@@ -136,7 +141,7 @@ CEL_RELATIONSHIP_HANDLER = PackagedHandler(
 CEL_RELATIONSHIP_REQUIREMENTS = RuntimeRequirements(
     lua_language="Lua 5.4",
     minimum_api_version=41,
-    required_capabilities=["aseprite_cel_lifecycle", "aseprite_cel_relationships"],
+    required_capabilities=["aseprite_cel_relationships"],
 )
 
 
@@ -163,6 +168,7 @@ def _mutate(
         "source_sprite_file": request.source_sprite_file,
         "staged_sprite_file": str(staged),
     }
+    address_role: Literal["target", "source", "destination"] = "target"
     if isinstance(request, CelPairRequest):
         payload["source"] = request.source.model_dump(mode="json", exclude_none=True)
         payload["destination"] = request.destination.model_dump(
@@ -181,17 +187,23 @@ def _mutate(
             observation, CEL_RELATIONSHIP_HANDLER, payload, request.timeout_seconds
         )
         rejected = invocation.payload.get("rejection")
-        if (
-            isinstance(rejected, dict)
-            and isinstance(request, CelPairRequest)
-            and rejected.get("role") == "source"
-        ):
-            addressed = request.source
+        if isinstance(rejected, dict) and isinstance(request, CelPairRequest):
+            role = rejected.get("role")
+            if role not in ("source", "destination"):
+                raise RuntimeIssue(
+                    "response_malformed",
+                    "Packaged Cel handler returned an invalid address role",
+                    ResponseEvidence(response_path=invocation.response_path),
+                    invocation.diagnostics,
+                )
+            address_role = role
+            addressed = request.source if role == "source" else request.destination
         _reject(
             invocation,
             addressed.layer,
             addressed,
             (addressed.frame_number, addressed.frame_number),
+            address_role=address_role,
         )
         try:
             evidence = CelRelationshipEvidence.model_validate(invocation.payload)

@@ -35,6 +35,15 @@ local function key(state)
   return table.concat(parts, "/") .. ":" .. tostring(assert(math.tointeger(state.frame_number)))
 end
 
+local function is_editable_hierarchy(layer, sprite)
+  local current = layer
+  while current ~= sprite do
+    if not current.isEditable then return false end
+    current = current.parent
+  end
+  return true
+end
+
 local function affected_before(sprite, layer, path, number)
   local target = layer:cel(number)
   if target == nil then return { cel.inspect(sprite, layer, path, number) } end
@@ -95,8 +104,17 @@ local function execute()
     if dest_layer:cel(destination_number) ~= nil then
       return reject("cel_already_exists", "Destination Cel already exists", "destination")
     end
-  elseif operation == "unlink" and #cel.affected(open_sprite, source_cel.image) < 2 then
-    return reject("cel_unsupported_target", "Cel is not linked", "target")
+  elseif operation == "unlink" then
+    if #cel.affected(open_sprite, source_cel.image) < 2 then
+      return reject("cel_unsupported_target", "Cel is not linked", "target")
+    end
+    if not is_editable_hierarchy(layer, open_sprite) then
+      return reject(
+        "cel_unsupported_target",
+        "Cel unlink requires an editable Layer hierarchy",
+        "target"
+      )
+    end
   end
   local before
   before, refused = affected_before(open_sprite, layer, path, number)
