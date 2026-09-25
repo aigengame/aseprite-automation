@@ -368,22 +368,6 @@ local function palette_facts(sprite, affected_cels, used_indexes)
   return result
 end
 
-local function image_digest(image, color_mode, digest)
-  local header = table.concat({
-    color_mode,
-    ":",
-    tostring(image.width),
-    "x",
-    tostring(image.height),
-    ":",
-    tostring(image.bytesPerPixel),
-    ":",
-    tostring(image.rowStride),
-    ":",
-  })
-  return { algorithm = "fnv1a64", value = digest.fnv1a64(header, image.bytes) }
-end
-
 local function background_is_opaque(sprite, image, color_mode, layer, affected_cels)
   if not layer.isBackground then return false end
   if color_mode == "indexed" then
@@ -472,7 +456,7 @@ local function validate_reopened(
       "persisted bounded pixel inspection failed"
     )
   end
-  local content_digest = image_digest(image, evidence.color_mode, digest)
+  local content_digest = digest.image_content(image, evidence.color_mode)
   local opaque = background_is_opaque(sprite, image, evidence.color_mode, layer, reopened_affected)
   if layer.isBackground then assert(opaque, "persisted Background Image is not opaque") end
   return opaque, content_digest
@@ -527,7 +511,7 @@ function module.apply_live(sprite, payload, digest)
     is_background = layer.isBackground,
     is_transparent = layer.isTransparent,
   }
-  local before_digest = image_digest(image, color_mode, digest)
+  local before_digest = digest.image_content(image, color_mode)
   local requested_runs = {}
   local applied_runs = {}
   local skipped_bounds = {}

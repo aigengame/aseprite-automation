@@ -47,22 +47,6 @@ local function offsets(policy, old_width, old_height, new_width, new_height)
     rounded_offset(policy.pivot_y, old_height, new_height, policy.rounding)
 end
 
-local function image_digest(image, color_mode)
-  local header = table.concat({
-    color_mode,
-    ":",
-    image.width,
-    "x",
-    image.height,
-    ":",
-    image.bytesPerPixel,
-    ":",
-    image.rowStride,
-    ":",
-  })
-  return { algorithm = "fnv1a64", value = digest.fnv1a64(header, image.bytes) }
-end
-
 local function execute()
   local file = assert(io.open(app.params.request, "rb"))
   local request = json.decode(file:read("*a"))
@@ -116,7 +100,7 @@ local function execute()
       )
     end
   end
-  local before_digest = image_digest(source_image, mode)
+  local before_digest = digest.image_content(source_image, mode)
   app.activeSprite = open_sprite
   app.activeLayer = layer
   local resized, palette_basis = transform.resize(
@@ -128,7 +112,7 @@ local function execute()
     palette_number
   )
   assert(
-    image_digest(source_image, mode).value == before_digest.value,
+    digest.image_content(source_image, mode).value == before_digest.value,
     "Image Resize mutated source"
   )
   app.transaction("Resize Image", function()
@@ -178,7 +162,7 @@ local function execute()
       after_image_bounds = { width = payload.width, height = payload.height },
     }
   end
-  local after_digest = image_digest(reopened_target.image, mode)
+  local after_digest = digest.image_content(reopened_target.image, mode)
   open_sprite:close()
   open_sprite = nil
   return {
