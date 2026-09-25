@@ -13,7 +13,8 @@ def inspect_build(root: Path) -> dict:
     recipe = json.loads((root / "recipe.json").read_text())
     observation = json.loads((root / "evidence/sprite.json").read_text())
     sprite = {
-        key: observation[key] for key in ("metadata", "frames", "layers", "cels", "tags")
+        key: observation[key]
+        for key in ("metadata", "frames", "layers", "cels", "tags")
     }
     assert bundle["canvas"] == {"width": 128, "height": 96}
     assert sprite["metadata"]["width"] == 128
@@ -124,14 +125,35 @@ def compare_builds(first: Path, second: Path) -> dict:
     }
 
 
+def compare_delivery(build_root: Path, assets: Path) -> None:
+    """Check the checked-in consumer assets against a fresh SPA build."""
+    generated = inspect_build(build_root)
+    assert json.loads((assets / "bundle.json").read_text()) == generated["bundle"]
+    delivered = {
+        path.relative_to(assets).as_posix(): path for path in assets.rglob("*.png")
+    }
+    assert delivered.keys() == generated["pixels"].keys()
+    for name, path in delivered.items():
+        with Image.open(path) as image:
+            rgba = image.convert("RGBA")
+            assert list(rgba.size) == generated["pixels"][name]["size"], name
+            assert (
+                hashlib.sha256(rgba.tobytes()).hexdigest()
+                == generated["pixels"][name]["rgba_sha256"]
+            ), name
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("first", type=Path)
     parser.add_argument("second", type=Path, nargs="?")
+    parser.add_argument("--delivered-assets", type=Path)
     args = parser.parse_args()
     result = (
         compare_builds(args.first, args.second)
         if args.second
         else inspect_build(args.first)
     )
+    if args.delivered_assets:
+        compare_delivery(args.first, args.delivered_assets)
     print(json.dumps(result, indent=2))

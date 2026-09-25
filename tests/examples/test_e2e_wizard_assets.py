@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from examples.wizard_cast.build import build
-from examples.wizard_cast.verify import compare_builds
+from examples.wizard_cast.verify import compare_builds, compare_delivery
 from spa.contracts import RuntimeRequest
 from spa.descriptors import PROBE_RESOURCES
 from spa.runtime.aseprite import probe
@@ -60,6 +60,11 @@ def test_complete_wizard_recipe_has_repeatable_saved_structure_and_pixels(
     build(cli, aseprite, second)
     result = compare_builds(first, second)
     assert result["frame_count"] == 32
+    compare_delivery(
+        first,
+        Path(__file__).resolve().parents[2]
+        / "examples/wizard_cast/godot/content/wizard_assets",
+    )
     native = inspect_stored_pixels(
         first / "source/wizard_scene.aseprite", aseprite, first / "evidence/native.json"
     )

@@ -1,0 +1,210 @@
+{
+  "observed_date": "2026-09-25",
+  "platform": {
+    "system": "Darwin",
+    "machine": "arm64"
+  },
+  "tools": {
+    "spa": "0.1.0",
+    "spa_production_base": "b19a249674cbb8d9863cf6c5b6616d213063dd19",
+    "aseprite": "1.3.18.5-dev",
+    "api": 41,
+    "lua": "Lua 5.4"
+  },
+  "inputs": {
+    "recipe.json": "d1756b5fbb999ec29ef2b5b44f3a667239104a63cc3c04d308b4b3a7dacc81e8",
+    "art.py": "783bd9934e8cd5f446986cbf18ada9f2942a69b642022ab6f0649a54ae2cf102",
+    "build.py": "a372eacc72a6d4e4ddb4e8f2cfb30a9b168b8b464fc327a26143495fc690209f",
+    "workflow.py": "a1d7a50541c90a2e3699161739d69b84ccd36a405378254d17baa8b6394b52b3"
+  },
+  "source_sha256": {
+    "background.aseprite": "fabd54db43a4ccd18deda381a0065e8a51e35313476990e802490ea678f2e96f",
+    "burst.aseprite": "72d7dce275315a7e5950d833b651f124fb36bcac318fde34c3d5f0f6c7b635e0",
+    "gem.aseprite": "4651691e0a0c910abe2d24b4dd976c96e3eca6256a322401afb2b1b3e48f7dfe",
+    "projectile.aseprite": "e5a6dcff9fef001b488a884578111c93f8d8f08dad2c254eeec2ea47ed89be16",
+    "target.aseprite": "955a7d25af2ce500ca01234ddc78cba6ff9dfd8ebf1cec2ea2b60018e1bf206d",
+    "wizard.aseprite": "b9e78cf8fab16b625c67251e34022609f50001cdefe647ddfc4cfce7ff2b4114",
+    "wizard_scene.aseprite": "bf67f4cbb2662f206629208908dbb186d97b116ff4964c2c59e976991dbe977e"
+  },
+  "bundle_sha256": "0927bb3129b95c7bc6c0c7257832b7ca7e2e763dec93d09d82cc9e17790af22b",
+  "decoded_png_inventory_sha256": "4e74fcefe587b6881f9dd195d46fa8f22080bae9379fa110773c709d445d199a",
+  "rebuild_comparison": {
+    "same_structure": true,
+    "same_decoded_pixels": true,
+    "frame_count": 32,
+    "png_count": 193
+  },
+  "delivered_assets_match_rebuild": true,
+  "native_pixel_inspection": {
+    "no_profile": false,
+    "nonbinary_alpha": 0,
+    "noninteger_positions": 0,
+    "srgb": true,
+    "stored_colors": [
+      "#15162b",
+      "#1c2340",
+      "#283342",
+      "#293354",
+      "#3c617e",
+      "#3e4965",
+      "#485567",
+      "#5b4039",
+      "#65d6d1",
+      "#687a89",
+      "#734560",
+      "#783a3b",
+      "#91633f",
+      "#93939b",
+      "#9aadc1",
+      "#a26074",
+      "#b25945",
+      "#c1fff0",
+      "#d4cdae",
+      "#d6a45d",
+      "#dee2d3",
+      "#e38a5f",
+      "#e6b587",
+      "#f8f4e4"
+    ],
+    "stored_pixels": 996720
+  },
+  "structure": {
+    "frames": 32,
+    "layers": 7,
+    "cels": 224,
+    "tags": [
+      {
+        "name": "IDLE",
+        "from_frame": 1,
+        "to_frame": 4,
+        "direction": "forward",
+        "repeats": 0,
+        "color": {
+          "red": 0,
+          "green": 0,
+          "blue": 0,
+          "alpha": 255
+        }
+      },
+      {
+        "name": "CHARGE",
+        "from_frame": 5,
+        "to_frame": 14,
+        "direction": "forward",
+        "repeats": 0,
+        "color": {
+          "red": 0,
+          "green": 0,
+          "blue": 0,
+          "alpha": 255
+        }
+      },
+      {
+        "name": "CAST",
+        "from_frame": 15,
+        "to_frame": 20,
+        "direction": "forward",
+        "repeats": 0,
+        "color": {
+          "red": 0,
+          "green": 0,
+          "blue": 0,
+          "alpha": 255
+        }
+      },
+      {
+        "name": "RECOVER",
+        "from_frame": 21,
+        "to_frame": 32,
+        "direction": "forward",
+        "repeats": 0,
+        "color": {
+          "red": 0,
+          "green": 0,
+          "blue": 0,
+          "alpha": 255
+        }
+      }
+    ]
+  },
+  "animation_audit": {
+    "complete": true,
+    "required_cels": 224,
+    "duration_frames": 32,
+    "findings": []
+  },
+  "first_last_differing_pixels": 8,
+  "reference_calls": {
+    "info": {
+      "calls": 1,
+      "seconds": 0.272
+    },
+    "sprite create": {
+      "calls": 2,
+      "seconds": 0.637
+    },
+    "layer set": {
+      "calls": 26,
+      "seconds": 26.396
+    },
+    "layer add": {
+      "calls": 6,
+      "seconds": 1.877
+    },
+    "plan run": {
+      "calls": 5,
+      "seconds": 2.314
+    },
+    "image resize": {
+      "calls": 9,
+      "seconds": 3.49
+    },
+    "cel set": {
+      "calls": 240,
+      "seconds": 146.975
+    },
+    "tag add": {
+      "calls": 4,
+      "seconds": 2.833
+    },
+    "sprite get": {
+      "calls": 1,
+      "seconds": 0.319
+    },
+    "animation audit": {
+      "calls": 1,
+      "seconds": 0.313
+    },
+    "animation compare": {
+      "calls": 1,
+      "seconds": 0.316
+    },
+    "animation preview": {
+      "calls": 1,
+      "seconds": 0.326
+    },
+    "export image": {
+      "calls": 193,
+      "seconds": 61.356
+    },
+    "sprite copy": {
+      "calls": 5,
+      "seconds": 1.597
+    },
+    "sprite crop": {
+      "calls": 5,
+      "seconds": 1.937
+    }
+  },
+  "reference_cli_seconds": 250.957,
+  "repeat_build_seconds": [
+    244.998,
+    248.093
+  ],
+  "pytest": {
+    "selected": 2,
+    "passed": 2,
+    "seconds": 500.64
+  },
+  "scope": "Local macOS real Aseprite batch and independently decoded/stored pixels. No graphical Godot or human visual acceptance is claimed here."
+}

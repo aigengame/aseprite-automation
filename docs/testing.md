@@ -11,6 +11,7 @@ verification tier. The layout does not mirror source packages or CLI Command Gro
 | `tests/cli/` | Access Projection through the installed CLI and its in-process projections. |
 | `tests/contracts/` | Shared Published Language rules, including Failure Code registration and Operation Descriptor constraints. |
 | `tests/export/` | Image Export contract, PNG Artifact verification and publication, and real Aseprite output evidence. |
+| `tests/examples/` | Installed-CLI workflows, deterministic asset production, and checked-in downstream asset agreement. |
 | `tests/frame/` | Frame timing, insertion, Cel copy/link intent, Tag adjustment, and native persistence. |
 | `tests/layer/` | Layer hierarchy, exact addressing, and native addition evidence. |
 | `tests/paint/` | Paint Domain Module contract, bounded mutation evidence, and native Pixel Patch behavior. |
@@ -159,6 +160,15 @@ shared display gate only when more than one test needs it. An optional run on a 
 without display capability can skip with a visible reason. Display permission denial
 must fail. A job that claims graphical coverage must fail when its required windowed
 tests do not execute.
+
+The [wizard example](../examples/wizard_cast/README.md) has two real-runtime tests:
+a small component geometry proof and a complete repeated build. The latter generates
+the full recipe twice, independently decodes every PNG, checks hidden stored pixels,
+and compares the generated manifest and pixels with the checked-in delivery. CI and
+release verification fetch its Git LFS assets before this check. A reference macOS
+build takes about four minutes; the two-build test keeps that cost in the explicit
+E2E tier. It does not start Godot. The example's separate Godot tests and local
+windowed/package evidence are documented beside it and are not claimed by Linux CI.
 
 The Linux job builds the official source release and verifies the archive against the
 version and SHA-256 authority in `.github/actions/setup-linux-aseprite/action.yml`. It
