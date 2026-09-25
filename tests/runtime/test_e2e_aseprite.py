@@ -43,6 +43,7 @@ def test_info_reports_installed_runtime() -> None:
         "aseprite_frame_authoring",
         "aseprite_frame_editing",
         "aseprite_cel_lifecycle",
+        "aseprite_cel_relationships",
         "aseprite_tag_authoring",
         "aseprite_export_image",
     ]
@@ -80,6 +81,10 @@ def test_info_reports_installed_runtime() -> None:
         "spa cel add",
         "spa cel clear",
         "spa cel remove",
+        "spa cel set",
+        "spa cel copy",
+        "spa cel link",
+        "spa cel unlink",
         "spa tag list",
         "spa tag get",
         "spa tag add",

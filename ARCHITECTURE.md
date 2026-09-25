@@ -13,9 +13,10 @@ this view instead of treating it as another decision authority.
 > [!IMPORTANT]
 > SPA is at the bootstrap stage. The installed CLI exposes `spa info`, `spa version`,
 > `spa schema`, Sprite creation, inspection, copy, resize, crop, flatten, and
-> validation, Layer addressing and mutation, Frame inspection, authoring, and editing, Tag inspection
-> and authoring, Cel inspection and lifecycle, bounded Pixel Patch application,
-> and verified RGB PNG Image Export. The module
+> validation, Layer addressing and mutation, Frame inspection, authoring, and
+> editing, Tag inspection and authoring, Cel inspection, lifecycle, placement,
+> and native relationships, bounded Pixel Patch application, and verified RGB
+> PNG Image Export. The module
 > ownership below includes both this delivered vertical slice and planned work. Feature
 > issues own delivery status, while the installed Surface Manifest reports the callable
 > surface of each installation.
@@ -256,7 +257,7 @@ Sprite creation and inspection slice extends that same stack.
 | CLI adapter | Typer | Command access and human or machine presentation. |
 | Public contracts | Pydantic 2 and JSON Schema | Typed Operation Requests, Operation Results, Failure Envelopes, and discovery schemas. |
 | Project and packaging | `uv` | Environments, dependencies, builds, and installed-product tests. |
-| Ordinary Core Operations | Packaged Lua handlers | Core Operation Semantics and native mapping executed through Aseprite. The current package contains a fixed runtime probe, shared capability observations, Sprite creation, inspection, native flattening, resize and crop, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection and lifecycle, Tag inspection and authoring, exact Pixel Patch, Export Image, and Operation Plan handlers. Sprite copy uses the File Adapter for byte preservation and the packaged inspection handler for verification. |
+| Ordinary Core Operations | Packaged Lua handlers | Core Operation Semantics and native mapping executed through Aseprite. The current package contains a fixed runtime probe, shared capability observations, Sprite creation, inspection, native flattening, resize and crop, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Tag inspection and authoring, exact Pixel Patch, Export Image, and Operation Plan handlers. Sprite copy uses the File Adapter for byte preservation and the packaged inspection handler for verification. |
 | Aseprite integration | External `aseprite --batch --script` | Native document, Tool, Filter, color, and export behavior. |
 | Private transport | Versioned JSON request and response files | Data exchange through `--script-param`, separate from diagnostics. |
 | Agent access | Version-matched Agent Skill and planned local stdio MCP Adapter with CLI subprocess invocation | Guidance and equivalent tool projection from the installed surface. |
@@ -273,13 +274,15 @@ The current view groups Core Domain responsibility into five cohesive areas. The
 feature ownership and can become Domain Modules as implementation evidence confirms
 their change boundaries. The delivered `spa.sprite` vertical slice owns Sprite creation,
 structural inspection, byte-preserving copy, native resize and crop, native flattening,
-and bounded validation
-within Document and Animation; `spa.layer` owns Layer addressing and mutation;
+and bounded validation within Document and Animation; `spa.layer` owns Layer
+addressing and mutation;
 `spa.frame` owns Frame inspection, authoring, and editing; `spa.tag` owns Tag
-inspection and authoring; `spa.cel` owns Cel existence, inspection, and lifecycle.
-The delivered
-`spa.paint` slice owns exact Pixel Patch application, while `spa.raster` holds the
-shared Color Value, Rectangle, Patch, and Selection types. Raster Authoring owns their
+inspection and authoring; `spa.cel` owns Cel existence, inspection, and lifecycle,
+while `spa.cel_relationship` owns Cel placement, opacity, z-index, and native
+copy/link/unlink mutations.
+The delivered `spa.paint` slice owns exact Pixel Patch application, while
+`spa.raster` holds the shared Color Value, Rectangle, Patch, and Selection types.
+Raster Authoring owns their
 pixel and Color Value semantics under ADR-0018; Color and Palette owns Palette and
 conversion behavior. The other groupings remain an integrated planning view rather
 than a frozen package graph.

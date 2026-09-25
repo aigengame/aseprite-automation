@@ -275,6 +275,7 @@ def _reject(
     layer: LayerAddress,
     target: CelAddress | None,
     frame_range: tuple[int, int],
+    address_role: Literal["target", "source", "destination"] = "target",
 ) -> None:
     rejected = invocation.payload.get("rejection")
     if rejected is None:
@@ -285,7 +286,7 @@ def _reject(
             raise OperationIssue(
                 code,
                 rejected["message"],
-                LayerTargetDetails(address_role="target", address=layer),
+                LayerTargetDetails(address_role=address_role, address=layer),
             )
         if code == "cel_frame_out_of_bounds":
             raise OperationIssue(
