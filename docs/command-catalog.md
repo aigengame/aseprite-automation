@@ -41,8 +41,8 @@ better Aseprite-aligned evidence.
 | `spa sprite get` | Inspect requested dimensions, Color Mode, Frames, Tags, Palettes, Layer tree, Cels, Slices, Tilesets, and metadata. |
 | `spa sprite set` | Change explicitly supported Sprite properties other than Color Mode or Color Profile. |
 | `spa sprite copy` | Copy one Source Sprite File to an explicit Target Sprite File and verify the reopened result. |
-| `spa sprite resize` | Resize the Sprite canvas with explicit scale and anchor semantics. |
-| `spa sprite crop` | Crop the Sprite canvas to an explicit Rectangle or supported content rule. |
+| `spa sprite resize` | Resize Sprite content to explicit dimensions from Canvas origin with nearest-neighbor sampling. |
+| `spa sprite crop` | Crop Sprite content to a positive, half-open Canvas Pixel Rectangle inside the canvas. |
 | `spa sprite flatten` | Apply Aseprite's native flattening behavior and report every affected Sprite structure. |
 | `spa sprite change-color-mode` | Apply native Change Color Mode with explicit mapping, Palette, and Dithering inputs. |
 | `spa sprite assign-color-profile` | Assign a native Color Profile without changing stored colors. |

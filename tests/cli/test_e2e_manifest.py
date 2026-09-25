@@ -28,6 +28,8 @@ def test_manifest_is_projected_from_command_descriptors() -> None:
         "spa sprite get",
         "spa sprite copy",
         "spa sprite flatten",
+        "spa sprite resize",
+        "spa sprite crop",
         "spa sprite validate",
         "spa layer list",
         "spa layer get",
