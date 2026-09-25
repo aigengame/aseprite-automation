@@ -30,6 +30,21 @@ local function is_regular_transparent(layer)
     and not layer.isTilemap
     and not layer.isBackground
 end
+module.is_regular_transparent = is_regular_transparent
+
+function module.sort_states(states)
+  table.sort(states, function(left, right)
+    if left.frame_number ~= right.frame_number then
+      return left.frame_number < right.frame_number
+    end
+    for index = 1, math.min(#left.layer_path, #right.layer_path) do
+      if left.layer_path[index] ~= right.layer_path[index] then
+        return left.layer_path[index] < right.layer_path[index]
+      end
+    end
+    return #left.layer_path < #right.layer_path
+  end)
+end
 
 function module.inspect(sprite, layer, path, frame_number)
   local cel = layer.isImage and layer:cel(frame_number) or nil
@@ -81,17 +96,7 @@ function module.affected(sprite, image)
       )
     end
   end
-  table.sort(result, function(left, right)
-    if left.frame_number ~= right.frame_number then
-      return left.frame_number < right.frame_number
-    end
-    for index = 1, math.min(#left.layer_path, #right.layer_path) do
-      if left.layer_path[index] ~= right.layer_path[index] then
-        return left.layer_path[index] < right.layer_path[index]
-      end
-    end
-    return #left.layer_path < #right.layer_path
-  end)
+  module.sort_states(result)
   return result
 end
 
