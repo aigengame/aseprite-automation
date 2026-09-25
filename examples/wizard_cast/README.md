@@ -23,7 +23,8 @@ Godot consumer; it is not baked into the reusable art.
 
 ## Reuse the assets
 
-Run `git lfs pull` after checkout. PNG files use the repository's Git LFS rules.
+Run `git lfs pull` after checkout. PNG and Aseprite files use the repository's
+Git LFS rules.
 
 | Artifact | Purpose |
 | --- | --- |

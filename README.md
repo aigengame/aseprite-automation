@@ -105,6 +105,10 @@ Layer and the public `spa` CLI JSON contract.
 
 ## Try the installed CLI
 
+For a source checkout, install Git LFS and run `git lfs install` followed by
+`git lfs pull` before installing or building SPA. The packaged `.aseprite` probe
+fixtures and example assets use LFS; the wheel needs their actual binary contents.
+
 Install the project with `uv sync`, then point the runtime probe at an installed
 Aseprite executable (on macOS, the binary inside `Aseprite.app/Contents/MacOS/`).
 The commands emit JSON by default; `--human` renders the same outcome for reading.
