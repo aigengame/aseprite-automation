@@ -19,6 +19,12 @@ attached Image obtains these from its Frame, while a standalone Image uses activ
 editor state. Non-nearest methods also repair hidden colors in transparent source
 pixels before producing the resized Image.
 
+In Aseprite 1.3.18.5, native Indexed interpolation reads the Image's mask when it
+projects source indexes to RGBA, but `Sprite::rgbMap()` selects its output mask from
+the first RGBA-zero Palette entry, or index 0 when none exists. This can differ from
+the Sprite's Transparent Color Index. A detached `Image:drawImage()` also reads the
+process-global Palette, which need not match the declared Frame in batch mode.
+
 SPA needs the same resize and non-scaling canvas-copy transforms for ordinary Image
 authoring and every Tile Bitmap inside Tileset Resize. It must make interpolation,
 Palette basis, source mutation, offsets, clipping, and fill deterministic without
@@ -40,13 +46,20 @@ Bitmaps do not have.
 - `bilinear` interpolates native RGBA or Grayscale channel values.
 - Indexed `bilinear` requires `palette_frame_number`. The Kernel resolves the exact
   Effective Palette and Transparent Color Index, projects indexes to RGBA with the
-  transparent index participating at alpha 0, invokes native interpolation, and maps
-  results through the same Palette's Aseprite RGB Map without dithering.
+  transparent index participating at alpha 0 while retaining its Palette RGB, and
+  invokes native bilinear interpolation for the RGB and alpha channels. It maps each
+  result through the original Effective Palette with Aseprite 1.3.18.5's Palette
+  best-fit criterion and the Sprite's Transparent Color Index as the excluded mask.
+  Alpha below 8 maps to that transparent index. Mapping uses no dithering or
+  process-global Palette state. Like native Palette best-fit, mapping considers the
+  first 256 entries; the reported Palette size remains the full Effective Palette size.
 - `palette_frame_number` is rejected for non-Indexed Images and for methods other
   than `bilinear`.
-- The fixed Lua Kernel applies Aseprite's non-nearest transparent-color fixup and
-  resize to a source copy. It replaces the intended Image only after transformation,
-  so preprocessing cannot leak source mutation on failure or through shared state.
+- The fixed Lua Kernel applies native non-nearest resize to detached source data.
+  For Indexed bilinear, it keeps source RGB above zero alpha during interpolation and
+  carries the actual alpha separately so native transparent-color fixup cannot erase
+  hidden Palette RGB. It replaces the intended Image only after transformation, so
+  preprocessing cannot leak source mutation on failure or through shared state.
 - Image Resize Transform changes only the Image buffer. Cel position and pivot are
   separate placement semantics.
 - Existing linked-Cel rules reduce selected targets to unique shared Images,
@@ -68,10 +81,14 @@ Bitmaps do not have.
 
 - Invalid input cannot silently become a different resize request.
 - Indexed interpolation is reproducible without active Palette state.
+- Duplicate Palette colors can yield a different stored index from Aseprite's native
+  Octree RGB Map; the declared Palette best-fit rule chooses the first equally good
+  non-transparent index. The original Palette is not rewritten. The Indexed path
+  requires two native channel resizes and per-pixel projection and mapping.
 - Tile Bitmap transforms and ordinary Image transforms cannot drift into separate
   implementations.
-- Native transparent-edge preparation is retained without an unintended mutation
-  channel.
+- Native RGB and Grayscale transparent-edge preparation stays on detached data.
+  Indexed interpolation retains hidden Palette RGB and the declared mask.
 - Cel placement can evolve independently from reusable buffer transforms.
 
 ## Rejected alternatives
@@ -85,6 +102,11 @@ intent and schema mistakes.
 
 Palette Changes make that basis ambiguous, and active editor state is not part of an
 Operation request.
+
+### Normalize the transparent Palette entry before native Indexed resize
+
+Changing it to RGBA zero loses its hidden RGB during interpolation and can change
+adjacent output indexes. Other RGBA-zero entries can still take the output mask.
 
 ### Implement separate Tile scaling
 

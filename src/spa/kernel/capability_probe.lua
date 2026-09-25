@@ -8,6 +8,9 @@ local paint = dofile(app.params.paint)
 local digest = dofile(app.params.digest)
 local frame = app.params.frame and dofile(app.params.frame) or nil
 local cel_support = app.params.cel and dofile(app.params.cel) or nil
+local image_resize_transform = app.params.image_resize_transform
+    and dofile(app.params.image_resize_transform)
+  or nil
 
 local function observes_sprite_inspection()
   local open_sprite = nil
@@ -474,6 +477,51 @@ local function observes_sprite_resize()
   return ok
 end
 
+local function observes_image_resize()
+  if image_resize_transform == nil then return false end
+  local sprite = nil
+  local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
+  local ok = pcall(function()
+    sprite = Sprite(2, 2, ColorMode.RGB)
+    local target = sprite.layers[1]:cel(1)
+    local source = Image(target.image)
+    source:putPixel(0, 0, app.pixelColor.rgba(255, 0, 0, 255))
+    local resized = image_resize_transform.resize(source, sprite, 4, 4, "nearest-neighbor")
+    target.image = resized
+    assert(target.image.width == 4 and target.image.height == 4)
+    assert(target.image:getPixel(1, 1) == app.pixelColor.rgba(255, 0, 0, 255))
+    sprite:close()
+    sprite = nil
+    sprite = Sprite(2, 2, ColorMode.INDEXED)
+    local palette = Palette(4)
+    palette:setColor(0, Color { r = 0, g = 0, b = 0, a = 0 })
+    palette:setColor(1, Color { r = 255, g = 0, b = 0, a = 255 })
+    palette:setColor(2, Color { r = 0, g = 0, b = 255, a = 255 })
+    palette:setColor(3, Color { r = 127, g = 0, b = 127, a = 255 })
+    app.activeSprite = sprite
+    app.activeLayer = sprite.layers[1]
+    app.activeFrame = sprite.frames[1]
+    sprite:setPalette(palette)
+    local indexed = sprite.layers[1]:cel(1)
+    indexed.image:putPixel(0, 0, 1)
+    indexed.image:putPixel(1, 0, 2)
+    indexed.image:putPixel(0, 1, 1)
+    indexed.image:putPixel(1, 1, 2)
+    local copy, basis = image_resize_transform.resize(indexed.image, sprite, 3, 3, "bilinear", 1)
+    assert(copy:getPixel(1, 1) == 3)
+    assert(basis.palette_frame_number == 1 and basis.palette_size == 4)
+    sprite:close()
+    sprite = nil
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
+  return ok
+end
+
 local function observes_sprite_crop()
   local sprite = nil
   local previous = app.activeSprite
@@ -530,6 +578,7 @@ function module.observe()
   if supports_inspection then capabilities[#capabilities + 1] = "aseprite_sprite_inspection" end
   if observes_sprite_flatten() then capabilities[#capabilities + 1] = "aseprite_sprite_flatten" end
   if observes_sprite_resize() then capabilities[#capabilities + 1] = "aseprite_sprite_resize" end
+  if observes_image_resize() then capabilities[#capabilities + 1] = "aseprite_image_resize" end
   if observes_sprite_crop() then capabilities[#capabilities + 1] = "aseprite_sprite_crop" end
   if observes_layer_hierarchy() then
     capabilities[#capabilities + 1] = "aseprite_layer_hierarchy"

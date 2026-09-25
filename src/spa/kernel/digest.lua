@@ -14,4 +14,20 @@ function module.fnv1a64(...)
   return string.format("%016x", hash)
 end
 
+function module.image_content(image, color_mode)
+  local header = table.concat({
+    color_mode,
+    ":",
+    image.width,
+    "x",
+    image.height,
+    ":",
+    image.bytesPerPixel,
+    ":",
+    image.rowStride,
+    ":",
+  })
+  return { algorithm = "fnv1a64", value = module.fnv1a64(header, image.bytes) }
+end
+
 return module

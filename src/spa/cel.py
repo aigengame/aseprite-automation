@@ -302,7 +302,7 @@ def _reject(
             )
     raise RuntimeIssue(
         "response_malformed",
-        "Packaged Cel handler returned an invalid rejection",
+        "Packaged handler returned an invalid rejection",
         ResponseEvidence(response_path=invocation.response_path),
         invocation.diagnostics,
     )

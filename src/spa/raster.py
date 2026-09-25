@@ -39,6 +39,11 @@ class Point(PublicModel):
     y: int
 
 
+class ImageContentDigest(PublicModel):
+    algorithm: Literal["fnv1a64"] = "fnv1a64"
+    value: str = Field(pattern=r"^[0-9a-f]{16}$")
+
+
 class Size(PublicModel):
     width: int = Field(ge=0)
     height: int = Field(ge=0)
