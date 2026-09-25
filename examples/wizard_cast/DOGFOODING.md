@@ -35,10 +35,25 @@ The reference 32-Frame build made 500 public CLI calls in 251.0 seconds. It prod
   to polling state; this demo handles events, so windowed evidence uses gda key or
   mouse input. The skill and live schemas document this distinction.
 - A writable `--user-data-root` resolves restricted headless log/settings writes.
-  Export-template discovery follows that redirect as well, so export uses the host
-  data root with its installed templates. A sandbox desktop-query denial was
-  retried with the authorized windowed capability and succeeded. These are
-  environment constraints, not SPA or gda product defects.
+  Export-template discovery follows that redirect as well. This run used a private
+  writable export root with access to the host's installed templates. A sandbox
+  desktop-query denial was retried with the authorized windowed capability and
+  succeeded. These are environment constraints, not SPA or gda product defects.
+- The first universal macOS export reported that Godot required ETC2/ASTC import
+  support. The project now enables `rendering/textures/vram_compression/import_etc2_astc`.
+  Re-export and package startup passed. This was a consumer export configuration
+  omission, not a gda command failure.
+
+## Verification cost
+
+The first Linux run at `394cb94` passed 275 real-runtime tests, with three platform
+skips. The full recipe's two fresh builds took 734.8 seconds of the 1,004.3-second
+E2E job. CI now runs one fresh build against the checked-in PNGs, complete bundle,
+and reopened Aseprite metadata, Frames, Layers, Cels, and Tags. Native stored-pixel
+inspection still covers the fresh build. The original local double-build evidence
+and explicit two-build comparison command remain available. This preserves the
+delivery assertions while reducing repeated work; it samples fewer fresh builds
+per CI run. Final-run timing is recorded in the PR rather than promised here.
 
 No new SPA or gda contract failure was confirmed in this run. An early fixture used
 nonexistent Aseprite ColorSpace properties; native equality fixed the inspector.

@@ -93,6 +93,10 @@ file bytes. It checks phase coverage, timing, component dimensions, declared col
 binary alpha, gem opacity, and independent resize effects. The real-runtime test
 also opens the saved source with a read-only Lua inspector to check stored pixels
 in invisible Cels. That inspector never authors or saves art.
+CI makes one fresh build and compares it with the checked-in PNGs, bundle, and
+reopened Aseprite source. The two-build command above is available for explicit
+repeat-run checks; the original local double-build observations are retained in
+[asset evidence](evidence/asset-verification.json).
 
 After an intentional recipe change, replace the checked-in `source/` and
 `godot/content/wizard_assets/` from the verified output. Retain generated metadata;
@@ -141,3 +145,11 @@ visible Layers, normalize positions, then crop. Crop removes out-of-bounds pixel
 [Test guidance](../../docs/testing.md) separates Linux headless SPA evidence from
 local graphical Godot evidence. Human acceptance of the silhouette, phase clarity,
 magic progression, loop continuity, and play feel remains a separate PR review.
+
+[Godot evidence](evidence/godot-verification.json) records source test results,
+windowed input coverage, and the local package digest and checks. The package is
+unsigned and not notarized. The PR and local handoff link the playable ZIP; a fresh
+checkout can reproduce it with the export preset above.
+
+![A real gda-driven hit](evidence/playable-hit.png)
+![The end-of-round view](evidence/playable-results.png)
