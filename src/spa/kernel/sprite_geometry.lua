@@ -4,6 +4,7 @@ local inspection = dofile(app.params.inspection)
 local persistence = dofile(app.params.persistence)
 local digest = dofile(app.params.digest)
 local all_sections = { "frames", "tags", "palettes", "layers", "cels", "slices", "tilesets" }
+local json_null = json.decode("null")
 local open_sprite = nil
 
 local function tilemap_layer_count(layers)
@@ -28,6 +29,65 @@ local function tilemap_content(sprite)
     tilemap_cel_count = cels,
     tilemap_image_count = images,
   }
+end
+
+local function reference_paths(layers, result)
+  for _, layer in ipairs(layers) do
+    if layer.is_reference then result[table.concat(layer.path, "/")] = true end
+    reference_paths(layer.children, result)
+  end
+end
+
+local function same_rectangle(left, right)
+  return left ~= nil
+    and left.x == right.x
+    and left.y == right.y
+    and left.width == right.width
+    and left.height == right.height
+end
+
+local function clipped_cels(before, after, rectangle)
+  local references = {}
+  reference_paths(before.layers, references)
+  local after_by_address = {}
+  for _, cel in ipairs(after.cels) do
+    local address = table.concat(cel.layer_path, "/") .. ":" .. cel.frame_number
+    after_by_address[address] = cel
+  end
+  local clipped = {}
+  for _, cel in ipairs(before.cels) do
+    local path = table.concat(cel.layer_path, "/")
+    if not references[path] then
+      local bounds = cel.bounds
+      local left = math.max(bounds.x, rectangle.x)
+      local top = math.max(bounds.y, rectangle.y)
+      local right = math.min(bounds.x + bounds.width, rectangle.x + rectangle.width)
+      local bottom = math.min(bounds.y + bounds.height, rectangle.y + rectangle.height)
+      local retained = nil
+      if right > left and bottom > top then
+        retained = { x = left, y = top, width = right - left, height = bottom - top }
+      end
+      local surviving = after_by_address[path .. ":" .. cel.frame_number]
+      local actual = surviving and surviving.bounds or nil
+      if
+        not same_rectangle(retained, bounds)
+        or actual == nil
+        or actual.x + rectangle.x ~= bounds.x
+        or actual.y + rectangle.y ~= bounds.y
+        or actual.width ~= bounds.width
+        or actual.height ~= bounds.height
+      then
+        clipped[#clipped + 1] = {
+          layer_path = cel.layer_path,
+          frame_number = cel.frame_number,
+          before_bounds = bounds,
+          retained_canvas_bounds = retained or json_null,
+          after_bounds = actual or json_null,
+        }
+      end
+    end
+  end
+  return clipped
 end
 
 local function execute()
@@ -103,12 +163,15 @@ local function execute()
   verified_uuids = inspection.saved_layer_uuids(open_sprite, payload.staged_sprite_file)
   local after = persistence.snapshot(open_sprite, inspection, digest, all_sections, verified_uuids)
   persistence.assert_same(after_live, after, "Sprite " .. payload.operation)
+  local clipped = nil
+  if payload.operation == "crop" then clipped = clipped_cels(before, after.sprite, rectangle) end
   open_sprite:close()
   open_sprite = nil
   return {
     before_sprite = before,
     sprite = after.sprite,
     persisted_reopen_verified = true,
+    clipped_cels = clipped,
   }
 end
 

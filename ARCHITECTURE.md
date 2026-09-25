@@ -12,8 +12,8 @@ this view instead of treating it as another decision authority.
 
 > [!IMPORTANT]
 > SPA is at the bootstrap stage. The installed CLI exposes `spa info`, `spa version`,
-> `spa schema`, Sprite creation, inspection, copy, flatten, and validation, Layer
-> addressing and mutation, Frame inspection, authoring, and editing, Tag inspection
+> `spa schema`, Sprite creation, inspection, copy, resize, crop, flatten, and
+> validation, Layer addressing and mutation, Frame inspection, authoring, and editing, Tag inspection
 > and authoring, Cel inspection and lifecycle, bounded Pixel Patch application,
 > and verified RGB PNG Image Export. The module
 > ownership below includes both this delivered vertical slice and planned work. Feature
@@ -272,7 +272,8 @@ Python framework or packaging tool.
 The current view groups Core Domain responsibility into five cohesive areas. They guide
 feature ownership and can become Domain Modules as implementation evidence confirms
 their change boundaries. The delivered `spa.sprite` vertical slice owns Sprite creation,
-structural inspection, byte-preserving copy, native flattening, and bounded validation
+structural inspection, byte-preserving copy, native resize and crop, native flattening,
+and bounded validation
 within Document and Animation; `spa.layer` owns Layer addressing and mutation;
 `spa.frame` owns Frame inspection, authoring, and editing; `spa.tag` owns Tag
 inspection and authoring; `spa.cel` owns Cel existence, inspection, and lifecycle.

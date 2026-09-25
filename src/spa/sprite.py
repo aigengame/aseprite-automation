@@ -892,57 +892,6 @@ def flatten_sprite(
         services.target_files.discard(staged)
 
 
-def _clipped_cels(
-    before: SpriteInspection, after: SpriteInspection, rectangle: PositiveRectangle
-) -> list[ClippedCel]:
-    assert before.cels is not None and after.cels is not None
-    assert before.layers is not None
-    reference_paths: set[tuple[int, ...]] = set()
-    layers = list(before.layers)
-    while layers:
-        layer = layers.pop()
-        if layer.is_reference:
-            reference_paths.add(tuple(layer.path))
-        layers.extend(layer.children)
-    after_by_address = {
-        (tuple(cel.layer_path), cel.frame_number): cel for cel in after.cels
-    }
-    clipped: list[ClippedCel] = []
-    for cel in before.cels:
-        if tuple(cel.layer_path) in reference_paths:
-            continue
-        bounds = cel.bounds
-        left = max(bounds.x, rectangle.x)
-        top = max(bounds.y, rectangle.y)
-        right = min(bounds.x + bounds.width, rectangle.x + rectangle.width)
-        bottom = min(bounds.y + bounds.height, rectangle.y + rectangle.height)
-        retained = (
-            Rectangle(x=left, y=top, width=right - left, height=bottom - top)
-            if right > left and bottom > top
-            else None
-        )
-        surviving = after_by_address.get((tuple(cel.layer_path), cel.frame_number))
-        actual = surviving.bounds if surviving is not None else None
-        if (
-            retained != bounds
-            or actual is None
-            or actual.x + rectangle.x != bounds.x
-            or actual.y + rectangle.y != bounds.y
-            or actual.width != bounds.width
-            or actual.height != bounds.height
-        ):
-            clipped.append(
-                ClippedCel(
-                    layer_path=cel.layer_path,
-                    frame_number=cel.frame_number,
-                    before_bounds=bounds,
-                    retained_canvas_bounds=retained,
-                    after_bounds=actual,
-                )
-            )
-    return clipped
-
-
 def _transform_sprite(
     request: SpriteResizeRequest | SpriteCropRequest,
     services: OperationServices,
@@ -1003,10 +952,17 @@ def _transform_sprite(
             after = SpriteInspection.model_validate(invocation.payload["sprite"])
             if invocation.payload["persisted_reopen_verified"] is not True:
                 raise ValueError("staged Sprite was not reopened")
+            clipped_cels = (
+                TypeAdapter(list[ClippedCel]).validate_python(
+                    invocation.payload["clipped_cels"]
+                )
+                if isinstance(request, SpriteCropRequest)
+                else None
+            )
         except (KeyError, TypeError, ValueError, ValidationError) as exc:
             raise RuntimeIssue(
                 "response_malformed",
-                "Packaged Sprite geometry handler returned invalid inspection facts",
+                "Packaged Sprite geometry handler returned invalid result facts",
                 ResponseEvidence(response_path=invocation.response_path),
                 invocation.diagnostics,
             ) from exc
@@ -1027,11 +983,6 @@ def _transform_sprite(
             raise _postcondition_failure(
                 invocation, "persisted canvas differs from request"
             )
-        clipped_cels = (
-            _clipped_cels(before, after, request.rectangle)
-            if isinstance(request, SpriteCropRequest)
-            else None
-        )
         committed = services.target_files.commit(
             staged, target, overwrite=request.overwrite
         )
@@ -1049,10 +1000,11 @@ def _transform_sprite(
         }
         if isinstance(request, SpriteResizeRequest):
             return SpriteResizeResult(**common, origin=Point(x=0, y=0))
+        assert clipped_cels is not None
         return SpriteCropResult(
             **common,
             rectangle=request.rectangle,
-            clipped_cels=cast(list[ClippedCel], clipped_cels),
+            clipped_cels=clipped_cels,
         )
     finally:
         services.target_files.discard(staged)
