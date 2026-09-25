@@ -21,7 +21,8 @@ function module.resize(source, sprite, width, height, method, palette_frame_numb
     "unsupported Image Resize method"
   )
   local basis = nil
-  if source.colorMode == ColorMode.INDEXED and method == "bilinear" then
+  local indexed_bilinear = source.colorMode == ColorMode.INDEXED and method == "bilinear"
+  if indexed_bilinear then
     assert(
       math.tointeger(palette_frame_number)
         and palette_frame_number >= 1
@@ -30,8 +31,6 @@ function module.resize(source, sprite, width, height, method, palette_frame_numb
     )
     local palette, change_frame = effective_palette(sprite, palette_frame_number)
     assert(palette ~= nil, "Indexed bilinear requires an Effective Palette")
-    app.activeSprite = sprite
-    app.activeFrame = sprite.frames[palette_frame_number]
     basis = {
       requested_frame_number = palette_frame_number,
       palette_frame_number = change_frame,
@@ -41,11 +40,29 @@ function module.resize(source, sprite, width, height, method, palette_frame_numb
   else
     assert(palette_frame_number == nil, "Palette Frame Number is not applicable")
   end
-  -- Native non-nearest resize repairs hidden transparent colors in its source.
-  -- The detached copy keeps that preprocessing out of the source shared Image.
-  local resized = Image(source)
-  resized:resize { width = width, height = height, method = method }
-  assert(resized.width == width and resized.height == height, "native Image Resize changed size")
+  local previous = indexed_bilinear
+      and { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
+    or nil
+  local ok, resized = pcall(function()
+    if indexed_bilinear then
+      app.activeSprite = sprite
+      app.activeFrame = sprite.frames[palette_frame_number]
+    end
+    -- Native non-nearest resize repairs hidden transparent colors in its source.
+    -- The detached copy keeps that preprocessing out of the source shared Image.
+    local copy = Image(source)
+    copy:resize { width = width, height = height, method = method }
+    assert(copy.width == width and copy.height == height, "native Image Resize changed size")
+    return copy
+  end)
+  if previous ~= nil then
+    app.activeSprite = previous.sprite
+    if previous.sprite ~= nil then
+      app.activeLayer = previous.layer
+      app.activeFrame = previous.frame
+    end
+  end
+  if not ok then error(resized, 0) end
   return resized, basis
 end
 

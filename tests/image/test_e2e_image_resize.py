@@ -283,6 +283,49 @@ def test_indexed_bilinear_preserves_transparent_index_edge(tmp_path: Path) -> No
     assert _inspect_native(target, tmp_path, 3, 3)["pixel"] == 0
 
 
+def test_shared_resize_restores_active_context_on_success_and_failure(
+    tmp_path: Path,
+) -> None:
+    observation = probe(
+        RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
+    )
+    output = tmp_path / "context.json"
+    with tempfile.TemporaryDirectory(prefix="spa-image-context-") as work:
+        prepared = prepare_invocation(
+            Path(observation.canonical_path),
+            Path(observation.resource_path),
+            Path(work),
+        )
+        run = subprocess.run(
+            [
+                str(prepared.executable),
+                "--batch",
+                "--script-param",
+                f"image_resize_transform={Path(__file__).parents[2] / 'src/spa/kernel/image_resize_transform.lua'}",
+                "--script-param",
+                f"out={output}",
+                "--script",
+                str(
+                    Path(__file__).parent / "fixtures" / "resize_transform_context.lua"
+                ),
+            ],
+            text=True,
+            capture_output=True,
+            check=False,
+            env=prepared.environment,
+        )
+    assert run.returncode == 0, run.stderr
+    result = json.loads(output.read_text())
+    assert result["before"] == {"sprite": True, "layer": True, "frame": True}
+    assert result["success"] is True
+    assert result["resized_width"] == 3
+    assert result["after_success"] == result["before"]
+    assert result["failure"] is False
+    assert result["after_failure"] == result["before"]
+    assert result["no_sprite_success"] is True
+    assert result["after_no_sprite"] is True
+
+
 def test_indexed_bilinear_uses_declared_palette_change_in_pixel_result(
     tmp_path: Path,
 ) -> None:

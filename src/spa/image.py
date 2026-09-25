@@ -217,7 +217,8 @@ def resize_image(
         if (
             isinstance(rejection, dict)
             and isinstance(rejection.get("code"), str)
-            and rejection["code"] in {spec.code for spec in IMAGE_RESIZE_FAILURE_CODE_SPECS}
+            and rejection["code"]
+            in {spec.code for spec in IMAGE_RESIZE_FAILURE_CODE_SPECS}
             and isinstance(rejection.get("message"), str)
         ):
             raise OperationIssue(

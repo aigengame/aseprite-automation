@@ -81,7 +81,9 @@ def test_malformed_rejection_code_uses_failure_envelope() -> None:
         "aseprite": "/aseprite",
     }
 
-    outcome = dispatch(IMAGE_OPERATIONS[0], json.dumps(request), {}, services, FAILURE_CODES)
+    outcome = dispatch(
+        IMAGE_OPERATIONS[0], json.dumps(request), {}, services, FAILURE_CODES
+    )
 
     assert isinstance(outcome, FailureEnvelope)
     assert outcome.code == "kernel_response_invalid"
