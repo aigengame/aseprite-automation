@@ -3,7 +3,6 @@
 import hashlib
 import json
 import os
-import struct
 import subprocess
 import tempfile
 from pathlib import Path
@@ -17,7 +16,7 @@ from spa.paint import PAINT_APPLY_HANDLER
 from spa.ports import HandlerEvidence, RuntimeIssue
 from spa.runtime.aseprite import invoke, probe
 from spa.runtime.invocation import prepare_invocation
-from tests.support import spa
+from tests.support import inject_palette_change, spa
 
 pytestmark = pytest.mark.e2e
 
@@ -54,32 +53,7 @@ def _fixture(target: Path, kind: str, *, palette_alpha: int | None = None) -> No
     assert run.returncode == 0, run.stdout + run.stderr
     assert target.is_file()
     if kind == "indexed-palette-change":
-        _inject_palette_change(target)
-
-
-def _inject_palette_change(target: Path) -> None:
-    """Add a second-frame Palette Chunk unavailable through the public Lua API."""
-    payload = bytearray(target.read_bytes())
-    frame_offset = 128
-    frame_offset += struct.unpack_from("<I", payload, frame_offset)[0]
-
-    entries = struct.pack("<HBBBB", 0, 0, 0, 0, 0) + struct.pack(
-        "<HBBBB", 0, 65, 105, 225, 255
-    )
-    chunk_data = struct.pack("<III8x", 2, 0, 1) + entries
-    chunk = struct.pack("<IH", len(chunk_data) + 6, 0x2019) + chunk_data
-    frame_size = struct.unpack_from("<I", payload, frame_offset)[0]
-    insert_at = frame_offset + 16
-    old_chunk_count = struct.unpack_from("<H", payload, frame_offset + 6)[0]
-    new_chunk_count = struct.unpack_from("<I", payload, frame_offset + 12)[0]
-    struct.pack_into("<I", payload, frame_offset, frame_size + len(chunk))
-    if new_chunk_count:
-        struct.pack_into("<I", payload, frame_offset + 12, new_chunk_count + 1)
-    else:
-        struct.pack_into("<H", payload, frame_offset + 6, old_chunk_count + 1)
-    payload[insert_at:insert_at] = chunk
-    struct.pack_into("<I", payload, 0, len(payload))
-    target.write_bytes(payload)
+        inject_palette_change(target, [(0, 0, 0, 0), (65, 105, 225, 255)])
 
 
 def _create(source: Path) -> None:

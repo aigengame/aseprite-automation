@@ -38,6 +38,7 @@ from spa.ports import (
     RuntimeIssue,
 )
 from spa.raster import (
+    ImageContentDigest,
     PixelPatch,
     PixelRun,
     Point,
@@ -124,11 +125,6 @@ class EffectivePaletteFact(PublicModel):
     palette_frame_number: int = Field(ge=1)
     palette_size: int = Field(ge=1, le=256)
     indexes: list[PaletteIndexFact]
-
-
-class ImageContentDigest(PublicModel):
-    algorithm: Literal["fnv1a64"] = "fnv1a64"
-    value: str = Field(pattern=r"^[0-9a-f]{16}$")
 
 
 class PaintApplyEvidence(PublicModel):

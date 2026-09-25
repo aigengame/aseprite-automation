@@ -2,6 +2,7 @@
 
 import shlex
 import shutil
+import struct
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -94,3 +95,26 @@ cp "$request" "$echo_file"
 printf '%s' {quoted_response} > "$response_file"
 """,
     )
+
+
+def inject_palette_change(
+    target: Path, entries: list[tuple[int, int, int, int]]
+) -> None:
+    """Add a second-Frame Palette Chunk unavailable through the public Lua API."""
+    payload = bytearray(target.read_bytes())
+    frame_offset = 128 + struct.unpack_from("<I", payload, 128)[0]
+    colors = b"".join(struct.pack("<HBBBB", 0, *color) for color in entries)
+    chunk_data = struct.pack("<III8x", len(entries), 0, len(entries) - 1) + colors
+    chunk = struct.pack("<IH", len(chunk_data) + 6, 0x2019) + chunk_data
+    frame_size = struct.unpack_from("<I", payload, frame_offset)[0]
+    insert_at = frame_offset + 16
+    old_chunk_count = struct.unpack_from("<H", payload, frame_offset + 6)[0]
+    new_chunk_count = struct.unpack_from("<I", payload, frame_offset + 12)[0]
+    struct.pack_into("<I", payload, frame_offset, frame_size + len(chunk))
+    if new_chunk_count:
+        struct.pack_into("<I", payload, frame_offset + 12, new_chunk_count + 1)
+    else:
+        struct.pack_into("<H", payload, frame_offset + 6, old_chunk_count + 1)
+    payload[insert_at:insert_at] = chunk
+    struct.pack_into("<I", payload, 0, len(payload))
+    target.write_bytes(payload)
