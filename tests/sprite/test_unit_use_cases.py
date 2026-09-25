@@ -14,7 +14,14 @@ from spa.ports import (
     RuntimeObservation,
     TargetCommitObservation,
 )
-from spa.sprite import SpriteCreateRequest, SpriteGetRequest, create_sprite, get_sprite
+from spa.sprite import (
+    SpriteCreateRequest,
+    SpriteCropRequest,
+    SpriteGetRequest,
+    create_sprite,
+    crop_sprite,
+    get_sprite,
+)
 
 
 def _observation() -> RuntimeObservation:
@@ -114,6 +121,12 @@ class _TargetFiles:
     def discard(self, staged: Path) -> None:
         return None
 
+    def same_publication_entry(self, source: Path, target: Path) -> bool:
+        return False
+
+    def same_publication_target(self, source: Path, target: Path) -> bool:
+        return False
+
 
 def _services(
     payload: dict[str, Any], files: _TargetFiles | None = None
@@ -154,6 +167,45 @@ def test_create_refuses_mismatched_persisted_facts_before_target_commit() -> Non
         create_sprite(request, _services(inspection, files))
 
     assert failure.value.kind == "postcondition_failed"
+    assert files.commits == 0
+
+
+def test_crop_requires_kernel_clipping_evidence_before_target_commit() -> None:
+    files = _TargetFiles()
+    before = _inspection()
+    after = _inspection()
+    after["metadata"]["width"] = 2
+    after["cels"][0]["bounds"]["width"] = 2
+
+    def invoke(*_args: object) -> KernelInvocationResult:
+        return KernelInvocationResult(
+            payload={
+                "before_sprite": before,
+                "sprite": after,
+                "persisted_reopen_verified": True,
+            },
+            response_path="/response.json",
+            diagnostics=Diagnostics(exit_status=0),
+        )
+
+    services = OperationServices(
+        probe_runtime=lambda _request: _observation(),
+        invoke_kernel=invoke,
+        target_files=files,
+    )
+    request = SpriteCropRequest(
+        source_sprite_file="source.aseprite",
+        target_sprite_file="target.aseprite",
+        in_place=False,
+        overwrite=False,
+        coordinate_space="canvas-pixel",
+        rectangle={"x": 0, "y": 0, "width": 2, "height": 2},
+    )
+
+    with pytest.raises(RuntimeIssue) as failure:
+        crop_sprite(request, services)
+
+    assert failure.value.kind == "response_malformed"
     assert files.commits == 0
 
 

@@ -393,6 +393,59 @@ local function observes_cel_lifecycle()
   return ok
 end
 
+local function observes_cel_relationships()
+  if cel_support == nil or layer_select == nil then return false end
+  local sprite = nil
+  local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
+  local ok = pcall(function()
+    sprite = Sprite(2, 2, ColorMode.RGB)
+    local layer = sprite.layers[1]
+    sprite:newEmptyFrame(2)
+    sprite:newEmptyFrame(3)
+    local original = assert(layer:cel(1))
+    local resolved, path = cel_support.resolve(
+      sprite,
+      { layer = { layer_path = { 1 } }, frame_number = 1 },
+      layer_select,
+      {}
+    )
+    assert(resolved == layer and path[1] == 1)
+    assert(cel_support.is_regular_transparent(layer))
+    assert(cel_support.inspect(sprite, layer, path, 1).exists)
+    assert(#cel_support.affected(sprite, original.image) == 1)
+    original.position = Point(1, 0)
+    original.opacity = 200
+    original.zIndex = 1
+    local other = sprite:newLayer()
+    local duplicate = sprite:newCel(other, 2, original.image, original.position)
+    assert(duplicate.image ~= original.image)
+    sprite:newEmptyFrame(2)
+    app.activeSprite = sprite
+    app.activeLayer = layer
+    app.activeFrame = sprite.frames[1]
+    app.command.NewFrame { content = "cellinked" }
+    local linked = assert(layer:cel(2))
+    assert(linked.image == original.image)
+    assert(#cel_support.affected(sprite, original.image) == 2)
+    linked.frameNumber = 4
+    sprite:deleteFrame(2)
+    linked = assert(layer:cel(3))
+    assert(linked.image == original.image)
+    app.activeFrame = sprite.frames[3]
+    app.command.UnlinkCel()
+    assert(layer:cel(3).image ~= original.image)
+    sprite:close()
+    sprite = nil
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
+  return ok
+end
+
 local function observes_sprite_flatten()
   local sprite = nil
   local ok = pcall(function()
@@ -405,6 +458,39 @@ local function observes_sprite_flatten()
     sprite = nil
   end)
   if sprite ~= nil then pcall(function() sprite:close() end) end
+  return ok
+end
+
+local function observes_sprite_resize()
+  local sprite = nil
+  local ok = pcall(function()
+    sprite = Sprite(2, 2, ColorMode.RGB)
+    sprite:resize(4, 4)
+    assert(sprite.width == 4 and sprite.height == 4)
+    sprite:close()
+    sprite = nil
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  return ok
+end
+
+local function observes_sprite_crop()
+  local sprite = nil
+  local previous = app.activeSprite
+  local ok = pcall(function()
+    sprite = Sprite(3, 3, ColorMode.RGB)
+    app.activeSprite = sprite
+    app.command.CanvasSize {
+      bounds = Rectangle(1, 1, 2, 2),
+      trimOutside = true,
+      ui = false,
+    }
+    assert(sprite.width == 2 and sprite.height == 2)
+    sprite:close()
+    sprite = nil
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  if previous ~= nil and previous.isValid then pcall(function() app.activeSprite = previous end) end
   return ok
 end
 
@@ -443,6 +529,8 @@ function module.observe()
   end
   if supports_inspection then capabilities[#capabilities + 1] = "aseprite_sprite_inspection" end
   if observes_sprite_flatten() then capabilities[#capabilities + 1] = "aseprite_sprite_flatten" end
+  if observes_sprite_resize() then capabilities[#capabilities + 1] = "aseprite_sprite_resize" end
+  if observes_sprite_crop() then capabilities[#capabilities + 1] = "aseprite_sprite_crop" end
   if observes_layer_hierarchy() then
     capabilities[#capabilities + 1] = "aseprite_layer_hierarchy"
   end
@@ -457,6 +545,9 @@ function module.observe()
   end
   if observes_frame_editing() then capabilities[#capabilities + 1] = "aseprite_frame_editing" end
   if observes_cel_lifecycle() then capabilities[#capabilities + 1] = "aseprite_cel_lifecycle" end
+  if observes_cel_relationships() then
+    capabilities[#capabilities + 1] = "aseprite_cel_relationships"
+  end
   if observes_tag_authoring() then capabilities[#capabilities + 1] = "aseprite_tag_authoring" end
   if exporter ~= nil then
     local ok = pcall(function()

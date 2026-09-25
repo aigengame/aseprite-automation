@@ -4,7 +4,7 @@ Aseprite Automation (SPA) provides agent-facing automation for Aseprite. `SPA` i
 short project name used in documentation; `spa` is the primary executable.
 
 > [!IMPORTANT]
-> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery, Sprite creation, inspection, copy, flatten, and validation, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection and lifecycle, Tag inspection and authoring, bounded Pixel Patch application, verified RGB PNG Image Export, and animation audit, Frame comparison, and verified continuity Preview export. Feature issues own delivery contracts, evidence requirements, provenance links, curated evidence summaries, and status, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
+> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery, Sprite creation, inspection, copy, resize, crop, flatten, and validation, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Tag inspection and authoring, bounded Pixel Patch application, verified RGB PNG Image Export, animation audit, Frame comparison, and verified continuity Preview export. Feature issues own delivery contracts, evidence requirements, provenance links, curated evidence summaries, and status, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
 
 This README owns the user-facing product introduction and promotion, value-proposition
 narrative, onboarding, adoption guidance, and project navigation. Its factual claims
@@ -118,6 +118,8 @@ uv run spa sprite get --input-json '{"aseprite":"/path/to/aseprite","sprite_file
 uv run spa sprite validate --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite","expected":{"width":16,"height":16,"color_mode":"rgb","frame_count":1}}'
 uv run spa sprite copy --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"copy.aseprite","overwrite":false}'
 uv run spa sprite flatten --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"copy.aseprite","target_sprite_file":"flat.aseprite","in_place":false,"overwrite":false}'
+uv run spa sprite resize --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"resized.aseprite","in_place":false,"overwrite":false,"width":32,"height":32}'
+uv run spa sprite crop --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"cropped.aseprite","in_place":false,"overwrite":false,"coordinate_space":"canvas-pixel","rectangle":{"x":2,"y":2,"width":12,"height":12}}'
 uv run spa frame list --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite"}'
 uv run spa frame add --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"timed.aseprite","in_place":false,"overwrite":false,"frame_number":2,"duration_ms":120}'
 uv run spa frame duplicate --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"timed.aseprite","target_sprite_file":"duplicated.aseprite","in_place":false,"overwrite":false,"source_frame_number":1,"cel_mode":"copy"}'
@@ -164,6 +166,17 @@ visible composite. This slice rejects a Sprite with
 any Tileset or Tilemap Layer before mutation and reports
 `sprite_flatten_unsupported_content` without a Target Commit. In-place flattening
 requires `in_place: true` and `overwrite: true`.
+`spa sprite resize` uses Aseprite's nearest-neighbor resize at Canvas origin `(0, 0)`
+with explicit positive dimensions. `spa sprite crop` requires a non-empty, half-open
+Canvas Pixel Rectangle wholly within the current canvas and trims outside Cel
+content. Both operations reject a Sprite containing any Tileset, Tilemap Layer,
+Tilemap Cel, or Tilemap Image before native mutation and Target Commit. Their
+results include before and reopened Sprite inspections, old and new canvas sizes,
+and observed Cel bounds, Tags, Slices, and Grid. Crop also reports `clipped_cels`
+with each affected Cel's bounds before and after clipping; these are geometry facts,
+not a count of colored pixels. Aseprite moves Reference Layer Cels without trimming
+their images, so they do not appear in `clipped_cels`. In-place edits require
+`in_place: true` and `overwrite: true`.
 `spa layer list` returns the current hierarchy. `spa layer get` accepts one
 `layer_path`, `layer_uuid`, or `layer_name`. Paths use one-based native sibling
 positions. Names use exact case-sensitive matching and must be unique across the
@@ -229,6 +242,13 @@ Background Layer it requires an explicit compatible `background_color` and fills
 the Cel with that color. Clearing a shared Image preserves native links and reports
 every affected Cel in `affected_cels`. `cel remove` makes a regular Transparent Cel
 absent and rejects Background Cels. Mutations verify the staged Sprite after reopening it.
+`cel set` changes position, opacity, or z-index without replacing pixels. `cel copy`
+creates an independent Image at an absent destination; `cel link` shares the Image,
+position, and opacity with an absent Frame on the same Layer. Z-index remains
+individual to each Cel. `cel unlink` makes one Linked Cel independent while
+retaining its pixels. It refuses a locked target Layer or locked ancestor.
+`before_cels` records the validated input scope; `affected_cels` reports the
+Cel targets of the mutation after reopening the staged Sprite.
 Paint requires an existing Cel and Image and reports `cel_not_found` when absent.
 Tilemap Cel inspection reports existence and Canvas Pixel position with
 `image_bounds: null`; Tile Cell geometry belongs to Tilemap inspection.

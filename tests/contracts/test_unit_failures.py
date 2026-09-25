@@ -51,7 +51,13 @@ from spa.ports import (
     RuntimeIssue,
     TargetCommitEvidence,
 )
-from spa.sprite import SpriteCopyStagingDetails, SpriteUnsupportedContentDetails
+from spa.raster import PositiveRectangle, Size
+from spa.sprite import (
+    SpriteCopyStagingDetails,
+    SpriteCropBoundsDetails,
+    SpriteGeometryUnsupportedDetails,
+    SpriteUnsupportedContentDetails,
+)
 from spa.tag import TagAddress, TagRangeDetails, TagTargetDetails
 from tests.support import operation_services
 
@@ -92,6 +98,8 @@ def test_all_installed_failure_codes_are_registered_once() -> None:
         "artifact_verification_failed",
         "sprite_copy_staging_failed",
         "sprite_flatten_unsupported_content",
+        "sprite_geometry_unsupported_content",
+        "sprite_crop_out_of_bounds",
     } <= set(FAILURE_CODES)
     assert all(
         spec.meaning and spec.code == code for code, spec in FAILURE_CODES.items()
@@ -209,6 +217,17 @@ def test_each_registered_code_has_a_constrained_public_schema() -> None:
             unit="coverage_observations",
             requested=1025,
             allowed_maximum=1024,
+        ),
+        SpriteGeometryUnsupportedDetails: SpriteGeometryUnsupportedDetails(
+            source_sprite_file="sprite.aseprite",
+            tileset_count=1,
+            tilemap_layer_count=0,
+            tilemap_cel_count=0,
+            tilemap_image_count=0,
+        ),
+        SpriteCropBoundsDetails: SpriteCropBoundsDetails(
+            rectangle=PositiveRectangle(x=3, y=1, width=2, height=2),
+            canvas=Size(width=4, height=4),
         ),
     }
     for code, spec in FAILURE_CODES.items():

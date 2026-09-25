@@ -128,7 +128,8 @@ native structures.
 _SPA use_: An Image is not a file Artifact.
 
 **Linked Cels**
-Aseprite Cels that share their Image and xy-coordinate.
+Aseprite Cels that share their Image, xy-coordinate, and opacity. Z-index remains
+individual to each Cel.
 _SPA use_: A raster mutation preserves this relationship unless an explicit Cel
 Operation unlinks or replaces it.
 
