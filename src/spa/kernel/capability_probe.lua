@@ -404,7 +404,10 @@ local function observes_cel_relationships()
     sprite:newEmptyFrame(3)
     local original = assert(layer:cel(1))
     local resolved, path = cel_support.resolve(
-      sprite, { layer = { layer_path = { 1 } }, frame_number = 1 }, layer_select, {}
+      sprite,
+      { layer = { layer_path = { 1 } }, frame_number = 1 },
+      layer_select,
+      {}
     )
     assert(resolved == layer and path[1] == 1)
     assert(cel_support.is_regular_transparent(layer))
