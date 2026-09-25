@@ -1,12 +1,13 @@
 local mode = app.params.mode or "rgb"
-local color_mode = (mode == "indexed" or mode == "indexed-two-frame") and ColorMode.INDEXED
+local color_mode = (mode == "indexed" or mode == "indexed-two-frame" or mode == "indexed-edge")
+    and ColorMode.INDEXED
   or mode == "grayscale" and ColorMode.GRAY
   or ColorMode.RGB
 local sprite = Sprite(8, 8, color_mode)
 local layer = sprite.layers[1]
 layer.name = "subject"
 local image = Image(2, 2, color_mode)
-if mode == "indexed" or mode == "indexed-two-frame" then
+if mode == "indexed" or mode == "indexed-two-frame" or mode == "indexed-edge" then
   local palette = Palette(4)
   palette:setColor(0, Color { r = 0, g = 0, b = 0, a = 0 })
   palette:setColor(1, Color { r = 255, g = 0, b = 0, a = 255 })
@@ -14,9 +15,11 @@ if mode == "indexed" or mode == "indexed-two-frame" then
   palette:setColor(3, Color { r = 127, g = 0, b = 127, a = 255 })
   sprite:setPalette(palette)
   image:putPixel(0, 0, 1)
-  image:putPixel(1, 0, 2)
-  image:putPixel(0, 1, 1)
-  image:putPixel(1, 1, 2)
+  if mode ~= "indexed-edge" then
+    image:putPixel(1, 0, 2)
+    image:putPixel(0, 1, 1)
+    image:putPixel(1, 1, 2)
+  end
 elseif mode == "grayscale" then
   image:putPixel(0, 0, app.pixelColor.graya(200, 255))
 else

@@ -269,6 +269,20 @@ def test_indexed_bilinear_resolves_palette_before_requested_frame(
     assert result["effective_palette"]["palette_frame_number"] == 1
 
 
+def test_indexed_bilinear_preserves_transparent_index_edge(tmp_path: Path) -> None:
+    source = _fixture(tmp_path, "indexed-edge")
+    original = source.read_bytes()
+    target = tmp_path / "indexed-edge-resized.aseprite"
+
+    code, result = _resize(source, target, method="bilinear", palette_frame_number=1)
+
+    assert code == 0, result
+    assert result["effective_palette"]["transparent_color_index"] == 0
+    assert source.read_bytes() == original
+    assert _inspect_native(target, tmp_path, 0, 0)["pixel"] == 1
+    assert _inspect_native(target, tmp_path, 3, 3)["pixel"] == 0
+
+
 def test_indexed_bilinear_uses_declared_palette_change_in_pixel_result(
     tmp_path: Path,
 ) -> None:

@@ -5,7 +5,7 @@ local function effective_palette(sprite, frame_number)
   local selected, change_frame = nil, -1
   for index = 1, #sprite.palettes do
     local palette = sprite.palettes[index]
-    local candidate = palette.frameNumber
+    local candidate = palette.frame.frameNumber
     if candidate <= frame_number and candidate > change_frame then
       selected, change_frame = palette, candidate
     end

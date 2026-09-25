@@ -256,8 +256,9 @@ Tilemap Cel inspection reports existence and Canvas Pixel position with
 
 `spa image resize` targets an existing Image on a regular Transparent Cel.
 It requires positive dimensions, `nearest-neighbor`, `bilinear`, or `rotsprite`,
-and a `keep` or `pivot` Cel-position policy. `pivot` requires integer
-`pivot_x`/`pivot_y` in old Image Pixel space and an explicit rounding mode:
+and a `keep` or `pivot` Cel-position policy. `pivot` requires signed 32-bit
+integer `pivot_x`/`pivot_y` in old Image Pixel space (including points outside
+the Image bounds) and an explicit rounding mode:
 `toward-zero`, `floor`, `ceil`, or `nearest-away-from-zero`. Indexed `bilinear`
 also requires `palette_frame_number` to select the Effective Palette; other
 Color Modes and methods reject that input. The operation transforms a source
