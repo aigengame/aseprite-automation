@@ -6,6 +6,9 @@ short project name used in documentation; `spa` is the primary executable.
 > [!IMPORTANT]
 > This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery, Sprite creation, inspection, copy, resize, crop, flatten, and validation, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Tag inspection and authoring, Cel-targeted Image Resize, bounded Pixel Patch application, verified RGB PNG Image Export, animation audit, Frame comparison, and verified continuity Preview export. Feature issues own delivery contracts, evidence requirements, provenance links, curated evidence summaries, and status, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
 
+For a complete authoring example, see [Moonlit Spell Practice](examples/wizard_cast/README.md):
+a reproducible SPA wizard animation, reusable pixel assets, and a Godot target-practice demo.
+
 This README owns the user-facing product introduction and promotion, value-proposition
 narrative, onboarding, adoption guidance, and project navigation. Its factual claims
 derive from the applicable product, architecture, delivery, and installed-runtime
