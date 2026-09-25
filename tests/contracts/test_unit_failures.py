@@ -11,6 +11,7 @@ from jsonschema import Draft202012Validator
 from jsonschema import ValidationError as SchemaError
 from pydantic import ValidationError
 
+from spa.animation import AuditLimitDetails
 from spa.application import _runtime_failure, dispatch
 from spa.cel import CelAddress as LifecycleCelAddress
 from spa.cel import CelFrameRangeDetails, CelTargetDetails
@@ -203,6 +204,11 @@ def test_each_registered_code_has_a_constrained_public_schema() -> None:
             source_sprite_file="sprite.aseprite",
             tileset_count=1,
             tilemap_layer_count=0,
+        ),
+        AuditLimitDetails: AuditLimitDetails(
+            unit="coverage_observations",
+            requested=1025,
+            allowed_maximum=1024,
         ),
     }
     for code, spec in FAILURE_CODES.items():

@@ -5,9 +5,11 @@ from pathlib import Path
 
 import pytest
 from PIL import Image
+from pydantic import ValidationError
 
 from spa.animation import (
     AnimationAuditRequest,
+    AnimationCompareRequest,
     AnimationPreviewRequest,
     audit_animation,
     preview_animation,
@@ -21,6 +23,27 @@ from spa.ports import (
     RuntimeIssue,
     RuntimeObservation,
 )
+
+
+@pytest.mark.parametrize(
+    "request_type", [AnimationCompareRequest, AnimationPreviewRequest]
+)
+def test_frame_pair_requires_distinct_frames(request_type) -> None:
+    fields = {"earlier_frame": 1, "later_frame": 1}
+    if request_type is AnimationCompareRequest:
+        fields["sprite_file"] = "source.aseprite"
+    else:
+        fields["source_sprite_file"] = "source.aseprite"
+        fields["destination"] = {"path": "preview.png", "if_exists": "fail"}
+    with pytest.raises(ValidationError, match="must precede"):
+        request_type.model_validate(fields)
+
+
+def test_audit_limits_are_discoverable_in_request_schema() -> None:
+    assert AnimationAuditRequest.model_json_schema()["x-spa-audit-limits"] == {
+        "coverage_observations": 1024,
+        "overlap_pixel_checks": 16_777_216,
+    }
 
 
 @pytest.mark.parametrize(

@@ -21,5 +21,6 @@ elseif arrangement == "hidden_group" then
 else
   assert(arrangement == "visible")
 end
+if app.params.two_frames == "true" then sprite:newEmptyFrame() end
 assert(sprite:saveAs(app.params.out))
 sprite:close()

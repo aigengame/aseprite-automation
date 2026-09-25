@@ -1,4 +1,5 @@
-local sprite = Sprite(3, 2, ColorMode.RGB)
+local sprite =
+  Sprite(tonumber(app.params.width) or 3, tonumber(app.params.height) or 2, ColorMode.RGB)
 local base = sprite.layers[1]
 base.name = "base"
 local upper = sprite:newLayer()

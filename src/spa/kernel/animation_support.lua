@@ -69,6 +69,24 @@ local function audit(payload)
       payload.from_frame >= 1 and payload.to_frame <= #sprite.frames,
       "Frame Range is outside Sprite"
     )
+    local pixel_checks = #payload.non_overlap
+      * (payload.to_frame - payload.from_frame + 1)
+      * sprite.width
+      * sprite.height
+    if pixel_checks > payload.max_overlap_pixel_checks then
+      return {
+        rejection = {
+          code = "audit_limit_exceeded",
+          message = "Animation Audit exceeds its overlap Pixel check limit",
+          details = {
+            unit = "overlap_pixel_checks",
+            requested = pixel_checks,
+            allowed_minimum = 0,
+            allowed_maximum = payload.max_overlap_pixel_checks,
+          },
+        },
+      }
+    end
     local uuids = inspection.saved_layer_uuids(sprite, payload.sprite_file)
     local required, durations, overlaps, findings = {}, {}, {}, {}
     for _, address in ipairs(payload.required_cels) do

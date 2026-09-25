@@ -129,6 +129,8 @@ class ArtifactFiles(Protocol):
 
     def normalize_destination(self, path: str) -> Path: ...
 
+    def ensure_source_separate(self, source: Path, destination: Path) -> None: ...
+
     def staged_path(self, destination: Path, *, if_exists: str) -> Path: ...
 
     def rendered_path(self, staged: Path) -> Path: ...
@@ -229,6 +231,7 @@ class TargetCommitEvidence:
 
 
 ArtifactFileFailureReason = Literal[
+    "source_destination_alias",
     "destination_exists",
     "destination_not_file",
     "destination_parent_missing",

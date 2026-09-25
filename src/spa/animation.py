@@ -1,11 +1,23 @@
 """Declared animation inspection and verified continuity-preview export."""
 
+from pathlib import Path
 from typing import Annotated, Literal
 
-from pydantic import Field, ValidationError, field_validator, model_validator
+from pydantic import (
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 from spa.cel import CEL_SELECT_RESOURCE, CelAddress
-from spa.contracts import PublicModel, RuntimeRequest, RuntimeRequirements
+from spa.contracts import (
+    FailureCodeSpec,
+    PublicModel,
+    RuntimeRequest,
+    RuntimeRequirements,
+)
 from spa.export import (
     EXPORT_FAILURE_CODE_SPECS,
     EXPORT_SUPPORT,
@@ -27,6 +39,27 @@ from spa.ports import (
 )
 from spa.raster import Rectangle
 from spa.sprite import SPRITE_INSPECTION_RESOURCE
+
+MAX_AUDIT_OBSERVATIONS = 1024
+MAX_AUDIT_OVERLAP_PIXEL_CHECKS = 16_777_216
+
+
+class AuditLimitDetails(PublicModel):
+    kind: Literal["operation_limit"] = "operation_limit"
+    unit: Literal["coverage_observations", "overlap_pixel_checks"]
+    requested: int = Field(ge=0)
+    allowed_minimum: Literal[0] = 0
+    allowed_maximum: int = Field(gt=0)
+
+
+ANIMATION_FAILURE_CODE_SPECS = (
+    FailureCodeSpec(
+        "audit_limit_exceeded",
+        "Animation Audit exceeded its declared coverage or overlap-pixel limit",
+        "input",
+        AuditLimitDetails,
+    ),
+)
 
 
 class FrameScope(PublicModel):
@@ -51,6 +84,15 @@ class NonOverlapPair(PublicModel):
 
 
 class AnimationAuditRequest(RuntimeRequest):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "x-spa-audit-limits": {
+                "coverage_observations": MAX_AUDIT_OBSERVATIONS,
+                "overlap_pixel_checks": MAX_AUDIT_OVERLAP_PIXEL_CHECKS,
+            }
+        }
+    )
+
     sprite_file: str = Field(min_length=1)
     from_frame: int = Field(ge=1, strict=True)
     to_frame: int = Field(ge=1, strict=True)
@@ -135,8 +177,8 @@ class _FramePair(RuntimeRequest):
 
     @model_validator(mode="after")
     def chronological(self) -> "_FramePair":
-        if self.earlier_frame > self.later_frame:
-            raise ValueError("earlier_frame must not follow later_frame")
+        if self.earlier_frame >= self.later_frame:
+            raise ValueError("earlier_frame must precede later_frame")
         return self
 
 
@@ -256,6 +298,20 @@ def _payload(invocation: KernelInvocationResult) -> dict:
     rejected = invocation.payload.get("rejection")
     if rejected is None:
         return invocation.payload
+    if isinstance(rejected, dict) and rejected.get("code") == "audit_limit_exceeded":
+        try:
+            details = AuditLimitDetails.model_validate(rejected["details"])
+            message = rejected["message"]
+            if not isinstance(message, str):
+                raise TypeError("rejection message is not text")
+        except (KeyError, TypeError, ValueError, ValidationError) as exc:
+            raise RuntimeIssue(
+                "response_malformed",
+                "Animation handler returned malformed Operation Limit rejection",
+                ResponseEvidence(invocation.response_path),
+                invocation.diagnostics,
+            ) from exc
+        raise OperationIssue("audit_limit_exceeded", message, details)
     if (
         isinstance(rejected, dict)
         and rejected.get("code") in LAYER_ADDRESS_FAILURE_CODES
@@ -288,11 +344,28 @@ def _payload(invocation: KernelInvocationResult) -> dict:
 def audit_animation(
     request: AnimationAuditRequest, services: OperationServices
 ) -> AnimationAuditResult:
+    frame_count = request.to_frame - request.from_frame + 1
+    observations = (
+        len(request.required_cels)
+        + (frame_count if request.duration_bounds else 0)
+        + len(request.non_overlap) * frame_count
+    )
+    if observations > MAX_AUDIT_OBSERVATIONS:
+        raise OperationIssue(
+            "audit_limit_exceeded",
+            "Animation Audit exceeds its coverage Observation limit",
+            AuditLimitDetails(
+                unit="coverage_observations",
+                requested=observations,
+                allowed_maximum=MAX_AUDIT_OBSERVATIONS,
+            ),
+        )
     _, invocation = _invoked(
         request,
         services,
         {
             "operation": "audit",
+            "max_overlap_pixel_checks": MAX_AUDIT_OVERLAP_PIXEL_CHECKS,
             **request.model_dump(
                 include={
                     "sprite_file",
@@ -418,6 +491,7 @@ def preview_animation(
     if files is None or verify_png is None:
         raise RuntimeError("Animation Preview requires Artifact files and PNG verifier")
     destination = files.normalize_destination(request.destination.path)
+    files.ensure_source_separate(Path(request.source_sprite_file), destination)
     staged = files.staged_path(destination, if_exists=request.destination.if_exists)
     rendered = files.rendered_path(staged)
     try:
@@ -467,6 +541,7 @@ def preview_animation(
                 ),
                 invocation.diagnostics,
             )
+        files.ensure_source_separate(Path(request.source_sprite_file), destination)
         published = files.publish(
             staged,
             destination,
@@ -516,7 +591,11 @@ ANIMATION_OPERATIONS = (
         audit_animation,
         lambda result: f"{len(result.findings)} findings",
         AUDIT_REQUIREMENTS,
-        (*RUNTIME_FAILURE_CODES, *LAYER_ADDRESS_FAILURE_CODES),
+        (
+            *RUNTIME_FAILURE_CODES,
+            *LAYER_ADDRESS_FAILURE_CODES,
+            "audit_limit_exceeded",
+        ),
     ),
     OperationDescriptor(
         "animation compare",

@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -156,6 +157,54 @@ def test_audit_ignores_hidden_cel_in_declared_pair(tmp_path: Path) -> None:
     assert result["findings"] == []
 
 
+def test_audit_reports_typed_coverage_limit_before_inspection(tmp_path: Path) -> None:
+    source = _source(tmp_path, "coverage.lua")
+    code, failure = _run(
+        "audit",
+        {
+            "sprite_file": str(source),
+            "from_frame": 1,
+            "to_frame": 1,
+            "required_cels": [
+                {"layer": {"layer_path": [1]}, "frame_number": 1} for _ in range(1025)
+            ],
+        },
+    )
+    assert code != 0 and failure["code"] == "audit_limit_exceeded"
+    assert failure["details"] == {
+        "kind": "operation_limit",
+        "unit": "coverage_observations",
+        "requested": 1025,
+        "allowed_minimum": 0,
+        "allowed_maximum": 1024,
+    }
+
+
+def test_audit_reports_typed_overlap_pixel_limit(tmp_path: Path) -> None:
+    source = _source(tmp_path, "coverage.lua", width="1024", height="1024")
+    pair = {
+        "first_layer": {"layer_path": [1]},
+        "second_layer": {"layer_path": [2]},
+    }
+    code, failure = _run(
+        "audit",
+        {
+            "sprite_file": str(source),
+            "from_frame": 1,
+            "to_frame": 3,
+            "non_overlap": [pair] * 6,
+        },
+    )
+    assert code != 0 and failure["code"] == "audit_limit_exceeded"
+    assert failure["details"] == {
+        "kind": "operation_limit",
+        "unit": "overlap_pixel_checks",
+        "requested": 18_874_368,
+        "allowed_minimum": 0,
+        "allowed_maximum": 16_777_216,
+    }
+
+
 def test_compare_counts_full_canvas_rgba_differences(tmp_path: Path) -> None:
     source = _source(tmp_path, "rgb_frames.lua")
     request = {"sprite_file": str(source), "earlier_frame": 1, "later_frame": 2}
@@ -165,7 +214,14 @@ def test_compare_counts_full_canvas_rgba_differences(tmp_path: Path) -> None:
     assert different["color_mode"] == "rgb"
     assert different["bounds"] == {"x": 0, "y": 0, "width": 3, "height": 2}
     assert different["differing_pixels"] == 2
-    code, same = _run("compare", {**request, "later_frame": 1})
+    identical_source = _source(
+        tmp_path,
+        "rgb_profile_alpha.lua",
+        profile="none",
+        alpha="opaque",
+        two_frames="true",
+    )
+    code, same = _run("compare", {**request, "sprite_file": str(identical_source)})
     assert code == 0, same
     assert same["differing_pixels"] == 0
 
@@ -224,16 +280,46 @@ def test_preview_requires_explicit_replacement_intent(tmp_path: Path) -> None:
     assert destination.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
 
 
+def test_preview_rejects_destination_traversed_by_source_alias(tmp_path: Path) -> None:
+    native_source = _source(tmp_path, "rgb_frames.lua")
+    destination = tmp_path / "preview.png"
+    shutil.copyfile(native_source, destination)
+    source = tmp_path / "linked.aseprite"
+    source.symlink_to(destination)
+    original = hashlib.sha256(source.read_bytes()).hexdigest()
+
+    code, failure = _run(
+        "preview",
+        {
+            "source_sprite_file": str(source),
+            "earlier_frame": 1,
+            "later_frame": 2,
+            "destination": {"path": str(destination), "if_exists": "replace"},
+        },
+    )
+
+    assert code != 0 and failure["code"] == "artifact_file_failed"
+    assert failure["details"]["reason"] == "source_destination_alias"
+    assert hashlib.sha256(source.read_bytes()).hexdigest() == original
+    assert hashlib.sha256(destination.read_bytes()).hexdigest() == original
+
+
 @pytest.mark.parametrize("alpha", ["opaque", "partial", "transparent"])
 def test_preview_decoded_alpha_fixtures(tmp_path: Path, alpha: str) -> None:
-    source = _source(tmp_path, "rgb_profile_alpha.lua", profile="none", alpha=alpha)
+    source = _source(
+        tmp_path,
+        "rgb_profile_alpha.lua",
+        profile="none",
+        alpha=alpha,
+        two_frames="true",
+    )
     destination = tmp_path / "preview.png"
     code, result = _run(
         "preview",
         {
             "source_sprite_file": str(source),
             "earlier_frame": 1,
-            "later_frame": 1,
+            "later_frame": 2,
             "destination": {"path": str(destination), "if_exists": "fail"},
         },
     )
@@ -264,10 +350,10 @@ def test_preview_decoded_alpha_fixtures(tmp_path: Path, alpha: str) -> None:
 def test_compare_and_preview_reject_export_image_input_matrix(
     tmp_path: Path, fixture: str, params: dict[str, str]
 ) -> None:
-    source = _source(tmp_path, fixture, **params)
+    source = _source(tmp_path, fixture, two_frames="true", **params)
     destination = tmp_path / "preview.png"
     code, compared = _run(
-        "compare", {"sprite_file": str(source), "earlier_frame": 1, "later_frame": 1}
+        "compare", {"sprite_file": str(source), "earlier_frame": 1, "later_frame": 2}
     )
     assert code != 0 and compared["code"] == "kernel_execution_failed"
     code, previewed = _run(
@@ -275,7 +361,7 @@ def test_compare_and_preview_reject_export_image_input_matrix(
         {
             "source_sprite_file": str(source),
             "earlier_frame": 1,
-            "later_frame": 1,
+            "later_frame": 2,
             "destination": {"path": str(destination), "if_exists": "fail"},
         },
     )

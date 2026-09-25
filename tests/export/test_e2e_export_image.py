@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import shutil
 import struct
 import subprocess
 import tempfile
@@ -121,6 +122,29 @@ def test_export_frame_as_verified_visible_rgb_png(tmp_path: Path) -> None:
         assert image.convert("RGBA").getpixel((1, 0)) == (17, 34, 51, 128)
         assert image.convert("RGBA").getpixel((0, 0)) == (0, 0, 0, 0)
     assert hashlib.sha256(source.read_bytes()).hexdigest() == original_sha
+
+
+def test_export_rejects_destination_traversed_by_source_alias(tmp_path: Path) -> None:
+    native_source = _source(tmp_path)
+    destination = tmp_path / "image.png"
+    shutil.copyfile(native_source, destination)
+    source = tmp_path / "linked.aseprite"
+    source.symlink_to(destination)
+    original = hashlib.sha256(source.read_bytes()).hexdigest()
+
+    run = spa(
+        "export",
+        "image",
+        "--input-json",
+        json.dumps(_request(source, destination, if_exists="replace")),
+    )
+
+    assert run.returncode != 0
+    failure = json.loads(run.stdout)
+    assert failure["code"] == "artifact_file_failed"
+    assert failure["details"]["reason"] == "source_destination_alias"
+    assert hashlib.sha256(source.read_bytes()).hexdigest() == original
+    assert hashlib.sha256(destination.read_bytes()).hexdigest() == original
 
 
 def test_export_opaque_rgb_without_color_profile(tmp_path: Path) -> None:
