@@ -157,7 +157,17 @@ class LocalArtifactFiles:
         return Path(os.path.abspath(os.path.expanduser(path)))
 
     def ensure_source_separate(self, source: Path, destination: Path) -> None:
-        if _same_publication_target(source, destination):
+        try:
+            aliases_source = _same_publication_target(source, destination)
+        except OSError as exc:
+            raise RuntimeIssue(
+                "artifact_file_failed",
+                "Source/Destination publication identity could not be verified",
+                ArtifactFileEvidence(
+                    str(destination), "source_destination_identity_unverified"
+                ),
+            ) from exc
+        if aliases_source:
             raise RuntimeIssue(
                 "artifact_file_failed",
                 "Export Destination would replace the Source Sprite File",

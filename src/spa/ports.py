@@ -232,6 +232,7 @@ class TargetCommitEvidence:
 
 ArtifactFileFailureReason = Literal[
     "source_destination_alias",
+    "source_destination_identity_unverified",
     "destination_exists",
     "destination_not_file",
     "destination_parent_missing",

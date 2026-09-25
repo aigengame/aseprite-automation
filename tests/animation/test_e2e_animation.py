@@ -304,6 +304,50 @@ def test_preview_rejects_destination_traversed_by_source_alias(tmp_path: Path) -
     assert hashlib.sha256(destination.read_bytes()).hexdigest() == original
 
 
+def test_preview_reports_unverifiable_source_destination_identity(
+    tmp_path: Path,
+) -> None:
+    native_source = _source(tmp_path, "rgb_frames.lua")
+    private = tmp_path / "private"
+    private.mkdir()
+    source = private / "source.aseprite"
+    shutil.copyfile(native_source, source)
+    destination = private / "preview.png"
+    os.link(source, destination)
+    original = hashlib.sha256(source.read_bytes()).hexdigest()
+    private.chmod(0o333)
+    try:
+        try:
+            os.listdir(private)
+        except PermissionError:
+            pass
+        else:
+            pytest.skip("cannot reproduce an unlistable directory")
+        run = spa(
+            "animation",
+            "preview",
+            "--input-json",
+            json.dumps(
+                {
+                    "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+                    "source_sprite_file": str(source),
+                    "earlier_frame": 1,
+                    "later_frame": 2,
+                    "destination": {"path": str(destination), "if_exists": "replace"},
+                }
+            ),
+        )
+    finally:
+        private.chmod(0o700)
+
+    assert run.returncode != 0 and run.stdout
+    failure = json.loads(run.stdout)
+    assert failure["code"] == "artifact_file_failed"
+    assert failure["details"]["reason"] == "source_destination_identity_unverified"
+    assert hashlib.sha256(source.read_bytes()).hexdigest() == original
+    assert hashlib.sha256(destination.read_bytes()).hexdigest() == original
+
+
 @pytest.mark.parametrize("alpha", ["opaque", "partial", "transparent"])
 def test_preview_decoded_alpha_fixtures(tmp_path: Path, alpha: str) -> None:
     source = _source(

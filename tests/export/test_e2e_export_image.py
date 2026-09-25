@@ -147,6 +147,42 @@ def test_export_rejects_destination_traversed_by_source_alias(tmp_path: Path) ->
     assert hashlib.sha256(destination.read_bytes()).hexdigest() == original
 
 
+def test_export_reports_unverifiable_source_destination_identity(
+    tmp_path: Path,
+) -> None:
+    native_source = _source(tmp_path)
+    private = tmp_path / "private"
+    private.mkdir()
+    source = private / "source.aseprite"
+    shutil.copyfile(native_source, source)
+    destination = private / "image.png"
+    os.link(source, destination)
+    original = hashlib.sha256(source.read_bytes()).hexdigest()
+    private.chmod(0o333)
+    try:
+        try:
+            os.listdir(private)
+        except PermissionError:
+            pass
+        else:
+            pytest.skip("cannot reproduce an unlistable directory")
+        run = spa(
+            "export",
+            "image",
+            "--input-json",
+            json.dumps(_request(source, destination, if_exists="replace")),
+        )
+    finally:
+        private.chmod(0o700)
+
+    assert run.returncode != 0 and run.stdout
+    failure = json.loads(run.stdout)
+    assert failure["code"] == "artifact_file_failed"
+    assert failure["details"]["reason"] == "source_destination_identity_unverified"
+    assert hashlib.sha256(source.read_bytes()).hexdigest() == original
+    assert hashlib.sha256(destination.read_bytes()).hexdigest() == original
+
+
 def test_export_opaque_rgb_without_color_profile(tmp_path: Path) -> None:
     source = _source(tmp_path, "rgb_profile_alpha.lua", profile="none", alpha="opaque")
     original_sha = hashlib.sha256(source.read_bytes()).hexdigest()
