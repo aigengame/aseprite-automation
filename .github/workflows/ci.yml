@@ -5,12 +5,15 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  schedule:
+    # GitHub schedules the default branch (main): 03:23 Asia/Shanghai.
+    - cron: "23 19 * * *"
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -92,11 +95,51 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           lfs: true
+          fetch-depth: 0
+
+      - name: Select the real-runtime test scope
+        id: scope
+        env:
+          SPA_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          SPA_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          include_slow=true
+          case "$GITHUB_EVENT_NAME" in
+            schedule)
+              # Do not move nightly to an integration branch if the default changes.
+              test "$GITHUB_REF" = "refs/heads/main"
+              ;;
+            workflow_dispatch) ;;
+            pull_request|push)
+              # A new branch has no previous commit: keep the full suite.
+              if [ "$SPA_BASE_SHA" != "0000000000000000000000000000000000000000" ]; then
+                comparison="$SPA_BASE_SHA..$SPA_HEAD_SHA"
+                if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+                  comparison="$SPA_BASE_SHA...$SPA_HEAD_SHA"
+                fi
+                if git diff --quiet --no-ext-diff --no-renames "$comparison" -- \
+                    examples/wizard_cast/ tests/examples/ tests/conftest.py \
+                    .github/ .gitattributes pyproject.toml uv.lock \
+                    scripts/verify_pytest_execution.py; then
+                  include_slow=false
+                else
+                  diff_status=$?
+                  if [ "$diff_status" -ne 1 ]; then
+                    exit "$diff_status"
+                  fi
+                fi
+              fi
+              ;;
+            *) echo "Unsupported CI event: $GITHUB_EVENT_NAME" >&2; exit 1 ;;
+          esac
+          echo "include_slow=$include_slow" >> "$GITHUB_OUTPUT"
 
       - name: Run the headless real-runtime gate
         uses: ./.github/actions/run-linux-aseprite-e2e
         with:
           junit-path: ${{ runner.temp }}/spa-real-aseprite-e2e.xml
+          include-slow: ${{ steps.scope.outputs.include_slow }}
 
       - name: Preserve the E2E report
         if: always()

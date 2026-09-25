@@ -94,8 +94,12 @@ file bytes. It checks phase coverage, timing, component dimensions, declared col
 binary alpha, gem opacity, and independent resize effects. The real-runtime test
 also opens the saved source with a read-only Lua inspector to check stored pixels
 in invisible Cels. That inspector never authors or saves art.
-CI makes one fresh build and compares it with the checked-in PNGs, bundle, and
-reopened Aseprite source. The two-build command above is available for explicit
+The full `e2e` + `slow` test makes one fresh build and compares it with the checked-in
+PNGs, bundle, and reopened Aseprite source. It runs for wizard-related or CI setup
+changes, nightly on `main`, manual full CI, and exact-SHA release verification.
+Ordinary CI keeps the small component probe and the routine real-runtime tests.
+See the [trigger policy](../../docs/testing.md#complete-example-rebuilds).
+The two-build command above is available for explicit
 repeat-run checks; the original local double-build observations are retained in
 [asset evidence](evidence/asset-verification.json).
 

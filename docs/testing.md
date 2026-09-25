@@ -37,6 +37,9 @@ Use the tier in the file name:
 - `test_e2e_*.py` invokes the installed `spa` CLI with a real Aseprite executable.
   Mark the module or each test with `pytest.mark.e2e`.
 
+`pytest.mark.slow` is an additional cost marker, not a verification tier. Use it
+for complete example rebuilds. The small wizard probe remains only `e2e`.
+
 Runtime integration fixtures cover incompatible Lua and API observations and structured
 failure without claiming native execution. Real-runtime tests execute the packaged
 probe and assert its observed embedded Lua version, `app.apiVersion`, JSON round trip,
@@ -92,7 +95,14 @@ Run the fast unit and integration tiers with:
 uv run --frozen --group test pytest -m "not e2e"
 ```
 
-Run the real-runtime tier with:
+Run the routine real-runtime tests, including the small wizard probe, with:
+
+```sh
+SPA_TEST_ASEPRITE=/path/to/aseprite \
+  uv run --frozen --group test pytest -m "e2e and not slow" -rs
+```
+
+Run the full real-runtime tier, including complete example rebuilds, with:
 
 ```sh
 SPA_TEST_ASEPRITE=/path/to/aseprite \
@@ -146,6 +156,34 @@ GitHub does not emit a second workflow event for a pull request updated with
 A failure in any job fails CI. Configure these four named jobs as required checks on
 `main` when repository branch protection is enabled.
 
+### Complete example rebuilds
+
+The Linux E2E job always runs. It selects the following scope inside the job, so
+path selection cannot leave a required CI check pending:
+
+| Trigger | Real-runtime selection |
+| --- | --- |
+| Ordinary PR or push to `main` | `e2e and not slow`: all routine E2E cases, including the small wizard probe. |
+| PR or push that changes wizard inputs, delivery, tests, or CI setup | `e2e`: also rebuild the full wizard asset bundle. |
+| Nightly on `main` | `e2e`: full suite at the scheduled main SHA. |
+| Manual **CI → Run workflow** | `e2e`: full suite at the selected ref. |
+| Release verification | `e2e`: full suite at the exact release SHA before publication. |
+
+The changed-path list in `.github/workflows/ci.yml` is authoritative. It covers
+`examples/wizard_cast/`, `tests/examples/`, the root test gate, CI configuration,
+LFS rules, dependency configuration, and the JUnit execution audit. PR selection
+compares the merge base with the PR head; push selection compares before/after
+commits. Deletions and renames are included. An invalid comparison fails the job
+instead of silently selecting fewer tests.
+
+The nightly schedule is daily at 19:23 UTC (03:23 Asia/Shanghai). GitHub runs it
+from the default branch, `main`; the job also checks that ref explicitly. `dev`
+is a temporary integration branch and has no nightly target. The schedule becomes
+active after this workflow reaches `main`. Pushes and manual runs do not cancel a
+nightly run. Its summary records the actual checked-out SHA and whether slow tests
+were included. Scheduled runs can be delayed; their result never replaces exact-SHA
+release verification.
+
 ## Platform and display requirements
 
 Verification tier, host platform, and display capability are separate properties.
@@ -166,10 +204,12 @@ a small component geometry proof and one complete fresh build against the checke
 delivery. The latter independently decodes every PNG, checks hidden stored pixels,
 compares the complete manifest, and reopens the delivered Aseprite source to compare
 metadata, Frames, Layers, Cels, and Tags. CI and release verification fetch its Git
-LFS assets before this check. A reference macOS build takes about four minutes; this
-cost stays in the explicit E2E tier. Explicit double builds remain available through
-the example's `verify` command, with retained local evidence. The test does not start
-Godot. The example's separate Godot tests and local
+LFS assets before this check. The full build is marked `e2e` and `slow` and follows
+the trigger policy above. A reference macOS build takes about four minutes; one
+Linux CI observation took 329.6 seconds, compared with 6.7 seconds for the small
+probe. These are measurements, not time limits. Explicit double builds remain
+available through the example's `verify` command, with retained local evidence.
+The test does not start Godot. The example's separate Godot tests and local
 windowed/package evidence are documented beside it and are not claimed by Linux CI.
 
 The Linux job builds the official source release and verifies the archive against the
@@ -179,8 +219,8 @@ enables scripting with Aseprite's `LAF_BACKEND=none`, checks that both `DISPLAY`
 environment, and then runs the real-runtime tier. The JUnit audit
 fails when the report is missing, contains zero tests, or all selected tests were
 skipped. The job summary records the tested commit, trigger, executable, Aseprite
-version, display state, and exercised path. A macOS-only skip remains visible and does
-not invalidate the Linux batch evidence while other E2E tests execute.
+version, selected scope, display state, and exercised path. A macOS-only skip remains
+visible and does not invalidate the Linux batch evidence while other E2E tests execute.
 
 The setup action caches only an installed Aseprite tree that passes executable, resource,
 version, and minimal `--batch --script` checks. Its key includes the runner OS and
@@ -192,7 +232,8 @@ request. GitHub can remove a cache after seven days without access or earlier un
 repository cache limit, so an occasional rebuild is expected.
 
 The Linux real Aseprite job is also part of release verification. A release workflow
-always reruns it at the exact release commit and does not reuse a generally green CI
-run. A successful macOS local run remains separate developer evidence; it cannot
-replace the Linux release gate. Windowed Aseprite behavior has no CI coverage until a
+always reruns the full suite, including slow rebuilds, at the exact release commit
+and does not reuse a generally green CI or nightly run. A successful macOS local run
+remains separate developer evidence; it cannot replace the Linux release gate.
+Windowed Aseprite behavior has no CI coverage until a
 dedicated display-capable job is added with an execution-count gate.

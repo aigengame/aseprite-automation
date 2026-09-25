@@ -35,6 +35,8 @@ CI and release verification use Linux and build the official source version pinn
 non-graphical backend. The Linux gate requires
 `DISPLAY` and `WAYLAND_DISPLAY` to be absent, exercises the real `--batch --script`
 probe, and rejects zero or all-skipped E2E execution.
+Release verification always selects the full `e2e` tier, including `slow` example
+rebuilds, at the exact release SHA. A routine CI or nightly result cannot replace it.
 
 These results answer different platform questions. Linux headless success does not
 cover the macOS bundle or restricted-agent launch path. Neither environment currently

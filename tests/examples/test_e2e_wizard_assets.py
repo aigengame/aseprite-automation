@@ -16,7 +16,7 @@ from spa.descriptors import PROBE_RESOURCES
 from spa.runtime.aseprite import probe
 from spa.runtime.invocation import prepare_invocation
 
-pytestmark = pytest.mark.e2e
+pytestmark = [pytest.mark.e2e, pytest.mark.slow]
 
 
 def inspect_stored_pixels(source: Path, aseprite: str, output: Path) -> dict:
