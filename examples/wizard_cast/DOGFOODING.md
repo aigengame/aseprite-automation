@@ -20,6 +20,80 @@ The reference 32-Frame build made 500 public CLI calls in 251.0 seconds. It prod
 | The fixed Paint and Plan limits require request splitting. | The adapter splits runs at 256 addressed pixels and Plans at 64 Steps. Five Plan calls, including target painting and Cel creation, took 2.3 s. No pixels or errors were lost. | Declared limits, not a bug. [#26](https://github.com/aigengame/aseprite-automation/issues/26) can improve native drawing ergonomics, but raising Paint limits alone would not address the measured dominant cost. |
 | Public rendered PNG checks cannot inspect hidden stored pixels. | Opacity-zero Cels and obscured Layers can hide bad source colors. A separate read-only native inspector checked 996,720 stored Image pixels, binary alpha, integer positions, and the 24-color set. It does not author or save. | Evidence gap related to the future raw Image surface in [#20](https://github.com/aigengame/aseprite-automation/issues/20). The independent test is sufficient for this finite tracer; no extra public inspection Operation is added. |
 
+## Hybrid authoring and reusable animation capabilities
+
+**Classification:** new feature and architecture enhancement candidate. The user
+agreed with the direction below after reviewing this tracer. The reusable contract
+and module boundary still need validation; issue #19 delivers the finite example.
+
+### Observation and proposed workflow
+
+[`art.py`](art.py) supplies both visual content and motion: `_pose` samples pose
+keyframes, while `sample_frame` assembles component pixels, positions, opacity,
+attachments, and scene effects. [`build.py`](build.py) creates Frames and Cels,
+applies Paint and Image operations, persists the result, and exports components.
+Reusable authoring behavior therefore needs to be identified across both files.
+
+The preferred workflow to validate is:
+
+1. Use imagegen for concepts and selected static key poses. Review and retain the
+   accepted raster inputs instead of regenerating them on each build.
+2. Prepare the pixel grid, palette, transparent background, component separation,
+   and anchors needed by the animation. Supply enough poses or component geometry
+   for the intended movement.
+3. Apply explicit motion and assembly rules through SPA to produce editable
+   Aseprite Frames and verified PNG delivery.
+4. Use gda to verify Godot import and runtime behavior.
+
+This tracer did not use imagegen or compare the two workflows experimentally.
+External raster import is also not in the installed SPA surface used by this
+example. Both the input handoff and the proposed reuse need a separate technical
+check. Repeatable placement and pixel results do not establish natural motion:
+arm raises, turns, and occlusion changes still need suitable art inputs and visual
+review. A concept image alone does not specify those intermediate poses.
+
+### Responsibility boundaries
+
+The current [domain model](../../CONTEXT.md#subdomains) includes agent-facing
+composition in the Core Domain. The [ownership view](../../ARCHITECTURE.md#core-domain-ownership-view)
+places timing, Frame, Cel, and animation behavior within Document and Animation.
+This gives bounded animation authoring a home within the existing context.
+
+| Responsibility | Proposed owner |
+| --- | --- |
+| Sample explicit position and opacity values over a bounded Frame range, with declared timing, interpolation, and integer-coordinate rules. | A reusable SPA capability within Document and Animation; reuse the existing Frame and Cel semantic owners. |
+| Import raster inputs, transform Images, and apply color or Palette rules. | The corresponding Raster Authoring and Color and Palette capabilities; add missing behavior through its own feature contract. |
+| Define the wizard appearance, key poses, casting rhythm, beard movement, and spark paths. | The authored recipe and its art inputs. |
+| Select imagegen inputs, coordinate tools and multiple Sprite files, assign delivery roles, and install assets. | The caller or downstream Asset Pipeline. |
+| Verify Godot import, gameplay, and runtime behavior. | gda and the Godot consumer. |
+
+Assembly of Layers, Cels, and Frames within one Sprite fits SPA. Cross-Sprite
+workflow remains outside an Operation Plan under [ADR-0003](../../docs/adr/0003-operation-plan-boundary.md).
+An authoring capability must preserve declared Plan eligibility and existing
+mutation semantics. Moving code out of `art.py` does not itself justify a new
+Bounded Context, public Operation, or generic animation engine.
+
+### Smallest candidate and validation path
+
+Start with an existing Cel asset in one Sprite, an explicit Frame range, position
+and opacity key values, and declared interpolation and rounding. Produce the
+corresponding Frames and save an editable Aseprite result. Before implementation,
+define Frame/time mapping, coordinate space, Image copy/link behavior, effects on
+existing Cels, Target Commit behavior, and verification of the persisted result.
+
+Validate the shared behavior with the wizard and one small independent case, such
+as a floating emblem that moves and fades. Rebuild from fixed inputs and inspect
+reopened Frame/Cel facts and decoded pixels. Keep visual continuity review as a
+separate acceptance check. This would establish whether a reusable module removes
+repeated authoring work without importing wizard-specific assumptions.
+
+Track the validated capability in a separate feature issue. Add accepted public
+terms and meanings to `CONTEXT.md`, record consequential rules in an ADR, and
+reflect module ownership and dependencies in `ARCHITECTURE.md` as applicable.
+An internal file split alone does not require a strategic domain-model change.
+The intended evolution is a thinner artwork recipe backed by reusable SPA
+authoring rules; the exact module and public interface remain to be determined.
+
 ## gda observations
 
 - There is no project-create command in the installed surface. A minimal
