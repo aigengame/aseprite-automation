@@ -507,9 +507,7 @@ local function observes_image_resize()
     indexed.image:putPixel(1, 0, 2)
     indexed.image:putPixel(0, 1, 1)
     indexed.image:putPixel(1, 1, 2)
-    local copy, basis = image_resize_transform.resize(
-      indexed.image, sprite, 3, 3, "bilinear", 1
-    )
+    local copy, basis = image_resize_transform.resize(indexed.image, sprite, 3, 3, "bilinear", 1)
     assert(copy:getPixel(1, 1) == 3)
     assert(basis.palette_frame_number == 1 and basis.palette_size == 4)
     sprite:close()

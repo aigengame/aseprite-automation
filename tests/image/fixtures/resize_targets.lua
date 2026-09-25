@@ -21,9 +21,7 @@ elseif mode == "grayscale" then
   image:putPixel(0, 0, app.pixelColor.graya(200, 255))
 else
   image:putPixel(0, 0, app.pixelColor.rgba(255, 0, 0, 255))
-  if mode ~= "rgb-edge" then
-    image:putPixel(1, 0, app.pixelColor.rgba(0, 0, 255, 255))
-  end
+  if mode ~= "rgb-edge" then image:putPixel(1, 0, app.pixelColor.rgba(0, 0, 255, 255)) end
 end
 sprite:newCel(layer, 1, image, Point(1, 2))
 if app.params.mode == "linked" then
