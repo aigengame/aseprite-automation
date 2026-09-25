@@ -162,12 +162,14 @@ must fail. A job that claims graphical coverage must fail when its required wind
 tests do not execute.
 
 The [wizard example](../examples/wizard_cast/README.md) has two real-runtime tests:
-a small component geometry proof and a complete repeated build. The latter generates
-the full recipe twice, independently decodes every PNG, checks hidden stored pixels,
-and compares the generated manifest and pixels with the checked-in delivery. CI and
-release verification fetch its Git LFS assets before this check. A reference macOS
-build takes about four minutes; the two-build test keeps that cost in the explicit
-E2E tier. It does not start Godot. The example's separate Godot tests and local
+a small component geometry proof and one complete fresh build against the checked-in
+delivery. The latter independently decodes every PNG, checks hidden stored pixels,
+compares the complete manifest, and reopens the delivered Aseprite source to compare
+metadata, Frames, Layers, Cels, and Tags. CI and release verification fetch its Git
+LFS assets before this check. A reference macOS build takes about four minutes; this
+cost stays in the explicit E2E tier. Explicit double builds remain available through
+the example's `verify` command, with retained local evidence. The test does not start
+Godot. The example's separate Godot tests and local
 windowed/package evidence are documented beside it and are not claimed by Linux CI.
 
 The Linux job builds the official source release and verifies the archive against the

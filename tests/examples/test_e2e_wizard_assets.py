@@ -9,7 +9,8 @@ from pathlib import Path
 import pytest
 
 from examples.wizard_cast.build import build
-from examples.wizard_cast.verify import compare_builds, compare_delivery
+from examples.wizard_cast.verify import compare_delivery, inspect_build
+from examples.wizard_cast.workflow import Spa
 from spa.contracts import RuntimeRequest
 from spa.descriptors import PROBE_RESOURCES
 from spa.runtime.aseprite import probe
@@ -50,21 +51,23 @@ def inspect_stored_pixels(source: Path, aseprite: str, output: Path) -> dict:
     return result
 
 
-def test_complete_wizard_recipe_has_repeatable_saved_structure_and_pixels(
+def test_complete_wizard_recipe_reproduces_delivered_structure_and_pixels(
     tmp_path: Path,
 ) -> None:
     cli = os.environ.get("SPA_TEST_INSTALLED_CLI", str(Path(".venv/bin/spa").resolve()))
     aseprite = os.environ["SPA_TEST_ASEPRITE"]
-    first, second = tmp_path / "first", tmp_path / "second"
+    first = tmp_path / "fresh"
     build(cli, aseprite, first)
-    build(cli, aseprite, second)
-    result = compare_builds(first, second)
-    assert result["frame_count"] == 32
-    compare_delivery(
-        first,
-        Path(__file__).resolve().parents[2]
-        / "examples/wizard_cast/godot/content/wizard_assets",
+    example = Path(__file__).resolve().parents[2] / "examples/wizard_cast"
+    compare_delivery(first, example / "godot/content/wizard_assets")
+    generated = inspect_build(first)["sprite"]
+    assert generated["metadata"]["frame_count"] == 32
+    retained = Spa(cli, aseprite, first / "evidence/delivery-inspection.jsonl").call(
+        "sprite get",
+        sprite_file=str(example / "source/wizard_scene.aseprite"),
+        inspection_scope=["frames", "layers", "cels", "tags"],
     )
+    assert generated == {key: retained[key] for key in generated}
     native = inspect_stored_pixels(
         first / "source/wizard_scene.aseprite", aseprite, first / "evidence/native.json"
     )
