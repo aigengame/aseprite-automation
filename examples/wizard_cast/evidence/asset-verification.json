@@ -206,5 +206,11 @@
     "passed": 2,
     "seconds": 500.64
   },
-  "scope": "Local macOS real Aseprite batch and independently decoded/stored pixels. No graphical Godot or human visual acceptance is claimed here."
+  "scope": "Local macOS real Aseprite batch and independently decoded/stored pixels. No graphical Godot or human visual acceptance is claimed here.",
+  "reference_input_commit": "df00d3594a859d96338d9a3879c02f21a8163ab3",
+  "recipe_follow_up": {
+    "reason": "Removed unused gameplay.casts_per_round after review; the round rules own the fixed limit. The original reference hashes and double-build observations remain unchanged.",
+    "recipe_sha256": "b627898144ca4379539ae90ffb4772f85b2b6653b8402f1790692c0ef338a60f",
+    "sampled_frames_equal_to_reference": 32
+  }
 }

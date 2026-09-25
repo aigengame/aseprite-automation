@@ -142,5 +142,5 @@
     },
     "target": {"width": 20, "height": 28, "anchor": [10, 9]}
   },
-  "gameplay": {"cast_frame": 14, "casts_per_round": 5}
+  "gameplay": {"cast_frame": 14}
 }

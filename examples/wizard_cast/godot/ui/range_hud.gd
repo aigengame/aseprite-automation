@@ -29,7 +29,7 @@ func _ready() -> void:
 	add_child(_root)
 	_panel(_root, Rect2(0, 0, 128, 15), Color("111626"))
 	_label(_root, "MOONLIT PRACTICE", Rect2(4, 1, 86, 11), 8, INK)
-	_score = _label(_root, "0/5 HITS", Rect2(91, 3, 34, 9), 6, TEAL)
+	_score = _label(_root, "", Rect2(91, 3, 34, 9), 6, TEAL)
 	_score.name = "Score"
 	_panel(_root, Rect2(0, 83, 128, 13), Color("111626"))
 	_status = _label(_root, "SPACE / CAST to begin", Rect2(3, 85, 85, 9), 6, INK)
@@ -70,18 +70,18 @@ func _present(state: Dictionary) -> void:
 	_error_panel.visible = not String(state["error"]).is_empty()
 	_error_text.text = state["error"]
 	if state["complete"]:
-		_result_text.text = "%d / %d hits\n%s" % [state["hits"], state["cast_limit"], "Perfect timing!" if state["hits"] == 5 else "Read the rhythm."]
+		_result_text.text = "%d / %d hits\n%s" % [state["hits"], state["cast_limit"], "Perfect timing!" if state["hits"] == state["cast_limit"] else "Read the rhythm."]
 		_status.text = "R / AGAIN to restart"
 	elif not state["loaded"]:
 		_status.text = "Generate the SPA bundle"
 	else:
 		match state["phase"]:
 			"charge":
-				_status.text = "CAST %d/5  -  CHARGING" % state["casts"]
+				_status.text = "CAST %d/%d  -  CHARGING" % [state["casts"], state["cast_limit"]]
 			"cast":
-				_status.text = "CAST %d/5  -  RELEASE" % state["casts"]
+				_status.text = "CAST %d/%d  -  RELEASE" % [state["casts"], state["cast_limit"]]
 			"recover":
-				_status.text = "CAST %d/5  -  RECOVER" % state["casts"]
+				_status.text = "CAST %d/%d  -  RECOVER" % [state["casts"], state["cast_limit"]]
 			_:
 				_status.text = "SPACE / CAST  -  %d LEFT" % (state["cast_limit"] - state["casts"])
 
