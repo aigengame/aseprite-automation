@@ -103,3 +103,75 @@ Godot 4.6.3, and Pillow 12.3.0. Linux and final human evidence remain pending.
   pose contact sheet and first real SPA CAST preview were inspected by the agent;
   costume continuity and motion quality still need final human review. Input
   preparation and attachment rules remain example-owned feedback for #46/#57.
+
+## H07 — Matching delivery PNGs does not establish native repeatability
+
+- **Step/tool:** local two-build verification, SPA 0.1.0 and Aseprite 1.3.18.5.
+- **Expected/observed:** an initial comparison checked saved JSON and exported
+  PNGs. Independent review found that it could miss changes in a hidden Cel.
+  A real regression changed a stored pixel on a hidden Layer with zero Cel
+  opacity; all three exported RGBA images remained equal.
+- **Evidence/reproduction:** `tests/examples/test_e2e_hybrid_native.py` passed
+  locally in 12.50 seconds. `native_inspection.py` reopens each document through
+  SPA and supplements it with read-only full RGBA inspection. Both the local
+  comparison and full E2E now use this check for all seven native files.
+- **Impact/workaround:** rendered output alone is insufficient. The shared check
+  rejects the hidden-pixel counterexample and requires actual native files, not
+  cached evidence. Independent re-review of commit `de92a71` confirmed closure.
+- **Category/disposition:** resolved example-verification defect. Native pixel
+  observation remains feedback for [#20](https://github.com/aigengame/aseprite-automation/issues/20);
+  the inspector does not author or save assets.
+
+## Generation and preparation cost
+
+Nine imagegen calls produced five character concept/pose inputs and four
+auxiliary assets; all nine selected originals are retained. No auxiliary v1
+art is reused. The first five request durations total 192.9 seconds. Background
+and target were generated together in a measured 50.1-second interval; projectile
+and burst together in 75.9 seconds. The sum of these recorded request/group
+durations is 318.9 seconds. It is not total creative elapsed time or an estimate
+of individual parallel request costs. The tool did not report a model identifier.
+
+The eleven prepared rasters contain 384,649 pixel slots and 179,960 visible
+pixels. A separate preparation rerun took 1.660 seconds and reproduced every
+prepared-file hash and preparation fact. This covers threshold, crop, resize,
+palette mapping and serialization only; prompt choice, landmark selection,
+code authoring and visual correction effort were not timed. See
+`evidence/preparation-reproduction.json`. Concurrent SPA builds were running.
+
+The character treatment needed one initial size candidate and then a shared
+1/8 scale with five explicit foot/gem landmark pairs. Retained edits also separate
+the gem from the wizard raster and extract a small spark stamp from the generated
+burst. These are bounded, declared corrections. Imagegen did not provide usable
+anchors, exact palette membership, binary alpha, or deterministic intermediate
+poses by itself.
+
+## Evaluation against v1
+
+The baseline is the unchanged `wizard_cast` at the pinned dev commit above.
+The agent inspected actual SPA exports at both their native resolution and a
+common display footprint. Final human preference and play acceptance remain open.
+
+| Dimension | Observed benefit | Remaining cost or limit |
+| --- | --- | --- |
+| Art detail | Generated costume trim, beard, carved staff, stonework and rune effects survive the declared preparation and SPA export. | Palette reduction loses some raw shading. Increased resolution contributes to the result; this is not an equal-resolution comparison. |
+| Motion control | The same frozen inputs produce an explicit 32-Frame schedule. Pose choice, attachments, effects and offsets can change without imagegen. | Five static poses still make discrete transitions. Numeric motion does not supply natural in-between anatomy or perfect costume continuity. |
+| Revision | Foot and gem landmarks give stable placement; component exports retain explicit anchors. | Each replacement pose needs preparation and attachment checks. Changing an arbitrary body angle can require a new generated or corrected pose. |
+| Reuse and consumption | The six component roles and schema 1 are unchanged. The independent Godot project uses the same five-cast rules and native animation. | Canvas size, layout, target bounds and collision radii must be adapted to the declared v2 geometry. |
+| Engineering control | Frozen, versioned rasters remove generation variance and credentials from normal builds and CI. SPA owns all native writes and PNG exports. | The example must decode PNGs, split Pixel Patches, place Cels and orchestrate sequence/component exports. |
+| Workflow effort | imagegen supplies richer starting pixels than the hand-coded v1 character. | This adds preparation and art-consistency work, and larger native documents increase SPA execution cost. No measured total creative-time comparison is available. |
+
+The outcome is mixed: the hybrid path improves the retained visual detail and
+keeps asset production repeatable, while preparation, pose continuity and full
+rebuild cost remain substantial. It is suitable for this bounded pose library;
+it does not establish a general animation engine or prove that imagegen can
+produce an arbitrary consistent animation sequence.
+
+Follow-up ownership remains narrow: [#46](https://github.com/aigengame/aseprite-automation/issues/46)
+for raster import, [#20](https://github.com/aigengame/aseprite-automation/issues/20)
+for stored Image observation, [#49](https://github.com/aigengame/aseprite-automation/issues/49)
+and [#59](https://github.com/aigengame/aseprite-automation/issues/59) for sequence and
+component export, and [#57](https://github.com/aigengame/aseprite-automation/issues/57)
+for later integration evidence. Motion/attachment rules are candidates for later
+reusable capability only after a separate domain decision. This experiment adds
+no SPA production code or public contract.

@@ -1,0 +1,10 @@
+{
+  "prepared_files": 11,
+  "same_preparation_facts_and_hashes": true,
+  "preparation_wall_seconds": 1.66,
+  "timing_scope": "One local rerun of threshold, crop, resize, palette mapping and PNG serialization. Excludes imagegen and landmark selection. Concurrent SPA builds were running.",
+  "raw_files": 9,
+  "prepared_buffer_pixels": 384649,
+  "prepared_visible_pixels": 179960,
+  "rules_sha256": "884f720b044ddcefa07973e743f18fa86b08fd512984ebccf00e96c16059586e"
+}
