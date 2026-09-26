@@ -51,8 +51,11 @@ it does not mean that a capability has no domain rules or weaker acceptance.
 Preparation owns a requested size, palette policy, transparency policy, and explicit
 anchor treatment. The existing Image, Color, and Palette owners define the applicable
 native transformations. An export can use those same semantics after authoring without
-returning to a preparation stage or duplicating the algorithms. The first preparation
-slice must establish its accepted transformations and prerequisites before AFK work.
+returning to a preparation stage or duplicating the algorithms. A preparation policy
+that normalizes input Color Profiles consumes native assignment/conversion before
+applying its declared palette. The feature issue owns the selected working/output
+profile and unsupported-input rules; this does not create a second color engine or a
+permanent profile policy for every SPA feature.
 
 Artwork Recipes retain selected poses, appearance, casting rhythm, particle paths, and
 other art decisions. Bounded Motion Authoring owns explicit time/Frame mapping,
@@ -126,8 +129,8 @@ infrastructure before a concrete slice needs them.
 
 | Structural claim | Current evidence and limit | Validation or disconfirming condition |
 | --- | --- | --- |
-| Preparation can hide reusable input work behind an explicit contract. | v2 reproduces one declared palette/alpha/geometry treatment. Broader contract remains open. | Use a wizard input and a different raster with explicit anchors. If both require artwork-specific rules inside the module, narrow its contract. |
-| Bounded motion can reuse Frame/Cel semantics without taking over art direction. | v1/v2 separate numeric motion from selected poses. Public authoring contract remains open. | Start with an existing Cel and position/opacity keys; use wizard and floating-emblem cases. Inspect reopened Frame/Cel and pixel facts; keep visual acceptance separate. |
+| Preparation can hide reusable input work behind an explicit contract. | v2 reproduces one declared palette/alpha/geometry treatment. #103 owns the accepted planned matrix and summarizes native feasibility evidence; production delivery remains unverified. | Use a wizard input and a different raster with explicit anchors. If both require artwork-specific rules inside the module, narrow its contract. |
+| Bounded motion can reuse Frame/Cel semantics without taking over art direction. | v1/v2 separate numeric motion from selected poses. #104 owns the accepted planned contract; production delivery remains unverified. | Apply position/opacity keys to existing per-Frame Cels in wizard and floating-emblem cases. Inspect reopened Frame/Cel and stored pixel facts; keep visual acceptance separate. |
 | Delivery can evolve as a Supporting Subdomain while preserving guarantees. | Static PNG and continuity Preview already have verified publication behavior. New formats remain gated by their issues. | Retain native rendering, Source preservation, complete staged-set checks, and applicable partial-publication tests. |
 | Fewer persisted invocations may reduce authoring cost. | Both examples measure repeated Cel writes; concurrent and different-size runs are not controlled speedup evidence. | Measure the same fixture and runtime before/after a bounded Plan slice; do not trade away failure non-commit or persisted verification. |
 

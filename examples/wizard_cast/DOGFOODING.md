@@ -24,8 +24,9 @@ The reference 32-Frame build made 500 public CLI calls in 251.0 seconds. It prod
 
 **Classification:** new feature and architecture enhancement. The accepted ownership
 is now recorded in [ADR-0095](../../docs/adr/0095-asset-preparation-authoring-and-delivery.md)
-and [#102](https://github.com/aigengame/aseprite-automation/issues/102). The reusable
-contracts still need validation in #103/#104; issue #19 delivers the finite example.
+and [#102](https://github.com/aigengame/aseprite-automation/issues/102). The accepted
+planned contracts in #103/#104 still need implementation and runtime validation;
+issue #19 delivers the finite example.
 
 ### Observation and proposed workflow
 

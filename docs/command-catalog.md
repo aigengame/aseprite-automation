@@ -245,13 +245,15 @@ better Aseprite-aligned evidence.
 [ADR-0095](adr/0095-asset-preparation-authoring-and-delivery.md) assigns Asset
 Preparation to a Supporting Subdomain and Bounded Motion Authoring to Document and
 Animation. Candidate intents are preparing a selected raster under explicit geometry,
-color, transparency, and anchor rules; verifying frozen input facts; and authoring
-position/opacity keys over a finite Frame range. Their feature issues
+color, transparency, and anchor rules; verifying frozen input facts; and applying
+position/opacity keys to existing per-Frame Cels. Their feature issues
 [#103](https://github.com/aigengame/aseprite-automation/issues/103) and
-[#104](https://github.com/aigengame/aseprite-automation/issues/104) must establish
-contracts and command spellings. This catalog adds no `preprocess`/`postprocess` command
-surface, provider API, or general workflow engine. Existing `export` candidates belong
-to Asset Delivery and retain their separate format contracts.
+[#104](https://github.com/aigengame/aseprite-automation/issues/104) own the accepted
+planned contracts and the choice of command spellings during implementation. Their
+alignment does not establish installed support. This catalog adds no
+`preprocess`/`postprocess` command surface, provider API, or general workflow engine.
+Existing `export` candidates belong to Asset Delivery and retain their separate format
+contracts.
 
 ### Rasterized text
 

@@ -337,9 +337,16 @@ than a frozen package graph.
 
 Document and Animation, Raster Authoring, Color and Palette, and Tile Authoring form
 the Sprite Authoring Core. Bounded Motion Authoring belongs to Document and Animation;
-its first feature contract starts with existing Cel assets and explicit position and
-opacity keys. Broader scale, easing, and oscillation support needs its own accepted
-contract and native evidence.
+the planned [#104](https://github.com/aigengame/aseprite-automation/issues/104) slice
+applies position offsets and opacity keys to existing per-Frame Cels, preserving each
+Frame's artwork. It owns explicit sampling, interpolation, rounding, and standalone/Plan
+semantics. Further motion modes need their own accepted scope and native evidence.
+
+The planned [#103](https://github.com/aigengame/aseprite-automation/issues/103) preparation
+slice normalizes inputs to sRGB before applying the caller's palette. It composes native
+Color Profile assignment/conversion from #34 with the shared Image and Color Mode
+capabilities. The issue owns the current input/output matrix, assumptions, and rejection
+rules; this view does not establish installed support.
 
 Animation comparison and continuity inspection have a Document and Animation owner;
 the Preview Artifact has Asset Delivery export and publication guarantees. The current
@@ -770,9 +777,9 @@ Milestones group phase outcomes, and explicit issue dependencies determine imple
 order.
 
 ADR-0095 adds preparation and reusable motion as bounded follow-up work and reclassifies
-existing Delivery. Preparation's reusable contract and motion's generality remain open
-claims until separate features validate them with distinct inputs. Existing Image
-observation/import and export issues retain their scope. The examples' measured
+existing Delivery. Issues #103/#104 own the accepted planned contracts; reusable
+implementation remains unverified until those features validate distinct inputs. Existing
+Image observation/import and export issues retain their scope. The examples' measured
 persisted-write cost motivates a separate Plan-eligibility slice; an architecture
 label alone establishes no speedup. These follow-ups do not add acceptance gates to
 the completed implementation scope of either wizard example.

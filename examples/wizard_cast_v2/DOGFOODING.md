@@ -187,9 +187,9 @@ and [#59](https://github.com/aigengame/aseprite-automation/issues/59) for sequen
 component export, and [#57](https://github.com/aigengame/aseprite-automation/issues/57)
 for later integration evidence. ADR-0095 settles strategic ownership; preparation
 [#103](https://github.com/aigengame/aseprite-automation/issues/103) and bounded motion
-[#104](https://github.com/aigengame/aseprite-automation/issues/104) still need their own
-accepted feature contracts and runtime evidence. This experiment adds no SPA production
-code or public contract.
+[#104](https://github.com/aigengame/aseprite-automation/issues/104) own the accepted
+planned feature contracts and still need production implementation and runtime
+validation. This experiment adds no SPA production code or public contract.
 
 ## Authoring cost and bounded revision
 
