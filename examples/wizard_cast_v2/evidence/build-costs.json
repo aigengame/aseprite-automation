@@ -1,0 +1,152 @@
+{
+  "preview_before_motion_edit": {
+    "calls": 536,
+    "cli_seconds": 1243.601,
+    "operations": {
+      "info": {
+        "calls": 1,
+        "seconds": 0.337
+      },
+      "sprite create": {
+        "calls": 2,
+        "seconds": 0.735
+      },
+      "layer set": {
+        "calls": 26,
+        "seconds": 206.575
+      },
+      "layer add": {
+        "calls": 6,
+        "seconds": 1.871
+      },
+      "plan run": {
+        "calls": 18,
+        "seconds": 44.717
+      },
+      "image resize": {
+        "calls": 8,
+        "seconds": 9.546
+      },
+      "cel set": {
+        "calls": 264,
+        "seconds": 876.052
+      },
+      "tag add": {
+        "calls": 4,
+        "seconds": 17.859
+      },
+      "sprite get": {
+        "calls": 1,
+        "seconds": 0.378
+      },
+      "animation audit": {
+        "calls": 1,
+        "seconds": 0.378
+      },
+      "animation compare": {
+        "calls": 1,
+        "seconds": 0.391
+      },
+      "animation preview": {
+        "calls": 1,
+        "seconds": 0.395
+      },
+      "export image": {
+        "calls": 193,
+        "seconds": 75.973
+      },
+      "sprite copy": {
+        "calls": 5,
+        "seconds": 2.169
+      },
+      "sprite crop": {
+        "calls": 5,
+        "seconds": 6.226
+      }
+    },
+    "recipe_sha256": "a69a3d4cd8ead6656b73165efa681d1ed12de85a304180f5c3770b8200ce5a1e",
+    "inputs_sha256": "e5e0008f91264cbae059cdf68b28b934c56627386460cb5fadb9f96945b4c6ac"
+  },
+  "retained_final": {
+    "calls": 467,
+    "cli_seconds": 1132.518,
+    "operations": {
+      "info": {
+        "calls": 1,
+        "seconds": 0.259
+      },
+      "sprite create": {
+        "calls": 2,
+        "seconds": 0.68
+      },
+      "layer set": {
+        "calls": 26,
+        "seconds": 219.029
+      },
+      "layer add": {
+        "calls": 6,
+        "seconds": 1.852
+      },
+      "plan run": {
+        "calls": 18,
+        "seconds": 43.243
+      },
+      "image resize": {
+        "calls": 8,
+        "seconds": 10.3
+      },
+      "cel set": {
+        "calls": 195,
+        "seconds": 747.267
+      },
+      "tag add": {
+        "calls": 4,
+        "seconds": 21.036
+      },
+      "sprite get": {
+        "calls": 1,
+        "seconds": 0.425
+      },
+      "animation audit": {
+        "calls": 1,
+        "seconds": 0.42
+      },
+      "animation compare": {
+        "calls": 1,
+        "seconds": 0.434
+      },
+      "animation preview": {
+        "calls": 1,
+        "seconds": 0.45
+      },
+      "export image": {
+        "calls": 193,
+        "seconds": 78.608
+      },
+      "sprite copy": {
+        "calls": 5,
+        "seconds": 2.363
+      },
+      "sprite crop": {
+        "calls": 5,
+        "seconds": 6.153
+      }
+    },
+    "recipe_sha256": "bb97e191a4ee989a0a3f3eb3ec3b021ad2a4d7272b1abf6d468be1acb5c4ca9d",
+    "inputs_sha256": "e5e0008f91264cbae059cdf68b28b934c56627386460cb5fadb9f96945b4c6ac"
+  },
+  "measurement_scope": "Sum of SPA subprocess wall times only. Builds overlap with each other and local checks. These are observed workflow costs, not a controlled speedup benchmark or total creative elapsed time.",
+  "canvas": {
+    "v1": [
+      128,
+      96
+    ],
+    "v2": [
+      384,
+      288
+    ],
+    "area_ratio": 9
+  },
+  "source_cels": 224,
+  "source_stored_pixel_slots": 10595624
+}

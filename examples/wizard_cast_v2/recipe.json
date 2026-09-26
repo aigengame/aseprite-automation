@@ -1,0 +1,480 @@
+{
+  "name": "Moonlit spell practice \u2014 hybrid",
+  "frame_indexing": "zero-based, inclusive phase ends",
+  "canvas": {
+    "width": 384,
+    "height": 288,
+    "color_mode": "rgb"
+  },
+  "palette": {
+    "ink": "#15162b",
+    "sky": "#1c2340",
+    "sky_high": "#293354",
+    "sky_horizon": "#3e4965",
+    "stone_shadow": "#283342",
+    "stone": "#485567",
+    "stone_light": "#687a89",
+    "moon_shadow": "#93939b",
+    "moon": "#d4cdae",
+    "white": "#f8f4e4",
+    "hat": "#734560",
+    "hat_light": "#a26074",
+    "robe_dark": "#783a3b",
+    "robe": "#b25945",
+    "robe_light": "#e38a5f",
+    "leather": "#5b4039",
+    "wood": "#91633f",
+    "gold": "#d6a45d",
+    "skin": "#e6b587",
+    "beard_shadow": "#9aadc1",
+    "beard": "#dee2d3",
+    "magic_dark": "#3c617e",
+    "magic": "#65d6d1",
+    "magic_light": "#c1fff0"
+  },
+  "inputs": {
+    "idle": "idle.png",
+    "charge-mid": "charge-mid.png",
+    "charge-high": "charge-high.png",
+    "cast": "cast.png",
+    "recover": "recover.png",
+    "background": "background.png",
+    "target": "target.png",
+    "projectile": "projectile.png",
+    "burst": "burst.png",
+    "gem": "gem.png",
+    "spark": "spark.png"
+  },
+  "phases": [
+    {
+      "name": "idle",
+      "frames": 4,
+      "duration_ms": 100
+    },
+    {
+      "name": "charge",
+      "frames": 10,
+      "duration_ms": 100
+    },
+    {
+      "name": "cast",
+      "frames": 6,
+      "duration_ms": 100
+    },
+    {
+      "name": "recover",
+      "frames": 12,
+      "duration_ms": 100
+    }
+  ],
+  "poses": [
+    {
+      "from": 0,
+      "to": 5,
+      "pose": "idle"
+    },
+    {
+      "from": 6,
+      "to": 9,
+      "pose": "charge-mid"
+    },
+    {
+      "from": 10,
+      "to": 13,
+      "pose": "charge-high"
+    },
+    {
+      "from": 14,
+      "to": 19,
+      "pose": "cast"
+    },
+    {
+      "from": 20,
+      "to": 23,
+      "pose": "charge-high"
+    },
+    {
+      "from": 24,
+      "to": 26,
+      "pose": "charge-mid"
+    },
+    {
+      "from": 27,
+      "to": 29,
+      "pose": "recover"
+    },
+    {
+      "from": 30,
+      "to": 31,
+      "pose": "idle"
+    }
+  ],
+  "pose_geometry": {
+    "idle": {
+      "anchor": [
+        84,
+        212
+      ],
+      "gem": [
+        123,
+        60
+      ]
+    },
+    "charge-mid": {
+      "anchor": [
+        84,
+        212
+      ],
+      "gem": [
+        124,
+        42
+      ]
+    },
+    "charge-high": {
+      "anchor": [
+        84,
+        212
+      ],
+      "gem": [
+        117,
+        41
+      ]
+    },
+    "cast": {
+      "anchor": [
+        84,
+        212
+      ],
+      "gem": [
+        141,
+        61
+      ]
+    },
+    "recover": {
+      "anchor": [
+        84,
+        212
+      ],
+      "gem": [
+        118,
+        59
+      ]
+    }
+  },
+  "wizard_position": [
+    18,
+    22
+  ],
+  "motion": {
+    "easing": "smoothstep",
+    "rounding": "half-away-from-zero",
+    "idle_bob_pixels": 1,
+    "offsets": [
+      {
+        "frame": 4,
+        "offset": [
+          0,
+          0
+        ]
+      },
+      {
+        "frame": 9,
+        "offset": [
+          0,
+          -1
+        ]
+      },
+      {
+        "frame": 13,
+        "offset": [
+          -1,
+          -2
+        ]
+      },
+      {
+        "frame": 14,
+        "offset": [
+          -2,
+          0
+        ]
+      },
+      {
+        "frame": 16,
+        "offset": [
+          1,
+          0
+        ]
+      },
+      {
+        "frame": 19,
+        "offset": [
+          0,
+          -1
+        ]
+      },
+      {
+        "frame": 25,
+        "offset": [
+          0,
+          0
+        ]
+      },
+      {
+        "frame": 31,
+        "offset": [
+          0,
+          0
+        ]
+      }
+    ]
+  },
+  "gem": {
+    "anchor": [
+      6,
+      9
+    ],
+    "hidden_frames": [
+      6,
+      10,
+      12
+    ]
+  },
+  "scale_pulse": {
+    "component": "gem",
+    "sampling": "nearest-neighbor",
+    "cel_position_policy": "pivot",
+    "pivot": [
+      6,
+      9
+    ],
+    "rounding": "floor",
+    "frames": [
+      {
+        "frame": 13,
+        "width": 16,
+        "height": 24
+      },
+      {
+        "frame": 14,
+        "width": 20,
+        "height": 30
+      }
+    ]
+  },
+  "particles": {
+    "count": 18,
+    "colors": [
+      "white",
+      "magic",
+      "magic_dark"
+    ]
+  },
+  "burst": {
+    "sizes": [
+      96,
+      80,
+      62,
+      42,
+      24,
+      0
+    ]
+  },
+  "projectile": {
+    "anchor": [
+      55,
+      18
+    ],
+    "origin": [
+      157,
+      83
+    ],
+    "travel": [
+      [
+        0,
+        0
+      ],
+      [
+        34,
+        0
+      ],
+      [
+        70,
+        0
+      ],
+      [
+        108,
+        1
+      ],
+      [
+        148,
+        1
+      ],
+      [
+        190,
+        2
+      ]
+    ]
+  },
+  "scene": {
+    "ground_y": 234,
+    "stars": [
+      [
+        52,
+        39
+      ],
+      [
+        180,
+        32
+      ],
+      [
+        222,
+        55
+      ],
+      [
+        310,
+        84
+      ],
+      [
+        257,
+        21
+      ],
+      [
+        178,
+        91
+      ],
+      [
+        31,
+        86
+      ],
+      [
+        208,
+        17
+      ]
+    ],
+    "shake": [
+      {
+        "frame": 14,
+        "offset": [
+          2,
+          -1
+        ]
+      },
+      {
+        "frame": 15,
+        "offset": [
+          -2,
+          1
+        ]
+      },
+      {
+        "frame": 16,
+        "offset": [
+          1,
+          0
+        ]
+      },
+      {
+        "frame": 17,
+        "offset": [
+          -1,
+          0
+        ]
+      }
+    ]
+  },
+  "export": {
+    "components": {
+      "wizard": {
+        "layers": [
+          "wizard",
+          "gem",
+          "sparks",
+          "burst"
+        ],
+        "crop": {
+          "x": 0,
+          "y": 0,
+          "width": 256,
+          "height": 256
+        },
+        "anchor": [
+          102,
+          234
+        ]
+      },
+      "gem": {
+        "layers": [
+          "gem"
+        ],
+        "crop": {
+          "x": 98,
+          "y": 12,
+          "width": 104,
+          "height": 116
+        },
+        "anchor": [
+          52,
+          58
+        ]
+      },
+      "burst": {
+        "layers": [
+          "sparks",
+          "burst"
+        ],
+        "crop": {
+          "x": 60,
+          "y": 0,
+          "width": 176,
+          "height": 160
+        },
+        "anchor": [
+          97,
+          83
+        ]
+      },
+      "projectile": {
+        "layers": [
+          "projectile"
+        ],
+        "crop": {
+          "x": 0,
+          "y": 0,
+          "width": 72,
+          "height": 40
+        },
+        "anchor": [
+          55,
+          18
+        ]
+      },
+      "background": {
+        "layers": [
+          "background",
+          "stars"
+        ],
+        "crop": {
+          "x": 0,
+          "y": 0,
+          "width": 384,
+          "height": 288
+        },
+        "anchor": [
+          0,
+          0
+        ]
+      }
+    },
+    "target": {
+      "width": 64,
+      "height": 84,
+      "anchor": [
+        32,
+        39
+      ]
+    }
+  },
+  "gameplay": {
+    "cast_frame": 14
+  }
+}

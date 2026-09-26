@@ -1,0 +1,1340 @@
+{
+  "delivery": "final build B from the current v2 delivery; preview A is excluded",
+  "source_binding": {
+    "unchanged_during_verification": true,
+    "tree_hash_algorithm": "SHA-256 of sorted UTF-8 records: relative path, NUL, file SHA-256, newline",
+    "project_files": {
+      "content/wizard_bundle.gd": "ba5b6567432aaf6a189e611c16b463b44d3c447ed4db8ff4d837c2d621af53b1",
+      "content/wizard_range.gd": "c8dff9ac4d27401bd03e0f52f509af02f308493250ae1b3f1ee3b63326817929",
+      "export_presets.cfg": "a93c8137c9dd0811fc6643e9132dcf7da782abd98521e32124c552bdcad7a878",
+      "main.gd": "bd78d5e93a8904eac90d316be0eee95342fbb6755034a36a21e789d2a0659ffa",
+      "main.tscn": "2c0f3705cf72d1073731efb58728622e66d3444d86b681a37c896b59d55f508c",
+      "project.godot": "c3b8671572a27bc637c9481c59a548d8070491e48397007188446d0bea2675f8",
+      "systems/target_practice.gd": "1ab69dd0aa52c008e90a678e6a717f7645a6b4af46270ecac86bc966d2046b26",
+      "tests/missing_assets.gd": "07fddd7e5a383c4fce6810f3ddeec67fcb4aeb7e05f6a1626c56e4e5cf3125b6",
+      "tests/playable_round.gd": "cc1150c452ad92f831baa692f515b697462ab36a3c6ff6b0db2b64b322bc880e",
+      "tests/round_rules.gd": "308b2a6c82ae55d71b281c9a4486440cc5572b2e4a72aa404e22e3f6e8253c16",
+      "ui/range_hud.gd": "799312ed9164bd8d45163bf51f34bc8cfedda1d7a294c9c28d940bebb98daa59"
+    },
+    "project_tree_sha256": "57afc50226d698f71447d8d681c5dcd6fd35252ba3e7cb6a4c7b665747b065cb",
+    "asset_file_count": 194,
+    "asset_tree_sha256": "459d4cb324fca9a51533c17bff87b2cc4b91281eddab7fd6d642087105d45112",
+    "bundle_sha256": "5cda7e4e2ecc99faf94768b3e4cae8f7a59fd2b35f84b61b1d9544d82bec2cdf"
+  },
+  "temporary_project": "/tmp/spa-issue100-godot-final-ag6takne/godot",
+  "headless": {
+    "tool-version": {
+      "command": [
+        "gda",
+        "--version",
+        "--json"
+      ],
+      "elapsed_seconds": 0.235,
+      "exit_code": 0,
+      "result": {
+        "gda_version": "0.19.0",
+        "executable": "/Users/lelej/.local/bin/gda",
+        "interpreter": "/Users/lelej/.local/share/uv/tools/gda/bin/python3",
+        "package_path": "/Users/lelej/.local/share/uv/tools/gda/lib/python3.14/site-packages/gda",
+        "install_kind": "wheel",
+        "source": null,
+        "godot": {
+          "binary": "/Users/lelej/Applications/Godot.app/Contents/MacOS/Godot",
+          "version_unavailable_reason": "the engine reports its version only from a running process, and this surface never launches Godot; run `gda info --json` for it"
+        }
+      },
+      "stderr": ""
+    },
+    "engine-version": {
+      "command": [
+        "gda",
+        "--user-data-root",
+        "/tmp/spa-issue100-godot-final-ag6takne/user-data",
+        "info",
+        "--project",
+        "/tmp/spa-issue100-godot-final-ag6takne/godot",
+        "--json"
+      ],
+      "elapsed_seconds": 0.788,
+      "exit_code": 0,
+      "result": {
+        "major": 4,
+        "minor": 6,
+        "patch": 3,
+        "hex": 263683,
+        "status": "stable",
+        "build": "official",
+        "hash": "7d41c59c457bd5a245092b4e7eb2d833e3b3f8c3",
+        "string": "4.6.3-stable (official)",
+        "timestamp": 0
+      },
+      "stderr": "gda: running operation: info\n"
+    },
+    "import": {
+      "command": [
+        "gda",
+        "--user-data-root",
+        "/tmp/spa-issue100-godot-final-ag6takne/user-data",
+        "resource",
+        "import",
+        "res://content/wizard_assets/wizard/0001.png",
+        "--project",
+        "/tmp/spa-issue100-godot-final-ag6takne/godot",
+        "--json"
+      ],
+      "elapsed_seconds": 3.931,
+      "exit_code": 0,
+      "result": {
+        "engine_pass": true,
+        "assets": [
+          {
+            "path": "res://content/wizard_assets/wizard/0001.png",
+            "status": "imported",
+            "sidecar": "res://content/wizard_assets/wizard/0001.png.import",
+            "dest_files": [
+              "res://.godot/imported/0001.png-4494b59b0b6a5a9fdcc3b49765ea12b0.ctex"
+            ],
+            "reason": null,
+            "detail": null,
+            "engine_output": [],
+            "engine_output_truncated": false
+          }
+        ],
+        "summary": {
+          "requested": 1,
+          "cached": 0,
+          "missing": 0,
+          "stale": 0,
+          "invalid": 0,
+          "imported": 1,
+          "not_importable": 0,
+          "failed": 0,
+          "created_cache_owned": 392,
+          "created_source_adjacent": 201
+        }
+      },
+      "stderr": ""
+    },
+    "scene-validate": {
+      "command": [
+        "gda",
+        "--user-data-root",
+        "/tmp/spa-issue100-godot-final-ag6takne/user-data",
+        "scene",
+        "validate",
+        "res://main.tscn",
+        "--project",
+        "/tmp/spa-issue100-godot-final-ag6takne/godot",
+        "--json"
+      ],
+      "elapsed_seconds": 0.705,
+      "exit_code": 0,
+      "result": {
+        "path": "res://main.tscn",
+        "valid": true,
+        "problems": [],
+        "project_root": "/private/tmp/spa-issue100-godot-final-ag6takne/godot"
+      },
+      "stderr": "gda: running operation: scene-validate\n"
+    },
+    "scene-preflight": {
+      "command": [
+        "gda",
+        "--user-data-root",
+        "/tmp/spa-issue100-godot-final-ag6takne/user-data",
+        "scene",
+        "preflight",
+        "res://main.tscn",
+        "--project",
+        "/tmp/spa-issue100-godot-final-ag6takne/godot",
+        "--json"
+      ],
+      "elapsed_seconds": 1.013,
+      "exit_code": 0,
+      "result": {
+        "path": "res://main.tscn",
+        "started": true,
+        "status": "ready",
+        "diagnostics": [],
+        "project_root": "/private/tmp/spa-issue100-godot-final-ag6takne/godot"
+      },
+      "stderr": "gda: running operation: scene-preflight\n"
+    },
+    "round-rules": {
+      "command": [
+        "gda",
+        "--user-data-root",
+        "/tmp/spa-issue100-godot-final-ag6takne/user-data",
+        "script",
+        "run",
+        "res://tests/round_rules.gd",
+        "--strict",
+        "--completion-marker",
+        "ROUND_RULES_COMPLETE",
+        "--project",
+        "/tmp/spa-issue100-godot-final-ag6takne/godot",
+        "--json"
+      ],
+      "elapsed_seconds": 0.608,
+      "exit_code": 0,
+      "result": {
+        "exit_status": 0,
+        "diagnostics": [],
+        "stderr": "",
+        "assertions": {
+          "checks": 87,
+          "failures": []
+        }
+      },
+      "stderr": ""
+    },
+    "playable-round": {
+      "command": [
+        "gda",
+        "--user-data-root",
+        "/tmp/spa-issue100-godot-final-ag6takne/user-data",
+        "script",
+        "run",
+        "res://tests/playable_round.gd",
+        "--strict",
+        "--completion-marker",
+        "PLAYABLE_ROUND_COMPLETE",
+        "--timeout",
+        "50",
+        "--project",
+        "/tmp/spa-issue100-godot-final-ag6takne/godot",
+        "--json"
+      ],
+      "elapsed_seconds": 19.359,
+      "exit_code": 0,
+      "result": {
+        "exit_status": 0,
+        "diagnostics": [],
+        "stderr": "",
+        "assertions": {
+          "checks": 60,
+          "failures": [],
+          "release_frames": [
+            15,
+            15,
+            15,
+            15,
+            15
+          ]
+        }
+      },
+      "stderr": ""
+    }
+  },
+  "windowed": {
+    "source_changes": "Only the temporary copy received the gda harness and autoload; delivered source was unchanged.",
+    "startup_permission": {
+      "initial_attempt": {
+        "command": [
+          "gda",
+          "daemon",
+          "start",
+          "--windowed",
+          "--project",
+          "/tmp/spa-issue100-godot-final-ag6takne/godot",
+          "--json"
+        ],
+        "elapsed_seconds": 0.328,
+        "exit_code": 127,
+        "result": {
+          "error": {
+            "category": "environment",
+            "code": "live_windowed_permission_denied",
+            "message": "this process is denied the macOS window-server lookup (bootstrap_look_up of com.apple.windowserver.active returned BOOTSTRAP_NOT_PRIVILEGED \u2014 e.g. a sandbox); a control lookup of an unregistered name was refused too, so this process is broadly confined and the probe learned only that much. gda cannot tell from a refused lookup whether this host HAS a window server, only that this process may not ask: re-run outside the sandbox/restriction to find out \u2014 if a windowed session comes up there, this was a permission boundary; if it fails the same way, the host genuinely has none",
+            "diagnostics": "",
+            "probe": {
+              "name": "bootstrap_look_up(com.apple.windowserver.active)",
+              "platform": "darwin"
+            }
+          }
+        },
+        "stderr": ""
+      },
+      "classification": "Environment limitation: sandbox denied macOS window-server lookup. Approved retry outside the sandbox succeeded.",
+      "approved_retry": {
+        "command": [
+          "gda",
+          "daemon",
+          "start",
+          "--windowed",
+          "--project",
+          "/tmp/spa-issue100-godot-final-ag6takne/godot",
+          "--json"
+        ],
+        "elapsed_seconds": 0.342,
+        "exit_code": 0,
+        "result": {
+          "pid": 94955,
+          "installed_harness": true,
+          "harness_version": "25",
+          "windowed": true,
+          "already_running": false
+        }
+      }
+    },
+    "ready": {
+      "pid": 94955,
+      "launched": true,
+      "startup_diagnostics": [],
+      "clean_start": true
+    },
+    "commands": [
+      {
+        "command": [
+          "gda",
+          "daemon",
+          "wait-ready",
+          "--project",
+          "/tmp/spa-issue100-godot-final-ag6takne/godot",
+          "--json"
+        ],
+        "invocations": [
+          {
+            "step": "ready",
+            "elapsed_seconds": 3.544,
+            "exit_code": 0
+          }
+        ]
+      },
+      {
+        "command": [
+          "gda",
+          "game",
+          "rect",
+          "/root/WizardTiming/HUD/Controls/Cast",
+          "--project",
+          "/tmp/spa-issue100-godot-final-ag6takne/godot",
+          "--json"
+        ],
+        "invocations": [
+          {
+            "step": "cast-rect",
+            "elapsed_seconds": 0.336,
+            "exit_code": 0
+          }
+        ]
+      },
+      {
+        "command": [
+          "gda",
+          "game",
+          "tree",
+          "--max-depth",
+          "4",
+          "--project",
+          "/tmp/spa-issue100-godot-final-ag6takne/godot",
+          "--json"
+        ],
+        "invocations": [
+          {
+            "step": "tree",
+            "elapsed_seconds": 0.352,
+            "exit_code": 0
+          }
+        ]
+      },
+      {
+        "command": [
+          "gda",
+          "game",
+          "get",
+          "/root/WizardTiming/HUD",
+          "--property",
+          "_state",
+          "--project",
+          "/tmp/spa-issue100-godot-final-ag6takne/godot",
+          "--json"
+        ],
+        "invocations": [
+          {
+            "step": "state",
+            "elapsed_seconds": 0.355,
+            "exit_code": 0
+          }
+        ]
+      },
+      {
+        "command": [
+          "gda",
+          "screen",
+          "capture",
+          "--output",
+          "/Users/lelej/projects/godot-agent-worktree/spa-dev/examples/wizard_cast_v2/evidence/playable-idle.png",
+          "--project",
+          "/tmp/spa-issue100-godot-final-ag6takne/godot",
+          "--json"
+        ],
+        "invocations": [
+          {
+            "step": "idle-capture",
+            "elapsed_seconds": 0.331,
+            "exit_code": 0
+          }
+        ]
+      },
+      {
+        "command": [
+          "gda",
+          "game",
+          "get",
+          "/root/WizardTiming/Range",
+          "--property",
+          "_target_time",
+          "--project",
+          "/private/tmp/spa-issue100-godot-final-ag6takne/godot",
+          "--json"
+        ],
+        "invocations": [
+          {
+            "step": "shot-1-clock",
+            "elapsed_seconds": 0.297,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-2-clock",
+            "elapsed_seconds": 0.349,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-3-clock",
+            "elapsed_seconds": 0.318,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-4-clock",
+            "elapsed_seconds": 0.301,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-5-clock",
+            "elapsed_seconds": 0.301,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-1-clock",
+            "elapsed_seconds": 0.297,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-2-clock",
+            "elapsed_seconds": 0.345,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-3-clock",
+            "elapsed_seconds": 0.323,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-4-clock",
+            "elapsed_seconds": 0.339,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-5-clock",
+            "elapsed_seconds": 0.318,
+            "exit_code": 0
+          },
+          {
+            "step": "final-hit-clock",
+            "elapsed_seconds": 0.345,
+            "exit_code": 0
+          }
+        ]
+      },
+      {
+        "command": [
+          "gda",
+          "input",
+          "mouse-click",
+          "339",
+          "274.5",
+          "--project",
+          "/private/tmp/spa-issue100-godot-final-ag6takne/godot",
+          "--json"
+        ],
+        "invocations": [
+          {
+            "step": "cast-button",
+            "elapsed_seconds": 0.313,
+            "exit_code": 0
+          },
+          {
+            "step": "final-hit-cast",
+            "elapsed_seconds": 0.391,
+            "exit_code": 0
+          }
+        ]
+      },
+      {
+        "command": [
+          "gda",
+          "input",
+          "sequence",
+          "--events",
+          "[{\"frame\": 0, \"type\": \"key\", \"key\": \"Space\"}, {\"frame\": 1, \"type\": \"key\", \"key\": \"Space\", \"released\": true}]",
+          "--project",
+          "/private/tmp/spa-issue100-godot-final-ag6takne/godot",
+          "--json"
+        ],
+        "invocations": [
+          {
+            "step": "shot-1-repeated-space",
+            "elapsed_seconds": 0.334,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-2-space",
+            "elapsed_seconds": 0.415,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-2-repeated-space",
+            "elapsed_seconds": 0.355,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-3-space",
+            "elapsed_seconds": 0.323,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-3-repeated-space",
+            "elapsed_seconds": 0.349,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-4-space",
+            "elapsed_seconds": 0.316,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-4-repeated-space",
+            "elapsed_seconds": 0.331,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-5-space",
+            "elapsed_seconds": 0.323,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-5-repeated-space",
+            "elapsed_seconds": 0.332,
+            "exit_code": 0
+          },
+          {
+            "step": "sixth-cast-refused",
+            "elapsed_seconds": 0.338,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-1",
+            "elapsed_seconds": 0.328,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-2",
+            "elapsed_seconds": 0.351,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-3",
+            "elapsed_seconds": 0.403,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-4",
+            "elapsed_seconds": 0.306,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-5",
+            "elapsed_seconds": 0.329,
+            "exit_code": 0
+          }
+        ]
+      },
+      {
+        "command": [
+          "gda",
+          "game",
+          "get",
+          "/root/WizardTiming/HUD",
+          "--property",
+          "_state",
+          "--project",
+          "/private/tmp/spa-issue100-godot-final-ag6takne/godot",
+          "--json"
+        ],
+        "invocations": [
+          {
+            "step": "shot-1-admitted",
+            "elapsed_seconds": 0.318,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-1-settled",
+            "elapsed_seconds": 0.309,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-1-settled",
+            "elapsed_seconds": 0.289,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-1-settled",
+            "elapsed_seconds": 0.344,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-2-admitted",
+            "elapsed_seconds": 0.316,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-2-settled",
+            "elapsed_seconds": 0.316,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-2-settled",
+            "elapsed_seconds": 0.312,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-2-settled",
+            "elapsed_seconds": 0.306,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-2-settled",
+            "elapsed_seconds": 0.297,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-3-admitted",
+            "elapsed_seconds": 0.3,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-3-settled",
+            "elapsed_seconds": 0.3,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-3-settled",
+            "elapsed_seconds": 0.289,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-3-settled",
+            "elapsed_seconds": 0.29,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-3-settled",
+            "elapsed_seconds": 0.296,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-3-settled",
+            "elapsed_seconds": 0.285,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-4-admitted",
+            "elapsed_seconds": 0.327,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-4-settled",
+            "elapsed_seconds": 0.325,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-4-settled",
+            "elapsed_seconds": 0.304,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-4-settled",
+            "elapsed_seconds": 0.328,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-4-settled",
+            "elapsed_seconds": 0.286,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-5-admitted",
+            "elapsed_seconds": 0.317,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-5-settled",
+            "elapsed_seconds": 0.317,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-5-settled",
+            "elapsed_seconds": 0.291,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-5-settled",
+            "elapsed_seconds": 0.289,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-5-settled",
+            "elapsed_seconds": 0.29,
+            "exit_code": 0
+          },
+          {
+            "step": "shot-5-settled",
+            "elapsed_seconds": 0.287,
+            "exit_code": 0
+          },
+          {
+            "step": "after-sixth",
+            "elapsed_seconds": 0.303,
+            "exit_code": 0
+          },
+          {
+            "step": "after-r",
+            "elapsed_seconds": 0.368,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-1-state",
+            "elapsed_seconds": 0.341,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-1-state",
+            "elapsed_seconds": 0.36,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-1-state",
+            "elapsed_seconds": 0.4,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-1-state",
+            "elapsed_seconds": 0.34,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-1-state",
+            "elapsed_seconds": 0.329,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-2-state",
+            "elapsed_seconds": 0.314,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-2-state",
+            "elapsed_seconds": 0.319,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-2-state",
+            "elapsed_seconds": 0.323,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-2-state",
+            "elapsed_seconds": 0.319,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-2-state",
+            "elapsed_seconds": 0.323,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-2-state",
+            "elapsed_seconds": 0.315,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-3-state",
+            "elapsed_seconds": 0.337,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-3-state",
+            "elapsed_seconds": 0.312,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-3-state",
+            "elapsed_seconds": 0.315,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-3-state",
+            "elapsed_seconds": 0.297,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-3-state",
+            "elapsed_seconds": 0.304,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-3-state",
+            "elapsed_seconds": 0.337,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-4-state",
+            "elapsed_seconds": 0.284,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-4-state",
+            "elapsed_seconds": 0.296,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-4-state",
+            "elapsed_seconds": 0.298,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-4-state",
+            "elapsed_seconds": 0.29,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-4-state",
+            "elapsed_seconds": 0.296,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-4-state",
+            "elapsed_seconds": 0.312,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-5-state",
+            "elapsed_seconds": 0.319,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-5-state",
+            "elapsed_seconds": 0.31,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-5-state",
+            "elapsed_seconds": 0.311,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-5-state",
+            "elapsed_seconds": 0.315,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-5-state",
+            "elapsed_seconds": 0.309,
+            "exit_code": 0
+          },
+          {
+            "step": "again-round-shot-5-state",
+            "elapsed_seconds": 0.312,
+            "exit_code": 0
+          },
+          {
+            "step": "after-again",
+            "elapsed_seconds": 0.316,
+            "exit_code": 0
+          },
+          {
+            "step": "final-hit-state",
+            "elapsed_seconds": 0.332,
+            "exit_code": 0
+          }
+        ]
+      },
+      {
+        "command": [
+          "gda",
+          "screen",
+          "capture",
+          "--output",
+          "/Users/lelej/projects/godot-agent-worktree/spa-dev/examples/wizard_cast_v2/evidence/playable-hit.png",
+          "--await-node",
+          "/root/WizardTiming/HUD/Controls/Feedback",
+          "--await-property",
+          "text",
+          "--await-value",
+          "HIT!",
+          "--await-frames",
+          "180",
+          "--project",
+          "/private/tmp/spa-issue100-godot-final-ag6takne/godot",
+          "--json"
+        ],
+        "invocations": [
+          {
+            "step": "hit-capture",
+            "elapsed_seconds": 0.826,
+            "exit_code": 0
+          }
+        ]
+      },
+      {
+        "command": [
+          "gda",
+          "screen",
+          "capture",
+          "--output",
+          "/Users/lelej/projects/godot-agent-worktree/spa-dev/examples/wizard_cast_v2/evidence/playable-results.png",
+          "--await-node",
+          "/root/WizardTiming/HUD/Controls/Results",
+          "--await-property",
+          "visible",
+          "--await-value",
+          "true",
+          "--await-frames",
+          "60",
+          "--project",
+          "/private/tmp/spa-issue100-godot-final-ag6takne/godot",
+          "--json"
+        ],
+        "invocations": [
+          {
+            "step": "results-capture",
+            "elapsed_seconds": 0.314,
+            "exit_code": 0
+          }
+        ]
+      },
+      {
+        "command": [
+          "gda",
+          "input",
+          "sequence",
+          "--events",
+          "[{\"frame\": 0, \"type\": \"key\", \"key\": \"R\"}, {\"frame\": 1, \"type\": \"key\", \"key\": \"R\", \"released\": true}]",
+          "--project",
+          "/private/tmp/spa-issue100-godot-final-ag6takne/godot",
+          "--json"
+        ],
+        "invocations": [
+          {
+            "step": "restart-r",
+            "elapsed_seconds": 0.364,
+            "exit_code": 0
+          }
+        ]
+      },
+      {
+        "command": [
+          "gda",
+          "screen",
+          "capture",
+          "--output",
+          "/Users/lelej/projects/godot-agent-worktree/spa-dev/examples/wizard_cast_v2/evidence/playable-hit.png",
+          "--await-node",
+          "/root/WizardTiming/HUD/Controls/Feedback",
+          "--await-property",
+          "text",
+          "--await-value",
+          "HIT!",
+          "--await-frames",
+          "180",
+          "--settle-frames",
+          "2",
+          "--project",
+          "/private/tmp/spa-issue100-godot-final-ag6takne/godot",
+          "--json"
+        ],
+        "invocations": [
+          {
+            "step": "hit-capture-settled",
+            "elapsed_seconds": 0.361,
+            "exit_code": 0
+          }
+        ]
+      },
+      {
+        "command": [
+          "gda",
+          "game",
+          "rect",
+          "/root/WizardTiming/HUD/Controls/Results/Again",
+          "--project",
+          "/private/tmp/spa-issue100-godot-final-ag6takne/godot",
+          "--json"
+        ],
+        "invocations": [
+          {
+            "step": "again-rect",
+            "elapsed_seconds": 0.298,
+            "exit_code": 0
+          }
+        ]
+      },
+      {
+        "command": [
+          "gda",
+          "input",
+          "mouse-click",
+          "144.0",
+          "187.5",
+          "--project",
+          "/private/tmp/spa-issue100-godot-final-ag6takne/godot",
+          "--json"
+        ],
+        "invocations": [
+          {
+            "step": "again-button",
+            "elapsed_seconds": 0.366,
+            "exit_code": 0
+          }
+        ]
+      },
+      {
+        "command": [
+          "gda",
+          "game",
+          "get",
+          "/root/WizardTiming/HUD/Controls/Results",
+          "--property",
+          "visible",
+          "--project",
+          "/private/tmp/spa-issue100-godot-final-ag6takne/godot",
+          "--json"
+        ],
+        "invocations": [
+          {
+            "step": "results-hidden-after-again",
+            "elapsed_seconds": 0.333,
+            "exit_code": 0
+          }
+        ]
+      },
+      {
+        "command": [
+          "gda",
+          "screen",
+          "capture",
+          "--output",
+          "/Users/lelej/projects/godot-agent-worktree/spa-dev/examples/wizard_cast_v2/evidence/playable-hit.png",
+          "--await-node",
+          "/root/WizardTiming/HUD/Controls/Feedback",
+          "--await-property",
+          "visible",
+          "--await-value",
+          "true",
+          "--await-frames",
+          "180",
+          "--settle-frames",
+          "2",
+          "--project",
+          "/private/tmp/spa-issue100-godot-final-ag6takne/godot",
+          "--json"
+        ],
+        "invocations": [
+          {
+            "step": "final-hit-capture",
+            "elapsed_seconds": 1.525,
+            "exit_code": 0
+          }
+        ]
+      },
+      {
+        "command": [
+          "gda",
+          "game",
+          "get",
+          "/root/WizardTiming/HUD/Controls/Feedback",
+          "--property",
+          "text",
+          "--project",
+          "/private/tmp/spa-issue100-godot-final-ag6takne/godot",
+          "--json"
+        ],
+        "invocations": [
+          {
+            "step": "final-hit-feedback",
+            "elapsed_seconds": 0.311,
+            "exit_code": 0
+          }
+        ]
+      },
+      {
+        "command": [
+          "gda",
+          "diag",
+          "errors",
+          "--project",
+          "/tmp/spa-issue100-godot-final-ag6takne/godot",
+          "--json"
+        ],
+        "invocations": [
+          {
+            "step": "diagnostics",
+            "elapsed_seconds": 0.28,
+            "exit_code": 0
+          }
+        ]
+      },
+      {
+        "command": [
+          "gda",
+          "daemon",
+          "stop",
+          "--project",
+          "/tmp/spa-issue100-godot-final-ag6takne/godot",
+          "--json"
+        ],
+        "invocations": [
+          {
+            "step": "daemon-stop",
+            "elapsed_seconds": 2.242,
+            "exit_code": 0
+          }
+        ]
+      }
+    ],
+    "round_one": {
+      "outcomes": [
+        {
+          "casts": 1,
+          "hits": 1,
+          "outcomes": 1,
+          "releases": 1,
+          "complete": false
+        },
+        {
+          "casts": 2,
+          "hits": 1,
+          "outcomes": 2,
+          "releases": 2,
+          "complete": false
+        },
+        {
+          "casts": 3,
+          "hits": 2,
+          "outcomes": 3,
+          "releases": 3,
+          "complete": false
+        },
+        {
+          "casts": 4,
+          "hits": 2,
+          "outcomes": 4,
+          "releases": 4,
+          "complete": false
+        },
+        {
+          "casts": 5,
+          "hits": 3,
+          "outcomes": 5,
+          "releases": 5,
+          "complete": true
+        }
+      ],
+      "cast_button_and_space": true,
+      "repeated_space_rejected": true,
+      "sixth_cast_rejected": true,
+      "r_restart": {
+        "can_cast": true,
+        "cast_limit": 5,
+        "casts": 0,
+        "complete": false,
+        "error": "",
+        "hits": 0,
+        "loaded": true,
+        "outcomes": 0,
+        "phase": "idle",
+        "projectile_pending": false,
+        "projectile_position": {
+          "x": 297.0,
+          "y": 83.0
+        },
+        "projectile_radius": 6.666666666666667,
+        "releases": 0,
+        "source_frame": 3,
+        "target_center_y": 108.0,
+        "target_position": {
+          "x": 324.0,
+          "y": 108.0
+        },
+        "target_radius": 22.4,
+        "target_time": 0.0
+      }
+    },
+    "round_two": {
+      "outcomes": [
+        {
+          "casts": 1,
+          "hits": 1,
+          "outcomes": 1,
+          "releases": 1,
+          "complete": false
+        },
+        {
+          "casts": 2,
+          "hits": 1,
+          "outcomes": 2,
+          "releases": 2,
+          "complete": false
+        },
+        {
+          "casts": 3,
+          "hits": 2,
+          "outcomes": 3,
+          "releases": 3,
+          "complete": false
+        },
+        {
+          "casts": 4,
+          "hits": 2,
+          "outcomes": 4,
+          "releases": 4,
+          "complete": false
+        },
+        {
+          "casts": 5,
+          "hits": 3,
+          "outcomes": 5,
+          "releases": 5,
+          "complete": true
+        }
+      ],
+      "again_restart": {
+        "can_cast": true,
+        "cast_limit": 5,
+        "casts": 0,
+        "complete": false,
+        "error": "",
+        "hits": 0,
+        "loaded": true,
+        "outcomes": 0,
+        "phase": "idle",
+        "projectile_pending": false,
+        "projectile_position": {
+          "x": 297.0,
+          "y": 83.0
+        },
+        "projectile_radius": 6.666666666666667,
+        "releases": 0,
+        "source_frame": 1,
+        "target_center_y": 108.0,
+        "target_position": {
+          "x": 324.0,
+          "y": 108.0
+        },
+        "target_radius": 22.4,
+        "target_time": 0.0
+      },
+      "results_visible_after_again": false
+    },
+    "capture_notes": [
+      "Captures are the 384x288 game viewport. The default 768x576 window uses integer 2x scaling.",
+      "The final HIT capture waits for Feedback.visible and settles for two process frames. Earlier captures were superseded: retained text matched while the label was hidden, and a boundary capture preceded the updated UI draw.",
+      "A third round used one real CAST click to obtain the final visible HIT capture; game outcomes were never set directly."
+    ],
+    "captures": {
+      "playable-idle.png": {
+        "path": "/Users/lelej/projects/godot-agent-worktree/spa-dev/examples/wizard_cast_v2/evidence/playable-idle.png",
+        "width": 384,
+        "height": 288,
+        "bytes": 57307,
+        "format": "png",
+        "inline": null,
+        "settle_frames": 0,
+        "predicate": null,
+        "receipt": {
+          "session_id": "7f78242ea10a0e0d",
+          "scene_path": "res://main.tscn",
+          "scene_uid": null,
+          "engine_frame": 1713,
+          "render_frame": 1713,
+          "observed": null,
+          "sha256": "2fe05e02d318ced91df4703f6745a6861341acce6f8d4f77d8ee0cbbee57fecd"
+        }
+      },
+      "playable-hit.png": {
+        "path": "/Users/lelej/projects/godot-agent-worktree/spa-dev/examples/wizard_cast_v2/evidence/playable-hit.png",
+        "width": 384,
+        "height": 288,
+        "bytes": 60804,
+        "format": "png",
+        "inline": null,
+        "settle_frames": 2,
+        "predicate": {
+          "node": "/root/WizardTiming/HUD/Controls/Feedback",
+          "property": "visible",
+          "expected": true,
+          "observed": true,
+          "engine_frame": 16696,
+          "frames_waited": 69
+        },
+        "receipt": {
+          "session_id": "7f78242ea10a0e0d",
+          "scene_path": "res://main.tscn",
+          "scene_uid": null,
+          "engine_frame": 16698,
+          "render_frame": 16698,
+          "observed": true,
+          "sha256": "7fc6ad8188c49e03f6358a2bb927957e346be12654fee57703a2babebd0dc8dd"
+        }
+      },
+      "playable-results.png": {
+        "path": "/Users/lelej/projects/godot-agent-worktree/spa-dev/examples/wizard_cast_v2/evidence/playable-results.png",
+        "width": 384,
+        "height": 288,
+        "bytes": 50115,
+        "format": "png",
+        "inline": null,
+        "settle_frames": 0,
+        "predicate": {
+          "node": "/root/WizardTiming/HUD/Controls/Results",
+          "property": "visible",
+          "expected": true,
+          "observed": true,
+          "engine_frame": 8237,
+          "frames_waited": 0
+        },
+        "receipt": {
+          "session_id": "7f78242ea10a0e0d",
+          "scene_path": "res://main.tscn",
+          "scene_uid": null,
+          "engine_frame": 8237,
+          "render_frame": 8237,
+          "observed": true,
+          "sha256": "02784a451dfd93475f0834d3aac4862f4cc9f7841eab5494a11fb2301cf18940"
+        }
+      }
+    },
+    "diagnostics": {
+      "errors": []
+    },
+    "daemon_stop": {
+      "stopped": true,
+      "pid": 94955
+    }
+  },
+  "acceptance": {
+    "technical_checks": "passed",
+    "human_visual_and_play_acceptance": "pending"
+  }
+}

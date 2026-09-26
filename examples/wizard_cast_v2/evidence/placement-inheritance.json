@@ -1,0 +1,39 @@
+{
+  "workspace": "/var/folders/st/jbx51z7j2dz0640yh13br5340000gn/T/spa-v2-placement-probe-stt99m16",
+  "calls": 6,
+  "cli_seconds": 1.7413308318937197,
+  "initial_placement_inherited": true,
+  "copy_independence_after_native_pulse": true,
+  "cels": [
+    {
+      "frame": 1,
+      "height": 16,
+      "layer": "Layer 1",
+      "opacity": 255,
+      "width": 16,
+      "x": 3,
+      "y": -2,
+      "rgba_sha256": "18fda4f293876e4b5638fc099048eb59177856cac3a9e7dee1e23a1bddc52a3b"
+    },
+    {
+      "frame": 2,
+      "height": 20,
+      "layer": "Layer 1",
+      "opacity": 0,
+      "width": 20,
+      "x": 2,
+      "y": -3,
+      "rgba_sha256": "de9446bc1584ca271058f9e50de550e0a032475d5eefc76de7a3cb3d4b71e127"
+    },
+    {
+      "frame": 3,
+      "height": 16,
+      "layer": "Layer 1",
+      "opacity": 255,
+      "width": 16,
+      "x": 3,
+      "y": -2,
+      "rgba_sha256": "18fda4f293876e4b5638fc099048eb59177856cac3a9e7dee1e23a1bddc52a3b"
+    }
+  ]
+}
