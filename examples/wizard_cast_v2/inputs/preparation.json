@@ -1,0 +1,47 @@
+{
+  "palette": {
+    "ink": "#15162b",
+    "sky": "#1c2340",
+    "sky_high": "#293354",
+    "sky_horizon": "#3e4965",
+    "stone_shadow": "#283342",
+    "stone": "#485567",
+    "stone_light": "#687a89",
+    "moon_shadow": "#93939b",
+    "moon": "#d4cdae",
+    "white": "#f8f4e4",
+    "hat": "#734560",
+    "hat_light": "#a26074",
+    "robe_dark": "#783a3b",
+    "robe": "#b25945",
+    "robe_light": "#e38a5f",
+    "leather": "#5b4039",
+    "wood": "#91633f",
+    "gold": "#d6a45d",
+    "skin": "#e6b587",
+    "beard_shadow": "#9aadc1",
+    "beard": "#dee2d3",
+    "magic_dark": "#3c617e",
+    "magic": "#65d6d1",
+    "magic_light": "#c1fff0"
+  },
+  "assets": [
+    {
+      "raw": "raw/idle-concept.png",
+      "prepared": "prepared/idle.png",
+      "fit": [
+        104,
+        184
+      ],
+      "canvas": [
+        160,
+        204
+      ],
+      "offset": [
+        18,
+        14
+      ],
+      "alpha_threshold": 128
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+[
+  {
+    "raw": "raw/idle-concept.png",
+    "prepared": "prepared/idle.png",
+    "raw_sha256": "e537d2011d8ecae95a90bf6d012e11480a3de5db31a5961113198fc7203a7aad",
+    "prepared_sha256": "24918f41d1c0d79f6708f126974b2fca8226a774c9b1537c97dc0c2d977edb5f",
+    "raw_size": [
+      1060,
+      1484
+    ],
+    "raw_alpha_values": 256,
+    "alpha_threshold": 128,
+    "crop": [
+      143,
+      57,
+      904,
+      1427
+    ],
+    "resized_size": [
+      102,
+      184
+    ],
+    "canvas": [
+      160,
+      204
+    ],
+    "offset": [
+      18,
+      14
+    ],
+    "resampling": "nearest-neighbor",
+    "color_mapping": "minimum squared RGB distance, declared palette order breaks ties",
+    "dithering": false,
+    "visible_pixels": 12219
+  }
+]

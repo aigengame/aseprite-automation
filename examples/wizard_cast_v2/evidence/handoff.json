@@ -1,0 +1,243 @@
+{
+  "runtime": {
+    "status": "success",
+    "operation": "spa info",
+    "spa_version": "0.1.0",
+    "runtime": {
+      "selection_source": "explicit",
+      "requested_path": "/Users/lelej/Applications/Aseprite-v1.3.18.5.app/Contents/MacOS/aseprite",
+      "discovered_path": "/Users/lelej/Applications/Aseprite-v1.3.18.5.app/Contents/MacOS/aseprite",
+      "canonical_path": "/Users/lelej/Applications/Aseprite-v1.3.18.5.app/Contents/MacOS/aseprite",
+      "resource_complete": true,
+      "resource_path": "/Users/lelej/Applications/Aseprite-v1.3.18.5.app/Contents/Resources/data/gui.xml",
+      "aseprite_version": "1.3.18.5-dev",
+      "api_version": 41,
+      "lua_version": "Lua 5.4",
+      "verified_prerequisites": [
+        "aseprite_scripting",
+        "lua_file_io",
+        "aseprite_json"
+      ],
+      "verified_capabilities": [
+        "aseprite_runtime_introspection",
+        "aseprite_sprite_create",
+        "aseprite_sprite_inspection",
+        "aseprite_sprite_flatten",
+        "aseprite_sprite_resize",
+        "aseprite_image_resize",
+        "aseprite_sprite_crop",
+        "aseprite_layer_hierarchy",
+        "aseprite_layer_mutation",
+        "aseprite_layer_merge",
+        "aseprite_background_conversion",
+        "aseprite_paint_apply",
+        "aseprite_frame_authoring",
+        "aseprite_frame_editing",
+        "aseprite_cel_lifecycle",
+        "aseprite_cel_relationships",
+        "aseprite_tag_authoring",
+        "aseprite_export_image"
+      ]
+    },
+    "supported_capabilities": [
+      "spa info",
+      "spa version",
+      "spa schema",
+      "spa sprite create",
+      "spa sprite get",
+      "spa sprite copy",
+      "spa sprite flatten",
+      "spa sprite resize",
+      "spa sprite crop",
+      "spa sprite validate",
+      "spa layer list",
+      "spa layer get",
+      "spa layer add",
+      "spa layer set",
+      "spa layer move",
+      "spa layer remove",
+      "spa layer merge",
+      "spa layer convert-to-background",
+      "spa layer convert-from-background",
+      "spa paint apply",
+      "spa frame list",
+      "spa frame get",
+      "spa frame add",
+      "spa frame duplicate",
+      "spa frame set",
+      "spa frame move",
+      "spa frame remove",
+      "spa cel list",
+      "spa cel get",
+      "spa cel add",
+      "spa cel clear",
+      "spa cel remove",
+      "spa cel set",
+      "spa cel copy",
+      "spa cel link",
+      "spa cel unlink",
+      "spa image resize",
+      "spa tag list",
+      "spa tag get",
+      "spa tag add",
+      "spa tag set",
+      "spa tag remove",
+      "spa export image",
+      "spa animation audit",
+      "spa animation compare",
+      "spa animation preview",
+      "spa plan check",
+      "spa plan run"
+    ],
+    "capability_gaps": []
+  },
+  "input_sha256": "24918f41d1c0d79f6708f126974b2fca8226a774c9b1537c97dc0c2d977edb5f",
+  "reopened": {
+    "metadata": {
+      "width": 164,
+      "height": 208,
+      "color_mode": "rgb",
+      "frame_count": 3,
+      "tag_count": 0,
+      "palette_count": 1,
+      "layer_count": 1,
+      "cel_count": 3,
+      "slice_count": 0,
+      "tileset_count": 0,
+      "transparent_color_index": 0,
+      "grid_bounds": {
+        "width": 16,
+        "height": 16,
+        "x": 0,
+        "y": 0
+      },
+      "pixel_ratio": {
+        "width": 1,
+        "height": 1
+      },
+      "use_layer_uuids": false
+    },
+    "frames": [
+      {
+        "frame_number": 1,
+        "duration_ms": 100
+      },
+      {
+        "frame_number": 2,
+        "duration_ms": 100
+      },
+      {
+        "frame_number": 3,
+        "duration_ms": 100
+      }
+    ],
+    "tags": null,
+    "palettes": null,
+    "layers": [
+      {
+        "path": [
+          1
+        ],
+        "name": "Layer 1",
+        "layer_uuid": null,
+        "opacity": 255,
+        "blend_mode": "normal",
+        "is_image": true,
+        "is_group": false,
+        "is_tilemap": false,
+        "is_reference": false,
+        "is_visible": true,
+        "is_editable": true,
+        "is_continuous": false,
+        "is_collapsed": false,
+        "is_transparent": true,
+        "is_background": false,
+        "children": []
+      }
+    ],
+    "cels": [
+      {
+        "layer_path": [
+          1
+        ],
+        "frame_number": 1,
+        "bounds": {
+          "width": 160,
+          "height": 204,
+          "x": 0,
+          "y": 0
+        },
+        "opacity": 255,
+        "z_index": 0
+      },
+      {
+        "layer_path": [
+          1
+        ],
+        "frame_number": 2,
+        "bounds": {
+          "width": 160,
+          "height": 204,
+          "x": 2,
+          "y": 1
+        },
+        "opacity": 255,
+        "z_index": 0
+      },
+      {
+        "layer_path": [
+          1
+        ],
+        "frame_number": 3,
+        "bounds": {
+          "width": 160,
+          "height": 204,
+          "x": 0,
+          "y": 0
+        },
+        "opacity": 0,
+        "z_index": 0
+      }
+    ],
+    "slices": null,
+    "tilesets": null,
+    "status": "success",
+    "operation": "spa sprite get",
+    "sprite_file": "/private/tmp/spa-issue100-handoff-b/handoff.aseprite",
+    "scope": {
+      "requested_sections": [
+        "frames",
+        "layers",
+        "cels"
+      ],
+      "complete_sections": [
+        "frames",
+        "layers",
+        "cels"
+      ],
+      "unrequested_sections": [
+        "tags",
+        "palettes",
+        "slices",
+        "tilesets"
+      ]
+    }
+  },
+  "pixel_correspondence": true,
+  "frames": [
+    {
+      "path": "/private/tmp/spa-issue100-handoff-b/frame-1.png",
+      "rgba_sha256": "db5f9e94c7a762cb5d359a43d135a8f2768d757d6d1c5296dd513ca65cb2ec1b"
+    },
+    {
+      "path": "/private/tmp/spa-issue100-handoff-b/frame-2.png",
+      "rgba_sha256": "e1393d2c2aa594852d286713f5793ed0c4e3be84497b99c08c68c0946e3ee5af"
+    },
+    {
+      "path": "/private/tmp/spa-issue100-handoff-b/frame-3.png",
+      "rgba_sha256": "dc1b36d17b2f89c2dcbaf9d8fde3173c4feb2911f834865419c6d0bb51479a6e"
+    }
+  ],
+  "calls": 11,
+  "cli_elapsed_seconds": 4.347395583870821
+}
