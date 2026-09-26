@@ -246,7 +246,9 @@ better Aseprite-aligned evidence.
 Preparation to a Supporting Subdomain and Bounded Motion Authoring to Document and
 Animation. Candidate intents are preparing a selected raster under explicit geometry,
 color, transparency, and anchor rules; verifying frozen input facts; and authoring
-position/opacity keys over a finite Frame range. Their feature issues must establish
+position/opacity keys over a finite Frame range. Their feature issues
+[#103](https://github.com/aigengame/aseprite-automation/issues/103) and
+[#104](https://github.com/aigengame/aseprite-automation/issues/104) must establish
 contracts and command spellings. This catalog adds no `preprocess`/`postprocess` command
 surface, provider API, or general workflow engine. Existing `export` candidates belong
 to Asset Delivery and retain their separate format contracts.

@@ -14,17 +14,18 @@ The reference 32-Frame build made 500 public CLI calls in 251.0 seconds. It prod
 
 | Finding | Evidence and impact | Classification and disposition |
 | --- | --- | --- |
-| Repeated Cel placement/opacity writes dominate the recipe. | 240 `cel set` calls took 147.0 s. The public Descriptor excludes this Operation from Plans, so the workflow must invoke separate persisted Operations. Exact targets and inputs are retained in the operation log. | Enhancement candidate: assess bounded Plan eligibility for existing Cel updates in a separate SPA issue. The example uses the supported sequence; no Plan policy is expanded here. |
+| Repeated Cel placement/opacity writes dominate the recipe. | 240 `cel set` calls took 147.0 s. The public Descriptor excludes this Operation from Plans, so the workflow must invoke separate persisted Operations. Exact targets and inputs are retained in the operation log. | [#105](https://github.com/aigengame/aseprite-automation/issues/105) tracks bounded Plan eligibility for the existing Operation. The example uses the supported sequence; no Plan policy is expanded here. |
 | Component/sequence export needs explicit orchestration. | 193 single-Frame `export image` calls took 61.4 s. Five component copies additionally require Layer visibility changes, position normalization, and fixed cropping. The complete run has 26 `layer set` calls (26.4 s), five copies (1.6 s), and five crops (1.9 s). | Existing requirements: [#59](https://github.com/aigengame/aseprite-automation/issues/59) owns Layer/region export, [#49](https://github.com/aigengame/aseprite-automation/issues/49) owns animation/sequence delivery. This example is concrete consumer evidence for those issues. Normalizing world motion remains recipe work. |
-| A newly added Cel cannot choose a small Image size. | The source canvas is 128×96, while the gem is 5×5. The builder creates a transparent Cel, then calls `image resize` before painting. Six initial component Images need this step; one background Image also needs overscan. | Feature candidate: evaluate explicit small-Image creation with future Image authoring such as [#20](https://github.com/aigengame/aseprite-automation/issues/20). Current composition is correct and costs seven initial resize calls, so it does not block this slice. |
+| A newly added Cel cannot choose a small Image size. | The source canvas is 128×96, while the gem is 5×5. The builder creates a transparent Cel, then calls `image resize` before painting. Six initial component Images need this step; one background Image also needs overscan. | [#106](https://github.com/aigengame/aseprite-automation/issues/106) evaluates explicit initial Image geometry. #20 covers existing Image reads/replacement and does not own creation. Current composition is correct and costs seven initial resize calls, so it does not block this slice. |
 | The fixed Paint and Plan limits require request splitting. | The adapter splits runs at 256 addressed pixels and Plans at 64 Steps. Five Plan calls, including target painting and Cel creation, took 2.3 s. No pixels or errors were lost. | Declared limits, not a bug. [#26](https://github.com/aigengame/aseprite-automation/issues/26) can improve native drawing ergonomics, but raising Paint limits alone would not address the measured dominant cost. |
 | Public rendered PNG checks cannot inspect hidden stored pixels. | Opacity-zero Cels and obscured Layers can hide bad source colors. A separate read-only native inspector checked 996,720 stored Image pixels, binary alpha, integer positions, and the 24-color set. It does not author or save. | Evidence gap related to the future raw Image surface in [#20](https://github.com/aigengame/aseprite-automation/issues/20). The independent test is sufficient for this finite tracer; no extra public inspection Operation is added. |
 
 ## Hybrid authoring and reusable animation capabilities
 
-**Classification:** new feature and architecture enhancement candidate. The user
-agreed with the direction below after reviewing this tracer. The reusable contract
-and module boundary still need validation; issue #19 delivers the finite example.
+**Classification:** new feature and architecture enhancement. The accepted ownership
+is now recorded in [ADR-0095](../../docs/adr/0095-asset-preparation-authoring-and-delivery.md)
+and [#102](https://github.com/aigengame/aseprite-automation/issues/102). The reusable
+contracts still need validation in #103/#104; issue #19 delivers the finite example.
 
 ### Observation and proposed workflow
 
@@ -55,16 +56,18 @@ review. A concept image alone does not specify those intermediate poses.
 ### Responsibility boundaries
 
 The current [domain model](../../CONTEXT.md#subdomains) includes agent-facing
-composition in the Core Domain. The [ownership view](../../ARCHITECTURE.md#core-domain-ownership-view)
+composition in the Core Domain. The [ownership view](../../ARCHITECTURE.md#domain-ownership-view)
 places timing, Frame, Cel, and animation behavior within Document and Animation.
 This gives bounded animation authoring a home within the existing context.
 
-| Responsibility | Proposed owner |
+| Responsibility | Owner under the accepted direction |
 | --- | --- |
+| Declare raster preparation policy, explicit anchors, frozen inputs, and prepared-result facts. | Asset Preparation; #103 owns its first feature contract. |
 | Sample explicit position and opacity values over a bounded Frame range, with declared timing, interpolation, and integer-coordinate rules. | A reusable SPA capability within Document and Animation; reuse the existing Frame and Cel semantic owners. |
 | Import raster inputs, transform Images, and apply color or Palette rules. | The corresponding Raster Authoring and Color and Palette capabilities; add missing behavior through its own feature contract. |
 | Define the wizard appearance, key poses, casting rhythm, beard movement, and spark paths. | The authored recipe and its art inputs. |
-| Select imagegen inputs, coordinate tools and multiple Sprite files, assign delivery roles, and install assets. | The caller or downstream Asset Pipeline. |
+| Export declared output files and verify their publication. | Asset Delivery; reuse existing native rendering and format contracts. |
+| Select imagegen inputs, coordinate tools and multiple Sprite files, map outputs to project roles, and install assets. | The caller or downstream Asset Pipeline. |
 | Verify Godot import, gameplay, and runtime behavior. | gda and the Godot consumer. |
 
 Assembly of Layers, Cels, and Frames within one Sprite fits SPA. Cross-Sprite
@@ -87,7 +90,10 @@ reopened Frame/Cel facts and decoded pixels. Keep visual continuity review as a
 separate acceptance check. This would establish whether a reusable module removes
 repeated authoring work without importing wizard-specific assumptions.
 
-Track the validated capability in a separate feature issue. Add accepted public
+The bounded motion candidate is tracked in
+[#104](https://github.com/aigengame/aseprite-automation/issues/104); input preparation
+and frozen-input rules are tracked separately in
+[#103](https://github.com/aigengame/aseprite-automation/issues/103). Add accepted public
 terms and meanings to `CONTEXT.md`, record consequential rules in an ADR, and
 reflect module ownership and dependencies in `ARCHITECTURE.md` as applicable.
 An internal file split alone does not require a strategic domain-model change.

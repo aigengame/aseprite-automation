@@ -8,6 +8,12 @@ Godot 4.6.3, and Pillow 12.3.0. Linux results are recorded in
 [PR #101 checks](https://github.com/aigengame/aseprite-automation/pull/101/checks).
 Final human visual/play acceptance remains open.
 
+The follow-up ownership decision is recorded in
+[ADR-0095](../../docs/adr/0095-asset-preparation-authoring-and-delivery.md) and
+[#102](https://github.com/aigengame/aseprite-automation/issues/102). Links below route
+observed friction to its issue owner; the historical measurements and the experiment's
+SPA-production-unchanged scope remain as recorded.
+
 ## H01 — Generated art needs an explicit preparation stage
 
 - **Step/tool:** concept generation, built-in `image_gen.imagegen`; model not
@@ -24,7 +30,8 @@ Final human visual/play acceptance remains open.
 - **Cost/category/disposition:** 37.6 seconds observed for the first generation;
   preparation effort and later revisions are recorded separately. This is an
   art-input and hybrid-workflow limitation, not a SPA defect. Retain raw and
-  prepared inputs; future import feedback belongs to #46.
+  prepared inputs. [#103](https://github.com/aigengame/aseprite-automation/issues/103)
+  owns the preparation contract; native insertion remains #46.
 
 ## H02 — Existing Pixel Patch can bridge a frozen PNG
 
@@ -83,8 +90,9 @@ Final human visual/play acceptance remains open.
   pixel digests after Frame 2 placement, opacity and native resize changes.
 - **Cost/category/disposition:** 69 fewer calls; about 213 seconds saved is an
   estimate from the old mean, not a measured optimized total. Full timings are
-  recorded after completion. This is workflow friction and a candidate for future
-  Plan coverage/performance work, not permission to change SPA schemas here.
+  recorded after completion. This is workflow friction tracked by
+  [#105](https://github.com/aigengame/aseprite-automation/issues/105) for bounded
+  `cel set` Plan eligibility, not permission to change SPA schemas here.
   Shared Images were not introduced; independent Frame behavior remains required.
   This run does not evaluate whether linking changes native persistence cost.
 
@@ -105,7 +113,9 @@ Final human visual/play acceptance remains open.
 - **Category/disposition:** art-input consistency and authoring metadata gap. The
   pose contact sheet and first real SPA CAST preview were inspected by the agent;
   costume continuity and motion quality still need final human review. Input
-  preparation and attachment rules remain example-owned feedback for #46/#57.
+  preparation and explicit landmark handling are tracked in #103. Bounded numeric
+  motion belongs to #104, native import to #46, and downstream integration to #57.
+  Missing poses and artistic attachment choices remain art-input/recipe work.
 
 ## H07 — Matching delivery PNGs does not establish native repeatability
 
@@ -175,9 +185,11 @@ for raster import, [#20](https://github.com/aigengame/aseprite-automation/issues
 for stored Image observation, [#49](https://github.com/aigengame/aseprite-automation/issues/49)
 and [#59](https://github.com/aigengame/aseprite-automation/issues/59) for sequence and
 component export, and [#57](https://github.com/aigengame/aseprite-automation/issues/57)
-for later integration evidence. Motion/attachment rules are candidates for later
-reusable capability only after a separate domain decision. This experiment adds
-no SPA production code or public contract.
+for later integration evidence. ADR-0095 settles strategic ownership; preparation
+[#103](https://github.com/aigengame/aseprite-automation/issues/103) and bounded motion
+[#104](https://github.com/aigengame/aseprite-automation/issues/104) still need their own
+accepted feature contracts and runtime evidence. This experiment adds no SPA production
+code or public contract.
 
 ## Authoring cost and bounded revision
 
@@ -216,6 +228,12 @@ uses the repository's existing relevant-path, main-nightly, manual and release
 policy. Import ergonomics and bounded Plan coverage deserve separate measurement;
 increasing Pixel Patch limits alone would not remove the dominant persisted-write
 cost observed here.
+
+[#107](https://github.com/aigengame/aseprite-automation/issues/107) separately tracks
+Linux full-run capacity: PR #101's warm-cache job passed in 38m 37s under a 40-minute
+limit; cold-cache completion remains unverified. The issue preserves main nightly and
+the full exact-SHA release gate. Test selection frequency does not establish enough
+time for a required full run.
 
 ## Godot consumer and verification cost
 

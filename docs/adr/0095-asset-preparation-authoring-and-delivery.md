@@ -121,6 +121,12 @@ support or automatic performance improvements. Feature issues own exact contract
 their real blockers. Preparation, existing-Cel motion, import, and delivery need not
 form one mandatory implementation chain.
 
+Follow-up contracts are tracked in [#103](https://github.com/aigengame/aseprite-automation/issues/103)
+(preparation), [#104](https://github.com/aigengame/aseprite-automation/issues/104)
+(bounded motion), and [#105](https://github.com/aigengame/aseprite-automation/issues/105)
+(existing Cel updates in Plans). The small initial Image geometry candidate is #106;
+full-E2E capacity is #107. These links identify owners, not extra strategic invariants.
+
 ## Alternatives and consequences
 
 - Keeping all preparation in examples repeats input policy and verification work.
