@@ -1,0 +1,98 @@
+{
+  "observed_date": "2026-09-26",
+  "platform": "macOS local",
+  "tools": {
+    "spa": "0.1.0",
+    "aseprite": "1.3.18.5",
+    "pillow": "12.3.0"
+  },
+  "production_evidence": "production-boundary.json",
+  "input_manifest_sha256": "e5e0008f91264cbae059cdf68b28b934c56627386460cb5fadb9f96945b4c6ac",
+  "recipe_sha256": "bb97e191a4ee989a0a3f3eb3ec3b021ad2a4d7272b1abf6d468be1acb5c4ca9d",
+  "source_sha256": {
+    "background.aseprite": "223891f3359479454e53609e144bbddabc7153eb1acd4b4aadfc4d917b1a2695",
+    "burst.aseprite": "a37a83e5ae6cc3bb4bfadf0f99b778859ed930f090ae7528b21e9faeb14e1488",
+    "gem.aseprite": "d61f6d0071bfb553e4f5b85f8a14b5103f7f247d032e7daad766b4ef995bfaea",
+    "projectile.aseprite": "25d937454a5f1527a913677b516dfd97638a4fc7f60ca8c242b10795b0eed379",
+    "target.aseprite": "a7132bbd2e2a74e5f1eb11eda9b49f001a977c69f916da920710c6c7de603d6e",
+    "wizard.aseprite": "bb9da1b7ea75b03bd15b3a28d978dde139b1d6779d54e5a78c4d2b4a12f9ab6e",
+    "wizard_scene.aseprite": "bd41851296ed0172d9565a1e413127fd2ee20476c8665ac69be7f7a0a430a56c"
+  },
+  "bundle_sha256": "5cda7e4e2ecc99faf94768b3e4cae8f7a59fd2b35f84b61b1d9544d82bec2cdf",
+  "decoded_png_inventory_sha256": "70d02a819dd45234e8cfc27c786aed12f886b7bce1a817a3904ae04dab66ca51",
+  "rebuild_comparison": {
+    "independent_builds": 2,
+    "same_frozen_inputs": true,
+    "same_reopened_native_structure": true,
+    "same_all_stored_cel_rgba_including_hidden_pixels": true,
+    "native_files_reopened_per_build": 7,
+    "same_193_decoded_pngs": true,
+    "same_bundle_metadata": true,
+    "native_file_bytes_are_not_the_comparison_gate": true
+  },
+  "structure": {
+    "canvas": {
+      "width": 384,
+      "height": 288
+    },
+    "frames": 32,
+    "duration_ms": 100,
+    "tags": [
+      "IDLE",
+      "CHARGE",
+      "CAST",
+      "RECOVER"
+    ],
+    "layers": 7,
+    "source_cels": 224,
+    "source_stored_pixel_slots": 10595624,
+    "delivery_pngs": 193,
+    "component_pngs": 161,
+    "scene_pngs": 32,
+    "native_files": 7,
+    "palette_colors": 24,
+    "alpha_values": [
+      0,
+      255
+    ],
+    "release_frame": 15,
+    "muzzle": {
+      "x": 55,
+      "y": -151
+    }
+  },
+  "animation_audit_findings": [],
+  "first_last_differing_pixels": 4,
+  "full_local_e2e": {
+    "test": "tests/examples/test_e2e_hybrid_assets.py::test_complete_hybrid_recipe_reproduces_delivery",
+    "tests": 1,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 1155.711,
+    "fresh_build_cli_seconds": 1127.9451433455106,
+    "fresh_build_cli_calls": 467,
+    "compared_retained_build_cli_seconds": 1132.5182563215494,
+    "verification_implementation_commit": "de92a71bc933b69332aa6f6471a3027e1854f3bb",
+    "retained_delivery_commit": "7736ae85d1315962a0f18035c2d3a34e09e8995f"
+  },
+  "other_local_checks": {
+    "fast_tests": {
+      "passed": 195,
+      "deselected_e2e": 281,
+      "seconds": 36.85,
+      "command": "uv run --frozen --group test pytest -q -m \"not e2e\""
+    },
+    "raster_motion_and_small_real_probe": {
+      "passed": 7,
+      "seconds": 5.6
+    },
+    "real_hidden_native_regression": {
+      "passed": 1,
+      "seconds": 12.5
+    },
+    "ruff": "check and format check passed"
+  },
+  "linux_ci": "Use the exact PR head check results at https://github.com/aigengame/aseprite-automation/pull/101/checks. Local macOS checks do not establish Linux results.",
+  "human_acceptance": "Pending final visual/play review; no automated assertion records approval."
+}

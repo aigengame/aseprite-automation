@@ -34,6 +34,24 @@ RECOVER 21–32. The game loops IDLE, emits at Frame 15, and plays the other pha
 once per cast. Scene review loops Frame 32 back to Frame 1. These are explicit
 example rules, not an inferred interpretation of Tag `repeats=0`.
 
+## Review materials
+
+- [Full 3.2-second scene loop](evidence/scene-loop.webp) and
+  [selected exported Frames](evidence/scene-keyframes.png).
+- [Prepared poses](evidence/prepared-poses.png),
+  [v1 and v2 at a common display footprint](evidence/v1-v2-comparison.png), and
+  [CAST at the default 2× game scale](evidence/cast-at-display-size.png).
+- Actual Godot captures: [idle](evidence/playable-idle.png),
+  [hit](evidence/playable-hit.png), and [results](evidence/playable-results.png).
+- [Asset verification](evidence/asset-verification.json),
+  [Godot verification](evidence/godot-verification.json),
+  [motion revision](evidence/motion-revision.json), and
+  [SPA production boundary](evidence/production-boundary.json).
+
+The scene preview uses only SPA-exported PNGs; it is not a recording of gameplay.
+The source Godot project is the playable delivery. No standalone package is
+included in v2.
+
 ## Reproduce with unchanged SPA
 
 From the repository root, build and install the wheel separately. Supply the

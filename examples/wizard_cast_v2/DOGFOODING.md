@@ -4,7 +4,9 @@ Issue [#100](https://github.com/aigengame/aseprite-automation/issues/100) is a f
 experiment. SPA production remains unchanged. The baseline is dev commit
 `e4ce2f585c36bb3c349f7f81bb4953ced543a5f0`, built as SPA 0.1.0 and installed from its
 wheel in a separate environment. Local tools: Aseprite 1.3.18.5, gda 0.19.0,
-Godot 4.6.3, and Pillow 12.3.0. Linux and final human evidence remain pending.
+Godot 4.6.3, and Pillow 12.3.0. Linux results are recorded in
+[PR #101 checks](https://github.com/aigengame/aseprite-automation/pull/101/checks).
+Final human visual/play acceptance remains open.
 
 ## H01 — Generated art needs an explicit preparation stage
 
@@ -83,7 +85,8 @@ Godot 4.6.3, and Pillow 12.3.0. Linux and final human evidence remain pending.
   estimate from the old mean, not a measured optimized total. Full timings are
   recorded after completion. This is workflow friction and a candidate for future
   Plan coverage/performance work, not permission to change SPA schemas here.
-  Linking unchanged Images alone would not remove current per-Cel inspection cost.
+  Shared Images were not introduced; independent Frame behavior remains required.
+  This run does not evaluate whether linking changes native persistence cost.
 
 ## H06 — Pose identity does not supply alignment or attachment metadata
 
@@ -175,3 +178,69 @@ component export, and [#57](https://github.com/aigengame/aseprite-automation/iss
 for later integration evidence. Motion/attachment rules are candidates for later
 reusable capability only after a separate domain decision. This experiment adds
 no SPA production code or public contract.
+
+## Authoring cost and bounded revision
+
+The retained final build made **467 public SPA calls in 1132.518 seconds** of
+subprocess wall time. The first preview made 536 calls in 1243.601 seconds. Their
+execution overlapped with each other and other local checks; the difference is
+not a controlled speedup measurement. `evidence/build-costs.json` records each
+Operation's count and measured duration.
+
+| Retained build work | Calls | SPA seconds |
+| --- | ---: | ---: |
+| Cel placement/opacity | 195 | 747.267 |
+| Layer visibility/properties | 26 | 219.029 |
+| Single-Frame PNG export | 193 | 78.608 |
+| Plan batches | 18 | 43.243 |
+| Other Operations | 35 | 44.372 |
+
+Placement and Layer writes account for about 85% of this observed run. Each
+persisted mutation works on a larger document. The v2 Canvas has 110,592 pixels
+versus v1's 12,288; its 224 source Cels hold 10,595,624 pixel slots. The pinned v1
+reference recorded 996,720 stored pixels, 500 calls and 250.957 SPA seconds.
+These scopes cover SPA work only. They do not establish the total creative cost
+or isolate hardware, concurrency, image area and implementation effects.
+
+The bound on this experiment remains useful: only six full-scene PNGs changed
+when the projectile origin moved from (159,83) to the measured gem center
+(157,83). The reusable burst anchor moved by the same two pixels. All 161
+component PNGs remained pixel-identical, as did the 32-Frame schedule and phase
+ranges. All 32 frozen input files had identical hashes, and no new imagegen call
+was made. See `evidence/motion-revision.json` for the exact change and caveat that
+the builder's initial-placement optimization also changed between these runs.
+
+The larger assets make this full rebuild unsuitable for every unrelated change.
+The small real handoff and hidden-pixel regression remain routine; full generation
+uses the repository's existing relevant-path, main-nightly, manual and release
+policy. Import ergonomics and bounded Plan coverage deserve separate measurement;
+increasing Pixel Patch limits alone would not remove the dominant persisted-write
+cost observed here.
+
+## Godot consumer and verification cost
+
+The final assets passed gda import, scene validation/startup, 87 round-rule checks
+and 60 playable checks. The latter took 19.359 seconds and used normal input to
+produce three hits and two misses. Windowed verification completed two further
+five-cast rounds through CAST clicks and Space, with R and AGAIN restarts;
+runtime diagnostics were empty. Captures are 384×288 viewport pixels; the default
+768×576 window displays them at integer 2×. See `evidence/godot-verification.json`
+for commands, statuses, source/asset hashes and screenshots.
+
+The larger wizard needs a different muzzle and target layout. The bundle supplied
+the dimensions and anchors, while the existing consumer design required bounded
+geometry changes and the same gameplay checks. No gda production change was
+needed. A windowed launch first received `live_windowed_permission_denied` in
+the managed sandbox; the approved retry succeeded. This is environment evidence,
+not a game or gda defect. The daemon harness stayed in a disposable project copy
+and was stopped after verification. A visible feedback flag plus a settled draw
+was needed to capture an actual HIT; stale label text alone was not evidence that
+the feedback was currently visible.
+
+The second final local build made 467 SPA calls in 1127.945 seconds. The complete
+fresh-build E2E took 1155.711 seconds, including comparison of all delivered PNGs
+and fourteen native reopen/inspection calls across the two builds. The separate
+small probe/raster/motion group took 5.60 seconds; the real hidden-pixel regression
+took 12.50 seconds. These local observations describe different scopes and are
+not added together as a CI prediction. Linux timing and status belong to the PR
+check results. Final human review remains necessary for visual quality and feel.
