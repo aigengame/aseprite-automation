@@ -97,9 +97,16 @@ remains one such boundary. Ordinary raster input needs a bounded input adapter; 
 generation-provider integration is required by this decision. Internal SPA modules
 share language through directed contracts. Production never depends on example code.
 
-Freezing means retaining selected bytes, choices, and content digests and checking them
-on rebuild. It does not add a registry, background service, persistent run lifecycle,
-generation credentials, or automatic regeneration to normal builds.
+Freezing means retaining selected bytes, choices, and the information needed to check
+input consistency on rebuild. It does not add a registry, background service,
+persistent run lifecycle, generation credentials, or automatic regeneration to normal
+builds.
+
+The consistency check stays local to preparation and uses a lightweight, replaceable
+mechanism chosen by the feature contract. A simpler check can replace it when evidence
+supports the change; no algorithm registry, compatibility framework, or general
+governance system is needed. The domain outcome is detecting changed input.
+Verification algorithms and data shapes can change.
 
 ## Incremental implementation and open claims
 
@@ -108,6 +115,14 @@ Image observation, component export, and sequence export issues retain their own
 New issues track preparation, bounded motion, and the measured gaps without expanding
 the completed examples' contracts. A module is added when its slice needs it; there is
 no preparatory package rewrite or generic workflow engine.
+
+The supported matrix for each delivery belongs to its feature issue. Later requirements
+can add preparation or motion modes, compose new policies, or justify an explicit
+contract revision. Record changes in behavior; do not silently change the meaning of
+existing requests. These choices do not freeze algorithm selection, interfaces, or the
+module structure against later refactoring. A current omission is not a permanent domain
+prohibition, and extensibility does not require speculative engines or plugin
+infrastructure before a concrete slice needs them.
 
 | Structural claim | Current evidence and limit | Validation or disconfirming condition |
 | --- | --- | --- |

@@ -598,14 +598,15 @@ required input result; the owning feature defines supported combinations and bou
 
 **Input Anchor**
 An explicitly supplied landmark in a declared raster Coordinate Space. Preparation
-reports its position after declared geometric transformations. Its artistic meaning
-and later attachment choices belong to the Artwork Recipe; it is not an inferred
-anatomical point or an Aseprite Slice Key.
+can use it for declared alignment and reports its position after geometric
+transformations. Its artistic meaning and later attachment choices belong to the
+Artwork Recipe; it is not an inferred anatomical point or an Aseprite Slice Key.
 
 **Frozen Input**
-Selected input bytes retained with their content digest and declared preparation
-choices so that a rebuild can verify the same inputs. It does not imply filesystem
-immutability, a persistent asset registry, or an automatic generation retry.
+Selected input bytes retained with declared preparation choices and the information
+needed to check that a rebuild uses the same content. The owning feature chooses the
+verification mechanism. It does not imply filesystem immutability, a persistent asset
+registry, or an automatic generation retry.
 
 **Prepared Raster**
 A raster whose observed pixels, geometry, and Input Anchor facts satisfy the declared
@@ -620,11 +621,11 @@ values to reusable authoring capabilities without making those capabilities own 
 character or its artistic quality.
 
 **Bounded Motion Authoring**
-Creation of Frame/Cel results from explicit key values over a finite Frame range with
-declared time mapping, interpolation, coordinate rounding, and relationship behavior.
-Document and Animation owns these rules. The first feature contract determines its
-supported values; the term does not promise anatomical interpolation or a general
-animation engine.
+Motion authored from explicit key values over a finite Frame range, with declared
+sampling, interpolation, coordinate rounding, and native relationship behavior.
+Document and Animation owns these rules. Feature contracts define supported modes
+and bounds; the term does not promise anatomical interpolation or a general animation
+engine.
 
 #### Orchestration and architecture
 
