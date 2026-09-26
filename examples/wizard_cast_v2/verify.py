@@ -3,11 +3,14 @@
 import argparse
 import hashlib
 import json
+import tempfile
 from pathlib import Path
 
 from PIL import Image
 
 from examples.wizard_cast_v2 import art
+from examples.wizard_cast_v2.native_inspection import compare_native
+from examples.wizard_cast_v2.workflow import Spa
 
 
 def inspect_build(root: Path) -> dict:
@@ -190,13 +193,42 @@ def inspect_build(root: Path) -> dict:
     }
 
 
-def compare_builds(first: Path, second: Path) -> dict:
+def compare_builds(
+    first: Path, second: Path, *, executable: str, aseprite: str
+) -> dict:
     left, right = inspect_build(first), inspect_build(second)
     assert left == right, (
         "Recipe builds differ in saved structure, metadata, or decoded pixels"
     )
+    native_names = {
+        "wizard_scene.aseprite",
+        "wizard.aseprite",
+        "gem.aseprite",
+        "burst.aseprite",
+        "projectile.aseprite",
+        "background.aseprite",
+        "target.aseprite",
+    }
+    for root in (first, second):
+        assert {
+            path.name for path in (root / "source").glob("*.aseprite")
+        } == native_names
+    palette = {color.lower() for color in left["bundle"]["palette"].values()}
+    with tempfile.TemporaryDirectory(prefix="spa-hybrid-verify-") as temporary:
+        workspace = Path(temporary)
+        spa = Spa(executable, aseprite, workspace / "operations.jsonl")
+        for name in sorted(native_names):
+            compare_native(
+                first / "source" / name,
+                second / "source" / name,
+                spa,
+                workspace,
+                palette,
+            )
     return {
         "same_structure": True,
+        "same_native_stored_pixels": True,
+        "reopened_native_files_per_build": len(native_names),
         "same_decoded_pixels": True,
         "frame_count": len(left["bundle"]["frames"]),
         "png_count": len(left["pixels"]),
@@ -226,9 +258,15 @@ if __name__ == "__main__":
     parser.add_argument("first", type=Path)
     parser.add_argument("second", type=Path, nargs="?")
     parser.add_argument("--delivered-assets", type=Path)
+    parser.add_argument("--spa")
+    parser.add_argument("--aseprite")
     args = parser.parse_args()
+    if args.second and (not args.spa or not args.aseprite):
+        parser.error("two-build comparison requires explicit --spa and --aseprite")
     result = (
-        compare_builds(args.first, args.second)
+        compare_builds(
+            args.first, args.second, executable=args.spa, aseprite=args.aseprite
+        )
         if args.second
         else inspect_build(args.first)
     )

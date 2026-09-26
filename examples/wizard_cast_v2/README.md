@@ -63,12 +63,15 @@ Build a second time at `/tmp/hybrid-build-b`, then compare both and the delivery
 ```sh
 uv run --frozen python -m examples.wizard_cast_v2.verify \
   /tmp/hybrid-build-a /tmp/hybrid-build-b \
+  --spa /tmp/hybrid-spa/bin/spa --aseprite /path/to/aseprite \
   --delivered-assets examples/wizard_cast_v2/godot/content/wizard_assets
 ```
 
-The comparison uses reopened structure and decoded RGBA, not native file bytes.
-Full E2E also reads every saved Cel, including invisible Cels, and compares its
-stored pixel digest. The read-only inspector does not author or save assets.
+The comparison reopens all seven native files in each build, reads every saved
+Cel, including invisible Cels, and compares structure and stored RGBA digests.
+Full E2E uses the same native inspector. Both also compare decoded delivery PNGs;
+neither requires identical native file bytes. The read-only inspector does not
+author or save assets. A single build path runs offline artifact checks only.
 Changing `motion.idle_bob_pixels` in a recipe copy is a bounded revision: pass the
 copy through `--recipe` and rebuild using the same frozen inputs. The clock and
 phase ranges remain unchanged.

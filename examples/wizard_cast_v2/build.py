@@ -15,7 +15,7 @@ def write_json(path: Path, value: object) -> None:
     path.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
 
 
-def _paint(spa: Spa, source: Path, steps: list[dict]) -> None:
+def _run_plan_batches(spa: Spa, source: Path, steps: list[dict]) -> None:
     for offset in range(0, len(steps), 64):
         spa.plan(source, steps[offset : offset + 64])
 
@@ -88,7 +88,7 @@ def build(
     for name in names[1:]:
         result = spa.mutate("layer add", source, kind="transparent", name=name)
         layer_paths[name] = result["layer"]["path"][0]
-    _paint(
+    _run_plan_batches(
         spa,
         source,
         [
@@ -158,7 +158,7 @@ def build(
                     changed,
                 )
             )
-    _paint(spa, source, steps)
+    _run_plan_batches(spa, source, steps)
     first_duration = frame_facts[0]["duration_ms"]
     if first_duration != 100:
         spa.mutate("frame set", source, frame_number=1, duration_ms=first_duration)
@@ -305,7 +305,7 @@ def build(
     target_art = art.target_component(recipe)
     target_source = native / "target.aseprite"
     _create(spa, target_source, target_art.width, target_art.height)
-    _paint(
+    _run_plan_batches(
         spa,
         target_source,
         paint_steps(
