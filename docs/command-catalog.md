@@ -240,5 +240,18 @@ better Aseprite-aligned evidence.
 
 ## Unresolved candidate groups
 
+### Preparation and bounded motion
+
+[ADR-0095](adr/0095-asset-preparation-authoring-and-delivery.md) assigns Asset
+Preparation to a Supporting Subdomain and Bounded Motion Authoring to Document and
+Animation. Candidate intents are preparing a selected raster under explicit geometry,
+color, transparency, and anchor rules; verifying frozen input facts; and authoring
+position/opacity keys over a finite Frame range. Their feature issues must establish
+contracts and command spellings. This catalog adds no `preprocess`/`postprocess` command
+surface, provider API, or general workflow engine. Existing `export` candidates belong
+to Asset Delivery and retain their separate format contracts.
+
+### Rasterized text
+
 Rasterized text remains candidate product territory. The catalog does not propose a
 `text` group until feature work establishes an Aseprite-aligned operation boundary.

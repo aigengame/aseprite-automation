@@ -8,19 +8,23 @@ SPA shares Aseprite terminology when Aseprite already names a concept, extends t
 
 ## Bounded Context
 
-SPA has one **Sprite Automation Bounded Context**. It owns agent-facing creation, editing, inspection, validation, conversion, and export of Aseprite visual assets.
+SPA has one **Sprite Automation Bounded Context**. It owns agent-facing preparation of explicit raster inputs, creation, editing, inspection, validation, conversion, and delivery of Aseprite visual assets.
 
 The context contains several architectural modules and adapters, but Command Groups, Domain Modules, the command-line interface (CLI), Model Context Protocol (MCP), Agent Skill, Lua Kernel, validation, and export are not separate Bounded Contexts.
 
 ## Subdomains
 
-- **Sprite Automation Core Domain:** Aseprite-equivalent sprite capabilities plus agent-facing control, composition, observation, and verification.
+- **Sprite Authoring Core Domain:** verifiable Sprite and animation creation, editing, composition, observation, and validation. Document and Animation, Raster Authoring, Color and Palette, and Tile Authoring own the corresponding native rules. Bounded motion authoring belongs to Document and Animation; static Sprite capabilities remain in scope.
+- **Asset Preparation Supporting Subdomain:** explicit input preparation policies, raster geometry and anchors, validation against a Preparation Specification, and Frozen Input and Prepared Raster facts. It composes the existing raster and color rules rather than defining another native pixel or color engine.
+- **Asset Delivery Supporting Subdomain:** format-specific export, declared destination sets, verified Artifacts, and publication outcomes. It contains the existing Delivery capabilities and preserves their native semantics and verification requirements.
 - **Aseprite Runtime Integration Supporting Subdomain:** executable/resource discovery, process execution, Kernel transport, diagnostics, and native integration facts.
 - **Access Projection Supporting Subdomain:** CLI presentation, Agent Skill guidance, MCP projection, and any later accepted access transport derived from the same Published Language.
 - **Asset Pipeline Integration Supporting Subdomain:** translation at the downstream-owned Anti-Corruption Layer and public SPA boundary.
 - **Generic Subdomain:** domain-neutral configuration, serialization, filesystem, and utility code required by accepted features.
 
-The Core Domain has the highest delivery priority. Supporting and Generic work follows current functional requirements, uses proportionate abstraction, and grows from evidence rather than an independent infrastructure roadmap. This document states the current strategic rule; ADR-0007 records the decision and rationale that established it.
+The Core Domain has the highest modeling and delivery priority. Supporting and Generic work follows current functional requirements, uses proportionate abstraction, and grows from evidence rather than an independent infrastructure roadmap. ADR-0007 establishes this investment rule; [ADR-0095](docs/adr/0095-asset-preparation-authoring-and-delivery.md) refines the strategic ownership after the wizard examples. A Supporting classification does not reduce a capability's correctness requirements or move its domain rules into a technical adapter.
+
+Preparation, authoring, and delivery describe a useful workflow. Their Subdomains own rules and may be used independently. Native document save and Target Commit belong to mutation completion, including when no Export follows. Strategic ownership does not establish a new Operation, schema, Plan eligibility, or installed capability.
 
 ## Context relationships
 
@@ -34,7 +38,11 @@ The `spa` CLI first exposes the Sprite Automation Open Host Service and Publishe
 
 ### Asset Pipeline downstream
 
-The developing gda Asset Pipeline consumes SPA through its own Anti-Corruption Layer and the public `spa` CLI JSON contract. The pipeline owns workflow order, concept/reference handoff, produced-file roles, installation, retry, and project acceptance. Its validation-stage commands and tactical abstractions can change without changing SPA's integration commitment.
+The developing gda Asset Pipeline consumes SPA through its own Anti-Corruption Layer and the public `spa` CLI JSON contract. SPA owns accepted input preparation rules, native authoring, and export facts. The caller or pipeline owns art-input selection, cross-tool and cross-Sprite workflow order, mapping SPA Artifact roles to project roles, installation, retry, and project acceptance. Its validation-stage commands and tactical abstractions can change without changing SPA's integration commitment.
+
+### Art inputs and generation tools
+
+Generation tools such as imagegen and human artists supply selected raster inputs and art decisions. An Artwork Recipe declares pose choices, timing intent, attachments, and style parameters. SPA can prepare explicit inputs and apply accepted bounded authoring rules; it does not select concepts, infer missing anatomy, or guarantee artistic continuity. Input adapters translate external representations. An Anti-Corruption Layer is warranted where a different semantic model must be isolated; internal SPA modules use shared language and directed contracts.
 
 ### gda downstream evidence
 
@@ -443,6 +451,10 @@ effects, targets, Operation Limits, and Operation Determinism.
 An Operation whose Core Operation Semantics execute through one fixed packaged Lua
 handler. It excludes capabilities implemented wholly by Application use cases and
 `script run`.
+The established name identifies an execution category, not membership in the Sprite
+Authoring Core Domain. Asset Delivery Operations with this execution binding retain
+the same packaged-handler authority. Wholly application-owned preparation behavior
+does not require a native handler unless it invokes native semantics.
 
 **Operation Descriptor**
 The registration authority for a structured public capability's identity, schemas,
@@ -577,6 +589,43 @@ The explicit final path and overwrite intent for an exported Artifact.
 An image Artifact produced for inspection. It supports visual review but does not prove
 aesthetic quality.
 
+#### Preparation and authored intent
+
+**Preparation Specification**
+The caller's finite declaration of the required raster geometry, color and transparency
+policy, explicit Input Anchors, and applicable preparation choices. It describes the
+required input result; the owning feature defines supported combinations and bounds.
+
+**Input Anchor**
+An explicitly supplied landmark in a declared raster Coordinate Space. Preparation
+reports its position after declared geometric transformations. Its artistic meaning
+and later attachment choices belong to the Artwork Recipe; it is not an inferred
+anatomical point or an Aseprite Slice Key.
+
+**Frozen Input**
+Selected input bytes retained with their content digest and declared preparation
+choices so that a rebuild can verify the same inputs. It does not imply filesystem
+immutability, a persistent asset registry, or an automatic generation retry.
+
+**Prepared Raster**
+A raster whose observed pixels, geometry, and Input Anchor facts satisfy the declared
+Preparation Specification. Its result identifies the source and output content and
+the applied choices. A produced file is reported as an Artifact; native insertion is
+the separate raster-import responsibility.
+
+**Artwork Recipe**
+Caller-owned art decisions and finite composition instructions: selected poses,
+appearance, timing intent, attachments, and effects. A recipe can supply explicit
+values to reusable authoring capabilities without making those capabilities own the
+character or its artistic quality.
+
+**Bounded Motion Authoring**
+Creation of Frame/Cel results from explicit key values over a finite Frame range with
+declared time mapping, interpolation, coordinate rounding, and relationship behavior.
+Document and Animation owns these rules. The first feature contract determines its
+supported values; the term does not promise anatomical interpolation or a general
+animation engine.
+
 #### Orchestration and architecture
 
 **Operation Plan**
@@ -594,7 +643,8 @@ reasons to change. It is not a logical layer or Command Group.
 The packaged private handler system that owns SPA Core Operation Semantics and their
 mapping to Aseprite's native creation, editing, inspection, validation, conversion, and
 export behavior. Standalone and Plan execution use the same Ordinary Core Operation
-handlers.
+handlers. This execution authority applies to native Operations in Core and Supporting
+Subdomains alike.
 
 **Kernel Protocol**
 The private versioned request/response transport between Python and the Lua Operation
@@ -623,8 +673,10 @@ An inbound adapter that derives tools from the installed Surface Manifest and in
 the `spa` CLI without owning Operation semantics.
 
 **Anti-Corruption Layer (ACL)**
-The downstream-owned translation between Asset Pipeline concepts and the public SPA
-Published Language.
+Translation that protects one semantic model from a different external model. The
+Asset Pipeline-owned ACL translates between pipeline concepts and the public SPA
+Published Language. Internal module boundaries that share SPA meanings use directed
+contracts without requiring another ACL.
 
 ## Artifact authority matrix
 

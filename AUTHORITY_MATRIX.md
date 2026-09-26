@@ -29,6 +29,11 @@ milestones, and durable authorities; it does not own product or system knowledge
 | Tests and evidence | Executed verification assertions, observations, measurements, and retained results about contracts, behavior, integration, packaging, and regressions. | Product meaning, evidence requirements, executable behavior, or an independently editable contract. | Verify the applicable issue, Descriptor, implementation, and native claim; supply results that issues can link to and summarize. |
 | Installed Surface Manifest | Callable Operations, schemas, execution metadata, version constraints, and Capability Gaps for one installed SPA and Aseprite combination. | Roadmap, priority, design rationale, historical evidence, or unsupported candidates. | Is generated from installed Descriptors, the shared Failure Code registration for Access-level failure projection, and observed runtime facts. |
 
+Ordinary Core Operation and Core Operation Semantics name the packaged execution
+category defined in `CONTEXT.md` and ADR-0010. Their authority applies to native
+Operations in both Core and Supporting Subdomains; ADR-0095's strategic classification
+does not change execution or verification ownership.
+
 The normative delivery flow is vertical:
 
 ```mermaid
