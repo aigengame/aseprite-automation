@@ -164,14 +164,15 @@ path selection cannot leave a required CI check pending:
 | Trigger | Real-runtime selection |
 | --- | --- |
 | Ordinary PR or push to `main` | `e2e and not slow`: all routine E2E cases, including the small wizard probe. |
-| PR or push that changes wizard inputs, delivery, tests, or CI setup | `e2e`: also rebuild the full wizard asset bundle. |
+| PR or push that changes wizard inputs, delivery, tests, or CI setup | `e2e`: also rebuild both complete wizard asset bundles. |
 | Nightly on `main` | `e2e`: full suite at the scheduled main SHA. |
 | Manual **CI → Run workflow** | `e2e`: full suite at the selected ref. |
 | Release verification | `e2e`: full suite at the exact release SHA before publication. |
 
 The changed-path list in `.github/workflows/ci.yml` is authoritative. It covers
-`examples/wizard_cast/`, `tests/examples/`, the root test gate, CI configuration,
-LFS rules, dependency configuration, and the JUnit execution audit. PR selection
+`examples/wizard_cast/`, `examples/wizard_cast_v2/`, `tests/examples/`, the root test
+gate, CI configuration, LFS rules, dependency configuration, and the JUnit execution
+audit. PR selection
 compares the merge base with the PR head; push selection compares before/after
 commits. Deletions and renames are included. An invalid comparison fails the job
 instead of silently selecting fewer tests.
@@ -237,3 +238,15 @@ and does not reuse a generally green CI or nightly run. A successful macOS local
 remains separate developer evidence; it cannot replace the Linux release gate.
 Windowed Aseprite behavior has no CI coverage until a
 dedicated display-capable job is added with an execution-count gate.
+
+The [hybrid wizard example](../examples/wizard_cast_v2/README.md) uses frozen local
+imagegen inputs. Its routine `e2e` probe checks the prepared raster handoff through
+public Pixel Patches, native save/reopen, independent Frame placement, binary alpha,
+and decoded export pixels. Its full test is also marked `slow`: one fresh build
+must match the retained v2 delivery and all seven reopened native documents,
+including the RGBA values of hidden stored pixels. It checks the actual v2 recipe
+geometry, 32 Frames at 100 ms, four fixed phase ranges, and native gem pulse
+independence. CI needs no imagegen service or generation credentials. The same
+main-only nightly, manual full run, and exact-release-SHA gates apply. macOS build
+cost and Godot evidence are recorded separately in the v2 example's dogfooding
+report; Linux asset CI does not establish graphical or gameplay acceptance.

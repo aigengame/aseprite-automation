@@ -28,7 +28,10 @@ def prepare(definition: dict, palette: dict[str, str]) -> dict:
         raise ValueError(f"Empty selected input: {source}")
     cropped = raw.crop(tuple(bounds))
     fit = definition["fit"]
-    if definition.get("preserve_aspect", True):
+    if "scale" in definition:
+        factor = definition["scale"]
+        fit = [round(cropped.width * factor), round(cropped.height * factor)]
+    elif definition.get("preserve_aspect", True):
         factor = min(fit[0] / cropped.width, fit[1] / cropped.height)
         fit = [round(cropped.width * factor), round(cropped.height * factor)]
     resized = cropped.resize(tuple(fit), Image.Resampling.NEAREST)
@@ -45,7 +48,18 @@ def prepare(definition: dict, palette: dict[str, str]) -> dict:
         data.append((*nearest(rgba[:3]), 255) if rgba[3] else (0, 0, 0, 0))
     resized.putdata(data)
     prepared = Image.new("RGBA", tuple(definition["canvas"]))
-    prepared.paste(resized, tuple(definition["offset"]))
+    offset = definition["offset"]
+    if "raw_anchor" in definition:
+        offset = [
+            definition["anchor"][axis]
+            - round(
+                (definition["raw_anchor"][axis] - bounds[axis]) * definition["scale"]
+            )
+            for axis in (0, 1)
+        ]
+    if min(offset) < 0 or any(offset[i] + fit[i] > prepared.size[i] for i in (0, 1)):
+        raise ValueError(f"Prepared asset does not fit its declared canvas: {source}")
+    prepared.paste(resized, tuple(offset))
     destination.parent.mkdir(parents=True, exist_ok=True)
     prepared.save(destination)
     return {
@@ -59,7 +73,7 @@ def prepare(definition: dict, palette: dict[str, str]) -> dict:
         "crop": list(bounds),
         "resized_size": fit,
         "canvas": list(prepared.size),
-        "offset": definition["offset"],
+        "offset": offset,
         "resampling": "nearest-neighbor",
         "color_mapping": "minimum squared RGB distance, declared palette order breaks ties",
         "dithering": False,

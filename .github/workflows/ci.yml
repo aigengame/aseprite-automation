@@ -119,7 +119,8 @@ jobs:
                   comparison="$SPA_BASE_SHA...$SPA_HEAD_SHA"
                 fi
                 if git diff --quiet --no-ext-diff --no-renames "$comparison" -- \
-                    examples/wizard_cast/ tests/examples/ tests/conftest.py \
+                    examples/wizard_cast/ examples/wizard_cast_v2/ \
+                    tests/examples/ tests/conftest.py \
                     .github/ .gitattributes pyproject.toml uv.lock \
                     scripts/verify_pytest_execution.py; then
                   include_slow=false

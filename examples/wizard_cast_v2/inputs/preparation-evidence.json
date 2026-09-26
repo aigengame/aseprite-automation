@@ -3,7 +3,7 @@
     "raw": "raw/idle-concept.png",
     "prepared": "prepared/idle.png",
     "raw_sha256": "e537d2011d8ecae95a90bf6d012e11480a3de5db31a5961113198fc7203a7aad",
-    "prepared_sha256": "24918f41d1c0d79f6708f126974b2fca8226a774c9b1537c97dc0c2d977edb5f",
+    "prepared_sha256": "b64748e15e8471d12af0f6d9ae0497c48cc6c5b120f140ee42a77bef3a2c8e34",
     "raw_size": [
       1060,
       1484
@@ -17,20 +17,360 @@
       1427
     ],
     "resized_size": [
-      102,
-      184
+      95,
+      171
     ],
     "canvas": [
-      160,
-      204
+      224,
+      224
     ],
     "offset": [
-      18,
-      14
+      35,
+      41
     ],
     "resampling": "nearest-neighbor",
     "color_mapping": "minimum squared RGB distance, declared palette order breaks ties",
     "dithering": false,
-    "visible_pixels": 12219
+    "visible_pixels": 10616
+  },
+  {
+    "raw": "raw/charge-mid.png",
+    "prepared": "prepared/charge-mid.png",
+    "raw_sha256": "2eaaf2b5dfcad65124787b7ec00ce6d07af76c386bdb25a115fec7b504a669d1",
+    "prepared_sha256": "186fb1135c150d04561639dc5d4ff937ef2a4c9e9e753377a01761841d753a99",
+    "raw_size": [
+      1060,
+      1484
+    ],
+    "raw_alpha_values": 256,
+    "alpha_threshold": 128,
+    "crop": [
+      46,
+      15,
+      991,
+      1439
+    ],
+    "resized_size": [
+      118,
+      178
+    ],
+    "canvas": [
+      224,
+      224
+    ],
+    "offset": [
+      22,
+      34
+    ],
+    "resampling": "nearest-neighbor",
+    "color_mapping": "minimum squared RGB distance, declared palette order breaks ties",
+    "dithering": false,
+    "visible_pixels": 12156
+  },
+  {
+    "raw": "raw/charge-high.png",
+    "prepared": "prepared/charge-high.png",
+    "raw_sha256": "20f8b0d014a37f7047ef17bca607ec8b217d598c7d1b3f2151fe08320c11aecb",
+    "prepared_sha256": "00a6b88fa219a957b4c26c2f128594cd89e25a0c93fc01a456c757865900582d",
+    "raw_size": [
+      1060,
+      1484
+    ],
+    "raw_alpha_values": 256,
+    "alpha_threshold": 128,
+    "crop": [
+      14,
+      12,
+      1058,
+      1443
+    ],
+    "resized_size": [
+      130,
+      179
+    ],
+    "canvas": [
+      224,
+      224
+    ],
+    "offset": [
+      18,
+      33
+    ],
+    "resampling": "nearest-neighbor",
+    "color_mapping": "minimum squared RGB distance, declared palette order breaks ties",
+    "dithering": false,
+    "visible_pixels": 12109
+  },
+  {
+    "raw": "raw/cast.png",
+    "prepared": "prepared/cast.png",
+    "raw_sha256": "ef9f1b6f4fe5379addd0f64f6f7690cbacc7cf12e01b0451bebae1b4b0411332",
+    "prepared_sha256": "ea9f06e6fa43b21ac52cdfe541609103d963569d2188e4d687082fe5f9abe0b7",
+    "raw_size": [
+      1060,
+      1484
+    ],
+    "raw_alpha_values": 256,
+    "alpha_threshold": 128,
+    "crop": [
+      58,
+      104,
+      1023,
+      1433
+    ],
+    "resized_size": [
+      121,
+      166
+    ],
+    "canvas": [
+      224,
+      224
+    ],
+    "offset": [
+      25,
+      46
+    ],
+    "resampling": "nearest-neighbor",
+    "color_mapping": "minimum squared RGB distance, declared palette order breaks ties",
+    "dithering": false,
+    "visible_pixels": 11934
+  },
+  {
+    "raw": "raw/recover.png",
+    "prepared": "prepared/recover.png",
+    "raw_sha256": "c3564231941cd978a8000f4787c0db7142f7d02e0fdbe6f9ecca76584c1aad94",
+    "prepared_sha256": "bf29808580c644efc1436faed3821b4eea8a2fe9bf42a8b6664f60d9764406b8",
+    "raw_size": [
+      1060,
+      1484
+    ],
+    "raw_alpha_values": 256,
+    "alpha_threshold": 128,
+    "crop": [
+      129,
+      55,
+      882,
+      1435
+    ],
+    "resized_size": [
+      94,
+      172
+    ],
+    "canvas": [
+      224,
+      224
+    ],
+    "offset": [
+      31,
+      40
+    ],
+    "resampling": "nearest-neighbor",
+    "color_mapping": "minimum squared RGB distance, declared palette order breaks ties",
+    "dithering": false,
+    "visible_pixels": 10957
+  },
+  {
+    "raw": "raw/background.png",
+    "prepared": "prepared/background.png",
+    "raw_sha256": "b64ad8d448a1919d6aff216eb586b0f77a565f8fd4374f63919481f0cee68243",
+    "prepared_sha256": "79cdcfbdc4715035847ccab81c9c8014357c40ed3fe99e26d7021a2b68af3428",
+    "raw_size": [
+      1448,
+      1086
+    ],
+    "raw_alpha_values": 1,
+    "alpha_threshold": 128,
+    "crop": [
+      0,
+      0,
+      1448,
+      1086
+    ],
+    "resized_size": [
+      392,
+      296
+    ],
+    "canvas": [
+      392,
+      296
+    ],
+    "offset": [
+      0,
+      0
+    ],
+    "resampling": "nearest-neighbor",
+    "color_mapping": "minimum squared RGB distance, declared palette order breaks ties",
+    "dithering": false,
+    "visible_pixels": 116032
+  },
+  {
+    "raw": "raw/target.png",
+    "prepared": "prepared/target.png",
+    "raw_sha256": "93e0a89b0cbcaef81bfc6e316d2b887a0f474bc253a8ef6baaf1a83fb4a1891d",
+    "prepared_sha256": "26869c6ed612c5975da4ea05fe47c8acd1289859048e993a196cef2280ed8d48",
+    "raw_size": [
+      1106,
+      1422
+    ],
+    "raw_alpha_values": 256,
+    "alpha_threshold": 128,
+    "crop": [
+      60,
+      33,
+      1046,
+      1324
+    ],
+    "resized_size": [
+      60,
+      78
+    ],
+    "canvas": [
+      64,
+      84
+    ],
+    "offset": [
+      2,
+      3
+    ],
+    "resampling": "nearest-neighbor",
+    "color_mapping": "minimum squared RGB distance, declared palette order breaks ties",
+    "dithering": false,
+    "visible_pixels": 1900
+  },
+  {
+    "raw": "raw/projectile.png",
+    "prepared": "prepared/projectile.png",
+    "raw_sha256": "d3df3820d1d6a5c23cb3a95a6426eb9cc205a62bf7016722f6b2d357e9967869",
+    "prepared_sha256": "22602581610c311592fe4d76fb24c4168dc3c60df74aa01aecd6f3d9a432cbf9",
+    "raw_size": [
+      1586,
+      992
+    ],
+    "raw_alpha_values": 256,
+    "alpha_threshold": 128,
+    "crop": [
+      144,
+      279,
+      1413,
+      766
+    ],
+    "resized_size": [
+      64,
+      25
+    ],
+    "canvas": [
+      72,
+      40
+    ],
+    "offset": [
+      4,
+      5
+    ],
+    "resampling": "nearest-neighbor",
+    "color_mapping": "minimum squared RGB distance, declared palette order breaks ties",
+    "dithering": false,
+    "visible_pixels": 713
+  },
+  {
+    "raw": "raw/burst.png",
+    "prepared": "prepared/burst.png",
+    "raw_sha256": "8e428adc10b596cf16527b99aca43eace65eb3038da6443fb23afb610cc4c2b9",
+    "prepared_sha256": "cf99e99af17c80a488d95821ac467f267a2059d6d6f0dabca9c73caaf5302b2a",
+    "raw_size": [
+      1254,
+      1254
+    ],
+    "raw_alpha_values": 256,
+    "alpha_threshold": 128,
+    "crop": [
+      27,
+      25,
+      1228,
+      1229
+    ],
+    "resized_size": [
+      96,
+      96
+    ],
+    "canvas": [
+      96,
+      96
+    ],
+    "offset": [
+      0,
+      0
+    ],
+    "resampling": "nearest-neighbor",
+    "color_mapping": "minimum squared RGB distance, declared palette order breaks ties",
+    "dithering": false,
+    "visible_pixels": 3338
+  },
+  {
+    "raw": "raw/idle-concept.png",
+    "prepared": "prepared/gem.png",
+    "raw_sha256": "e537d2011d8ecae95a90bf6d012e11480a3de5db31a5961113198fc7203a7aad",
+    "prepared_sha256": "f33559715f0f6e704baf052220933d9dfe0ed5be8ee76951adc679dc6910ce79",
+    "raw_size": [
+      1060,
+      1484
+    ],
+    "raw_alpha_values": 256,
+    "alpha_threshold": 128,
+    "crop": [
+      813,
+      152,
+      877,
+      267
+    ],
+    "resized_size": [
+      10,
+      18
+    ],
+    "canvas": [
+      12,
+      18
+    ],
+    "offset": [
+      1,
+      0
+    ],
+    "resampling": "nearest-neighbor",
+    "color_mapping": "minimum squared RGB distance, declared palette order breaks ties",
+    "dithering": false,
+    "visible_pixels": 156
+  },
+  {
+    "raw": "raw/burst.png",
+    "prepared": "prepared/spark.png",
+    "raw_sha256": "8e428adc10b596cf16527b99aca43eace65eb3038da6443fb23afb610cc4c2b9",
+    "prepared_sha256": "a55d3d0bcd19d854f8a71541b5cdc7cf940040ea5d22d6e28fb1842c1a8e6462",
+    "raw_size": [
+      1254,
+      1254
+    ],
+    "raw_alpha_values": 256,
+    "alpha_threshold": 128,
+    "crop": [
+      535,
+      535,
+      715,
+      715
+    ],
+    "resized_size": [
+      7,
+      7
+    ],
+    "canvas": [
+      7,
+      7
+    ],
+    "offset": [
+      0,
+      0
+    ],
+    "resampling": "nearest-neighbor",
+    "color_mapping": "minimum squared RGB distance, declared palette order breaks ties",
+    "dithering": false,
+    "visible_pixels": 49
   }
 ]

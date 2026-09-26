@@ -30,18 +30,260 @@
       "raw": "raw/idle-concept.png",
       "prepared": "prepared/idle.png",
       "fit": [
-        104,
-        184
+        224,
+        224
       ],
+      "scale": 0.125,
       "canvas": [
-        160,
-        204
+        224,
+        224
       ],
       "offset": [
-        18,
-        14
+        0,
+        0
+      ],
+      "raw_anchor": [
+        535,
+        1426
+      ],
+      "anchor": [
+        84,
+        212
+      ],
+      "raw_gem": [
+        843,
+        211
       ],
       "alpha_threshold": 128
+    },
+    {
+      "raw": "raw/charge-mid.png",
+      "prepared": "prepared/charge-mid.png",
+      "fit": [
+        224,
+        224
+      ],
+      "scale": 0.125,
+      "canvas": [
+        224,
+        224
+      ],
+      "offset": [
+        0,
+        0
+      ],
+      "raw_anchor": [
+        545,
+        1438
+      ],
+      "anchor": [
+        84,
+        212
+      ],
+      "raw_gem": [
+        862,
+        82
+      ],
+      "alpha_threshold": 128
+    },
+    {
+      "raw": "raw/charge-high.png",
+      "prepared": "prepared/charge-high.png",
+      "fit": [
+        224,
+        224
+      ],
+      "scale": 0.125,
+      "canvas": [
+        224,
+        224
+      ],
+      "offset": [
+        0,
+        0
+      ],
+      "raw_anchor": [
+        542,
+        1442
+      ],
+      "anchor": [
+        84,
+        212
+      ],
+      "raw_gem": [
+        805,
+        77
+      ],
+      "alpha_threshold": 128
+    },
+    {
+      "raw": "raw/cast.png",
+      "prepared": "prepared/cast.png",
+      "fit": [
+        224,
+        224
+      ],
+      "scale": 0.125,
+      "canvas": [
+        224,
+        224
+      ],
+      "offset": [
+        0,
+        0
+      ],
+      "raw_anchor": [
+        530,
+        1432
+      ],
+      "anchor": [
+        84,
+        212
+      ],
+      "raw_gem": [
+        983,
+        224
+      ],
+      "alpha_threshold": 128
+    },
+    {
+      "raw": "raw/recover.png",
+      "prepared": "prepared/recover.png",
+      "fit": [
+        224,
+        224
+      ],
+      "scale": 0.125,
+      "canvas": [
+        224,
+        224
+      ],
+      "offset": [
+        0,
+        0
+      ],
+      "raw_anchor": [
+        553,
+        1434
+      ],
+      "anchor": [
+        84,
+        212
+      ],
+      "raw_gem": [
+        824,
+        204
+      ],
+      "alpha_threshold": 128
+    },
+    {
+      "raw": "raw/background.png",
+      "prepared": "prepared/background.png",
+      "fit": [
+        392,
+        296
+      ],
+      "canvas": [
+        392,
+        296
+      ],
+      "offset": [
+        0,
+        0
+      ],
+      "preserve_aspect": false
+    },
+    {
+      "raw": "raw/target.png",
+      "prepared": "prepared/target.png",
+      "fit": [
+        60,
+        78
+      ],
+      "canvas": [
+        64,
+        84
+      ],
+      "offset": [
+        2,
+        3
+      ]
+    },
+    {
+      "raw": "raw/projectile.png",
+      "prepared": "prepared/projectile.png",
+      "fit": [
+        64,
+        30
+      ],
+      "canvas": [
+        72,
+        40
+      ],
+      "offset": [
+        4,
+        5
+      ]
+    },
+    {
+      "raw": "raw/burst.png",
+      "prepared": "prepared/burst.png",
+      "fit": [
+        96,
+        96
+      ],
+      "canvas": [
+        96,
+        96
+      ],
+      "offset": [
+        0,
+        0
+      ]
+    },
+    {
+      "raw": "raw/idle-concept.png",
+      "prepared": "prepared/gem.png",
+      "crop": [
+        813,
+        152,
+        877,
+        267
+      ],
+      "fit": [
+        12,
+        18
+      ],
+      "canvas": [
+        12,
+        18
+      ],
+      "offset": [
+        1,
+        0
+      ]
+    },
+    {
+      "raw": "raw/burst.png",
+      "prepared": "prepared/spark.png",
+      "crop": [
+        535,
+        535,
+        715,
+        715
+      ],
+      "fit": [
+        7,
+        7
+      ],
+      "canvas": [
+        7,
+        7
+      ],
+      "offset": [
+        0,
+        0
+      ]
     }
   ]
 }

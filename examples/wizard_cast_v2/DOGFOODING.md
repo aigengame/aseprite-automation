@@ -65,3 +65,41 @@ Godot 4.6.3, and Pillow 12.3.0. Linux and final human evidence remain pending.
   temporary path for validation. The retry passed; 87 round-rule checks passed.
 - **Category/disposition:** environment limitation; documented command setup.
   Asset import, gameplay, graphical input and final HITL remain distinct evidence.
+
+## H05 — Larger native documents make separate placement calls expensive
+
+- **Step/tool:** full 384×288 authoring through SPA 0.1.0. The Canvas has nine
+  times v1's pixel area; the wizard component also reserves space for larger poses
+  and effects. Compare resolutions and actual call scopes, not elapsed time alone.
+- **Expected/observed:** the first full-build preview measured a mean of 3.0869
+  seconds across 56 `cel set` calls. These calls persist and verify the full
+  document. `cel set` is not eligible for an Operation Plan in this installation.
+- **Impact/workaround:** set Frame 1 placement before independent Frame copies,
+  then change only Cels whose placement/opacity differs from that inherited value.
+  This finite builder change reduces source placement calls from 196 to 127.
+  A real three-Frame probe confirmed inherited position and unchanged Frame 1/3
+  pixel digests after Frame 2 placement, opacity and native resize changes.
+- **Cost/category/disposition:** 69 fewer calls; about 213 seconds saved is an
+  estimate from the old mean, not a measured optimized total. Full timings are
+  recorded after completion. This is workflow friction and a candidate for future
+  Plan coverage/performance work, not permission to change SPA schemas here.
+  Linking unchanged Images alone would not remove current per-Cel inspection cost.
+
+## H06 — Pose identity does not supply alignment or attachment metadata
+
+- **Step/tool:** five reference-guided wizard poses from built-in imagegen.
+- **Expected/observed:** hat, beard, outfit and staff remain recognizable, but robe
+  contours, hand placements, staff angles and image bounds differ. The peak-charge
+  staff ends close to the raw image boundary. A fixed bounding-box fit would change
+  body scale when the staff/cape expands.
+- **Evidence/reproduction:** `inputs/provenance.json`, per-pose raw foot/gem
+  landmarks in `inputs/preparation.json`, and `evidence/prepared-poses.png`.
+- **Impact/workaround:** apply the same 1/8 scale to every character pose, align
+  explicit foot landmarks to (84,212), and declare the measured gem attachment per
+  pose. Retain five static poses; numeric motion/effect rules fill the 32-Frame
+  schedule. The prepared character canvas is 224×224. No anatomy interpolation or
+  complete procedural redraw was introduced.
+- **Category/disposition:** art-input consistency and authoring metadata gap. The
+  pose contact sheet and first real SPA CAST preview were inspected by the agent;
+  costume continuity and motion quality still need final human review. Input
+  preparation and attachment rules remain example-owned feedback for #46/#57.
