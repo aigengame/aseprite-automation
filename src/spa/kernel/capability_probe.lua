@@ -15,6 +15,9 @@ local image_snapshot = app.params.image_snapshot and dofile(app.params.image_sna
 local layer_composition = app.params.layer_composition and dofile(app.params.layer_composition)
   or nil
 local raster_color = dofile(app.params.raster_color)
+local image_orientation_transform = app.params.image_orientation_transform
+    and dofile(app.params.image_orientation_transform)
+  or nil
 
 local function observes_sprite_inspection()
   local open_sprite = nil
@@ -481,6 +484,47 @@ local function observes_sprite_resize()
   return ok
 end
 
+local function observes_image_canvas_transform()
+  if app.params.image_canvas_transform == nil then return false end
+  return pcall(function()
+    local transform = dofile(app.params.image_canvas_transform)
+    local source = Image(2, 2, ColorMode.RGB)
+    local pixel = app.pixelColor.rgba(10, 20, 30, 0)
+    source:putPixel(1, 0, pixel)
+    local cropped = transform.crop(source, { x = 1, y = 0, width = 1, height = 2 })
+    assert(cropped.width == 1 and cropped.height == 2)
+    assert(cropped:getPixel(0, 0) == pixel and source:getPixel(1, 0) == pixel)
+    local shifted = transform.canvas_resize(
+      source,
+      3,
+      3,
+      { x = -1, y = 1 },
+      { kind = "rgba", red = 0, green = 255, blue = 0, alpha = 255 }
+    )
+    assert(shifted:getPixel(0, 1) == pixel)
+    assert(shifted:getPixel(2, 2) == app.pixelColor.rgba(0, 255, 0, 255))
+    local gray = transform.canvas_resize(
+      Image(1, 1, ColorMode.GRAY),
+      2,
+      1,
+      { x = 2, y = 0 },
+      { kind = "grayscale", gray = 73, alpha = 0 }
+    )
+    assert(gray:getPixel(0, 0) == app.pixelColor.graya(73, 0))
+    local indexed = Image(
+      ImageSpec { width = 1, height = 1, colorMode = ColorMode.INDEXED, transparentColor = 2 }
+    )
+    local filled = transform.canvas_resize(
+      indexed,
+      2,
+      1,
+      { x = -1, y = 0 },
+      json.decode('{"kind":"palette-index","index":2}')
+    )
+    assert(filled:getPixel(0, 0) == 2 and filled.spec.transparentColor == 2)
+  end)
+end
+
 local function observes_image_resize()
   if image_resize_transform == nil then return false end
   local sprite = nil
@@ -643,6 +687,29 @@ local function observes_image_snapshot()
   return ok
 end
 
+local function observes_image_flip()
+  if image_orientation_transform == nil then return false end
+  return pcall(function()
+    local image = Image(3, 2, ColorMode.INDEXED)
+    image:putPixel(0, 0, 7)
+    image_orientation_transform.flip(image, "horizontal")
+    assert(image:getPixel(2, 0) == 7 and image:getPixel(0, 0) == 0)
+    image_orientation_transform.flip(image, "vertical")
+    assert(image:getPixel(2, 1) == 7 and image:getPixel(2, 0) == 0)
+  end)
+end
+
+local function observes_image_rotate()
+  if image_orientation_transform == nil then return false end
+  return pcall(function()
+    local source = Image(3, 2, ColorMode.INDEXED)
+    source:putPixel(2, 0, 9)
+    local rotated = image_orientation_transform.rotate(source, 90)
+    assert(rotated.width == 2 and rotated.height == 3 and rotated:getPixel(1, 2) == 9)
+    assert(source:getPixel(2, 0) == 9)
+  end)
+end
+
 function module.observe()
   local capabilities = { "aseprite_runtime_introspection" }
   local supports_inspection = observes_sprite_inspection()
@@ -652,8 +719,13 @@ function module.observe()
   if supports_inspection then capabilities[#capabilities + 1] = "aseprite_sprite_inspection" end
   if observes_sprite_flatten() then capabilities[#capabilities + 1] = "aseprite_sprite_flatten" end
   if observes_sprite_resize() then capabilities[#capabilities + 1] = "aseprite_sprite_resize" end
+  if observes_image_canvas_transform() then
+    capabilities[#capabilities + 1] = "aseprite_image_canvas_transform"
+  end
   if observes_image_resize() then capabilities[#capabilities + 1] = "aseprite_image_resize" end
   if observes_image_snapshot() then capabilities[#capabilities + 1] = "aseprite_image_snapshot" end
+  if observes_image_flip() then capabilities[#capabilities + 1] = "aseprite_image_flip" end
+  if observes_image_rotate() then capabilities[#capabilities + 1] = "aseprite_image_rotate" end
   if observes_sprite_crop() then capabilities[#capabilities + 1] = "aseprite_sprite_crop" end
   if observes_layer_hierarchy() then
     capabilities[#capabilities + 1] = "aseprite_layer_hierarchy"
