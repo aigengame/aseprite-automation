@@ -2,18 +2,14 @@
 
 import json
 import os
+import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 from jsonschema import validate
 
-from spa.application import dispatch
-from spa.contracts import FailureEnvelope
-from spa.failure_registry import FAILURE_CODES
-from spa.file_adapter import LocalTargetFiles
-from spa.plan import PLAN_OPERATIONS, PlanRunResult
-from spa.ports import OperationServices
-from spa.runtime.aseprite import invoke_direct
 from tests.cel.test_e2e_cel import _fixture, _run
 from tests.image.test_e2e_image_orientation import _fixture as _image_fixture
 from tests.image.test_e2e_image_orientation import _inspect
@@ -303,71 +299,61 @@ def test_cel_plan_has_one_native_invocation_and_gates_target_commit(
     _fixture(source, "relationships.lua")
     target = tmp_path / "existing.aseprite"
     target.write_bytes(b"prior Target bytes")
-    commits = []
-    invocations = []
-
-    class ObservedTargetFiles(LocalTargetFiles):
-        def commit(self, staged, target, *, overwrite):
-            commits.append(target)
-            return super().commit(staged, target, overwrite=overwrite)
-
-    def observed_invoke(*args):
-        invocations.append(args[1])
-        result = invoke_direct(*args)
-        if case == "malformed_step":
-            result.payload["steps"][1]["result"]["cel"]["frame_number"] = 4
-        elif case == "unverified_save":
-            result.payload["persisted_reopen_verified"] = False
-        return result
-
-    def unexpected(*_args):
-        pytest.fail("Plan must not launch a separate probe or standalone handler")
-
     second = 2 if case == "later_failure" else 1
-    outcome = dispatch(
-        next(item for item in PLAN_OPERATIONS if item.name == "plan run"),
-        json.dumps(
-            {
-                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-                "plan": {
-                    "source_sprite_file": str(source),
-                    "target_sprite_file": str(target),
-                    "overwrite": True,
-                    "steps": [
-                        {
-                            "operation": "cel set",
-                            "input": {
-                                "target": {
-                                    "layer": {"layer_path": [1]},
-                                    "frame_number": number,
-                                },
-                                "opacity": opacity,
+    request = json.dumps(
+        {
+            "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+            "plan": {
+                "source_sprite_file": str(source),
+                "target_sprite_file": str(target),
+                "overwrite": True,
+                "steps": [
+                    {
+                        "operation": "cel set",
+                        "input": {
+                            "target": {
+                                "layer": {"layer_path": [1]},
+                                "frame_number": number,
                             },
-                        }
-                        for number, opacity in [(1, 0), (second, 100)]
-                    ],
-                },
-            }
-        ),
-        {},
-        OperationServices(
-            probe_runtime=unexpected,
-            invoke_kernel=unexpected,
-            invoke_kernel_direct=observed_invoke,
-            target_files=ObservedTargetFiles(),
-        ),
-        FAILURE_CODES,
+                            "opacity": opacity,
+                        },
+                    }
+                    for number, opacity in [(1, 0), (second, 100)]
+                ],
+            },
+        }
     )
-
-    assert len(invocations) == 1
+    cli = shutil.which("spa")
+    assert cli, "run tests in an installed SPA environment"
+    observations_file = tmp_path / "observations.json"
+    run = subprocess.run(
+        [
+            sys.executable,
+            str(Path(__file__).parent / "fixtures" / "observe_cli.py"),
+            case,
+            str(observations_file),
+            cli,
+            "plan",
+            "run",
+            "--input-json",
+            request,
+        ],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert run.stdout, run.stderr
+    outcome = json.loads(run.stdout)
+    observations = json.loads(observations_file.read_text())
+    assert observations["native_invocations"] == 1
     if case == "success":
-        assert isinstance(outcome, PlanRunResult), outcome
-        assert outcome.persisted_reopen_verified is True
-        assert commits == [target]
+        assert run.returncode == 0, outcome
+        assert outcome["persisted_reopen_verified"] is True
+        assert observations["commits"] == 1
     else:
-        assert isinstance(outcome, FailureEnvelope), outcome
-        assert outcome.code == (
+        assert run.returncode != 0, outcome
+        assert outcome["code"] == (
             "cel_not_found" if case == "later_failure" else "kernel_response_invalid"
         )
-        assert commits == []
+        assert observations["commits"] == 0
         assert target.read_bytes() == b"prior Target bytes"
