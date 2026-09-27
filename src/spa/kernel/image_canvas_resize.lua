@@ -1,6 +1,7 @@
 -- Image canvas-resize: exact copy/fill geometry plus an explicit Cel placement policy.
 local mutation = dofile(app.params.image_cel_mutation)
 local transform = dofile(app.params.image_canvas_transform)
+local frame = dofile(app.params.frame)
 mutation.run(
   "Image Canvas Resize",
   "image_transform_position_out_of_bounds",
@@ -14,15 +15,8 @@ mutation.run(
     end
     if source.colorMode == ColorMode.INDEXED then
       for _, state in ipairs(affected_cels) do
-        local effective, change_frame = nil, -1
-        for index = 1, #sprite.palettes do
-          local palette = sprite.palettes[index]
-          local number = palette.frame.frameNumber
-          if number <= state.frame_number and number > change_frame then
-            effective, change_frame = palette, number
-          end
-        end
-        if effective == nil or payload.fill.index >= #effective then
+        local effective = frame.effective_palette(sprite, state.frame_number)
+        if payload.fill.index >= #effective then
           return nil,
             mutation.reject(
               "image_canvas_fill_invalid",

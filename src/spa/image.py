@@ -13,6 +13,7 @@ from spa.contracts import (
     RuntimeRequest,
     RuntimeRequirements,
 )
+from spa.frame import FRAME_SUPPORT_RESOURCE
 from spa.layer import LAYER_ADDRESS_FAILURE_CODES
 from spa.mutation import (
     TargetCommit,
@@ -295,7 +296,7 @@ IMAGE_CANVAS_TRANSFORM_RESOURCE = PackagedResource(
 IMAGE_CANVAS_RESOURCES = (*IMAGE_MUTATION_RESOURCES, IMAGE_CANVAS_TRANSFORM_RESOURCE)
 IMAGE_CROP_HANDLER = PackagedHandler("image_crop", IMAGE_CANVAS_RESOURCES)
 IMAGE_CANVAS_RESIZE_HANDLER = PackagedHandler(
-    "image_canvas_resize", IMAGE_CANVAS_RESOURCES
+    "image_canvas_resize", (*IMAGE_CANVAS_RESOURCES, FRAME_SUPPORT_RESOURCE)
 )
 IMAGE_CANVAS_REQUIREMENTS = RuntimeRequirements(
     lua_language="Lua 5.4",

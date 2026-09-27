@@ -3,12 +3,7 @@ local mutation = dofile(app.params.image_cel_mutation)
 local transform = dofile(app.params.image_canvas_transform)
 mutation.run("Image Crop", "image_transform_position_out_of_bounds", function(payload, source)
   local area = payload.rectangle
-  if
-    area.x < 0
-    or area.y < 0
-    or area.x + area.width > source.width
-    or area.y + area.height > source.height
-  then
+  if not transform.contains_rectangle(source, area) then
     return nil,
       mutation.reject(
         "image_crop_out_of_bounds",

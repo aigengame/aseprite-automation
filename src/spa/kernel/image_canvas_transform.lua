@@ -47,6 +47,13 @@ local function copy(source, width, height, offset, pixel)
     }
 end
 
+function module.contains_rectangle(source, area)
+  return area.x >= 0
+    and area.y >= 0
+    and area.x + area.width <= source.width
+    and area.y + area.height <= source.height
+end
+
 function module.crop(source, area)
   assert(
     math.tointeger(area.width)
@@ -57,10 +64,7 @@ function module.crop(source, area)
   )
   assert(math.tointeger(area.x) and math.tointeger(area.y), "Crop requires integer coordinates")
   assert(
-    area.x >= 0
-      and area.y >= 0
-      and area.x + area.width <= source.width
-      and area.y + area.height <= source.height,
+    module.contains_rectangle(source, area),
     "Crop Rectangle must be contained in the source Image"
   )
   return copy(source, area.width, area.height, { x = -area.x, y = -area.y })
