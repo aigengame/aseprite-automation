@@ -159,23 +159,48 @@ def test_rotation_anchors_outside_image_pivot_and_moves_linked_cels_once(
     assert after["cels"][2] == before["cels"][2]
 
 
-def test_rotation_rejects_unpersistable_placement_before_in_place_commit(
+@pytest.mark.parametrize(
+    ("angle", "pivot", "attempted_position", "in_place"),
+    [
+        (90, 32767, {"x": 65537, "y": 5}, True),
+        (-90, -32768, {"x": 4, "y": -65533}, False),
+    ],
+)
+def test_rotation_reports_placement_bounds_without_publishing(
     tmp_path: Path,
+    angle: int,
+    pivot: int,
+    attempted_position: dict,
+    in_place: bool,
 ) -> None:
     source = _fixture(tmp_path)
     original = source.read_bytes()
+    target = source if in_place else tmp_path / "existing-target.aseprite"
+    if not in_place:
+        target.write_bytes(original)
     status, result = _run(
         "rotate",
         source,
-        source,
-        in_place=True,
+        target,
+        in_place=in_place,
         overwrite=True,
-        angle=90,
-        position_policy={"kind": "pivot", "pivot_x": 32767, "pivot_y": 32767},
+        target={"layer": {"layer_path": [1]}, "frame_number": 2},
+        angle=angle,
+        position_policy={"kind": "pivot", "pivot_x": pivot, "pivot_y": pivot},
     )
-    assert status != 0
+    assert status == 2
     assert result["code"] == "image_rotate_position_out_of_bounds", result
-    assert source.read_bytes() == original
+    assert source.read_bytes() == target.read_bytes() == original
+    details = result["details"]
+    assert details["allowed_minimum"] == -32768
+    assert details["allowed_maximum"] == 32767
+    assert details["coordinate_space"] == "canvas-pixel"
+    assert details["attempted_position"] == attempted_position
+    assert details["kind"] == "image_rotate_position"
+    assert details["target"]["layer"]["layer_path"] == [1]
+    assert details["target"]["frame_number"] == 2
+    schema = json.loads(spa("image", "rotate", "--schema").stdout)["failure_schema"]
+    validate(result, schema)
 
 
 @pytest.mark.parametrize(("kind", "layer"), [("background", 1), ("reference", 1)])

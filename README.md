@@ -303,6 +303,8 @@ Rotation uses the following exact pixel mappings for old dimensions `W` by `H`:
 and applies `old_pivot - rotated_pivot` to every sharing Cel's Canvas Pixel
 position. There is no interpolation or rounding. A resulting Cel position outside
 the native signed 16-bit range is rejected before publication.
+The `image_rotate_position_out_of_bounds` failure reports the attempted Canvas
+Pixel position and the inclusive `allowed_minimum`/`allowed_maximum` for each axis.
 Both operations preserve stored pixel values, Color Mode, native links, Cel
 opacity and z-index, and unrelated Cels. Their results include before/after Image
 content digests, Image sizes, Canvas Pixel bounds and positions, affected Cel

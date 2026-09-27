@@ -229,6 +229,19 @@ class ImageResizeResult(ImageResizeEvidence):
     target_commit: TargetCommit
 
 
+class ImageRotatePositionDetails(PublicModel):
+    kind: Literal["image_rotate_position"] = "image_rotate_position"
+    target: CelAddress
+    coordinate_space: Literal["canvas-pixel"]
+    attempted_position: Point
+    allowed_minimum: int = Field(
+        strict=True, description="Inclusive minimum for each Canvas Pixel coordinate"
+    )
+    allowed_maximum: int = Field(
+        strict=True, description="Inclusive maximum for each Canvas Pixel coordinate"
+    )
+
+
 IMAGE_RESIZE_FAILURE_CODE_SPECS = (
     FailureCodeSpec(
         "image_resize_palette_basis_invalid",
@@ -249,7 +262,7 @@ IMAGE_ROTATE_FAILURE_CODE_SPECS = (
         "image_rotate_position_out_of_bounds",
         "A resulting Cel position is outside the native signed 16-bit range",
         "input",
-        CelTargetDetails,
+        ImageRotatePositionDetails,
     ),
 )
 
@@ -351,10 +364,24 @@ def _orient_image(
             and rejection.get("code") == "image_rotate_position_out_of_bounds"
             and isinstance(rejection.get("message"), str)
         ):
+            try:
+                facts = rejection.get("details")
+                if not isinstance(facts, dict):
+                    raise TypeError("missing rotation position failure facts")
+                details = ImageRotatePositionDetails.model_validate(
+                    {**facts, "target": request.target}
+                )
+            except (TypeError, ValueError, ValidationError) as exc:
+                raise RuntimeIssue(
+                    "response_malformed",
+                    f"Packaged Image Rotate handler returned invalid failure facts: {exc}",
+                    ResponseEvidence(response_path=invocation.response_path),
+                    invocation.diagnostics,
+                ) from exc
             raise OperationIssue(
                 rejection["code"],
                 rejection["message"],
-                CelTargetDetails(target=request.target),
+                details,
             )
         number = request.target.frame_number
         _reject(invocation, request.target.layer, request.target, (number, number))

@@ -9,7 +9,9 @@ local sections = { "frames", "tags", "palettes", "layers", "cels", "slices", "ti
 local open_sprite = nil
 local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
 
-local function reject(code, message) return { rejection = { code = code, message = message } } end
+local function reject(code, message, details)
+  return { rejection = { code = code, message = message, details = details } }
+end
 
 local function key(state) return table.concat(state.layer_path, "/") .. ":" .. state.frame_number end
 
@@ -79,12 +81,24 @@ local function execute()
       dx, dy = requested.pivot_x - x, requested.pivot_y - y
       policy = { kind = "pivot", pivot_x = requested.pivot_x, pivot_y = requested.pivot_y }
     end
+    local allowed_minimum, allowed_maximum = -32768, 32767
     for _, state in ipairs(before) do
       local x, y = state.position.x + dx, state.position.y + dy
-      if x < -32768 or x > 32767 or y < -32768 or y > 32767 then
+      if
+        x < allowed_minimum
+        or x > allowed_maximum
+        or y < allowed_minimum
+        or y > allowed_maximum
+      then
         return reject(
           "image_rotate_position_out_of_bounds",
-          "Resulting Cel position cannot be persisted"
+          "Resulting Cel position cannot be persisted",
+          {
+            coordinate_space = "canvas-pixel",
+            attempted_position = { x = x, y = y },
+            allowed_minimum = allowed_minimum,
+            allowed_maximum = allowed_maximum,
+          }
         )
       end
     end
