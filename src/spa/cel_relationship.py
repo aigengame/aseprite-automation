@@ -195,6 +195,7 @@ def validate_relationship_evidence(
         )
         or evidence.cel.frame_number != addressed.frame_number
         or not set(affected_keys).issubset(before_keys)
+        or evidence.before_cel_count < sum(cel.exists for cel in prior.values())
         or (
             isinstance(evidence, CelRelationshipEvidence)
             and evidence.sprite.metadata.cel_count != expected_count
@@ -221,7 +222,7 @@ def validate_relationship_evidence(
             "Cel relationship evidence differs from the request",
             PostconditionEvidence(
                 response_path=invocation.response_path,
-                reason="Cel address, existence, or affected scope disagrees",
+                reason="Cel address, existence, count, or affected scope disagrees",
             ),
             invocation.diagnostics,
         )

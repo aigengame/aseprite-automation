@@ -115,6 +115,19 @@ def test_cel_set_resolves_a_cel_created_by_earlier_steps(tmp_path: Path) -> None
                             "operation": "cel set",
                             "input": {"target": address, "opacity": 0, "z_index": -3},
                         },
+                        {
+                            "operation": "frame add",
+                            "input": {"frame_number": 3, "duration_ms": 100},
+                        },
+                        {
+                            "operation": "cel add",
+                            "input": {
+                                "target": {
+                                    "layer": {"layer_path": [1]},
+                                    "frame_number": 3,
+                                }
+                            },
+                        },
                     ],
                 },
             }
@@ -123,6 +136,10 @@ def test_cel_set_resolves_a_cel_created_by_earlier_steps(tmp_path: Path) -> None
     assert run.returncode == 0, run.stdout + run.stderr
     result = json.loads(run.stdout)
     assert result["steps"][3]["result"]["cel"]["opacity"] == 0
+    assert (
+        result["final_sprite"]["metadata"]["cel_count"]
+        == result["steps"][3]["result"]["before_cel_count"] + 1
+    )
     assert result["persisted_reopen_verified"] is True
     code, reopened = _run("get", {"sprite_file": str(target), "target": address})
     assert code == 0, reopened
@@ -290,13 +307,21 @@ def test_plan_retains_standalone_target_refusals(
 
 
 @pytest.mark.parametrize(
-    "case", ["success", "later_failure", "malformed_step", "unverified_save"]
+    "case",
+    [
+        "success",
+        "later_failure",
+        "malformed_step",
+        "contradictory_count",
+        "unverified_save",
+    ],
 )
 def test_cel_plan_has_one_native_invocation_and_gates_target_commit(
     tmp_path: Path, case: str
 ) -> None:
     source = tmp_path / "source.aseprite"
     _fixture(source, "relationships.lua")
+    source_before = source.read_bytes()
     target = tmp_path / "existing.aseprite"
     target.write_bytes(b"prior Target bytes")
     second = 2 if case == "later_failure" else 1
@@ -346,6 +371,8 @@ def test_cel_plan_has_one_native_invocation_and_gates_target_commit(
     outcome = json.loads(run.stdout)
     observations = json.loads(observations_file.read_text())
     assert observations["native_invocations"] == 1
+    assert source.read_bytes() == source_before
+    assert not list(tmp_path.glob(".*.staged.aseprite"))
     if case == "success":
         assert run.returncode == 0, outcome
         assert outcome["persisted_reopen_verified"] is True
@@ -357,3 +384,6 @@ def test_cel_plan_has_one_native_invocation_and_gates_target_commit(
         )
         assert observations["commits"] == 0
         assert target.read_bytes() == b"prior Target bytes"
+        if case == "contradictory_count":
+            assert outcome["details"]["failed_step"] == 1
+            assert outcome["details"]["failed_operation"] == "cel set"
