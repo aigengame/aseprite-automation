@@ -96,7 +96,7 @@ def _fixture(tmp_path: Path, mode: str = "rgb") -> Path:
             env=prepared.environment,
         )
     assert run.returncode == 0, run.stderr
-    if mode in {"composition", "blend"}:
+    if mode in {"composition", "blend", "indexed-blend", "indexed-opacity"}:
         # Batch SaveAs omits group fields in 1.3.18.5. Supply independent native
         # file-format evidence, as with Palette Change fixtures, instead of
         # assuming a live Group opacity was serialized.
@@ -108,9 +108,11 @@ def _fixture(tmp_path: Path, mode: str = "rgb") -> Path:
             if kind == 0x2004 and struct.unpack_from("<H", raw, at + 8)[0] == 1:
                 group_number += 1
                 raw[at + 18] = (
-                    128 if mode == "composition" and group_number == 1 else 255
+                    128
+                    if mode in {"composition", "indexed-opacity"} and group_number == 1
+                    else 255
                 )
-                if mode == "blend":
+                if mode in {"blend", "indexed-blend"}:
                     struct.pack_into("<H", raw, at + 16, 1)  # native MULTIPLY
         source.write_bytes(raw)
     elif mode == "reference":
@@ -191,8 +193,10 @@ def test_individual_get_reads_hidden_stored_pixels_and_rebases_roi(
     assert source.read_bytes() == original
 
 
+@pytest.mark.parametrize("output_mode", ["preserve", "rgb"])
 def test_composition_restores_preferences_and_visibility_on_success_and_failure(
     tmp_path: Path,
+    output_mode: str,
 ) -> None:
     observation = probe(
         RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
@@ -210,6 +214,7 @@ def test_composition_restores_preferences_and_visibility_on_success_and_failure(
             "out": output,
             "layer_composition": kernel / "layer_composition.lua",
             "layer_select": kernel / "layer_select.lua",
+            "output_mode": output_mode,
         }.items():
             args.extend(("--script-param", f"{name}={value}"))
         args.extend(
@@ -229,12 +234,22 @@ def test_composition_restores_preferences_and_visibility_on_success_and_failure(
     }
 
 
+@pytest.mark.parametrize(
+    ("mode", "output_mode"), [("tilemap", "preserve"), ("indexed-tilemap", "rgb")]
+)
 def test_native_tilemap_composition_does_not_expose_tile_indexes_as_colors(
     tmp_path: Path,
+    mode: str,
+    output_mode: str,
 ) -> None:
-    source = _fixture(tmp_path, "tilemap")
+    source = _fixture(tmp_path, mode)
+    original = source.read_bytes()
     code, result = _get(
-        source, source=_composite({"mode": "include", "layers": [{"layer_path": [1]}]})
+        source,
+        source=_composite(
+            {"mode": "include", "layers": [{"layer_path": [1]}]},
+            output_color_mode=output_mode,
+        ),
     )
     assert code == 0, json.dumps(result)
     assert result["snapshot"]["rows"][0][0]["color"] == {
@@ -246,6 +261,7 @@ def test_native_tilemap_composition_does_not_expose_tile_indexes_as_colors(
     }
     code, failure = _get(source, source=_individual())
     assert code == 2 and failure["code"] == "cel_unsupported_target"
+    assert source.read_bytes() == original
     code, failure = _replace(source, tmp_path / "rejected.aseprite", result["snapshot"])
     assert code == 2 and failure["code"] == "cel_unsupported_target"
 
@@ -484,11 +500,149 @@ def test_complete_json_artifact_roundtrip_above_inline_limit(tmp_path: Path) -> 
 def _composite(composition: dict, **options: object) -> dict:
     return {
         "kind": "composite",
+        "output_color_mode": "preserve",
         "frame_number": 1,
         "rectangle": {"x": 1, "y": 1, "width": 2, "height": 1},
         "layer_composition": composition,
         **options,
     }
+
+
+def test_explicit_rgb_composite_keeps_indexed_source_and_transparency(
+    tmp_path: Path,
+) -> None:
+    source = _fixture(tmp_path, "indexed-composite")
+    original = source.read_bytes()
+    code, result = _get(
+        source,
+        source=_composite({"mode": "visible"}, output_color_mode="rgb"),
+    )
+    assert code == 0, result
+    assert result["color_mode"] == result["snapshot"]["color_mode"] == "rgb"
+    assert result["source"]["color_mode"] == "indexed"
+    assert result["source"]["mask_color"] == {"kind": "palette-index", "index": 2}
+    assert result["snapshot"]["rows"] == [
+        [
+            {
+                "length": 1,
+                "color": {
+                    "kind": "rgba",
+                    "red": 30,
+                    "green": 40,
+                    "blue": 50,
+                    "alpha": 255,
+                },
+            },
+            {
+                "length": 1,
+                "color": {"kind": "rgba", "red": 0, "green": 0, "blue": 0, "alpha": 0},
+            },
+        ]
+    ]
+    assert result["mask_color"] == {
+        "kind": "rgba",
+        "red": 0,
+        "green": 0,
+        "blue": 0,
+        "alpha": 0,
+    }
+    assert result["effective_palettes"] == [
+        {"frame_number": 1, "palette_frame_number": 1, "palette_size": 4, "indexes": []}
+    ]
+    assert source.read_bytes() == original
+
+
+@pytest.mark.parametrize("artifact", [False, True])
+def test_preserve_composite_refuses_nonzero_indexed_mask_without_publication(
+    tmp_path: Path,
+    artifact: bool,
+) -> None:
+    source = _fixture(tmp_path, "indexed-composite")
+    original = source.read_bytes()
+    destination = tmp_path / "pixels.json"
+    destination.write_bytes(b"existing artifact")
+    options = (
+        {"snapshot_destination": {"path": str(destination), "if_exists": "replace"}}
+        if artifact
+        else {}
+    )
+    code, result = _get(source, source=_composite({"mode": "visible"}), **options)
+    assert code == 2 and result["code"] == "image_composition_unsupported", result
+    assert "nonzero" in result["details"]["reason"]
+    assert source.read_bytes() == original
+    assert destination.read_bytes() == b"existing artifact"
+    assert set(tmp_path.iterdir()) == {source, destination}
+
+
+@pytest.mark.parametrize(
+    ("mode", "expected"),
+    [
+        (
+            "indexed-opacity",
+            [(150, 150, 75, 255), (100, 200, 100, 255), (90, 180, 135, 255)],
+        ),
+        (
+            "indexed-blend",
+            [(78, 78, 20, 255), (100, 200, 100, 255), (62, 147, 97, 255)],
+        ),
+    ],
+)
+def test_indexed_rgb_observation_uses_group_and_palette_alpha(
+    tmp_path: Path,
+    mode: str,
+    expected: list[tuple[int, int, int, int]],
+) -> None:
+    source = _fixture(tmp_path, mode)
+    original = source.read_bytes()
+    code, result = _get(
+        source,
+        source=_composite(
+            {"mode": "visible"},
+            output_color_mode="rgb",
+            rectangle={"x": 1, "y": 1, "width": 3, "height": 1},
+        ),
+    )
+    assert code == 0, result
+    assert [
+        tuple(run["color"][channel] for channel in ("red", "green", "blue", "alpha"))
+        for run in result["snapshot"]["rows"][0]
+    ] == expected
+    assert source.read_bytes() == original
+
+
+def test_rgb_composite_uses_requested_frame_palette_and_cannot_replace_indexes(
+    tmp_path: Path,
+) -> None:
+    source = _fixture(tmp_path, "indexed-palette")
+    inject_palette_change(
+        source, [(70, 80, 90, 255), (8, 9, 10, 255), (1, 2, 3, 255), (5, 6, 7, 255)]
+    )
+    # Linked pixels are identical; only the requested Frame's Palette changes.
+    original = source.read_bytes()
+    values = []
+    for frame in (1, 2):
+        code, result = _get(
+            source,
+            source=_composite(
+                {"mode": "visible"},
+                output_color_mode="rgb",
+                frame_number=frame,
+                rectangle=FULL_AREA,
+            ),
+        )
+        assert code == 0, result
+        assert result["effective_palettes"][0]["palette_frame_number"] == frame
+        # Row 1 is the unchanged source index 1, interpreted with each Frame's Palette.
+        values.append(result["snapshot"]["rows"][0][0]["color"])
+    assert values == [
+        {"kind": "rgba", "red": 250, "green": 0, "blue": 0, "alpha": 255},
+        {"kind": "rgba", "red": 8, "green": 9, "blue": 10, "alpha": 255},
+    ]
+    destination = tmp_path / "rejected.aseprite"
+    code, failure = _replace(source, destination, result["snapshot"])
+    assert code == 2 and failure["code"] == "image_snapshot_invalid", failure
+    assert not destination.exists()
+    assert source.read_bytes() == original
 
 
 @pytest.mark.parametrize(
@@ -785,29 +939,47 @@ def test_composite_preserves_native_group_blend_mode(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    ("mode", "expected"),
+    ("mode", "output_mode", "expected"),
     [
         (
             "grayscale",
+            "preserve",
             [
                 {"kind": "grayscale", "gray": 72, "alpha": 0},
                 {"kind": "grayscale", "gray": 9, "alpha": 128},
             ],
         ),
         (
-            "indexed",
+            "indexed-zero",
+            "preserve",
             [
                 {"kind": "palette-index", "index": 0},
                 {"kind": "palette-index", "index": 2},
             ],
         ),
+        (
+            "indexed",
+            "rgb",
+            [
+                {"kind": "rgba", "red": 30, "green": 40, "blue": 50, "alpha": 255},
+                {"kind": "rgba", "red": 0, "green": 0, "blue": 0, "alpha": 0},
+            ],
+        ),
+        (
+            "grayscale",
+            "rgb",
+            [
+                {"kind": "rgba", "red": 72, "green": 72, "blue": 72, "alpha": 0},
+                {"kind": "rgba", "red": 9, "green": 9, "blue": 9, "alpha": 128},
+            ],
+        ),
     ],
 )
 def test_native_composite_modes_share_the_same_artifact_value(
-    tmp_path: Path, mode: str, expected: list
+    tmp_path: Path, mode: str, output_mode: str, expected: list
 ) -> None:
     source = _fixture(tmp_path, mode + "-composite")
-    request = _composite({"mode": "visible"})
+    request = _composite({"mode": "visible"}, output_color_mode=output_mode)
     code, inline = _get(source, source=request)
     assert code == 0, inline
     assert [run["color"] for run in inline["snapshot"]["rows"][0]] == expected

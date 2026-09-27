@@ -148,7 +148,7 @@ uv run spa cel clear --input-json '{"aseprite":"/path/to/aseprite","source_sprit
 uv run spa cel remove --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"cleared.aseprite","target_sprite_file":"without-cel.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":2}}'
 uv run spa image resize --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"resized-image.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":1},"width":32,"height":32,"method":"nearest-neighbor","position_policy":{"kind":"keep"}}'
 uv run spa image get --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite","source":{"kind":"individual","target":{"layer":{"layer_path":[1]},"frame_number":1},"rectangle":{"x":0,"y":0,"width":16,"height":16}},"snapshot_destination":{"path":"pixels.json","if_exists":"fail"}}'
-uv run spa image get --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite","source":{"kind":"composite","frame_number":1,"rectangle":{"x":0,"y":0,"width":16,"height":16},"layer_composition":{"mode":"visible"}}}'
+uv run spa image get --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite","source":{"kind":"composite","output_color_mode":"rgb","frame_number":1,"rectangle":{"x":0,"y":0,"width":16,"height":16},"layer_composition":{"mode":"visible"}}}'
 uv run spa image replace --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"replaced.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":1},"input":{"kind":"artifact","path":"pixels.json"}}'
 uv run spa layer list --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite"}'
 uv run spa layer get --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite","target":{"layer_path":[1]}}'
@@ -299,6 +299,24 @@ uses native Tilemap rendering, excludes Reference Layers as the native renderer 
 and restores temporary visibility and Group-composition preferences. Individual reads
 and replacement support Reference Images but reject raw Tilemap Images. Reads never
 save the Source.
+
+Each composite request also requires `output_color_mode: preserve|rgb`.
+`preserve` uses the Source Color Mode and its native composition semantics; Indexed
+output selects indexes and does not promise RGB Blend Mode/opacity equivalence.
+`rgb` renders directly into a separate RGB Image for an RGBA visual observation.
+It retains the Source Color Space and does not assign or convert a Color Profile.
+The Result's `source.color_mode` and `source.mask_color` describe the Source;
+top-level Color Mode and mask describe the output. Effective Palette facts identify
+the Indexed Source's requested Frame basis; their `indexes` are empty for RGB output
+because blended pixels do not retain a Palette Index identity.
+
+Preserve-Indexed composition with a nonzero transparent index is currently rejected
+with `image_composition_unsupported`: Aseprite's native Group buffer can clear to an
+opaque index zero, including at the root. Select `rgb` for visual observation or
+individual Get for exact stored indexes. There is no automatic fallback. This does
+not change the Source or make the RGB Snapshot a same-mode Indexed replacement.
+[Issue #116](https://github.com/aigengame/aseprite-automation/issues/116) tracks the
+remaining preserve-Indexed support.
 
 Without `snapshot_destination`, the inline Operation Limit is 4096 pixels. Larger
 reads require an explicit `.json` destination with `if_exists: fail|replace` and

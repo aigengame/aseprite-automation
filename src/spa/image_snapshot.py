@@ -82,6 +82,12 @@ class SnapshotDetails(PublicModel):
 
 IMAGE_SNAPSHOT_FAILURE_CODE_SPECS = (
     FailureCodeSpec(
+        "image_composition_unsupported",
+        "Native composition cannot preserve the requested output semantics",
+        "input",
+        SnapshotDetails,
+    ),
+    FailureCodeSpec(
         "image_snapshot_invalid",
         "Snapshot cannot replace this complete Image",
         "input",
@@ -118,6 +124,12 @@ LayerComposition = Annotated[
 
 class CompositeImageSource(PublicModel):
     kind: Literal["composite"]
+    output_color_mode: Literal["preserve", "rgb"] = Field(
+        description=(
+            "Explicit native render destination: preserve uses source Color Mode; "
+            "rgb produces a derived RGBA observation. No automatic fallback."
+        )
+    )
     frame_number: int = Field(ge=1)
     rectangle: PositiveRectangle
     layer_composition: LayerComposition
@@ -158,6 +170,8 @@ class IndividualImageFacts(IndividualImageSource):
 
 class CompositeImageFacts(CompositeImageSource):
     coordinate_space: Literal["canvas-pixel"]
+    color_mode: Literal["rgb", "grayscale", "indexed"]
+    mask_color: ColorValue
     resolved_layer_paths: list[list[int]]
     compose_groups: Literal[True]
     reference_layers_rendered: Literal[False]
@@ -172,7 +186,25 @@ class ImageGetEvidence(PublicModel):
     height: int = Field(ge=1)
     color_mode: Literal["rgb", "grayscale", "indexed"]
     mask_color: ColorValue
-    effective_palettes: list[EffectivePaletteFact]
+    effective_palettes: list[EffectivePaletteFact] = Field(
+        description=(
+            "Indexed Source Palette basis at the requested Frame. Index entries "
+            "describe Indexed output only; a derived RGB composite has no "
+            "per-pixel Palette Index identity."
+        )
+    )
+
+    @model_validator(mode="after")
+    def validate_composite_mode(self) -> "ImageGetEvidence":
+        if isinstance(self.source, CompositeImageFacts):
+            expected = (
+                self.source.color_mode
+                if self.source.output_color_mode == "preserve"
+                else "rgb"
+            )
+            if self.color_mode != expected:
+                raise ValueError("Composite output Color Mode contradicts its policy")
+        return self
 
 
 class ImageGetResult(ImageGetEvidence):
@@ -360,6 +392,7 @@ def _source_matches(
         return (
             requested.frame_number == actual.frame_number
             and requested.layer_composition == actual.layer_composition
+            and requested.output_color_mode == actual.output_color_mode
         )
     return False
 
@@ -562,6 +595,7 @@ IMAGE_SNAPSHOT_OPERATIONS = (
             "cel_frame_out_of_bounds",
             *LAYER_ADDRESS_FAILURE_CODES,
             "image_rectangle_out_of_bounds",
+            "image_composition_unsupported",
             "artifact_file_failed",
         ),
         side_effects=(

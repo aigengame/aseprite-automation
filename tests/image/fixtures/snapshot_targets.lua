@@ -25,7 +25,7 @@ else
     Color { r = 0, g = 250, b = 0, a = mode == "indexed-background-alpha" and 128 or 255 }
   )
   sprite:setPalette(palette)
-  sprite.transparentColor = 2
+  sprite.transparentColor = mode == "indexed-zero-composite" and 0 or 2
   image:clear(1)
   image:putPixel(1, 1, 0)
   image:putPixel(2, 1, 2)
@@ -35,6 +35,21 @@ layer:cel(1).opacity = 0
 if mode:find("composite", 1, true) then
   layer.isVisible = true
   layer:cel(1).opacity = 255
+elseif mode == "indexed-blend" or mode == "indexed-opacity" then
+  layer.isVisible, layer:cel(1).opacity = true, 255
+  local palette = sprite.palettes[1]
+  palette:setColor(0, Color { r = 200, g = 100, b = 50, a = 255 })
+  palette:setColor(1, Color { r = 100, g = 200, b = 100, a = 255 })
+  palette:setColor(3, Color { r = 60, g = 120, b = 240, a = 128 })
+  image:clear(1)
+  local group = sprite:newGroup()
+  local child = sprite:newLayer()
+  child.parent = group
+  local pixels = Image(sprite.spec)
+  pixels:clear(2)
+  pixels:putPixel(1, 1, 0)
+  pixels:putPixel(3, 1, 3)
+  sprite:newCel(child, 1, pixels)
 elseif mode == "blend" then
   layer.isVisible = true
   layer:cel(1).opacity = 255
@@ -45,14 +60,15 @@ elseif mode == "blend" then
   local tint = Image(4, 3, ColorMode.RGB)
   tint:clear(app.pixelColor.rgba(128, 200, 255, 255))
   sprite:newCel(top, 1, tint)
-elseif mode == "tilemap" then
+elseif mode == "tilemap" or mode == "indexed-tilemap" then
   sprite.gridBounds = Rectangle(0, 0, 1, 1)
   app.activeSprite, app.activeLayer = sprite, layer
   app.command.NewLayer { tilemap = true }
   local tiles = app.activeLayer
   app.useTool {
     tool = "pencil",
-    color = app.pixelColor.rgba(250, 0, 0, 255),
+    color = color_mode == ColorMode.INDEXED and Color { index = 1 }
+      or app.pixelColor.rgba(250, 0, 0, 255),
     layer = tiles,
     tilesetMode = TilesetMode.STACK,
     points = { Point(1, 1) },
@@ -80,7 +96,10 @@ elseif mode == "absent" then
 elseif mode == "duplicate" then
   local second = sprite:newLayer()
   second.name = layer.name
-elseif mode == "linked" or mode == "indexed-linked" then
+elseif mode == "linked" or mode == "indexed-linked" or mode == "indexed-palette" then
+  if mode == "indexed-palette" then
+    layer.isVisible, layer:cel(1).opacity = true, 255
+  end
   app.activeSprite = sprite
   app.activeLayer = layer
   app.activeFrame = sprite.frames[1]

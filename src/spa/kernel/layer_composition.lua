@@ -36,7 +36,23 @@ function module.copy(value)
   return { mode = "include", layers = layers }
 end
 
-function module.render(sprite, frame_number, composition, area, selection, uuids)
+function module.render(sprite, frame_number, composition, area, selection, uuids, output_color_mode)
+  assert(output_color_mode == "preserve" or output_color_mode == "rgb", "invalid output Color Mode")
+  if
+    output_color_mode == "preserve"
+    and sprite.colorMode == ColorMode.INDEXED
+    and sprite.transparentColor ~= 0
+  then
+    return nil,
+      nil,
+      {
+        rejection = {
+          code = "image_composition_unsupported",
+          message = "Native preserve-Indexed composition cannot retain a nonzero transparent index; "
+            .. "request rgb for a derived visual observation or individual Get for stored indexes",
+        },
+      }
+  end
   local records, included = {}, {}
   layers_at(sprite.layers, {}, true, records)
   if composition.mode == "include" then
@@ -81,9 +97,11 @@ function module.render(sprite, frame_number, composition, area, selection, uuids
     end
     local spec = sprite.spec
     spec.width, spec.height = area.width, area.height
+    if output_color_mode == "rgb" then
+      -- Select the native rendering path before composition; Source stays intact.
+      spec.colorMode, spec.transparentColor = ColorMode.RGB, 0
+    end
     local image = Image(spec)
-    -- New Indexed buffers start at index 0; the Sprite can use another mask.
-    image:clear(spec.transparentColor)
     image:drawSprite(sprite, frame_number, -area.x, -area.y)
     return image
   end)

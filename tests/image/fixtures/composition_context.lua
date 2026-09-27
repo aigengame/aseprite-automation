@@ -1,5 +1,6 @@
 local composition = dofile(app.params.layer_composition)
 local selector = dofile(app.params.layer_select)
+local output_mode = assert(app.params.output_mode)
 local source = Sprite(2, 2, ColorMode.RGB)
 local group = source:newGroup()
 group.opacity = 128
@@ -30,13 +31,15 @@ local function preserved(ambient)
 end
 for _, ambient in ipairs({ false, true }) do
   app.preferences.experimental.compose_groups = ambient
-  local rendered = assert(composition.render(source, 1, requested, area, selector, {}))
+  local rendered = assert(composition.render(source, 1, requested, area, selector, {}, output_mode))
   assert(app.pixelColor.rgbaR(rendered:getPixel(0, 0)) == 255)
   assert(app.pixelColor.rgbaA(rendered:getPixel(0, 0)) == 128)
+  assert(rendered.spec.colorSpace == source.spec.colorSpace)
   assert(preserved(ambient), "success changed ambient state")
   -- Fault injection after temporary visibility changes, while retaining real Layers.
   local unavailable_spec = { layers = source.layers, spec = false }
-  local ok = pcall(composition.render, unavailable_spec, 1, requested, area, selector, {})
+  local ok =
+    pcall(composition.render, unavailable_spec, 1, requested, area, selector, {}, output_mode)
   assert(not ok)
   assert(preserved(ambient), "handled failure changed ambient state")
 end

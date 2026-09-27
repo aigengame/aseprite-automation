@@ -65,13 +65,17 @@ local function composite(source, uuids)
     source.layer_composition,
     source.rectangle,
     selection,
-    uuids
+    uuids,
+    source.output_color_mode
   )
   if rejected then return nil, nil, nil, rejected end
   return image,
     { x = 0, y = 0, width = image.width, height = image.height },
     {
       kind = "composite",
+      output_color_mode = source.output_color_mode,
+      color_mode = snapshot.mode(opened),
+      mask_color = snapshot.color(opened.spec.transparentColor, snapshot.mode(opened)),
       coordinate_space = "canvas-pixel",
       rectangle = snapshot.rectangle(source.rectangle),
       frame_number = source.frame_number,

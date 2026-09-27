@@ -97,3 +97,21 @@ def test_above_inline_limit_requires_explicit_artifact_transport() -> None:
                 "input": {"kind": "inline", "snapshot": value},
             }
         )
+
+
+@pytest.mark.parametrize("choice", [None, "indexed", "rgba", "automatic"])
+def test_composite_requires_an_explicit_supported_output_choice(
+    choice: str | None,
+) -> None:
+    source = {
+        "kind": "composite",
+        "frame_number": 1,
+        "rectangle": {"x": 0, "y": 0, "width": 1, "height": 1},
+        "layer_composition": {"mode": "visible"},
+    }
+    if choice is not None:
+        source["output_color_mode"] = choice
+    with pytest.raises(ValidationError, match="output_color_mode"):
+        ImageGetRequest.model_validate(
+            {"sprite_file": "source.aseprite", "source": source}
+        )

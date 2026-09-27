@@ -593,6 +593,25 @@ local function observes_image_snapshot()
       local result = image_snapshot.read(image, { x = 0, y = 0, width = 1, height = 1 })
       local color = result.rows[1][1].color
       assert(color.red == 1 or color.gray == 7 or color.index == 3)
+      if mode == ColorMode.INDEXED then
+        sprite.transparentColor = 2
+        sprite.palettes[1]:setColor(3, Color { r = 12, g = 34, b = 56, a = 255 })
+        image:putPixel(1, 0, 2)
+        local rendered = assert(
+          layer_composition.render(
+            sprite,
+            1,
+            { mode = "visible" },
+            { x = 0, y = 0, width = 2, height = 1 },
+            layer_select,
+            {},
+            "rgb"
+          )
+        )
+        assert(rendered:getPixel(0, 0) == app.pixelColor.rgba(12, 34, 56, 255))
+        assert(rendered:getPixel(1, 0) == 0)
+        assert(image:getPixel(0, 0) == 3 and image:getPixel(1, 0) == 2)
+      end
       sprite:close()
       sprite = nil
     end
@@ -606,7 +625,8 @@ local function observes_image_snapshot()
         { mode = "include", layers = { { layer_path = { 1 } } } },
         { x = 1, y = 1, width = 1, height = 1 },
         layer_select,
-        {}
+        {},
+        "preserve"
       )
     )
     assert(image:getPixel(0, 0) == app.pixelColor.rgba(255, 0, 0, 255))
