@@ -420,6 +420,15 @@ not form a horizontal subsystem. Selection authoring stays adjacent to Raster Au
 while the Selection value can be consumed by other eligible Operations. A future split
 requires evidence of a different language and reason to change.
 
+The implemented Selection slice lives in `selection.py`; `raster.py` retains the
+canonical value types shared with Paint. `selection_mask.lua` materializes those
+values and encodes native coverage. Both Selection operations and Paint consume
+that adapter, including Paint in an Operation Plan. `selection_support.lua` owns
+native set operations, isolated temporary Sprite work, and binary Image adaptation
+for native nearest-neighbor sampling. Python validates wire constraints and
+orchestrates existing Artifact staging, independent JSON/PNG verification, and
+publication. No persistent editor Selection or second Mask engine is introduced.
+
 Each Domain Module owns a vertical slice of:
 
 - its domain terms and invariants;

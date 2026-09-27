@@ -15,7 +15,7 @@ local image_snapshot = app.params.image_snapshot and dofile(app.params.image_sna
 local layer_composition = app.params.layer_composition and dofile(app.params.layer_composition)
   or nil
 local raster_color = dofile(app.params.raster_color)
-local selection_mask = app.params.selection_mask and dofile(app.params.selection_mask) or nil
+local selections = app.params.selection_support and dofile(app.params.selection_support) or nil
 local image_orientation_transform = app.params.image_orientation_transform
     and dofile(app.params.image_orientation_transform)
   or nil
@@ -713,11 +713,40 @@ end
 
 function module.observe()
   local capabilities = { "aseprite_runtime_introspection" }
-  if selection_mask ~= nil then
+  if selections ~= nil then
     local ok = pcall(function()
-      local value = { kind = "all", rectangle = { x = -2, y = 3, width = 2, height = 1 } }
-      local result = selection_mask.encode(selection_mask.materialize(value))
-      assert(result.pixel_count == 2 and result.bounds.x == -2 and result.bounds.y == 3)
+      local bounds = { x = -2, y = 3, width = 4, height = 4 }
+      local ellipse = selections.create { shape = { kind = "ellipse", bounds = bounds } }
+      assert(ellipse.pixel_count == 12 and ellipse.bounds.x == -2)
+      local dot = { kind = "all", rectangle = { x = -1, y = 4, width = 1, height = 1 } }
+      local grown =
+        selections.grow { selection = dot, canvas = bounds, radius = 1, shape = "circle" }
+      assert(grown.pixel_count == 5)
+      local shrunken = selections.shrink {
+        selection = grown.selection,
+        canvas = bounds,
+        radius = 1,
+        shape = "circle",
+      }
+      assert(shrunken.pixel_count == 1)
+      local flipped = selections.transform {
+        selection = grown.selection,
+        canvas = bounds,
+        transform = { kind = "flip", axis = "horizontal" },
+      }
+      assert(flipped.pixel_count == 5)
+      local rotated = selections.transform {
+        selection = grown.selection,
+        canvas = bounds,
+        transform = { kind = "rotate", angle = 90 },
+      }
+      assert(rotated.pixel_count == 5)
+      local scaled = selections.transform {
+        selection = dot,
+        canvas = bounds,
+        transform = { kind = "scale", width = 2, height = 2 },
+      }
+      assert(scaled.pixel_count == 4)
     end)
     if ok then capabilities[#capabilities + 1] = "aseprite_selection" end
   end
