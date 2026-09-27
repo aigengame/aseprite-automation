@@ -35,6 +35,7 @@ from spa.contracts import (
 from spa.descriptors import ACCESS_FAILURE_CODES, OPERATIONS
 from spa.export import ArtifactFileDetails, ArtifactVerificationDetails
 from spa.failure_registry import FAILURE_CODES
+from spa.image import ImageRotatePositionDetails
 from spa.layer import LayerAddress, LayerTargetDetails
 from spa.mutation import TargetCommitDetails
 from spa.ports import (
@@ -51,7 +52,7 @@ from spa.ports import (
     RuntimeIssue,
     TargetCommitEvidence,
 )
-from spa.raster import PositiveRectangle, Size
+from spa.raster import Point, PositiveRectangle, Size
 from spa.sprite import (
     SpriteCopyStagingDetails,
     SpriteCropBoundsDetails,
@@ -206,6 +207,15 @@ def test_each_registered_code_has_a_constrained_public_schema() -> None:
             )
         ),
         CelFrameRangeDetails: CelFrameRangeDetails(from_frame=1, to_frame=2),
+        ImageRotatePositionDetails: ImageRotatePositionDetails(
+            target=LifecycleCelAddress(
+                layer=LayerAddress(layer_path=[1]), frame_number=2
+            ),
+            coordinate_space="canvas-pixel",
+            attempted_position=Point(x=-32774, y=32767),
+            allowed_minimum=-32768,
+            allowed_maximum=32767,
+        ),
         TagTargetDetails: TagTargetDetails(address=TagAddress(tag_index=1)),
         TagRangeDetails: TagRangeDetails(from_frame=1, to_frame=2, frame_count=1),
         SpriteUnsupportedContentDetails: SpriteUnsupportedContentDetails(

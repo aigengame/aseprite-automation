@@ -4,7 +4,7 @@ Aseprite Automation (SPA) provides agent-facing automation for Aseprite. `SPA` i
 short project name used in documentation; `spa` is the primary executable.
 
 > [!IMPORTANT]
-> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery, Sprite creation, inspection, copy, resize, crop, flatten, and validation, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Tag inspection and authoring, Cel-targeted Image Resize, bounded Pixel Patch application, verified RGB PNG Image Export, animation audit, Frame comparison, and verified continuity Preview export. Feature issues own delivery contracts, evidence requirements, provenance links, curated evidence summaries, and status, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
+> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery, Sprite creation, inspection, copy, resize, crop, flatten, and validation, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Tag inspection and authoring, Cel-targeted Image resize, flip, and quarter-turn rotation, bounded Pixel Patch application, verified RGB PNG Image Export, animation audit, Frame comparison, and verified continuity Preview export. Feature issues own delivery contracts, evidence requirements, provenance links, curated evidence summaries, and status, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
 
 For a complete authoring example, see [Moonlit Spell Practice](examples/wizard_cast/README.md):
 a reproducible SPA wizard animation, reusable pixel assets, and a Godot target-practice demo.
@@ -147,6 +147,8 @@ uv run spa cel add --input-json '{"aseprite":"/path/to/aseprite","source_sprite_
 uv run spa cel clear --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"with-cel.aseprite","target_sprite_file":"cleared.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":2}}'
 uv run spa cel remove --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"cleared.aseprite","target_sprite_file":"without-cel.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":2}}'
 uv run spa image resize --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"resized-image.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":1},"width":32,"height":32,"method":"nearest-neighbor","position_policy":{"kind":"keep"}}'
+uv run spa image flip --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"flipped.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":1},"axis":"horizontal"}'
+uv run spa image rotate --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"rotated.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":1},"angle":90,"position_policy":{"kind":"pivot","pivot_x":1,"pivot_y":0}}'
 uv run spa layer list --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite"}'
 uv run spa layer get --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite","target":{"layer_path":[1]}}'
 uv run spa layer add --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"layered.aseprite","in_place":false,"overwrite":false,"kind":"group","name":"effects"}'
@@ -279,6 +281,35 @@ also requires `palette_frame_number` to select the Effective Palette; other
 Color Modes and methods reject that input. The operation transforms a source
 copy, preserves every native Cel link to the Image, applies one rounded offset
 to each affected Cel, and verifies the staged Sprite after save/reopen.
+
+`spa image flip` requires `axis: "horizontal"` or `"vertical"`. It flips the
+whole Image once, including pixels outside the current Selection, and preserves
+Image dimensions and every sharing Cel's placement. Cels on regular Transparent,
+Background, and Reference Layers are supported; Tilemap and absent Cels are rejected.
+
+`spa image rotate` accepts integer `angle: 90`, `-90`, or `180` on regular
+Transparent Layers only. It requires `position_policy: {"kind":"keep"}` or
+`{"kind":"pivot","pivot_x":1,"pivot_y":0}`. The pivot is a signed 32-bit
+integer point in the old Image Pixel space and may lie outside the Image.
+Rotation uses the following exact pixel mappings for old dimensions `W` by `H`:
+
+| Angle | Old `(x, y)` becomes | New dimensions |
+| --- | --- | --- |
+| `90` (clockwise) | `(H - 1 - y, x)` | `H` by `W` |
+| `-90` (counterclockwise) | `(y, W - 1 - x)` | `H` by `W` |
+| `180` | `(W - 1 - x, H - 1 - y)` | `W` by `H` |
+
+`keep` retains Cel placement. `pivot` maps the declared point by the same rule
+and applies `old_pivot - rotated_pivot` to every sharing Cel's Canvas Pixel
+position. There is no interpolation or rounding. A resulting Cel position outside
+the native signed 16-bit range is rejected before publication.
+The `image_rotate_position_out_of_bounds` failure reports the attempted Canvas
+Pixel position and the inclusive `allowed_minimum`/`allowed_maximum` for each axis.
+Both operations preserve stored pixel values, Color Mode, native links, Cel
+opacity and z-index, and unrelated Cels. Their results include before/after Image
+content digests, Image sizes, Canvas Pixel bounds and positions, affected Cel
+states and links, and verification of the staged file after save/reopen. They use
+the same explicit Source/Target publication intent as Image Resize.
 
 `spa tag list` and `spa tag get` inspect stored Tags with a one-based current
 `tag_index`. `get`, `set`, and `remove` accept exactly one of `tag_index` or
