@@ -327,8 +327,13 @@ requires the complete Image bounds and the same Color Mode, ignores editor Selec
 and preserves Cel geometry and native sharing. It supports regular Transparent,
 Background, and Reference Images; Background colors must remain opaque. The native
 file is saved and reopened before Target Commit, and any preservation failure blocks
-publication. In particular, Aseprite 1.3.18.5 batch saving can discard non-default
-Group opacity or Blend Mode; replacement refuses to publish such a lossy save.
+publication. Under [#20's current scope](https://github.com/aigengame/aseprite-automation/issues/20),
+replacement excludes Source documents with any Group whose opacity is not `255` or
+Blend Mode is not `NORMAL`. This includes hidden Groups and Groups outside the target
+Cel's ancestry, even for an unchanged Snapshot. Aseprite 1.3.18.5 batch saving loses
+these properties; replacement refuses publication and leaves Source and any existing
+Target unchanged. Image Get remains available under its own contract.
+[#117](https://github.com/aigengame/aseprite-automation/issues/117) tracks native save support.
 
 `spa tag list` and `spa tag get` inspect stored Tags with a one-based current
 `tag_index`. `get`, `set`, and `remove` accept exactly one of `tag_index` or

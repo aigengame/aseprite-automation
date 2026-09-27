@@ -469,7 +469,9 @@ def test_native_modes_preserve_stored_values_and_palette_basis(
         assert palettes == []
 
 
-@pytest.mark.parametrize("mode", ["rgb", "grayscale", "indexed", "linked"])
+@pytest.mark.parametrize(
+    "mode", ["rgb", "grayscale", "indexed", "linked", "default-group"]
+)
 def test_replace_roundtrips_exact_pixels_and_preserves_linked_geometry(
     tmp_path: Path, mode: str
 ) -> None:
@@ -855,19 +857,27 @@ def test_invalid_replacement_artifacts_leave_existing_target_unchanged(
     ]
 
 
+@pytest.mark.parametrize("mode", ["composition", "blend"])
+@pytest.mark.parametrize("in_place", [False, True])
 def test_replace_rejects_native_batch_group_metadata_loss_before_commit(
     tmp_path: Path,
+    mode: str,
+    in_place: bool,
 ) -> None:
-    source = _fixture(tmp_path, "composition")
+    source = _fixture(tmp_path, mode)
+    target = source if in_place else tmp_path / "existing.aseprite"
+    if not in_place:
+        target.write_bytes(source.read_bytes())
     original = source.read_bytes()
     code, before = _get(source, source=_individual())
     assert code == 0, before
     code, rejected = _replace(
-        source, source, before["snapshot"], in_place=True, overwrite=True
+        source, target, before["snapshot"], in_place=in_place, overwrite=True
     )
     assert code == 1 and rejected["code"] == "kernel_execution_failed", rejected
     assert "Image Replace" in json.dumps(rejected)
-    assert source.read_bytes() == original
+    assert source.read_bytes() == original == target.read_bytes()
+    assert set(tmp_path.iterdir()) == {source, target}
 
 
 def test_hidden_pixel_difference_is_observable_even_when_exported_pngs_match(

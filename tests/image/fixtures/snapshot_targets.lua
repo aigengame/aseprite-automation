@@ -50,7 +50,7 @@ elseif mode == "indexed-blend" or mode == "indexed-opacity" then
   pixels:putPixel(1, 1, 0)
   pixels:putPixel(3, 1, 3)
   sprite:newCel(child, 1, pixels)
-elseif mode == "blend" then
+elseif mode == "blend" or mode == "default-group" then
   layer.isVisible = true
   layer:cel(1).opacity = 255
   image:clear(app.pixelColor.rgba(200, 100, 50, 255))
