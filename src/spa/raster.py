@@ -5,6 +5,9 @@ from typing import Annotated, Literal
 from pydantic import Field, model_validator
 
 from spa.contracts import PublicModel
+from spa.ports import PackagedResource
+
+RASTER_COLOR_RESOURCE = PackagedResource("raster_color", "raster_color.lua")
 
 
 class RgbaColor(PublicModel):
@@ -34,6 +37,18 @@ ColorValue = Annotated[
 ]
 
 
+class PaletteIndexFact(PublicModel):
+    index: int = Field(ge=0, le=255)
+    color: RgbaColor
+
+
+class EffectivePaletteFact(PublicModel):
+    frame_number: int = Field(ge=1)
+    palette_frame_number: int = Field(ge=1)
+    palette_size: int = Field(ge=1)
+    indexes: list[PaletteIndexFact]
+
+
 class Point(PublicModel):
     x: int
     y: int
@@ -56,6 +71,42 @@ class Rectangle(Point, Size):
 class PositiveRectangle(Point):
     width: int = Field(ge=1)
     height: int = Field(ge=1)
+
+
+class SnapshotRun(PublicModel):
+    length: int = Field(ge=1)
+    color: ColorValue
+
+
+class PixelRegionSnapshot(PublicModel):
+    """Complete local Image Pixel coverage; source coverage is reported separately."""
+
+    coordinate_space: Literal["image-pixel"]
+    color_mode: Literal["rgb", "grayscale", "indexed"]
+    rectangle: PositiveRectangle
+    rows: list[list[SnapshotRun]]
+
+    @model_validator(mode="after")
+    def validate_canonical_rows(self) -> "PixelRegionSnapshot":
+        area = self.rectangle
+        if area.x != 0 or area.y != 0:
+            raise ValueError("Snapshot Rectangle must be rebased to (0,0)")
+        if len(self.rows) != area.height:
+            raise ValueError("Snapshot must contain exactly height rows")
+        kind = {"rgb": "rgba", "grayscale": "grayscale", "indexed": "palette-index"}[
+            self.color_mode
+        ]
+        for row in self.rows:
+            if sum(run.length for run in row) != area.width:
+                raise ValueError("Snapshot row must cover exactly width pixels")
+            previous = None
+            for run in row:
+                if run.color.kind != kind:
+                    raise ValueError("Snapshot Color Value does not match Color Mode")
+                if run.color == previous:
+                    raise ValueError("adjacent equal Snapshot runs must be merged")
+                previous = run.color
+        return self
 
 
 class PixelRun(Point):

@@ -67,6 +67,11 @@ for name in (
     "tag_support.lua",
     "tag_select.lua",
     "tag_get.lua",
+    "image_get.lua",
+    "image_replace.lua",
+    "image_snapshot.lua",
+    "layer_composition.lua",
+    "raster_color.lua",
     "export_image.lua",
     "export_image_support.lua",
 ):

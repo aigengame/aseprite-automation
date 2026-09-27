@@ -14,6 +14,7 @@ from spa.contracts import (
     RuntimeRequirements,
 )
 from spa.frame import FRAME_SUPPORT_RESOURCE
+from spa.image_snapshot import IMAGE_SNAPSHOT_OPERATIONS
 from spa.layer import LAYER_ADDRESS_FAILURE_CODES
 from spa.mutation import (
     TargetCommit,
@@ -835,6 +836,7 @@ IMAGE_OPERATIONS = (
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
     ),
+    *IMAGE_SNAPSHOT_OPERATIONS,
     OperationDescriptor(
         "image crop",
         ImageCropRequest,

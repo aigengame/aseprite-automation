@@ -129,6 +129,8 @@ class ArtifactFiles(Protocol):
 
     def normalize_destination(self, path: str) -> Path: ...
 
+    def read_input(self, path: Path) -> bytes: ...
+
     def ensure_source_separate(self, source: Path, destination: Path) -> None: ...
 
     def staged_path(self, destination: Path, *, if_exists: str) -> Path: ...
@@ -231,6 +233,7 @@ class TargetCommitEvidence:
 
 
 ArtifactFileFailureReason = Literal[
+    "input_file_unreadable",
     "source_destination_alias",
     "source_destination_identity_unverified",
     "destination_exists",

@@ -11,6 +11,10 @@ local cel_support = app.params.cel and dofile(app.params.cel) or nil
 local image_resize_transform = app.params.image_resize_transform
     and dofile(app.params.image_resize_transform)
   or nil
+local image_snapshot = app.params.image_snapshot and dofile(app.params.image_snapshot) or nil
+local layer_composition = app.params.layer_composition and dofile(app.params.layer_composition)
+  or nil
+local raster_color = dofile(app.params.raster_color)
 local image_orientation_transform = app.params.image_orientation_transform
     and dofile(app.params.image_orientation_transform)
   or nil
@@ -613,6 +617,76 @@ local function observes_tag_authoring()
   return ok
 end
 
+local function observes_image_snapshot()
+  if image_snapshot == nil or layer_composition == nil then return false end
+  local sprite = nil
+  local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
+  local ok = pcall(function()
+    for _, mode in ipairs({ ColorMode.RGB, ColorMode.GRAY, ColorMode.INDEXED }) do
+      sprite = Sprite(2, 1, mode)
+      local image = sprite.layers[1]:cel(1).image
+      local value = mode == ColorMode.RGB and app.pixelColor.rgba(1, 2, 3, 0)
+        or mode == ColorMode.GRAY and app.pixelColor.graya(7, 0)
+        or raster_color.native_color(
+          json.decode('{"kind":"palette-index","index":3}'),
+          "indexed",
+          false
+        )
+      image:putPixel(0, 0, value)
+      assert(image:getPixel(0, 0) == value)
+      local result = image_snapshot.read(image, { x = 0, y = 0, width = 1, height = 1 })
+      local color = result.rows[1][1].color
+      assert(color.red == 1 or color.gray == 7 or color.index == 3)
+      if mode == ColorMode.INDEXED then
+        sprite.transparentColor = 2
+        sprite.palettes[1]:setColor(3, Color { r = 12, g = 34, b = 56, a = 255 })
+        image:putPixel(1, 0, 2)
+        local rendered = assert(
+          layer_composition.render(
+            sprite,
+            1,
+            { mode = "visible" },
+            { x = 0, y = 0, width = 2, height = 1 },
+            layer_select,
+            {},
+            "rgb"
+          )
+        )
+        assert(rendered:getPixel(0, 0) == app.pixelColor.rgba(12, 34, 56, 255))
+        assert(rendered:getPixel(1, 0) == 0)
+        assert(image:getPixel(0, 0) == 3 and image:getPixel(1, 0) == 2)
+      end
+      sprite:close()
+      sprite = nil
+    end
+    sprite = Sprite(2, 2, ColorMode.RGB)
+    sprite.layers[1]:cel(1).image:putPixel(1, 1, app.pixelColor.rgba(255, 0, 0, 255))
+    sprite.layers[1].isVisible = false
+    local image = assert(
+      layer_composition.render(
+        sprite,
+        1,
+        { mode = "include", layers = { { layer_path = { 1 } } } },
+        { x = 1, y = 1, width = 1, height = 1 },
+        layer_select,
+        {},
+        "preserve"
+      )
+    )
+    assert(image:getPixel(0, 0) == app.pixelColor.rgba(255, 0, 0, 255))
+    assert(not sprite.layers[1].isVisible)
+    sprite:close()
+    sprite = nil
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
+  return ok
+end
+
 local function observes_image_flip()
   if image_orientation_transform == nil then return false end
   return pcall(function()
@@ -649,6 +723,7 @@ function module.observe()
     capabilities[#capabilities + 1] = "aseprite_image_canvas_transform"
   end
   if observes_image_resize() then capabilities[#capabilities + 1] = "aseprite_image_resize" end
+  if observes_image_snapshot() then capabilities[#capabilities + 1] = "aseprite_image_snapshot" end
   if observes_image_flip() then capabilities[#capabilities + 1] = "aseprite_image_flip" end
   if observes_image_rotate() then capabilities[#capabilities + 1] = "aseprite_image_rotate" end
   if observes_sprite_crop() then capabilities[#capabilities + 1] = "aseprite_sprite_crop" end

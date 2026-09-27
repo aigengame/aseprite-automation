@@ -36,6 +36,7 @@ from spa.descriptors import ACCESS_FAILURE_CODES, OPERATIONS
 from spa.export import ArtifactFileDetails, ArtifactVerificationDetails
 from spa.failure_registry import FAILURE_CODES
 from spa.image import ImageRotatePositionDetails
+from spa.image_snapshot import SnapshotDetails
 from spa.layer import LayerAddress, LayerTargetDetails
 from spa.mutation import TargetCommitDetails
 from spa.ports import (
@@ -167,6 +168,7 @@ def test_failure_construction_derives_category_and_refuses_mismatch() -> None:
 
 def test_each_registered_code_has_a_constrained_public_schema() -> None:
     details_by_type = {
+        SnapshotDetails: SnapshotDetails(reason="incompatible bounds"),
         RequestDetails: RequestDetails(errors=[]),
         NotFoundDetails: NotFoundDetails(requested_path=None, searched=[]),
         ResourceDetails: ResourceDetails(canonical_path="/aseprite", searched=[]),
