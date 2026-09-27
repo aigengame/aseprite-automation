@@ -1,37 +1,10 @@
 -- Paint-owned exact Pixel Patch semantics shared by the handler and capability probe.
 local module = {}
+local colors = dofile(app.params.raster_color)
 local max_patch_pixels = 256
 
-local function copy_color(color)
-  if color.kind == "rgba" then
-    return {
-      kind = "rgba",
-      red = color.red,
-      green = color.green,
-      blue = color.blue,
-      alpha = color.alpha,
-    }
-  elseif color.kind == "grayscale" then
-    return { kind = "grayscale", gray = color.gray, alpha = color.alpha }
-  end
-  return { kind = "palette-index", index = color.index }
-end
-
-local function colors_equal(left, right)
-  if left.kind ~= right.kind then return false end
-  if left.kind == "rgba" then
-    return left.red == right.red
-      and left.green == right.green
-      and left.blue == right.blue
-      and left.alpha == right.alpha
-  elseif left.kind == "grayscale" then
-    return left.gray == right.gray and left.alpha == right.alpha
-  end
-  return left.index == right.index
-end
-
 local function copy_run(run)
-  return { x = run.x, y = run.y, length = run.length, color = copy_color(run.color) }
+  return { x = run.x, y = run.y, length = run.length, color = colors.copy_color(run.color) }
 end
 
 local function copy_rectangle(rectangle)
@@ -138,42 +111,6 @@ function module.missing_target_cel(sprite, address)
   return image == nil
 end
 
-local function color_mode_name(sprite)
-  if sprite.colorMode == ColorMode.RGB then return "rgb" end
-  if sprite.colorMode == ColorMode.GRAY then return "grayscale" end
-  if sprite.colorMode == ColorMode.INDEXED then return "indexed" end
-  error("unsupported target Color Mode")
-end
-
-local function validate_byte(value, label)
-  assert(
-    type(value) == "number" and value % 1 == 0 and value >= 0 and value <= 255,
-    "invalid " .. label
-  )
-end
-
-local function native_color(color, color_mode, background)
-  assert(color ~= nil, "missing Color Value")
-  if color_mode == "rgb" then
-    assert(color.kind == "rgba", "RGB target requires rgba Color Values")
-    validate_byte(color.red, "red component")
-    validate_byte(color.green, "green component")
-    validate_byte(color.blue, "blue component")
-    validate_byte(color.alpha, "alpha component")
-    if background then assert(color.alpha == 255, "Background RGB write must be opaque") end
-    return app.pixelColor.rgba(color.red, color.green, color.blue, color.alpha)
-  elseif color_mode == "grayscale" then
-    assert(color.kind == "grayscale", "Grayscale target requires grayscale Color Values")
-    validate_byte(color.gray, "gray component")
-    validate_byte(color.alpha, "alpha component")
-    if background then assert(color.alpha == 255, "Background Grayscale write must be opaque") end
-    return app.pixelColor.graya(color.gray, color.alpha)
-  end
-  assert(color.kind == "palette-index", "Indexed target requires palette-index Color Values")
-  validate_byte(color.index, "Palette Index")
-  return color.index
-end
-
 local function validate_selection(selection)
   if selection == nil or selection.kind == "empty" then return end
   assert(selection.kind == "all" or selection.kind == "mask", "unsupported Selection Application")
@@ -270,12 +207,12 @@ local function append_segment(segments, x, y, color)
     previous ~= nil
     and previous.y == y
     and previous.x + previous.length == x
-    and colors_equal(previous.color, color)
+    and colors.colors_equal(previous.color, color)
   then
     previous.length = previous.length + 1
     return
   end
-  segments[#segments + 1] = { x = x, y = y, length = 1, color = copy_color(color) }
+  segments[#segments + 1] = { x = x, y = y, length = 1, color = colors.copy_color(color) }
 end
 
 local function collect_affected_cels(sprite, target_image)
@@ -312,62 +249,6 @@ local function collect_affected_cels(sprite, target_image)
   return result
 end
 
-local function effective_palette(sprite, frame_number)
-  local selected = nil
-  local selected_frame = -1
-  for palette_index = 1, #sprite.palettes do
-    local palette = sprite.palettes[palette_index]
-    local palette_frame = palette.frame.frameNumber
-    if palette_frame <= frame_number and palette_frame > selected_frame then
-      selected = palette
-      selected_frame = palette_frame
-    end
-  end
-  assert(selected ~= nil, "Indexed target has no Effective Palette")
-  return selected, selected_frame
-end
-
-local function palette_facts(sprite, affected_cels, used_indexes)
-  if sprite.colorMode ~= ColorMode.INDEXED then return {} end
-  local frames = {}
-  for _, cel in ipairs(affected_cels) do
-    frames[cel.frame_number] = true
-  end
-  local frame_numbers = {}
-  for frame_number, _ in pairs(frames) do
-    frame_numbers[#frame_numbers + 1] = frame_number
-  end
-  table.sort(frame_numbers)
-  local indexes = {}
-  for index, _ in pairs(used_indexes) do
-    indexes[#indexes + 1] = index
-  end
-  table.sort(indexes)
-  local result = {}
-  for _, frame_number in ipairs(frame_numbers) do
-    local palette, palette_frame = effective_palette(sprite, frame_number)
-    local index_facts = {}
-    for _, index in ipairs(indexes) do
-      assert(
-        index < #palette,
-        "Palette Index does not exist in every affected Cel Frame Effective Palette"
-      )
-      local color = palette:getColor(index)
-      index_facts[#index_facts + 1] = {
-        index = index,
-        color = { red = color.red, green = color.green, blue = color.blue, alpha = color.alpha },
-      }
-    end
-    result[#result + 1] = {
-      frame_number = frame_number,
-      palette_frame_number = palette_frame,
-      palette_size = #palette,
-      indexes = index_facts,
-    }
-  end
-  return result
-end
-
 local function background_is_opaque(sprite, image, color_mode, layer, affected_cels)
   if not layer.isBackground then return false end
   if color_mode == "indexed" then
@@ -382,7 +263,7 @@ local function background_is_opaque(sprite, image, color_mode, layer, affected_c
         not checked_frames[frame_number]
         and resolve_layer(sprite, cel.layer_path).isBackground
       then
-        local palette = effective_palette(sprite, frame_number)
+        local palette = colors.effective_palette(sprite, frame_number)
         for index, _ in pairs(indexes) do
           if index >= #palette or palette:getColor(index).alpha ~= 255 then return false end
         end
@@ -418,7 +299,7 @@ local function validate_reopened(
   digest
 )
   local layer, _, image = resolve_target(sprite, payload.target)
-  assert(color_mode_name(sprite) == evidence.color_mode, "persisted Color Mode changed")
+  assert(colors.color_mode_name(sprite) == evidence.color_mode, "persisted Color Mode changed")
   assert(
     sprite.width == expected_geometry.sprite_width
       and sprite.height == expected_geometry.sprite_height
@@ -494,7 +375,7 @@ function module.apply_live(sprite, payload, digest)
   validate_selection(payload.selection)
 
   local layer, cel, image = resolve_target(sprite, payload.target)
-  local color_mode = color_mode_name(sprite)
+  local color_mode = colors.color_mode_name(sprite)
   local rectangle_in_bounds = requested_rectangle.x >= 0
     and requested_rectangle.y >= 0
     and requested_rectangle.x + requested_rectangle.width <= image.width
@@ -547,11 +428,11 @@ function module.apply_live(sprite, payload, digest)
     )
     if previous_y == run.y and run.x == previous_end then
       assert(
-        not colors_equal(previous_color, run.color),
+        not colors.colors_equal(previous_color, run.color),
         "adjacent equal Pixel Patch runs must be merged"
       )
     end
-    local native = native_color(run.color, color_mode, layer.isBackground)
+    local native = colors.native_color(run.color, color_mode, layer.isBackground)
     if color_mode == "indexed" then used_indexes[run.color.index] = true end
     requested_runs[#requested_runs + 1] = copy_run(run)
     pixels_requested = pixels_requested + run.length
@@ -587,7 +468,7 @@ function module.apply_live(sprite, payload, digest)
     end
     previous_y, previous_end, previous_color = run.y, run.x + run.length, run.color
   end
-  local effective_palettes = palette_facts(sprite, affected_cels, used_indexes)
+  local effective_palettes = colors.palette_facts(sprite, affected_cels, used_indexes)
   local pixels_changed = 0
   app.transaction("Apply Pixel Patch", function()
     for _, write in ipairs(plan) do
