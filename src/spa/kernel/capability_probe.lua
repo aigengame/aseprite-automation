@@ -480,6 +480,47 @@ local function observes_sprite_resize()
   return ok
 end
 
+local function observes_image_canvas_transform()
+  if app.params.image_canvas_transform == nil then return false end
+  return pcall(function()
+    local transform = dofile(app.params.image_canvas_transform)
+    local source = Image(2, 2, ColorMode.RGB)
+    local pixel = app.pixelColor.rgba(10, 20, 30, 0)
+    source:putPixel(1, 0, pixel)
+    local cropped = transform.crop(source, { x = 1, y = 0, width = 1, height = 2 })
+    assert(cropped.width == 1 and cropped.height == 2)
+    assert(cropped:getPixel(0, 0) == pixel and source:getPixel(1, 0) == pixel)
+    local shifted = transform.canvas_resize(
+      source,
+      3,
+      3,
+      { x = -1, y = 1 },
+      { kind = "rgba", red = 0, green = 255, blue = 0, alpha = 255 }
+    )
+    assert(shifted:getPixel(0, 1) == pixel)
+    assert(shifted:getPixel(2, 2) == app.pixelColor.rgba(0, 255, 0, 255))
+    local gray = transform.canvas_resize(
+      Image(1, 1, ColorMode.GRAY),
+      2,
+      1,
+      { x = 2, y = 0 },
+      { kind = "grayscale", gray = 73, alpha = 0 }
+    )
+    assert(gray:getPixel(0, 0) == app.pixelColor.graya(73, 0))
+    local indexed = Image(
+      ImageSpec { width = 1, height = 1, colorMode = ColorMode.INDEXED, transparentColor = 2 }
+    )
+    local filled = transform.canvas_resize(
+      indexed,
+      2,
+      1,
+      { x = -1, y = 0 },
+      json.decode('{"kind":"palette-index","index":2}')
+    )
+    assert(filled:getPixel(0, 0) == 2 and filled.spec.transparentColor == 2)
+  end)
+end
+
 local function observes_image_resize()
   if image_resize_transform == nil then return false end
   local sprite = nil
@@ -604,6 +645,9 @@ function module.observe()
   if supports_inspection then capabilities[#capabilities + 1] = "aseprite_sprite_inspection" end
   if observes_sprite_flatten() then capabilities[#capabilities + 1] = "aseprite_sprite_flatten" end
   if observes_sprite_resize() then capabilities[#capabilities + 1] = "aseprite_sprite_resize" end
+  if observes_image_canvas_transform() then
+    capabilities[#capabilities + 1] = "aseprite_image_canvas_transform"
+  end
   if observes_image_resize() then capabilities[#capabilities + 1] = "aseprite_image_resize" end
   if observes_image_flip() then capabilities[#capabilities + 1] = "aseprite_image_flip" end
   if observes_image_rotate() then capabilities[#capabilities + 1] = "aseprite_image_rotate" end

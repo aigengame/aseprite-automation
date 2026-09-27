@@ -4,7 +4,7 @@ Aseprite Automation (SPA) provides agent-facing automation for Aseprite. `SPA` i
 short project name used in documentation; `spa` is the primary executable.
 
 > [!IMPORTANT]
-> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery, Sprite creation, inspection, copy, resize, crop, flatten, and validation, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Tag inspection and authoring, Cel-targeted Image resize, flip, and quarter-turn rotation, bounded Pixel Patch application, verified RGB PNG Image Export, animation audit, Frame comparison, and verified continuity Preview export. Feature issues own delivery contracts, evidence requirements, provenance links, curated evidence summaries, and status, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
+> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery, Sprite creation, inspection, copy, resize, crop, flatten, and validation, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Tag inspection and authoring, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, bounded Pixel Patch application, verified RGB PNG Image Export, animation audit, Frame comparison, and verified continuity Preview export. Feature issues own delivery contracts, evidence requirements, provenance links, curated evidence summaries, and status, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
 
 For a complete authoring example, see [Moonlit Spell Practice](examples/wizard_cast/README.md):
 a reproducible SPA wizard animation, reusable pixel assets, and a Godot target-practice demo.
@@ -281,6 +281,37 @@ also requires `palette_frame_number` to select the Effective Palette; other
 Color Modes and methods reject that input. The operation transforms a source
 copy, preserves every native Cel link to the Image, applies one rounded offset
 to each affected Cel, and verifies the staged Sprite after save/reopen.
+
+`spa image crop` requires a positive `rectangle` fully contained in the source
+Image. `coordinate_space` is `image-pixel`; the Rectangle uses source Image Pixel
+coordinates. `position_policy` is required: `preserve_canvas_pixels` adds the
+Rectangle origin to every sharing Cel position, while `keep_cel_position` keeps
+the Cel origin. Crop never pads or expands an Image.
+
+`spa image canvas-resize` requires exact positive `width` and `height`, an integer
+`offset`, an explicit mode-compatible `fill` Color Value, and
+`coordinate_space: "image-pixel"`. The offset places source Image Pixel `(0,0)` in
+the target Image Pixel space. Stored pixels copy 1:1; pixels outside the target
+are discarded, and uncovered pixels keep the fill. An empty intersection is a
+valid fill-only result. Indexed fill must name an existing Palette Index in every
+sharing Cel's Effective Palette. No implicit color conversion or compositing occurs.
+Its required `position_policy` is `keep_cel_position` or `preserve_source_canvas`;
+the latter subtracts the offset from every sharing Cel position.
+
+Both Operations preserve links and change the Image and all affected Cel positions
+as one Mutation. They reject absent Cels, Group, Background, Reference, and Tilemap
+Layers. Dimensions are 1–65535; request coordinates and offsets are signed 32-bit
+integers. A resulting Cel position outside the native signed 16-bit range is refused.
+Results report source/target bounds, copied rectangles, discarded source regions,
+uncovered target regions, native content digests, and every affected Cel's old/new
+Canvas Pixel positions and Image dimensions. Empty intersections are reported as
+`{x:0,y:0,width:0,height:0}` in each Image Pixel space. Save/reopen verification runs
+before Target Commit; the Sprite canvas size is unchanged.
+
+```sh
+uv run spa image crop --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"cropped-image.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":1},"coordinate_space":"image-pixel","rectangle":{"x":1,"y":1,"width":8,"height":8},"position_policy":"preserve_canvas_pixels"}'
+uv run spa image canvas-resize --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"padded-image.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":1},"coordinate_space":"image-pixel","width":32,"height":32,"offset":{"x":4,"y":4},"fill":{"kind":"rgba","red":0,"green":0,"blue":0,"alpha":0},"position_policy":"preserve_source_canvas"}'
+```
 
 `spa image flip` requires `axis: "horizontal"` or `"vertical"`. It flips the
 whole Image once, including pixels outside the current Selection, and preserves

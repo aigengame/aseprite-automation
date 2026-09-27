@@ -50,6 +50,27 @@ class _TargetFiles:
             {"code": [], "message": "malformed code"},
         ),
         (
+            "image crop",
+            {
+                "coordinate_space": "image-pixel",
+                "rectangle": {"x": 0, "y": 0, "width": 1, "height": 1},
+                "position_policy": "keep_cel_position",
+            },
+            {"code": [], "message": "malformed code"},
+        ),
+        (
+            "image canvas-resize",
+            {
+                "coordinate_space": "image-pixel",
+                "width": 4,
+                "height": 4,
+                "offset": {"x": 1, "y": 1},
+                "fill": {"kind": "rgba", "red": 0, "green": 0, "blue": 0, "alpha": 0},
+                "position_policy": "keep_cel_position",
+            },
+            {"code": [], "message": "malformed code"},
+        ),
+        (
             "image rotate",
             {"angle": 90},
             {"code": "image_rotate_position_out_of_bounds", "message": "missing facts"},
@@ -87,6 +108,7 @@ def test_malformed_rejection_uses_failure_envelope(
         verified_prerequisites=("aseprite_scripting", "lua_file_io", "aseprite_json"),
         verified_capabilities=(
             "aseprite_image_resize",
+            "aseprite_image_canvas_transform",
             "aseprite_image_rotate",
             "aseprite_cel_lifecycle",
             "aseprite_cel_relationships",
