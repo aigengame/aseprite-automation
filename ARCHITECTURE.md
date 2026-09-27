@@ -23,6 +23,11 @@ this view instead of treating it as another decision authority.
 > issues own delivery status, while the installed Surface Manifest reports the callable
 > surface of each installation.
 
+Asset Preparation and reusable Bounded Motion Authoring are accepted ownership areas
+under ADR-0095, with feature contracts still to be delivered. The wizard examples use
+example-owned preparation and motion code; they do not add these capabilities to the
+installed CLI. Asset Delivery reuses the existing export implementations.
+
 The document evolves with the product. An accepted change to the Bounded Context,
 module ownership, public contract, execution model, or integration boundary must be
 reflected here after its owning artifact changes.
@@ -46,7 +51,7 @@ flowchart TB
         direction TB
         Access["Access Projection<br/>Agent Skill · planned MCP Adapter · spa CLI"]
         Access --> App[Application use cases]
-        App --> Core[Core Domain responsibilities]
+        App --> Core[Core and Supporting domain responsibilities]
         App --> Runtime["Aseprite Runtime<br/>Integration"]
         App --> Files["File Adapter and<br/>Artifact Verifiers"]
         Core -. packaged handler binding .-> Kernel[Lua Operation Kernel]
@@ -105,8 +110,9 @@ The architecture responds to six product needs:
    and installed support must have typed and discoverable representations.
 5. **Verifiable persistence.** A process exit is not sufficient evidence. Mutated
    Sprites and exported Artifacts must be staged, inspected, and reported truthfully.
-6. **Incremental product growth.** Core functional slices lead architecture growth.
-   Supporting and Generic mechanisms grow when delivered capabilities require them.
+6. **Incremental product growth.** Sprite Authoring is the modeling focus. Accepted
+   preparation and delivery needs guide bounded Supporting slices; Generic mechanisms
+   grow only when these functional capabilities require them.
 
 These drivers come from the
 [umbrella product requirements document (PRD)](https://github.com/aigengame/aseprite-automation/issues/1),
@@ -117,9 +123,10 @@ the [Ubiquitous Language and context model](CONTEXT.md), and the
 
 ### One Bounded Context
 
-SPA has one **Sprite Automation Bounded Context**. Creation, editing, inspection,
-validation, conversion, and export use the same Aseprite object model and the same
-agent-facing automation contract. CLI, MCP, Agent Skill, validation, export, runtime
+SPA has one **Sprite Automation Bounded Context**. Explicit raster preparation,
+creation, editing, inspection, validation, conversion, and export share the same
+agent-facing automation language, with Aseprite as the native semantic authority.
+CLI, MCP, Agent Skill, validation, export, runtime
 integration, and the Lua Operation Kernel are modules or adapters inside this context;
 they are not separate Bounded Contexts.
 
@@ -131,8 +138,10 @@ contract. [`CONTEXT.md`](CONTEXT.md#ubiquitous-language) is the terminology auth
 
 | Subdomain | Classification | Responsibility | Investment rule |
 | --- | --- | --- | --- |
-| Sprite Automation | Core Domain | Agent-facing Aseprite creation, editing, inspection, validation, conversion, export, control, composition, and feedback. | Highest priority; deepen through functional vertical slices. |
-| Aseprite Runtime Integration | Supporting | Runtime and resource discovery, process execution, Kernel transport, diagnostics, and native integration facts. | Grow from Core Domain needs and observed runtime variation. |
+| Sprite Authoring | Core Domain | Verifiable Sprite and animation creation, editing, composition, observation, and validation, including bounded Frame/Cel motion. | Highest modeling priority; retain static Sprite capabilities and native semantic owners. |
+| Asset Preparation | Supporting | Explicit preparation policy, geometry and anchors, Frozen Input and Prepared Raster facts. | Deliver bounded needs from real inputs; compose existing Image and color rules. |
+| Asset Delivery | Supporting | Existing export capabilities, declared destination sets, verified Artifacts, and publication outcomes. | Extend formats and consumer needs through gated slices; retain all publication guarantees. |
+| Aseprite Runtime Integration | Supporting | Runtime and resource discovery, process execution, Kernel transport, diagnostics, and native integration facts. | Grow from accepted domain capabilities and observed runtime variation. |
 | Access Projection | Supporting | CLI presentation, Agent Skill guidance, and MCP projection from one operation surface. | Preserve contract equivalence; do not create a second capability model. |
 | Asset Pipeline Integration | Supporting | Maintain the public SPA boundary used by the downstream-owned Anti-Corruption Layer. | Follow the stable integration commitment without adopting experimental pipeline internals. |
 | Serialization, filesystem, and utilities | Generic | Domain-neutral mechanics required by accepted Operations. Aseprite process execution and policy remain Runtime Integration. | Use proportionate solutions; no independent platform roadmap. |
@@ -169,6 +178,25 @@ flowchart TB
   not claim Godot import, runtime, gameplay, or player acceptance.
 - **Callers own cross-Sprite workflows.** Aggregation, retry, installation, and project
   acceptance remain outside one SPA Operation or Operation Plan.
+- **Artists and generation tools supply selected inputs.** SPA can prepare those
+  inputs under an accepted contract. Concept selection, missing poses, art direction,
+  and final visual acceptance remain caller responsibilities.
+
+The following graph shows workflow data handoff, not source dependencies or a required
+execution sequence. A caller can resume from a Frozen Input or saved Sprite and invoke
+only the capabilities needed for a revision.
+
+```mermaid
+flowchart LR
+    Inputs[Selected generated or human raster inputs] --> Preparation
+    Recipe[Artwork Recipe] --> Authoring
+    subgraph SPA[Sprite Automation Bounded Context]
+        Preparation[Asset Preparation] -->|Prepared Raster and anchor facts| Authoring[Sprite Authoring]
+        Authoring -->|persisted and verified Sprite| Delivery[Asset Delivery]
+    end
+    Delivery -->|verified Artifacts| ACL[Downstream ACL]
+    ACL --> Godot[gda and Godot consumer]
+```
 
 ### Selective use of DDD building blocks
 
@@ -183,7 +211,7 @@ reproduce a pattern catalog.
 | Value Object | Represents explicit values such as Color Value, Selection, Coordinate Space, Pixel Region Snapshot, Tile Placement, and Artifact facts. |
 | Application use case | Coordinates work that has no natural native Aseprite object owner, such as Operation Plan execution and publication. |
 | Open Host Service and Published Language | Exposes the public `spa` CLI JSON contract and its schemas to agents and downstream consumers. |
-| Anti-Corruption Layer | Belongs to the Asset Pipeline and prevents pipeline models from entering SPA. |
+| Anti-Corruption Layer | Translates different external semantic models. The downstream-owned Asset Pipeline ACL is the established integration boundary; internal SPA modules use shared language and directed contracts. |
 
 SPA does not introduce a database Repository, an event-sourced Aggregate, or a global
 event bus. The current product operates on Aseprite documents and local files through
@@ -199,7 +227,7 @@ define a module boundary.
 flowchart TB
     Access["Access Projection<br/>CLI and MCP are sibling inbound adapters<br/>Agent Skill guides the installed surface"]
     Application["Application<br/>Dispatch · Preflight · Plan · Target Commit<br/>Per-module Operation Descriptors"]
-    Core["Core Domain<br/>Domain Modules and their packaged handlers<br/>Shared Lua Operation Kernel"]
+    Core["Domain rules<br/>Core and Supporting Domain Modules<br/>Applicable packaged Lua handlers"]
     Ports[Inner-owned ports]
     Outbound["Outbound adapters<br/>Aseprite Adapter · File Adapter<br/>Format-specific Artifact Verifiers"]
 
@@ -243,6 +271,11 @@ the handlers through Aseprite without acquiring their semantics. Bootstrap is th
 composition root that alone knows and binds concrete Access, Application, and Outbound
 implementations.
 
+Ordinary Core Operation and Core Operation Semantics are the established execution
+terms from ADR-0010. They apply to native Operations in Core and Supporting Subdomains;
+they do not classify the owning Subdomain. Preparation can also contain wholly
+Application-owned use cases whose non-native facts do not need a Lua handler.
+
 The diagram is a responsibility map, not a required directory tree. Physical packages
 will follow demonstrated change clusters as vertical slices are implemented.
 
@@ -270,9 +303,9 @@ Python framework or packaging tool.
 
 ## Module responsibilities
 
-### Core Domain ownership view
+### Domain ownership view
 
-The current view groups Core Domain responsibility into five cohesive areas. They guide
+The current view groups Core and Supporting domain rules into cohesive areas. They guide
 feature ownership and can become Domain Modules as implementation evidence confirms
 their change boundaries. The delivered `spa.sprite` vertical slice owns Sprite creation,
 structural inspection, byte-preserving copy, native resize and crop, native flattening,
@@ -282,7 +315,7 @@ addressing and mutation;
 inspection and authoring; `spa.cel` owns Cel existence, inspection, and lifecycle,
 while `spa.cel_relationship` owns Cel placement, opacity, z-index, and native
 copy/link/unlink mutations; `spa.animation` owns declared animation audit,
-full-Canvas Frame comparison, and continuity Preview export.
+full-Canvas Frame comparison, and the composed continuity Preview use case.
 The delivered `spa.image` slice owns Cel-targeted Image Resize and its explicit
 placement policy; its fixed Lua Image Resize Transform owns buffer scaling and
 can be reused by eligible Tile Bitmap authoring. `spa.paint` owns exact Pixel
@@ -295,17 +328,77 @@ than a frozen package graph.
 
 | Responsibility area | Owns | Important boundary |
 | --- | --- | --- |
+| Asset Preparation (Supporting) | Preparation Specification, explicit geometry and Input Anchor treatment, Frozen Input checks, and Prepared Raster facts. | Selects and composes accepted raster/color transformations; import into a native document remains Raster Authoring. Generation and art choices remain external. |
 | Document and Animation | Sprite; shared Layer, Frame, and Cel identity, addressing, hierarchy, and existence contracts; feature-declared general Layer/Cel Operations; Tag, Slice, timing, and animation Operations. | It does not claim Tilemap Layer creation and binding or Tilemap Cel/Image content; specialized tile variants depend one-way on the shared contracts. |
 | Raster Authoring | Shared Color Value semantics, Image observation and transforms, Pixel Region Snapshot and Pixel Patch exchange, Selection value operations, Paint intent, native Tool invocation, native Filters, external raster import, and evidence-gated text rasterization. | Image, Paint, and Filter remain distinct operation families while sharing one pixel and target authority. |
 | Color and Palette | Palette Change and Effective Palette behavior, quantization, Color Mode changes, Color Profile assignment/conversion, and Dithering choices. | Preserves native distinctions and makes result-affecting choices explicit. It does not implement a second color engine. |
 | Tile Authoring | Grid, Tileset, Tile, Tile Key, Tilemap, Tile Placement, Tilemap Layer creation and binding, Tilemap Cel/Image content, bounded region exchange, and established Tileset-coupled lifecycle variants. | Reuses shared Layer/Cel contracts without duplicating them; support for other Layer/Cel variants remains with the owning feature issue until delivered. |
-| Delivery | Static image, animation, sheet, Tileset, preview, and metadata Export Operations with declared destinations and verified Artifacts. | Aseprite renders and encodes; SPA stages, validates, publishes, and reports the complete declared output set. |
+| Asset Delivery (Supporting) | Static image, animation, sheet, Tileset, preview, and metadata export contracts with declared destinations and verified Artifacts. | Aseprite renders and encodes; SPA stages, validates, publishes, and reports the complete declared output set. Concept-specific meaning stays with its native owner. |
+
+Document and Animation, Raster Authoring, Color and Palette, and Tile Authoring form
+the Sprite Authoring Core. Bounded Motion Authoring belongs to Document and Animation;
+the planned [#104](https://github.com/aigengame/aseprite-automation/issues/104) slice
+applies position offsets and opacity keys to existing per-Frame Cels, preserving each
+Frame's artwork. It owns explicit sampling, interpolation, rounding, and standalone/Plan
+semantics. Further motion modes need their own accepted scope and native evidence.
+
+The planned [#103](https://github.com/aigengame/aseprite-automation/issues/103) preparation
+slice normalizes inputs to sRGB before applying the caller's palette. It composes native
+Color Profile assignment/conversion from #34 with the shared Image and Color Mode
+capabilities. The issue owns the current input/output matrix, assumptions, and rejection
+rules; this view does not establish installed support.
+
+Animation comparison and continuity inspection have a Document and Animation owner;
+the Preview Artifact has Asset Delivery export and publication guarantees. The current
+`spa.animation` use case composes these responsibilities with existing export support.
+The same distinction applies when a domain-specific observation produces an Artifact:
+the observed concept retains its semantic owner. No duplicate exporter or verifier is
+introduced by the strategic classification.
 
 An Operation that spans modules is coordinated by Application through public contracts.
 Module dependencies must remain acyclic, but this document does not freeze a complete
-intra-Core dependency graph before implementation supplies real change and reuse
+intra-domain dependency graph before implementation supplies real change and reuse
 evidence. Each delivered slice records the owner of a shared value or rule and adds a
 one-way dependency to that owner rather than copying the knowledge.
+
+For the accepted preparation and authoring direction:
+
+- Preparation use cases depend on the public contracts of the Image and Color/Palette
+  capabilities they compose. Those semantic owners do not depend on preparation policy.
+- Motion use cases depend on Frame/Cel contracts. Primitive rules do not depend on an
+  Artwork Recipe or its wizard-specific choices.
+- Delivery use cases consume observation, rendering, and transformation contracts;
+  they do not make the underlying native rules depend on output naming or file roles.
+- Shared publication and filesystem mechanisms expose inner-owned ports. Cross-owner
+  use cases coordinate explicitly; a helper's current file does not justify reciprocal
+  module imports.
+- Production code never imports an example. An external model adapter can depend on
+  SPA contracts; core rules do not import a generation provider or Godot model.
+
+### Incremental physical modules
+
+Preserve the current compact vertical slices. The following names are implementation
+candidates for the accepted owners, not a package migration or callable surface:
+
+```text
+src/spa/
+  preparation.py          # candidate: preparation policy and result use cases
+  motion.py               # candidate: bounded Frame/Cel motion authoring
+  animation.py            # existing audit, comparison, and composed Preview use case
+  frame.py, cel.py, cel_relationship.py
+  image.py, paint.py, raster.py
+  export.py               # existing Delivery and publication support
+  application.py, plan.py, mutation.py, ports.py
+  file_adapter.py
+  runtime/                # process and transport mechanisms
+  kernel/                 # fixed native semantic handlers and shared owners
+```
+
+Add a module only with a complete functional slice. Color/Palette and other planned
+owners gain their physical structure when their features arrive. Reuse the canonical
+Pixel Region Snapshot and Color Value contracts where applicable; do not promote the
+wizard's temporary PNG decoder, palette matcher, or batching adapter as a second pixel
+authority. Exact preparation formats and dependencies remain feature decisions.
 
 Inspection and Validation stay with the module that owns the inspected concept. They do
 not form a horizontal subsystem. Selection authoring stays adjacent to Raster Authoring
@@ -501,9 +594,10 @@ functional slice that creates them.
 
 ### Asset Pipeline boundary
 
-SPA owns Aseprite and sprite-asset semantics. The downstream Asset Pipeline owns
-workflow order, concept/reference handoff, file roles, installation, retry, and project
-acceptance. Its Anti-Corruption Layer calls the public `spa` CLI JSON contract and translates the
+SPA owns accepted raster preparation, Aseprite authoring, and asset delivery facts.
+The caller or downstream Asset Pipeline owns art-input selection, cross-tool and
+cross-Sprite workflow order, mapping SPA Artifact roles to project roles, installation,
+retry, and project acceptance. Its Anti-Corruption Layer calls the public `spa` CLI JSON contract and translates the
 result into pipeline concepts. This commitment remains stable while the pipeline's
 experimental commands and tactical types evolve.
 
@@ -670,7 +764,7 @@ installation. It provides functional control appropriate to that environment:
 
 These mechanisms serve sprite Operations. They do not establish authentication,
 authorization, multi-tenant isolation, distributed locking, service governance,
-persistent provenance, or generalized recovery. Caller-owned Lua is unrestricted and
+persistent provenance services, or generalized recovery. Caller-owned Lua is unrestricted and
 does not carry a sandbox claim.
 
 ## Architecture evolution
@@ -681,6 +775,14 @@ observation, validation, delivery, agent access, and Asset Pipeline integration.
 Feature issues own the exact scope and explicit dependencies of those slices.
 Milestones group phase outcomes, and explicit issue dependencies determine implementation
 order.
+
+ADR-0095 adds preparation and reusable motion as bounded follow-up work and reclassifies
+existing Delivery. Issues #103/#104 own the accepted planned contracts; reusable
+implementation remains unverified until those features validate distinct inputs. Existing
+Image observation/import and export issues retain their scope. The examples' measured
+persisted-write cost motivates a separate Plan-eligibility slice; an architecture
+label alone establishes no speedup. These follow-ups do not add acceptance gates to
+the completed implementation scope of either wizard example.
 
 [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) defines the update order and the owner of
 each changed fact. This document changes after the applicable normative source changes
@@ -698,7 +800,7 @@ This map is navigation, not a second decision record.
 
 | Concern | Decisions |
 | --- | --- |
-| Strategic-context decisions and rationale; current model in `CONTEXT.md` | [ADR-0001](docs/adr/0001-single-sprite-automation-context.md), [ADR-0007](docs/adr/0007-demand-driven-nfrs.md), [ADR-0009](docs/adr/0009-command-groups-and-domain-modules.md) |
+| Strategic-context decisions and rationale; current model in `CONTEXT.md` | [ADR-0001](docs/adr/0001-single-sprite-automation-context.md), [ADR-0007](docs/adr/0007-demand-driven-nfrs.md), [ADR-0009](docs/adr/0009-command-groups-and-domain-modules.md), [ADR-0095](docs/adr/0095-asset-preparation-authoring-and-delivery.md) |
 | Operation contract, Plan, targets, limits, and outcomes | [ADR-0002](docs/adr/0002-operation-descriptor-authority.md), [ADR-0003](docs/adr/0003-operation-plan-boundary.md), [ADR-0006](docs/adr/0006-operation-targets-and-identity.md), [ADR-0008](docs/adr/0008-operation-owned-bounds.md), [ADR-0013](docs/adr/0013-result-and-failure-contract.md) |
 | Kernel authority and mutation publication | [ADR-0010](docs/adr/0010-lua-operation-kernel-authority.md), [ADR-0014](docs/adr/0014-mutation-file-semantics.md) |
 | Document, animation, color, and selection semantics | [ADR-0021](docs/adr/0021-frame-numbering.md), [ADR-0024](docs/adr/0024-color-values-and-conversion.md), [ADR-0025](docs/adr/0025-coordinate-spaces-and-rectangles.md), [ADR-0028](docs/adr/0028-background-layer-and-cels.md), [ADR-0029](docs/adr/0029-selection-as-explicit-value.md), [ADR-0033](docs/adr/0033-tag-playback-semantics.md), [ADR-0035](docs/adr/0035-palette-time-semantics.md), [ADR-0039](docs/adr/0039-slice-model-and-addressing.md) |

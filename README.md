@@ -87,6 +87,14 @@ installed Surface Manifest reports callable facts for one installation. See
 
 ## Technical Architecture
 
+The accepted domain strategy separates **Sprite Authoring** (Core), **Asset
+Preparation** (Supporting), and **Asset Delivery** (Supporting) within one context.
+Reusable motion belongs to authoring; native save remains part of mutation completion.
+Preparation and motion feature contracts are planned, while Asset Delivery reuses
+existing exports. See [domain ownership](ARCHITECTURE.md#domain-ownership-view) and
+[ADR-0095](docs/adr/0095-asset-preparation-authoring-and-delivery.md); the installed
+Surface Manifest remains the source for callable capabilities.
+
 SPA uses one **Sprite Automation** Bounded Context. Operation Descriptors project one
 Published Language to the CLI, Agent Skill, MCP, and installed Surface Manifest.
 Application use cases coordinate Domain Modules, an external Aseprite process, staged
