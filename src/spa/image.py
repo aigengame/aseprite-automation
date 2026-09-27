@@ -1,9 +1,10 @@
-"""Cel-targeted Image Resize with independent placement policy."""
+"""Cel-targeted Image transforms with explicit placement and verified publication."""
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Self
 
-from pydantic import Field, ValidationError, field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from spa.cel import CelAddress, CelTargetDetails, _reject
 from spa.contracts import (
@@ -66,17 +67,12 @@ class PivotPosition(PublicModel):
 PositionPolicy = Annotated[KeepPosition | PivotPosition, Field(discriminator="kind")]
 
 
-class ImageResizeRequest(RuntimeRequest):
+class _ImageMutationRequest(RuntimeRequest):
     source_sprite_file: str = Field(min_length=1)
     target_sprite_file: str = Field(min_length=1)
     in_place: bool
     overwrite: bool
     target: CelAddress
-    width: int = Field(ge=1, le=65535, strict=True)
-    height: int = Field(ge=1, le=65535, strict=True)
-    method: ResizeMethod
-    position_policy: PositionPolicy
-    palette_frame_number: int | None = Field(default=None, ge=1, strict=True)
 
     _validate_source = field_validator("source_sprite_file")(
         validate_native_sprite_path
@@ -86,8 +82,20 @@ class ImageResizeRequest(RuntimeRequest):
     )
 
     @model_validator(mode="after")
-    def validate_intent(self) -> "ImageResizeRequest":
+    def validate_publication_intent(self) -> Self:
         require_overwrite_for_in_place(self.in_place, self.overwrite)
+        return self
+
+
+class ImageResizeRequest(_ImageMutationRequest):
+    width: int = Field(ge=1, le=65535, strict=True)
+    height: int = Field(ge=1, le=65535, strict=True)
+    method: ResizeMethod
+    position_policy: PositionPolicy
+    palette_frame_number: int | None = Field(default=None, ge=1, strict=True)
+
+    @model_validator(mode="after")
+    def validate_intent(self) -> "ImageResizeRequest":
         if self.method != "bilinear" and self.palette_frame_number is not None:
             raise ValueError("palette_frame_number is only valid for bilinear")
         return self
@@ -109,14 +117,28 @@ class EffectivePaletteBasis(PublicModel):
 class AffectedImageCel(PublicModel):
     layer_path: list[int] = Field(min_length=1)
     frame_number: int = Field(ge=1)
-    before_position: Point
-    after_position: Point
+    before_position: Point = Field(
+        description="Cel origin in Canvas Pixel space before the Mutation"
+    )
+    after_position: Point = Field(
+        description="Cel origin in Canvas Pixel space after the Mutation"
+    )
     before_image_bounds: Size
     after_image_bounds: Size
 
 
-class ImageResizeEvidence(PublicModel):
+class _ImageMutationEvidence(PublicModel):
     target: CelAddress
+    color_mode: Literal["rgb", "grayscale", "indexed"]
+    before_content_digest: ImageContentDigest
+    after_content_digest: ImageContentDigest
+    affected_cels: list[AffectedImageCel] = Field(min_length=1)
+    native_sharing_preserved: Literal[True]
+    sprite: SpriteInspection
+    persisted_reopen_verified: Literal[True]
+
+
+class ImageResizeEvidence(_ImageMutationEvidence):
     old_size: Size
     requested_size: Size
     effective_size: Size
@@ -124,14 +146,7 @@ class ImageResizeEvidence(PublicModel):
     position_policy: PositionPolicy
     offset_x: RationalOffset
     offset_y: RationalOffset
-    color_mode: Literal["rgb", "grayscale", "indexed"]
     effective_palette: EffectivePaletteBasis | None
-    before_content_digest: ImageContentDigest
-    after_content_digest: ImageContentDigest
-    affected_cels: list[AffectedImageCel] = Field(min_length=1)
-    native_sharing_preserved: Literal[True]
-    sprite: SpriteInspection
-    persisted_reopen_verified: Literal[True]
 
 
 class ImageResizeResult(ImageResizeEvidence):
@@ -158,17 +173,21 @@ IMAGE_RESIZE_FAILURE_CODE_SPECS = (
 IMAGE_RESIZE_TRANSFORM_RESOURCE = PackagedResource(
     "image_resize_transform", "image_resize_transform.lua"
 )
-IMAGE_RESIZE_HANDLER = PackagedHandler(
-    "image_resize",
-    (
-        SPRITE_INSPECTION_RESOURCE,
-        SPRITE_PERSISTENCE_RESOURCE,
-        PackagedResource("layer_select", "layer_select.lua"),
-        PackagedResource("cel", "cel_support.lua"),
-        PackagedResource("digest", "digest.lua"),
-        IMAGE_RESIZE_TRANSFORM_RESOURCE,
-    ),
+IMAGE_CEL_MUTATION_RESOURCE = PackagedResource(
+    "image_cel_mutation", "image_cel_mutation.lua"
 )
+IMAGE_MUTATION_RESOURCES = (
+    SPRITE_INSPECTION_RESOURCE,
+    SPRITE_PERSISTENCE_RESOURCE,
+    PackagedResource("layer_select", "layer_select.lua"),
+    PackagedResource("cel", "cel_support.lua"),
+    PackagedResource("digest", "digest.lua"),
+    IMAGE_CEL_MUTATION_RESOURCE,
+)
+IMAGE_RESIZE_HANDLER = PackagedHandler(
+    "image_resize", (*IMAGE_MUTATION_RESOURCES, IMAGE_RESIZE_TRANSFORM_RESOURCE)
+)
+
 IMAGE_RESIZE_REQUIREMENTS = RuntimeRequirements(
     lua_language="Lua 5.4",
     minimum_api_version=41,
@@ -181,135 +200,6 @@ IMAGE_RESIZE_REQUIREMENTS = RuntimeRequirements(
 )
 
 
-def _postcondition(invocation, reason: str) -> RuntimeIssue:
-    return RuntimeIssue(
-        "postcondition_failed",
-        "Persisted Image Resize evidence differs from the request",
-        PostconditionEvidence(response_path=invocation.response_path, reason=reason),
-        invocation.diagnostics,
-    )
-
-
-def resize_image(
-    request: ImageResizeRequest, services: OperationServices
-) -> ImageResizeResult:
-    source = Path(request.source_sprite_file)
-    target_file = Path(request.target_sprite_file)
-    identity_issue = source_target_identity_issue(
-        services.target_files, source, target_file, request.in_place
-    )
-    if identity_issue is not None:
-        raise RequestIssue([identity_issue])
-    observation = services.probe_runtime(request)
-    staged = services.target_files.staged_path(target_file)
-    try:
-        payload: dict[str, object] = {
-            "source_sprite_file": request.source_sprite_file,
-            "staged_sprite_file": str(staged),
-            "target": request.target.model_dump(mode="json", exclude_none=True),
-            "width": request.width,
-            "height": request.height,
-            "method": request.method,
-            "position_policy": request.position_policy.model_dump(mode="json"),
-        }
-        if request.palette_frame_number is not None:
-            payload["palette_frame_number"] = request.palette_frame_number
-        invocation = services.invoke_kernel(
-            observation,
-            IMAGE_RESIZE_HANDLER,
-            payload,
-            request.timeout_seconds,
-        )
-        rejection = invocation.payload.get("rejection")
-        if (
-            isinstance(rejection, dict)
-            and isinstance(rejection.get("code"), str)
-            and rejection["code"]
-            in {spec.code for spec in IMAGE_RESIZE_FAILURE_CODE_SPECS}
-            and isinstance(rejection.get("message"), str)
-        ):
-            raise OperationIssue(
-                rejection["code"],
-                rejection["message"],
-                CelTargetDetails(target=request.target),
-            )
-        number = request.target.frame_number
-        _reject(invocation, request.target.layer, request.target, (number, number))
-        try:
-            evidence = ImageResizeEvidence.model_validate(invocation.payload)
-        except (TypeError, ValueError, ValidationError) as exc:
-            raise RuntimeIssue(
-                "response_malformed",
-                f"Packaged Image Resize handler returned invalid evidence: {exc}",
-                ResponseEvidence(response_path=invocation.response_path),
-                invocation.diagnostics,
-            ) from exc
-        validated_scope(
-            SpriteGetRequest(
-                sprite_file=request.target_sprite_file,
-                inspection_scope=list(INSPECTION_SECTIONS),
-            ),
-            evidence.sprite,
-            invocation,
-        )
-        if (
-            evidence.requested_size != Size(width=request.width, height=request.height)
-            or evidence.effective_size != evidence.requested_size
-            or evidence.method != request.method
-            or evidence.position_policy != request.position_policy
-            or evidence.target.frame_number != number
-            or (
-                request.target.layer.layer_path is not None
-                and evidence.target.layer.layer_path != request.target.layer.layer_path
-            )
-            or evidence.color_mode != evidence.sprite.metadata.color_mode
-            or (
-                request.method == "bilinear"
-                and evidence.color_mode == "indexed"
-                and (
-                    evidence.effective_palette is None
-                    or evidence.effective_palette.requested_frame_number
-                    != request.palette_frame_number
-                )
-            )
-            or (
-                (request.method != "bilinear" or evidence.color_mode != "indexed")
-                and evidence.effective_palette is not None
-            )
-        ):
-            raise _postcondition(
-                invocation, "Image size, method, target, or Palette basis disagrees"
-            )
-        if (
-            source_target_identity_issue(
-                services.target_files, source, target_file, request.in_place
-            )
-            is not None
-        ):
-            raise RuntimeIssue(
-                "target_commit_failed",
-                "Source/Target publication identity changed before Target Commit",
-                TargetCommitEvidence(
-                    str(target_file), "source_target_identity_changed"
-                ),
-            )
-        committed = services.target_files.commit(
-            staged, target_file, overwrite=request.overwrite
-        )
-        return ImageResizeResult.model_validate(
-            {
-                **evidence.model_dump(),
-                "target_commit": TargetCommit(
-                    target_sprite_file=committed.target_sprite_file,
-                    byte_size=committed.byte_size,
-                    sha256=committed.sha256,
-                ),
-            }
-        )
-    finally:
-        services.target_files.discard(staged)
-
-
 class ImageCropRectangle(PositiveRectangle):
     x: int = Field(ge=-(2**31), le=2**31 - 1)
     y: int = Field(ge=-(2**31), le=2**31 - 1)
@@ -317,27 +207,10 @@ class ImageCropRectangle(PositiveRectangle):
     height: int = Field(ge=1, le=65535)
 
 
-class ImageCropRequest(RuntimeRequest):
-    source_sprite_file: str = Field(min_length=1)
-    target_sprite_file: str = Field(min_length=1)
-    in_place: bool
-    overwrite: bool
-    target: CelAddress
+class ImageCropRequest(_ImageMutationRequest):
     coordinate_space: Literal["image-pixel"]
     rectangle: ImageCropRectangle
     position_policy: Literal["preserve_canvas_pixels", "keep_cel_position"]
-
-    _validate_source = field_validator("source_sprite_file")(
-        validate_native_sprite_path
-    )
-    _validate_target = field_validator("target_sprite_file")(
-        validate_native_sprite_path
-    )
-
-    @model_validator(mode="after")
-    def validate_intent(self) -> "ImageCropRequest":
-        require_overwrite_for_in_place(self.in_place, self.overwrite)
-        return self
 
 
 class ImageCanvasOffset(Point):
@@ -345,12 +218,7 @@ class ImageCanvasOffset(Point):
     y: int = Field(ge=-(2**31), le=2**31 - 1)
 
 
-class ImageCanvasResizeRequest(RuntimeRequest):
-    source_sprite_file: str = Field(min_length=1)
-    target_sprite_file: str = Field(min_length=1)
-    in_place: bool
-    overwrite: bool
-    target: CelAddress
+class ImageCanvasResizeRequest(_ImageMutationRequest):
     coordinate_space: Literal["image-pixel"]
     width: int = Field(ge=1, le=65535)
     height: int = Field(ge=1, le=65535)
@@ -358,36 +226,22 @@ class ImageCanvasResizeRequest(RuntimeRequest):
     fill: ColorValue
     position_policy: Literal["keep_cel_position", "preserve_source_canvas"]
 
-    _validate_source = field_validator("source_sprite_file")(
-        validate_native_sprite_path
-    )
-    _validate_target = field_validator("target_sprite_file")(
-        validate_native_sprite_path
-    )
 
-    @model_validator(mode="after")
-    def validate_intent(self) -> "ImageCanvasResizeRequest":
-        require_overwrite_for_in_place(self.in_place, self.overwrite)
-        return self
-
-
-class ImageCanvasEvidence(PublicModel):
-    target: CelAddress
+class ImageCanvasEvidence(_ImageMutationEvidence):
     coordinate_space: Literal["image-pixel"]
-    source_bounds: Rectangle
-    target_bounds: Rectangle
+    source_bounds: PositiveRectangle = Field(
+        description="Bounds in source Image Pixel space"
+    )
+    target_bounds: PositiveRectangle = Field(
+        description="Bounds in target Image Pixel space"
+    )
     copied_source_rectangle: Rectangle
     copied_target_rectangle: Rectangle
     discarded_source_regions: list[PositiveRectangle]
     uncovered_target_regions: list[PositiveRectangle]
-    position_delta: Point
-    color_mode: Literal["rgb", "grayscale", "indexed"]
-    before_content_digest: ImageContentDigest
-    after_content_digest: ImageContentDigest
-    affected_cels: list[AffectedImageCel] = Field(min_length=1)
-    native_sharing_preserved: Literal[True]
-    sprite: SpriteInspection
-    persisted_reopen_verified: Literal[True]
+    position_delta: Point = Field(
+        description="Translation applied to every affected Cel in Canvas Pixel space"
+    )
 
 
 class ImageCropEvidence(ImageCanvasEvidence):
@@ -438,14 +292,7 @@ IMAGE_CANVAS_FAILURE_CODE_SPECS = (
 IMAGE_CANVAS_TRANSFORM_RESOURCE = PackagedResource(
     "image_canvas_transform", "image_canvas_transform.lua"
 )
-IMAGE_CEL_MUTATION_RESOURCE = PackagedResource(
-    "image_cel_mutation", "image_cel_mutation.lua"
-)
-IMAGE_CANVAS_RESOURCES = (
-    *IMAGE_RESIZE_HANDLER.support_resources[:-1],
-    IMAGE_CEL_MUTATION_RESOURCE,
-    IMAGE_CANVAS_TRANSFORM_RESOURCE,
-)
+IMAGE_CANVAS_RESOURCES = (*IMAGE_MUTATION_RESOURCES, IMAGE_CANVAS_TRANSFORM_RESOURCE)
 IMAGE_CROP_HANDLER = PackagedHandler("image_crop", IMAGE_CANVAS_RESOURCES)
 IMAGE_CANVAS_RESIZE_HANDLER = PackagedHandler(
     "image_canvas_resize", IMAGE_CANVAS_RESOURCES
@@ -462,13 +309,15 @@ IMAGE_CANVAS_REQUIREMENTS = RuntimeRequirements(
 )
 
 
-def _canvas_image(
-    request: ImageCropRequest | ImageCanvasResizeRequest, services: OperationServices
-) -> ImageCropResult | ImageCanvasResizeResult:
-    is_crop = isinstance(request, ImageCropRequest)
-    handler = IMAGE_CROP_HANDLER if is_crop else IMAGE_CANVAS_RESIZE_HANDLER
-    evidence_type = ImageCropEvidence if is_crop else ImageCanvasResizeEvidence
-    result_type = ImageCropResult if is_crop else ImageCanvasResizeResult
+def _mutate_image[Evidence: _ImageMutationEvidence, Result: _ImageMutationEvidence](
+    request: _ImageMutationRequest,
+    services: OperationServices,
+    handler: PackagedHandler,
+    evidence_type: type[Evidence],
+    result_type: type[Result],
+    failure_codes: tuple[str, ...],
+    matches: Callable[[Evidence], bool],
+) -> Result:
     source, target_file = (
         Path(request.source_sprite_file),
         Path(request.target_sprite_file),
@@ -500,8 +349,7 @@ def _canvas_image(
         if (
             isinstance(rejection, dict)
             and isinstance(rejection.get("code"), str)
-            and rejection["code"]
-            in {spec.code for spec in IMAGE_CANVAS_FAILURE_CODE_SPECS}
+            and rejection["code"] in failure_codes
             and isinstance(rejection.get("message"), str)
         ):
             raise OperationIssue(
@@ -529,20 +377,7 @@ def _canvas_image(
             invocation,
         )
         if (
-            any(
-                getattr(evidence, name) != value
-                for name, value in request.__dict__.items()
-                if name
-                in (
-                    "rectangle",
-                    "width",
-                    "height",
-                    "offset",
-                    "fill",
-                    "position_policy",
-                    "coordinate_space",
-                )
-            )
+            not matches(evidence)
             or evidence.target.frame_number != number
             or (
                 request.target.layer.layer_path is not None
@@ -589,20 +424,94 @@ def _canvas_image(
         services.target_files.discard(staged)
 
 
+IMAGE_CROP_FAILURE_CODES = (
+    "image_crop_out_of_bounds",
+    "image_transform_position_out_of_bounds",
+)
+IMAGE_CANVAS_RESIZE_FAILURE_CODES = (
+    "image_canvas_fill_invalid",
+    "image_transform_position_out_of_bounds",
+)
+
+
+def resize_image(
+    request: ImageResizeRequest, services: OperationServices
+) -> ImageResizeResult:
+    def matches(evidence: ImageResizeEvidence) -> bool:
+        indexed_bilinear = (
+            request.method == "bilinear" and evidence.color_mode == "indexed"
+        )
+        return (
+            evidence.requested_size == Size(width=request.width, height=request.height)
+            and evidence.effective_size == evidence.requested_size
+            and evidence.method == request.method
+            and evidence.position_policy == request.position_policy
+            and (
+                (
+                    evidence.effective_palette is not None
+                    and evidence.effective_palette.requested_frame_number
+                    == request.palette_frame_number
+                )
+                if indexed_bilinear
+                else evidence.effective_palette is None
+            )
+        )
+
+    return _mutate_image(
+        request,
+        services,
+        IMAGE_RESIZE_HANDLER,
+        ImageResizeEvidence,
+        ImageResizeResult,
+        tuple(spec.code for spec in IMAGE_RESIZE_FAILURE_CODE_SPECS),
+        matches,
+    )
+
+
 def crop_image(
     request: ImageCropRequest, services: OperationServices
 ) -> ImageCropResult:
-    result = _canvas_image(request, services)
-    assert isinstance(result, ImageCropResult)
-    return result
+    return _mutate_image(
+        request,
+        services,
+        IMAGE_CROP_HANDLER,
+        ImageCropEvidence,
+        ImageCropResult,
+        IMAGE_CROP_FAILURE_CODES,
+        lambda evidence: (
+            evidence.rectangle == request.rectangle
+            and evidence.position_policy == request.position_policy
+        ),
+    )
 
 
 def canvas_resize_image(
     request: ImageCanvasResizeRequest, services: OperationServices
 ) -> ImageCanvasResizeResult:
-    result = _canvas_image(request, services)
-    assert isinstance(result, ImageCanvasResizeResult)
-    return result
+    return _mutate_image(
+        request,
+        services,
+        IMAGE_CANVAS_RESIZE_HANDLER,
+        ImageCanvasResizeEvidence,
+        ImageCanvasResizeResult,
+        IMAGE_CANVAS_RESIZE_FAILURE_CODES,
+        lambda evidence: (
+            (
+                evidence.width,
+                evidence.height,
+                evidence.offset,
+                evidence.fill,
+                evidence.position_policy,
+            )
+            == (
+                request.width,
+                request.height,
+                request.offset,
+                request.fill,
+                request.position_policy,
+            )
+        ),
+    )
 
 
 IMAGE_OPERATIONS = (
@@ -639,7 +548,7 @@ IMAGE_OPERATIONS = (
             "cel_frame_out_of_bounds",
             "cel_unsupported_target",
             *LAYER_ADDRESS_FAILURE_CODES,
-            *(spec.code for spec in IMAGE_CANVAS_FAILURE_CODE_SPECS),
+            *IMAGE_CROP_FAILURE_CODES,
         ),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
@@ -658,8 +567,7 @@ IMAGE_OPERATIONS = (
             "cel_frame_out_of_bounds",
             "cel_unsupported_target",
             *LAYER_ADDRESS_FAILURE_CODES,
-            "image_canvas_fill_invalid",
-            "image_transform_position_out_of_bounds",
+            *IMAGE_CANVAS_RESIZE_FAILURE_CODES,
         ),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),

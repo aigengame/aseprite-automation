@@ -18,8 +18,44 @@ local function remainder(width, height, kept)
   return regions
 end
 
+local function copy(source, width, height, offset, pixel)
+  local spec = ImageSpec(source.spec)
+  spec.width, spec.height = width, height
+  local result = Image(spec)
+  if pixel ~= nil then result:clear(pixel) end
+  local left, top = math.max(0, offset.x), math.max(0, offset.y)
+  local right, bottom =
+    math.min(width, offset.x + source.width), math.min(height, offset.y + source.height)
+  local copied_source, copied_target = rectangle(0, 0, 0, 0), rectangle(0, 0, 0, 0)
+  if left < right and top < bottom then
+    copied_source = rectangle(left - offset.x, top - offset.y, right - left, bottom - top)
+    copied_target = rectangle(left, top, right - left, bottom - top)
+    for y = top, bottom - 1 do
+      for x = left, right - 1 do
+        result:putPixel(x, y, source:getPixel(x - offset.x, y - offset.y))
+      end
+    end
+  end
+  return result,
+    {
+      source_bounds = rectangle(0, 0, source.width, source.height),
+      target_bounds = rectangle(0, 0, width, height),
+      copied_source_rectangle = copied_source,
+      copied_target_rectangle = copied_target,
+      discarded_source_regions = remainder(source.width, source.height, copied_source),
+      uncovered_target_regions = remainder(width, height, copied_target),
+    }
+end
+
 function module.crop(source, area)
-  assert(area.width > 0 and area.height > 0, "Crop requires positive dimensions")
+  assert(
+    math.tointeger(area.width)
+      and area.width > 0
+      and math.tointeger(area.height)
+      and area.height > 0,
+    "Crop requires exact positive dimensions"
+  )
+  assert(math.tointeger(area.x) and math.tointeger(area.y), "Crop requires integer coordinates")
   assert(
     area.x >= 0
       and area.y >= 0
@@ -27,24 +63,7 @@ function module.crop(source, area)
       and area.y + area.height <= source.height,
     "Crop Rectangle must be contained in the source Image"
   )
-  local spec = ImageSpec(source.spec)
-  spec.width, spec.height = area.width, area.height
-  local result = Image(spec)
-  for y = 0, area.height - 1 do
-    for x = 0, area.width - 1 do
-      result:putPixel(x, y, source:getPixel(x + area.x, y + area.y))
-    end
-  end
-  local copied = rectangle(area.x, area.y, area.width, area.height)
-  return result,
-    {
-      source_bounds = rectangle(0, 0, source.width, source.height),
-      target_bounds = rectangle(0, 0, area.width, area.height),
-      copied_source_rectangle = copied,
-      copied_target_rectangle = rectangle(0, 0, area.width, area.height),
-      discarded_source_regions = remainder(source.width, source.height, copied),
-      uncovered_target_regions = {},
-    }
+  return copy(source, area.width, area.height, { x = -area.x, y = -area.y })
 end
 
 function module.compatible_fill(source, fill)
@@ -76,32 +95,7 @@ function module.canvas_resize(source, width, height, offset, fill)
     -- stored pixel; a float goes through Color conversion and Palette matching.
     pixel = assert(math.tointeger(fill.index), "Fill Palette Index must be an integer")
   end
-  local spec = ImageSpec(source.spec)
-  spec.width, spec.height = width, height
-  local result = Image(spec)
-  result:clear(pixel)
-  local left, top = math.max(0, offset.x), math.max(0, offset.y)
-  local right, bottom =
-    math.min(width, offset.x + source.width), math.min(height, offset.y + source.height)
-  local copied_source, copied_target = rectangle(0, 0, 0, 0), rectangle(0, 0, 0, 0)
-  if left < right and top < bottom then
-    copied_source = rectangle(left - offset.x, top - offset.y, right - left, bottom - top)
-    copied_target = rectangle(left, top, right - left, bottom - top)
-    for y = top, bottom - 1 do
-      for x = left, right - 1 do
-        result:putPixel(x, y, source:getPixel(x - offset.x, y - offset.y))
-      end
-    end
-  end
-  return result,
-    {
-      source_bounds = rectangle(0, 0, source.width, source.height),
-      target_bounds = rectangle(0, 0, width, height),
-      copied_source_rectangle = copied_source,
-      copied_target_rectangle = copied_target,
-      discarded_source_regions = remainder(source.width, source.height, copied_source),
-      uncovered_target_regions = remainder(width, height, copied_target),
-    }
+  return copy(source, width, height, offset, pixel)
 end
 
 return module

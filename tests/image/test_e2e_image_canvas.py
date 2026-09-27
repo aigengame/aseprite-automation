@@ -35,6 +35,25 @@ def transform(
     return run.returncode, json.loads(run.stdout)
 
 
+def assert_persisted_link(source: Path) -> None:
+    run = spa(
+        "cel",
+        "get",
+        "--input-json",
+        json.dumps(
+            {
+                "sprite_file": str(source),
+                "target": {"layer": {"layer_path": [1]}, "frame_number": 2},
+                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+            }
+        ),
+    )
+    assert run.returncode == 0, run.stdout
+    assert json.loads(run.stdout)["cel"]["linked_cels"] == [
+        {"layer_path": [1], "frame_number": 1}
+    ]
+
+
 def test_crop_preserves_canvas_pixels_and_linked_cels(tmp_path: Path) -> None:
     source = image_fixture(tmp_path, "linked")
     original = source.read_bytes()
@@ -73,6 +92,7 @@ def test_crop_preserves_canvas_pixels_and_linked_cels(tmp_path: Path) -> None:
         assert cel["after_position"] == {"x": 2, "y": 2}
         assert cel["after_image_bounds"] == {"width": 1, "height": 2}
     assert result["native_sharing_preserved"] is True
+    assert_persisted_link(target)
     assert result["persisted_reopen_verified"] is True
     for frame in (1, 2):
         png = export_image(target, tmp_path / f"frame-{frame}.png", frame)
@@ -124,6 +144,7 @@ def test_canvas_resize_clips_and_fills_without_moving_copied_canvas_pixels(
         assert cel["after_position"] == {"x": 2, "y": 1}
     assert len(result["affected_cels"]) == 2
     assert result["native_sharing_preserved"] is True
+    assert_persisted_link(target)
     for frame in (1, 2):
         png = export_image(target, tmp_path / f"canvas-{frame}.png", frame)
         assert png.getpixel((2, 2)) == (0, 0, 255, 255)
@@ -137,6 +158,7 @@ def test_fill_index_must_exist_in_every_sharing_frame_palette(tmp_path: Path) ->
     # Frame 1 has four entries. Frame 2 changes to only three entries.
     inject_palette_change(source, [(0, 0, 0, 0), (255, 0, 0, 255), (0, 0, 255, 255)])
     original = source.read_bytes()
+    assert_persisted_link(source)
     code, result = transform(
         source,
         source,
