@@ -14,6 +14,7 @@ read_globals = {
   "Point",
   "Rectangle",
   "Selection",
+  "SelectionMode",
   "Sprite",
   "SpriteSheetDataFormat",
   "SpriteSheetType",

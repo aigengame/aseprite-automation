@@ -15,6 +15,7 @@ local image_snapshot = app.params.image_snapshot and dofile(app.params.image_sna
 local layer_composition = app.params.layer_composition and dofile(app.params.layer_composition)
   or nil
 local raster_color = dofile(app.params.raster_color)
+local selection_mask = app.params.selection_mask and dofile(app.params.selection_mask) or nil
 local image_orientation_transform = app.params.image_orientation_transform
     and dofile(app.params.image_orientation_transform)
   or nil
@@ -712,6 +713,14 @@ end
 
 function module.observe()
   local capabilities = { "aseprite_runtime_introspection" }
+  if selection_mask ~= nil then
+    local ok = pcall(function()
+      local value = { kind = "all", rectangle = { x = -2, y = 3, width = 2, height = 1 } }
+      local result = selection_mask.encode(selection_mask.materialize(value))
+      assert(result.pixel_count == 2 and result.bounds.x == -2 and result.bounds.y == 3)
+    end)
+    if ok then capabilities[#capabilities + 1] = "aseprite_selection" end
+  end
   local supports_inspection = observes_sprite_inspection()
   if supports_inspection and observes_sprite_creation() then
     capabilities[#capabilities + 1] = "aseprite_sprite_create"

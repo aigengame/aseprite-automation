@@ -60,6 +60,7 @@ RuntimeCapability = Literal[
     "aseprite_image_rotate",
     "aseprite_tag_authoring",
     "aseprite_export_image",
+    "aseprite_selection",
 ]
 
 
