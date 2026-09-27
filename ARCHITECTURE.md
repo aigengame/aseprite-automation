@@ -15,7 +15,7 @@ this view instead of treating it as another decision authority.
 > `spa schema`, Sprite creation, inspection, copy, resize, crop, flatten, and
 > validation, Layer addressing and mutation, Frame inspection, authoring, and
 > editing, Tag inspection and authoring, Cel inspection, lifecycle, placement,
-> and native relationships, Cel-targeted Image resize, crop, and canvas-resize, bounded Pixel Patch
+> and native relationships, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, bounded Pixel Patch
 > application, and verified RGB
 > PNG Image Export, animation audit, Frame comparison, and continuity Preview
 > export. The module
@@ -292,7 +292,7 @@ Sprite creation and inspection slice extends that same stack.
 | CLI adapter | Typer | Command access and human or machine presentation. |
 | Public contracts | Pydantic 2 and JSON Schema | Typed Operation Requests, Operation Results, Failure Envelopes, and discovery schemas. |
 | Project and packaging | `uv` | Environments, dependencies, builds, and installed-product tests. |
-| Ordinary Core Operations | Packaged Lua handlers | Core Operation Semantics and native mapping executed through Aseprite. The current package contains a fixed runtime probe, shared capability observations, Sprite creation, inspection, native flattening, resize and crop, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Cel-targeted Image resize, crop, and canvas-resize, Tag inspection and authoring, exact Pixel Patch, animation audit, Frame comparison, continuity Preview, Export Image, and Operation Plan handlers. Sprite copy uses the File Adapter for byte preservation and the packaged inspection handler for verification. |
+| Ordinary Core Operations | Packaged Lua handlers | Core Operation Semantics and native mapping executed through Aseprite. The current package contains a fixed runtime probe, shared capability observations, Sprite creation, inspection, native flattening, resize and crop, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, Tag inspection and authoring, exact Pixel Patch, animation audit, Frame comparison, continuity Preview, Export Image, and Operation Plan handlers. Sprite copy uses the File Adapter for byte preservation and the packaged inspection handler for verification. |
 | Aseprite integration | External `aseprite --batch --script` | Native document, Tool, Filter, color, and export behavior. |
 | Private transport | Versioned JSON request and response files | Data exchange through `--script-param`, separate from diagnostics. |
 | Agent access | Version-matched Agent Skill and planned local stdio MCP Adapter with CLI subprocess invocation | Guidance and equivalent tool projection from the installed surface. |
@@ -316,11 +316,16 @@ inspection and authoring; `spa.cel` owns Cel existence, inspection, and lifecycl
 while `spa.cel_relationship` owns Cel placement, opacity, z-index, and native
 copy/link/unlink mutations; `spa.animation` owns declared animation audit,
 full-Canvas Frame comparison, and the composed continuity Preview use case.
-The delivered `spa.image` slice owns Cel-targeted Image resize, crop, and
-canvas-resize with explicit placement policies. Its fixed Lua Image Resize Transform
-owns buffer scaling, while Image Canvas Transform owns exact copy, clipping, and
-fill. These buffer semantics can be reused by eligible Tile Bitmap authoring;
-Cel placement and shared-Image persistence stay with the Cel-targeted handlers. `spa.paint` owns exact Pixel
+The delivered `spa.image` slice owns Cel-targeted Image resize, crop,
+canvas-resize, flip, and quarter-turn rotation with explicit placement policies.
+Its fixed Lua Image Resize Transform owns buffer scaling, while Image Canvas
+Transform owns exact copy, clipping, and fill. These buffer semantics can be reused
+by eligible Tile Bitmap authoring. Image Orientation Transform owns native
+whole-Image flip and exact pixel/pivot permutation. The Cel-targeted handlers own
+eligibility, complete Linked Cel scope, coherent placement, unchanged document
+facts, and staged save/reopen verification. Python validates intent and Kernel
+evidence and coordinates the existing Source/Target commit boundary. `spa.paint`
+owns exact Pixel
 Patch application, while
 `spa.raster` holds the shared Color Value, Rectangle, Patch, and Selection types.
 Raster Authoring owns their

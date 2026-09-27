@@ -56,6 +56,11 @@ function module.snapshot(sprite, inspection, digest, sections, verified_uuids)
   }
 end
 
+function module.assert_equal(before, after, operation)
+  local mismatch = difference(before, after, "document")
+  assert(mismatch == nil, operation .. " differs at " .. tostring(mismatch))
+end
+
 function module.assert_same(before, after, operation)
   local persisted_palettes = after.sprite.palettes
   if before.sprite.metadata.color_mode ~= "indexed" then

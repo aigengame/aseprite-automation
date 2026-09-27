@@ -1,4 +1,4 @@
-"""Image transforms reject malformed private Kernel output before publication."""
+"""Image mutations reject malformed private Kernel failures before publication."""
 
 import json
 from pathlib import Path
@@ -42,16 +42,12 @@ class _TargetFiles:
 
 
 @pytest.mark.parametrize(
-    ("operation", "intent"),
+    ("operation", "options", "rejection"),
     [
         (
             "image resize",
-            {
-                "width": 4,
-                "height": 4,
-                "method": "nearest-neighbor",
-                "position_policy": {"kind": "keep"},
-            },
+            {"width": 4, "height": 4, "method": "nearest-neighbor"},
+            {"code": [], "message": "malformed code"},
         ),
         (
             "image crop",
@@ -60,6 +56,7 @@ class _TargetFiles:
                 "rectangle": {"x": 0, "y": 0, "width": 1, "height": 1},
                 "position_policy": "keep_cel_position",
             },
+            {"code": [], "message": "malformed code"},
         ),
         (
             "image canvas-resize",
@@ -71,11 +68,32 @@ class _TargetFiles:
                 "fill": {"kind": "rgba", "red": 0, "green": 0, "blue": 0, "alpha": 0},
                 "position_policy": "keep_cel_position",
             },
+            {"code": [], "message": "malformed code"},
+        ),
+        (
+            "image rotate",
+            {"angle": 90},
+            {"code": "image_rotate_position_out_of_bounds", "message": "missing facts"},
+        ),
+        (
+            "image rotate",
+            {"angle": 90},
+            {
+                "code": "image_rotate_position_out_of_bounds",
+                "message": "incomplete facts",
+                "details": {
+                    "coordinate_space": "canvas-pixel",
+                    "attempted_position": {"x": -32774, "y": 32767},
+                    "allowed_minimum": -32768,
+                },
+            },
         ),
     ],
 )
-def test_malformed_rejection_code_uses_failure_envelope(
-    operation: str, intent: dict
+def test_malformed_rejection_uses_failure_envelope(
+    operation: str,
+    options: dict,
+    rejection: dict,
 ) -> None:
     files = _TargetFiles()
     observation = RuntimeObservation(
@@ -91,13 +109,14 @@ def test_malformed_rejection_code_uses_failure_envelope(
         verified_capabilities=(
             "aseprite_image_resize",
             "aseprite_image_canvas_transform",
+            "aseprite_image_rotate",
             "aseprite_cel_lifecycle",
             "aseprite_cel_relationships",
             "aseprite_sprite_inspection",
         ),
     )
     invocation = KernelInvocationResult(
-        payload={"rejection": {"code": [], "message": "malformed code"}},
+        payload={"rejection": rejection},
         response_path="/response.json",
         diagnostics=Diagnostics(exit_status=0),
     )
@@ -112,8 +131,9 @@ def test_malformed_rejection_code_uses_failure_envelope(
         "in_place": False,
         "overwrite": False,
         "target": {"layer": {"layer_path": [1]}, "frame_number": 1},
-        **intent,
+        "position_policy": {"kind": "keep"},
         "aseprite": "/aseprite",
+        **options,
     }
 
     outcome = dispatch(

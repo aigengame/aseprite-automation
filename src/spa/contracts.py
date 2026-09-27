@@ -55,6 +55,8 @@ RuntimeCapability = Literal[
     "aseprite_cel_relationships",
     "aseprite_image_resize",
     "aseprite_image_canvas_transform",
+    "aseprite_image_flip",
+    "aseprite_image_rotate",
     "aseprite_tag_authoring",
     "aseprite_export_image",
 ]
