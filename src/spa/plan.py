@@ -51,6 +51,7 @@ from spa.paint import (
     PaintApplyInput,
     validate_paint_evidence,
 )
+from spa.palette import EFFECTIVE_PALETTE_RESOURCE
 from spa.ports import (
     KernelInvocationResult,
     OperationIssue,
@@ -100,6 +101,7 @@ PLAN_RUN_HANDLER = PackagedHandler(
         SPRITE_CREATION_RESOURCE,
         PAINT_SUPPORT_RESOURCE,
         RASTER_COLOR_RESOURCE,
+        EFFECTIVE_PALETTE_RESOURCE,
         FRAME_SUPPORT_RESOURCE,
         CEL_SUPPORT_RESOURCE,
         CEL_SELECT_RESOURCE,

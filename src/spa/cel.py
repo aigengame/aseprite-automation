@@ -19,6 +19,7 @@ from spa.mutation import (
     validate_native_sprite_path,
 )
 from spa.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
+from spa.palette import EFFECTIVE_PALETTE_RESOURCE
 from spa.ports import (
     KernelInvocationResult,
     OperationIssue,
@@ -265,6 +266,7 @@ CEL_MUTATE_HANDLER = PackagedHandler(
         CEL_SELECT_RESOURCE,
         CEL_SUPPORT_RESOURCE,
         PackagedResource("frame", "frame_support.lua"),
+        EFFECTIVE_PALETTE_RESOURCE,
         PackagedResource("digest", "digest.lua"),
     ),
 )

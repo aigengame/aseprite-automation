@@ -1,5 +1,6 @@
 -- Paint-owned exact Pixel Patch semantics shared by the handler and capability probe.
 local module = {}
+local palettes = dofile(app.params.effective_palette)
 local colors = dofile(app.params.raster_color)
 local max_patch_pixels = 256
 
@@ -263,7 +264,8 @@ local function background_is_opaque(sprite, image, color_mode, layer, affected_c
         not checked_frames[frame_number]
         and resolve_layer(sprite, cel.layer_path).isBackground
       then
-        local palette = colors.effective_palette(sprite, frame_number)
+        local palette =
+          assert(palettes.resolve(sprite, frame_number), "Indexed target has no Effective Palette")
         for index, _ in pairs(indexes) do
           if index >= #palette or palette:getColor(index).alpha ~= 255 then return false end
         end

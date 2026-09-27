@@ -13,7 +13,6 @@ from spa.contracts import (
     RuntimeRequest,
     RuntimeRequirements,
 )
-from spa.frame import FRAME_SUPPORT_RESOURCE
 from spa.image_snapshot import IMAGE_SNAPSHOT_OPERATIONS
 from spa.layer import LAYER_ADDRESS_FAILURE_CODES
 from spa.mutation import (
@@ -23,6 +22,7 @@ from spa.mutation import (
     validate_native_sprite_path,
 )
 from spa.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
+from spa.palette import EFFECTIVE_PALETTE_RESOURCE
 from spa.ports import (
     OperationIssue,
     OperationServices,
@@ -298,7 +298,12 @@ IMAGE_MUTATION_RESOURCES = (
     IMAGE_CEL_MUTATION_RESOURCE,
 )
 IMAGE_RESIZE_HANDLER = PackagedHandler(
-    "image_resize", (*IMAGE_MUTATION_RESOURCES, IMAGE_RESIZE_TRANSFORM_RESOURCE)
+    "image_resize",
+    (
+        *IMAGE_MUTATION_RESOURCES,
+        IMAGE_RESIZE_TRANSFORM_RESOURCE,
+        EFFECTIVE_PALETTE_RESOURCE,
+    ),
 )
 
 IMAGE_RESIZE_REQUIREMENTS = RuntimeRequirements(
@@ -597,7 +602,7 @@ IMAGE_CANVAS_TRANSFORM_RESOURCE = PackagedResource(
 IMAGE_CANVAS_RESOURCES = (*IMAGE_MUTATION_RESOURCES, IMAGE_CANVAS_TRANSFORM_RESOURCE)
 IMAGE_CROP_HANDLER = PackagedHandler("image_crop", IMAGE_CANVAS_RESOURCES)
 IMAGE_CANVAS_RESIZE_HANDLER = PackagedHandler(
-    "image_canvas_resize", (*IMAGE_CANVAS_RESOURCES, FRAME_SUPPORT_RESOURCE)
+    "image_canvas_resize", (*IMAGE_CANVAS_RESOURCES, EFFECTIVE_PALETTE_RESOURCE)
 )
 IMAGE_CANVAS_REQUIREMENTS = RuntimeRequirements(
     lua_language="Lua 5.4",

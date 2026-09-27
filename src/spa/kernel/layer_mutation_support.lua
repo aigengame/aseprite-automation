@@ -1,5 +1,6 @@
 -- Exact Layer mutation, impact facts, and staged persistence verification.
 local module = {}
+local palettes = dofile(app.params.effective_palette)
 local all_sections = { "frames", "tags", "palettes", "layers", "cels", "slices", "tilesets" }
 local result_sections = { "layers", "cels" }
 
@@ -485,7 +486,10 @@ local function apply(sprite, payload, layer, lower, inspection, frame)
         "converted Background Cel does not cover the Frame opaquely"
       )
       local palette = sprite.colorMode == ColorMode.INDEXED
-          and frame.effective_palette(sprite, number)
+          and assert(
+            palettes.resolve(sprite, number),
+            "Indexed Background has no Effective Palette"
+          )
         or nil
       for pixel in cel.image:pixels() do
         local value = pixel()
