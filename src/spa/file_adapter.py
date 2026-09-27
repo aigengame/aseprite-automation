@@ -156,6 +156,16 @@ class LocalArtifactFiles:
     def normalize_destination(self, path: str) -> Path:
         return Path(os.path.abspath(os.path.expanduser(path)))
 
+    def read_input(self, path: Path) -> bytes:
+        try:
+            return path.read_bytes()
+        except OSError as exc:
+            raise RuntimeIssue(
+                "artifact_file_failed",
+                "Input Artifact could not be read",
+                ArtifactFileEvidence(str(path), "input_file_unreadable"),
+            ) from exc
+
     def ensure_source_separate(self, source: Path, destination: Path) -> None:
         try:
             aliases_source = _same_publication_target(source, destination)
@@ -195,7 +205,7 @@ class LocalArtifactFiles:
                     ArtifactFileEvidence(str(destination), "destination_exists"),
                 )
         return destination.with_name(
-            f".{destination.stem}.{uuid.uuid4().hex}.staged.png"
+            f".{destination.stem}.{uuid.uuid4().hex}.staged{destination.suffix}"
         )
 
     def rendered_path(self, staged: Path) -> Path:

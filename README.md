@@ -4,7 +4,7 @@ Aseprite Automation (SPA) provides agent-facing automation for Aseprite. `SPA` i
 short project name used in documentation; `spa` is the primary executable.
 
 > [!IMPORTANT]
-> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery, Sprite creation, inspection, copy, resize, crop, flatten, and validation, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Tag inspection and authoring, Cel-targeted Image Resize, bounded Pixel Patch application, verified RGB PNG Image Export, animation audit, Frame comparison, and verified continuity Preview export. Feature issues own delivery contracts, evidence requirements, provenance links, curated evidence summaries, and status, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
+> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery, Sprite creation, inspection, copy, resize, crop, flatten, and validation, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Tag inspection and authoring, Cel-targeted Image Resize, canonical Image reads and replacement, bounded Pixel Patch application, verified RGB PNG Image Export, animation audit, Frame comparison, and verified continuity Preview export. Feature issues own delivery contracts, evidence requirements, provenance links, curated evidence summaries, and status, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
 
 For a complete authoring example, see [Moonlit Spell Practice](examples/wizard_cast/README.md):
 a reproducible SPA wizard animation, reusable pixel assets, and a Godot target-practice demo.
@@ -147,6 +147,9 @@ uv run spa cel add --input-json '{"aseprite":"/path/to/aseprite","source_sprite_
 uv run spa cel clear --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"with-cel.aseprite","target_sprite_file":"cleared.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":2}}'
 uv run spa cel remove --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"cleared.aseprite","target_sprite_file":"without-cel.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":2}}'
 uv run spa image resize --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"resized-image.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":1},"width":32,"height":32,"method":"nearest-neighbor","position_policy":{"kind":"keep"}}'
+uv run spa image get --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite","source":{"kind":"individual","target":{"layer":{"layer_path":[1]},"frame_number":1},"rectangle":{"x":0,"y":0,"width":16,"height":16}},"snapshot_destination":{"path":"pixels.json","if_exists":"fail"}}'
+uv run spa image get --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite","source":{"kind":"composite","frame_number":1,"rectangle":{"x":0,"y":0,"width":16,"height":16},"layer_composition":{"mode":"visible"}}}'
+uv run spa image replace --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"replaced.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":1},"input":{"kind":"artifact","path":"pixels.json"}}'
 uv run spa layer list --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite"}'
 uv run spa layer get --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite","target":{"layer_path":[1]}}'
 uv run spa layer add --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"layered.aseprite","in_place":false,"overwrite":false,"kind":"group","name":"effects"}'
@@ -279,6 +282,35 @@ also requires `palette_frame_number` to select the Effective Palette; other
 Color Modes and methods reject that input. The operation transforms a source
 copy, preserves every native Cel link to the Image, applies one rounded offset
 to each affected Cel, and verifies the staged Sprite after save/reopen.
+
+`spa image get` reads complete stored Color Values from an individual Cel Image,
+including hidden pixels and RGB under zero alpha, or reads a native composite of an
+explicit Frame. Both return the same canonical Snapshot: a local `(0,0,width,height)`
+Rectangle and complete rows of `{length,color}` runs. The Result reports the source
+Rectangle and Coordinate Space separately. RGB uses `rgba`, Grayscale uses
+`grayscale`, and Indexed retains `palette-index` with mask and Effective Palette facts.
+
+Individual reads require an existing raster Cel and an in-bounds Image Pixel Rectangle.
+Composite reads require an in-bounds Canvas Pixel Rectangle and `layer_composition`:
+`{"mode":"visible"}` uses saved visibility; `{"mode":"include","layers":[{"layer_path":[1]}]}`
+uses the union of exact Layer selectors. An included Group includes hidden descendants;
+ancestors retain their native opacity, Blend Mode, and stacking context. Composition
+uses native Tilemap rendering, excludes Reference Layers as the native renderer does,
+and restores temporary visibility and Group-composition preferences. Individual reads
+and replacement support Reference Images but reject raw Tilemap Images. Reads never
+save the Source.
+
+Without `snapshot_destination`, the inline Operation Limit is 4096 pixels. Larger
+reads require an explicit `.json` destination with `if_exists: fail|replace` and
+publish the entire Snapshot as one JSON Artifact. Smaller reads can also select this
+transport. `image replace` accepts `input.kind: inline` with `snapshot`, or
+`input.kind: artifact` with `path`; both use the same Snapshot schema. Replacement
+requires the complete Image bounds and the same Color Mode, ignores editor Selection,
+and preserves Cel geometry and native sharing. It supports regular Transparent,
+Background, and Reference Images; Background colors must remain opaque. The native
+file is saved and reopened before Target Commit, and any preservation failure blocks
+publication. In particular, Aseprite 1.3.18.5 batch saving can discard non-default
+Group opacity or Blend Mode; replacement refuses to publish such a lossy save.
 
 `spa tag list` and `spa tag get` inspect stored Tags with a one-based current
 `tag_index`. `get`, `set`, and `remove` accept exactly one of `tag_index` or

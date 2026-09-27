@@ -62,7 +62,9 @@ local function native_color(color, color_mode, background)
   end
   assert(color.kind == "palette-index", "Indexed target requires palette-index Color Values")
   validate_byte(color.index, "Palette Index")
-  return color.index
+  -- json.decode numbers are Lua floats. Image:drawPixel treats only Lua integers
+  -- as packed native pixels; a float would enter Aseprite's color conversion path.
+  return assert(math.tointeger(color.index))
 end
 
 local function effective_palette(sprite, frame_number)

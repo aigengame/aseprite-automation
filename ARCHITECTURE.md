@@ -15,7 +15,7 @@ this view instead of treating it as another decision authority.
 > `spa schema`, Sprite creation, inspection, copy, resize, crop, flatten, and
 > validation, Layer addressing and mutation, Frame inspection, authoring, and
 > editing, Tag inspection and authoring, Cel inspection, lifecycle, placement,
-> and native relationships, Cel-targeted Image Resize, bounded Pixel Patch
+> and native relationships, Cel-targeted Image Resize, canonical Image reads and replacement, bounded Pixel Patch
 > application, and verified RGB
 > PNG Image Export, animation audit, Frame comparison, and continuity Preview
 > export. The module
@@ -292,7 +292,7 @@ Sprite creation and inspection slice extends that same stack.
 | CLI adapter | Typer | Command access and human or machine presentation. |
 | Public contracts | Pydantic 2 and JSON Schema | Typed Operation Requests, Operation Results, Failure Envelopes, and discovery schemas. |
 | Project and packaging | `uv` | Environments, dependencies, builds, and installed-product tests. |
-| Ordinary Core Operations | Packaged Lua handlers | Core Operation Semantics and native mapping executed through Aseprite. The current package contains a fixed runtime probe, shared capability observations, Sprite creation, inspection, native flattening, resize and crop, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Cel-targeted Image Resize, Tag inspection and authoring, exact Pixel Patch, animation audit, Frame comparison, continuity Preview, Export Image, and Operation Plan handlers. Sprite copy uses the File Adapter for byte preservation and the packaged inspection handler for verification. |
+| Ordinary Core Operations | Packaged Lua handlers | Core Operation Semantics and native mapping executed through Aseprite. The current package contains a fixed runtime probe, shared capability observations, Sprite creation, inspection, native flattening, resize and crop, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Cel-targeted Image Resize, canonical Image reads and replacement, Tag inspection and authoring, exact Pixel Patch, animation audit, Frame comparison, continuity Preview, Export Image, and Operation Plan handlers. Sprite copy uses the File Adapter for byte preservation and the packaged inspection handler for verification. |
 | Aseprite integration | External `aseprite --batch --script` | Native document, Tool, Filter, color, and export behavior. |
 | Private transport | Versioned JSON request and response files | Data exchange through `--script-param`, separate from diagnostics. |
 | Agent access | Version-matched Agent Skill and planned local stdio MCP Adapter with CLI subprocess invocation | Guidance and equivalent tool projection from the installed surface. |
@@ -318,9 +318,14 @@ copy/link/unlink mutations; `spa.animation` owns declared animation audit,
 full-Canvas Frame comparison, and the composed continuity Preview use case.
 The delivered `spa.image` slice owns Cel-targeted Image Resize and its explicit
 placement policy; its fixed Lua Image Resize Transform owns buffer scaling and
-can be reused by eligible Tile Bitmap authoring. `spa.paint` owns exact Pixel
-Patch application, while
-`spa.raster` holds the shared Color Value, Rectangle, Patch, and Selection types.
+can be reused by eligible Tile Bitmap authoring. `spa.image_snapshot` owns individual
+and native composite Image reads plus complete Image replacement. Its Lua helpers
+own canonical native pixel reads and Layer Composition over the original tree;
+the application reuses Artifact Files for JSON transport and Target Commit for native
+publication. `spa.paint` owns exact Pixel Patch application. `spa.raster` holds the
+shared Color Value, Rectangle, Snapshot, Patch, Selection, and Effective Palette types;
+`raster_color.lua` is the shared native Color Value and Effective Palette boundary for
+Paint and Image snapshots.
 Raster Authoring owns their
 pixel and Color Value semantics under ADR-0018; Color and Palette owns Palette and
 conversion behavior. The other groupings remain an integrated planning view rather
@@ -386,7 +391,7 @@ src/spa/
   motion.py               # candidate: bounded Frame/Cel motion authoring
   animation.py            # existing audit, comparison, and composed Preview use case
   frame.py, cel.py, cel_relationship.py
-  image.py, paint.py, raster.py
+  image.py, image_snapshot.py, paint.py, raster.py
   export.py               # existing Delivery and publication support
   application.py, plan.py, mutation.py, ports.py
   file_adapter.py
