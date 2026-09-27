@@ -8,6 +8,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from jsonschema import validate
 
 from spa.contracts import RuntimeRequest
 from spa.descriptors import PROBE_RESOURCES
@@ -18,6 +19,47 @@ from tests.support import inject_palette_change, spa
 pytestmark = pytest.mark.e2e
 
 FULL_AREA = {"x": 0, "y": 0, "width": 4, "height": 3}
+
+
+@pytest.mark.parametrize(
+    "artifact_path", ["bad\u0000.json", "~spa-pr114-no-such-user/snapshot.json"]
+)
+def test_unusable_snapshot_artifact_path_returns_failure_without_commit(
+    tmp_path: Path,
+    artifact_path: str,
+) -> None:
+    source = _fixture(tmp_path)
+    destination = tmp_path / "existing.aseprite"
+    destination.write_bytes(source.read_bytes())
+    original_source, original_target = source.read_bytes(), destination.read_bytes()
+    run = spa(
+        "image",
+        "replace",
+        "--input-json",
+        "-",
+        stdin=json.dumps(
+            {
+                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+                "source_sprite_file": str(source),
+                "target_sprite_file": str(destination),
+                "in_place": False,
+                "overwrite": True,
+                "target": {"layer": {"layer_path": [1]}, "frame_number": 1},
+                "input": {"kind": "artifact", "path": artifact_path},
+            }
+        ),
+    )
+    assert run.returncode != 0
+    assert run.stdout, run.stderr
+    failure = json.loads(run.stdout)
+    schema = json.loads(spa("image", "replace", "--schema").stdout)
+    validate(failure, schema["failure_schema"])
+    assert failure["code"] == "artifact_file_failed", failure
+    assert failure["details"]["reason"] == "input_file_unreadable"
+    assert "Traceback" not in run.stderr
+    assert source.read_bytes() == original_source
+    assert destination.read_bytes() == original_target
+    assert set(tmp_path.iterdir()) == {source, destination}
 
 
 def _individual(

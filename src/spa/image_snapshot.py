@@ -494,7 +494,7 @@ def replace_image(
     else:
         files = services.artifact_files
         assert files is not None
-        raw = files.read_input(Path(request.input.path).expanduser())
+        raw = files.read_input(Path(request.input.path))
         try:
             value = PixelRegionSnapshot.model_validate_json(raw)
         except ValidationError as exc:

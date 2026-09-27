@@ -158,8 +158,8 @@ class LocalArtifactFiles:
 
     def read_input(self, path: Path) -> bytes:
         try:
-            return path.read_bytes()
-        except OSError as exc:
+            return path.expanduser().read_bytes()
+        except (OSError, ValueError, RuntimeError) as exc:
             raise RuntimeIssue(
                 "artifact_file_failed",
                 "Input Artifact could not be read",
