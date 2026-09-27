@@ -179,3 +179,59 @@ another environment can have different capabilities._
   permission. Treat a browser-launch failure as environment evidence, not Mermaid syntax
   evidence.
 - **Last verified:** 2026-09-14 with Mermaid CLI 11.17.0 and local Chrome on macOS.
+
+## Godot data-directory permissions and export-template discovery
+
+- **Applies when:** Godot runs through gda in a managed environment that cannot write
+  to the default application-data directory, or an export reuses a redirected data root.
+- **Symptom:** Godot reports directory-creation errors during validation. After a data
+  redirect, an export may no longer find templates installed in the normal location.
+- **Cause:** The default data directory is outside the writable scope. gda's
+  `--user-data-root` also changes the application-data location used to find Godot
+  export templates.
+- **Prevention:** For affected headless commands, put the global option
+  `--user-data-root <writable-temp-dir>/<task>-godot-data` before the gda command.
+  Before using that root for export, confirm that it has access to templates for the
+  selected Godot version. A successful headless run does not establish template access.
+- **Recovery:** Retry validation with the writable root and inspect the verdict and
+  engine diagnostics. For export, use an authorized data location with the matching
+  templates; changing the game or reinstalling gda does not repair this path mismatch.
+- **Last verified:** Retained wizard v1/v2 runs on managed macOS with gda 0.19.0 and
+  Godot 4.6.3; see [v1 export setup](examples/wizard_cast/README.md#verify-and-export-the-godot-consumer-with-gda)
+  and [v2 H04](examples/wizard_cast_v2/DOGFOODING.md#h04--godot-needs-a-writable-data-location-in-the-managed-sandbox).
+
+## A denied macOS window-server lookup does not establish display availability
+
+- **Applies when:** A managed macOS process runs `gda daemon start --windowed` and
+  cannot query the window server.
+- **Symptom:** The command returns `live_windowed_permission_denied`, with
+  `BOOTSTRAP_NOT_PRIVILEGED` in the lookup diagnostic.
+- **Cause:** The execution scope denies the lookup. This result establishes a
+  permission boundary; it cannot establish whether the host has a usable window server.
+- **Prevention:** Check the diagnostic before classifying the host as headless. Use
+  an authorized execution scope that permits the windowed process when one is available.
+- **Recovery:** Obtain the required permission and retry the same launch. Classify
+  the retry from its own result. Without that permission, report windowed validation
+  as unverified; headless checks do not replace it.
+- **Last verified:** The retained [v2 startup evidence](examples/wizard_cast_v2/evidence/godot-verification.json)
+  records this failure and a successful approved retry on managed macOS with
+  gda 0.19.0 and Godot 4.6.3.
+
+## gda action state is not a key or mouse gesture
+
+- **Applies when:** A Godot consumer handles key/mouse events or uses Buttons that
+  activate on release, and automation tries `input action` or a lone button press.
+- **Symptom:** The tool accepts the input request, but the event handler or Button
+  callback does not run.
+- **Cause:** In the verified gda version, `input action` defaults to changing polled
+  action state, without sending a viewport event. A lone press also leaves a
+  release-activated Button's gesture incomplete.
+- **Prevention:** Match the input command to the consumer's handler. For key/mouse
+  handlers, use key/mouse events; for a release-activated Button, use
+  `input mouse-click` or a complete press/release sequence.
+- **Recovery:** Release any input left held by the earlier attempt, then retry the
+  complete event gesture. The wizard runs verified CAST and AGAIN clicks and paired
+  Space/R key events through these routes.
+- **Last verified:** Retained wizard v1/v2 runs with gda 0.19.0 and Godot 4.6.3; see
+  [v1 input observations](examples/wizard_cast/DOGFOODING.md#gda-observations) and
+  [v2 input commands](examples/wizard_cast_v2/evidence/godot-verification.json).
