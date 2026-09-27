@@ -1,7 +1,7 @@
 local mode = app.params.mode or "rgb"
 local indexed = mode:sub(1, 7) == "indexed"
 local color_mode = indexed and ColorMode.INDEXED
-  or mode == "grayscale" and ColorMode.GRAY
+  or mode:sub(1, 9) == "grayscale" and ColorMode.GRAY
   or ColorMode.RGB
 local sprite = Sprite(8, 8, color_mode)
 local layer = sprite.layers[1]
@@ -54,14 +54,19 @@ if indexed then
     image:putPixel(0, 1, left_index)
     image:putPixel(1, 1, 2)
   end
-elseif mode == "grayscale" then
+elseif mode:sub(1, 9) == "grayscale" then
   image:putPixel(0, 0, app.pixelColor.graya(200, 255))
 else
   image:putPixel(0, 0, app.pixelColor.rgba(255, 0, 0, 255))
   if mode ~= "rgb-edge" then image:putPixel(1, 0, app.pixelColor.rgba(0, 0, 255, 255)) end
 end
-sprite:newCel(layer, 1, image, Point(1, 2))
-if app.params.mode == "linked" then
+if mode == "rgb-hidden" then
+  image:putPixel(1, 1, app.pixelColor.rgba(17, 29, 41, 0))
+elseif mode == "grayscale-hidden" then
+  image:putPixel(1, 1, app.pixelColor.graya(73, 0))
+end
+sprite:newCel(layer, 1, image, Point(mode == "position-limit" and 32767 or 1, 2))
+if mode == "linked" or mode == "indexed-linked" then
   sprite:newEmptyFrame(2)
   app.activeSprite = sprite
   app.activeLayer = layer

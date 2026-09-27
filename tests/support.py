@@ -113,7 +113,7 @@ def inject_palette_change(
     struct.pack_into("<I", payload, frame_offset, frame_size + len(chunk))
     if new_chunk_count:
         struct.pack_into("<I", payload, frame_offset + 12, new_chunk_count + 1)
-    else:
+    if old_chunk_count != 0xFFFF:
         struct.pack_into("<H", payload, frame_offset + 6, old_chunk_count + 1)
     payload[insert_at:insert_at] = chunk
     struct.pack_into("<I", payload, 0, len(payload))

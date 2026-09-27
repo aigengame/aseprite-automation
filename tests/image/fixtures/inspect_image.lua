@@ -23,6 +23,7 @@ if image.colorMode == ColorMode.GRAY then
   result.gray = app.pixelColor.grayaV(pixel)
   result.alpha = app.pixelColor.grayaA(pixel)
 elseif image.colorMode == ColorMode.INDEXED then
+  result.transparent_index = sprite.transparentColor
   local palette = sprite.palettes[1]
   local color = palette:getColor(pixel)
   result.palette_color = {
