@@ -88,6 +88,7 @@ def test_manifest_is_projected_from_command_descriptors() -> None:
         "spa frame add",
         "spa frame duplicate",
         "spa cel add",
+        "spa cel set",
     }
     for entry in manifest["operations"]:
         command = entry["operation"].split()[1:]

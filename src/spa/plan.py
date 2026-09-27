@@ -17,6 +17,13 @@ from spa.cel import (
 from spa.cel import (
     CelAddress as LifecycleCelAddress,
 )
+from spa.cel_relationship import (
+    CEL_RELATIONSHIP_OPERATIONS,
+    CEL_RELATIONSHIP_RESOURCE,
+    CelRelationshipChangeEvidence,
+    CelSetInput,
+    validate_relationship_evidence,
+)
 from spa.contracts import (
     PublicModel,
     Request,
@@ -89,6 +96,7 @@ ELIGIBLE_OPERATIONS = {
         *PAINT_OPERATIONS,
         *FRAME_OPERATIONS,
         *CEL_OPERATIONS,
+        *CEL_RELATIONSHIP_OPERATIONS,
     )
     if descriptor.plan_eligible
 }
@@ -103,6 +111,7 @@ PLAN_RUN_HANDLER = PackagedHandler(
         FRAME_SUPPORT_RESOURCE,
         CEL_SUPPORT_RESOURCE,
         CEL_SELECT_RESOURCE,
+        CEL_RELATIONSHIP_RESOURCE,
         DIGEST_RESOURCE,
         SPRITE_INSPECTION_FIXTURE,
         PAINT_PROBE_FIXTURE,
@@ -158,6 +167,11 @@ class CelAddStep(PublicModel):
     input: CelAddInput
 
 
+class CelSetStep(PublicModel):
+    operation: Literal["cel set"]
+    input: CelSetInput
+
+
 PlanStep = Annotated[
     CreateStep
     | GetStep
@@ -166,7 +180,8 @@ PlanStep = Annotated[
     | FrameGetStep
     | FrameAddStep
     | FrameDuplicateStep
-    | CelAddStep,
+    | CelAddStep
+    | CelSetStep,
     Field(discriminator="operation"),
 ]
 
@@ -217,7 +232,10 @@ class PlanDefinition(PublicModel):
                         f"Plan {field} Postcondition contradicts Sprite creation"
                     )
         mutates = creates or any(
-            isinstance(step, (PaintStep, FrameAddStep, FrameDuplicateStep, CelAddStep))
+            isinstance(
+                step,
+                (PaintStep, FrameAddStep, FrameDuplicateStep, CelAddStep, CelSetStep),
+            )
             for step in self.steps
         )
         if (creates and self.source_sprite_file is not None) or (
@@ -298,6 +316,10 @@ class CelAddStepResult(PublicModel):
     cel: CelState
 
 
+class CelSetStepResult(CelRelationshipChangeEvidence):
+    persisted_reopen_verified: Literal[False]
+
+
 class CreateStepOutcome(PublicModel):
     operation: Literal["sprite create"]
     result: CreateStepResult
@@ -338,6 +360,11 @@ class CelAddStepOutcome(PublicModel):
     result: CelAddStepResult
 
 
+class CelSetStepOutcome(PublicModel):
+    operation: Literal["cel set"]
+    result: CelSetStepResult
+
+
 StepOutcome = Annotated[
     CreateStepOutcome
     | GetStepOutcome
@@ -346,7 +373,8 @@ StepOutcome = Annotated[
     | FrameGetStepOutcome
     | FrameAddStepOutcome
     | FrameDuplicateStepOutcome
-    | CelAddStepOutcome,
+    | CelAddStepOutcome
+    | CelSetStepOutcome,
     Field(discriminator="operation"),
 ]
 
@@ -565,6 +593,11 @@ def _validated_steps(
             elif isinstance(step, FrameAddStep):
                 outcome = FrameAddStepOutcome.model_validate(item)
                 validate_frame_evidence(step.input, outcome.result, invocation)
+            elif isinstance(step, CelSetStep):
+                outcome = CelSetStepOutcome.model_validate(item)
+                validate_relationship_evidence(
+                    step.input, outcome.result, invocation, "set"
+                )
             elif isinstance(step, CelAddStep):
                 outcome = CelAddStepOutcome.model_validate(item)
                 target = step.input.target
@@ -617,7 +650,9 @@ def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunRes
     payload: dict[str, Any] = {
         "source_sprite_file": plan.source_sprite_file,
         "staged_sprite_file": str(staged) if staged is not None else None,
-        "steps": [step.model_dump(mode="json") for step in plan.steps],
+        "steps": [
+            step.model_dump(mode="json", exclude_none=True) for step in plan.steps
+        ],
         "postconditions": plan.postconditions.model_dump(
             mode="json", exclude_none=True
         ),
@@ -647,24 +682,37 @@ def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunRes
                 "cel_unsupported_target",
                 "cel_frame_out_of_bounds",
             }
+            set_codes = {
+                *LAYER_ADDRESS_FAILURE_CODES,
+                "cel_not_found",
+                "cel_unsupported_target",
+                "cel_frame_out_of_bounds",
+            }
             if (
                 not isinstance(code, str)
                 or not isinstance(message, str)
                 or not (
                     (isinstance(step, CelAddStep) and code in add_codes)
+                    or (isinstance(step, CelSetStep) and code in set_codes)
                     or (isinstance(step, PaintStep) and code == "cel_not_found")
                 )
             ):
                 raise _malformed(
                     invocation, "Plan Kernel returned invalid Cel rejection"
                 )
-            if isinstance(step, CelAddStep) and code in LAYER_ADDRESS_FAILURE_CODES:
+            if (
+                isinstance(step, (CelAddStep, CelSetStep))
+                and code in LAYER_ADDRESS_FAILURE_CODES
+            ):
                 details = LayerTargetDetails(
                     address_role="target",
                     address=step.input.target.layer,
                     step_number=index,
                 )
-            elif isinstance(step, CelAddStep) and code == "cel_frame_out_of_bounds":
+            elif (
+                isinstance(step, (CelAddStep, CelSetStep))
+                and code == "cel_frame_out_of_bounds"
+            ):
                 details = CelFrameRangeDetails(
                     from_frame=step.input.target.frame_number,
                     to_frame=step.input.target.frame_number,
@@ -673,7 +721,7 @@ def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunRes
             else:
                 target = (
                     step.input.target
-                    if isinstance(step, CelAddStep)
+                    if isinstance(step, (CelAddStep, CelSetStep))
                     else LifecycleCelAddress(
                         layer=LayerAddress(layer_path=step.input.target.layer_path),
                         frame_number=step.input.target.frame_number,

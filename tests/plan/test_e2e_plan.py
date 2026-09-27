@@ -372,7 +372,17 @@ def test_wheel_installed_plan_uses_packaged_handler(tmp_path: Path) -> None:
                                 "color_mode": "rgb",
                                 "initial_layer": {"kind": "transparent"},
                             },
-                        }
+                        },
+                        {
+                            "operation": "cel set",
+                            "input": {
+                                "target": {
+                                    "layer": {"layer_path": [1]},
+                                    "frame_number": 1,
+                                },
+                                "opacity": 63,
+                            },
+                        },
                     ],
                 },
             }
@@ -381,4 +391,6 @@ def test_wheel_installed_plan_uses_packaged_handler(tmp_path: Path) -> None:
     )
     assert run.returncode == 0, run.stdout + run.stderr
     assert target.is_file()
-    assert json.loads(run.stdout)["persisted_reopen_verified"] is True
+    result = json.loads(run.stdout)
+    assert result["persisted_reopen_verified"] is True
+    assert result["steps"][1]["result"]["cel"]["opacity"] == 63

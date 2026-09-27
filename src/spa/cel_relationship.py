@@ -21,6 +21,7 @@ from spa.mutation import (
 )
 from spa.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.ports import (
+    KernelInvocationResult,
     OperationServices,
     PackagedHandler,
     PackagedResource,
@@ -65,17 +66,21 @@ class CelPosition(Point):
     y: int = Field(ge=-32768, le=32767, strict=True)
 
 
-class CelSetRequest(CelRelationshipRequest):
+class CelSetInput(PublicModel):
     target: CelAddress
     position: CelPosition | None = None
     opacity: int | None = Field(default=None, ge=0, le=255, strict=True)
     z_index: int | None = Field(default=None, ge=-32768, le=32767, strict=True)
 
     @model_validator(mode="after")
-    def require_change(self) -> "CelSetRequest":
+    def require_change(self) -> "CelSetInput":
         if self.position is None and self.opacity is None and self.z_index is None:
             raise ValueError("Specify at least one Cel property")
         return self
+
+
+class CelSetRequest(CelRelationshipRequest, CelSetInput):
+    pass
 
 
 class CelPairRequest(CelRelationshipRequest):
@@ -95,11 +100,14 @@ class CelUnlinkRequest(CelRelationshipRequest):
     target: CelAddress
 
 
-class CelRelationshipEvidence(PublicModel):
+class CelRelationshipChangeEvidence(PublicModel):
     before_cel_count: int = Field(ge=0)
     before_cels: list[CelState] = Field(min_length=1)
     affected_cels: list[CelState] = Field(min_length=1)
     cel: CelState
+
+
+class CelRelationshipEvidence(CelRelationshipChangeEvidence):
     sprite: SpriteInspection
     persisted_reopen_verified: Literal[True]
 
@@ -128,6 +136,9 @@ class CelUnlinkResult(CelRelationshipResult):
     operation: Literal["spa cel unlink"] = "spa cel unlink"
 
 
+CEL_RELATIONSHIP_RESOURCE = PackagedResource(
+    "cel_relationship", "cel_relationship_support.lua"
+)
 CEL_RELATIONSHIP_HANDLER = PackagedHandler(
     "cel_relationship",
     (
@@ -135,6 +146,7 @@ CEL_RELATIONSHIP_HANDLER = PackagedHandler(
         SPRITE_PERSISTENCE_RESOURCE,
         CEL_SELECT_RESOURCE,
         CEL_SUPPORT_RESOURCE,
+        CEL_RELATIONSHIP_RESOURCE,
         PackagedResource("digest", "digest.lua"),
     ),
 )
@@ -147,6 +159,72 @@ CEL_RELATIONSHIP_REQUIREMENTS = RuntimeRequirements(
 
 def _address_of(cel: CelState) -> tuple[tuple[int, ...], int]:
     return tuple(cel.layer_path), cel.frame_number
+
+
+def validate_relationship_evidence(
+    request: CelSetInput | CelCopyRequest | CelLinkRequest | CelUnlinkRequest,
+    evidence: CelRelationshipChangeEvidence,
+    invocation: KernelInvocationResult,
+    operation: Literal["set", "copy", "link", "unlink"],
+) -> None:
+    addressed = (
+        request.destination if isinstance(request, CelPairRequest) else request.target
+    )
+    before_keys = [_address_of(cel) for cel in evidence.before_cels]
+    affected_keys = [_address_of(cel) for cel in evidence.affected_cels]
+    target_key = _address_of(evidence.cel)
+    expected_count = evidence.before_cel_count + int(operation in ("copy", "link"))
+    prior = {_address_of(cel): cel for cel in evidence.before_cels}
+    current = {_address_of(cel): cel for cel in evidence.affected_cels}
+    source_key = (
+        (tuple(request.source.layer.layer_path), request.source.frame_number)
+        if isinstance(request, CelPairRequest)
+        and request.source.layer.layer_path is not None
+        else None
+    )
+    if (
+        not evidence.cel.exists
+        or target_key not in affected_keys
+        or target_key not in prior
+        or evidence.cel != current[target_key]
+        or len(before_keys) != len(set(before_keys))
+        or len(affected_keys) != len(set(affected_keys))
+        or (
+            addressed.layer.layer_path is not None
+            and evidence.cel.layer_path != addressed.layer.layer_path
+        )
+        or evidence.cel.frame_number != addressed.frame_number
+        or not set(affected_keys).issubset(before_keys)
+        or (
+            isinstance(evidence, CelRelationshipEvidence)
+            and evidence.sprite.metadata.cel_count != expected_count
+        )
+        or (operation in ("copy", "link") and prior[target_key].exists)
+        or (operation in ("set", "unlink") and not prior[target_key].exists)
+        or (operation == "copy" and evidence.cel.linked_cels)
+        or (operation == "copy" and set(affected_keys) != {target_key})
+        or (operation == "unlink" and evidence.cel.linked_cels)
+        or (
+            operation == "link"
+            and (
+                source_key is not None
+                and source_key
+                not in {
+                    (tuple(link.layer_path), link.frame_number)
+                    for link in evidence.cel.linked_cels
+                }
+            )
+        )
+    ):
+        raise RuntimeIssue(
+            "postcondition_failed",
+            "Cel relationship evidence differs from the request",
+            PostconditionEvidence(
+                response_path=invocation.response_path,
+                reason="Cel address, existence, or affected scope disagrees",
+            ),
+            invocation.diagnostics,
+        )
 
 
 def _mutate(
@@ -222,59 +300,7 @@ def _mutate(
             evidence.sprite,
             invocation,
         )
-        before_keys = [_address_of(cel) for cel in evidence.before_cels]
-        affected_keys = [_address_of(cel) for cel in evidence.affected_cels]
-        target_key = _address_of(evidence.cel)
-        actual_count = evidence.sprite.metadata.cel_count
-        expected_count = evidence.before_cel_count + int(operation in ("copy", "link"))
-        prior = {_address_of(cel): cel for cel in evidence.before_cels}
-        current = {_address_of(cel): cel for cel in evidence.affected_cels}
-        source_key = (
-            (tuple(request.source.layer.layer_path), request.source.frame_number)
-            if isinstance(request, CelPairRequest)
-            and request.source.layer.layer_path is not None
-            else None
-        )
-        if (
-            not evidence.cel.exists
-            or target_key not in affected_keys
-            or target_key not in prior
-            or evidence.cel != current[target_key]
-            or len(before_keys) != len(set(before_keys))
-            or len(affected_keys) != len(set(affected_keys))
-            or (
-                addressed.layer.layer_path is not None
-                and evidence.cel.layer_path != addressed.layer.layer_path
-            )
-            or evidence.cel.frame_number != addressed.frame_number
-            or not set(affected_keys).issubset(before_keys)
-            or actual_count != expected_count
-            or (operation in ("copy", "link") and prior[target_key].exists)
-            or (operation in ("set", "unlink") and not prior[target_key].exists)
-            or (operation == "copy" and evidence.cel.linked_cels)
-            or (operation == "copy" and set(affected_keys) != {target_key})
-            or (operation == "unlink" and evidence.cel.linked_cels)
-            or (
-                operation == "link"
-                and (
-                    source_key is not None
-                    and source_key
-                    not in {
-                        (tuple(link.layer_path), link.frame_number)
-                        for link in evidence.cel.linked_cels
-                    }
-                )
-            )
-        ):
-            raise RuntimeIssue(
-                "postcondition_failed",
-                "Persisted Cel relationship evidence differs from the request",
-                PostconditionEvidence(
-                    response_path=invocation.response_path,
-                    reason="Cel address, existence, or affected scope disagrees",
-                ),
-                invocation.diagnostics,
-            )
+        validate_relationship_evidence(request, evidence, invocation, operation)
         identity_issue = source_target_identity_issue(
             services.target_files, source, target_file, request.in_place
         )
@@ -355,6 +381,7 @@ CEL_RELATIONSHIP_OPERATIONS = (
         CEL_RELATIONSHIP_REQUIREMENTS,
         _CEL_MUTATION_FAILURE_CODES,
         execution_kind="mutation",
+        plan_eligible=True,
         side_effects=("publishes the declared Target Sprite File",),
     ),
     OperationDescriptor(
