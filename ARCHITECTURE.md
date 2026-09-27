@@ -321,7 +321,10 @@ placement policy; its fixed Lua Image Resize Transform owns buffer scaling and
 can be reused by eligible Tile Bitmap authoring. `spa.image_snapshot` owns individual
 and native composite Image reads plus complete Image replacement. Its Lua helpers
 own canonical native pixel reads and Layer Composition over the original tree;
-the application reuses Artifact Files for JSON transport and Target Commit for native
+the composite's explicit output choice selects the native render destination, while
+individual reads retain stored values. This does not create a second compositor or
+invoke Sprite-wide Color Mode conversion.
+The application reuses Artifact Files for JSON transport and Target Commit for native
 publication. `spa.paint` owns exact Pixel Patch application. `spa.raster` holds the
 shared Color Value, Rectangle, Snapshot, Patch, Selection, and Effective Palette types;
 `raster_color.lua` is the shared native Color Value and Effective Palette boundary for

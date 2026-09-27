@@ -30,6 +30,12 @@ An Indexed pixel's native value remains its Palette Index. A resolved RGBA
 observation is separate and does not replace that value. The Sprite's
 Transparent Color Index remains distinct from Alpha Channel semantics.
 
+An explicitly requested RGB composite is a derived visual observation. Native
+rendering into a separate RGB Image does not change the Source Sprite's Color Mode
+or establish an Indexed round-trip. ADR-0057 owns this Snapshot distinction;
+feature issues own the supported output choices. Color Profile conversion is not
+implied by selecting RGB pixel output.
+
 Operations accept Color Values compatible with the target Color Mode unless
 they expose explicit native conversion inputs. SPA does not silently choose a
 nearest color or read undeclared editor preferences. Sprite-wide conversion
