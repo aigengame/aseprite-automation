@@ -39,7 +39,7 @@ elseif kind == "tilemap" then
   layer = app.activeLayer
   assert(layer.isTilemap)
 elseif kind == "group" then
-  layer = sprite:newGroup()
+  sprite:newGroup()
 elseif kind == "absent" then
   sprite:deleteCel(layer, 1)
 else

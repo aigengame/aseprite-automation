@@ -13,6 +13,7 @@ read_globals = {
   "Palette",
   "Point",
   "Rectangle",
+  "Selection",
   "Sprite",
   "SpriteSheetDataFormat",
   "SpriteSheetType",
