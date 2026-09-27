@@ -14,7 +14,14 @@ local function execute()
   local payload = assert(request.payload)
   assert(type(payload.sprite_file) == "string", "missing Sprite file")
   open_sprite = assert(app.open(payload.sprite_file), "could not open Sprite file")
-  local sprite = inspection.inspect(open_sprite, payload.inspection_scope)
+  local verified_uuids = {}
+  for _, section in ipairs(payload.inspection_scope) do
+    if section == "layers" then
+      verified_uuids = inspection.saved_layer_uuids(open_sprite, payload.sprite_file)
+      break
+    end
+  end
+  local sprite = inspection.inspect(open_sprite, payload.inspection_scope, verified_uuids)
   open_sprite:close()
   open_sprite = nil
   return { sprite = sprite }

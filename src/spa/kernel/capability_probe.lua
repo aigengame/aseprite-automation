@@ -2,9 +2,15 @@
 local module = {}
 local inspection = dofile(app.params.inspection)
 local creation = dofile(app.params.creation)
+local layer_select = app.params.layer_select and dofile(app.params.layer_select) or nil
 local exporter = app.params.export_image_support and dofile(app.params.export_image_support) or nil
 local paint = dofile(app.params.paint)
 local digest = dofile(app.params.digest)
+local frame = app.params.frame and dofile(app.params.frame) or nil
+local cel_support = app.params.cel and dofile(app.params.cel) or nil
+local image_resize_transform = app.params.image_resize_transform
+    and dofile(app.params.image_resize_transform)
+  or nil
 
 local function observes_sprite_inspection()
   local open_sprite = nil
@@ -109,6 +115,136 @@ local function observes_sprite_creation()
   return ok
 end
 
+local function observes_layer_hierarchy()
+  if layer_select == nil then return false end
+  local previous = {
+    sprite = app.activeSprite,
+    layer = app.activeLayer,
+    frame = app.activeFrame,
+  }
+  local sprite = nil
+  local ok = pcall(function()
+    sprite = Sprite(2, 2, ColorMode.RGB)
+    local group = sprite:newGroup()
+    group.name = "parent"
+    local child = sprite:newLayer()
+    child.parent = group
+    local chosen = layer_select.resolve(sprite, { layer_path = { 2, 1 } })
+    assert(chosen ~= nil and chosen.layer == child)
+    sprite.useLayerUuids = true
+    local proof_path = app.fs.joinPath(app.params.workspace, "layer-probe.aseprite")
+    assert(sprite:saveAs(proof_path))
+    local verified_uuids = inspection.saved_layer_uuids(sprite, proof_path)
+    local facts = inspection.inspect(sprite, { "layers" }, verified_uuids)
+    assert(facts.metadata.use_layer_uuids)
+    assert(facts.layers[2].is_group)
+    assert(facts.layers[2].children[1].path[2] == 1)
+    assert(type(facts.layers[2].children[1].layer_uuid) == "string")
+    chosen = layer_select.resolve(
+      sprite,
+      { layer_uuid = facts.layers[2].children[1].layer_uuid },
+      verified_uuids
+    )
+    assert(chosen ~= nil and chosen.layer == child)
+    sprite.useLayerUuids = false
+    local without_uuids = inspection.inspect(sprite, { "layers" })
+    assert(without_uuids.layers[2].children[1].layer_uuid == json.decode("null"))
+    local rejected, code = layer_select.resolve(sprite, { layer_uuid = "runtime-only" })
+    assert(rejected == nil and code == "layer_uuid_unpersisted")
+    sprite:close()
+    sprite = nil
+    os.remove(proof_path)
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
+  return ok
+end
+
+local function observes_layer_mutation()
+  local sprite = nil
+  local proof_path = app.fs.joinPath(app.params.workspace, "layer-mutation-probe.aseprite")
+  local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
+  local ok = pcall(function()
+    sprite = Sprite(2, 2, ColorMode.RGB)
+    local lower = sprite.layers[1]
+    local lower_name = lower.name
+    local upper = sprite:newLayer()
+    upper.name = "upper"
+    upper.isVisible = false
+    upper.isEditable = false
+    upper.opacity = 128
+    upper.blendMode = BlendMode.MULTIPLY
+    assert(not upper.isVisible and not upper.isEditable)
+    assert(upper.opacity == 128 and upper.blendMode == BlendMode.MULTIPLY)
+    upper.stackIndex = 1
+    assert(upper.stackIndex == 1 and lower.stackIndex == 2)
+    sprite:deleteLayer(upper)
+    assert(#sprite.layers == 1 and sprite.layers[1] == lower)
+    assert(sprite:saveAs(proof_path))
+    sprite:close()
+    sprite = assert(app.open(proof_path))
+    assert(#sprite.layers == 1 and sprite.layers[1].name == lower_name)
+    sprite:close()
+    sprite = nil
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  pcall(function() os.remove(proof_path) end)
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
+  return ok
+end
+
+local function observes_layer_merge()
+  local sprite = nil
+  local proof_path = app.fs.joinPath(app.params.workspace, "layer-merge-probe.aseprite")
+  local previous = {
+    sprite = app.activeSprite,
+    layer = app.activeLayer,
+    frame = app.activeFrame,
+    new_blend = app.preferences.experimental.new_blend,
+  }
+  local ok = pcall(function()
+    sprite = Sprite(2, 2, ColorMode.RGB)
+    local lower = sprite.layers[1]
+    lower.name = "lower"
+    lower:cel(1).image:putPixel(0, 0, app.pixelColor.rgba(0, 0, 255, 255))
+    local upper = sprite:newLayer()
+    upper.name = "upper"
+    local image = Image(2, 2, ColorMode.RGB)
+    image:putPixel(0, 0, app.pixelColor.rgba(255, 0, 0, 128))
+    sprite:newCel(upper, 1, image)
+    app.activeSprite = sprite
+    app.activeLayer = upper
+    app.activeFrame = sprite.frames[1]
+    app.preferences.experimental.new_blend = true
+    assert(app.command.MergeDownLayer())
+    assert(#sprite.layers == 1 and sprite.layers[1] == lower)
+    assert(sprite:saveAs(proof_path))
+    sprite:close()
+    sprite = assert(app.open(proof_path))
+    assert(#sprite.layers == 1 and sprite.layers[1].name == "lower")
+    assert(sprite.layers[1]:cel(1) ~= nil)
+    sprite:close()
+    sprite = nil
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  pcall(function() os.remove(proof_path) end)
+  pcall(function() app.preferences.experimental.new_blend = previous.new_blend end)
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
+  return ok
+end
+
 local function observes_paint_apply()
   local source_path = assert(app.params.paint_fixture)
   local target_path = app.fs.joinPath(app.params.workspace, "paint-target.aseprite")
@@ -144,6 +280,295 @@ local function observes_paint_apply()
   return ok
 end
 
+local function observes_background_conversion()
+  local sprite = nil
+  local previous = {
+    sprite = app.activeSprite,
+    layer = app.activeLayer,
+    frame = app.activeFrame,
+    background_color = app.bgColor,
+  }
+  local ok = pcall(function()
+    sprite = Sprite(2, 2, ColorMode.RGB)
+    app.activeSprite = sprite
+    local layer = sprite.layers[1]
+    app.activeLayer = layer
+    app.activeFrame = sprite.frames[1]
+    app.bgColor = Color { r = 17, g = 34, b = 51, a = 255 }
+    assert(app.command.BackgroundFromLayer())
+    assert(layer.isBackground and layer:cel(1) ~= nil)
+    assert(app.command.LayerFromBackground())
+    assert(layer.isTransparent and not layer.isBackground)
+    sprite:close()
+    sprite = nil
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  pcall(function() app.bgColor = previous.background_color end)
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
+  return ok
+end
+
+local function observes_frame_authoring()
+  if frame == nil then return false end
+  local sprite = nil
+  local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
+  local ok = pcall(function()
+    sprite = Sprite(2, 2, ColorMode.RGB)
+    local duplicated = frame.apply_live(sprite, "duplicate", {
+      source_frame_number = 1,
+      cel_mode = "copy",
+      duration_ms = 340,
+    })
+    assert(duplicated.inserted_frame.frame_number == 2)
+    assert(duplicated.inserted_frame.duration_ms == 340)
+    local added = frame.apply_live(sprite, "add", { frame_number = 1, duration_ms = 1 })
+    assert(added.inserted_frame.frame_number == 1)
+    assert(added.inserted_frame.duration_ms == 1)
+    sprite:close()
+    sprite = nil
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
+  return ok
+end
+
+local function observes_frame_editing()
+  if frame == nil then return false end
+  local sprite = nil
+  local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
+  local ok = pcall(function()
+    sprite = Sprite(2, 2, ColorMode.RGB)
+    sprite:newEmptyFrame(2)
+    sprite:newEmptyFrame(3)
+    frame.apply_live(sprite, "set", { frame_number = 1, duration_ms = 250 })
+    assert(math.floor(sprite.frames[1].duration * 1000 + 0.5) == 250)
+    frame.apply_live(sprite, "move", { source_frame_number = 1, target_frame_number = 3 })
+    assert(math.floor(sprite.frames[3].duration * 1000 + 0.5) == 250)
+    assert(sprite.layers[1]:cel(3) ~= nil)
+    frame.apply_live(sprite, "remove", { frame_number = 2 })
+    assert(#sprite.frames == 2 and sprite.layers[1]:cel(2) ~= nil)
+    sprite:close()
+    sprite = nil
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
+  return ok
+end
+
+local function observes_cel_lifecycle()
+  if cel_support == nil or layer_select == nil then return false end
+  local sprite = nil
+  local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
+  local ok = pcall(function()
+    sprite = Sprite(2, 2, ColorMode.RGB)
+    sprite:newEmptyFrame(2)
+    local input = { target = { layer = { layer_path = { 1 } }, frame_number = 2 } }
+    local added = cel_support.add_live(sprite, input, layer_select, {})
+    assert(not added.before.exists and added.cel.exists)
+    local layer = sprite.layers[1]
+    assert(cel_support.prevalidate(sprite, layer, 2, "clear", nil, nil) == nil)
+    cel_support.apply(sprite, layer, 2, "clear", nil, nil)
+    assert(cel_support.inspect(sprite, layer, { 1 }, 2).content == "transparent")
+    assert(cel_support.prevalidate(sprite, layer, 2, "remove", nil, nil) == nil)
+    cel_support.apply(sprite, layer, 2, "remove", nil, nil)
+    assert(not cel_support.inspect(sprite, layer, { 1 }, 2).exists)
+    sprite:close()
+    sprite = nil
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
+  return ok
+end
+
+local function observes_cel_relationships()
+  if cel_support == nil or layer_select == nil then return false end
+  local sprite = nil
+  local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
+  local ok = pcall(function()
+    sprite = Sprite(2, 2, ColorMode.RGB)
+    local layer = sprite.layers[1]
+    sprite:newEmptyFrame(2)
+    sprite:newEmptyFrame(3)
+    local original = assert(layer:cel(1))
+    local resolved, path = cel_support.resolve(
+      sprite,
+      { layer = { layer_path = { 1 } }, frame_number = 1 },
+      layer_select,
+      {}
+    )
+    assert(resolved == layer and path[1] == 1)
+    assert(cel_support.is_regular_transparent(layer))
+    assert(cel_support.inspect(sprite, layer, path, 1).exists)
+    assert(#cel_support.affected(sprite, original.image) == 1)
+    original.position = Point(1, 0)
+    original.opacity = 200
+    original.zIndex = 1
+    local other = sprite:newLayer()
+    local duplicate = sprite:newCel(other, 2, original.image, original.position)
+    assert(duplicate.image ~= original.image)
+    sprite:newEmptyFrame(2)
+    app.activeSprite = sprite
+    app.activeLayer = layer
+    app.activeFrame = sprite.frames[1]
+    app.command.NewFrame { content = "cellinked" }
+    local linked = assert(layer:cel(2))
+    assert(linked.image == original.image)
+    assert(#cel_support.affected(sprite, original.image) == 2)
+    linked.frameNumber = 4
+    sprite:deleteFrame(2)
+    linked = assert(layer:cel(3))
+    assert(linked.image == original.image)
+    app.activeFrame = sprite.frames[3]
+    app.command.UnlinkCel()
+    assert(layer:cel(3).image ~= original.image)
+    sprite:close()
+    sprite = nil
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
+  return ok
+end
+
+local function observes_sprite_flatten()
+  local sprite = nil
+  local ok = pcall(function()
+    sprite = Sprite(2, 2, ColorMode.RGB)
+    sprite:newLayer()
+    assert(#sprite.layers == 2)
+    sprite:flatten()
+    assert(#sprite.layers == 1)
+    sprite:close()
+    sprite = nil
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  return ok
+end
+
+local function observes_sprite_resize()
+  local sprite = nil
+  local ok = pcall(function()
+    sprite = Sprite(2, 2, ColorMode.RGB)
+    sprite:resize(4, 4)
+    assert(sprite.width == 4 and sprite.height == 4)
+    sprite:close()
+    sprite = nil
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  return ok
+end
+
+local function observes_image_resize()
+  if image_resize_transform == nil then return false end
+  local sprite = nil
+  local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
+  local ok = pcall(function()
+    sprite = Sprite(2, 2, ColorMode.RGB)
+    local target = sprite.layers[1]:cel(1)
+    local source = Image(target.image)
+    source:putPixel(0, 0, app.pixelColor.rgba(255, 0, 0, 255))
+    local resized = image_resize_transform.resize(source, sprite, 4, 4, "nearest-neighbor")
+    target.image = resized
+    assert(target.image.width == 4 and target.image.height == 4)
+    assert(target.image:getPixel(1, 1) == app.pixelColor.rgba(255, 0, 0, 255))
+    sprite:close()
+    sprite = nil
+    sprite = Sprite(2, 2, ColorMode.INDEXED)
+    local palette = Palette(4)
+    palette:setColor(0, Color { r = 0, g = 0, b = 0, a = 0 })
+    palette:setColor(1, Color { r = 255, g = 0, b = 0, a = 255 })
+    palette:setColor(2, Color { r = 0, g = 0, b = 255, a = 255 })
+    palette:setColor(3, Color { r = 127, g = 0, b = 127, a = 255 })
+    app.activeSprite = sprite
+    app.activeLayer = sprite.layers[1]
+    app.activeFrame = sprite.frames[1]
+    sprite:setPalette(palette)
+    local indexed = sprite.layers[1]:cel(1)
+    indexed.image:putPixel(0, 0, 1)
+    indexed.image:putPixel(1, 0, 2)
+    indexed.image:putPixel(0, 1, 1)
+    indexed.image:putPixel(1, 1, 2)
+    local copy, basis = image_resize_transform.resize(indexed.image, sprite, 3, 3, "bilinear", 1)
+    assert(copy:getPixel(1, 1) == 3)
+    assert(basis.palette_frame_number == 1 and basis.palette_size == 4)
+    sprite:close()
+    sprite = nil
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
+  return ok
+end
+
+local function observes_sprite_crop()
+  local sprite = nil
+  local previous = app.activeSprite
+  local ok = pcall(function()
+    sprite = Sprite(3, 3, ColorMode.RGB)
+    app.activeSprite = sprite
+    app.command.CanvasSize {
+      bounds = Rectangle(1, 1, 2, 2),
+      trimOutside = true,
+      ui = false,
+    }
+    assert(sprite.width == 2 and sprite.height == 2)
+    sprite:close()
+    sprite = nil
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  if previous ~= nil and previous.isValid then pcall(function() app.activeSprite = previous end) end
+  return ok
+end
+
+local function observes_tag_authoring()
+  local sprite = nil
+  local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
+  local ok = pcall(function()
+    sprite = Sprite(2, 2, ColorMode.RGB)
+    sprite:newEmptyFrame(2)
+    local tag = sprite:newTag(1, 2)
+    tag.name = "probe"
+    tag.aniDir = AniDir.PING_PONG_REVERSE
+    tag.repeats = 0
+    tag.toFrame = 1
+    assert(#sprite.tags == 1 and tag.toFrame.frameNumber == 1)
+    assert(tag.aniDir == AniDir.PING_PONG_REVERSE and tag.repeats == 0)
+    sprite:deleteTag(tag)
+    assert(#sprite.tags == 0)
+    sprite:close()
+    sprite = nil
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
+  return ok
+end
+
 function module.observe()
   local capabilities = { "aseprite_runtime_introspection" }
   local supports_inspection = observes_sprite_inspection()
@@ -151,7 +576,28 @@ function module.observe()
     capabilities[#capabilities + 1] = "aseprite_sprite_create"
   end
   if supports_inspection then capabilities[#capabilities + 1] = "aseprite_sprite_inspection" end
+  if observes_sprite_flatten() then capabilities[#capabilities + 1] = "aseprite_sprite_flatten" end
+  if observes_sprite_resize() then capabilities[#capabilities + 1] = "aseprite_sprite_resize" end
+  if observes_image_resize() then capabilities[#capabilities + 1] = "aseprite_image_resize" end
+  if observes_sprite_crop() then capabilities[#capabilities + 1] = "aseprite_sprite_crop" end
+  if observes_layer_hierarchy() then
+    capabilities[#capabilities + 1] = "aseprite_layer_hierarchy"
+  end
+  if observes_layer_mutation() then capabilities[#capabilities + 1] = "aseprite_layer_mutation" end
+  if observes_layer_merge() then capabilities[#capabilities + 1] = "aseprite_layer_merge" end
+  if observes_background_conversion() then
+    capabilities[#capabilities + 1] = "aseprite_background_conversion"
+  end
   if observes_paint_apply() then capabilities[#capabilities + 1] = "aseprite_paint_apply" end
+  if observes_frame_authoring() then
+    capabilities[#capabilities + 1] = "aseprite_frame_authoring"
+  end
+  if observes_frame_editing() then capabilities[#capabilities + 1] = "aseprite_frame_editing" end
+  if observes_cel_lifecycle() then capabilities[#capabilities + 1] = "aseprite_cel_lifecycle" end
+  if observes_cel_relationships() then
+    capabilities[#capabilities + 1] = "aseprite_cel_relationships"
+  end
+  if observes_tag_authoring() then capabilities[#capabilities + 1] = "aseprite_tag_authoring" end
   if exporter ~= nil then
     local ok = pcall(function()
       local fixture = Sprite(1, 1, ColorMode.RGB)

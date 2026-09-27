@@ -1,0 +1,146 @@
+{
+  "name": "Moonlit spell practice",
+  "seed": 190624,
+  "frame_indexing": "zero-based, inclusive phase ends",
+  "canvas": {
+    "width": 128,
+    "height": 96,
+    "color_mode": "rgb"
+  },
+  "palette": {
+    "ink": "#15162b",
+    "sky": "#1c2340",
+    "sky_high": "#293354",
+    "sky_horizon": "#3e4965",
+    "stone_shadow": "#283342",
+    "stone": "#485567",
+    "stone_light": "#687a89",
+    "moon_shadow": "#93939b",
+    "moon": "#d4cdae",
+    "white": "#f8f4e4",
+    "hat": "#734560",
+    "hat_light": "#a26074",
+    "robe_dark": "#783a3b",
+    "robe": "#b25945",
+    "robe_light": "#e38a5f",
+    "leather": "#5b4039",
+    "wood": "#91633f",
+    "gold": "#d6a45d",
+    "skin": "#e6b587",
+    "beard_shadow": "#9aadc1",
+    "beard": "#dee2d3",
+    "magic_dark": "#3c617e",
+    "magic": "#65d6d1",
+    "magic_light": "#c1fff0"
+  },
+  "phases": [
+    {"name": "idle", "frames": 4, "duration_ms": 100},
+    {"name": "charge", "frames": 10, "duration_ms": 100},
+    {"name": "cast", "frames": 6, "duration_ms": 100},
+    {"name": "recover", "frames": 12, "duration_ms": 100}
+  ],
+  "timing": {
+    "loop_order": ["idle", "charge", "cast", "recover"],
+    "loop_seam": [31, 0]
+  },
+  "pose": {
+    "position": [20, 40],
+    "foot_anchor": [14, 38],
+    "staff_base": [24, 37],
+    "staff_length": 23,
+    "easing": "smoothstep",
+    "rounding": "half-away-from-zero",
+    "idle_bob": [0, 0, -1, -1],
+    "idle_beard_sway": [0, 0, 1, 1],
+    "keyframes": [
+      {"frame": 0, "staff_angle": 0, "arm_raise": 0, "head_tilt": 0, "robe_sway": 0, "bob": 0, "beard_sway": 0},
+      {"frame": 4, "staff_angle": 0, "arm_raise": 0, "head_tilt": 0, "robe_sway": 0, "bob": 0, "beard_sway": 0},
+      {"frame": 9, "staff_angle": -4, "arm_raise": 3, "head_tilt": -1, "robe_sway": -1, "bob": -1, "beard_sway": -1},
+      {"frame": 13, "staff_angle": -4, "arm_raise": 5, "head_tilt": -1, "robe_sway": -1, "bob": -1, "beard_sway": -1},
+      {"frame": 14, "staff_angle": 8, "arm_raise": 5, "head_tilt": 1, "robe_sway": -1, "bob": 0, "beard_sway": -1},
+      {"frame": 16, "staff_angle": 8, "arm_raise": 4, "head_tilt": 1, "robe_sway": 1, "bob": 0, "beard_sway": 1},
+      {"frame": 19, "staff_angle": 5, "arm_raise": 3, "head_tilt": 1, "robe_sway": 1, "bob": 0, "beard_sway": 1},
+      {"frame": 24, "staff_angle": 1, "arm_raise": 1, "head_tilt": 0, "robe_sway": 0, "bob": 0, "beard_sway": 0},
+      {"frame": 28, "staff_angle": 0, "arm_raise": 0, "head_tilt": 0, "robe_sway": 0, "bob": 0, "beard_sway": 0},
+      {"frame": 31, "staff_angle": 0, "arm_raise": 0, "head_tilt": 0, "robe_sway": 0, "bob": 0, "beard_sway": 0}
+    ]
+  },
+  "gem": {
+    "size": [5, 5],
+    "anchor": [2, 2],
+    "position_keyframes": [
+      {"frame": 0, "offset": [0, 0]},
+      {"frame": 8, "offset": [0, 0]},
+      {"frame": 11, "offset": [0, -1]},
+      {"frame": 13, "offset": [0, 0]},
+      {"frame": 31, "offset": [0, 0]}
+    ],
+    "opacity_keyframes": [
+      {"frame": 0, "opacity": 255},
+      {"frame": 6, "opacity": 0},
+      {"frame": 7, "opacity": 255},
+      {"frame": 10, "opacity": 0},
+      {"frame": 11, "opacity": 255},
+      {"frame": 12, "opacity": 0},
+      {"frame": 13, "opacity": 255}
+    ]
+  },
+  "scale_pulse": {
+    "component": "gem",
+    "sampling": "nearest-neighbor",
+    "cel_position_policy": "pivot",
+    "pivot": [2, 2],
+    "rounding": "floor",
+    "frames": [
+      {"frame": 13, "width": 7, "height": 7},
+      {"frame": 14, "width": 9, "height": 9}
+    ]
+  },
+  "particles": {
+    "seed": 190625,
+    "count": 11,
+    "colors": ["white", "magic", "magic_dark"],
+    "color_frames": [2, 5, 7],
+    "charge": {"birth_spread": 3, "lifetime": 8, "radius_start": 16, "radius_end": 3, "turns": 0.45},
+    "cast": {"birth_spread": 2, "lifetime": 8, "radius_start": 3, "radius_end": 18, "turns": 0.08}
+  },
+  "burst": {
+    "radii": [10, 7, 4, 2, 0, 0],
+    "colors": ["magic_dark", "magic", "magic_light", "white"]
+  },
+  "projectile": {
+    "size": [20, 12],
+    "anchor": [13, 6],
+    "centers": [[52, 47], [64, 47], [78, 47], [94, 48], [111, 48], [129, 49]],
+    "trail_lengths": [6, 9, 11, 11, 9, 7]
+  },
+  "scene": {
+    "overscan": 2,
+    "ground_y": 78,
+    "moon_center": [100, 19],
+    "stars": {
+      "seed": 190626,
+      "count": 18,
+      "bounds": [7, 7, 120, 56],
+      "twinkle_period": 8,
+      "colors": ["sky_horizon", "moon_shadow", "beard", "moon_shadow", "sky_horizon", "sky_horizon", "sky_horizon", "sky_horizon"]
+    },
+    "shake": [
+      {"frame": 14, "offset": [2, -1]},
+      {"frame": 15, "offset": [-2, 1]},
+      {"frame": 16, "offset": [1, 0]},
+      {"frame": 17, "offset": [-1, 0]}
+    ]
+  },
+  "export": {
+    "components": {
+      "wizard": {"layers": ["wizard", "gem", "sparks", "burst"], "crop": {"x": 12, "y": 24, "width": 60, "height": 58}, "anchor": [22, 54]},
+      "gem": {"layers": ["gem"], "crop": {"x": 36, "y": 34, "width": 24, "height": 28}, "anchor": [12, 14]},
+      "burst": {"layers": ["sparks", "burst"], "crop": {"x": 24, "y": 22, "width": 48, "height": 48}, "anchor": [24, 26]},
+      "projectile": {"layers": ["projectile"], "crop": {"x": 0, "y": 0, "width": 20, "height": 12}, "anchor": [13, 6]},
+      "background": {"layers": ["background", "stars"], "crop": {"x": 0, "y": 0, "width": 128, "height": 96}, "anchor": [0, 0]}
+    },
+    "target": {"width": 20, "height": 28, "anchor": [10, 9]}
+  },
+  "gameplay": {"cast_frame": 14}
+}

@@ -11,11 +11,15 @@ verification tier. The layout does not mirror source packages or CLI Command Gro
 | `tests/cli/` | Access Projection through the installed CLI and its in-process projections. |
 | `tests/contracts/` | Shared Published Language rules, including Failure Code registration and Operation Descriptor constraints. |
 | `tests/export/` | Image Export contract, PNG Artifact verification and publication, and real Aseprite output evidence. |
+| `tests/examples/` | Installed-CLI workflows, deterministic asset production, and checked-in downstream asset agreement. |
+| `tests/frame/` | Frame timing, insertion, Cel copy/link intent, Tag adjustment, and native persistence. |
+| `tests/layer/` | Layer hierarchy, exact addressing, and native addition evidence. |
 | `tests/paint/` | Paint Domain Module contract, bounded mutation evidence, and native Pixel Patch behavior. |
 | `tests/plan/` | Static Plan preflight, single-Sprite Step composition, and commit gates. |
 | `tests/release/` | Release metadata and publication gates. |
 | `tests/runtime/` | Aseprite Runtime Integration, including discovery, launch, private Kernel transport, and real-runtime evidence. |
-| `tests/sprite/` | Sprite Domain Module contracts plus real creation, persisted reopen, structural inspection, and Target Commit evidence. |
+| `tests/sprite/` | Sprite Domain Module contracts plus real creation, copy, flatten, bounded validation, persisted reopen, structural inspection, and Target Commit evidence. |
+| `tests/tag/` | Tag stored facts, exact current addressing, native mutation, and save/reopen evidence. |
 
 Add an ownership directory only when tests for that behavior exist. Keep a helper in
 the narrowest ownership directory that uses it. Move a helper to `tests/support.py`
@@ -32,6 +36,9 @@ Use the tier in the file name:
   Aseprite behavior.
 - `test_e2e_*.py` invokes the installed `spa` CLI with a real Aseprite executable.
   Mark the module or each test with `pytest.mark.e2e`.
+
+`pytest.mark.slow` is an additional cost marker, not a verification tier. Use it
+for complete example rebuilds. The small wizard probe remains only `e2e`.
 
 Runtime integration fixtures cover incompatible Lua and API observations and structured
 failure without claiming native execution. Real-runtime tests execute the packaged
@@ -88,7 +95,14 @@ Run the fast unit and integration tiers with:
 uv run --frozen --group test pytest -m "not e2e"
 ```
 
-Run the real-runtime tier with:
+Run the routine real-runtime tests, including the small wizard probe, with:
+
+```sh
+SPA_TEST_ASEPRITE=/path/to/aseprite \
+  uv run --frozen --group test pytest -m "e2e and not slow" -rs
+```
+
+Run the full real-runtime tier, including complete example rebuilds, with:
 
 ```sh
 SPA_TEST_ASEPRITE=/path/to/aseprite \
@@ -142,6 +156,33 @@ GitHub does not emit a second workflow event for a pull request updated with
 A failure in any job fails CI. Configure these four named jobs as required checks on
 `main` when repository branch protection is enabled.
 
+### Complete example rebuilds
+
+The Linux E2E job always runs. It selects the following scope by event inside the
+job, so excluding slow tests does not skip the required CI check:
+
+| Trigger | Real-runtime selection |
+| --- | --- |
+| Every PR or push to `main`, including example and CI changes | `e2e and not slow`: all routine E2E cases, including the small wizard probes. |
+| Nightly on `main` | `e2e`: full suite at the scheduled main SHA. |
+| Manual **CI → Run workflow** | `e2e`: full suite at the selected ref. |
+| Release verification | `e2e`: full suite at the exact release SHA before publication. |
+
+The event selection in `.github/workflows/ci.yml` is authoritative. PR and push
+runs exclude `slow` regardless of changed paths, including promotion PRs. They
+retain routine real-Aseprite coverage and the small wizard handoff/native-pixel
+checks. Complete rebuilds run through the full-suite events listed above. For an
+example change that needs full verification before merge, manually run CI on the
+selected ref. Unexpected event types fail instead of silently choosing a scope.
+
+The nightly schedule is daily at 19:23 UTC (03:23 Asia/Shanghai). GitHub runs it
+from the default branch, `main`; the job also checks that ref explicitly. `dev`
+is a temporary integration branch and has no nightly target. The schedule becomes
+active after this workflow reaches `main`. Pushes and manual runs do not cancel a
+nightly run. Its summary records the actual checked-out SHA and whether slow tests
+were included. Scheduled runs can be delayed; their result never replaces exact-SHA
+release verification.
+
 ## Platform and display requirements
 
 Verification tier, host platform, and display capability are separate properties.
@@ -157,6 +198,19 @@ without display capability can skip with a visible reason. Display permission de
 must fail. A job that claims graphical coverage must fail when its required windowed
 tests do not execute.
 
+The [wizard example](../examples/wizard_cast/README.md) has two real-runtime tests:
+a small component geometry proof and one complete fresh build against the checked-in
+delivery. The latter independently decodes every PNG, checks hidden stored pixels,
+compares the complete manifest, and reopens the delivered Aseprite source to compare
+metadata, Frames, Layers, Cels, and Tags. CI and release verification fetch its Git
+LFS assets before this check. The full build is marked `e2e` and `slow` and follows
+the trigger policy above. A reference macOS build takes about four minutes; one
+Linux CI observation took 329.6 seconds, compared with 6.7 seconds for the small
+probe. These are measurements, not time limits. Explicit double builds remain
+available through the example's `verify` command, with retained local evidence.
+The test does not start Godot. The example's separate Godot tests and local
+windowed/package evidence are documented beside it and are not claimed by Linux CI.
+
 The Linux job builds the official source release and verifies the archive against the
 version and SHA-256 authority in `.github/actions/setup-linux-aseprite/action.yml`. It
 enables scripting with Aseprite's `LAF_BACKEND=none`, checks that both `DISPLAY` and
@@ -164,8 +218,8 @@ enables scripting with Aseprite's `LAF_BACKEND=none`, checks that both `DISPLAY`
 environment, and then runs the real-runtime tier. The JUnit audit
 fails when the report is missing, contains zero tests, or all selected tests were
 skipped. The job summary records the tested commit, trigger, executable, Aseprite
-version, display state, and exercised path. A macOS-only skip remains visible and does
-not invalidate the Linux batch evidence while other E2E tests execute.
+version, selected scope, display state, and exercised path. A macOS-only skip remains
+visible and does not invalidate the Linux batch evidence while other E2E tests execute.
 
 The setup action caches only an installed Aseprite tree that passes executable, resource,
 version, and minimal `--batch --script` checks. Its key includes the runner OS and
@@ -177,7 +231,20 @@ request. GitHub can remove a cache after seven days without access or earlier un
 repository cache limit, so an occasional rebuild is expected.
 
 The Linux real Aseprite job is also part of release verification. A release workflow
-always reruns it at the exact release commit and does not reuse a generally green CI
-run. A successful macOS local run remains separate developer evidence; it cannot
-replace the Linux release gate. Windowed Aseprite behavior has no CI coverage until a
+always reruns the full suite, including slow rebuilds, at the exact release commit
+and does not reuse a generally green CI or nightly run. A successful macOS local run
+remains separate developer evidence; it cannot replace the Linux release gate.
+Windowed Aseprite behavior has no CI coverage until a
 dedicated display-capable job is added with an execution-count gate.
+
+The [hybrid wizard example](../examples/wizard_cast_v2/README.md) uses frozen local
+imagegen inputs. Its routine `e2e` probe checks the prepared raster handoff through
+public Pixel Patches, native save/reopen, independent Frame placement, binary alpha,
+and decoded export pixels. Its full test is also marked `slow`: one fresh build
+must match the retained v2 delivery and all seven reopened native documents,
+including the RGBA values of hidden stored pixels. It checks the actual v2 recipe
+geometry, 32 Frames at 100 ms, four fixed phase ranges, and native gem pulse
+independence. CI needs no imagegen service or generation credentials. The same
+main-only nightly, manual full run, and exact-release-SHA gates apply. macOS build
+cost and Godot evidence are recorded separately in the v2 example's dogfooding
+report; Linux asset CI does not establish graphical or gameplay acceptance.

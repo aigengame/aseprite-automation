@@ -1,0 +1,9 @@
+{
+  "baseline_commit": "e4ce2f585c36bb3c349f7f81bb4953ced543a5f0",
+  "spa_version": "0.1.0",
+  "installed_production_files_compared": 65,
+  "installed_files_match_checkout_bytes": true,
+  "spa_production_and_v1_unchanged_from_baseline": true,
+  "wheel_sha256": "2bb81b4ca244dd0729ba68723ec1c2364228fc4e74b94c4d66c9d819595c5744",
+  "authoring_surface": "Installed public SPA CLI with Aseprite 1.3.18.5. Native Lua is used only for read-only inspection."
+}

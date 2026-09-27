@@ -1,5 +1,8 @@
 """One registration authority for installed Operations."""
 
+from spa.animation import ANIMATION_OPERATIONS
+from spa.cel import CEL_OPERATIONS, CEL_SUPPORT_RESOURCE
+from spa.cel_relationship import CEL_RELATIONSHIP_OPERATIONS
 from spa.contracts import (
     CapabilityGap,
     InfoResult,
@@ -13,6 +16,9 @@ from spa.contracts import (
 )
 from spa.export import EXPORT_OPERATIONS, EXPORT_PROBE_RESOURCES
 from spa.failure_registry import FAILURE_CODES
+from spa.frame import FRAME_OPERATIONS, FRAME_SUPPORT_RESOURCE
+from spa.image import IMAGE_OPERATIONS, IMAGE_RESIZE_TRANSFORM_RESOURCE
+from spa.layer import LAYER_OPERATIONS, LAYER_SELECT_RESOURCE
 from spa.operation import (
     ACCESS_FAILURE_CODES,
     RUNTIME_FAILURE_CODES,
@@ -22,10 +28,15 @@ from spa.paint import PAINT_OPERATIONS, PAINT_PROBE_RESOURCES
 from spa.plan import PLAN_OPERATIONS
 from spa.ports import OperationServices
 from spa.sprite import SPRITE_OPERATIONS, SPRITE_PROBE_RESOURCES
+from spa.tag import TAG_OPERATIONS
 
 PROBE_RESOURCES = (
     *SPRITE_PROBE_RESOURCES,
+    LAYER_SELECT_RESOURCE,
     *PAINT_PROBE_RESOURCES,
+    FRAME_SUPPORT_RESOURCE,
+    CEL_SUPPORT_RESOURCE,
+    IMAGE_RESIZE_TRANSFORM_RESOURCE,
     *EXPORT_PROBE_RESOURCES,
 )
 
@@ -170,7 +181,14 @@ META_OPERATIONS = (
 OPERATIONS = (
     *META_OPERATIONS,
     *SPRITE_OPERATIONS,
+    *LAYER_OPERATIONS,
     *PAINT_OPERATIONS,
+    *FRAME_OPERATIONS,
+    *CEL_OPERATIONS,
+    *CEL_RELATIONSHIP_OPERATIONS,
+    *IMAGE_OPERATIONS,
+    *TAG_OPERATIONS,
     *EXPORT_OPERATIONS,
+    *ANIMATION_OPERATIONS,
     *PLAN_OPERATIONS,
 )

@@ -4,7 +4,10 @@ Aseprite Automation (SPA) provides agent-facing automation for Aseprite. `SPA` i
 short project name used in documentation; `spa` is the primary executable.
 
 > [!IMPORTANT]
-> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery, Sprite creation and inspection, bounded Pixel Patch application, and verified RGB PNG Image Export. Feature issues own delivery contracts, evidence requirements, provenance links, and curated evidence summaries, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
+> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery, Sprite creation, inspection, copy, resize, crop, flatten, and validation, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Tag inspection and authoring, Cel-targeted Image Resize, bounded Pixel Patch application, verified RGB PNG Image Export, animation audit, Frame comparison, and verified continuity Preview export. Feature issues own delivery contracts, evidence requirements, provenance links, curated evidence summaries, and status, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
+
+For a complete authoring example, see [Moonlit Spell Practice](examples/wizard_cast/README.md):
+a reproducible SPA wizard animation, reusable pixel assets, and a Godot target-practice demo.
 
 This README owns the user-facing product introduction and promotion, value-proposition
 narrative, onboarding, adoption guidance, and project navigation. Its factual claims
@@ -84,6 +87,14 @@ installed Surface Manifest reports callable facts for one installation. See
 
 ## Technical Architecture
 
+The accepted domain strategy separates **Sprite Authoring** (Core), **Asset
+Preparation** (Supporting), and **Asset Delivery** (Supporting) within one context.
+Reusable motion belongs to authoring; native save remains part of mutation completion.
+Preparation and motion feature contracts are planned, while Asset Delivery reuses
+existing exports. See [domain ownership](ARCHITECTURE.md#domain-ownership-view) and
+[ADR-0095](docs/adr/0095-asset-preparation-authoring-and-delivery.md); the installed
+Surface Manifest remains the source for callable capabilities.
+
 SPA uses one **Sprite Automation** Bounded Context. Operation Descriptors project one
 Published Language to the CLI, Agent Skill, MCP, and installed Surface Manifest.
 Application use cases coordinate Domain Modules, an external Aseprite process, staged
@@ -102,6 +113,10 @@ Layer and the public `spa` CLI JSON contract.
 
 ## Try the installed CLI
 
+For a source checkout, install Git LFS and run `git lfs install` followed by
+`git lfs pull` before installing or building SPA. The packaged `.aseprite` probe
+fixtures and example assets use LFS; the wheel needs their actual binary contents.
+
 Install the project with `uv sync`, then point the runtime probe at an installed
 Aseprite executable (on macOS, the binary inside `Aseprite.app/Contents/MacOS/`).
 The commands emit JSON by default; `--human` renders the same outcome for reading.
@@ -115,6 +130,33 @@ uv run spa info --input-json '{"aseprite":"/path/to/Aseprite.app/Contents/MacOS/
 printf '%s\n' '{"aseprite":"/path/to/Aseprite.app/Contents/MacOS/aseprite"}' | uv run spa info --input-json -
 uv run spa sprite create --input-json '{"aseprite":"/path/to/aseprite","target_sprite_file":"sprite.aseprite","width":16,"height":16,"color_mode":"rgb","initial_layer":{"kind":"transparent"},"overwrite":false}'
 uv run spa sprite get --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite","inspection_scope":["frames","layers","cels"]}'
+uv run spa sprite validate --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite","expected":{"width":16,"height":16,"color_mode":"rgb","frame_count":1}}'
+uv run spa sprite copy --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"copy.aseprite","overwrite":false}'
+uv run spa sprite flatten --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"copy.aseprite","target_sprite_file":"flat.aseprite","in_place":false,"overwrite":false}'
+uv run spa sprite resize --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"resized.aseprite","in_place":false,"overwrite":false,"width":32,"height":32}'
+uv run spa sprite crop --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"cropped.aseprite","in_place":false,"overwrite":false,"coordinate_space":"canvas-pixel","rectangle":{"x":2,"y":2,"width":12,"height":12}}'
+uv run spa frame list --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite"}'
+uv run spa frame add --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"timed.aseprite","in_place":false,"overwrite":false,"frame_number":2,"duration_ms":120}'
+uv run spa frame duplicate --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"timed.aseprite","target_sprite_file":"duplicated.aseprite","in_place":false,"overwrite":false,"source_frame_number":1,"cel_mode":"copy"}'
+uv run spa frame set --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"duplicated.aseprite","target_sprite_file":"retimed.aseprite","in_place":false,"overwrite":false,"frame_number":1,"duration_ms":150}'
+uv run spa frame move --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"retimed.aseprite","target_sprite_file":"reordered.aseprite","in_place":false,"overwrite":false,"source_frame_number":1,"target_frame_number":3}'
+uv run spa frame remove --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"reordered.aseprite","target_sprite_file":"trimmed.aseprite","in_place":false,"overwrite":false,"frame_number":2}'
+uv run spa cel list --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite","layer":{"layer_path":[1]},"from_frame":1,"to_frame":1}'
+uv run spa cel get --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite","target":{"layer":{"layer_path":[1]},"frame_number":1}}'
+uv run spa cel add --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"timed.aseprite","target_sprite_file":"with-cel.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":2}}'
+uv run spa cel clear --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"with-cel.aseprite","target_sprite_file":"cleared.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":2}}'
+uv run spa cel remove --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"cleared.aseprite","target_sprite_file":"without-cel.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":2}}'
+uv run spa image resize --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"resized-image.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":1},"width":32,"height":32,"method":"nearest-neighbor","position_policy":{"kind":"keep"}}'
+uv run spa layer list --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite"}'
+uv run spa layer get --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite","target":{"layer_path":[1]}}'
+uv run spa layer add --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"layered.aseprite","in_place":false,"overwrite":false,"kind":"group","name":"effects"}'
+uv run spa layer set --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"layered.aseprite","target_sprite_file":"named.aseprite","in_place":false,"overwrite":false,"target":{"layer_path":[1]},"properties":{"name":"background-art","is_visible":true}}'
+uv run spa layer move --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"layered.aseprite","target_sprite_file":"moved.aseprite","in_place":false,"overwrite":false,"target":{"layer_path":[2]},"stack_index":1}'
+uv run spa layer remove --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"layered.aseprite","target_sprite_file":"removed.aseprite","in_place":false,"overwrite":false,"target":{"layer_path":[2]}}'
+uv run spa layer add --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"two-image-layers.aseprite","in_place":false,"overwrite":false,"kind":"transparent","name":"upper"}'
+uv run spa layer merge --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"two-image-layers.aseprite","target_sprite_file":"merged.aseprite","in_place":false,"overwrite":false,"target":{"layer_path":[2]}}'
+uv run spa layer convert-to-background --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"background.aseprite","in_place":false,"overwrite":false,"target":{"layer_path":[1]},"background_color":{"kind":"rgba","red":10,"green":20,"blue":30,"alpha":255}}'
+uv run spa layer convert-from-background --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"background.aseprite","target_sprite_file":"transparent.aseprite","in_place":false,"overwrite":false,"target":{"layer_path":[1]}}'
 uv run spa paint apply --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"painted.aseprite","in_place":false,"overwrite":false,"target":{"layer_path":[1],"frame_number":1},"patch":{"coordinate_space":"image-pixel","rectangle":{"x":0,"y":0,"width":2,"height":1},"runs":[{"x":0,"y":0,"length":2,"color":{"kind":"rgba","red":255,"green":0,"blue":0,"alpha":255}}]}}'
 uv run spa plan check --input-json '{"plan":{"source_sprite_file":"sprite.aseprite","steps":[{"operation":"sprite get","input":{"inspection_scope":["frames","layers"]}}]}}'
 uv run spa plan run --input-json '{"aseprite":"/path/to/aseprite","plan":{"source_sprite_file":"sprite.aseprite","steps":[{"operation":"sprite get","input":{"inspection_scope":["frames","layers"]}}]}}'
@@ -125,20 +167,140 @@ uv run spa export image --input-json '{"aseprite":"/path/to/aseprite","source_sp
 `--input-json` value remains available for short invocations.
 `spa sprite create` requires an explicit `overwrite` boolean and refuses to replace an
 existing Target Sprite File when it is `false`.
+`spa sprite validate` requires at least one expected width, height, Color Mode, or
+Frame count. It lists only those checks with their actual values; a mismatch returns
+a typed Finding in a successful read result.
+`spa sprite copy` preserves the Source Sprite File byte for byte, including native
+Tile content, and reopens the staged copy before Target Commit. Source and Target must
+be distinct publication entries. A Source read or staging I/O failure reports
+`sprite_copy_staging_failed` without a Target Commit.
+`spa sprite flatten` uses native Aseprite flattening. Its result gives complete
+`before_sprite` and reopened `sprite` inspections so callers can see the effects on
+Layers, Cels, Color Mode, Palettes, Tags, and Slices. Native flattening includes
+pixels from hidden Layers, so the flattened image can differ from the Source's
+visible composite. This slice rejects a Sprite with
+any Tileset or Tilemap Layer before mutation and reports
+`sprite_flatten_unsupported_content` without a Target Commit. In-place flattening
+requires `in_place: true` and `overwrite: true`.
+`spa sprite resize` uses Aseprite's nearest-neighbor resize at Canvas origin `(0, 0)`
+with explicit positive dimensions. `spa sprite crop` requires a non-empty, half-open
+Canvas Pixel Rectangle wholly within the current canvas and trims outside Cel
+content. Both operations reject a Sprite containing any Tileset, Tilemap Layer,
+Tilemap Cel, or Tilemap Image before native mutation and Target Commit. Their
+results include before and reopened Sprite inspections, old and new canvas sizes,
+and observed Cel bounds, Tags, Slices, and Grid. Crop also reports `clipped_cels`
+with each affected Cel's bounds before and after clipping; these are geometry facts,
+not a count of colored pixels. Aseprite moves Reference Layer Cels without trimming
+their images, so they do not appear in `clipped_cels`. In-place edits require
+`in_place: true` and `overwrite: true`.
+`spa layer list` returns the current hierarchy. `spa layer get` accepts one
+`layer_path`, `layer_uuid`, or `layer_name`. Paths use one-based native sibling
+positions. Names use exact case-sensitive matching and must be unique across the
+Sprite. UUIDs are returned only when verified across independent opens of the saved
+Sprite; a Layer with no verified saved UUID reports `null`. SPA preserves the
+Sprite's existing `useLayerUuids` value.
+`spa layer add` creates a regular Transparent or Group Layer at the root, or as
+the last child of the Group selected by `parent`. Its result reports the Layer's
+address after save and reopen. These Layer commands are not Plan Steps.
+`spa layer set` changes name, visibility, and editability on a regular Transparent
+Image or Group Layer; opacity and blend mode require a regular Transparent Image.
+`spa layer move` changes only the sibling stack position under the current parent.
+`spa layer remove` deletes one addressed subtree but rejects Tilemap content.
+`spa layer merge` merges a regular Transparent Image into its immediate lower
+regular Transparent Image sibling. It sets Aseprite's experimental
+`new_blend=true` preference during native Merge Down and restores its previous
+value. All four return
+before/after Layer and Cel facts, directly affected object addresses, rendered
+Frame digests, and save/reopen verification before Target Commit. They are
+standalone mutations and are not Plan Steps. An operation that changes no Layer
+or Cel facts reports empty affected sets; Group visibility and editability
+changes include descendants whose effective state changes.
+`spa layer convert-to-background` requires a visible, editable regular
+Transparent Image Layer, no existing Background, and an explicit opaque Color
+Value compatible with the Sprite Color Mode and, for Indexed Sprites, the
+Effective Palette at every Frame. Aseprite moves the converted Layer to the
+root bottom, names it `Background`, fills transparent pixels, and ensures an
+opaque, full-canvas Cel on every Frame.
+`spa layer convert-from-background` requires a visible, editable Background
+Layer and preserves its Cel images while accepting Aseprite's resulting Layer
+name. Both results report the before/after Layer facts, complete affected Frame
+numbers, created Cel count, and per-Frame before/after Cel facts. These are
+standalone mutations and are not Plan Steps.
 `spa paint apply` accepts at most 256 addressed Image Pixels per request. It defaults
 to rejecting out-of-bounds pixels; `clipping: "clip"` is the explicit clipping policy.
 In-place editing requires Source and Target to name the same publication entry,
 plus both `in_place: true` and `overwrite: true`.
 Standalone Paint rejects a Source alias that traverses the Target publication entry
 for either `in_place` value.
+`spa frame add` inserts an empty Frame at a one-based position with an explicit
+`duration_ms` (1–65535). A Sprite with a Background Layer also requires a compatible
+`background_color`; other new Layer/Frame intersections remain absent.
+`spa frame duplicate` inserts immediately after its source Frame. It preserves the
+source duration unless overridden and requires `cel_mode: "copy"` or `"link"`.
+Both operations report native Tag Range adjustments and verify the staged Sprite
+after reopening it.
+The result also reports the effective Background fill or each duplicated Cel's
+Layer path and copy/link relationship.
+`spa frame set` changes one Frame's duration. `spa frame move` places one Frame at
+its one-based final Frame Number; moving Frame 1 to Frame 3 in `[A, B, C, D]`
+produces `[B, C, A, D]`. `spa frame remove` deletes one Frame but refuses to
+remove the Sprite's final Frame. These standalone mutations report observed native
+changes to Frame numbers, Cels, Tag ranges, Slice Keys, and Palette Changes when
+present, and verify the staged Sprite after reopening it before Target Commit.
+
+`spa cel list` inspects an inclusive Frame Range on one exactly addressed Layer;
+`spa cel get` inspects one Layer/Frame intersection. Both report absence separately
+from an existing transparent Image. Existing Cel facts include position, Image
+bounds, opacity, z-index, and other native Cels sharing the Image. `cel add`
+creates a full-canvas transparent Image only at an absent regular Transparent
+Layer intersection. `cel clear` preserves the Cel and its Image bounds; on a
+Background Layer it requires an explicit compatible `background_color` and fills
+the Cel with that color. Clearing a shared Image preserves native links and reports
+every affected Cel in `affected_cels`. `cel remove` makes a regular Transparent Cel
+absent and rejects Background Cels. Mutations verify the staged Sprite after reopening it.
+`cel set` changes position, opacity, or z-index without replacing pixels. `cel copy`
+creates an independent Image at an absent destination; `cel link` shares the Image,
+position, and opacity with an absent Frame on the same Layer. Z-index remains
+individual to each Cel. `cel unlink` makes one Linked Cel independent while
+retaining its pixels. It refuses a locked target Layer or locked ancestor.
+`before_cels` records the validated input scope; `affected_cels` reports the
+Cel targets of the mutation after reopening the staged Sprite.
+Paint requires an existing Cel and Image and reports `cel_not_found` when absent.
+Tilemap Cel inspection reports existence and Canvas Pixel position with
+`image_bounds: null`; Tile Cell geometry belongs to Tilemap inspection.
+
+`spa image resize` targets an existing Image on a regular Transparent Cel.
+It requires positive dimensions, `nearest-neighbor`, `bilinear`, or `rotsprite`,
+and a `keep` or `pivot` Cel-position policy. `pivot` requires signed 32-bit
+integer `pivot_x`/`pivot_y` in old Image Pixel space (including points outside
+the Image bounds) and an explicit rounding mode:
+`toward-zero`, `floor`, `ceil`, or `nearest-away-from-zero`. Indexed `bilinear`
+also requires `palette_frame_number` to select the Effective Palette; other
+Color Modes and methods reject that input. The operation transforms a source
+copy, preserves every native Cel link to the Image, applies one rounded offset
+to each affected Cel, and verifies the staged Sprite after save/reopen.
+
+`spa tag list` and `spa tag get` inspect stored Tags with a one-based current
+`tag_index`. `get`, `set`, and `remove` accept exactly one of `tag_index` or
+`tag_name` inside `target`; a name must match exactly once. `spa tag add`
+requires an inclusive `from_frame`/`to_frame` range, native `direction`, and
+`repeats` (0–65535). `spa tag set` changes only supplied Tag properties. Add
+and set return the persisted Tag and its index after reopening; remove returns
+the removed Tag with its former index and the remaining Tag list. Native zero
+repeats stays a stored value without an inferred playback sequence. Indexes
+are snapshot-relative and can change after range edits. Mutations use the same
+explicit Source/Target publication intent as Frame authoring.
 
 `spa plan check` validates a bounded Plan, including current Source and Target path
 conditions, without starting Aseprite. `spa plan run`
-executes up to 64 Sprite-bound `sprite create`, `sprite get`, and `paint apply` Steps
+executes up to 64 Sprite-bound `sprite create`, `sprite get`, `frame list`,
+`frame get`, `frame add`, `frame duplicate`, `cel add`, and `paint apply` Steps
 on one live Sprite in one Aseprite process. A read Plan publishes no file. A mutating
 Plan declares one Target Sprite File; the staged file is reopened and verified before
-one Target Commit. A failed Step reports its one-based `failed_step` and publishes no
-target. Each Paint Step retains its own 256-pixel Operation Limit. A Plan with an
+one Target Commit. A failed Step publishes no target. Typed Cel refusals identify the
+one-based Step in `details.step_number`; execution failures use
+`details.failed_step` when a Step was active. Each Paint Step retains its own
+256-pixel Operation Limit. A Plan with an
 existing Source may edit in place only with `in_place: true` and `overwrite: true`.
 Plans reject a Source alias that traverses the Target publication entry for either
 `in_place` value. An explicit in-place edit uses the same Source and Target entry.
@@ -175,7 +337,10 @@ run `uv run --frozen --group test pytest -m e2e -rs`. See
 platform, and display-environment conventions.
 
 Pull requests and `main` run locked source, fast-test, distribution, and Linux
-real-Aseprite gates. Releases use a reviewed version and changelog change, then
+real-Aseprite gates. PR and push CI exclude complete example rebuilds, including
+when example or CI files change. Nightly on `main`, manual full CI, and release
+verification run the complete E2E suite; routine CI retains the other E2E cases.
+Releases use a reviewed version and changelog change, then
 repeat all gates on the exact release commit before publishing a GitHub Release. See
 [`docs/releasing.md`](docs/releasing.md) for the release and recovery procedure.
 

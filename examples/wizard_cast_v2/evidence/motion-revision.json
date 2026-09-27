@@ -1,0 +1,44 @@
+{
+  "change": "Align the projectile origin and reusable burst anchor to the measured release gem center.",
+  "recipe_changes": {
+    "/projectile/origin": {
+      "before": [
+        159,
+        83
+      ],
+      "after": [
+        157,
+        83
+      ]
+    },
+    "/export/components/burst/anchor": {
+      "before": [
+        99,
+        83
+      ],
+      "after": [
+        97,
+        83
+      ]
+    }
+  },
+  "frozen_input_file_count": 32,
+  "frozen_inputs_unchanged": true,
+  "additional_imagegen_calls": 0,
+  "frames": 32,
+  "duration_ms": 100,
+  "phase_ranges_unchanged": true,
+  "release_frame": 15,
+  "changed_scene_pngs": [
+    "scene/0015.png",
+    "scene/0016.png",
+    "scene/0017.png",
+    "scene/0018.png",
+    "scene/0019.png",
+    "scene/0020.png"
+  ],
+  "all_161_component_png_pixels_unchanged": true,
+  "before_recipe_sha256": "a69a3d4cd8ead6656b73165efa681d1ed12de85a304180f5c3770b8200ce5a1e",
+  "after_recipe_sha256": "bb97e191a4ee989a0a3f3eb3ec3b021ad2a4d7272b1abf6d468be1acb5c4ca9d",
+  "other_builder_change": "B also inherited initial Cel placement before Frame copies. No output difference outside the declared motion/anchor revision was found."
+}

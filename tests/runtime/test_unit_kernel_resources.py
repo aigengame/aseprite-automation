@@ -13,6 +13,8 @@ def test_probe_resources_are_packaged() -> None:
         "paint_apply_fixture.aseprite",
         "capability_probe.lua",
         "digest.lua",
+        "image_resize.lua",
+        "image_resize_transform.lua",
     ):
         resource = kernel.joinpath(name)
         assert resource.is_file()

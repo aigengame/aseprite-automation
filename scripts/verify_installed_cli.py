@@ -45,13 +45,32 @@ for name in (
     "sprite_create_support.lua",
     "sprite_get.lua",
     "sprite_inspect.lua",
+    "sprite_flatten.lua",
+    "sprite_geometry.lua",
+    "sprite_persistence.lua",
+    "layer_add.lua",
+    "layer_get.lua",
+    "layer_select.lua",
+    "layer_mutate.lua",
+    "layer_mutation_support.lua",
+    "digest.lua",
     "sprite_inspection_fixture.aseprite",
+    "paint_apply_fixture.aseprite",
+    "frame_mutate.lua",
+    "frame_get.lua",
+    "frame_support.lua",
+    "tag_mutate.lua",
+    "tag_support.lua",
+    "tag_select.lua",
+    "tag_get.lua",
     "export_image.lua",
     "export_image_support.lua",
 ):
     resource = kernel.joinpath(name)
     if not resource.is_file() or not resource.read_bytes():
         raise SystemExit(f"missing installed Kernel resource: {name}")
+    if resource.read_bytes().startswith(b"version https://git-lfs.github.com/spec/v1"):
+        raise SystemExit(f"unresolved Git LFS pointer in installed Kernel resource: {name}")
 """,
         ],
         check=True,

@@ -41,8 +41,8 @@ better Aseprite-aligned evidence.
 | `spa sprite get` | Inspect requested dimensions, Color Mode, Frames, Tags, Palettes, Layer tree, Cels, Slices, Tilesets, and metadata. |
 | `spa sprite set` | Change explicitly supported Sprite properties other than Color Mode or Color Profile. |
 | `spa sprite copy` | Copy one Source Sprite File to an explicit Target Sprite File and verify the reopened result. |
-| `spa sprite resize` | Resize the Sprite canvas with explicit scale and anchor semantics. |
-| `spa sprite crop` | Crop the Sprite canvas to an explicit Rectangle or supported content rule. |
+| `spa sprite resize` | Resize Sprite content to explicit dimensions from Canvas origin with nearest-neighbor sampling. |
+| `spa sprite crop` | Crop Sprite content to a positive, half-open Canvas Pixel Rectangle inside the canvas. |
 | `spa sprite flatten` | Apply Aseprite's native flattening behavior and report every affected Sprite structure. |
 | `spa sprite change-color-mode` | Apply native Change Color Mode with explicit mapping, Palette, and Dithering inputs. |
 | `spa sprite assign-color-profile` | Assign a native Color Profile without changing stored colors. |
@@ -55,26 +55,26 @@ better Aseprite-aligned evidence.
 | --- | --- |
 | `spa layer list` | List the native Layer hierarchy and current address facts. |
 | `spa layer get` | Inspect one exactly addressed Layer. |
-| `spa layer add` | Add a declared native Layer kind with explicit Tilemap/Tileset intent when applicable. |
-| `spa layer remove` | Remove exactly addressed Layers under an explicit target-count rule. |
-| `spa layer set` | Set supported Layer properties. |
-| `spa layer move` | Reorder or reparent selected Layers. |
-| `spa layer merge` | Apply an explicitly selected native merge behavior. |
+| `spa layer add` | Add a regular Transparent or Group Layer; Tilemap creation belongs to its own slice. |
+| `spa layer remove` | Remove one exactly addressed Layer and its subtree; reject Tilemap content in this slice. |
+| `spa layer set` | Set name, visibility, or editability on a regular Transparent Image or Group; set opacity or blend mode only on a regular Transparent Image. |
+| `spa layer move` | Reorder one regular Transparent Image or Group among its current parent's children. |
+| `spa layer merge` | Merge one regular Transparent Image into its immediate lower regular Transparent Image sibling with Aseprite's experimental `new_blend=true` behavior. |
 | `spa layer set-tileset` | Rebind one Tilemap Layer through explicit Tile mapping and Grid policies. |
-| `spa layer convert-to-background` | Convert an eligible regular Transparent Layer to a Background Layer and report Cel normalization. |
-| `spa layer convert-from-background` | Convert the Background Layer to a regular Transparent Layer. |
+| `spa layer convert-to-background` | Explicitly convert a visible, editable regular Transparent Image Layer with a compatible Background Color Value; report native naming, stack movement, affected Frames, and per-Frame Cel normalization after save/reopen. |
+| `spa layer convert-from-background` | Explicitly convert a visible, editable Background Layer to a regular Transparent Image Layer; preserve Cel pixels and report the native result name after save/reopen. |
 
 ## `frame`
 
 | Candidate command | Intended meaning |
 | --- | --- |
 | `spa frame list` | List Frames and persisted `duration_ms`. |
-| `spa frame get` | Inspect one Frame and its animation facts. |
+| `spa frame get` | Inspect one Frame Number and persisted duration. |
 | `spa frame add` | Add an explicitly timed empty Frame. |
 | `spa frame duplicate` | Duplicate one Frame with explicit copied-or-linked Cel behavior. |
-| `spa frame set` | Set supported Frame properties. |
-| `spa frame move` | Move one exactly addressed Frame to an explicit one-based insertion position and report shifted references. |
-| `spa frame remove` | Remove exactly selected Frames and report shifted references. |
+| `spa frame set` | Set one exactly addressed Frame's duration. |
+| `spa frame move` | Move one exactly addressed Frame to its explicit one-based final Frame Number and report shifted references. |
+| `spa frame remove` | Remove one exactly addressed Frame and report shifted references. |
 
 ## `cel`
 
@@ -105,7 +105,8 @@ better Aseprite-aligned evidence.
 | Candidate command | Intended meaning |
 | --- | --- |
 | `spa animation audit` | Inspect animation coverage, timing, ranges, overlaps, and declared structural constraints. |
-| `spa animation compare` | Compare bounded Frame regions and optionally publish continuity-review Preview Artifacts. |
+| `spa animation compare` | Compare two explicitly selected Frames and report objective pixel differences without publishing an Artifact. |
+| `spa animation preview` | Export a two-Frame continuity-review PNG Preview Artifact to an explicit destination. |
 
 ## `image`
 
@@ -238,6 +239,23 @@ better Aseprite-aligned evidence.
 | `spa script run` | Execute exact caller-owned Lua under the documented trust boundary. |
 
 ## Unresolved candidate groups
+
+### Preparation and bounded motion
+
+[ADR-0095](adr/0095-asset-preparation-authoring-and-delivery.md) assigns Asset
+Preparation to a Supporting Subdomain and Bounded Motion Authoring to Document and
+Animation. Candidate intents are preparing a selected raster under explicit geometry,
+color, transparency, and anchor rules; verifying frozen input facts; and applying
+position/opacity keys to existing per-Frame Cels. Their feature issues
+[#103](https://github.com/aigengame/aseprite-automation/issues/103) and
+[#104](https://github.com/aigengame/aseprite-automation/issues/104) own the accepted
+planned contracts and the choice of command spellings during implementation. Their
+alignment does not establish installed support. This catalog adds no
+`preprocess`/`postprocess` command surface, provider API, or general workflow engine.
+Existing `export` candidates belong to Asset Delivery and retain their separate format
+contracts.
+
+### Rasterized text
 
 Rasterized text remains candidate product territory. The catalog does not propose a
 `text` group until feature work establishes an Aseprite-aligned operation boundary.

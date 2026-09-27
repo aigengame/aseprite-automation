@@ -35,4 +35,6 @@ def test_plan_discovery_requires_every_current_eligible_step_capability() -> Non
     assert "spa plan run" not in supported
     assert next(
         gap for gap in gaps if gap.capability == "spa plan run"
-    ).evidence.endswith("aseprite_sprite_create, aseprite_paint_apply")
+    ).evidence.endswith(
+        "aseprite_sprite_create, aseprite_paint_apply, aseprite_frame_authoring, aseprite_cel_lifecycle"
+    )

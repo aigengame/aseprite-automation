@@ -74,6 +74,50 @@ local function reject_tilemap_images(layers, frame_number)
   end
 end
 
+function module.with_source(source_file, frame_numbers, run)
+  local previous_manage = app.preferences.color.manage
+  local previous_files_with_profile = app.preferences.color.files_with_profile
+  local previous_missing_profile = app.preferences.color.missing_profile
+  local previous_compose_groups = app.preferences.experimental.compose_groups
+  local source = nil
+  local ok, result = pcall(function()
+    local declared = declared_profile(source_file)
+    assert(declared == "none" or declared == "srgb", "unsupported Source Sprite Color Profile")
+    app.preferences.color.manage = true
+    app.preferences.color.files_with_profile = profile_embedded
+    app.preferences.color.missing_profile = profile_disable
+    app.preferences.experimental.compose_groups = true
+    source = assert(app.open(source_file), "could not open Source Sprite")
+    assert(source.colorMode == ColorMode.RGB, "unsupported Source Color Mode")
+    for _, number in ipairs(frame_numbers) do
+      assert(number >= 1 and number <= #source.frames, "Frame Number is outside the Source Sprite")
+      reject_tilemap_images(source.layers, number)
+    end
+    if declared == "none" then source:assignColorSpace(ColorSpace()) end
+    local profile = source_profile(source)
+    assert(profile == declared, "loaded Sprite Color Profile differs from file")
+    return run(source, profile)
+  end)
+  if source ~= nil then pcall(function() source:close() end) end
+  pcall(function() app.preferences.color.manage = previous_manage end)
+  pcall(function() app.preferences.color.files_with_profile = previous_files_with_profile end)
+  pcall(function() app.preferences.color.missing_profile = previous_missing_profile end)
+  pcall(function() app.preferences.experimental.compose_groups = previous_compose_groups end)
+  if not ok then error(result) end
+  return result
+end
+
+function module.render_frame(source, frame_number)
+  local rendered = Image(source.spec)
+  rendered:drawSprite(source, frame_number, 0, 0)
+  assert(rendered.colorMode == ColorMode.RGB, "renderer changed Color Mode")
+  assert(
+    rendered.bytesPerPixel == 4 and rendered.rowStride == source.width * 4,
+    "unexpected native RGB Image layout"
+  )
+  return rendered
+end
+
 function module.execute(payload)
   assert(type(payload.source_sprite_file) == "string", "missing Source Sprite File")
   assert(type(payload.staged_png_file) == "string", "missing staged PNG file")
@@ -83,65 +127,35 @@ function module.execute(payload)
   assert(payload.color_profile == "preserve", "unsupported Color Profile behavior")
   assert(payload.transparency == "preserve", "unsupported transparency behavior")
 
-  local previous_manage = app.preferences.color.manage
-  local previous_files_with_profile = app.preferences.color.files_with_profile
-  local previous_missing_profile = app.preferences.color.missing_profile
-  local previous_compose_groups = app.preferences.experimental.compose_groups
-  local source = nil
-  local ok, result = pcall(function()
-    local declared = declared_profile(payload.source_sprite_file)
-    assert(declared == "none" or declared == "srgb", "unsupported Source Sprite Color Profile")
-    app.preferences.color.manage = true
-    app.preferences.color.files_with_profile = profile_embedded
-    app.preferences.color.missing_profile = profile_disable
-    app.preferences.experimental.compose_groups = true
-    source = assert(app.open(payload.source_sprite_file), "could not open Source Sprite")
-    assert(source.colorMode == ColorMode.RGB, "unsupported Source Color Mode")
-    assert(
-      payload.frame_number >= 1 and payload.frame_number <= #source.frames,
-      "Frame Number is outside the Source Sprite"
-    )
-    reject_tilemap_images(source.layers, payload.frame_number)
-    if declared == "none" then source:assignColorSpace(ColorSpace()) end
-    local profile = source_profile(source)
-    assert(profile == declared, "loaded Sprite Color Profile differs from file")
-    local rendered = Image(source.spec)
-    rendered:drawSprite(source, payload.frame_number, 0, 0)
-    assert(rendered.colorMode == ColorMode.RGB, "renderer changed Color Mode")
-    assert(
-      rendered.bytesPerPixel == 4 and rendered.rowStride == source.width * 4,
-      "unexpected native RGB Image layout"
-    )
-    local bytes = rendered.bytes
-    local alpha_min, alpha_max = 255, 0
-    for offset = 4, #bytes, 4 do
-      local alpha = string.byte(bytes, offset)
-      if alpha < alpha_min then alpha_min = alpha end
-      if alpha > alpha_max then alpha_max = alpha end
+  return module.with_source(
+    payload.source_sprite_file,
+    { payload.frame_number },
+    function(source, profile)
+      local rendered = module.render_frame(source, payload.frame_number)
+      local bytes = rendered.bytes
+      local alpha_min, alpha_max = 255, 0
+      for offset = 4, #bytes, 4 do
+        local alpha = string.byte(bytes, offset)
+        if alpha < alpha_min then alpha_min = alpha end
+        if alpha > alpha_max then alpha_max = alpha end
+      end
+      local facts = {
+        frame_number = payload.frame_number,
+        width = source.width,
+        height = source.height,
+        color_mode = "rgb",
+        color_profile = profile,
+        alpha_min = alpha_min,
+        alpha_max = alpha_max,
+        rendered_byte_size = #bytes,
+      }
+      local rendered_file = assert(io.open(payload.staged_rgba_file, "wb"))
+      assert(rendered_file:write(bytes))
+      assert(rendered_file:close())
+      assert(rendered:saveAs(payload.staged_png_file), "native PNG encoding failed")
+      return facts
     end
-    local facts = {
-      frame_number = payload.frame_number,
-      width = source.width,
-      height = source.height,
-      color_mode = "rgb",
-      color_profile = profile,
-      alpha_min = alpha_min,
-      alpha_max = alpha_max,
-      rendered_byte_size = #bytes,
-    }
-    local rendered_file = assert(io.open(payload.staged_rgba_file, "wb"))
-    assert(rendered_file:write(bytes))
-    assert(rendered_file:close())
-    assert(rendered:saveAs(payload.staged_png_file), "native PNG encoding failed")
-    return facts
-  end)
-  if source ~= nil then pcall(function() source:close() end) end
-  pcall(function() app.preferences.color.manage = previous_manage end)
-  pcall(function() app.preferences.color.files_with_profile = previous_files_with_profile end)
-  pcall(function() app.preferences.color.missing_profile = previous_missing_profile end)
-  pcall(function() app.preferences.experimental.compose_groups = previous_compose_groups end)
-  if not ok then error(result) end
-  return result
+  )
 end
 
 return module

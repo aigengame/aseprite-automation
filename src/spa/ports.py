@@ -9,6 +9,7 @@ from typing import Any, Literal, Protocol
 from spa.contracts import (
     Diagnostics,
     ProbePrerequisite,
+    PublicModel,
     RuntimeCapability,
     RuntimeRequest,
     ValidationIssue,
@@ -100,6 +101,8 @@ class TargetFiles(PublicationIdentityObserver, Protocol):
 
     def staged_path(self, target: Path) -> Path: ...
 
+    def stage_copy(self, source: Path, staged: Path) -> None: ...
+
     def commit(
         self, staged: Path, target: Path, *, overwrite: bool
     ) -> TargetCommitObservation: ...
@@ -125,6 +128,8 @@ class ArtifactFiles(Protocol):
     """Domain-neutral staging and publication of one Export Destination."""
 
     def normalize_destination(self, path: str) -> Path: ...
+
+    def ensure_source_separate(self, source: Path, destination: Path) -> None: ...
 
     def staged_path(self, destination: Path, *, if_exists: str) -> Path: ...
 
@@ -226,6 +231,8 @@ class TargetCommitEvidence:
 
 
 ArtifactFileFailureReason = Literal[
+    "source_destination_alias",
+    "source_destination_identity_unverified",
     "destination_exists",
     "destination_not_file",
     "destination_parent_missing",
@@ -322,3 +329,12 @@ class RequestIssue(Exception):
     def __init__(self, issues: list[ValidationIssue]):
         super().__init__("Invalid Operation Request")
         self.issues = issues
+
+
+class OperationIssue(Exception):
+    """Dynamic domain refusal with a registered public Failure Code."""
+
+    def __init__(self, code: str, message: str, details: PublicModel):
+        super().__init__(message)
+        self.code = code
+        self.details = details

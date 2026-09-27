@@ -5,6 +5,9 @@ inputs:
   junit-path:
     description: Absolute output path for the pytest JUnit report.
     required: true
+  include-slow:
+    description: Include complete example rebuilds in the real-runtime tests.
+    default: "true"
 
 runs:
   using: composite
@@ -38,12 +41,20 @@ runs:
 
     - name: Run real Aseprite E2E tests
       shell: bash
+      env:
+        SPA_E2E_INCLUDE_SLOW: ${{ inputs.include-slow }}
+        SPA_E2E_JUNIT_PATH: ${{ inputs.junit-path }}
       run: |
+        case "$SPA_E2E_INCLUDE_SLOW" in
+          true) marker="e2e" ;;
+          false) marker="e2e and not slow" ;;
+          *) echo "Invalid include-slow value: $SPA_E2E_INCLUDE_SLOW" >&2; exit 1 ;;
+        esac
         pytest_status=0
-        uv run --frozen --group test pytest -m e2e -rs \
-          --junitxml="${{ inputs.junit-path }}" || pytest_status=$?
+        uv run --frozen --group test pytest -m "$marker" -rs \
+          --junitxml="$SPA_E2E_JUNIT_PATH" || pytest_status=$?
         uv run --frozen python scripts/verify_pytest_execution.py \
-          "${{ inputs.junit-path }}"
+          "$SPA_E2E_JUNIT_PATH"
         exit "$pytest_status"
 
     - name: Record Linux real-runtime evidence
@@ -54,6 +65,7 @@ runs:
           echo "### Linux real Aseprite E2E"
           echo "- Commit: \`${tested_sha}\`"
           echo "- Trigger: \`${GITHUB_EVENT_NAME}\`"
+          echo "- Include slow workflows: \`${{ inputs.include-slow }}\`"
           echo "- Executable: \`${{ steps.aseprite.outputs.executable }}\`"
           echo "- Aseprite: \`${{ steps.aseprite.outputs.version }}\`"
           echo "- Display: \`DISPLAY\` and \`WAYLAND_DISPLAY\` absent"

@@ -1,0 +1,92 @@
+{
+  "observed_date": "2026-09-25",
+  "platform": {
+    "system": "macOS",
+    "tested_architecture": "arm64"
+  },
+  "tools": {
+    "gda": "0.19.0",
+    "godot": "4.6.3.stable.official.7d41c59c4"
+  },
+  "source_sha256": {
+    "content/wizard_bundle.gd": "3a7a4ec9238a7320b3128e977f928224ed07292cb4e231bbf4852418c194a0b2",
+    "content/wizard_range.gd": "521b9647f9aaf8148384320166ea69d46e8c70ef33e2672e490f681375f63adf",
+    "export_presets.cfg": "028d1cdee46db56ae09af97583b9eb9e251e01d398c9bf6d85047c2b545b0337",
+    "main.gd": "6757f49d666c986d93686dd169580f532a0effff87e253dc125bdcfcdd0997d4",
+    "main.tscn": "2c0f3705cf72d1073731efb58728622e66d3444d86b681a37c896b59d55f508c",
+    "project.godot": "7bacab1209f31020c5a522f27a63f743ab0bcdc90eb0ab1f0c558c5f45ac7b34",
+    "systems/target_practice.gd": "1ab69dd0aa52c008e90a678e6a717f7645a6b4af46270ecac86bc966d2046b26",
+    "tests/missing_assets.gd": "07fddd7e5a383c4fce6810f3ddeec67fcb4aeb7e05f6a1626c56e4e5cf3125b6",
+    "tests/playable_round.gd": "2eea9077078485a48358e13092d1f496a17cfaabf40d618fda3b89e42359dba0",
+    "tests/round_rules.gd": "308b2a6c82ae55d71b281c9a4486440cc5572b2e4a72aa404e22e3f6e8253c16",
+    "ui/range_hud.gd": "5386921567dac82de0f88b31e9837dd475eca636bcb81f3d8b028d12587cb8a5"
+  },
+  "bundle_sha256": "0927bb3129b95c7bc6c0c7257832b7ca7e2e763dec93d09d82cc9e17790af22b",
+  "source_tests": {
+    "round_rules": {
+      "checks": 87,
+      "failures": []
+    },
+    "playable_round": {
+      "checks": 53,
+      "failures": [],
+      "release_frames": [
+        15,
+        15,
+        15,
+        15,
+        15
+      ]
+    },
+    "exit_status": 0,
+    "diagnostics": [],
+    "playable_round_outcomes": {
+      "hits": 3,
+      "misses": 2
+    },
+    "scope": "Real imported assets, native AnimatedSprite2D timing, input events, moving-target collision, five-cast result, repeated-input guard, and keyboard restart. Outcomes are not injected."
+  },
+  "windowed_source": {
+    "source_commit": "7bdf3d665bdc7c48900b044ef2b788f5ce5a16d3",
+    "routes": [
+      "mouse CAST",
+      "keyboard cast",
+      "hit and miss",
+      "five-cast result",
+      "mouse AGAIN",
+      "mouse QUIT"
+    ],
+    "diagnostics": [],
+    "screenshots": {
+      "playable-hit.png": "07423a44d60d87d5176ed32eff4f42ba21b0c40f6db05db4cc03632aa497fd6e",
+      "playable-results.png": "f461cbb1fa268b1c7e248ae4812df9a93eec7a461777b16e8503e6368ef6b777"
+    },
+    "scope": "Disposable project copy driven through the gda daemon; screenshots show the real rendered viewport. Later HUD ownership cleanup preserves the visible fixed-five-cast behavior."
+  },
+  "macos_package": {
+    "name": "MoonlitSpellPractice-macOS.zip",
+    "sha256": "0aa7b1f298ab84bb12cf164e13eb59a237fd5d09a2da275e4b8d3adb541d082b",
+    "bytes": 61668955,
+    "architecture": "universal",
+    "signed": false,
+    "notarized": false,
+    "source_matches_export_copy": true,
+    "smoke": {
+      "quit_after_frames": 120,
+      "exit_status": 0,
+      "diagnostics": []
+    },
+    "pack_inspection": {
+      "component_textures": 161,
+      "failures": [],
+      "invalid_pixels": 0,
+      "excluded_directories": [
+        "tests",
+        "addons/gda_harness"
+      ],
+      "method": "Mount the exported PCK in a separate read-only inspector project and load each component texture from bundle.json."
+    },
+    "windowed_observation": "The earlier package before the HUD ownership cleanup displayed the scene and accepted a native Space cast. The final package was re-exported and rechecked by smoke and PCK inspection; a full round was verified in the source project, not repeated in the standalone package."
+  },
+  "human_visual_and_play_acceptance": "Pending PR review. Automated facts and agent observations do not claim human acceptance."
+}

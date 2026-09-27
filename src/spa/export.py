@@ -1,5 +1,6 @@
 """Static Image Export contract and publication use case."""
 
+from pathlib import Path
 from typing import Literal
 
 from pydantic import Field, ValidationError
@@ -147,6 +148,7 @@ def export_image(
     if verify_png is None:
         raise RuntimeError("Export Image requires the PNG Artifact Verifier")
     destination = files.normalize_destination(request.destination.path)
+    files.ensure_source_separate(Path(request.source_sprite_file), destination)
     staged = files.staged_path(destination, if_exists=request.destination.if_exists)
     rendered = files.rendered_path(staged)
     try:
@@ -196,6 +198,7 @@ def export_image(
                 PostconditionEvidence(invocation.response_path, "invalid alpha bounds"),
                 invocation.diagnostics,
             )
+        files.ensure_source_separate(Path(request.source_sprite_file), destination)
         published = files.publish(
             staged,
             destination,

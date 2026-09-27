@@ -26,32 +26,40 @@ local function color_mode(value)
   error("unsupported Sprite Color Mode")
 end
 
+local blend_modes = {
+  { BlendMode.NORMAL, "normal" },
+  { BlendMode.MULTIPLY, "multiply" },
+  { BlendMode.SCREEN, "screen" },
+  { BlendMode.OVERLAY, "overlay" },
+  { BlendMode.DARKEN, "darken" },
+  { BlendMode.LIGHTEN, "lighten" },
+  { BlendMode.COLOR_DODGE, "color_dodge" },
+  { BlendMode.COLOR_BURN, "color_burn" },
+  { BlendMode.HARD_LIGHT, "hard_light" },
+  { BlendMode.SOFT_LIGHT, "soft_light" },
+  { BlendMode.DIFFERENCE, "difference" },
+  { BlendMode.EXCLUSION, "exclusion" },
+  { BlendMode.HSL_HUE, "hsl_hue" },
+  { BlendMode.HSL_SATURATION, "hsl_saturation" },
+  { BlendMode.HSL_COLOR, "hsl_color" },
+  { BlendMode.HSL_LUMINOSITY, "hsl_luminosity" },
+  { BlendMode.ADDITION, "addition" },
+  { BlendMode.SUBTRACT, "subtract" },
+  { BlendMode.DIVIDE, "divide" },
+}
+
 local function blend_mode(value)
-  local modes = {
-    { BlendMode.NORMAL, "normal" },
-    { BlendMode.MULTIPLY, "multiply" },
-    { BlendMode.SCREEN, "screen" },
-    { BlendMode.OVERLAY, "overlay" },
-    { BlendMode.DARKEN, "darken" },
-    { BlendMode.LIGHTEN, "lighten" },
-    { BlendMode.COLOR_DODGE, "color_dodge" },
-    { BlendMode.COLOR_BURN, "color_burn" },
-    { BlendMode.HARD_LIGHT, "hard_light" },
-    { BlendMode.SOFT_LIGHT, "soft_light" },
-    { BlendMode.DIFFERENCE, "difference" },
-    { BlendMode.EXCLUSION, "exclusion" },
-    { BlendMode.HSL_HUE, "hsl_hue" },
-    { BlendMode.HSL_SATURATION, "hsl_saturation" },
-    { BlendMode.HSL_COLOR, "hsl_color" },
-    { BlendMode.HSL_LUMINOSITY, "hsl_luminosity" },
-    { BlendMode.ADDITION, "addition" },
-    { BlendMode.SUBTRACT, "subtract" },
-    { BlendMode.DIVIDE, "divide" },
-  }
-  for _, item in ipairs(modes) do
+  for _, item in ipairs(blend_modes) do
     if value == item[1] then return item[2] end
   end
   return "unknown_" .. tostring(value)
+end
+
+function module.blend_mode_constant(name)
+  for _, item in ipairs(blend_modes) do
+    if name == item[2] then return item[1] end
+  end
+  return nil
 end
 
 local function tag_direction(value)
@@ -71,7 +79,49 @@ local function copy_path(path, index)
   return result
 end
 
-local function inspect_layers(layers, parent_path, paths, counts)
+local function path_key(path) return table.concat(path, "/") end
+
+local function verified_layer_uuids(left, right, prefix, verified)
+  for index = 1, math.min(#left, #right) do
+    local layer = left[index]
+    local other = right[index]
+    local path = copy_path(prefix, index)
+    if layer.name == other.name and layer.isGroup == other.isGroup then
+      local uuid = tostring(layer.uuid)
+      if uuid == tostring(other.uuid) then verified[path_key(path)] = uuid end
+      if layer.isGroup then verified_layer_uuids(layer.layers, other.layers, path, verified) end
+    end
+  end
+end
+
+function module.persisted_layer_uuids(sprite, other)
+  local verified = {}
+  if sprite.useLayerUuids and other.useLayerUuids then
+    verified_layer_uuids(sprite.layers, other.layers, {}, verified)
+  end
+  return verified
+end
+
+function module.saved_layer_uuids(sprite, path)
+  if not sprite.useLayerUuids then return {} end
+  local previous = {
+    sprite = app.activeSprite,
+    layer = app.activeLayer,
+    frame = app.activeFrame,
+  }
+  local other = assert(app.open(path), "could not reopen Sprite for UUID verification")
+  local ok, verified = pcall(module.persisted_layer_uuids, sprite, other)
+  other:close()
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
+  if not ok then error(verified) end
+  return verified
+end
+
+local function inspect_layers(layers, parent_path, paths, counts, verified_uuids)
   local result = {}
   for index = 1, #layers do
     local layer = layers[index]
@@ -79,10 +129,13 @@ local function inspect_layers(layers, parent_path, paths, counts)
     paths[layer] = path
     counts.layers = counts.layers + 1
     local children = {}
-    if layer.isGroup then children = inspect_layers(layer.layers, path, paths, counts) end
+    if layer.isGroup then
+      children = inspect_layers(layer.layers, path, paths, counts, verified_uuids)
+    end
     result[#result + 1] = {
       path = path,
       name = layer.name,
+      layer_uuid = verified_uuids[path_key(path)] or json_null,
       opacity = layer.opacity == nil and json_null or layer.opacity,
       blend_mode = layer.blendMode == nil and json_null or blend_mode(layer.blendMode),
       is_image = layer.isImage,
@@ -239,11 +292,11 @@ local function inspect_slices(sprite)
   return slices
 end
 
-function module.inspect(sprite, scope)
+function module.inspect(sprite, scope, verified_uuids)
   local requested = requested_set(scope)
   local paths = {}
   local counts = { layers = 0 }
-  local all_layers = inspect_layers(sprite.layers, {}, paths, counts)
+  local all_layers = inspect_layers(sprite.layers, {}, paths, counts, verified_uuids or {})
   local result = {
     metadata = {
       width = sprite.width,
@@ -259,6 +312,7 @@ function module.inspect(sprite, scope)
       transparent_color_index = sprite.transparentColor,
       grid_bounds = rectangle(sprite.gridBounds),
       pixel_ratio = size(sprite.pixelRatio),
+      use_layer_uuids = sprite.useLayerUuids,
     },
     frames = json_null,
     tags = json_null,

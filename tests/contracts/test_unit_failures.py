@@ -11,7 +11,10 @@ from jsonschema import Draft202012Validator
 from jsonschema import ValidationError as SchemaError
 from pydantic import ValidationError
 
+from spa.animation import AuditLimitDetails
 from spa.application import _runtime_failure, dispatch
+from spa.cel import CelAddress as LifecycleCelAddress
+from spa.cel import CelFrameRangeDetails, CelTargetDetails
 from spa.contracts import (
     FailureEnvelope,
     KernelExecutionDetails,
@@ -32,6 +35,7 @@ from spa.contracts import (
 from spa.descriptors import ACCESS_FAILURE_CODES, OPERATIONS
 from spa.export import ArtifactFileDetails, ArtifactVerificationDetails
 from spa.failure_registry import FAILURE_CODES
+from spa.layer import LayerAddress, LayerTargetDetails
 from spa.mutation import TargetCommitDetails
 from spa.ports import (
     ArtifactFileEvidence,
@@ -47,6 +51,14 @@ from spa.ports import (
     RuntimeIssue,
     TargetCommitEvidence,
 )
+from spa.raster import PositiveRectangle, Size
+from spa.sprite import (
+    SpriteCopyStagingDetails,
+    SpriteCropBoundsDetails,
+    SpriteGeometryUnsupportedDetails,
+    SpriteUnsupportedContentDetails,
+)
+from spa.tag import TagAddress, TagRangeDetails, TagTargetDetails
 from tests.support import operation_services
 
 registered_failure_envelope = partial(failure_envelope, failure_codes=FAILURE_CODES)
@@ -84,6 +96,10 @@ def test_all_installed_failure_codes_are_registered_once() -> None:
         "target_commit_failed",
         "artifact_file_failed",
         "artifact_verification_failed",
+        "sprite_copy_staging_failed",
+        "sprite_flatten_unsupported_content",
+        "sprite_geometry_unsupported_content",
+        "sprite_crop_out_of_bounds",
     } <= set(FAILURE_CODES)
     assert all(
         spec.meaning and spec.code == code for code, spec in FAILURE_CODES.items()
@@ -172,11 +188,46 @@ def test_each_registered_code_has_a_constrained_public_schema() -> None:
         TargetCommitDetails: TargetCommitDetails(
             target_sprite_file="sprite.aseprite", reason="target_not_file"
         ),
+        SpriteCopyStagingDetails: SpriteCopyStagingDetails(
+            source_sprite_file="source.aseprite", target_sprite_file="copy.aseprite"
+        ),
         ArtifactFileDetails: ArtifactFileDetails(
             path="image.png", reason="destination_exists"
         ),
         ArtifactVerificationDetails: ArtifactVerificationDetails(
             path="image.png", reason="content mismatch"
+        ),
+        LayerTargetDetails: LayerTargetDetails(
+            address_role="target", address=LayerAddress(layer_path=[1])
+        ),
+        CelTargetDetails: CelTargetDetails(
+            target=LifecycleCelAddress(
+                layer=LayerAddress(layer_path=[1]), frame_number=1
+            )
+        ),
+        CelFrameRangeDetails: CelFrameRangeDetails(from_frame=1, to_frame=2),
+        TagTargetDetails: TagTargetDetails(address=TagAddress(tag_index=1)),
+        TagRangeDetails: TagRangeDetails(from_frame=1, to_frame=2, frame_count=1),
+        SpriteUnsupportedContentDetails: SpriteUnsupportedContentDetails(
+            source_sprite_file="sprite.aseprite",
+            tileset_count=1,
+            tilemap_layer_count=0,
+        ),
+        AuditLimitDetails: AuditLimitDetails(
+            unit="coverage_observations",
+            requested=1025,
+            allowed_maximum=1024,
+        ),
+        SpriteGeometryUnsupportedDetails: SpriteGeometryUnsupportedDetails(
+            source_sprite_file="sprite.aseprite",
+            tileset_count=1,
+            tilemap_layer_count=0,
+            tilemap_cel_count=0,
+            tilemap_image_count=0,
+        ),
+        SpriteCropBoundsDetails: SpriteCropBoundsDetails(
+            rectangle=PositiveRectangle(x=3, y=1, width=2, height=2),
+            canvas=Size(width=4, height=4),
         ),
     }
     for code, spec in FAILURE_CODES.items():

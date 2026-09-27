@@ -11,15 +11,24 @@ from pydantic import (
     model_validator,
 )
 
+from spa.cel import CelAddress as LifecycleCelAddress
+from spa.cel import CelTargetDetails
 from spa.contracts import (
     PublicModel,
     RuntimeRequest,
     RuntimeRequirements,
 )
-from spa.mutation import TargetCommit, source_target_identity_issue
+from spa.layer import LayerAddress
+from spa.mutation import (
+    TargetCommit,
+    require_overwrite_for_in_place,
+    source_target_identity_issue,
+    validate_native_sprite_path,
+)
 from spa.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.ports import (
     KernelInvocationResult,
+    OperationIssue,
     OperationServices,
     PackagedHandler,
     PackagedResource,
@@ -29,6 +38,7 @@ from spa.ports import (
     RuntimeIssue,
 )
 from spa.raster import (
+    ImageContentDigest,
     PixelPatch,
     PixelRun,
     Point,
@@ -39,12 +49,6 @@ from spa.raster import (
 
 OneBasedIndex = Annotated[int, Field(ge=1)]
 MAX_PATCH_PIXELS = 256
-
-
-def _native_sprite_path(value: str) -> str:
-    if Path(value).suffix.lower() != ".aseprite":
-        raise ValueError("Sprite file must use the .aseprite extension")
-    return value
 
 
 class CelAddress(PublicModel):
@@ -90,13 +94,16 @@ class PaintApplyRequest(RuntimeRequest, PaintApplyInput):
     in_place: bool
     overwrite: bool
 
-    _validate_source = field_validator("source_sprite_file")(_native_sprite_path)
-    _validate_target = field_validator("target_sprite_file")(_native_sprite_path)
+    _validate_source = field_validator("source_sprite_file")(
+        validate_native_sprite_path
+    )
+    _validate_target = field_validator("target_sprite_file")(
+        validate_native_sprite_path
+    )
 
     @model_validator(mode="after")
     def validate_target_commit_intent(self) -> "PaintApplyRequest":
-        if self.in_place and not self.overwrite:
-            raise ValueError("in_place requires overwrite permission")
+        require_overwrite_for_in_place(self.in_place, self.overwrite)
         return self
 
 
@@ -118,11 +125,6 @@ class EffectivePaletteFact(PublicModel):
     palette_frame_number: int = Field(ge=1)
     palette_size: int = Field(ge=1, le=256)
     indexes: list[PaletteIndexFact]
-
-
-class ImageContentDigest(PublicModel):
-    algorithm: Literal["fnv1a64"] = "fnv1a64"
-    value: str = Field(pattern=r"^[0-9a-f]{16}$")
 
 
 class PaintApplyEvidence(PublicModel):
@@ -164,7 +166,11 @@ PAINT_APPLY_REQUIREMENTS = RuntimeRequirements(
     minimum_api_version=41,
     required_capabilities=["aseprite_paint_apply"],
 )
-PAINT_APPLY_FAILURE_CODES = (*RUNTIME_FAILURE_CODES, "target_commit_failed")
+PAINT_APPLY_FAILURE_CODES = (
+    *RUNTIME_FAILURE_CODES,
+    "cel_not_found",
+    "target_commit_failed",
+)
 PAINT_SUPPORT_RESOURCE = PackagedResource("paint", "paint_apply_support.lua")
 DIGEST_RESOURCE = PackagedResource("digest", "digest.lua")
 PAINT_PROBE_FIXTURE = PackagedResource("paint_fixture", "paint_apply_fixture.aseprite")
@@ -207,6 +213,29 @@ def apply_paint(
         invocation = services.invoke_kernel(
             observation, PAINT_APPLY_HANDLER, payload, request.timeout_seconds
         )
+        rejection = invocation.payload.get("rejection")
+        if rejection is not None:
+            if (
+                isinstance(rejection, dict)
+                and rejection.get("code") == "cel_not_found"
+                and isinstance(rejection.get("message"), str)
+            ):
+                raise OperationIssue(
+                    "cel_not_found",
+                    rejection["message"],
+                    CelTargetDetails(
+                        target=LifecycleCelAddress(
+                            layer=LayerAddress(layer_path=request.target.layer_path),
+                            frame_number=request.target.frame_number,
+                        )
+                    ),
+                )
+            raise RuntimeIssue(
+                "response_malformed",
+                "Packaged Paint handler returned an invalid Cel rejection",
+                ResponseEvidence(response_path=invocation.response_path),
+                invocation.diagnostics,
+            )
         evidence = _paint_evidence(invocation)
         validate_paint_evidence(request, evidence, invocation)
         committed = services.target_files.commit(

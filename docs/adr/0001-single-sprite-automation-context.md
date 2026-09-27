@@ -6,6 +6,10 @@ status: accepted
 
 This decision consolidates ADR-0016.
 
+[ADR-0095](0095-asset-preparation-authoring-and-delivery.md) refines input preparation
+and delivery ownership within this same context. It preserves the external boundaries
+below while assigning accepted raster preparation rules to SPA.
+
 SPA uses one Sprite Automation bounded context because authoring, inspection,
 validation, conversion, and export share Aseprite's object model and change around the
 same agent-facing automation contract. Runtime integration, the Lua Operation Kernel,

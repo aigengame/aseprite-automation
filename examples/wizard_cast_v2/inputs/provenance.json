@@ -1,0 +1,113 @@
+{
+  "generation_tool": "built-in image_gen.imagegen",
+  "model": "not reported by the tool",
+  "baseline_commit": "e4ce2f585c36bb3c349f7f81bb4953ced543a5f0",
+  "generation_attempts": [
+    {
+      "id": "idle-concept",
+      "prompt": "prompts/01-idle-concept.txt",
+      "raw": "raw/idle-concept.png",
+      "role": "concept and neutral idle key pose",
+      "reference_inputs": [],
+      "observed_tool_seconds": 37.6,
+      "selected": true,
+      "output_hint_filename": "exec-cde1c35c-bdaa-424a-97fd-5222861549d4.png"
+    },
+    {
+      "id": "charge-mid",
+      "prompt": "prompts/02-charge-mid.txt",
+      "raw": "raw/charge-mid.png",
+      "role": "static key pose",
+      "reference_inputs": [
+        "raw/idle-concept.png"
+      ],
+      "observed_tool_seconds": 40.1,
+      "selected": true
+    },
+    {
+      "id": "charge-high",
+      "prompt": "prompts/03-charge-high.txt",
+      "raw": "raw/charge-high.png",
+      "role": "static key pose",
+      "reference_inputs": [
+        "raw/idle-concept.png"
+      ],
+      "observed_tool_seconds": 37.8,
+      "selected": true
+    },
+    {
+      "id": "cast",
+      "prompt": "prompts/04-cast.txt",
+      "raw": "raw/cast.png",
+      "role": "static key pose",
+      "reference_inputs": [
+        "raw/idle-concept.png"
+      ],
+      "observed_tool_seconds": 39.6,
+      "selected": true
+    },
+    {
+      "id": "recover",
+      "prompt": "prompts/05-recover.txt",
+      "raw": "raw/recover.png",
+      "role": "static key pose",
+      "reference_inputs": [
+        "raw/idle-concept.png"
+      ],
+      "observed_tool_seconds": 37.8,
+      "selected": true
+    },
+    {
+      "id": "background",
+      "prompt": "prompts/06-background.txt",
+      "raw": "raw/background.png",
+      "role": "auxiliary component",
+      "reference_inputs": [],
+      "observed_tool_seconds": null,
+      "selected": true
+    },
+    {
+      "id": "target",
+      "prompt": "prompts/07-target.txt",
+      "raw": "raw/target.png",
+      "role": "auxiliary component",
+      "reference_inputs": [],
+      "observed_tool_seconds": null,
+      "selected": true
+    },
+    {
+      "id": "projectile",
+      "prompt": "prompts/08-projectile.txt",
+      "raw": "raw/projectile.png",
+      "role": "auxiliary component",
+      "reference_inputs": [],
+      "observed_tool_seconds": null,
+      "selected": true
+    },
+    {
+      "id": "burst",
+      "prompt": "prompts/09-burst.txt",
+      "raw": "raw/burst.png",
+      "role": "auxiliary component",
+      "reference_inputs": [],
+      "observed_tool_seconds": null,
+      "selected": true
+    }
+  ],
+  "parallel_generation_groups": [
+    {
+      "assets": [
+        "background",
+        "target"
+      ],
+      "observed_wall_seconds": 50.1
+    },
+    {
+      "assets": [
+        "projectile",
+        "burst"
+      ],
+      "observed_wall_seconds": 75.9
+    }
+  ]
+}

@@ -5,12 +5,15 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  schedule:
+    # GitHub schedules the default branch (main): 03:23 Asia/Shanghai.
+    - cron: "23 19 * * *"
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -21,6 +24,8 @@ jobs:
     steps:
       - name: Check out the tested commit
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          lfs: true
 
       - name: Set up Python
         uses: ./.github/actions/setup-python-env
@@ -47,6 +52,8 @@ jobs:
     steps:
       - name: Check out the tested commit
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          lfs: true
 
       - name: Set up Python
         uses: ./.github/actions/setup-python-env
@@ -61,6 +68,8 @@ jobs:
     steps:
       - name: Check out the tested commit
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          lfs: true
 
       - name: Set up Python
         uses: ./.github/actions/setup-python-env
@@ -84,11 +93,34 @@ jobs:
     steps:
       - name: Check out the tested commit
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          lfs: true
+
+      - name: Select the real-runtime test scope
+        id: scope
+        shell: bash
+        run: |
+          case "$GITHUB_EVENT_NAME" in
+            pull_request|push)
+              include_slow=false
+              ;;
+            schedule)
+              # Do not move nightly to an integration branch if the default changes.
+              test "$GITHUB_REF" = "refs/heads/main"
+              include_slow=true
+              ;;
+            workflow_dispatch)
+              include_slow=true
+              ;;
+            *) echo "Unsupported CI event: $GITHUB_EVENT_NAME" >&2; exit 1 ;;
+          esac
+          echo "include_slow=$include_slow" >> "$GITHUB_OUTPUT"
 
       - name: Run the headless real-runtime gate
         uses: ./.github/actions/run-linux-aseprite-e2e
         with:
           junit-path: ${{ runner.temp }}/spa-real-aseprite-e2e.xml
+          include-slow: ${{ steps.scope.outputs.include_slow }}
 
       - name: Preserve the E2E report
         if: always()

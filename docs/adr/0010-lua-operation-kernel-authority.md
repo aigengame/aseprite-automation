@@ -6,6 +6,13 @@ status: accepted
 
 This decision consolidates ADR-0011.
 
+Under [ADR-0095](0095-asset-preparation-authoring-and-delivery.md), Ordinary Core
+Operation and Core Operation Semantics remain execution terms, independent of
+strategic Subdomain classification. Native Asset Delivery Operations retain the same
+authority and guarantees. A wholly Application-owned capability does not require a
+native handler for non-native facts; native transformations it invokes still follow
+this decision.
+
 The versioned, packaged Lua Operation Kernel is the sole authority for each Ordinary
 Core Operation's Core Operation Semantics. Fixed packaged semantic entry points define
 what an Operation creates, edits, observes, validates, converts, or exports through
