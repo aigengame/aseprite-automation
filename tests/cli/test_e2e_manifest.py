@@ -58,6 +58,8 @@ def test_manifest_is_projected_from_command_descriptors() -> None:
         "spa cel link",
         "spa cel unlink",
         "spa image resize",
+        "spa image get",
+        "spa image replace",
         "spa tag list",
         "spa tag get",
         "spa tag add",
