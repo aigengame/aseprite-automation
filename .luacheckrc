@@ -7,6 +7,7 @@ read_globals = {
   "Color",
   "ColorMode",
   "ColorSpace",
+  "FlipType",
   "Image",
   "ImageSpec",
   "Palette",

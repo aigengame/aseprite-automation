@@ -15,6 +15,8 @@ def test_probe_resources_are_packaged() -> None:
         "digest.lua",
         "image_resize.lua",
         "image_resize_transform.lua",
+        "image_orientation.lua",
+        "image_orientation_transform.lua",
     ):
         resource = kernel.joinpath(name)
         assert resource.is_file()

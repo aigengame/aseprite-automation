@@ -11,6 +11,9 @@ local cel_support = app.params.cel and dofile(app.params.cel) or nil
 local image_resize_transform = app.params.image_resize_transform
     and dofile(app.params.image_resize_transform)
   or nil
+local image_orientation_transform = app.params.image_orientation_transform
+    and dofile(app.params.image_orientation_transform)
+  or nil
 
 local function observes_sprite_inspection()
   local open_sprite = nil
@@ -569,6 +572,29 @@ local function observes_tag_authoring()
   return ok
 end
 
+local function observes_image_flip()
+  if image_orientation_transform == nil then return false end
+  return pcall(function()
+    local image = Image(3, 2, ColorMode.INDEXED)
+    image:putPixel(0, 0, 7)
+    image_orientation_transform.flip(image, "horizontal")
+    assert(image:getPixel(2, 0) == 7 and image:getPixel(0, 0) == 0)
+    image_orientation_transform.flip(image, "vertical")
+    assert(image:getPixel(2, 1) == 7 and image:getPixel(2, 0) == 0)
+  end)
+end
+
+local function observes_image_rotate()
+  if image_orientation_transform == nil then return false end
+  return pcall(function()
+    local source = Image(3, 2, ColorMode.INDEXED)
+    source:putPixel(2, 0, 9)
+    local rotated = image_orientation_transform.rotate(source, 90)
+    assert(rotated.width == 2 and rotated.height == 3 and rotated:getPixel(1, 2) == 9)
+    assert(source:getPixel(2, 0) == 9)
+  end)
+end
+
 function module.observe()
   local capabilities = { "aseprite_runtime_introspection" }
   local supports_inspection = observes_sprite_inspection()
@@ -579,6 +605,8 @@ function module.observe()
   if observes_sprite_flatten() then capabilities[#capabilities + 1] = "aseprite_sprite_flatten" end
   if observes_sprite_resize() then capabilities[#capabilities + 1] = "aseprite_sprite_resize" end
   if observes_image_resize() then capabilities[#capabilities + 1] = "aseprite_image_resize" end
+  if observes_image_flip() then capabilities[#capabilities + 1] = "aseprite_image_flip" end
+  if observes_image_rotate() then capabilities[#capabilities + 1] = "aseprite_image_rotate" end
   if observes_sprite_crop() then capabilities[#capabilities + 1] = "aseprite_sprite_crop" end
   if observes_layer_hierarchy() then
     capabilities[#capabilities + 1] = "aseprite_layer_hierarchy"
