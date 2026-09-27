@@ -8,6 +8,7 @@ end
 -- Lua bindings narrow coordinates to native integers. Refuse a lossy conversion
 -- before it can wrap into a different, apparently successful Selection.
 function module.native_rectangle(area)
+  assert(area.width > 0 and area.height > 0, "native Selection Rectangle must be positive")
   local result = Rectangle(area.x, area.y, area.width, area.height)
   local finish = Point(area.x + area.width, area.y + area.height)
   assert(

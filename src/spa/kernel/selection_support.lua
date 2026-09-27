@@ -65,6 +65,9 @@ function module.invert(payload)
 end
 
 local function morphology(payload, modifier)
+  -- Native morphology constructs a (2r + 1) square brush using integer sizes.
+  local diameter = 2 * payload.radius + 1
+  masks.native_rectangle { x = 0, y = 0, width = diameter, height = diameter }
   if payload.canvas ~= nil then masks.native_rectangle(payload.canvas) end
   local source = masks.materialize(payload.selection)
   local area = payload.canvas

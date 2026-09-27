@@ -613,3 +613,31 @@ def test_native_coordinate_overflow_cannot_return_wrapped_success() -> None:
     code, result = selection("create", shape={"kind": "rectangle", "rectangle": area})
     assert code != 0, result
     assert result["code"] == "kernel_execution_failed"
+
+
+@pytest.mark.parametrize("operation", ["grow", "shrink"])
+def test_morphology_refuses_unrepresentable_native_footprint(operation) -> None:
+    code, result = selection(
+        operation,
+        selection={
+            "kind": "all",
+            "rectangle": {"x": 11, "y": 21, "width": 1, "height": 1},
+        },
+        canvas={"x": 10, "y": 20, "width": 3, "height": 3},
+        radius=2**32,
+        shape="square",
+    )
+    assert code != 0 and result["code"] == "kernel_execution_failed", result
+    assert result["diagnostics"]["exit_status"] == 0
+
+
+def test_transform_tests_selected_coverage_not_the_placement_rectangle() -> None:
+    code, result = selection(
+        "transform",
+        selection=ASYMMETRIC,
+        canvas=ASYMMETRIC["bounds"],
+        transform={"kind": "scale", "width": 8, "height": 1},
+    )
+    assert code == 0, result
+    assert result["target_placement"] == {"x": 10, "y": 20, "width": 8, "height": 1}
+    assert coverage(result["selection"]) == {(10, 20), (11, 20)}

@@ -16,7 +16,7 @@ from spa.selection import (
     export_selection,
     preview_selection,
 )
-from tests.export.test_unit_export_image import _observation
+from tests.support import runtime_observation
 
 
 @pytest.mark.parametrize("operation", ["export", "preview"])
@@ -58,7 +58,7 @@ def test_artifact_verification_failure_preserves_existing_destination(
         )
 
     services = OperationServices(
-        probe_runtime=lambda _request: _observation(),
+        probe_runtime=lambda _request: runtime_observation("aseprite_selection"),
         invoke_kernel=invoke,
         target_files=LocalTargetFiles(),
         artifact_files=LocalArtifactFiles(),
