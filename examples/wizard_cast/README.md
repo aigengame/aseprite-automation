@@ -95,9 +95,10 @@ binary alpha, gem opacity, and independent resize effects. The real-runtime test
 also opens the saved source with a read-only Lua inspector to check stored pixels
 in invisible Cels. That inspector never authors or saves art.
 The full `e2e` + `slow` test makes one fresh build and compares it with the checked-in
-PNGs, bundle, and reopened Aseprite source. It runs for wizard-related or CI setup
-changes, nightly on `main`, manual full CI, and exact-SHA release verification.
-Ordinary CI keeps the small component probe and the routine real-runtime tests.
+PNGs, bundle, and reopened Aseprite source. It runs nightly on `main`, through
+manual full CI, and during exact-SHA release verification. PR and push CI exclude
+the full rebuild even when wizard or CI files change; they keep the small component
+probe and the routine real-runtime tests.
 See the [trigger policy](../../docs/testing.md#complete-example-rebuilds).
 The two-build command above is available for explicit
 repeat-run checks; the original local double-build observations are retained in

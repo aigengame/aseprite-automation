@@ -158,24 +158,22 @@ A failure in any job fails CI. Configure these four named jobs as required check
 
 ### Complete example rebuilds
 
-The Linux E2E job always runs. It selects the following scope inside the job, so
-path selection cannot leave a required CI check pending:
+The Linux E2E job always runs. It selects the following scope by event inside the
+job, so excluding slow tests does not skip the required CI check:
 
 | Trigger | Real-runtime selection |
 | --- | --- |
-| Ordinary PR or push to `main` | `e2e and not slow`: all routine E2E cases, including the small wizard probe. |
-| PR or push that changes wizard inputs, delivery, tests, or CI setup | `e2e`: also rebuild both complete wizard asset bundles. |
+| Every PR or push to `main`, including example and CI changes | `e2e and not slow`: all routine E2E cases, including the small wizard probes. |
 | Nightly on `main` | `e2e`: full suite at the scheduled main SHA. |
 | Manual **CI → Run workflow** | `e2e`: full suite at the selected ref. |
 | Release verification | `e2e`: full suite at the exact release SHA before publication. |
 
-The changed-path list in `.github/workflows/ci.yml` is authoritative. It covers
-`examples/wizard_cast/`, `examples/wizard_cast_v2/`, `tests/examples/`, the root test
-gate, CI configuration, LFS rules, dependency configuration, and the JUnit execution
-audit. PR selection
-compares the merge base with the PR head; push selection compares before/after
-commits. Deletions and renames are included. An invalid comparison fails the job
-instead of silently selecting fewer tests.
+The event selection in `.github/workflows/ci.yml` is authoritative. PR and push
+runs exclude `slow` regardless of changed paths, including promotion PRs. They
+retain routine real-Aseprite coverage and the small wizard handoff/native-pixel
+checks. Complete rebuilds run through the full-suite events listed above. For an
+example change that needs full verification before merge, manually run CI on the
+selected ref. Unexpected event types fail instead of silently choosing a scope.
 
 The nightly schedule is daily at 19:23 UTC (03:23 Asia/Shanghai). GitHub runs it
 from the default branch, `main`; the job also checks that ref explicitly. `dev`

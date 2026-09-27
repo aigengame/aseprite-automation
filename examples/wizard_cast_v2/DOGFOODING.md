@@ -222,10 +222,13 @@ ranges. All 32 frozen input files had identical hashes, and no new imagegen call
 was made. See `evidence/motion-revision.json` for the exact change and caveat that
 the builder's initial-placement optimization also changed between these runs.
 
-The larger assets make this full rebuild unsuitable for every unrelated change.
-The small real handoff and hidden-pixel regression remain routine; full generation
-uses the repository's existing relevant-path, main-nightly, manual and release
-policy. Import ergonomics and bounded Plan coverage deserve separate measurement;
+The larger assets make this full rebuild expensive on the pull-request path.
+On 2026-09-27, the owner moved all PR and push CI to routine E2E without complete
+example rebuilds, including example and CI changes. The small real handoff and
+hidden-pixel regression remain routine; full generation uses main nightly, manual
+full CI, and exact-SHA release verification. See the current
+[test policy](../../docs/testing.md#complete-example-rebuilds).
+Import ergonomics and bounded Plan coverage deserve separate measurement;
 increasing Pixel Patch limits alone would not remove the dominant persisted-write
 cost observed here.
 
