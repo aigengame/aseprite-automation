@@ -79,11 +79,12 @@ Bounded Context, public Operation, or generic animation engine.
 
 ### Smallest candidate and validation path
 
-Start with an existing Cel asset in one Sprite, an explicit Frame range, position
-and opacity key values, and declared interpolation and rounding. Produce the
-corresponding Frames and save an editable Aseprite result. Before implementation,
-define Frame/time mapping, coordinate space, Image copy/link behavior, effects on
-existing Cels, Target Commit behavior, and verification of the persisted result.
+**Historical candidate, before #104 alignment:** the initial proposal started from
+one Cel asset and considered generating corresponding Frames, leaving timing and
+Image copy/link rules open. The accepted current delivery in
+[#104](https://github.com/aigengame/aseprite-automation/issues/104) applies motion to
+existing per-Frame Cels; that issue owns the resolved sampling, relationship, and
+execution contract.
 
 Validate the shared behavior with the wizard and one small independent case, such
 as a floating emblem that moves and fades. Rebuild from fixed inputs and inspect
