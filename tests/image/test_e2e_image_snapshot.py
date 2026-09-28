@@ -743,6 +743,22 @@ def test_preserve_indexed_composite_uses_each_linked_frames_effective_palette(
         ],
     )
     original = source.read_bytes()
+    link = spa(
+        "cel",
+        "get",
+        "--input-json",
+        json.dumps(
+            {
+                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+                "sprite_file": str(source),
+                "target": {"layer": {"layer_path": [1]}, "frame_number": 1},
+            }
+        ),
+    )
+    assert link.returncode == 0, link.stdout
+    assert json.loads(link.stdout)["cel"]["linked_cels"] == [
+        {"layer_path": [1], "frame_number": 2}
+    ]
     for frame, red in ((1, 250), (2, 20)):
         code, result = _get(
             source,
