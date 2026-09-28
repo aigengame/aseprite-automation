@@ -1,0 +1,21 @@
+name: Temporary cache scope experiment
+run-name: Cache scope experiment (${{ github.event_name }})
+
+on:
+  pull_request:
+    types: [synchronize]
+  push:
+    branches: [codex/issue-107-ci-capacity]
+
+permissions:
+  contents: read
+
+jobs:
+  scope:
+    name: Cache scope experiment (not SPA verification)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: ./.github/actions/cache-scope-experiment
+      - uses: ./.github/actions/setup-linux-aseprite
