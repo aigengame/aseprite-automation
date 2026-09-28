@@ -1,5 +1,13 @@
 # Linux CI capacity — issue #107
 
+## Current acceptance
+
+The owner-approved 20/40/40-minute limits and removal of both automatic example
+rebuilds are implemented. Capacity acceptance remains open. The `a76c88b` cold PR
+attempt exceeded its 20-minute limit before native compilation finished; the
+required E2E suite did not start. PR #121 remains draft. A dependency-provisioning
+or runner change requires the pending owner decision described below.
+
 ## Initial measurement method
 
 The initial observations measured the existing Linux jobs without reducing native-pixel checks or excluding
@@ -211,14 +219,82 @@ in Release. The observations do not isolate the host conditions behind this spre
 All three workflow limits passed, but the routine cold-capacity criterion remains
 open; one faster PR sample does not resolve the measured slower condition.
 
-The next bounded candidate uses Clang `-O1 -DNDEBUG` in the Release configuration
+The next bounded candidate, `a76c88b`, used Clang `-O1 -DNDEBUG` in the Release configuration
 to reduce compilation cost, while keeping the same native source, two build
 processes, two test workers, and retained assertions. It records the CPU model,
 available CPU count, and build wall/CPU time in the existing job log. This is a
 functional test runtime; no Aseprite performance or bit-identical binary claim is
 made. The [Clang command guide](https://clang.llvm.org/docs/CommandGuide/clang.html)
-describes the optimization-level tradeoff. New cold observations are required;
-the earlier passing jobs do not validate this compiler configuration.
+describes the optimization-level tradeoff. The observations below test that
+configuration separately from the earlier passing jobs.
+
+## Lower-optimization experiment and recovery boundary
+
+The [cold PR attempt](https://github.com/aigengame/aseprite-automation/actions/runs/36379163478/job/108791119296)
+tested head `a76c88b20fcbd6aa3ad66771087000f35b2d02ac` through actual merge
+checkout `7e7c2395db40ffd56da33b119e04a80cf3fbb2e8`. GitHub explicitly annotated
+the failure: "The job has exceeded the maximum execution time of 20m0s".
+The job ran from 04:47:13 to 05:07:32 UTC, including timeout cleanup. Compilation
+was cancelled at 05:07:26 UTC after 1,174.183 seconds in the download/configure/build
+step; the last completed Ninja target was 1,611 of 1,719. It had a native cache miss,
+Clang 18.1.3, and two available CPUs. The host model was AMD EPYC 7763; the model's
+64-core label does not describe the two CPUs allocated to this runner.
+
+The setup probe, cache save, installed-wheel step, and native tests were skipped.
+There is no native JUnit report or native acceptance result for this attempt.
+The three independent quality, fast-test, and package jobs passed. They do not
+replace the missing native verification.
+
+The [separate cold Release experiment](https://github.com/aigengame/aseprite-automation/actions/runs/36379173371/job/108791150928)
+checked out `a76c88b` directly and used the same compiler profile. It passed in
+**1,895 seconds (31m 35s)**, from 04:47:22 to 05:18:57 UTC, leaving **505 seconds
+(8m 25s)** of the unchanged 40-minute limit. Draft creation, publication, and
+Release PR maintenance were skipped by this manual verification path.
+
+| Measured phase | Seconds |
+| --- | ---: |
+| Native OS dependencies | 15.587 |
+| Cache lookup (miss) | 0.306 |
+| Source download, configure, native build | 1,370.334 |
+| Of native build: timed CMake/Ninja wall time | 1,297.029 |
+| Native batch/script probe | 0.144 |
+| Verified native cache save | 0.696 |
+| Python setup inside native action | 1.115 |
+| Wheel build/install inside native action | 0.319 |
+| Pytest | 404.37 |
+| Whole native action | 1,794 |
+| JUnit artifact upload | 1 |
+| Whole Release verification job | **1,895** |
+
+The native JUnit report has the same 510 case identities and outcomes as the
+previous Release report: **507 passed and three unchanged platform skips**.
+Neither complete example rebuild ran. Source quality, fast tests (275 passed,
+four platform skips), release metadata, distributions, and wheel checks also
+passed. The runner was `GitHub Actions 1000019472`, with the same Ubuntu image
+and AMD EPYC host model as the failed PR attempt and two allocated CPUs. The timed
+build reported 40m 24.894s user CPU and 2m 21.482s system CPU against 21m 37.029s
+wall time. This supports substantial use of both allocated CPUs during compilation;
+it does not identify the cause of variation between separate runners.
+
+The source/configure/build phase alone still exceeded the routine 20-minute
+budget. This Release success establishes retained functional verification for
+the profile, not acceptance of the routine cold path.
+
+Backtrace conclusion: cache reuse is demonstrated by the earlier warm logs, and
+routine CI already excluded both rebuilds before this timeout. The remaining cold
+path places a full 1,719-target vendor runtime build before every required native
+test when its cache is absent. A lower optimization level has not made that path
+fit 20 minutes. The observations do not isolate the host conditions that caused
+the build-time spread, so they do not establish a universal compiler speedup or a
+specific host-contention diagnosis.
+
+Further compiler tuning is paused. The pending owner choice is whether to supply
+one pinned private prebuilt runtime, with a separately bounded dependency build,
+or retain compilation and provide a stronger Linux runner. These change dependency
+ownership or runner cost and are not authorized by this failed experiment alone.
+No new dependency workflow, artifact registry, runner allocation, or larger budget
+has been introduced. A private runtime artifact, if approved, must be built for
+the pinned dependency rather than as a serial prerequisite of each SPA test run.
 
 ## Release PR maintenance repair
 
