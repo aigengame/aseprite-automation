@@ -1,0 +1,43 @@
+name: Build Aseprite
+run-name: Build Aseprite from ${{ github.ref_name }}
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aseprite-build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-aseprite:
+    name: Build Aseprite (manual maintenance)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Check out the selected build recipe
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Prepare and verify the Aseprite binary
+        uses: ./.github/actions/aseprite-runtime
+        with:
+          build-if-missing: "true"
+
+      - name: Explain cache scope and recovery
+        shell: bash
+        run: |
+          {
+            echo "### Aseprite maintenance complete"
+            echo "- Build recipe commit: \`$(git rev-parse HEAD)\`"
+            echo "- Run ref: \`$GITHUB_REF\`"
+            if [ "$GITHUB_REF" = "refs/heads/main" ]; then
+              echo "- Stable runtime: main cache is available to other branches."
+            else
+              echo "- Provisional runtime: a PR can consume this cache only if this is its base branch."
+              echo "- Same-branch push and manual runs can also consume it; main cannot."
+              echo "- After promotion, run Build Aseprite on main to prepare the stable runtime."
+            fi
+            echo "- Re-run the original failed verification; this maintenance run is not SPA test evidence."
+          } >> "$GITHUB_STEP_SUMMARY"
