@@ -1,5 +1,6 @@
 -- Frame insertion and shared Background Color validation over native Sprite facts.
 local module = {}
+local palettes = dofile(app.params.effective_palette)
 local json_null = json.decode("null")
 local all_sections = {
   "frames",
@@ -27,22 +28,9 @@ local function background_layer(sprite)
   return nil
 end
 
-local function effective_palette(sprite, frame_number)
-  local selected, selected_frame = nil, -1
-  for palette_index = 1, #sprite.palettes do
-    local palette = sprite.palettes[palette_index]
-    local palette_frame = palette.frame.frameNumber
-    if palette_frame <= frame_number and palette_frame > selected_frame then
-      selected, selected_frame = palette, palette_frame
-    end
-  end
-  return assert(selected, "Indexed Background has no Effective Palette")
-end
-
-module.effective_palette = effective_palette
-
 local function validate_indexed_background(sprite, frame_number, index)
-  local palette = effective_palette(sprite, frame_number)
+  local palette =
+    assert(palettes.resolve(sprite, frame_number), "Indexed Background has no Effective Palette")
   assert(index < #palette, "Background Palette Index does not exist")
   assert(palette:getColor(index).alpha == 255, "Background Palette Color is not opaque")
 end
