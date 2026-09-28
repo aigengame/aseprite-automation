@@ -253,12 +253,17 @@ on main and verify this new entry before rerunning any failed verification. Earl
 branch evidence for the shared build action does not establish that this separate
 entry ran. Do not retain a second build mode in CI for this one-time rollout.
 
-A main cache is available to other branches. A PR can also read its head/base
-branch caches, but main cannot consume a feature/dev cache. Build recipe changes
-must be prepared on the corresponding branch for provisional verification, then
-on main after promotion. Do not infer main readiness from a branch build. If an
-older failed run needs a different recipe, prepare its exact key on a ref visible
-to that run; a newer binary is not a substitute. Cache access follows
+A main cache is available to other branches; main cannot consume a feature/dev
+cache. Use main for stable recovery. A feature-branch build can support manual
+verification on that branch, but it does not establish PR recovery: the #107
+experiment saved the exact key and cache version on the head branch, yet both the
+original PR rerun and the updated PR reported misses. The backend cause is not
+established. See the [recorded evidence](evidence/issue-107-ci-capacity.md#shared-action-recovery-validation--2026-09-28).
+
+Prepare recipe changes provisionally on their branch, then on main after promotion.
+Do not infer main or PR readiness from a branch build. If an older failed run needs
+a different recipe, prepare its exact key on a ref visible to that run; a newer
+binary is not a substitute. GitHub documents cache scope in
 [GitHub's branch restrictions](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching#restrictions-for-accessing-a-cache).
 
 The maintenance workflow has its own concurrency group and only its build job.

@@ -39,8 +39,55 @@ contain the new input:
 Only the maintenance job runs; the normal verification check names are not emitted
 as skipped successes. This temporary entry has now been removed from CI. The build
 script, cache identity, and native probe remain shared and unchanged by that split.
-Preparation and the original-run recovery remain pending until their actual
-results are recorded. This run cannot validate the new workflow's dispatch entry.
+The job succeeded in **23m 26s** (08:46:36–09:10:02 UTC). Source SHA-256 validation,
+the executable/resource/version checks, and the real batch/script probe passed
+before cache save. The build had two allocated CPUs (AMD EPYC 7763 host); the
+compiler command itself took 21m 42.887s. The reported runtime is Aseprite
+`1.3.18.5-dev`. This run cannot validate the new workflow's dispatch entry.
+
+Saved cache `8204157704` has:
+
+- Ref: `refs/heads/codex/issue-107-ci-capacity`.
+- Key: `spa-aseprite-cli-ubuntu-24.04-X64-1.3.18.5-04b0a84617efb3107d380c352ebb0af9eb2633ff4c1a8bfcb671d2a437247d5d-01760cb1bf26fe447f65a9c85730607846c261c3f004a36aa32e0d84370d52ee`.
+- Cache version: `f9065ecba5600982730587a8798547f1be7afbe92c18c9d791d13e8d4b161b96`.
+- Path: `/home/runner/work/_temp/spa-aseprite/1.3.18.5`.
+
+**PR recovery did not pass.** The
+[original rerun, attempt 2](https://github.com/aigengame/aseprite-automation/actions/runs/36399147774/job/108861274785)
+failed in 15 seconds on another miss. The
+[new split-workflow PR run](https://github.com/aigengame/aseprite-automation/actions/runs/36401859256/job/108861348222)
+at `3fbd19d92c4911537974c3805ae96442dc0d432d` also missed; its other three CI jobs
+passed. A single
+[debug rerun, attempt 3](https://github.com/aigengame/aseprite-automation/actions/runs/36399147774/job/108862078332)
+explicitly reported a miss for the saved key **and cache version**. The paths match,
+and this is a same-repository PR. The original reruns checked out the original
+merge SHA `f012a5ca2177a5b1a8067e52a6c7b53d4108064f`.
+
+These observations contradict the assumption that this head-branch cache recovers
+the PR. They do not establish a cache-service root cause. Native installation,
+compilation, and E2E were not executed after those misses; no passing PR native
+evidence is claimed. Stable main preparation and subsequent original-PR recovery
+remain required after promotion. No alternate cache transport or CI bypass is added.
+
+The separate
+[manual Release verification](https://github.com/aigengame/aseprite-automation/actions/runs/36401855052/job/108861340361)
+at exact SHA `3fbd19d92c4911537974c3805ae96442dc0d432d` succeeded in **8m 25s**
+(09:11:11–09:19:36 UTC). It restored the same feature-branch cache, skipped
+compilation, and passed the native probe. Source quality, fast tests (275 passed,
+four existing skips), release metadata, package checks, and evidence uploads passed.
+The native action took 410 seconds; pytest recorded 399.848 seconds and **507 passes,
+three existing platform skips**. All 510 native case identities and outcomes match
+the preceding retained-suite report from run `36394533499`; there are no added or
+removed cases. Small wizard probes and hidden-pixel checks remain; neither complete
+wizard rebuild ran. Draft, publish, and release-maintenance jobs were skipped on
+this manual event, so no release was created or published.
+
+This verifies consumption on the same branch within the native 40-minute Release
+limit. It does not replace the failed PR recovery or the new manual entry's first
+main run. Sol Standards and architecture reviews found no blocker at `3fbd19d`.
+The Spec review correctly retains the recovery acceptance gap. Its follow-up
+confirmed that the evidence and recovery guidance preserve that gap without
+claiming a backend root cause or a passing PR native gate.
 
 ## Superseded measured-build deduction experiment
 
