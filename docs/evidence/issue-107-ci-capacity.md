@@ -475,3 +475,17 @@ covered. This is release-maintenance behavior, independent of the capacity budge
 On 2026-09-28 the owner chose to deliver this repair with #107 to `dev` and wait for
 promotion to `main`. It does not retroactively repair the failed main run, authorize
 publication, or require a new release process.
+
+The later backtrace review identified a separate, patch-induced failure: extracting
+dispatch into a repository script in `1a932e4` made its availability depend on the
+checked-out Release branch. `0e0e7ff` copied that script to `RUNNER_TEMP` before
+checkout. The owner approved removing this compensation and explicitly excluded
+legacy Release-branch compatibility from the current scope. The action now owns
+the bounded head check and dispatch inline; the helper, copy and legacy-branch
+test are removed. Existing open-PR retry behavior remains.
+
+The three dispatch cases now execute the action's actual maintenance shell with a
+real local Git origin, checkout, lockfile commit and push. They cover immediate
+head agreement, delayed agreement and persistent disagreement. GitHub API responses,
+uv work and sleep are controlled. These tests do not establish the original API-lag
+hypothesis or replace live Release-maintenance evidence after promotion.

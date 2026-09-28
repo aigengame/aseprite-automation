@@ -21,14 +21,11 @@ workflow event for its `GITHUB_TOKEN` updates, the workflow refreshes the lockfi
 explicitly dispatches CI for the resulting Release PR head. Review the complete change
 and its four CI jobs before merge.
 
-After a lockfile push, `scripts/dispatch_release_ci.sh` waits for the PR API to
-report the local commit before dispatch. It makes at most ten reads, two seconds
-apart, and reports expected and observed SHAs on a mismatch. A persistent mismatch
-fails maintenance without dispatch; a GitHub CLI error also fails the job.
-Maintenance copies the helper from the workflow checkout into `RUNNER_TEMP`
-before switching to the Release PR branch. This keeps the workflow's helper
-available when release-please leaves an older branch unchanged. The helper still
-checks and dispatches the Release PR commit after lockfile maintenance.
+After lockfile maintenance, the action waits for the PR API to report the local
+Release PR commit before dispatch. It makes at most ten reads, two seconds apart,
+and reports expected and observed SHAs on a mismatch. A persistent mismatch fails
+maintenance without dispatch; a GitHub CLI error also fails the job. The action's
+shell step owns this check and dispatch directly.
 
 Merging the Release PR is the publication approval. Its `main` push makes
 release-please create a draft for the reviewed version. The workflow verifies the

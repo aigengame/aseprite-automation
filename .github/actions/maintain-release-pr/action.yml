@@ -61,9 +61,6 @@ runs:
         SPA_RELEASE_PR_NUMBER: ${{ steps.target.outputs.number }}
       shell: bash
       run: |
-        # The Release PR can predate this helper when release-please has no update.
-        spa_dispatch_script="$RUNNER_TEMP/spa-dispatch-release-ci.sh"
-        cp scripts/dispatch_release_ci.sh "$spa_dispatch_script"
         git fetch origin "$SPA_RELEASE_BRANCH"
         # actions/checkout configures a narrow refspec, so the explicit fetch
         # updates FETCH_HEAD without guaranteeing origin/<branch> exists.
@@ -84,4 +81,21 @@ runs:
 
         echo "Refreshed the Release PR lockfile for branch \`${SPA_RELEASE_BRANCH}\`." \
           >> "$GITHUB_STEP_SUMMARY"
-        bash "$spa_dispatch_script"
+        expected_sha="$(git rev-parse HEAD)"
+        for attempt in {1..10}; do
+          observed_sha="$(gh pr view "$SPA_RELEASE_PR_NUMBER" --repo "$GITHUB_REPOSITORY" \
+            --json headRefOid --jq .headRefOid)"
+          if [ "$observed_sha" = "$expected_sha" ]; then
+            break
+          fi
+          echo "Release PR #$SPA_RELEASE_PR_NUMBER: expected $expected_sha; observed $observed_sha (attempt $attempt/10)." >&2
+          if [ "$attempt" -lt 10 ]; then
+            sleep 2
+          fi
+        done
+        if [ "$observed_sha" != "$expected_sha" ]; then
+          echo "Release PR head did not converge; CI was not dispatched." >&2
+          exit 1
+        fi
+        gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "$SPA_RELEASE_BRANCH"
+        echo "Dispatched CI for exact head \`${expected_sha}\`." >> "$GITHUB_STEP_SUMMARY"
