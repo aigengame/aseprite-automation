@@ -21,6 +21,11 @@ workflow event for its `GITHUB_TOKEN` updates, the workflow refreshes the lockfi
 explicitly dispatches CI for the resulting Release PR head. Review the complete change
 and its four CI jobs before merge.
 
+After a lockfile push, `scripts/dispatch_release_ci.sh` waits for the PR API to
+report the local commit before dispatch. It makes at most ten reads, two seconds
+apart, and reports expected and observed SHAs on a mismatch. A persistent mismatch
+fails maintenance without dispatch; a GitHub CLI error also fails the job.
+
 Merging the Release PR is the publication approval. Its `main` push makes
 release-please create a draft for the reviewed version. The workflow verifies the
 draft's exact commit, builds the distributions, attaches them, and publishes the

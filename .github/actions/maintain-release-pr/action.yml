@@ -79,12 +79,6 @@ runs:
           git push origin "HEAD:refs/heads/$SPA_RELEASE_BRANCH"
         fi
 
-        sha="$(gh pr view "$SPA_RELEASE_PR_NUMBER" --repo "$GITHUB_REPOSITORY" \
-          --json headRefOid --jq .headRefOid)"
-        test -n "$sha"
-        test "$sha" = "$(git rev-parse HEAD)"
-        gh workflow run ci.yml --ref "$SPA_RELEASE_BRANCH"
-        {
-          echo "Refreshed the Release PR lockfile for branch \`${SPA_RELEASE_BRANCH}\`."
-          echo "Dispatched CI for exact head \`${sha}\`."
-        } >> "$GITHUB_STEP_SUMMARY"
+        echo "Refreshed the Release PR lockfile for branch \`${SPA_RELEASE_BRANCH}\`." \
+          >> "$GITHUB_STEP_SUMMARY"
+        bash scripts/dispatch_release_ci.sh
