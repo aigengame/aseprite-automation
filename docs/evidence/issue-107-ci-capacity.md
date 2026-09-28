@@ -1,4 +1,4 @@
-# Linux full-E2E capacity — issue #107
+# Linux CI capacity — issue #107
 
 ## Initial measurement method
 
@@ -32,7 +32,7 @@ Aseprite cache. Its full E2E job took **2,325 seconds (38m 45s)** against a
 The v1 and v2 complete rebuild cases took 372.449 and 1,617.798 seconds.
 This older revision supplies risk evidence, not the new fixed-revision comparison.
 
-## Current observations
+## Initial full-suite observations
 
 Both fixed-revision observations passed on 2026-09-28:
 
@@ -82,10 +82,19 @@ tested PR head `1a932e4098e55a4ca6097ff7795068bb88092c9f` through GitHub's actua
 merge checkout `99d27184c6f7b1fe34b6d6b41629eafb2ea4ecaa`. It had a cold PR-scoped
 native cache, compiled in 1,037.850 seconds, and passed 507 tests with three
 platform skips and 281 deselected cases. Its whole job took 1,636 seconds
-(27m 16s), leaving 764 seconds (12m 44s) of the unchanged 40-minute budget.
+(27m 16s), leaving 764 seconds (12m 44s) of the then-configured 40-minute budget.
 Both complete wizard rebuilds were deselected, as required for PR events.
 The additional head changes only release maintenance, its three fast regression
 tests, and release documentation; it does not change the native workload.
+
+The corresponding [warm routine PR job](https://github.com/aigengame/aseprite-automation/actions/runs/36375395881/job/108780079876)
+ran at head `2725dd49ab44c9403cccc1f06bbc8376e4910e99`, whose additional changes
+were documentation only. It used the same native workload and cache key, recorded
+an exact cache hit, and skipped compilation. The job took **564 seconds (9m 24s)**;
+pytest took 524.94 seconds and again reported 507 passed, three platform skips,
+and 281 deselected cases. This same-scope pair saved 17m 52s with a warm cache.
+It confirms cache reuse; the different-scope 25m 46s and 27m 16s observations do
+not measure cache speedup.
 
 All three jobs used Linux X64, Ubuntu 24.04 image
 `20260920.314.1`, CPython 3.13.13, uv 0.11.19, pytest 9.1.1, and Aseprite
