@@ -127,7 +127,8 @@ class CompositeImageSource(PublicModel):
     kind: Literal["composite"]
     output_color_mode: Literal["preserve", "rgb"] = Field(
         description=(
-            "Explicit native render destination: preserve uses source Color Mode; "
+            "Explicit native render destination: preserve uses source Color Mode "
+            "and requires an applicable Effective Palette for Indexed output; "
             "rgb produces a derived RGBA observation. No automatic fallback."
         )
     )

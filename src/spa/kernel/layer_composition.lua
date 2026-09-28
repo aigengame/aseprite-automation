@@ -15,6 +15,17 @@ local function missing_palette_index(message)
   return { rejection = { code = "image_composition_unsupported", message = message } }
 end
 
+function module.missing_output_index(image, effective)
+  for pixel in image:pixels() do
+    local index = pixel()
+    if index >= #effective then
+      return missing_palette_index(
+        "Requested Frame Effective Palette has no output Palette Index " .. index
+      )
+    end
+  end
+end
+
 local function copy_path(path)
   local result = {}
   for _, value in ipairs(path) do
@@ -103,7 +114,7 @@ function module.render(sprite, frame_number, composition, area, selection, uuids
   local previous_compose = app.preferences.experimental.compose_groups
   local resolved = {}
   local changed_images, changed_palettes, seen = {}, {}, {}
-  local mask_changed, invalid_index = false, nil
+  local mask_changed, output_rejection = false, nil
   local ok, result = pcall(function()
     app.preferences.experimental.compose_groups = true
     for _, record in ipairs(records) do
@@ -158,13 +169,7 @@ function module.render(sprite, frame_number, composition, area, selection, uuids
       local restored = Image(original_spec)
       restored.bytes = swap_indexes(image.bytes, mask)
       image = restored
-      for pixel in image:pixels() do
-        local index = pixel()
-        if index >= #effective then
-          invalid_index = index
-          break
-        end
-      end
+      output_rejection = module.missing_output_index(image, effective)
     end
     return image
   end)
@@ -183,13 +188,7 @@ function module.render(sprite, frame_number, composition, area, selection, uuids
   end
   app.preferences.experimental.compose_groups = previous_compose
   if not ok then error(result) end
-  if invalid_index ~= nil then
-    return nil,
-      nil,
-      missing_palette_index(
-        "Requested Frame Effective Palette has no output Palette Index " .. invalid_index
-      )
-  end
+  if output_rejection then return nil, nil, output_rejection end
   return result, resolved, nil
 end
 
