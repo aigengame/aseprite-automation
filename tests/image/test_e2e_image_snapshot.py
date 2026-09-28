@@ -570,6 +570,14 @@ def _composite(composition: dict, **options: object) -> dict:
     }
 
 
+def _indexed_first_row_indexes(snapshot: dict) -> list[int]:
+    return [
+        run["color"]["index"]
+        for run in snapshot["rows"][0]
+        for _ in range(run["length"])
+    ]
+
+
 def test_explicit_rgb_composite_keeps_indexed_source_and_transparency(
     tmp_path: Path,
 ) -> None:
@@ -663,11 +671,7 @@ def test_preserve_indexed_composite_handles_boundary_transparent_indexes(
     )
     assert code == 0, result
     assert result["mask_color"] == {"kind": "palette-index", "index": mask}
-    assert [
-        run["color"]["index"]
-        for run in result["snapshot"]["rows"][0]
-        for _ in range(run["length"])
-    ] == [0, mask, 3]
+    assert _indexed_first_row_indexes(result["snapshot"]) == [0, mask, 3]
     assert source.read_bytes() == original
 
 
@@ -717,11 +721,7 @@ def test_preserve_indexed_composite_respects_hidden_groups_and_exact_include(
             ),
         )
         assert code == 0, result
-        assert [
-            run["color"]["index"]
-            for run in result["snapshot"]["rows"][0]
-            for _ in range(run["length"])
-        ] == expected
+        assert _indexed_first_row_indexes(result["snapshot"]) == expected
         assert source.read_bytes() == original
 
 
@@ -769,11 +769,7 @@ def test_preserve_indexed_composite_uses_each_linked_frames_effective_palette(
             ),
         )
         assert code == 0, result
-        assert [
-            run["color"]["index"]
-            for run in result["snapshot"]["rows"][0]
-            for _ in range(run["length"])
-        ] == [0, 7, 3]
+        assert _indexed_first_row_indexes(result["snapshot"]) == [0, 7, 3]
         palette = result["effective_palettes"][0]
         assert palette["palette_frame_number"] == frame
         assert palette["indexes"][1] == {
@@ -807,11 +803,7 @@ def test_preserve_indexed_composite_checks_only_requested_frames_palette(
     )
     assert code == 0, result
     assert result["effective_palettes"][0]["palette_frame_number"] == 2
-    assert [
-        run["color"]["index"]
-        for run in result["snapshot"]["rows"][0]
-        for _ in range(run["length"])
-    ] == [0, 7, 3]
+    assert _indexed_first_row_indexes(result["snapshot"]) == [0, 7, 3]
     assert source.read_bytes() == original
 
 
@@ -853,11 +845,7 @@ def test_preserve_indexed_composite_keeps_background_and_visibility(
         ),
     )
     assert code == 0, result
-    assert [
-        run["color"]["index"]
-        for run in result["snapshot"]["rows"][0]
-        for _ in range(run["length"])
-    ] == expected
+    assert _indexed_first_row_indexes(result["snapshot"]) == expected
     assert source.read_bytes() == original
 
 
@@ -888,11 +876,7 @@ def test_preserve_indexed_composite_renders_tile_pixels_without_changing_tile_id
         ),
     )
     assert code == 0, result
-    assert [
-        run["color"]["index"]
-        for run in result["snapshot"]["rows"][0]
-        for _ in range(run["length"])
-    ] == [0, 7, 3]
+    assert _indexed_first_row_indexes(result["snapshot"]) == [0, 7, 3]
     assert source.read_bytes() == original
 
 
