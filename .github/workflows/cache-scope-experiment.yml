@@ -2,10 +2,7 @@ name: Temporary cache scope experiment
 run-name: Cache scope experiment (${{ github.event_name }})
 
 on:
-  pull_request:
-    types: [synchronize]
-  push:
-    branches: [codex/issue-107-ci-capacity]
+  workflow_dispatch:
 
 permissions:
   contents: read
