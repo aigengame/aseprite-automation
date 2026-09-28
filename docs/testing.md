@@ -169,14 +169,15 @@ A failure in any job fails CI. Configure these four named jobs as required check
 
 ### Complete example rebuilds
 
-The Linux E2E job always runs. All automated events use the same required native
-suite; excluding complete example rebuilds does not skip the required CI check:
+The Linux E2E job is required for every verification event. These events use the
+same native suite; excluding complete example rebuilds does not skip the required
+CI check. Manual `task=build-aseprite` is a separate maintenance operation:
 
 | Trigger | Real-runtime selection |
 | --- | --- |
 | Every PR or push to `main`, including example and CI changes | `e2e and not slow`: all routine E2E cases, including the small wizard probes. |
 | Nightly on `main` | `e2e and not slow` at the scheduled main SHA. |
-| Manual **CI → Run workflow** | `e2e and not slow` at the selected ref. |
+| Manual **CI → Run workflow**, `task=verify` | `e2e and not slow` at the selected ref. |
 | Release verification | `e2e and not slow` at the exact release SHA before publication. |
 
 The shared `.github/actions/run-linux-aseprite-e2e/action.yml` owns this selection.

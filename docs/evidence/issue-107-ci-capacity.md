@@ -17,6 +17,25 @@ remain local opt-in checks. The exact-release-SHA gate and retained native suite
 stay required. Current recovery-path execution and review are pending; no earlier
 cold or warm timing validates this replacement by itself.
 
+## Manual recovery validation — 2026-09-28
+
+The replacement implementation is `aa588fc557121e0c5d17ebf163a7f0bd0b904f65`.
+The [initial PR verification](https://github.com/aigengame/aseprite-automation/actions/runs/36399147774/job/108852606621)
+used actual merge checkout `f012a5ca2177a5b1a8067e52a6c7b53d4108064f`.
+The native job failed as required in **22 seconds**, 08:44:21–08:44:43 UTC.
+The cache lookup took 0.443 seconds and returned a miss; the next 0.023-second
+step reported the required binary/key and manual-build/retry instructions.
+Native OS dependency installation, compilation, cache save, and native E2E were
+skipped after that failure. There is no native JUnit report for this expected
+refusal. The independent source, fast-test, and distribution jobs passed.
+
+The owner-selected existing manual entry accepted `task=build-aseprite` on the
+implementation branch even though main did not yet contain the new input:
+[manual preparation](https://github.com/aigengame/aseprite-automation/actions/runs/36399311924).
+Only the maintenance job runs; the normal verification check names are not emitted
+as skipped successes. Preparation and the original-run recovery remain pending
+until their actual results are recorded.
+
 ## Superseded measured-build deduction experiment
 
 The next section records the earlier decision and experiment, not current policy.
