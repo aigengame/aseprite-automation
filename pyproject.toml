@@ -26,7 +26,11 @@ dev = [
     "ruff==0.16.8",
     "twine==6.2.0",
 ]
-test = ["pytest>=8,<10", "jsonschema>=4,<5"]
+test = [
+    "pytest>=8,<10",
+    "jsonschema>=4,<5",
+    "pytest-xdist>=3.8,<4",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -42,7 +42,7 @@ runs:
         SPA_E2E_JUNIT_PATH: ${{ inputs.junit-path }}
       run: |
         pytest_status=0
-        uv run --frozen --group test pytest -m "e2e and not slow" -rs \
+        uv run --frozen --group test pytest -n 2 -m "e2e and not slow" -rs \
           --junitxml="$SPA_E2E_JUNIT_PATH" || pytest_status=$?
         uv run --frozen python scripts/verify_pytest_execution.py \
           "$SPA_E2E_JUNIT_PATH"
@@ -57,6 +57,7 @@ runs:
           echo "- Commit: \`${tested_sha}\`"
           echo "- Trigger: \`${GITHUB_EVENT_NAME}\`"
           echo "- Selection: \`e2e and not slow\`; complete example rebuilds are local opt-in checks"
+          echo "- Workers: 2 isolated pytest processes"
           echo "- Executable: \`${{ steps.aseprite.outputs.executable }}\`"
           echo "- Aseprite: \`${{ steps.aseprite.outputs.version }}\`"
           echo "- Display: \`DISPLAY\` and \`WAYLAND_DISPLAY\` absent"

@@ -243,9 +243,12 @@ windowed/package evidence are documented beside it and are not claimed by Linux 
 
 The Linux job builds the official source release and verifies the archive against the
 version and SHA-256 authority in `.github/actions/setup-linux-aseprite/action.yml`. It
-enables scripting with Aseprite's `LAF_BACKEND=none`, checks that both `DISPLAY` and
+uses the runner's Clang 18 toolchain, Release optimization, and two build processes.
+It enables scripting with Aseprite's `LAF_BACKEND=none`, checks that both `DISPLAY` and
 `WAYLAND_DISPLAY` are absent, builds and installs the current wheel in a separate
-environment, and then runs the real-runtime tier. The JUnit audit
+environment, and runs the required real-runtime tier with two pytest-xdist worker
+processes. Test workspaces and each Aseprite user folder remain isolated; the
+controller writes one JUnit report. The JUnit audit
 fails when the report is missing, contains zero tests, or all selected tests were
 skipped. The job summary records the tested commit, trigger, executable, Aseprite
 version, selected scope, display state, and exercised path. A macOS-only skip remains
