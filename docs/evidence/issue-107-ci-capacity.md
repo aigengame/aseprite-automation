@@ -2,11 +2,38 @@
 
 ## Current acceptance
 
-The owner-approved 20/40/40-minute limits and removal of both automatic example
-rebuilds are implemented. Capacity acceptance remains open. The `a76c88b` cold PR
-attempt exceeded its 20-minute limit before native compilation finished; the
-required E2E suite did not start. PR #121 remains draft. A dependency-provisioning
-or runner change requires the pending owner decision described below.
+The owner retained the 20/40/40-minute verification budgets and removed both
+automatic example rebuilds. A later 2026-09-28 decision excludes the measured
+Aseprite cache-miss build from those budgets. All other setup and verification
+still count. This supersedes the earlier whole-job budget and the pending choice
+between private prebuilt artifacts and larger runners. PR #121 remains draft while
+the revised accounting is verified; the implementation keeps the existing jobs,
+cache, and source-build path.
+
+## Owner-approved budget boundary — 2026-09-28
+
+Recent non-experiment observations found 18 native cache lookups and 18 hits among
+20 CI runs; two runs were waiting for workflow approval. The main cache created
+on September 21 was still accessed on September 28. Repeated setup-action edits in
+the experiments below changed the key and do not represent ordinary cold-miss
+frequency. The owner therefore excluded cold build time rather than changing
+runtime supply or runner capacity.
+
+`scripts/ci_budget.py` accounts for elapsed time minus the measured cache-miss
+source/configure/build step. The result must fit 20 minutes for PR/push CI and
+40 minutes for nightly/manual CI or Release. Warm-cache runs receive no exemption.
+Dependencies, cache restore, native probes, tests, quality, packaging, and evidence
+uploads remain charged. Native tests and the Release source/fast-test/metadata
+commands use the remaining budget; a final check after uploads enforces the total.
+The cold build has a separate 40-minute safety limit. Outer job ceilings are 60/80
+minutes solely to accommodate both allowances. GitHub-managed steps and post-job
+cleanup have the timing limitations documented in `docs/testing.md`.
+
+The earlier `a76c88b` Release result provides an accounting cross-check:
+1,895 seconds total minus 1,370.334 seconds of cold build is approximately
+525 seconds (8m 45s) charged under the revised policy. This is a calculation from
+the recorded job, not an execution of the new accounting helper. New workflow
+evidence is required before accepting that helper.
 
 ## Initial measurement method
 
@@ -288,13 +315,13 @@ fit 20 minutes. The observations do not isolate the host conditions that caused
 the build-time spread, so they do not establish a universal compiler speedup or a
 specific host-contention diagnosis.
 
-Further compiler tuning is paused. The pending owner choice is whether to supply
+At this checkpoint, further compiler tuning was paused. The pending owner choice was whether to supply
 one pinned private prebuilt runtime, with a separately bounded dependency build,
 or retain compilation and provide a stronger Linux runner. These change dependency
 ownership or runner cost and are not authorized by this failed experiment alone.
-No new dependency workflow, artifact registry, runner allocation, or larger budget
-has been introduced. A private runtime artifact, if approved, must be built for
-the pinned dependency rather than as a serial prerequisite of each SPA test run.
+No new dependency workflow, artifact registry, or runner allocation was introduced.
+The subsequent budget-boundary decision at the top of this document supersedes
+that choice and keeps the existing source-build path.
 
 ## Release PR maintenance repair
 

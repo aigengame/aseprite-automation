@@ -204,12 +204,30 @@ Scheduled runs can be delayed; their result never replaces exact-SHA
 release verification.
 
 The owner limits are **20 minutes for routine PR/push CI**, **40 minutes for
-nightly/manual CI**, and **40 minutes for Release verification**. They include cold
-native setup and report upload. Release also includes source, fast-test, metadata,
-and distribution checks in the same limit. The
+nightly/manual CI**, and **40 minutes for Release verification**. On 2026-09-28 the
+owner excluded the source download, configuration, and compilation required by an
+Aseprite cache miss. Cache hits have zero excluded time. Dependency installation,
+cache lookup/restore, native probes, tests, and report upload still count. Release
+also counts source, fast-test, metadata, and distribution checks. The
 [issue #107 measurements](evidence/issue-107-ci-capacity.md) record the observed
-capacity, margins, and remaining variability. These limits bound job execution;
-they are not performance targets or an automatic growth policy. Setup summaries
+capacity, margins, and remaining variability. These are verification budgets;
+they are not performance targets or an automatic growth policy.
+
+The existing jobs retain their cache and build path. `scripts/ci_budget.py` measures
+elapsed time from the first workflow step with a monotonic clock and subtracts only
+the measured cold build. It limits native pytest and the Release source, fast-test,
+and metadata commands to the remaining budget, preserves command failures, and
+terminates their process group on exhaustion. A final check after artifact uploads
+reports elapsed, excluded, and charged time and fails if the charged time exceeds
+the budget. GitHub-managed setup/cache/upload steps can finish before that final
+check rejects an overrun; runner allocation and post-job cleanup are outside this
+clock. An unsuccessful native run cannot become successful through the budget check.
+
+Cold compilation has a separate 40-minute safety limit. The outer job timeouts are
+60 minutes for routine CI and 80 minutes for nightly/manual/Release, combining that
+guard with the verification budget. They are fail-safe ceilings, not permission to
+spend 60/80 minutes on verification. No extra build job or artifact supply workflow
+is required. Setup summaries
 record the tested commit, runner image/CPU/memory facts, native version, and exact cache hit/key;
 GitHub job and step logs retain timings for measurement without a profiling service.
 

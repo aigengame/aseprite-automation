@@ -42,7 +42,8 @@ runs:
         SPA_E2E_JUNIT_PATH: ${{ inputs.junit-path }}
       run: |
         pytest_status=0
-        uv run --frozen --group test pytest -n 2 -m "e2e and not slow" -rs \
+        python3 scripts/ci_budget.py run \
+          uv run --frozen --group test pytest -n 2 -m "e2e and not slow" -rs \
           --junitxml="$SPA_E2E_JUNIT_PATH" || pytest_status=$?
         uv run --frozen python scripts/verify_pytest_execution.py \
           "$SPA_E2E_JUNIT_PATH"

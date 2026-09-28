@@ -89,10 +89,18 @@ jobs:
   aseprite-e2e:
     name: Linux real Aseprite E2E
     runs-on: ubuntu-24.04
-    # Owner limits include native setup, tests, and report upload.
-    timeout-minutes: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && 20 || 40 }}
+    # Fail-safe ceiling = verification budget + at most 40 minutes of cold build.
+    timeout-minutes: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && 60 || 80 }}
+    env:
+      SPA_CI_BUDGET_SECONDS: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && 1200 || 2400 }}
+      SPA_ASEPRITE_BUILD_SECONDS: 0
     steps:
+      - name: Start the verification clock
+        shell: bash
+        run: echo "SPA_CI_STARTED_AT=$(python3 -c 'import time; print(time.monotonic())')" >> "$GITHUB_ENV"
+
       - name: Check out the tested commit
+        id: checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           lfs: true
@@ -116,3 +124,7 @@ jobs:
           if-no-files-found: warn
           overwrite: true
           retention-days: 14
+
+      - name: Enforce the verification budget
+        if: always() && steps.checkout.outcome == 'success'
+        run: python3 scripts/ci_budget.py check

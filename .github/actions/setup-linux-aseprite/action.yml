@@ -57,6 +57,7 @@ runs:
         SPA_ASEPRITE_SOURCE_SHA256: ${{ inputs.source-sha256 }}
       shell: bash
       run: |
+        python3 scripts/ci_budget.py build bash -euo pipefail <<'BUILD'
         archive="$RUNNER_TEMP/Aseprite-v${SPA_ASEPRITE_VERSION}-Source.zip"
         source_dir="$RUNNER_TEMP/aseprite-source"
         build_dir="$RUNNER_TEMP/aseprite-build"
@@ -85,6 +86,7 @@ runs:
 
         cp "$build_dir/bin/aseprite" "$SPA_ASEPRITE_INSTALL_DIR/bin/aseprite"
         cp -R "$source_dir/data" "$SPA_ASEPRITE_INSTALL_DIR/bin/data"
+        BUILD
 
     - name: Validate and expose the headless Aseprite executable
       id: expose

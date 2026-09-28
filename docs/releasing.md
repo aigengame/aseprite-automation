@@ -44,11 +44,19 @@ Release verification selects `e2e and not slow` at the exact release SHA. It ret
 the real native suite and small wizard probes; complete example rebuilds are local
 opt-in checks. A routine CI or nightly result cannot replace release verification.
 
-The verification job has an owner-defined 40-minute execution limit. The
+The job has an owner-defined 40-minute verification budget. Only a cache miss's
+Aseprite source download, configuration, and compilation are excluded. Native
+setup outside that build, all tests, quality/package checks, and artifact uploads
+count. The final budget check is part of the required exact-SHA verification job;
+an overrun prevents publication. The cold build has its own 40-minute safety limit,
+and the outer job has an 80-minute fail-safe ceiling. That ceiling does not increase
+the 40-minute verification allowance. See the
+[budget enforcement and its timing boundary](testing.md#complete-example-rebuilds).
+The
 [issue #107 capacity measurements](evidence/issue-107-ci-capacity.md) cover cold
-native setup, the full tests, quality and package checks, and artifact uploads.
-The limit bounds execution; it is not a release-latency target or an automatic
-budget-increase policy.
+native setup, the retained tests, quality and package checks, and artifact uploads
+with the excluded build shown separately. The budget is not a release-latency
+target or an automatic increase policy.
 
 These results answer different platform questions. Linux headless success does not
 cover the macOS bundle or restricted-agent launch path. Neither environment currently

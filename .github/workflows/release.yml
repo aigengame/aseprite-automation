@@ -54,11 +54,18 @@ jobs:
         needs.cut-draft.outputs.release_created == 'true'))
     needs: cut-draft
     runs-on: ubuntu-24.04
-    # Owner limit includes cold setup, required native tests, and distributions.
-    timeout-minutes: 40
+    # Fail-safe ceiling: 40-minute verification budget + 40-minute cold-build guard.
+    timeout-minutes: 80
+    env:
+      SPA_CI_BUDGET_SECONDS: 2400
+      SPA_ASEPRITE_BUILD_SECONDS: 0
     outputs:
       release_sha: ${{ steps.target.outputs.release_sha }}
     steps:
+      - name: Start the verification clock
+        shell: bash
+        run: echo "SPA_CI_STARTED_AT=$(python3 -c 'import time; print(time.monotonic())')" >> "$GITHUB_ENV"
+
       - name: Resolve the exact verification target
         id: target
         env:
@@ -82,6 +89,7 @@ jobs:
           echo "release_sha=$release_sha" >> "$GITHUB_OUTPUT"
 
       - name: Check out the exact release commit
+        id: checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ steps.target.outputs.release_sha }}
@@ -95,13 +103,15 @@ jobs:
 
       - name: Check source quality
         run: |
+          python3 scripts/ci_budget.py run bash -euo pipefail <<'VERIFY'
           uv run --frozen ruff check .
           uv run --frozen ruff format --check .
           uv run --frozen pyright
           uv run --frozen python scripts/lua_quality.py
+          VERIFY
 
       - name: Run fast tests
-        run: uv run --frozen --group test pytest -m "not e2e"
+        run: python3 scripts/ci_budget.py run uv run --frozen --group test pytest -m "not e2e"
 
       - name: Run Linux real Aseprite E2E
         uses: ./.github/actions/run-linux-aseprite-e2e
@@ -109,7 +119,7 @@ jobs:
           junit-path: ${{ runner.temp }}/spa-release-e2e.xml
 
       - name: Validate reviewed release metadata
-        run: uv run --frozen python scripts/verify_release_metadata.py
+        run: python3 scripts/ci_budget.py run uv run --frozen python scripts/verify_release_metadata.py
 
       - name: Build and verify distributions once
         uses: ./.github/actions/verify-python-distributions
@@ -132,6 +142,10 @@ jobs:
           if-no-files-found: error
           overwrite: true
           retention-days: 30
+
+      - name: Enforce the verification budget
+        if: always() && steps.checkout.outcome == 'success'
+        run: python3 scripts/ci_budget.py check
 
   publish:
     name: Publish GitHub Release
