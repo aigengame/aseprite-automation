@@ -2,7 +2,8 @@
 local mode = assert(app.params.mode)
 local mask = (mode == "plain-255" or mode == "missing-mask") and 255 or 7
 local sprite = Sprite(3, 1, ColorMode.INDEXED)
-local palette = Palette(mode == "missing-mask" and 4 or mask + 1)
+local palette =
+  Palette((mode == "missing-mask" or mode == "short-earlier-palette") and 4 or mask + 1)
 palette:setColor(0, Color { r = 30, g = 40, b = 50, a = 255 })
 palette:setColor(3, Color { r = 250, g = 0, b = 0, a = 255 })
 if mask < #palette then palette:setColor(mask, Color { r = 0, g = 0, b = 250, a = 255 }) end
@@ -25,7 +26,7 @@ if mode == "hidden-group" then
   inner.opacity = 192
   layer.parent = inner
   outer.isVisible, inner.isVisible, layer.isVisible = false, false, false
-elseif mode == "linked-frames" then
+elseif mode == "linked-frames" or mode == "short-earlier-palette" then
   app.activeSprite, app.activeLayer, app.activeFrame = sprite, layer, sprite.frames[1]
   app.command.NewFrame { content = "cellinked" }
   assert(sprite.cels[1].image.id == sprite.cels[2].image.id)

@@ -788,6 +788,33 @@ def test_preserve_indexed_composite_uses_each_linked_frames_effective_palette(
         assert source.read_bytes() == original
 
 
+def test_preserve_indexed_composite_checks_only_requested_frames_palette(
+    tmp_path: Path,
+) -> None:
+    source = _indexed_fixture(tmp_path, "short-earlier-palette")
+    inject_palette_change(
+        source,
+        [(20, 30, 40, 255)] * 7 + [(0, 0, 200, 255)],
+    )
+    original = source.read_bytes()
+    code, result = _get(
+        source,
+        source=_composite(
+            {"mode": "visible"},
+            frame_number=2,
+            rectangle={"x": 0, "y": 0, "width": 3, "height": 1},
+        ),
+    )
+    assert code == 0, result
+    assert result["effective_palettes"][0]["palette_frame_number"] == 2
+    assert [
+        run["color"]["index"]
+        for run in result["snapshot"]["rows"][0]
+        for _ in range(run["length"])
+    ] == [0, 7, 3]
+    assert source.read_bytes() == original
+
+
 @pytest.mark.parametrize(
     ("mode", "composition", "expected"),
     [
