@@ -7,6 +7,7 @@ from pydantic import Field, model_validator
 from spa.contracts import PublicModel
 from spa.ports import PackagedResource
 
+SELECTION_MASK_RESOURCE = PackagedResource("selection_mask", "selection_mask.lua")
 RASTER_COLOR_RESOURCE = PackagedResource("raster_color", "raster_color.lua")
 
 

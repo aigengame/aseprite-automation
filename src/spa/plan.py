@@ -70,6 +70,7 @@ from spa.ports import (
     RuntimeIssue,
     TargetCommitEvidence,
 )
+from spa.raster import SELECTION_MASK_RESOURCE
 from spa.sprite import (
     INSPECTION_SECTIONS,
     SPRITE_CREATION_RESOURCE,
@@ -110,6 +111,7 @@ PLAN_RUN_HANDLER = PackagedHandler(
         PAINT_SUPPORT_RESOURCE,
         RASTER_COLOR_RESOURCE,
         EFFECTIVE_PALETTE_RESOURCE,
+        SELECTION_MASK_RESOURCE,
         FRAME_SUPPORT_RESOURCE,
         CEL_SUPPORT_RESOURCE,
         CEL_SELECT_RESOURCE,

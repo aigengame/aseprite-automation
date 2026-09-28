@@ -40,6 +40,7 @@ from spa.ports import (
 )
 from spa.raster import (
     RASTER_COLOR_RESOURCE,
+    SELECTION_MASK_RESOURCE,
     EffectivePaletteFact,
     ImageContentDigest,
     PixelPatch,
@@ -168,6 +169,7 @@ PAINT_PROBE_RESOURCES = (
     PAINT_SUPPORT_RESOURCE,
     RASTER_COLOR_RESOURCE,
     EFFECTIVE_PALETTE_RESOURCE,
+    SELECTION_MASK_RESOURCE,
     DIGEST_RESOURCE,
     PAINT_PROBE_FIXTURE,
 )
@@ -177,6 +179,7 @@ PAINT_APPLY_HANDLER = PackagedHandler(
         PAINT_SUPPORT_RESOURCE,
         RASTER_COLOR_RESOURCE,
         EFFECTIVE_PALETTE_RESOURCE,
+        SELECTION_MASK_RESOURCE,
         DIGEST_RESOURCE,
     ),
 )

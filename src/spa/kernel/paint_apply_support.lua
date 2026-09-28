@@ -1,6 +1,7 @@
 -- Paint-owned exact Pixel Patch semantics shared by the handler and capability probe.
 local module = {}
 local palettes = dofile(app.params.effective_palette)
+local selections = dofile(app.params.selection_mask)
 local colors = dofile(app.params.raster_color)
 local max_patch_pixels = 256
 
@@ -110,96 +111,6 @@ function module.missing_target_cel(sprite, address)
   if address.frame_number > #sprite.frames then return false end
   local _, _, image = resolve_target(sprite, address, true)
   return image == nil
-end
-
-local function validate_selection(selection)
-  if selection == nil or selection.kind == "empty" then return end
-  assert(selection.kind == "all" or selection.kind == "mask", "unsupported Selection Application")
-  local bounds = selection.kind == "all" and selection.rectangle or selection.bounds
-  assert(
-    bounds ~= nil
-      and type(bounds.x) == "number"
-      and type(bounds.y) == "number"
-      and type(bounds.width) == "number"
-      and type(bounds.height) == "number"
-      and bounds.width % 1 == 0
-      and bounds.height % 1 == 0
-      and bounds.width > 0
-      and bounds.height > 0,
-    "invalid Selection bounds"
-  )
-  if selection.kind == "all" then return end
-  assert(selection.rows ~= nil and #selection.rows > 0, "Mask Selection must contain rows")
-  local previous_y = nil
-  local min_x, max_x = nil, nil
-  for _, row in ipairs(selection.rows) do
-    assert(type(row.y) == "number" and row.y % 1 == 0, "invalid Mask Selection row")
-    assert(
-      previous_y == nil or row.y > previous_y,
-      "Mask Selection rows must be ordered and unique"
-    )
-    assert(
-      row.y >= bounds.y and row.y < bounds.y + bounds.height,
-      "Mask Selection row is outside its bounds"
-    )
-    assert(row.runs ~= nil and #row.runs > 0, "Mask Selection row must contain runs")
-    local previous_end = nil
-    for _, run in ipairs(row.runs) do
-      assert(
-        type(run.x) == "number"
-          and run.x % 1 == 0
-          and type(run.length) == "number"
-          and run.length % 1 == 0
-          and run.length > 0,
-        "invalid Mask Selection run"
-      )
-      assert(
-        run.x >= bounds.x and run.x + run.length <= bounds.x + bounds.width,
-        "Mask Selection run is outside its bounds"
-      )
-      assert(
-        previous_end == nil or run.x > previous_end,
-        "Mask Selection runs must be ordered, non-overlapping, and non-adjacent"
-      )
-      previous_end = run.x + run.length
-      min_x = min_x == nil and run.x or math.min(min_x, run.x)
-      max_x = max_x == nil and run.x + run.length or math.max(max_x, run.x + run.length)
-    end
-    previous_y = row.y
-  end
-  assert(
-    selection.rows[1].y == bounds.y
-      and selection.rows[#selection.rows].y + 1 == bounds.y + bounds.height
-      and min_x == bounds.x
-      and max_x == bounds.x + bounds.width,
-    "Mask Selection bounds are not tight"
-  )
-end
-
-local function selection_contains(selection, x, y)
-  if selection == nil then return true end
-  if selection.kind == "empty" then return false end
-  local bounds = selection.kind == "all" and selection.rectangle or selection.bounds
-  if
-    x < bounds.x
-    or y < bounds.y
-    or x >= bounds.x + bounds.width
-    or y >= bounds.y + bounds.height
-  then
-    return false
-  end
-  if selection.kind == "all" then return true end
-  for _, row in ipairs(selection.rows) do
-    if row.y == y then
-      for _, run in ipairs(row.runs) do
-        if x >= run.x and x < run.x + run.length then return true end
-      end
-      return false
-    elseif row.y > y then
-      return false
-    end
-  end
-  return false
 end
 
 local function append_segment(segments, x, y, color)
@@ -374,7 +285,8 @@ function module.apply_live(sprite, payload, digest)
     "Pixel Patch Rectangle must be positive"
   )
   assert(payload.patch.runs ~= nil, "Pixel Patch runs are missing")
-  validate_selection(payload.selection)
+  local selection_mask = payload.selection ~= nil and selections.materialize(payload.selection)
+    or nil
 
   local layer, cel, image = resolve_target(sprite, payload.target)
   local color_mode = colors.color_mode_name(sprite)
@@ -450,8 +362,10 @@ function module.apply_live(sprite, payload, digest)
         pixels_skipped_by_bounds = pixels_skipped_by_bounds + 1
       else
         local before = image:getPixel(x, run.y)
-        local selected =
-          selection_contains(payload.selection, x + cel.position.x, run.y + cel.position.y)
+        local selected = (
+          selection_mask == nil
+          or selection_mask:contains(Point(x + cel.position.x, run.y + cel.position.y))
+        )
         if not selected then
           append_segment(skipped_selection, x, run.y, run.color)
           pixels_skipped_by_selection = pixels_skipped_by_selection + 1

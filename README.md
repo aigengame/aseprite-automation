@@ -237,6 +237,41 @@ In-place editing requires Source and Target to name the same publication entry,
 plus both `in_place: true` and `overwrite: true`.
 Standalone Paint rejects a Source alias that traverses the Target publication entry
 for either `in_place` value.
+`spa selection create/combine/invert/grow/shrink/transform` return explicit
+Canvas Pixel values. Requests declare `coordinate_space: "canvas-pixel"`; values
+can be inline (`empty`, rectangular `all`, or canonical `mask`) or read from a
+`{"kind":"artifact","path":"mask.json"}` input. Pass a result's `selection` to
+Paint explicitly. Omitting Paint's Selection remains unrestricted; `empty`
+selects no pixels.
+
+Create accepts `shape.kind` of `rectangle`, `ellipse`, or `mask`. Combine accepts
+`union`, `intersect`, `subtract`, and `xor`. Invert and morphology require a
+positive `canvas` Rectangle. Grow/shrink require an explicit positive `radius`
+and `shape: "circle" | "square"`; grow clips to that Canvas, while input coverage
+outside it is rejected.
+
+Transform requires `canvas` and one of `translate` (integer `offset`), `flip`
+(`axis`), `rotate` (`angle: 90 | -90 | 180`), or `scale` (positive `width/height`).
+Scale uses native nearest-neighbor sampling. Flip/rotate/scale retain the source
+tight bounds' left/top. `target_placement` reports the requested placement;
+`bounds` and `pixel_count` describe actual selected coverage, which can shrink or
+vanish during scaling. A transform refuses out-of-canvas selected pixels.
+The native adapter also refuses lossy integer conversion or a native temporary
+Canvas that differs from the request; it cannot report wrapped coordinates as success.
+
+`spa selection validate` returns encoding, Coordinate Space, and optional Canvas
+containment Findings without repairing the input. `selection export` stages and
+verifies canonical JSON. `selection preview` requires an explicit Canvas and
+stages and independently decodes a PNG: selected pixels are opaque white,
+unselected pixels transparent black. That image is derived evidence. Both use
+`destination: {"path": "...", "if_exists": "fail" | "replace"}` and publish only
+after verification; input Artifact aliases cannot be overwritten.
+
+```sh
+uv run spa selection create --input-json '{"aseprite":"/path/to/aseprite","coordinate_space":"canvas-pixel","shape":{"kind":"ellipse","bounds":{"x":10,"y":20,"width":4,"height":4}}}'
+uv run spa selection transform --input-json '{"aseprite":"/path/to/aseprite","coordinate_space":"canvas-pixel","selection":{"kind":"all","rectangle":{"x":10,"y":20,"width":2,"height":1}},"canvas":{"x":0,"y":0,"width":32,"height":32},"transform":{"kind":"rotate","angle":90}}'
+```
+
 `spa frame add` inserts an empty Frame at a one-based position with an explicit
 `duration_ms` (1–65535). A Sprite with a Background Layer also requires a compatible
 `background_color`; other new Layer/Frame intersections remain absent.

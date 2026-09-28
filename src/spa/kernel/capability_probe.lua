@@ -15,6 +15,7 @@ local image_snapshot = app.params.image_snapshot and dofile(app.params.image_sna
 local layer_composition = app.params.layer_composition and dofile(app.params.layer_composition)
   or nil
 local raster_color = dofile(app.params.raster_color)
+local selections = app.params.selection_support and dofile(app.params.selection_support) or nil
 local image_orientation_transform = app.params.image_orientation_transform
     and dofile(app.params.image_orientation_transform)
   or nil
@@ -712,6 +713,43 @@ end
 
 function module.observe()
   local capabilities = { "aseprite_runtime_introspection" }
+  if selections ~= nil then
+    local ok = pcall(function()
+      local bounds = { x = -2, y = 3, width = 4, height = 4 }
+      local ellipse = selections.create { shape = { kind = "ellipse", bounds = bounds } }
+      assert(ellipse.pixel_count == 12 and ellipse.bounds.x == -2)
+      local dot = { kind = "all", rectangle = { x = -1, y = 4, width = 1, height = 1 } }
+      local grown =
+        selections.grow { selection = dot, canvas = bounds, radius = 1, shape = "circle" }
+      assert(grown.pixel_count == 5)
+      local shrunken = selections.shrink {
+        selection = grown.selection,
+        canvas = bounds,
+        radius = 1,
+        shape = "circle",
+      }
+      assert(shrunken.pixel_count == 1)
+      local flipped = selections.transform {
+        selection = grown.selection,
+        canvas = bounds,
+        transform = { kind = "flip", axis = "horizontal" },
+      }
+      assert(flipped.pixel_count == 5)
+      local rotated = selections.transform {
+        selection = grown.selection,
+        canvas = bounds,
+        transform = { kind = "rotate", angle = 90 },
+      }
+      assert(rotated.pixel_count == 5)
+      local scaled = selections.transform {
+        selection = dot,
+        canvas = bounds,
+        transform = { kind = "scale", width = 2, height = 2 },
+      }
+      assert(scaled.pixel_count == 4)
+    end)
+    if ok then capabilities[#capabilities + 1] = "aseprite_selection" end
+  end
   local supports_inspection = observes_sprite_inspection()
   if supports_inspection and observes_sprite_creation() then
     capabilities[#capabilities + 1] = "aseprite_sprite_create"

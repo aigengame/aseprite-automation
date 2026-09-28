@@ -7,6 +7,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from spa.contracts import RuntimeCapability
 from spa.ports import (
     KernelInvocationResult,
     OperationServices,
@@ -122,3 +123,22 @@ def inject_palette_change(
     payload[insert_at:insert_at] = chunk
     struct.pack_into("<I", payload, 0, len(payload))
     target.write_bytes(payload)
+
+
+def runtime_observation(*capabilities: RuntimeCapability) -> RuntimeObservation:
+    return RuntimeObservation(
+        selection_source="explicit",
+        requested_path="/aseprite",
+        discovered_path="/aseprite",
+        canonical_path="/aseprite",
+        resource_path="/data/gui.xml",
+        aseprite_version="test",
+        api_version=41,
+        lua_version="Lua 5.4",
+        verified_prerequisites=(
+            "aseprite_scripting",
+            "lua_file_io",
+            "aseprite_json",
+        ),
+        verified_capabilities=capabilities,
+    )

@@ -54,6 +54,7 @@ from spa.ports import (
     TargetCommitEvidence,
 )
 from spa.raster import Point, PositiveRectangle, Size
+from spa.selection import SelectionDetails
 from spa.sprite import (
     SpriteCopyStagingDetails,
     SpriteCropBoundsDetails,
@@ -168,6 +169,7 @@ def test_failure_construction_derives_category_and_refuses_mismatch() -> None:
 
 def test_each_registered_code_has_a_constrained_public_schema() -> None:
     details_by_type = {
+        SelectionDetails: SelectionDetails(reason="coverage outside Canvas Rectangle"),
         SnapshotDetails: SnapshotDetails(reason="incompatible bounds"),
         RequestDetails: RequestDetails(errors=[]),
         NotFoundDetails: NotFoundDetails(requested_path=None, searched=[]),

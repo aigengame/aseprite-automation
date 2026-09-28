@@ -14,27 +14,8 @@ from spa.ports import (
     KernelInvocationResult,
     OperationServices,
     RuntimeIssue,
-    RuntimeObservation,
 )
-
-
-def _observation() -> RuntimeObservation:
-    return RuntimeObservation(
-        selection_source="explicit",
-        requested_path="/aseprite",
-        discovered_path="/aseprite",
-        canonical_path="/aseprite",
-        resource_path="/data/gui.xml",
-        aseprite_version="test",
-        api_version=41,
-        lua_version="Lua 5.4",
-        verified_prerequisites=(
-            "aseprite_scripting",
-            "lua_file_io",
-            "aseprite_json",
-        ),
-        verified_capabilities=("aseprite_export_image",),
-    )
+from tests.support import runtime_observation
 
 
 @pytest.mark.parametrize(
@@ -86,7 +67,7 @@ def test_export_does_not_publish_missing_malformed_or_mismatched_png(
         )
 
     services = OperationServices(
-        probe_runtime=lambda _request: _observation(),
+        probe_runtime=lambda _request: runtime_observation("aseprite_export_image"),
         invoke_kernel=invoke,
         target_files=LocalTargetFiles(),
         artifact_files=LocalArtifactFiles(),

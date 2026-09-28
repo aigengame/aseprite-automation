@@ -168,8 +168,9 @@ class LocalArtifactFiles:
 
     def ensure_source_separate(self, source: Path, destination: Path) -> None:
         try:
-            aliases_source = _same_publication_target(source, destination)
-        except OSError as exc:
+            # Match read_input's expansion before comparing publication entries.
+            aliases_source = _same_publication_target(source.expanduser(), destination)
+        except (OSError, ValueError, RuntimeError) as exc:
             raise RuntimeIssue(
                 "artifact_file_failed",
                 "Source/Destination publication identity could not be verified",
