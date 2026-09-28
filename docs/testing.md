@@ -8,6 +8,7 @@ verification tier. The layout does not mirror source packages or CLI Command Gro
 | Directory | Behavior owner |
 | --- | --- |
 | `tests/application/` | Application orchestration, including compatibility checks before Operation execution. |
+| `tests/ci/` | CI verification budgets, cold-build accounting, and command timeout behavior. |
 | `tests/cli/` | Access Projection through the installed CLI and its in-process projections. |
 | `tests/contracts/` | Shared Published Language rules, including Failure Code registration and Operation Descriptor constraints. |
 | `tests/export/` | Image Export contract, PNG Artifact verification and publication, and real Aseprite output evidence. |
