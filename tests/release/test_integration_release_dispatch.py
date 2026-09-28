@@ -17,7 +17,7 @@ BRANCH = "release-please--branches--main"
 
 
 def dispatch_environment(
-    tmp_path: Path, heads: list[str], remote: Path
+    tmp_path: Path, heads: list[str], remote: Path, lock_changes: bool
 ) -> dict[str, str]:
     """Control GitHub responses, uv and waits; keep fetch, checkout and push real."""
     tools = tmp_path / "bin"
@@ -53,8 +53,13 @@ def dispatch_environment(
     # Native uv/metadata behavior is outside this dispatch regression.
     uv = tools / "uv"
     uv.write_text(
-        '#!/bin/sh\nif [ "$1" = lock ]; then\n'
-        "  echo '# regenerated release lockfile' >> uv.lock\nfi\n"
+        "#!/bin/sh\n"
+        + (
+            'if [ "$1" = lock ]; then\n'
+            "  echo '# regenerated release lockfile' >> uv.lock\nfi\n"
+            if lock_changes
+            else "exit 0\n"
+        )
     )
     uv.chmod(0o755)
     return {
@@ -71,15 +76,20 @@ def dispatch_environment(
 
 
 @pytest.mark.parametrize(
-    ("heads", "expected_reads", "dispatches"),
+    ("heads", "expected_reads", "dispatches", "lock_changes"),
     [
-        pytest.param(["remote"], 1, True, id="head-already-matches"),
-        pytest.param(["0" * 40, "remote"], 2, True, id="head-converges"),
-        pytest.param(["0" * 40], 10, False, id="head-never-matches"),
+        pytest.param(["remote"], 1, True, True, id="head-already-matches"),
+        pytest.param(["0" * 40, "remote"], 2, True, True, id="head-converges"),
+        pytest.param(["0" * 40], 10, False, True, id="head-never-matches"),
+        pytest.param(["remote"], 1, True, False, id="current-pr-unchanged-lockfile"),
     ],
 )
 def test_maintenance_dispatches_only_when_the_pushed_head_matches(
-    tmp_path: Path, heads: list[str], expected_reads: int, dispatches: bool
+    tmp_path: Path,
+    heads: list[str],
+    expected_reads: int,
+    dispatches: bool,
+    lock_changes: bool,
 ) -> None:
     repository = tmp_path / "repository"
     repository.mkdir()
@@ -117,7 +127,7 @@ def test_maintenance_dispatches_only_when_the_pushed_head_matches(
     result = subprocess.run(
         ["bash", "-e", "-o", "pipefail", "-c", textwrap.dedent(run_body)],
         cwd=repository,
-        env=dispatch_environment(tmp_path, heads, remote),
+        env=dispatch_environment(tmp_path, heads, remote, lock_changes),
         capture_output=True,
         text=True,
         check=False,
@@ -126,11 +136,16 @@ def test_maintenance_dispatches_only_when_the_pushed_head_matches(
 
     expected = git("rev-parse", "HEAD")
     assert git("branch", "--show-current") == BRANCH
-    assert expected not in (main_sha, before_maintenance_sha)
+    assert expected != main_sha
+    if lock_changes:
+        assert expected != before_maintenance_sha
+        assert git("diff", "--name-only", before_maintenance_sha, expected) == "uv.lock"
+    else:
+        assert expected == before_maintenance_sha
+        assert git("status", "--porcelain") == ""
     assert (
         git("--git-dir", str(remote), "rev-parse", f"refs/heads/{BRANCH}") == expected
     )
-    assert git("diff", "--name-only", before_maintenance_sha, expected) == "uv.lock"
     calls = [
         json.loads(line) for line in (tmp_path / "calls.jsonl").read_text().splitlines()
     ]

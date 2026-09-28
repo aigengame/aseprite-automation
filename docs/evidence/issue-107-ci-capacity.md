@@ -484,8 +484,10 @@ legacy Release-branch compatibility from the current scope. The action now owns
 the bounded head check and dispatch inline; the helper, copy and legacy-branch
 test are removed. Existing open-PR retry behavior remains.
 
-The three dispatch cases now execute the action's actual maintenance shell with a
-real local Git origin, checkout, lockfile commit and push. They cover immediate
-head agreement, delayed agreement and persistent disagreement. GitHub API responses,
-uv work and sleep are controlled. These tests do not establish the original API-lag
-hypothesis or replace live Release-maintenance evidence after promotion.
+The dispatch cases now execute the action's actual maintenance shell with a real
+local Git origin and checkout. Three cases commit and push a lockfile change, then
+cover immediate head agreement, delayed agreement and persistent disagreement. A
+fourth retries a current Release PR with an unchanged lockfile and dispatches
+without creating a commit. GitHub API responses, uv work and sleep are controlled.
+These tests do not establish the original API-lag hypothesis or replace live
+Release-maintenance evidence after promotion.
