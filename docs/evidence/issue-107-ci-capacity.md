@@ -47,8 +47,17 @@ main promotion was necessary for every dispatch. Dispatching directly to
 manual cache preparation path. The temporary experiment files and registration
 triggers are removed from the final tree.
 
+The final independent
+[Build Aseprite workflow](https://github.com/aigengame/aseprite-automation/actions/runs/36405612194/job/108873489696)
+also succeeded at `912aa44819a5f8aedec3371ba7da4ae182add6fa` via
+`workflow_dispatch` in **15 seconds** (09:46:26–09:46:41 UTC). It restored the exact
+feature-branch cache, skipped compilation, and passed the resource/version and real
+batch/script checks. Its final file has only the manual trigger. This verifies the
+independent entry before main promotion; it does not establish dev cache save or PR
+recovery. The same producer files are present in the bootstrap PR.
+
 Rollout: first deliver the independent manual builder, shared runtime action, and
-unchanged build recipe to dev in an additive PR. Its legacy CI remains unchanged.
+unchanged build recipe to dev in additive [PR #124](https://github.com/aigengame/aseprite-automation/pull/124). Its legacy CI remains unchanged.
 Then run Build Aseprite on dev and rerun the original #121 verification. #121
 switches to the shared action and removes the legacy setup. The final tree has one
 runtime owner; this is a delivery order, not a second permanent build mechanism.
