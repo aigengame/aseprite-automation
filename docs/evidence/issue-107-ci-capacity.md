@@ -17,9 +17,11 @@ job, and task-specific concurrency are removed. Both complete wizard rebuilds
 remain local opt-in checks. The exact-release-SHA gate and retained native suite
 stay required. The investigation below corrects the earlier assumption that
 promotion to main was required to diagnose or test the independent entry. The
-remaining PR recovery needs a matching cache on a readable ref, not a main
-promotion. A small additive bootstrap PR to dev will supply the builder before
-#121 switches the CI consumer.
+PR recovery needs a matching cache on a readable ref. Bootstrap
+[PR #124](https://github.com/aigengame/aseprite-automation/pull/124) delivered the
+builder to dev at `637885e015fa30b2f413fc383c0f147eed69b34c`; #121 integrates that
+commit before switching the CI consumer. The current build and rerun results are
+recorded on [PR #121](https://github.com/aigengame/aseprite-automation/pull/121).
 
 ## Cache scope diagnosis — 2026-09-28
 
@@ -60,12 +62,13 @@ batch/script checks. Its final file has only the manual trigger. This verifies t
 independent entry before main promotion; it does not establish dev cache save or PR
 recovery. The same producer files are present in the bootstrap PR.
 
-Rollout: first deliver the independent manual builder, shared runtime action, and
-unchanged build recipe to dev in additive [PR #124](https://github.com/aigengame/aseprite-automation/pull/124). Its legacy CI remains unchanged.
-Then run Build Aseprite on dev and rerun the original #121 verification. #121
-switches to the shared action and removes the legacy setup. The final tree has one
-runtime owner; this is a delivery order, not a second permanent build mechanism.
-The dev merge requires owner authorization. Successful PR recovery is still pending.
+Rollout: additive [PR #124](https://github.com/aigengame/aseprite-automation/pull/124)
+delivered the independent manual builder, shared runtime action, and unchanged
+build recipe to dev while retaining its legacy CI. The next steps are Build
+Aseprite on dev and a rerun of the original #121 verification. #121 switches to the
+shared action and removes the legacy setup. The final tree has one runtime owner;
+this is a delivery order, not a second permanent build mechanism. PR #121 records
+the dev build, original-run recovery and current-head verification evidence.
 
 ## Shared-action recovery validation — 2026-09-28
 
