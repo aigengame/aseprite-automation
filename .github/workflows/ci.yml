@@ -1,4 +1,5 @@
 name: CI
+run-name: CI from ${{ github.ref_name }} (${{ github.event_name }})
 
 on:
   pull_request:
@@ -89,38 +90,22 @@ jobs:
   aseprite-e2e:
     name: Linux real Aseprite E2E
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && 20 || 40 }}
     steps:
       - name: Check out the tested commit
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           lfs: true
 
-      - name: Select the real-runtime test scope
-        id: scope
+      - name: Require main for scheduled verification
+        if: github.event_name == 'schedule'
         shell: bash
-        run: |
-          case "$GITHUB_EVENT_NAME" in
-            pull_request|push)
-              include_slow=false
-              ;;
-            schedule)
-              # Do not move nightly to an integration branch if the default changes.
-              test "$GITHUB_REF" = "refs/heads/main"
-              include_slow=true
-              ;;
-            workflow_dispatch)
-              include_slow=true
-              ;;
-            *) echo "Unsupported CI event: $GITHUB_EVENT_NAME" >&2; exit 1 ;;
-          esac
-          echo "include_slow=$include_slow" >> "$GITHUB_OUTPUT"
+        run: test "$GITHUB_REF" = "refs/heads/main"
 
       - name: Run the headless real-runtime gate
         uses: ./.github/actions/run-linux-aseprite-e2e
         with:
           junit-path: ${{ runner.temp }}/spa-real-aseprite-e2e.xml
-          include-slow: ${{ steps.scope.outputs.include_slow }}
 
       - name: Preserve the E2E report
         if: always()

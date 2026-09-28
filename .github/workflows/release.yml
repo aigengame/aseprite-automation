@@ -54,7 +54,7 @@ jobs:
         needs.cut-draft.outputs.release_created == 'true'))
     needs: cut-draft
     runs-on: ubuntu-24.04
-    timeout-minutes: 50
+    timeout-minutes: 40
     outputs:
       release_sha: ${{ steps.target.outputs.release_sha }}
     steps:
@@ -106,7 +106,6 @@ jobs:
         uses: ./.github/actions/run-linux-aseprite-e2e
         with:
           junit-path: ${{ runner.temp }}/spa-release-e2e.xml
-          include-slow: "true"
 
       - name: Validate reviewed release metadata
         run: uv run --frozen python scripts/verify_release_metadata.py

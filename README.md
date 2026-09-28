@@ -498,9 +498,15 @@ run `uv run --frozen --group test pytest -m e2e -rs`. See
 platform, and display-environment conventions.
 
 Pull requests and `main` run locked source, fast-test, distribution, and Linux
-real-Aseprite gates. PR and push CI exclude complete example rebuilds, including
-when example or CI files change. Nightly on `main`, manual full CI, and release
-verification run the complete E2E suite; routine CI retains the other E2E cases.
+real-Aseprite gates. PR/push CI, nightly on `main`, manual CI, and Release
+verification exclude both complete wizard example rebuilds. They retain the small
+native probes, the hybrid hidden-pixel regression, and all other E2E cases.
+Complete example rebuilds remain available locally on demand; see the
+[test policy](docs/testing.md#complete-example-rebuilds).
+CI requires a prepared Aseprite binary. On a cache miss, follow the
+[manual runtime recovery](docs/testing.md#restore-the-aseprite-runtime) before
+rerunning the failed verification. The separate **Build Aseprite** workflow prepares
+the runtime; its success does not satisfy SPA verification checks.
 Releases use a reviewed version and changelog change, then
 repeat all gates on the exact release commit before publishing a GitHub Release. See
 [`docs/releasing.md`](docs/releasing.md) for the release and recovery procedure.
