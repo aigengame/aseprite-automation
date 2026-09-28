@@ -24,9 +24,16 @@ def observed_invoke(*args):
     result = original_invoke(*args)
     if case == "malformed_step":
         result.payload["steps"][1]["result"]["cel"]["frame_number"] = 4
-    elif case == "contradictory_count":
+    elif case in ("contradictory_count", "contradictory_high_count"):
         assert Path(args[2]["staged_sprite_file"]).is_file()
-        result.payload["steps"][0]["result"]["before_cel_count"] = 0
+        facts = result.payload["steps"][0]["result"]
+        count = 0 if case == "contradictory_count" else 2
+        if "before_cel_count" in facts:
+            assert facts["before_cel_count"] == 1
+            facts["before_cel_count"] = count
+        else:
+            assert facts["sprite"]["metadata"]["cel_count"] == 1
+            facts["sprite"]["metadata"]["cel_count"] = count
     elif case == "unverified_save":
         result.payload["persisted_reopen_verified"] = False
     return result

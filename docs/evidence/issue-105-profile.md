@@ -73,10 +73,11 @@ claimed from this fixture.
 All eight Step results matched the corresponding standalone `before_cel_count`,
 `before_cels`, `affected_cels`, and `cel` facts. Each Step reports
 `persisted_reopen_verified=false`; only the enclosing Plan reports the final
-persisted reopen verification. The measured revision predates the review fix for
-contradictory prior Cel counts. That fix adds an Application consistency check over
-the reported Cel facts; native execution, save/reopen, and invocation counts are
-unchanged. The timings were not rerun for that check.
+persisted reopen verification. The measured revision predates both review
+corrections for contradictory Cel counts: the local lower bound and Plan sequence
+reconciliation against the final Sprite. Both are Application checks; native
+execution, save/reopen, and invocation counts are unchanged. The timings were not
+rerun for these checks.
 
 Reproduction uses a temporary clone at each exact revision, hydrated LFS files,
 the listed requests, and the same serial ordering. One-off instrumentation patches

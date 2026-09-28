@@ -14,6 +14,7 @@ from tests.cel.test_e2e_cel import _fixture, _run
 from tests.image.test_e2e_image_orientation import _fixture as _image_fixture
 from tests.image.test_e2e_image_orientation import _inspect
 from tests.layer.test_e2e_layer_mutation import _run as _run_layer
+from tests.plan.test_e2e_plan import _red_pixel
 from tests.support import spa
 
 pytestmark = pytest.mark.e2e
@@ -107,6 +108,16 @@ def test_cel_set_resolves_a_cel_created_by_earlier_steps(tmp_path: Path) -> None
                             },
                         },
                         {
+                            "operation": "paint apply",
+                            "input": _red_pixel(),
+                        },
+                        {
+                            "operation": "sprite get",
+                            "input": {"inspection_scope": ["cels"]},
+                        },
+                        {"operation": "frame list", "input": {}},
+                        {"operation": "frame get", "input": {"frame_number": 1}},
+                        {
                             "operation": "frame add",
                             "input": {"frame_number": 2, "duration_ms": 100},
                         },
@@ -116,17 +127,29 @@ def test_cel_set_resolves_a_cel_created_by_earlier_steps(tmp_path: Path) -> None
                             "input": {"target": address, "opacity": 0, "z_index": -3},
                         },
                         {
+                            "operation": "frame duplicate",
+                            "input": {"source_frame_number": 2, "cel_mode": "copy"},
+                        },
+                        {
+                            "operation": "frame duplicate",
+                            "input": {"source_frame_number": 2, "cel_mode": "link"},
+                        },
+                        {
                             "operation": "frame add",
-                            "input": {"frame_number": 3, "duration_ms": 100},
+                            "input": {"frame_number": 5, "duration_ms": 100},
                         },
                         {
                             "operation": "cel add",
                             "input": {
                                 "target": {
                                     "layer": {"layer_path": [1]},
-                                    "frame_number": 3,
+                                    "frame_number": 5,
                                 }
                             },
+                        },
+                        {
+                            "operation": "sprite get",
+                            "input": {"inspection_scope": ["cels"]},
                         },
                     ],
                 },
@@ -135,11 +158,18 @@ def test_cel_set_resolves_a_cel_created_by_earlier_steps(tmp_path: Path) -> None
     )
     assert run.returncode == 0, run.stdout + run.stderr
     result = json.loads(run.stdout)
-    assert result["steps"][3]["result"]["cel"]["opacity"] == 0
-    assert (
-        result["final_sprite"]["metadata"]["cel_count"]
-        == result["steps"][3]["result"]["before_cel_count"] + 1
-    )
+    steps = result["steps"]
+    assert steps[0]["result"]["sprite"]["metadata"]["cel_count"] == 1
+    assert steps[2]["result"]["sprite"]["metadata"]["cel_count"] == 1
+    assert steps[6]["result"]["before_cel_count"] == 1
+    assert steps[7]["result"]["before_cel_count"] == 2
+    assert steps[7]["result"]["cel"]["opacity"] == 0
+    assert steps[8]["result"]["inserted_cel_count"] == 1
+    assert steps[9]["result"]["inserted_cel_count"] == 1
+    assert steps[10]["result"]["inserted_cel_count"] == 0
+    assert steps[11]["result"]["before_cel_count"] == 4
+    assert steps[12]["result"]["sprite"]["metadata"]["cel_count"] == 5
+    assert result["final_sprite"]["metadata"]["cel_count"] == 5
     assert result["persisted_reopen_verified"] is True
     code, reopened = _run("get", {"sprite_file": str(target), "target": address})
     assert code == 0, reopened
@@ -307,44 +337,60 @@ def test_plan_retains_standalone_target_refusals(
 
 
 @pytest.mark.parametrize(
-    "case",
+    ("case", "operation", "in_place"),
     [
-        "success",
-        "later_failure",
-        "malformed_step",
-        "contradictory_count",
-        "unverified_save",
+        ("success", "cel set", False),
+        ("later_failure", "cel set", False),
+        ("malformed_step", "cel set", False),
+        ("unverified_save", "cel set", False),
+    ]
+    + [
+        (case, operation, in_place)
+        for case in ("contradictory_count", "contradictory_high_count")
+        for operation in ("cel add", "cel set", "sprite get")
+        for in_place in (False, True)
     ],
 )
 def test_cel_plan_has_one_native_invocation_and_gates_target_commit(
-    tmp_path: Path, case: str
+    tmp_path: Path, case: str, operation: str, in_place: bool
 ) -> None:
     source = tmp_path / "source.aseprite"
     _fixture(source, "relationships.lua")
     source_before = source.read_bytes()
-    target = tmp_path / "existing.aseprite"
-    target.write_bytes(b"prior Target bytes")
+    target = source if in_place else tmp_path / "existing.aseprite"
+    if not in_place:
+        target.write_bytes(b"prior Target bytes")
+    target_before = target.read_bytes()
     second = 2 if case == "later_failure" else 1
+    steps = [
+        {
+            "operation": "cel set",
+            "input": {
+                "target": {"layer": {"layer_path": [1]}, "frame_number": number},
+                "opacity": opacity,
+            },
+        }
+        for number, opacity in [(1, 0), (second, 100)]
+    ]
+    if operation == "cel add":
+        steps[0] = {
+            "operation": "cel add",
+            "input": {"target": {"layer": {"layer_path": [1]}, "frame_number": 2}},
+        }
+    elif operation == "sprite get":
+        steps[0] = {
+            "operation": "sprite get",
+            "input": {"inspection_scope": ["frames"]},
+        }
     request = json.dumps(
         {
             "aseprite": os.environ["SPA_TEST_ASEPRITE"],
             "plan": {
                 "source_sprite_file": str(source),
                 "target_sprite_file": str(target),
+                "in_place": in_place,
                 "overwrite": True,
-                "steps": [
-                    {
-                        "operation": "cel set",
-                        "input": {
-                            "target": {
-                                "layer": {"layer_path": [1]},
-                                "frame_number": number,
-                            },
-                            "opacity": opacity,
-                        },
-                    }
-                    for number, opacity in [(1, 0), (second, 100)]
-                ],
+                "steps": steps,
             },
         }
     )
@@ -383,7 +429,7 @@ def test_cel_plan_has_one_native_invocation_and_gates_target_commit(
             "cel_not_found" if case == "later_failure" else "kernel_response_invalid"
         )
         assert observations["commits"] == 0
-        assert target.read_bytes() == b"prior Target bytes"
-        if case == "contradictory_count":
+        assert target.read_bytes() == target_before
+        if case in ("contradictory_count", "contradictory_high_count"):
             assert outcome["details"]["failed_step"] == 1
-            assert outcome["details"]["failed_operation"] == "cel set"
+            assert outcome["details"]["failed_operation"] == operation

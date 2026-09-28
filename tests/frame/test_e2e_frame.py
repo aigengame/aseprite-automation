@@ -672,18 +672,25 @@ def test_add_background_frame_uses_explicit_color(tmp_path: Path) -> None:
                 "target_sprite_file": str(plan_target),
                 "steps": [
                     {
+                        "operation": "sprite get",
+                        "input": {"inspection_scope": ["cels"]},
+                    },
+                    {
                         "operation": "frame add",
                         "input": {
                             "frame_number": 2,
                             "duration_ms": 100,
                             "background_color": color,
                         },
-                    }
+                    },
                 ],
             }
         },
     )
-    assert plan["steps"][0]["result"]["background_fill"] == color
+    assert plan["steps"][0]["result"]["sprite"]["metadata"]["cel_count"] == 1
+    assert plan["steps"][1]["result"]["background_fill"] == color
+    assert plan["steps"][1]["result"]["inserted_cel_count"] == 1
+    assert plan["final_sprite"]["metadata"]["cel_count"] == 2
 
 
 def test_add_reports_native_tag_range_adjustment(tmp_path: Path) -> None:

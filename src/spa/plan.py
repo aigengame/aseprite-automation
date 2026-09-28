@@ -1,7 +1,7 @@
 """Bounded, single-Sprite Operation Plan preflight and execution."""
 
 from pathlib import Path
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, assert_never
 
 from pydantic import Field, ValidationError, model_validator
 
@@ -637,6 +637,43 @@ def _validated_steps(
     return outcomes
 
 
+def _validate_cel_count_sequence(
+    outcomes: list[StepOutcome],
+    final_sprite: SpriteInspection,
+    invocation: KernelInvocationResult,
+) -> None:
+    """Reconcile live Step counts with the final Sprite and validated Cel deltas."""
+    cel_count = final_sprite.metadata.cel_count
+    for index in range(len(outcomes) - 1, -1, -1):
+        outcome = outcomes[index]
+        reported_count = None
+        if isinstance(outcome, (CreateStepOutcome, GetStepOutcome)):
+            reported_count = outcome.result.sprite.metadata.cel_count
+        elif isinstance(outcome, CelAddStepOutcome):
+            cel_count -= 1
+            reported_count = outcome.result.before_cel_count
+        elif isinstance(outcome, CelSetStepOutcome):
+            reported_count = outcome.result.before_cel_count
+        elif isinstance(outcome, (FrameAddStepOutcome, FrameDuplicateStepOutcome)):
+            # Both copied and linked Images add one Cel per inserted Layer/Frame.
+            cel_count -= outcome.result.inserted_cel_count
+        elif isinstance(
+            outcome, (PaintStepOutcome, FrameListStepOutcome, FrameGetStepOutcome)
+        ):
+            pass
+        else:
+            assert_never(outcome)
+        if cel_count < 0 or (
+            reported_count is not None and reported_count != cel_count
+        ):
+            raise _malformed(
+                invocation,
+                "Plan Step Cel count contradicts the final Sprite and Step changes",
+                failed_step=index + 1,
+                failed_operation=outcome.operation,
+            )
+
+
 def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunResult:
     if services.invoke_kernel_direct is None:
         raise TypeError("Plan run requires the direct Kernel invocation adapter")
@@ -820,6 +857,7 @@ def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunRes
                     failed_step=1,
                     failed_operation="sprite create",
                 ) from exc
+        _validate_cel_count_sequence(outcomes, final_sprite, invocation)
         target_commit = None
         if staged is not None:
             assert plan.target_sprite_file is not None
