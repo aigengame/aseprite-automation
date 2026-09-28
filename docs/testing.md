@@ -221,8 +221,9 @@ gh workflow run aseprite-build.yml --ref dev
 gh run rerun <failed-run-id> --failed
 ```
 
-The workflow is already registered in this repository and can be dispatched by CLI
-on dev after merge. Normal UI discovery becomes available after promotion to main.
+The workflow is already registered in this repository; CLI dispatch succeeded on
+the feature branch. After merge, verify dispatch and cache save on dev before
+claiming recovery. Normal UI discovery becomes available after promotion to main.
 A PR cache token grants access to its merge ref, base branch, and main; it cannot
 read a cache saved only on its head branch. A same-branch push or manual run can
 consume that branch's cache. Main cannot consume dev or feature-branch caches.
