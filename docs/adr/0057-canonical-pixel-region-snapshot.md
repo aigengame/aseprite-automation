@@ -85,10 +85,13 @@ also preserves indexes without ordinary RGB opacity or Blend Mode mathematics.
 
 Native probes confirmed that direct RGB output interprets the Source mask correctly
 and applies Group opacity and blending, without changing Source pixels. This supports
-an explicit visual observation intent. It does not prove faithful native Indexed
-composition for the affected inputs. Issue #20 owns the accepted current boundary
-and its follow-up; no SPA pixel compositor or general compatibility registry follows
-from this decision.
+an explicit visual observation intent. It does not by itself prove faithful native
+Indexed composition for the affected inputs. Issue #116 adds a bounded native
+preserve-Indexed route for nonzero masks: a private loaded document is temporarily
+permuted so zero is the native transparent index, then the output indexes and native
+state are restored. Its requested Frame Effective Palette must contain the mask and
+all returned indexes. This does not introduce a SPA pixel compositor or general
+compatibility registry.
 
 ## Rejected alternatives
 

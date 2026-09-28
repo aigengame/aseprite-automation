@@ -347,13 +347,15 @@ top-level Color Mode and mask describe the output. Effective Palette facts ident
 the Indexed Source's requested Frame basis; their `indexes` are empty for RGB output
 because blended pixels do not retain a Palette Index identity.
 
-Preserve-Indexed composition with a nonzero transparent index is currently rejected
-with `image_composition_unsupported`: Aseprite's native Group buffer can clear to an
-opaque index zero, including at the root. Select `rgb` for visual observation or
-individual Get for exact stored indexes. There is no automatic fallback. This does
-not change the Source or make the RGB Snapshot a same-mode Indexed replacement.
-[Issue #116](https://github.com/aigengame/aseprite-automation/issues/116) tracks the
-remaining preserve-Indexed support.
+For preserve-Indexed composition with a nonzero Transparent Color Index, Image Get
+temporarily exchanges index zero with that index in its private loaded document,
+renders through Aseprite, then restores the original index numbering in the
+Snapshot. The requested Frame's Effective Palette must contain the Transparent
+Color Index and every index in the returned Snapshot. A missing entry returns
+`image_composition_unsupported`; Image Get does not extend the Palette or switch
+to RGB. This route preserves native Indexed index-selection semantics, including
+the Layer tree, and leaves the Source file unchanged. Select `rgb` for visual
+observation or individual Get for exact stored indexes.
 
 Without `snapshot_destination`, the inline Operation Limit is 4096 pixels. Larger
 reads require an explicit `.json` destination with `if_exists: fail|replace` and
