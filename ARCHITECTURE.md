@@ -360,7 +360,7 @@ than a frozen package graph.
 
 Document and Animation, Raster Authoring, Color and Palette, and Tile Authoring form
 the Sprite Authoring Core. Bounded Motion Authoring belongs to Document and Animation;
-the planned [#104](https://github.com/aigengame/aseprite-automation/issues/104) slice
+the implemented [#104](https://github.com/aigengame/aseprite-automation/issues/104) slice
 applies position offsets and opacity keys to existing per-Frame Cels, preserving each
 Frame's artwork. It owns explicit sampling, interpolation, rounding, and standalone/Plan
 semantics. Further motion modes need their own accepted scope and native evidence.
@@ -400,8 +400,9 @@ For the accepted preparation and authoring direction:
 
 ### Incremental physical modules
 
-Preserve the current compact vertical slices. The following names are implementation
-candidates for the accepted owners, not a package migration or callable surface:
+Preserve the current compact vertical slices. The list below shows implemented
+modules and the planned `preparation.py` candidate under their accepted owners.
+The installed Surface Manifest reports callable Operations.
 
 ```text
 src/spa/
