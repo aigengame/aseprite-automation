@@ -89,7 +89,8 @@ jobs:
   aseprite-e2e:
     name: Linux real Aseprite E2E
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    # Full runs also include both wizard rebuilds and a possible cold native build.
+    timeout-minutes: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && 40 || 75 }}
     steps:
       - name: Check out the tested commit
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6

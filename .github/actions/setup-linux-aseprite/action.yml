@@ -119,3 +119,20 @@ runs:
       with:
         path: ${{ steps.paths.outputs.install-dir }}
         key: ${{ steps.cache.outputs.cache-primary-key }}
+
+    - name: Record the native setup environment
+      shell: bash
+      env:
+        SPA_ASEPRITE_CACHE_HIT: ${{ steps.cache.outputs.cache-hit == 'true' }}
+        SPA_ASEPRITE_CACHE_KEY: ${{ steps.cache.outputs.cache-primary-key }}
+        SPA_ASEPRITE_REPORTED_VERSION: ${{ steps.expose.outputs.version }}
+      run: |
+        {
+          echo "### Linux Aseprite setup"
+          echo "- Commit: \`$(git rev-parse HEAD)\`"
+          echo "- Runner: \`$RUNNER_OS $RUNNER_ARCH\`; image \`${ImageOS:-unknown} ${ImageVersion:-unknown}\`"
+          echo "- CPUs: $(nproc); memory: $(awk '/MemTotal/ {print $2 " kB"}' /proc/meminfo)"
+          echo "- Cache hit: \`$SPA_ASEPRITE_CACHE_HIT\`"
+          echo "- Cache key: \`$SPA_ASEPRITE_CACHE_KEY\`"
+          echo "- Aseprite: \`$SPA_ASEPRITE_REPORTED_VERSION\`"
+        } >> "$GITHUB_STEP_SUMMARY"

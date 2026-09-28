@@ -54,7 +54,8 @@ jobs:
         needs.cut-draft.outputs.release_created == 'true'))
     needs: cut-draft
     runs-on: ubuntu-24.04
-    timeout-minutes: 50
+    # Full native tests plus cold setup, source checks, metadata, and distributions.
+    timeout-minutes: 80
     outputs:
       release_sha: ${{ steps.target.outputs.release_sha }}
     steps:
