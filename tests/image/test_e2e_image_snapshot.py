@@ -255,6 +255,7 @@ def test_composition_restores_preferences_and_visibility_on_success_and_failure(
         for name, value in {
             "out": output,
             "layer_composition": kernel / "layer_composition.lua",
+            "effective_palette": kernel / "effective_palette.lua",
             "layer_select": kernel / "layer_select.lua",
             "output_mode": output_mode,
         }.items():
@@ -597,25 +598,37 @@ def test_explicit_rgb_composite_keeps_indexed_source_and_transparency(
 
 
 @pytest.mark.parametrize("artifact", [False, True])
-def test_preserve_composite_refuses_nonzero_indexed_mask_without_publication(
+def test_preserve_indexed_composite_keeps_opaque_zero_and_nonzero_mask(
     tmp_path: Path,
     artifact: bool,
 ) -> None:
     source = _fixture(tmp_path, "indexed-composite")
     original = source.read_bytes()
     destination = tmp_path / "pixels.json"
-    destination.write_bytes(b"existing artifact")
-    options = (
-        {"snapshot_destination": {"path": str(destination), "if_exists": "replace"}}
-        if artifact
-        else {}
+    code, result = _get(
+        source,
+        source=_composite(
+            {"mode": "visible"},
+            rectangle={"x": 1, "y": 1, "width": 2, "height": 1},
+        ),
+        **(
+            {"snapshot_destination": {"path": str(destination), "if_exists": "fail"}}
+            if artifact
+            else {}
+        ),
     )
-    code, result = _get(source, source=_composite({"mode": "visible"}), **options)
-    assert code == 2 and result["code"] == "image_composition_unsupported", result
-    assert "nonzero" in result["details"]["reason"]
+    assert code == 0, result
+    assert result["color_mode"] == "indexed"
+    assert result["mask_color"] == {"kind": "palette-index", "index": 2}
+    value = json.loads(destination.read_text()) if artifact else result["snapshot"]
+    assert result["output_form"] == ("artifact" if artifact else "inline")
+    assert value["rows"] == [
+        [
+            {"length": 1, "color": {"kind": "palette-index", "index": 0}},
+            {"length": 1, "color": {"kind": "palette-index", "index": 2}},
+        ]
+    ]
     assert source.read_bytes() == original
-    assert destination.read_bytes() == b"existing artifact"
-    assert set(tmp_path.iterdir()) == {source, destination}
 
 
 @pytest.mark.parametrize(
