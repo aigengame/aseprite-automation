@@ -40,10 +40,11 @@ CI and release verification use Linux and build the official source version pinn
 non-graphical backend. The Linux gate requires
 `DISPLAY` and `WAYLAND_DISPLAY` to be absent, exercises the real `--batch --script`
 probe, and rejects zero or all-skipped E2E execution.
-Release verification always selects the full `e2e` tier, including `slow` example
-rebuilds, at the exact release SHA. A routine CI or nightly result cannot replace it.
+Release verification selects `e2e and not slow` at the exact release SHA. It retains
+the real native suite and small wizard probes; complete example rebuilds are local
+opt-in checks. A routine CI or nightly result cannot replace release verification.
 
-The verification job has an 80-minute execution limit. The
+The verification job has an owner-defined 40-minute execution limit. The
 [issue #107 capacity measurements](evidence/issue-107-ci-capacity.md) cover cold
 native setup, the full tests, quality and package checks, and artifact uploads.
 The limit bounds execution; it is not a release-latency target or an automatic

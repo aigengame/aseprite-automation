@@ -1,8 +1,8 @@
 # Linux full-E2E capacity — issue #107
 
-## Scope and method
+## Initial measurement method
 
-Measure the existing Linux jobs without reducing native-pixel checks or excluding
+The initial observations measured the existing Linux jobs without reducing native-pixel checks or excluding
 either wizard rebuild. Use the same source and test revision for the cold and warm
 observations: `e6f50811ead6f366408d8f20f41723227cad5db8`.
 
@@ -107,42 +107,32 @@ sandbox case. They are the existing Linux exclusions. The full and routine repor
 passed the nonempty, not-all-skipped JUnit execution check. Comparing their case
 sets confirms that only the two complete wizard rebuilds are absent from routine CI.
 
-## Budget decision and limits
+## Revised owner limits — 2026-09-28
 
-| Job scope | Previous limit | New limit | Observed whole job | Observed remaining time |
-| --- | ---: | ---: | ---: | ---: |
-| Routine PR/push native CI | 40m | 40m | Cold: 27m 16s | 12m 44s |
-| Full nightly/manual native CI | 40m | 75m | Warm: 25m 46s | 49m 14s |
-| Release verification | 50m | 80m | Cold: 62m 28s | 17m 32s |
+The owner rejected the provisional 75/80-minute proposal before merge. The fixed
+limits are now **20 minutes for routine PR/push CI**, **40 minutes for nightly/manual
+CI**, and **40 minutes for Release verification**. All automated gates exclude the
+two complete example rebuilds. They retain the other native tests, both small
+wizard probes, the hybrid hidden-pixel regression, and the exact-release-SHA gate.
+Full asset reproducibility remains available through explicit local build/verify
+commands and the retained `e2e and slow` tests.
 
-The full-CI budget also accounts for the **60m 48s cold native action** observed
-inside Release verification. It leaves 14m 12s beyond that common action for CI's
-checkout, upload, cleanup, and variability; the warm CI observation spent 14 seconds
-outside the action. This is a capacity estimate for cold full CI, not a claim that
-a separate cold full-CI job was run. Release has its own measured whole-job result,
-including the extra checks and uploads, rather than inheriting the CI result.
-
-The observed cold Release exceeds the former 50-minute limit. Raising only the
-full-run timeouts is the smallest change that lets this existing required workload
-complete; no runner size, build parallelism, cache policy, or test selection changes
-are needed by these observations. The 75/80-minute limits allow roughly 14/17 minutes
-above the observed cold work, while routine CI retains its existing limit.
+The initial observations above are baseline evidence, not proof that the revised
+limits are met. Removing both rebuilds projects the cold Release job from 62m 28s
+to about 28m 2s; that subtraction is not an executed result. Routine CI already
+excluded both rebuilds and took 27m 16s cold, so it requires a real build or test
+execution improvement to fit 20 minutes. Candidate changes must be measured within
+these fixed limits before acceptance. Splitting jobs does not by itself shorten
+the total critical path.
 
 These timeouts bound resource use and terminate unexpectedly long jobs. They are
-not acceptable-latency targets or permission for indefinite increases. This change
-does not make tests faster: cold compilation took about 17 minutes, and the cold
-full suite took about 43 minutes, including about 34 minutes for the two rebuilds.
-If the workload approaches the new limits, inspect those costs and evaluate a
-specific optimization before proposing another budget change. Any later timeout
-increase needs fresh measurements and a cost decision; there is no automatic
-escalation to 120 minutes or a new monitoring system.
-
-The full pytest times differed by about 18 minutes at the same revision. The
-observations do not isolate runner, filesystem, or other execution differences,
-and the whole-job difference is not a cache-only speedup. A single cold/warm pair
-does not establish a percentile or guarantee capacity for future test growth.
-Nightly stays on `main`; routine events still exclude complete rebuilds; full runs
-keep both rebuilds, native-pixel checks, and the existing same-release-SHA gate.
+not permission for indefinite increases. The full pytest times differed by about
+18 minutes at the same revision; the observations do not isolate the execution
+conditions causing that difference. In particular, the 25m 46s warm full job and
+27m 16s cold routine job contain different test scopes and cannot measure cache
+speedup. The warm cache hit and skipped compilation are directly recorded in the
+log. A same-scope comparison and successful cold execution are needed for the
+revised policy; a single sample does not guarantee capacity for future test growth.
 
 ## Release PR maintenance repair
 

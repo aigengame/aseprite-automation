@@ -40,7 +40,8 @@ Use the tier in the file name:
   Mark the module or each test with `pytest.mark.e2e`.
 
 `pytest.mark.slow` is an additional cost marker, not a verification tier. Use it
-for complete example rebuilds. The small wizard probe remains only `e2e`.
+for complete example rebuilds, which run locally on demand. Automated CI and
+Release exclude these tests. The small wizard probes remain only `e2e`.
 
 Runtime integration fixtures cover incompatible Lua and API observations and structured
 failure without claiming native execution. Real-runtime tests execute the packaged
@@ -168,35 +169,44 @@ A failure in any job fails CI. Configure these four named jobs as required check
 
 ### Complete example rebuilds
 
-The Linux E2E job always runs. It selects the following scope by event inside the
-job, so excluding slow tests does not skip the required CI check:
+The Linux E2E job always runs. All automated events use the same required native
+suite; excluding complete example rebuilds does not skip the required CI check:
 
 | Trigger | Real-runtime selection |
 | --- | --- |
 | Every PR or push to `main`, including example and CI changes | `e2e and not slow`: all routine E2E cases, including the small wizard probes. |
-| Nightly on `main` | `e2e`: full suite at the scheduled main SHA. |
-| Manual **CI → Run workflow** | `e2e`: full suite at the selected ref. |
-| Release verification | `e2e`: full suite at the exact release SHA before publication. |
+| Nightly on `main` | `e2e and not slow` at the scheduled main SHA. |
+| Manual **CI → Run workflow** | `e2e and not slow` at the selected ref. |
+| Release verification | `e2e and not slow` at the exact release SHA before publication. |
 
-The event selection in `.github/workflows/ci.yml` is authoritative. PR and push
-runs exclude `slow` regardless of changed paths, including promotion PRs. They
-retain routine real-Aseprite coverage and the small wizard handoff/native-pixel
-checks. Complete rebuilds run through the full-suite events listed above. For an
-example change that needs full verification before merge, manually run CI on the
-selected ref. Unexpected event types fail instead of silently choosing a scope.
+The shared `.github/actions/run-linux-aseprite-e2e/action.yml` owns this selection.
+It retains all other native assertions, both small wizard probes, and the hybrid
+hidden-pixel comparison regression. The owner removed both complete example
+rebuilds from automated gates on 2026-09-28 after reviewing their measured cost.
+Nightly/manual full verification covers the required tool suite; it does not
+regenerate the example deliveries. To check complete asset reproducibility after
+an example change, use the example build/verify commands or run locally:
+
+```sh
+SPA_TEST_ASEPRITE=/absolute/path/to/aseprite \
+  uv run --frozen --group test pytest -m "e2e and slow" -rs
+```
+
+These checks still compare full deliveries and hidden native pixels. Their results
+are separate, explicit evidence; automated CI no longer claims that coverage.
 
 The nightly schedule is daily at 19:23 UTC (03:23 Asia/Shanghai). GitHub runs it
 from the default branch, `main`; the job also checks that ref explicitly. `dev`
 is a temporary integration branch and has no nightly target. The schedule becomes
 active after this workflow reaches `main`. Pushes and manual runs do not cancel a
-nightly run. Its summary records the actual checked-out SHA and whether slow tests
-were included. Scheduled runs can be delayed; their result never replaces exact-SHA
+nightly run. Its summary records the actual checked-out SHA and selected test scope.
+Scheduled runs can be delayed; their result never replaces exact-SHA
 release verification.
 
-The Linux E2E job keeps a 40-minute budget for routine PR/push runs. Nightly and
-manual full runs have 75 minutes, including cold Aseprite compilation and report
-upload. Release verification has its own 80-minute budget because it also runs
-source, fast-test, metadata, and distribution checks. The
+The owner limits are **20 minutes for routine PR/push CI**, **40 minutes for
+nightly/manual CI**, and **40 minutes for Release verification**. They include cold
+native setup and report upload. Release also includes source, fast-test, metadata,
+and distribution checks in the same limit. The
 [issue #107 measurements](evidence/issue-107-ci-capacity.md) record the observed
 capacity, margins, and remaining variability. These limits bound job execution;
 they are not performance targets or an automatic growth policy. Setup summaries
@@ -222,9 +232,9 @@ The [wizard example](../examples/wizard_cast/README.md) has two real-runtime tes
 a small component geometry proof and one complete fresh build against the checked-in
 delivery. The latter independently decodes every PNG, checks hidden stored pixels,
 compares the complete manifest, and reopens the delivered Aseprite source to compare
-metadata, Frames, Layers, Cels, and Tags. CI and release verification fetch its Git
-LFS assets before this check. The full build is marked `e2e` and `slow` and follows
-the trigger policy above. A reference macOS build takes about four minutes; one
+metadata, Frames, Layers, Cels, and Tags. Fetch its Git LFS assets before this local
+check. The full build is marked `e2e` and `slow` and follows the opt-in policy above.
+A reference macOS build takes about four minutes; one
 Linux CI observation took 329.6 seconds, compared with 6.7 seconds for the small
 probe. These are measurements, not time limits. Explicit double builds remain
 available through the example's `verify` command, with retained local evidence.
@@ -251,7 +261,7 @@ request. GitHub can remove a cache after seven days without access or earlier un
 repository cache limit, so an occasional rebuild is expected.
 
 The Linux real Aseprite job is also part of release verification. A release workflow
-always reruns the full suite, including slow rebuilds, at the exact release commit
+always reruns the required native suite, excluding complete example rebuilds, at the exact release commit
 and does not reuse a generally green CI or nightly run. A successful macOS local run
 remains separate developer evidence; it cannot replace the Linux release gate.
 Windowed Aseprite behavior has no CI coverage until a
@@ -264,7 +274,7 @@ and decoded export pixels. Its full test is also marked `slow`: one fresh build
 must match the retained v2 delivery and all seven reopened native documents,
 including the RGBA values of hidden stored pixels. It checks the actual v2 recipe
 geometry, 32 Frames at 100 ms, four fixed phase ranges, and native gem pulse
-independence. CI needs no imagegen service or generation credentials. The same
-main-only nightly, manual full run, and exact-release-SHA gates apply. macOS build
+independence. This complete rebuild runs locally on demand. Automated tests need no
+imagegen service or generation credentials. macOS build
 cost and Godot evidence are recorded separately in the v2 example's dogfooding
 report; Linux asset CI does not establish graphical or gameplay acceptance.
