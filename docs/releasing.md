@@ -36,7 +36,7 @@ prevents a tagless draft from regenerating old release history.
 
 Local real-runtime evidence normally uses the installed macOS Aseprite application.
 CI and release verification use Linux and restore the manually prepared binary from
-the official source version pinned in `.github/actions/setup-linux-aseprite/action.yml`,
+the official source version pinned in `.github/actions/aseprite-runtime/action.yml`,
 with scripting enabled and the non-graphical backend. The Linux gate requires
 `DISPLAY` and `WAYLAND_DISPLAY` to be absent, exercises the real `--batch --script`
 probe, and rejects zero or all-skipped E2E execution.

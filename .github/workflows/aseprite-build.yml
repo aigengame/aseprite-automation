@@ -3,8 +3,6 @@ run-name: Build Aseprite from ${{ github.ref_name }}
 
 on:
   workflow_dispatch:
-  push:
-    branches: [codex/issue-107-ci-capacity]
 
 permissions:
   contents: read
@@ -16,7 +14,6 @@ concurrency:
 jobs:
   build-aseprite:
     name: Build Aseprite (manual maintenance)
-    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
@@ -24,7 +21,7 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Prepare and verify the Aseprite binary
-        uses: ./.github/actions/setup-linux-aseprite
+        uses: ./.github/actions/aseprite-runtime
         with:
           build-if-missing: "true"
 
@@ -38,7 +35,8 @@ jobs:
             if [ "$GITHUB_REF" = "refs/heads/main" ]; then
               echo "- Stable runtime: main cache is available to other branches."
             else
-              echo "- Provisional branch runtime: this cache cannot supply main."
+              echo "- Provisional runtime: a PR can consume this cache only if this is its base branch."
+              echo "- Same-branch push and manual runs can also consume it; main cannot."
               echo "- After promotion, run Build Aseprite on main to prepare the stable runtime."
             fi
             echo "- Re-run the original failed verification; this maintenance run is not SPA test evidence."

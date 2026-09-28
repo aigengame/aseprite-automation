@@ -8,17 +8,51 @@ nightly/manual verification 40 minutes, and Release verification 40 minutes.
 Aseprite cache misses fail verification without compilation. Maintenance runs in
 the independent, manual-only `aseprite-build.yml` with a 40-minute job timeout;
 its success is followed by a rerun of the original failed verification. Stable
-binaries are prepared on main. Branch builds provide only provisional evidence
-until promotion and preparation on main.
+binaries are prepared on main. Provisional PR recovery uses its base branch with
+the same recipe; a cache saved only on the head branch cannot recover the PR.
 
 The owner subsequently approved separating the workflow after reviewing the cost
 of sharing CI's entry. The CI task selector, conditional check names, maintenance
 job, and task-specific concurrency are removed. Both complete wizard rebuilds
 remain local opt-in checks. The exact-release-SHA gate and retained native suite
-stay required. The new manual entry requires promotion to main before dispatch;
-earlier shared-action execution does not establish that this entry ran. Current
-recovery-path results are recorded below; independent-entry execution remains a
-post-promotion check.
+stay required. The investigation below corrects the earlier assumption that
+promotion to main was required to diagnose or test the independent entry. The
+remaining PR recovery needs a matching cache on a readable ref, not a main
+promotion. A small additive bootstrap PR to dev will supply the builder before
+#121 switches the CI consumer.
+
+## Cache scope diagnosis — 2026-09-28
+
+Temporary experiment `065d8c378a829bd5713478e61eace9d642e37ffc` inspected only the
+scope and permission fields of the Actions cache runtime claim. It did not print
+the token or other credential claims. Both runs used the same pinned cache action,
+key, cache version, and installation path:
+
+| Event | Readable cache refs reported by the runtime | Result |
+| --- | --- | --- |
+| [PR](https://github.com/aigengame/aseprite-automation/actions/runs/36403984682/job/108868185367) | `refs/pull/121/merge` (permission 3), `refs/heads/dev` (1), `refs/heads/main` (1) | Miss; failed in 8 seconds |
+| [Push](https://github.com/aigengame/aseprite-automation/actions/runs/36403979366/job/108868168791) | `refs/heads/codex/issue-107-ci-capacity` (3), `refs/heads/main` (1) | Exact hit; succeeded in 14 seconds |
+
+**Root cause:** the saved binary belongs to the PR head branch, which is absent
+from the PR's cache permissions. A main or dev cache with the exact key is readable
+by this PR; repeatedly rerunning against the head-branch cache cannot recover it.
+No alternate cache transport, token change, or automatic compilation is needed.
+
+A separate dispatch experiment removed all automatic triggers after registration
+and successfully ran a
+[manual-only workflow on the feature branch](https://github.com/aigengame/aseprite-automation/actions/runs/36404440635/job/108869679034)
+at `a70a8e7`. The file was absent from main. This disproves the earlier claim that
+main promotion was necessary for every dispatch. Dispatching directly to
+`refs/pull/121/merge` was rejected with HTTP 422 (`No ref found`), so it is not a
+manual cache preparation path. The temporary experiment files and registration
+triggers are removed from the final tree.
+
+Rollout: first deliver the independent manual builder, shared runtime action, and
+unchanged build recipe to dev in an additive PR. Its legacy CI remains unchanged.
+Then run Build Aseprite on dev and rerun the original #121 verification. #121
+switches to the shared action and removes the legacy setup. The final tree has one
+runtime owner; this is a delivery order, not a second permanent build mechanism.
+The dev merge requires owner authorization. Successful PR recovery is still pending.
 
 ## Shared-action recovery validation — 2026-09-28
 
@@ -63,11 +97,10 @@ explicitly reported a miss for the saved key **and cache version**. The paths ma
 and this is a same-repository PR. The original reruns checked out the original
 merge SHA `f012a5ca2177a5b1a8067e52a6c7b53d4108064f`.
 
-These observations contradict the assumption that this head-branch cache recovers
-the PR. They do not establish a cache-service root cause. Native installation,
-compilation, and E2E were not executed after those misses; no passing PR native
-evidence is claimed. Stable main preparation and subsequent original-PR recovery
-remain required after promotion. No alternate cache transport or CI bypass is added.
+At this checkpoint, these observations disproved the assumed head-branch recovery
+but did not yet establish its cause. The later scope diagnosis above does. Native
+installation, compilation, and E2E were not executed after those misses; no passing
+PR native evidence is claimed. Recovery requires the exact cache on dev or main.
 
 The separate
 [manual Release verification](https://github.com/aigengame/aseprite-automation/actions/runs/36401855052/job/108861340361)
@@ -85,9 +118,9 @@ this manual event, so no release was created or published.
 This verifies consumption on the same branch within the native 40-minute Release
 limit. It does not replace the failed PR recovery or the new manual entry's first
 main run. Sol Standards and architecture reviews found no blocker at `3fbd19d`.
-The Spec review correctly retains the recovery acceptance gap. Its follow-up
-confirmed that the evidence and recovery guidance preserve that gap without
-claiming a backend root cause or a passing PR native gate.
+The Spec review correctly retained the recovery acceptance gap at that checkpoint.
+The later scope experiment establishes the cause and a dev-based recovery order;
+a passing PR native gate still requires execution after base-branch preparation.
 
 ## Superseded measured-build deduction experiment
 

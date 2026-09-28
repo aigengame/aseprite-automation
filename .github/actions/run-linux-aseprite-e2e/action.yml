@@ -14,7 +14,7 @@ runs:
 
     - name: Set up real Aseprite
       id: aseprite
-      uses: ./.github/actions/setup-linux-aseprite
+      uses: ./.github/actions/aseprite-runtime
 
     - name: Verify the headless batch environment
       shell: bash

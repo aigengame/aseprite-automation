@@ -1,5 +1,0 @@
-name: Temporary cache scope experiment
-description: Print only cache ref grants for the bounded issue 107 experiment.
-runs:
-  using: node24
-  main: index.cjs

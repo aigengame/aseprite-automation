@@ -247,23 +247,34 @@ gh workflow run aseprite-build.yml --ref main
 gh run rerun <failed-run-id> --failed
 ```
 
-The new manual workflow must reach the default branch before it can be dispatched.
-Deliver it through dev and promotion to main. After promotion, run **Build Aseprite**
-on main and verify this new entry before rerunning any failed verification. Earlier
-branch evidence for the shared build action does not establish that this separate
-entry ran. Do not retain a second build mode in CI for this one-time rollout.
+A stable cache is prepared on `main`, which is readable from the other branches.
+For a provisional recipe change, first deliver the independent builder and shared
+runtime action to the PR's **base branch** (normally `dev`), then run:
 
-A main cache is available to other branches; main cannot consume a feature/dev
-cache. Use main for stable recovery. A feature-branch build can support manual
-verification on that branch, but it does not establish PR recovery: the #107
-experiment saved the exact key and cache version on the head branch, yet both the
-original PR rerun and the updated PR reported misses. The backend cause is not
-established. See the [recorded evidence](evidence/issue-107-ci-capacity.md#shared-action-recovery-validation--2026-09-28).
+```sh
+gh workflow run aseprite-build.yml --ref dev
+# After the build succeeds for the missing key:
+gh run rerun <failed-run-id> --failed
+```
 
-Prepare recipe changes provisionally on their branch, then on main after promotion.
-Do not infer main or PR readiness from a branch build. If an older failed run needs
-a different recipe, prepare its exact key on a ref visible to that run; a newer
-binary is not a substitute. GitHub documents cache scope in
+Keep the old CI consumer in that small bootstrap PR. Switch the consumer only after
+the base-branch cache is ready. After normal promotion, prepare the stable cache on
+main. This order needs no early promotion of unrelated development work.
+
+A PR's cache token grants access to its merge ref, base branch, and default branch;
+it does not grant access to its head branch's cache. A branch push or manual run can
+read that branch's cache. The #107 experiment verified these scopes and a hit/miss
+pair with identical key, cache version, and path. See the
+[scope diagnosis](evidence/issue-107-ci-capacity.md#cache-scope-diagnosis--2026-09-28).
+A feature-branch build therefore verifies the builder but cannot recover that PR.
+Main cannot consume a dev or feature-branch cache.
+
+The Actions UI needs the workflow on the default branch for normal discovery.
+During #107 rollout, a registered workflow was also successfully dispatched by CLI
+on a non-default branch. The temporary registration trigger is removed from the
+final tree; the builder is manual-only. If an older failed run needs a different
+recipe, prepare its exact key on a ref visible to that run; a newer binary is not
+a substitute. GitHub documents cache scope in
 [GitHub's branch restrictions](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching#restrictions-for-accessing-a-cache).
 
 The maintenance workflow has its own concurrency group and only its build job.
@@ -302,7 +313,7 @@ The test does not start Godot. The example's separate Godot tests and local
 windowed/package evidence are documented beside it and are not claimed by Linux CI.
 
 The manual maintenance job builds the official source release and verifies the archive
-against the version and SHA-256 authority in `.github/actions/setup-linux-aseprite/action.yml`. It
+against the version and SHA-256 authority in `.github/actions/aseprite-runtime/action.yml`. It
 uses the runner's Clang 18 toolchain, Release configuration with `-O1 -DNDEBUG`,
 and two build processes. This profile prioritizes compilation time for functional
 verification; it does not certify Aseprite's optimized runtime performance.
