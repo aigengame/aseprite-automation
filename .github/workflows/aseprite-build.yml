@@ -3,6 +3,8 @@ run-name: Build Aseprite from ${{ github.ref_name }}
 
 on:
   workflow_dispatch:
+  push:
+    branches: [codex/issue-107-ci-capacity]
 
 permissions:
   contents: read
@@ -14,6 +16,7 @@ concurrency:
 jobs:
   build-aseprite:
     name: Build Aseprite (manual maintenance)
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
