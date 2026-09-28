@@ -1,10 +1,20 @@
 name: CI
+run-name: ${{ inputs.task == 'build-aseprite' && 'Build Aseprite' || 'CI' }} from ${{ github.ref_name }} (${{ github.event_name }})
 
 on:
   pull_request:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      task:
+        description: Verify SPA or prepare the Aseprite binary for later verification.
+        type: choice
+        required: true
+        default: verify
+        options:
+          - verify
+          - build-aseprite
   schedule:
     # GitHub schedules the default branch (main): 03:23 Asia/Shanghai.
     - cron: "23 19 * * *"
@@ -13,12 +23,13 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}-${{ inputs.task || 'verify' }}
   cancel-in-progress: true
 
 jobs:
   quality:
-    name: Source quality
+    name: ${{ inputs.task == 'build-aseprite' && 'Not requested - Source quality' || 'Source quality' }}
+    if: inputs.task != 'build-aseprite'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -46,7 +57,8 @@ jobs:
         run: uv run --frozen python scripts/lua_quality.py
 
   fast-tests:
-    name: Fast tests
+    name: ${{ inputs.task == 'build-aseprite' && 'Not requested - Fast tests' || 'Fast tests' }}
+    if: inputs.task != 'build-aseprite'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -62,7 +74,8 @@ jobs:
         run: uv run --frozen --group test pytest -m "not e2e"
 
   package:
-    name: Build and smoke test distributions
+    name: ${{ inputs.task == 'build-aseprite' && 'Not requested - Build and smoke test distributions' || 'Build and smoke test distributions' }}
+    if: inputs.task != 'build-aseprite'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -87,20 +100,12 @@ jobs:
           retention-days: 7
 
   aseprite-e2e:
-    name: Linux real Aseprite E2E
+    name: ${{ inputs.task == 'build-aseprite' && 'Not requested - Linux real Aseprite E2E' || 'Linux real Aseprite E2E' }}
+    if: inputs.task != 'build-aseprite'
     runs-on: ubuntu-24.04
-    # Fail-safe ceiling = verification budget + at most 40 minutes of cold build.
-    timeout-minutes: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && 60 || 80 }}
-    env:
-      SPA_CI_BUDGET_SECONDS: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && 1200 || 2400 }}
-      SPA_ASEPRITE_BUILD_SECONDS: 0
+    timeout-minutes: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && 20 || 40 }}
     steps:
-      - name: Start the verification clock
-        shell: bash
-        run: echo "SPA_CI_STARTED_AT=$(python3 -c 'import time; print(time.monotonic())')" >> "$GITHUB_ENV"
-
       - name: Check out the tested commit
-        id: checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           lfs: true
@@ -125,6 +130,32 @@ jobs:
           overwrite: true
           retention-days: 14
 
-      - name: Enforce the verification budget
-        if: always() && steps.checkout.outcome == 'success'
-        run: python3 scripts/ci_budget.py check
+  build-aseprite:
+    name: Build Aseprite (manual maintenance)
+    if: github.event_name == 'workflow_dispatch' && inputs.task == 'build-aseprite'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Check out the selected build recipe
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Prepare and verify the Aseprite binary
+        uses: ./.github/actions/setup-linux-aseprite
+        with:
+          build-if-missing: "true"
+
+      - name: Explain cache scope and recovery
+        shell: bash
+        run: |
+          {
+            echo "### Aseprite maintenance complete"
+            echo "- Build recipe commit: \`$(git rev-parse HEAD)\`"
+            echo "- Run ref: \`$GITHUB_REF\`"
+            if [ "$GITHUB_REF" = "refs/heads/main" ]; then
+              echo "- Stable runtime: main cache is available to other branches."
+            else
+              echo "- Provisional branch runtime: this cache cannot supply main."
+              echo "- After promotion, run build-aseprite on main to prepare the stable runtime."
+            fi
+            echo "- Re-run the original failed verification; this maintenance run is not SPA test evidence."
+          } >> "$GITHUB_STEP_SUMMARY"

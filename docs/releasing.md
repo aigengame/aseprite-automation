@@ -44,19 +44,16 @@ Release verification selects `e2e and not slow` at the exact release SHA. It ret
 the real native suite and small wizard probes; complete example rebuilds are local
 opt-in checks. A routine CI or nightly result cannot replace release verification.
 
-The job has an owner-defined 40-minute verification budget. Only a cache miss's
-Aseprite source download, configuration, and compilation are excluded. Native
-setup outside that build, all tests, quality/package checks, and artifact uploads
-count. The final budget check is part of the required exact-SHA verification job;
-an overrun prevents publication. The cold build has its own 40-minute safety limit,
-and the outer job has an 80-minute fail-safe ceiling. That ceiling does not increase
-the 40-minute verification allowance. See the
-[budget enforcement and its timing boundary](testing.md#complete-example-rebuilds).
-The
-[issue #107 capacity measurements](evidence/issue-107-ci-capacity.md) cover cold
-native setup, the retained tests, quality and package checks, and artifact uploads
-with the excluded build shown separately. The budget is not a release-latency
-target or an automatic increase policy.
+The verification job uses GitHub's native **40-minute timeout**, including runtime
+setup, all tests, quality/package checks, and uploads. It does not compile Aseprite
+or subtract time. A missing or invalid binary fails the gate and prevents publication.
+Follow [manual Aseprite recovery](testing.md#restore-the-aseprite-runtime), then
+re-run the original failed Release run to preserve its exact SHA and release tail.
+A maintenance success does not authorize publication. The 40-minute limit applies
+to the verification job; draft creation and publication are separate jobs.
+
+The [issue #107 capacity measurements](evidence/issue-107-ci-capacity.md) retain
+historical experiments separately from the current cache-only verification policy.
 
 These results answer different platform questions. Linux headless success does not
 cover the macOS bundle or restricted-agent launch path. Neither environment currently

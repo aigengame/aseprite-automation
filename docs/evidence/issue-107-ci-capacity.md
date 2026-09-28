@@ -2,15 +2,29 @@
 
 ## Current acceptance
 
-The owner retained the 20/40/40-minute verification budgets and removed both
-automatic example rebuilds. A later 2026-09-28 decision excludes the measured
-Aseprite cache-miss build from those budgets. All other setup and verification
-still count. This supersedes the earlier whole-job budget and the pending choice
-between private prebuilt artifacts and larger runners. PR #121 remains draft while
-the revised accounting is verified; the implementation keeps the existing jobs,
-cache, and source-build path.
+The latest owner decision on 2026-09-28 replaces the measured-build deduction
+experiment. Verification now uses native job timeouts: PR/push 20 minutes,
+nightly/manual verification 40 minutes, and Release verification 40 minutes.
+Aseprite cache misses fail verification without compilation. Maintenance is an
+explicit, separate 40-minute job selected through the existing CI manual entry
+(`task=build-aseprite`); its success is followed by a rerun of the original failed
+verification. Stable binaries are prepared on main. Branch builds provide only
+provisional evidence until promotion and preparation on main.
 
-## Owner-approved budget boundary — 2026-09-28
+The owner explicitly selected reuse of the registered CI entry to avoid requiring
+a new workflow on main before branch verification. Both complete wizard rebuilds
+remain local opt-in checks. The exact-release-SHA gate and retained native suite
+stay required. Current recovery-path execution and review are pending; no earlier
+cold or warm timing validates this replacement by itself.
+
+## Superseded measured-build deduction experiment
+
+The next section records the earlier decision and experiment, not current policy.
+The owner rejected its second clock, custom timeout handling, and 60/80-minute job
+ceilings. That helper and its dedicated tests have been removed. The current
+workflow and recovery contract are in `docs/testing.md`.
+
+### Historical budget boundary — 2026-09-28 (superseded)
 
 Recent non-experiment observations found 18 native cache lookups and 18 hits among
 20 CI runs; two runs were waiting for workflow approval. The main cache created
