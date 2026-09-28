@@ -171,13 +171,13 @@ A failure in any job fails CI. Configure these four named jobs as required check
 
 The Linux E2E job is required for every verification event. These events use the
 same native suite; excluding complete example rebuilds does not skip the required
-CI check. Manual `task=build-aseprite` is a separate maintenance operation:
+CI check. **Build Aseprite** is a separate manual maintenance workflow:
 
 | Trigger | Real-runtime selection |
 | --- | --- |
 | Every PR or push to `main`, including example and CI changes | `e2e and not slow`: all routine E2E cases, including the small wizard probes. |
 | Nightly on `main` | `e2e and not slow` at the scheduled main SHA. |
-| Manual **CI → Run workflow**, `task=verify` | `e2e and not slow` at the selected ref. |
+| Manual **CI → Run workflow** | `e2e and not slow` at the selected ref. |
 | Release verification | `e2e and not slow` at the exact release SHA before publication. |
 
 The shared `.github/actions/run-linux-aseprite-e2e/action.yml` owns this selection.
@@ -221,7 +221,7 @@ and superseded experiments.
 
 ### Restore the Aseprite runtime
 
-Normal PR/push CI, nightly, manual `task=verify` (the default), and Release only
+Normal PR/push CI, nightly, manual CI, and Release only
 restore an exact Aseprite cache entry. A miss fails before native dependency
 installation or compilation and identifies the required key. It does not skip the
 native gate or report success. A restored binary must still pass the executable,
@@ -229,8 +229,8 @@ resource, version, and real `--batch --script` checks before SPA's E2E suite run
 
 To recover:
 
-1. Open **Actions → CI → Run workflow**, select the recipe branch and
-   `task=build-aseprite`. Use **main for the stable runtime**. This selection runs
+1. Open **Actions → Build Aseprite → Run workflow** and select the recipe branch.
+   Use **main for the stable runtime**. The separate `aseprite-build.yml` runs
    only **Build Aseprite (manual maintenance)** with its own 40-minute native job
    timeout. It validates the pinned source checksum, builds if the exact cache is
    missing, checks the real batch/script path, and saves the verified tree.
@@ -242,15 +242,16 @@ To recover:
 CLI equivalent for the stable runtime:
 
 ```sh
-gh workflow run ci.yml --ref main -f task=build-aseprite
+gh workflow run aseprite-build.yml --ref main
 # After the build succeeds:
 gh run rerun <failed-run-id> --failed
 ```
 
-The existing CI workflow is already registered on main. Before this change is
-promoted, invoke that same workflow with `--ref <implementation-branch>` and
-`-f task=build-aseprite` to verify the provisional recipe. The main UI receives the
-new selector after promotion; no separate workflow registration is required.
+The new manual workflow must reach the default branch before it can be dispatched.
+Deliver it through dev and promotion to main. After promotion, run **Build Aseprite**
+on main and verify this new entry before rerunning any failed verification. Earlier
+branch evidence for the shared build action does not establish that this separate
+entry ran. Do not retain a second build mode in CI for this one-time rollout.
 
 A main cache is available to other branches. A PR can also read its head/base
 branch caches, but main cannot consume a feature/dev cache. Build recipe changes
@@ -260,11 +261,12 @@ older failed run needs a different recipe, prepare its exact key on a ref visibl
 to that run; a newer binary is not a substitute. Cache access follows
 [GitHub's branch restrictions](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching#restrictions-for-accessing-a-cache).
 
-The maintenance selection has separate concurrency and skipped-check names, so it
-does not cancel a manual verification or emit skipped successes under the normal
-verification check names. It never publishes a SPA release. If a restored entry
-fails the native probe, inspect and remove that exact invalid cache entry before
-manually rebuilding; Actions caches are immutable.
+The maintenance workflow has its own concurrency group and only its build job.
+It emits no SPA verification checks and must not replace them in branch protection
+or release gates. CI always runs its four verification jobs. Maintenance never
+publishes a SPA release. If a restored entry fails the native probe, inspect and
+remove that exact invalid cache entry before manually rebuilding; Actions caches
+are immutable.
 
 ## Platform and display requirements
 

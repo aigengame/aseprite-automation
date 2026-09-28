@@ -5,19 +5,22 @@
 The latest owner decision on 2026-09-28 replaces the measured-build deduction
 experiment. Verification now uses native job timeouts: PR/push 20 minutes,
 nightly/manual verification 40 minutes, and Release verification 40 minutes.
-Aseprite cache misses fail verification without compilation. Maintenance is an
-explicit, separate 40-minute job selected through the existing CI manual entry
-(`task=build-aseprite`); its success is followed by a rerun of the original failed
-verification. Stable binaries are prepared on main. Branch builds provide only
-provisional evidence until promotion and preparation on main.
+Aseprite cache misses fail verification without compilation. Maintenance runs in
+the independent, manual-only `aseprite-build.yml` with a 40-minute job timeout;
+its success is followed by a rerun of the original failed verification. Stable
+binaries are prepared on main. Branch builds provide only provisional evidence
+until promotion and preparation on main.
 
-The owner explicitly selected reuse of the registered CI entry to avoid requiring
-a new workflow on main before branch verification. Both complete wizard rebuilds
+The owner subsequently approved separating the workflow after reviewing the cost
+of sharing CI's entry. The CI task selector, conditional check names, maintenance
+job, and task-specific concurrency are removed. Both complete wizard rebuilds
 remain local opt-in checks. The exact-release-SHA gate and retained native suite
-stay required. Current recovery-path execution and review are pending; no earlier
-cold or warm timing validates this replacement by itself.
+stay required. The new manual entry requires promotion to main before dispatch;
+earlier shared-action execution does not establish that this entry ran. Current
+recovery-path results are recorded below; independent-entry execution remains a
+post-promotion check.
 
-## Manual recovery validation — 2026-09-28
+## Shared-action recovery validation — 2026-09-28
 
 The replacement implementation is `aa588fc557121e0c5d17ebf163a7f0bd0b904f65`.
 The [initial PR verification](https://github.com/aigengame/aseprite-automation/actions/runs/36399147774/job/108852606621)
@@ -29,12 +32,15 @@ Native OS dependency installation, compilation, cache save, and native E2E were
 skipped after that failure. There is no native JUnit report for this expected
 refusal. The independent source, fast-test, and distribution jobs passed.
 
-The owner-selected existing manual entry accepted `task=build-aseprite` on the
-implementation branch even though main did not yet contain the new input:
+Before the workflow split, the existing manual entry accepted
+`task=build-aseprite` on the implementation branch even though main did not yet
+contain the new input:
 [manual preparation](https://github.com/aigengame/aseprite-automation/actions/runs/36399311924).
 Only the maintenance job runs; the normal verification check names are not emitted
-as skipped successes. Preparation and the original-run recovery remain pending
-until their actual results are recorded.
+as skipped successes. This temporary entry has now been removed from CI. The build
+script, cache identity, and native probe remain shared and unchanged by that split.
+Preparation and the original-run recovery remain pending until their actual
+results are recorded. This run cannot validate the new workflow's dispatch entry.
 
 ## Superseded measured-build deduction experiment
 

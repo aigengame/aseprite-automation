@@ -50,7 +50,7 @@ runs:
         SPA_ASEPRITE_CACHE_KEY: ${{ steps.cache.outputs.cache-primary-key }}
       run: |
         echo "::error::Required Aseprite binary is missing. Cache key: $SPA_ASEPRITE_CACHE_KEY"
-        echo "Run CI manually with task=build-aseprite, then re-run this failed workflow."
+        echo "Run the Build Aseprite workflow (aseprite-build.yml), then re-run this failed workflow."
         echo "Use main for the stable runtime, or this recipe's branch for provisional verification."
         echo "Recovery and branch scope: docs/testing.md#restore-the-aseprite-runtime"
         exit 1

@@ -47,7 +47,8 @@ opt-in checks. A routine CI or nightly result cannot replace release verificatio
 The verification job uses GitHub's native **40-minute timeout**, including runtime
 setup, all tests, quality/package checks, and uploads. It does not compile Aseprite
 or subtract time. A missing or invalid binary fails the gate and prevents publication.
-Follow [manual Aseprite recovery](testing.md#restore-the-aseprite-runtime), then
+Run the separate **Build Aseprite** workflow as described in
+[manual Aseprite recovery](testing.md#restore-the-aseprite-runtime), then
 re-run the original failed Release run to preserve its exact SHA and release tail.
 A maintenance success does not authorize publication. The 40-minute limit applies
 to the verification job; draft creation and publication are separate jobs.
