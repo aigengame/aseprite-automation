@@ -261,13 +261,15 @@ Keep the old CI consumer in that small bootstrap PR. Switch the consumer only af
 the base-branch cache is ready. After normal promotion, prepare the stable cache on
 main. This order needs no early promotion of unrelated development work.
 
-A PR's cache token grants access to its merge ref, base branch, and default branch;
-it does not grant access to its head branch's cache. A branch push or manual run can
-read that branch's cache. The #107 experiment verified these scopes and a hit/miss
-pair with identical key, cache version, and path. See the
-[scope diagnosis](evidence/issue-107-ci-capacity.md#cache-scope-diagnosis--2026-09-28).
-A feature-branch build therefore verifies the builder but cannot recover that PR.
-Main cannot consume a dev or feature-branch cache.
+In the recorded #121 experiment, the PR cache token granted access to its merge
+ref, dev, and main, but omitted the head branch. That run missed the exact cache
+which the branch-push control restored, with matching key, version, and path. See
+the [scope diagnosis](evidence/issue-107-ci-capacity.md#cache-scope-diagnosis--2026-09-28).
+This establishes the recovery procedure for the observed #121 runs, not a universal
+PR restriction. GitHub's cache reference also documents access to the current
+feature branch. Verify visibility for the actual consumer; for this rollout,
+prepare the matching cache on dev and rerun #121. Main cannot consume a dev or
+feature-branch cache.
 
 The Actions UI needs the workflow on the default branch for normal discovery.
 During #107 rollout, a registered workflow was also successfully dispatched by CLI

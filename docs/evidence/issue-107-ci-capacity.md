@@ -8,8 +8,8 @@ nightly/manual verification 40 minutes, and Release verification 40 minutes.
 Aseprite cache misses fail verification without compilation. Maintenance runs in
 the independent, manual-only `aseprite-build.yml` with a 40-minute job timeout;
 its success is followed by a rerun of the original failed verification. Stable
-binaries are prepared on main. Provisional PR recovery uses its base branch with
-the same recipe; a cache saved only on the head branch cannot recover the PR.
+binaries are prepared on main. Provisional recovery for the observed #121 runs
+uses dev with the same recipe; their tokens did not include the head-branch scope.
 
 The owner subsequently approved separating the workflow after reviewing the cost
 of sharing CI's entry. The CI task selector, conditional check names, maintenance
@@ -33,10 +33,14 @@ key, cache version, and installation path:
 | [PR](https://github.com/aigengame/aseprite-automation/actions/runs/36403984682/job/108868185367) | `refs/pull/121/merge` (permission 3), `refs/heads/dev` (1), `refs/heads/main` (1) | Miss; failed in 8 seconds |
 | [Push](https://github.com/aigengame/aseprite-automation/actions/runs/36403979366/job/108868168791) | `refs/heads/codex/issue-107-ci-capacity` (3), `refs/heads/main` (1) | Exact hit; succeeded in 14 seconds |
 
-**Root cause:** the saved binary belongs to the PR head branch, which is absent
-from the PR's cache permissions. A main or dev cache with the exact key is readable
-by this PR; repeatedly rerunning against the head-branch cache cannot recover it.
-No alternate cache transport, token change, or automatic compilation is needed.
+**Observed cause for #121:** the saved binary belongs to the head branch, which is
+absent from this PR run's reported cache permissions. Its token grants dev/main
+access; prepare the exact key on dev and verify recovery by rerunning the original
+failed job. Repeating the recorded scope and head-cache state cannot recover it.
+These observations do not establish a universal GitHub PR rule: the current
+[cache reference](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching#restrictions-for-accessing-a-cache)
+also documents access to the current feature branch. The discrepancy does not
+change this run's observed scopes or justify a cache transport workaround.
 
 A separate dispatch experiment removed all automatic triggers after registration
 and successfully ran a

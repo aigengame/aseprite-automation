@@ -52,7 +52,7 @@ runs:
         echo "::error::Required Aseprite binary is missing. Cache key: $SPA_ASEPRITE_CACHE_KEY"
         echo "Run the Build Aseprite workflow (aseprite-build.yml), then re-run this failed workflow."
         echo "Use main for the stable runtime, or the PR base branch with the same recipe for provisional recovery."
-        echo "A PR cannot read a cache saved only on its head branch."
+        echo "Verify that this run can read the selected cache ref; do not assume head-branch availability."
         echo "Recovery and branch scope: docs/testing.md#restore-the-aseprite-runtime"
         exit 1
 
