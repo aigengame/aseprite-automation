@@ -193,6 +193,51 @@ nightly run. Its summary records the actual checked-out SHA and whether slow tes
 were included. Scheduled runs can be delayed; their result never replaces exact-SHA
 release verification.
 
+### Restore the Aseprite runtime
+
+Issue #107 introduces a separate **Build Aseprite** maintenance workflow. This
+bootstrap adds the producer before PR #121 switches CI and Release to restore-only
+consumption. The existing CI, its legacy setup action, and its test selection remain
+unchanged in this first slice. #121 removes that legacy action and completes the
+20/40/40-minute verification limits and local-only full example rebuild policy.
+
+The new manual workflow uses a 40-minute native job timeout. Its shared runtime
+action, `.github/actions/aseprite-runtime/action.yml`, pins the source version and
+checksum. `scripts/build_aseprite.sh` owns the build recipe: Ubuntu 24.04, Clang 18,
+two build processes, scripting enabled, and the non-graphical backend. The exact
+cache key includes the runner architecture, pinned version/checksum, and recipe
+content. Executable, data-resource, version, and real `--batch --script` checks must
+pass before the installed tree is saved. On an exact hit it repeats these checks
+without compiling. This workflow does not run SPA tests or publish a release.
+
+For stable recovery, select **main** in **Actions → Build Aseprite → Run workflow**.
+For a provisional recipe that is not yet on main, deliver the producer to the PR's
+**base branch**, normally dev, before switching that PR's consumer:
+
+```sh
+# After this bootstrap is merged into dev:
+gh workflow run aseprite-build.yml --ref dev
+# Confirm success for the exact key reported by the failed verification, then:
+gh run rerun <failed-run-id> --failed
+```
+
+The workflow is already registered in this repository; CLI dispatch succeeded on
+the feature branch. After merge, verify dispatch and cache save on dev before
+claiming recovery. Normal UI discovery becomes available after promotion to main.
+In the [recorded #121 experiment](https://github.com/aigengame/aseprite-automation/actions/runs/36403984682/job/108868185367),
+the PR token allowed its merge ref, dev, and main but omitted the head branch. It
+missed the exact cache that the branch-push control restored. This is an observed
+#121 boundary, not a universal PR restriction: [GitHub's cache reference](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching#restrictions-for-accessing-a-cache)
+also documents current feature-branch access. Verify the consumer's scope; use dev
+preparation for this rollout. Main cannot consume dev or feature-branch caches.
+After normal promotion, run the producer on main to prepare the stable runtime.
+
+Maintenance success is not verification evidence. Rerun the original failed run
+to preserve its SHA/ref and Release gate. Do not make the maintenance job a required
+SPA verification check. If a restored entry fails the native probe, inspect and
+remove that exact invalid cache entry before manually rebuilding; caches are
+immutable. A different recipe or a cache on an unreadable ref cannot recover the run.
+
 ## Platform and display requirements
 
 Verification tier, host platform, and display capability are separate properties.
