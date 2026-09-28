@@ -35,7 +35,7 @@ jobs:
             if [ "$GITHUB_REF" = "refs/heads/main" ]; then
               echo "- Stable runtime: main cache is available to other branches."
             else
-              echo "- Provisional runtime: a PR can consume this cache only if this is its base branch."
+              echo "- Provisional runtime: verify that the failed run can read this cache ref."
               echo "- Same-branch push and manual runs can also consume it; main cannot."
               echo "- After promotion, run Build Aseprite on main to prepare the stable runtime."
             fi

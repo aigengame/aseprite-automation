@@ -224,9 +224,12 @@ gh run rerun <failed-run-id> --failed
 The workflow is already registered in this repository; CLI dispatch succeeded on
 the feature branch. After merge, verify dispatch and cache save on dev before
 claiming recovery. Normal UI discovery becomes available after promotion to main.
-A PR cache token grants access to its merge ref, base branch, and main; it cannot
-read a cache saved only on its head branch. A same-branch push or manual run can
-consume that branch's cache. Main cannot consume dev or feature-branch caches.
+In the [recorded #121 experiment](https://github.com/aigengame/aseprite-automation/actions/runs/36403984682/job/108868185367),
+the PR token allowed its merge ref, dev, and main but omitted the head branch. It
+missed the exact cache that the branch-push control restored. This is an observed
+#121 boundary, not a universal PR restriction: [GitHub's cache reference](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching#restrictions-for-accessing-a-cache)
+also documents current feature-branch access. Verify the consumer's scope; use dev
+preparation for this rollout. Main cannot consume dev or feature-branch caches.
 After normal promotion, run the producer on main to prepare the stable runtime.
 
 Maintenance success is not verification evidence. Rerun the original failed run
