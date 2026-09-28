@@ -545,6 +545,11 @@ keeps one Sprite live and applies one final save-and-reopen gate. A second Pytho
 generated-Lua behavior path is prohibited. `spa script run` is a separate escape hatch
 for exact caller-owned Lua and does not inherit Ordinary Core Operation guarantees.
 
+Cel relationship semantics live in `kernel/cel_relationship_support.lua`. The
+standalone relationship handler and `cel set` Plan Steps call its live entry point.
+`spa.cel_relationship` owns the shared input and evidence contracts; `spa.plan`
+composes those contracts and reports Step facts before final Plan persistence.
+
 ### Aseprite Runtime Integration
 
 The Aseprite Adapter owns the external integration mechanics:

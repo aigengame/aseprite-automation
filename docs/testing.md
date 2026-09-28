@@ -82,6 +82,11 @@ that a document-dependent Postcondition failure leaves the Target absent.
 Aggregate discovery conservatively requires every eligible Plan Step capability;
 the Plan execution gate checks selected Step requirements plus mandatory final Sprite
 inspection in its one Aseprite process.
+The Cel Plan tests compare standalone and Plan properties, linked Image facts, and
+stored pixels for hidden and zero-opacity Cels. A CLI subprocess fixture observes
+the real invocation and commit adapters and injects invalid native evidence to test
+the publication gate. The bounded [Cel Plan profile](evidence/issue-105-profile.md)
+records one fixed wizard workload, stage timings, and its measurement limits.
 
 The initial evidence profiles use local macOS Aseprite 1.3.18.5-dev and the pinned
 Linux CI Aseprite 1.3.18.5 source release. Both expose `_VERSION == "Lua 5.4"` and

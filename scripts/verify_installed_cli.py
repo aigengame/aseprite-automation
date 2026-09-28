@@ -48,6 +48,7 @@ for name in (
     "sprite_flatten.lua",
     "sprite_geometry.lua",
     "sprite_persistence.lua",
+    "cel_relationship_support.lua",
     "image_resize.lua",
     "image_resize_transform.lua",
     "image_orientation.lua",
