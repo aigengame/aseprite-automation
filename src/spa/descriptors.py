@@ -25,6 +25,7 @@ from spa.image import (
 )
 from spa.image_snapshot import COMPOSITION_RESOURCE, SNAPSHOT_RESOURCE
 from spa.layer import LAYER_OPERATIONS, LAYER_SELECT_RESOURCE
+from spa.motion import MOTION_OPERATIONS
 from spa.operation import (
     ACCESS_FAILURE_CODES,
     RUNTIME_FAILURE_CODES,
@@ -199,6 +200,7 @@ OPERATIONS = (
     *FRAME_OPERATIONS,
     *CEL_OPERATIONS,
     *CEL_RELATIONSHIP_OPERATIONS,
+    *MOTION_OPERATIONS,
     *IMAGE_OPERATIONS,
     *TAG_OPERATIONS,
     *EXPORT_OPERATIONS,
