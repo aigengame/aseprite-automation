@@ -1,15 +1,17 @@
 -- Two small authored subjects with distinct per-Frame geometry and stored pixels.
-local mode = ({ rgb = ColorMode.RGB, grayscale = ColorMode.GRAY, indexed = ColorMode.INDEXED })[app.params.mode or "rgb"]
+local modes = { rgb = ColorMode.RGB, grayscale = ColorMode.GRAY, indexed = ColorMode.INDEXED }
+local mode = modes[app.params.mode or "rgb"]
 local sprite = Sprite(24, 20, mode)
 if mode == ColorMode.INDEXED then sprite.transparentColor = tonumber(app.params.mask or "0") end
 local layer = sprite.layers[1]
 layer.name = app.params.artwork or "wizard"
 local durations = { 100, 300, 80, 275, 600 }
-for number = 2, 5 do
+local count = tonumber(app.params.frame_count or "5")
+for number = 2, count do
   sprite:newEmptyFrame(number)
 end
-for number = 1, 5 do
-  sprite.frames[number].duration = durations[number] / 1000
+for number = 1, count do
+  sprite.frames[number].duration = durations[(number - 1) % 5 + 1] / 1000
   local spec = sprite.spec
   spec.width = 8 + number % 2
   spec.height = 12
@@ -40,7 +42,7 @@ for number = 1, 5 do
   end
   pixel(0, 0, 2, 0) -- Hidden RGB/gray data must survive motion and native save/reopen.
   local cel = sprite:newCel(layer, number, image, Point(number - 3, 3 - number))
-  cel.opacity = 20 * number
+  cel.opacity = (20 * number) % 256
   cel.zIndex = number - 3
 end
 local other = sprite:newLayer()
@@ -54,6 +56,8 @@ if app.params.kind == "linked" then
   app.command.NewFrame { content = "cellinked" }
 elseif app.params.kind == "missing" then
   sprite:deleteCel(layer, 5)
+elseif app.params.kind == "boundary" then
+  layer:cel(1).position = Point(-32768, 32767)
 end
 layer.isVisible = false
 layer.isEditable = false

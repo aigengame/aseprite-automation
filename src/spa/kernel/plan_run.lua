@@ -6,6 +6,7 @@ local paint = dofile(app.params.paint)
 local frame = dofile(app.params.frame)
 local cel = dofile(app.params.cel)
 local relationship = dofile(app.params.cel_relationship)
+local motion = dofile(app.params.motion)
 local layer_select = dofile(app.params.layer_select)
 local digest = dofile(app.params.digest)
 local persistence = dofile(app.params.persistence)
@@ -135,6 +136,11 @@ local function execute_step(step)
     if result.rejection == nil then result.persisted_reopen_verified = false end
     return result
   end
+  if step.operation == "motion apply" then
+    local result = motion.apply_live(open_sprite, input, verified_uuids)
+    if result.rejection == nil then result.persisted_reopen_verified = false end
+    return result
+  end
   error("Operation is not Plan-eligible")
 end
 
@@ -167,6 +173,7 @@ local function execute()
           step_number = index,
           code = result.rejection.code,
           message = result.rejection.message,
+          frame_number = result.rejection.frame_number,
         },
       }
     end

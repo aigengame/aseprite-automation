@@ -36,6 +36,10 @@ def observed_invoke(*args):
             facts["sprite"]["metadata"]["cel_count"] = count
     elif case == "unverified_save":
         result.payload["persisted_reopen_verified"] = False
+    elif case == "motion_coverage":
+        result.payload["steps"][0]["result"]["cels"].pop()
+    elif case == "motion_count":
+        result.payload["steps"][0]["result"]["before_cel_count"] += 1
     return result
 
 

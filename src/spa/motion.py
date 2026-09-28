@@ -170,6 +170,15 @@ def reject_motion(input: MotionInput, invocation: KernelInvocationResult) -> Non
         return
     if not isinstance(rejected, dict):
         raise _invalid(invocation, "Motion rejection is not an object")
+    if rejected.get("code") not in {
+        *LAYER_ADDRESS_FAILURE_CODES,
+        "cel_frame_out_of_bounds",
+        "cel_unsupported_target",
+        "cel_not_found",
+        "motion_linked_cel",
+        "motion_position_out_of_bounds",
+    }:
+        raise _invalid(invocation, "Motion rejection has an unsupported code")
     number = rejected.get("frame_number", input.from_frame)
     if type(number) is not int or not input.from_frame <= number <= input.to_frame:
         raise _invalid(invocation, "Motion rejection has an invalid Frame Number")
@@ -343,5 +352,6 @@ MOTION_OPERATIONS = (
         MOTION_FAILURE_CODES,
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        plan_eligible=True,
     ),
 )
