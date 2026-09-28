@@ -1,24 +1,13 @@
 -- Cel-targeted scaling policy over the shared Image mutation lifecycle.
 local mutation = dofile(app.params.image_cel_mutation)
 local transform = dofile(app.params.image_resize_transform)
+local rounding = dofile(app.params.rounding)
 local json_null = json.decode("null")
 
-local function rounded_offset(pivot, old_size, new_size, rounding)
+local function rounded_offset(pivot, old_size, new_size, policy)
   local numerator = pivot * (old_size - new_size)
   local denominator = old_size
-  local applied
-  if rounding == "floor" then
-    applied = numerator // denominator
-  elseif rounding == "ceil" then
-    applied = -(-numerator // denominator)
-  elseif rounding == "toward-zero" then
-    applied = numerator < 0 and -(-numerator // denominator) or numerator // denominator
-  elseif rounding == "nearest-away-from-zero" then
-    local magnitude = (2 * math.abs(numerator) + denominator) // (2 * denominator)
-    applied = numerator < 0 and -magnitude or magnitude
-  else
-    error("unsupported Cel Position rounding")
-  end
+  local applied = rounding.ratio(numerator, denominator, policy)
   return { numerator = numerator, denominator = denominator, applied = applied }
 end
 

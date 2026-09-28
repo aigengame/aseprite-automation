@@ -90,8 +90,8 @@ installed Surface Manifest reports callable facts for one installation. See
 The accepted domain strategy separates **Sprite Authoring** (Core), **Asset
 Preparation** (Supporting), and **Asset Delivery** (Supporting) within one context.
 Reusable motion belongs to authoring; native save remains part of mutation completion.
-Preparation and motion feature contracts are planned, while Asset Delivery reuses
-existing exports. See [domain ownership](ARCHITECTURE.md#domain-ownership-view) and
+Preparation contracts remain planned. Bounded Cel motion is available through
+`motion apply`; Asset Delivery reuses existing exports. See [domain ownership](ARCHITECTURE.md#domain-ownership-view) and
 [ADR-0095](docs/adr/0095-asset-preparation-authoring-and-delivery.md); the installed
 Surface Manifest remains the source for callable capabilities.
 
@@ -309,6 +309,47 @@ Paint requires an existing Cel and Image and reports `cel_not_found` when absent
 Tilemap Cel inspection reports existence and Canvas Pixel position with
 `image_bounds: null`; Tile Cell geometry belongs to Tilemap inspection.
 
+`spa motion apply` authors position offsets, absolute opacity, or both over an
+inclusive `from_frame`/`to_frame` range on one exact `layer`. Every target Cel
+must already exist on a regular Transparent Layer. RGB, Grayscale, and Indexed
+are supported, including hidden and locked Layers. A target sharing its Image
+with any other Cel is refused; explicitly unlink it first when appropriate.
+Images, stored pixels, z-index, Frame durations, and unrelated facts are preserved.
+
+Each curve requires ordered unique keys at both range endpoints (one key for a
+single Frame), its own `interpolation` (`step`, `linear`, or `smoothstep`), and its
+own `rounding` (`toward-zero`, `floor`, `ceil`, or `nearest-away-from-zero`).
+Sampling uses Frame Number, not duration. Step interpolation holds the left key
+until the next key's Frame. Smoothstep uses `3t² - 2t³`. Position offsets are
+rounded before addition to each Cel's own starting position; they accept ±65535,
+while resulting positions must fit signed 16-bit coordinates. Movement outside
+the canvas is permitted. Opacity is absolute, from 0 through 255. Omitted curves
+preserve their property. The timeline and unique in-range keys bound the work;
+there is no 64-Cel limit.
+
+```sh
+spa motion apply --input-json '{
+  "source_sprite_file": "poses.aseprite",
+  "target_sprite_file": "moved.aseprite",
+  "in_place": false, "overwrite": false,
+  "layer": {"layer_path": [1]}, "from_frame": 1, "to_frame": 5,
+  "position_offsets": {
+    "interpolation": "smoothstep", "rounding": "nearest-away-from-zero",
+    "keys": [
+      {"frame_number": 1, "offset": {"x": 0, "y": 0}},
+      {"frame_number": 5, "offset": {"x": 8, "y": -4}}
+    ]
+  }
+}'
+```
+
+Motion validates every target and sampled result before mutation. Its `cels`
+result records each Cel's `before`, `after`, and sampled `offset`, and the
+standalone operation verifies save/reopen before Target Commit. The same frozen
+input and request reproduce native facts and pixels; applying relative motion to
+an already moved input accumulates displacement. Numeric verification does not
+establish visual continuity or artistic quality.
+
 `spa image resize` targets an existing Image on a regular Transparent Cel.
 It requires positive dimensions, `nearest-neighbor`, `bilinear`, or `rotsprite`,
 and a `keep` or `pivot` Cel-position policy. `pivot` requires signed 32-bit
@@ -448,7 +489,7 @@ explicit Source/Target publication intent as Frame authoring.
 `spa plan check` validates a bounded Plan, including current Source and Target path
 conditions, without starting Aseprite. `spa plan run`
 executes up to 64 Sprite-bound `sprite create`, `sprite get`, `frame list`,
-`frame get`, `frame add`, `frame duplicate`, `cel add`, `cel set`, and `paint apply` Steps
+`frame get`, `frame add`, `frame duplicate`, `cel add`, `cel set`, `motion apply`, and `paint apply` Steps
 on one live Sprite in one Aseprite process. A read Plan publishes no file. A mutating
 Plan declares one Target Sprite File; the staged file is reopened and verified before
 one Target Commit. A failed Step publishes no target. Typed Cel refusals identify the
@@ -465,6 +506,12 @@ effects. Its `before_cels`, `affected_cels`, and `cel` facts describe that Step'
 live state. The Step reports `persisted_reopen_verified: false`; the enclosing Plan
 reports persistence only after its final save/reopen gate. Source/Target paths,
 runtime settings, and overwrite intent belong to the Plan rather than its Steps.
+
+A `motion apply` Step accepts the same `layer`, range, and curve fields as the
+standalone operation. It resolves targets and captures baselines when that Step
+starts. Use separate Steps for different Layers. Its before/after facts describe
+that Step, with `persisted_reopen_verified: false`; later Steps may change those
+facts. Final verification compares the final live Sprite with the reopened file.
 
 `spa export image` renders one explicit Frame of the full canvas with persisted visible
 Layers. It accepts RGB Source Sprites with no Color Profile or sRGB. It rejects

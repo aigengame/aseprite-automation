@@ -42,6 +42,7 @@ from spa.raster import (
     Rectangle,
     Size,
 )
+from spa.rounding import ROUNDING_RESOURCE, Rounding
 from spa.sprite import (
     INSPECTION_SECTIONS,
     SPRITE_INSPECTION_RESOURCE,
@@ -52,7 +53,6 @@ from spa.sprite import (
 )
 
 ResizeMethod = Literal["nearest-neighbor", "bilinear", "rotsprite"]
-Rounding = Literal["toward-zero", "floor", "ceil", "nearest-away-from-zero"]
 
 
 class KeepPosition(PublicModel):
@@ -303,6 +303,7 @@ IMAGE_RESIZE_HANDLER = PackagedHandler(
         *IMAGE_MUTATION_RESOURCES,
         IMAGE_RESIZE_TRANSFORM_RESOURCE,
         EFFECTIVE_PALETTE_RESOURCE,
+        ROUNDING_RESOURCE,
     ),
 )
 

@@ -66,6 +66,7 @@ def test_manifest_is_projected_from_command_descriptors() -> None:
         "spa cel copy",
         "spa cel link",
         "spa cel unlink",
+        "spa motion apply",
         "spa image resize",
         "spa image get",
         "spa image replace",
@@ -98,6 +99,7 @@ def test_manifest_is_projected_from_command_descriptors() -> None:
         "spa frame duplicate",
         "spa cel add",
         "spa cel set",
+        "spa motion apply",
     }
     for entry in manifest["operations"]:
         command = entry["operation"].split()[1:]

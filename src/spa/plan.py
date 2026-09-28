@@ -1,5 +1,6 @@
 """Bounded, single-Sprite Operation Plan preflight and execution."""
 
+from dataclasses import replace
 from pathlib import Path
 from typing import Annotated, Any, Literal, assert_never
 
@@ -42,6 +43,14 @@ from spa.frame import (
     validate_frame_sequence,
 )
 from spa.layer import LAYER_ADDRESS_FAILURE_CODES, LayerAddress, LayerTargetDetails
+from spa.motion import (
+    MOTION_OPERATIONS,
+    MOTION_RESOURCE,
+    MotionEvidence,
+    MotionInput,
+    reject_motion,
+    validate_motion_evidence,
+)
 from spa.mutation import (
     TargetCommit,
     source_target_identity_issue,
@@ -71,6 +80,7 @@ from spa.ports import (
     TargetCommitEvidence,
 )
 from spa.raster import SELECTION_MASK_RESOURCE
+from spa.rounding import ROUNDING_RESOURCE
 from spa.sprite import (
     INSPECTION_SECTIONS,
     SPRITE_CREATION_RESOURCE,
@@ -99,6 +109,7 @@ ELIGIBLE_OPERATIONS = {
         *FRAME_OPERATIONS,
         *CEL_OPERATIONS,
         *CEL_RELATIONSHIP_OPERATIONS,
+        *MOTION_OPERATIONS,
     )
     if descriptor.plan_eligible
 }
@@ -116,6 +127,8 @@ PLAN_RUN_HANDLER = PackagedHandler(
         CEL_SUPPORT_RESOURCE,
         CEL_SELECT_RESOURCE,
         CEL_RELATIONSHIP_RESOURCE,
+        MOTION_RESOURCE,
+        ROUNDING_RESOURCE,
         DIGEST_RESOURCE,
         SPRITE_INSPECTION_FIXTURE,
         PAINT_PROBE_FIXTURE,
@@ -176,6 +189,11 @@ class CelSetStep(PublicModel):
     input: CelSetInput
 
 
+class MotionStep(PublicModel):
+    operation: Literal["motion apply"]
+    input: MotionInput
+
+
 PlanStep = Annotated[
     CreateStep
     | GetStep
@@ -185,7 +203,8 @@ PlanStep = Annotated[
     | FrameAddStep
     | FrameDuplicateStep
     | CelAddStep
-    | CelSetStep,
+    | CelSetStep
+    | MotionStep,
     Field(discriminator="operation"),
 ]
 
@@ -238,7 +257,14 @@ class PlanDefinition(PublicModel):
         mutates = creates or any(
             isinstance(
                 step,
-                (PaintStep, FrameAddStep, FrameDuplicateStep, CelAddStep, CelSetStep),
+                (
+                    PaintStep,
+                    FrameAddStep,
+                    FrameDuplicateStep,
+                    CelAddStep,
+                    CelSetStep,
+                    MotionStep,
+                ),
             )
             for step in self.steps
         )
@@ -324,6 +350,10 @@ class CelSetStepResult(CelRelationshipChangeEvidence):
     persisted_reopen_verified: Literal[False]
 
 
+class MotionStepResult(MotionEvidence):
+    persisted_reopen_verified: Literal[False]
+
+
 class CreateStepOutcome(PublicModel):
     operation: Literal["sprite create"]
     result: CreateStepResult
@@ -369,6 +399,11 @@ class CelSetStepOutcome(PublicModel):
     result: CelSetStepResult
 
 
+class MotionStepOutcome(PublicModel):
+    operation: Literal["motion apply"]
+    result: MotionStepResult
+
+
 StepOutcome = Annotated[
     CreateStepOutcome
     | GetStepOutcome
@@ -378,7 +413,8 @@ StepOutcome = Annotated[
     | FrameAddStepOutcome
     | FrameDuplicateStepOutcome
     | CelAddStepOutcome
-    | CelSetStepOutcome,
+    | CelSetStepOutcome
+    | MotionStepOutcome,
     Field(discriminator="operation"),
 ]
 
@@ -602,6 +638,9 @@ def _validated_steps(
                 validate_relationship_evidence(
                     step.input, outcome.result, invocation, "set"
                 )
+            elif isinstance(step, MotionStep):
+                outcome = MotionStepOutcome.model_validate(item)
+                validate_motion_evidence(step.input, outcome.result, invocation)
             elif isinstance(step, CelAddStep):
                 outcome = CelAddStepOutcome.model_validate(item)
                 target = step.input.target
@@ -656,7 +695,7 @@ def _validate_cel_count_sequence(
         elif isinstance(outcome, CelAddStepOutcome):
             cel_count -= 1
             reported_count = outcome.result.before_cel_count
-        elif isinstance(outcome, CelSetStepOutcome):
+        elif isinstance(outcome, (CelSetStepOutcome, MotionStepOutcome)):
             reported_count = outcome.result.before_cel_count
         elif isinstance(outcome, (FrameAddStepOutcome, FrameDuplicateStepOutcome)):
             # Both copied and linked Images add one Cel per inserted Layer/Frame.
@@ -715,6 +754,25 @@ def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunRes
                     invocation, "Plan Kernel returned invalid Cel rejection"
                 )
             step = plan.steps[index - 1]
+            if isinstance(step, MotionStep):
+                try:
+                    reject_motion(
+                        step.input,
+                        replace(invocation, payload={"rejection": cel_rejection}),
+                    )
+                except OperationIssue as exc:
+                    raise OperationIssue(
+                        exc.code,
+                        str(exc),
+                        exc.details.model_copy(update={"step_number": index}),
+                    ) from exc
+                except RuntimeIssue as exc:
+                    raise _malformed(
+                        invocation,
+                        str(exc),
+                        failed_step=index,
+                        failed_operation=step.operation,
+                    ) from exc
             code = cel_rejection.get("code")
             message = cel_rejection.get("message")
             add_codes = {
@@ -927,6 +985,8 @@ PLAN_OPERATIONS = (
             "cel_not_found",
             "cel_unsupported_target",
             "cel_frame_out_of_bounds",
+            "motion_linked_cel",
+            "motion_position_out_of_bounds",
             "target_commit_failed",
         ),
         execution_kind="mutation",

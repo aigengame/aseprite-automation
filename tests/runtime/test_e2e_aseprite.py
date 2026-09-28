@@ -100,6 +100,7 @@ def test_info_reports_installed_runtime() -> None:
         "spa cel copy",
         "spa cel link",
         "spa cel unlink",
+        "spa motion apply",
         "spa image resize",
         "spa image get",
         "spa image replace",

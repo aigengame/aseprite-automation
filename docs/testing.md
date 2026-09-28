@@ -14,6 +14,7 @@ verification tier. The layout does not mirror source packages or CLI Command Gro
 | `tests/examples/` | Installed-CLI workflows, deterministic asset production, and checked-in downstream asset agreement. |
 | `tests/frame/` | Frame timing, insertion, Cel copy/link intent, Tag adjustment, and native persistence. |
 | `tests/layer/` | Layer hierarchy, exact addressing, and native addition evidence. |
+| `tests/motion/` | Bounded Cel curve sampling, complete preflight, and persisted pixel/property preservation. |
 | `tests/paint/` | Paint Domain Module contract, bounded mutation evidence, and native Pixel Patch behavior. |
 | `tests/palette/` | Shared Effective Palette resolution over native Frame-based Palette Changes. |
 | `tests/plan/` | Static Plan preflight, single-Sprite Step composition, and commit gates. |
@@ -88,6 +89,16 @@ stored pixels for hidden and zero-opacity Cels. A CLI subprocess fixture observe
 the real invocation and commit adapters and injects invalid native evidence to test
 the publication gate. The bounded [Cel Plan profile](evidence/issue-105-profile.md)
 records one fixed wizard workload, stage timings, and its measurement limits.
+
+Motion tests use generated wizard poses and a floating emblem. Native inspection
+compares every stored pixel, including alpha-zero values, in RGB, Grayscale, and
+Indexed fixtures with transparent index 7. Cases cover exact rational sampling,
+all interpolation/rounding policies, signed position boundaries, missing and linked
+targets, whole-range refusal, and 65 existing targets without a Plan-Step quota.
+Plan cases verify Step-start baselines, multiple Layers, later Paint/Frame edits,
+one native invocation and Target Commit, and rejected incomplete/contradictory
+evidence. [Motion measurements](evidence/issue-104-motion-performance.md) retain
+the real persisted verification path; visual continuity remains a human check.
 
 The initial evidence profiles use local macOS Aseprite 1.3.18.5-dev and the pinned
 Linux CI Aseprite 1.3.18.5 source release. Both expose `_VERSION == "Lua 5.4"` and
