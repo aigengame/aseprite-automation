@@ -1,7 +1,11 @@
-name: Set up Linux Aseprite
-description: Build and expose the pinned official Aseprite CLI source release.
+name: Linux Aseprite runtime
+description: Restore and verify the pinned Aseprite CLI; build only for explicit maintenance.
 
 inputs:
+  build-if-missing:
+    description: Permit a cache-miss build in the manual maintenance job only.
+    required: false
+    default: "false"
   aseprite-version:
     description: Official Aseprite source release to build.
     required: false
@@ -32,53 +36,43 @@ runs:
         echo "install-dir=$install_dir" >> "$GITHUB_OUTPUT"
         echo "executable=$install_dir/bin/aseprite" >> "$GITHUB_OUTPUT"
 
-    - name: Install native build and runtime dependencies
-      shell: bash
-      run: |
-        sudo apt-get update -qq
-        sudo apt-get install -y \
-          cmake ninja-build \
-          libpixman-1-dev libfreetype6-dev libharfbuzz-dev zlib1g-dev \
-          libx11-dev libxcursor-dev libxi-dev libxrandr-dev libgl1-mesa-dev \
-          libfontconfig1-dev
-
     - name: Restore the pinned Aseprite CLI build
       id: cache
       uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:
         path: ${{ steps.paths.outputs.install-dir }}
-        key: spa-aseprite-cli-${{ runner.os }}-${{ runner.arch }}-${{ inputs.aseprite-version }}-${{ inputs.source-sha256 }}-${{ hashFiles('.github/actions/setup-linux-aseprite/action.yml') }}
+        key: spa-aseprite-cli-ubuntu-24.04-${{ runner.arch }}-${{ inputs.aseprite-version }}-${{ inputs.source-sha256 }}-${{ hashFiles('scripts/build_aseprite.sh') }}
+
+    - name: Require the prepared Aseprite binary
+      if: steps.cache.outputs.cache-hit != 'true' && inputs.build-if-missing != 'true'
+      shell: bash
+      env:
+        SPA_ASEPRITE_CACHE_KEY: ${{ steps.cache.outputs.cache-primary-key }}
+      run: |
+        echo "::error::Required Aseprite binary is missing. Cache key: $SPA_ASEPRITE_CACHE_KEY"
+        echo "Run the Build Aseprite workflow (aseprite-build.yml), then re-run this failed workflow."
+        echo "Use main for the stable runtime, or the PR base branch with the same recipe for provisional recovery."
+        echo "Verify that this run can read the selected cache ref; do not assume head-branch availability."
+        echo "Recovery and branch scope: docs/testing.md#restore-the-aseprite-runtime"
+        exit 1
+
+    - name: Install native runtime dependencies
+      if: steps.cache.outputs.cache-hit == 'true'
+      shell: bash
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y \
+          libpixman-1-0 libfreetype6 libharfbuzz0b zlib1g \
+          libx11-6 libxcursor1 libxi6 libxrandr2 libgl1 libfontconfig1
 
     - name: Build the pinned Aseprite CLI
-      if: steps.cache.outputs.cache-hit != 'true'
+      if: steps.cache.outputs.cache-hit != 'true' && inputs.build-if-missing == 'true'
       env:
         SPA_ASEPRITE_INSTALL_DIR: ${{ steps.paths.outputs.install-dir }}
         SPA_ASEPRITE_VERSION: ${{ inputs.aseprite-version }}
         SPA_ASEPRITE_SOURCE_SHA256: ${{ inputs.source-sha256 }}
       shell: bash
-      run: |
-        archive="$RUNNER_TEMP/Aseprite-v${SPA_ASEPRITE_VERSION}-Source.zip"
-        source_dir="$RUNNER_TEMP/aseprite-source"
-        build_dir="$RUNNER_TEMP/aseprite-build"
-
-        curl --fail --location --retry 3 \
-          --output "$archive" \
-          "https://github.com/aseprite/aseprite/releases/download/v${SPA_ASEPRITE_VERSION}/Aseprite-v${SPA_ASEPRITE_VERSION}-Source.zip"
-        echo "${SPA_ASEPRITE_SOURCE_SHA256}  $archive" \
-          | sha256sum --check --strict
-        mkdir -p "$source_dir" "$build_dir" "$SPA_ASEPRITE_INSTALL_DIR/bin"
-        unzip -q "$archive" -d "$source_dir"
-
-        cmake -S "$source_dir" -B "$build_dir" -G Ninja \
-          -DCMAKE_BUILD_TYPE=Release \
-          -DENABLE_TESTS=OFF \
-          -DENABLE_SCRIPTING=ON \
-          -DENABLE_CCACHE=OFF \
-          -DLAF_BACKEND=none
-        cmake --build "$build_dir" --target aseprite --parallel 2
-
-        cp "$build_dir/bin/aseprite" "$SPA_ASEPRITE_INSTALL_DIR/bin/aseprite"
-        cp -R "$source_dir/data" "$SPA_ASEPRITE_INSTALL_DIR/bin/data"
+      run: bash scripts/build_aseprite.sh
 
     - name: Validate and expose the headless Aseprite executable
       id: expose
@@ -114,8 +108,25 @@ runs:
         echo "version=$version" >> "$GITHUB_OUTPUT"
 
     - name: Save the verified Aseprite CLI build
-      if: steps.cache.outputs.cache-hit != 'true'
+      if: steps.cache.outputs.cache-hit != 'true' && inputs.build-if-missing == 'true'
       uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:
         path: ${{ steps.paths.outputs.install-dir }}
         key: ${{ steps.cache.outputs.cache-primary-key }}
+
+    - name: Record the native setup environment
+      shell: bash
+      env:
+        SPA_ASEPRITE_CACHE_HIT: ${{ steps.cache.outputs.cache-hit == 'true' }}
+        SPA_ASEPRITE_CACHE_KEY: ${{ steps.cache.outputs.cache-primary-key }}
+        SPA_ASEPRITE_REPORTED_VERSION: ${{ steps.expose.outputs.version }}
+      run: |
+        {
+          echo "### Linux Aseprite setup"
+          echo "- Commit: \`$(git rev-parse HEAD)\`"
+          echo "- Runner: \`$RUNNER_OS $RUNNER_ARCH\`; image \`${ImageOS:-unknown} ${ImageVersion:-unknown}\`"
+          echo "- CPUs: $(nproc); memory: $(awk '/MemTotal/ {print $2 " kB"}' /proc/meminfo)"
+          echo "- Cache hit: \`$SPA_ASEPRITE_CACHE_HIT\`"
+          echo "- Cache key: \`$SPA_ASEPRITE_CACHE_KEY\`"
+          echo "- Aseprite: \`$SPA_ASEPRITE_REPORTED_VERSION\`"
+        } | tee -a "$GITHUB_STEP_SUMMARY"

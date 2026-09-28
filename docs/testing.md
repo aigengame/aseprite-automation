@@ -41,7 +41,8 @@ Use the tier in the file name:
   Mark the module or each test with `pytest.mark.e2e`.
 
 `pytest.mark.slow` is an additional cost marker, not a verification tier. Use it
-for complete example rebuilds. The small wizard probe remains only `e2e`.
+for complete example rebuilds, which run locally on demand. Automated CI and
+Release exclude these tests. The small wizard probes remain only `e2e`.
 
 Runtime integration fixtures cover incompatible Lua and API observations and structured
 failure without claiming native execution. Real-runtime tests execute the packaged
@@ -179,30 +180,122 @@ A failure in any job fails CI. Configure these four named jobs as required check
 
 ### Complete example rebuilds
 
-The Linux E2E job always runs. It selects the following scope by event inside the
-job, so excluding slow tests does not skip the required CI check:
+The Linux E2E job is required for every verification event. These events use the
+same native suite; excluding complete example rebuilds does not skip the required
+CI check. **Build Aseprite** is a separate manual maintenance workflow:
 
 | Trigger | Real-runtime selection |
 | --- | --- |
 | Every PR or push to `main`, including example and CI changes | `e2e and not slow`: all routine E2E cases, including the small wizard probes. |
-| Nightly on `main` | `e2e`: full suite at the scheduled main SHA. |
-| Manual **CI → Run workflow** | `e2e`: full suite at the selected ref. |
-| Release verification | `e2e`: full suite at the exact release SHA before publication. |
+| Nightly on `main` | `e2e and not slow` at the scheduled main SHA. |
+| Manual **CI → Run workflow** | `e2e and not slow` at the selected ref. |
+| Release verification | `e2e and not slow` at the exact release SHA before publication. |
 
-The event selection in `.github/workflows/ci.yml` is authoritative. PR and push
-runs exclude `slow` regardless of changed paths, including promotion PRs. They
-retain routine real-Aseprite coverage and the small wizard handoff/native-pixel
-checks. Complete rebuilds run through the full-suite events listed above. For an
-example change that needs full verification before merge, manually run CI on the
-selected ref. Unexpected event types fail instead of silently choosing a scope.
+The shared `.github/actions/run-linux-aseprite-e2e/action.yml` owns this selection.
+It retains all other native assertions, both small wizard probes, and the hybrid
+hidden-pixel comparison regression. The owner removed both complete example
+rebuilds from automated gates on 2026-09-28 after reviewing their measured cost.
+Nightly/manual full verification covers the required tool suite; it does not
+regenerate the example deliveries. To check complete asset reproducibility after
+an example change, use the example build/verify commands or run locally:
+
+```sh
+SPA_TEST_ASEPRITE=/absolute/path/to/aseprite \
+  uv run --frozen --group test pytest -m "e2e and slow" -rs
+```
+
+These checks still compare full deliveries and hidden native pixels. Their results
+are separate, explicit evidence; automated CI no longer claims that coverage.
 
 The nightly schedule is daily at 19:23 UTC (03:23 Asia/Shanghai). GitHub runs it
 from the default branch, `main`; the job also checks that ref explicitly. `dev`
 is a temporary integration branch and has no nightly target. The schedule becomes
 active after this workflow reaches `main`. Pushes and manual runs do not cancel a
-nightly run. Its summary records the actual checked-out SHA and whether slow tests
-were included. Scheduled runs can be delayed; their result never replaces exact-SHA
+nightly run. Its summary records the actual checked-out SHA and selected test scope.
+Scheduled runs can be delayed; their result never replaces exact-SHA
 release verification.
+
+### Verification time limits
+
+GitHub's native job timeouts enforce **20 minutes for routine PR/push native
+verification**, **40 minutes for nightly/manual native verification**, and
+**40 minutes for Release verification**. All work inside each job counts, including
+checkout, runtime setup, tests, package checks where present, and uploads. There
+is no compilation deduction or second clock. Source quality, fast-test, and package
+CI jobs retain their smaller 10-minute limits and run in parallel.
+
+These are running-job limits, not queue-time or whole-pipeline latency promises.
+Release has separate draft and publication jobs; its 40-minute limit applies to
+`Verify exact release commit`. An overrun fails verification and prevents publication.
+The [issue #107 evidence](evidence/issue-107-ci-capacity.md) records the measurements
+and superseded experiments.
+
+### Restore the Aseprite runtime
+
+Normal PR/push CI, nightly, manual CI, and Release only
+restore an exact Aseprite cache entry. A miss fails before native dependency
+installation or compilation and identifies the required key. It does not skip the
+native gate or report success. A restored binary must still pass the executable,
+resource, version, and real `--batch --script` checks before SPA's E2E suite runs.
+
+To recover:
+
+1. Open **Actions → Build Aseprite → Run workflow** and select the recipe branch.
+   Use **main for the stable runtime**. The separate `aseprite-build.yml` runs
+   only **Build Aseprite (manual maintenance)** with its own 40-minute native job
+   timeout. It validates the pinned source checksum, builds if the exact cache is
+   missing, checks the real batch/script path, and saves the verified tree.
+2. Confirm that the job succeeded for the key reported by the failed verification.
+3. Open the **original failed run** and choose **Re-run failed jobs**. This retains
+   its original SHA/ref. A successful maintenance job does not substitute for SPA
+   tests or for exact-release-SHA verification.
+
+CLI equivalent for the stable runtime:
+
+```sh
+gh workflow run aseprite-build.yml --ref main
+# After the build succeeds:
+gh run rerun <failed-run-id> --failed
+```
+
+A stable cache is prepared on `main`, which is readable from the other branches.
+For a provisional recipe change, first deliver the independent builder and shared
+runtime action to the PR's **base branch** (normally `dev`), then run:
+
+```sh
+gh workflow run aseprite-build.yml --ref dev
+# After the build succeeds for the missing key:
+gh run rerun <failed-run-id> --failed
+```
+
+Keep the old CI consumer in that small bootstrap PR. Switch the consumer only after
+the base-branch cache is ready. After normal promotion, prepare the stable cache on
+main. This order needs no early promotion of unrelated development work.
+
+In the recorded #121 experiment, the PR cache token granted access to its merge
+ref, dev, and main, but omitted the head branch. That run missed the exact cache
+which the branch-push control restored, with matching key, version, and path. See
+the [scope diagnosis](evidence/issue-107-ci-capacity.md#cache-scope-diagnosis--2026-09-28).
+This establishes the recovery procedure for the observed #121 runs, not a universal
+PR restriction. GitHub's cache reference also documents access to the current
+feature branch. Verify visibility for the actual consumer; for this rollout,
+prepare the matching cache on dev and rerun #121. Main cannot consume a dev or
+feature-branch cache.
+
+The Actions UI needs the workflow on the default branch for normal discovery.
+During #107 rollout, a registered workflow was also successfully dispatched by CLI
+on a non-default branch. The temporary registration trigger is removed from the
+final tree; the builder is manual-only. If an older failed run needs a different
+recipe, prepare its exact key on a ref visible to that run; a newer binary is not
+a substitute. GitHub documents cache scope in
+[GitHub's branch restrictions](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching#restrictions-for-accessing-a-cache).
+
+The maintenance workflow has its own concurrency group and only its build job.
+It emits no SPA verification checks and must not replace them in branch protection
+or release gates. CI always runs its four verification jobs. Maintenance never
+publishes a SPA release. If a restored entry fails the native probe, inspect and
+remove that exact invalid cache entry before manually rebuilding; Actions caches
+are immutable.
 
 ## Platform and display requirements
 
@@ -223,36 +316,41 @@ The [wizard example](../examples/wizard_cast/README.md) has two real-runtime tes
 a small component geometry proof and one complete fresh build against the checked-in
 delivery. The latter independently decodes every PNG, checks hidden stored pixels,
 compares the complete manifest, and reopens the delivered Aseprite source to compare
-metadata, Frames, Layers, Cels, and Tags. CI and release verification fetch its Git
-LFS assets before this check. The full build is marked `e2e` and `slow` and follows
-the trigger policy above. A reference macOS build takes about four minutes; one
+metadata, Frames, Layers, Cels, and Tags. Fetch its Git LFS assets before this local
+check. The full build is marked `e2e` and `slow` and follows the opt-in policy above.
+A reference macOS build takes about four minutes; one
 Linux CI observation took 329.6 seconds, compared with 6.7 seconds for the small
 probe. These are measurements, not time limits. Explicit double builds remain
 available through the example's `verify` command, with retained local evidence.
 The test does not start Godot. The example's separate Godot tests and local
 windowed/package evidence are documented beside it and are not claimed by Linux CI.
 
-The Linux job builds the official source release and verifies the archive against the
-version and SHA-256 authority in `.github/actions/setup-linux-aseprite/action.yml`. It
-enables scripting with Aseprite's `LAF_BACKEND=none`, checks that both `DISPLAY` and
-`WAYLAND_DISPLAY` are absent, builds and installs the current wheel in a separate
-environment, and then runs the real-runtime tier. The JUnit audit
+The manual maintenance job builds the official source release and verifies the archive
+against the version and SHA-256 authority in `.github/actions/aseprite-runtime/action.yml`. It
+uses the runner's Clang 18 toolchain, Release configuration with `-O1 -DNDEBUG`,
+and two build processes. This profile prioritizes compilation time for functional
+verification; it does not certify Aseprite's optimized runtime performance.
+The recipe enables scripting with Aseprite's `LAF_BACKEND=none`. Normal verification
+checks that both `DISPLAY` and `WAYLAND_DISPLAY` are absent, builds and installs the current wheel in a separate
+environment, and runs the required real-runtime tier with two pytest-xdist worker
+processes. Test workspaces and each Aseprite user folder remain isolated; the
+controller writes one JUnit report. The JUnit audit
 fails when the report is missing, contains zero tests, or all selected tests were
 skipped. The job summary records the tested commit, trigger, executable, Aseprite
 version, selected scope, display state, and exercised path. A macOS-only skip remains
 visible and does not invalidate the Linux batch evidence while other E2E tests execute.
 
-The setup action caches only an installed Aseprite tree that passes executable, resource,
-version, and minimal `--batch --script` checks. Its key includes the runner OS and
-architecture, Aseprite version, source checksum, and setup action content. The first run
-for a new key builds from source; later runs restore the executable and data files, rerun
-the checks, and skip compilation. A successful `main` run seeds the default-branch cache
-that later pull requests can read. A pull-request cache remains scoped to that pull
-request. GitHub can remove a cache after seven days without access or earlier under the
-repository cache limit, so an occasional rebuild is expected.
+The setup action shares the cache key and probe between maintenance and verification.
+The key includes Ubuntu 24.04, runner architecture, Aseprite version, source checksum,
+and the content of `scripts/build_aseprite.sh`. That script owns the build recipe;
+changes to workflow routing, setup messages, or tests do not invalidate the binary.
+The maintenance job is the only caller that enables building and saving a missing
+entry. Normal verification restores the executable and data files and repeats the
+native checks. GitHub can remove entries after seven days without access or earlier
+under the repository cache limit; use the manual recovery above when this happens.
 
 The Linux real Aseprite job is also part of release verification. A release workflow
-always reruns the full suite, including slow rebuilds, at the exact release commit
+always reruns the required native suite, excluding complete example rebuilds, at the exact release commit
 and does not reuse a generally green CI or nightly run. A successful macOS local run
 remains separate developer evidence; it cannot replace the Linux release gate.
 Windowed Aseprite behavior has no CI coverage until a
@@ -265,7 +363,7 @@ and decoded export pixels. Its full test is also marked `slow`: one fresh build
 must match the retained v2 delivery and all seven reopened native documents,
 including the RGBA values of hidden stored pixels. It checks the actual v2 recipe
 geometry, 32 Frames at 100 ms, four fixed phase ranges, and native gem pulse
-independence. CI needs no imagegen service or generation credentials. The same
-main-only nightly, manual full run, and exact-release-SHA gates apply. macOS build
+independence. This complete rebuild runs locally on demand. Automated tests need no
+imagegen service or generation credentials. macOS build
 cost and Godot evidence are recorded separately in the v2 example's dogfooding
 report; Linux asset CI does not establish graphical or gameplay acceptance.

@@ -330,7 +330,9 @@ evidence and coordinates the existing Source/Target commit boundary.
 `spa.image_snapshot` owns individual
 and native composite Image reads plus complete Image replacement. Its Lua helpers
 own canonical native pixel reads and Layer Composition over the original tree;
-the composite's explicit output choice selects the native render destination, while
+preserve-Indexed composition with a nonzero mask temporarily permutes pixel indexes
+and Palette entries in the privately loaded document, then restores them after the
+native render. The composite's explicit output choice selects the native render destination, while
 individual reads retain stored values. This does not create a second compositor or
 invoke Sprite-wide Color Mode conversion.
 The application reuses Artifact Files for JSON transport and Target Commit for native

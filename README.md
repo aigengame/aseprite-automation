@@ -388,13 +388,15 @@ top-level Color Mode and mask describe the output. Effective Palette facts ident
 the Indexed Source's requested Frame basis; their `indexes` are empty for RGB output
 because blended pixels do not retain a Palette Index identity.
 
-Preserve-Indexed composition with a nonzero transparent index is currently rejected
-with `image_composition_unsupported`: Aseprite's native Group buffer can clear to an
-opaque index zero, including at the root. Select `rgb` for visual observation or
-individual Get for exact stored indexes. There is no automatic fallback. This does
-not change the Source or make the RGB Snapshot a same-mode Indexed replacement.
-[Issue #116](https://github.com/aigengame/aseprite-automation/issues/116) tracks the
-remaining preserve-Indexed support.
+For preserve-Indexed composition with a nonzero Transparent Color Index, Image Get
+temporarily exchanges index zero with that index in its private loaded document,
+renders through Aseprite, then restores the original index numbering in the
+Snapshot. The requested Frame's Effective Palette must contain the Transparent
+Color Index and every index in the returned Snapshot. A missing entry returns
+`image_composition_unsupported`; Image Get does not extend the Palette or switch
+to RGB. This route preserves native Indexed index-selection semantics, including
+the Layer tree, and leaves the Source file unchanged. Select `rgb` for visual
+observation or individual Get for exact stored indexes.
 
 Without `snapshot_destination`, the inline Operation Limit is 4096 pixels. Larger
 reads require an explicit `.json` destination with `if_exists: fail|replace` and
@@ -543,9 +545,15 @@ run `uv run --frozen --group test pytest -m e2e -rs`. See
 platform, and display-environment conventions.
 
 Pull requests and `main` run locked source, fast-test, distribution, and Linux
-real-Aseprite gates. PR and push CI exclude complete example rebuilds, including
-when example or CI files change. Nightly on `main`, manual full CI, and release
-verification run the complete E2E suite; routine CI retains the other E2E cases.
+real-Aseprite gates. PR/push CI, nightly on `main`, manual CI, and Release
+verification exclude both complete wizard example rebuilds. They retain the small
+native probes, the hybrid hidden-pixel regression, and all other E2E cases.
+Complete example rebuilds remain available locally on demand; see the
+[test policy](docs/testing.md#complete-example-rebuilds).
+CI requires a prepared Aseprite binary. On a cache miss, follow the
+[manual runtime recovery](docs/testing.md#restore-the-aseprite-runtime) before
+rerunning the failed verification. The separate **Build Aseprite** workflow prepares
+the runtime; its success does not satisfy SPA verification checks.
 Releases use a reviewed version and changelog change, then
 repeat all gates on the exact release commit before publishing a GitHub Release. See
 [`docs/releasing.md`](docs/releasing.md) for the release and recovery procedure.
