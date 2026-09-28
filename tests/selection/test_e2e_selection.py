@@ -2,6 +2,7 @@
 
 import json
 import os
+from pathlib import Path
 
 import pytest
 
@@ -377,7 +378,8 @@ def test_validate_returns_findings_without_repair(
     assert finding in {item["kind"] for item in result["findings"]}
 
 
-def test_export_roundtrip_and_preview_use_explicit_canvas(tmp_path) -> None:
+@pytest.mark.parametrize("spelling", ["absolute", "tilde"])
+def test_export_roundtrip_and_preview_use_explicit_canvas(tmp_path, spelling) -> None:
     import hashlib
 
     from spa.png_verifier import verify_png
@@ -395,7 +397,12 @@ def test_export_roundtrip_and_preview_use_explicit_canvas(tmp_path) -> None:
         == hashlib.sha256(destination.read_bytes()).hexdigest()
     )
     assert json.loads(destination.read_text()) == ASYMMETRIC
-    artifact = {"kind": "artifact", "path": str(destination)}
+    input_path = (
+        str(Path("~") / os.path.relpath(destination, Path.home()))
+        if spelling == "tilde"
+        else str(destination)
+    )
+    artifact = {"kind": "artifact", "path": input_path}
     code, validated = selection(
         "validate", selection=artifact, canvas=ASYMMETRIC["bounds"]
     )
@@ -490,20 +497,37 @@ def test_preview_refusal_does_not_publish_or_replace_existing_target(tmp_path) -
     assert set(tmp_path.iterdir()) == {target}
 
 
-def test_artifact_input_alias_is_not_replaced(tmp_path) -> None:
-    target = tmp_path / "mask.json"
-    target.write_text(json.dumps(ASYMMETRIC))
-    alias = tmp_path / "input.json"
-    alias.symlink_to(target)
+@pytest.mark.parametrize("operation", ["export", "preview"])
+@pytest.mark.parametrize("source_kind", ["direct", "symlink"])
+@pytest.mark.parametrize("spelling", ["absolute", "tilde"])
+def test_artifact_input_alias_is_not_replaced(
+    tmp_path, operation, source_kind, spelling
+) -> None:
+    target = tmp_path / ("mask.png" if operation == "preview" else "mask.json")
+    target.write_text(json.dumps(ASYMMETRIC, indent=2))
+    source = target
+    entries = {target}
+    if source_kind == "symlink":
+        source = tmp_path / "input.json"
+        source.symlink_to(target)
+        entries.add(source)
+    source_path = (
+        str(Path("~") / os.path.relpath(source, Path.home()))
+        if spelling == "tilde"
+        else str(source)
+    )
     before = target.read_bytes()
+    parameters = {"canvas": ASYMMETRIC["bounds"]} if operation == "preview" else {}
     code, result = selection(
-        "export",
-        selection={"kind": "artifact", "path": str(alias)},
+        operation,
+        selection={"kind": "artifact", "path": source_path},
         destination={"path": str(target), "if_exists": "replace"},
+        **parameters,
     )
     assert code != 0 and result["code"] == "artifact_file_failed", result
+    assert result["details"]["reason"] == "source_destination_alias"
     assert target.read_bytes() == before
-    assert set(tmp_path.iterdir()) == {target, alias}
+    assert set(tmp_path.iterdir()) == entries
 
 
 def test_created_combined_transformed_selection_is_consumed_by_paint(tmp_path) -> None:
