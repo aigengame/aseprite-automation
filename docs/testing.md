@@ -243,7 +243,9 @@ windowed/package evidence are documented beside it and are not claimed by Linux 
 
 The Linux job builds the official source release and verifies the archive against the
 version and SHA-256 authority in `.github/actions/setup-linux-aseprite/action.yml`. It
-uses the runner's Clang 18 toolchain, Release optimization, and two build processes.
+uses the runner's Clang 18 toolchain, Release configuration with `-O1 -DNDEBUG`,
+and two build processes. This profile prioritizes compilation time for functional
+verification; it does not certify Aseprite's optimized runtime performance.
 It enables scripting with Aseprite's `LAF_BACKEND=none`, checks that both `DISPLAY` and
 `WAYLAND_DISPLAY` are absent, builds and installs the current wheel in a separate
 environment, and runs the required real-runtime tier with two pytest-xdist worker

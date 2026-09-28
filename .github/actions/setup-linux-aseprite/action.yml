@@ -69,15 +69,19 @@ runs:
         mkdir -p "$source_dir" "$build_dir" "$SPA_ASEPRITE_INSTALL_DIR/bin"
         unzip -q "$archive" -d "$source_dir"
 
+        lscpu | awk -F: '/^Model name:/ {print "Build CPU:" $2}'
+        echo "Build CPUs: $(nproc)"
         cmake -S "$source_dir" -B "$build_dir" -G Ninja \
           -DCMAKE_BUILD_TYPE=Release \
           -DCMAKE_C_COMPILER=clang-18 \
           -DCMAKE_CXX_COMPILER=clang++-18 \
+          -DCMAKE_C_FLAGS_RELEASE="-O1 -DNDEBUG" \
+          -DCMAKE_CXX_FLAGS_RELEASE="-O1 -DNDEBUG" \
           -DENABLE_TESTS=OFF \
           -DENABLE_SCRIPTING=ON \
           -DENABLE_CCACHE=OFF \
           -DLAF_BACKEND=none
-        cmake --build "$build_dir" --target aseprite --parallel 2
+        time cmake --build "$build_dir" --target aseprite --parallel 2
 
         cp "$build_dir/bin/aseprite" "$SPA_ASEPRITE_INSTALL_DIR/bin/aseprite"
         cp -R "$source_dir/data" "$SPA_ASEPRITE_INSTALL_DIR/bin/data"
@@ -137,4 +141,4 @@ runs:
           echo "- Cache hit: \`$SPA_ASEPRITE_CACHE_HIT\`"
           echo "- Cache key: \`$SPA_ASEPRITE_CACHE_KEY\`"
           echo "- Aseprite: \`$SPA_ASEPRITE_REPORTED_VERSION\`"
-        } >> "$GITHUB_STEP_SUMMARY"
+        } | tee -a "$GITHUB_STEP_SUMMARY"

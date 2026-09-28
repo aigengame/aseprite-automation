@@ -96,7 +96,7 @@ and 281 deselected cases. This same-scope pair saved 17m 52s with a warm cache.
 It confirms cache reuse; the different-scope 25m 46s and 27m 16s observations do
 not measure cache speedup.
 
-All three jobs used Linux X64, Ubuntu 24.04 image
+The initial cold Release, warm full CI, and cold routine CI jobs used Linux X64, Ubuntu 24.04 image
 `20260920.314.1`, CPython 3.13.13, uv 0.11.19, pytest 9.1.1, and Aseprite
 `1.3.18.5-dev` from the pinned official source. Runner names were
 `GitHub Actions 1000019392` (cold Release), `GitHub Actions 1000019400` (warm CI),
@@ -142,6 +142,83 @@ conditions causing that difference. In particular, the 25m 46s warm full job and
 speedup. The warm cache hit and skipped compilation are directly recorded in the
 log. A same-scope comparison and successful cold execution are needed for the
 revised policy; a single sample does not guarantee capacity for future test growth.
+
+## Revised execution evidence
+
+The measured implementation is `176f368d74dd74ff790e1c50ddec6f76e113ce9c`.
+It uses Clang 18 for the existing two-process Release build and two isolated
+pytest-xdist workers for the required native tests. The pinned Aseprite source,
+headless backend, native setup probe, installed-wheel checks, and retained test
+assertions stay the same. The setup action hash gives the compiler change a new
+cache identity; no cache entry was deleted or prewarmed outside the measured jobs.
+
+The [cold PR CI job](https://github.com/aigengame/aseprite-automation/actions/runs/36376277594/job/108782715470)
+passed at actual merge checkout `3c8919cfead2fe869c136bfb1da4b9dda83d2e40`.
+It started at 04:06:19 UTC and completed at 04:20:54 UTC: **875 seconds
+(14m 35s)**, leaving **325 seconds (5m 25s)** of its 20-minute limit.
+All four CI jobs passed. The workflow creation-to-completion interval was
+14m 55s, including its initial 20-second scheduling interval.
+
+- Source download, configure, and build: 614.732 seconds; C/C++ configuration
+  reports Clang 18.1.3. The verified native cache was saved at 04:17:06 UTC.
+- Native OS dependencies: 17.137 seconds; cache lookup: 0.317 seconds;
+  batch/script probe: 0.077 seconds; cache save: 1.346 seconds.
+- Python setup in the native action: 5.652 seconds; wheel build/install:
+  0.469 seconds; pytest: 220.39 seconds; JUnit upload: one second.
+- Whole native action: 862 seconds. The remaining job time includes checkout,
+  action setup, report upload, and cleanup.
+- JUnit: 507 passed and the same three Linux platform skips. An exact comparison
+  with the earlier routine report found the same 510 case identities and outcomes.
+  It retains both small wizard probes and the hybrid hidden-pixel regression;
+  neither complete rebuild appears in the report.
+
+The [warm rerun of that PR job](https://github.com/aigengame/aseprite-automation/actions/runs/36376277594/job/108788150233)
+used the same merge checkout. It recorded an exact cache hit and skipped compilation.
+The [separate cold Release verification](https://github.com/aigengame/aseprite-automation/actions/runs/36376275936/job/108782666519)
+checked out `176f368` directly and passed without creating or publishing a release.
+
+| Measured phase, seconds | Cold PR | Warm PR | Cold Release |
+| --- | ---: | ---: | ---: |
+| Source download, configure, native build | 614.732 | 0, skipped | 1,429.703 |
+| Native OS dependencies | 17.137 | 23.400 | 28.778 |
+| Native cache lookup/restore | 0.317 | 1.970 | 0.492 |
+| Native batch/script cache probe | 0.077 | 0.165 | 0.190 |
+| Verified native cache save | 1.346 | 0, skipped | 1.727 |
+| Python setup inside native action | 5.652 | 6.858 | 1.150 |
+| Wheel build/install inside native action | 0.469 | 0.594 | 0.536 |
+| Pytest | 220.39 | 427.41 | 410.46 |
+| Whole native action | 862 | 462 | 1,874 |
+| JUnit artifact upload | 1 | 2 | 1 |
+| Whole job | **875 (14m 35s)** | **476 (7m 56s)** | **1,993 (33m 13s)** |
+| Margin against that job's limit | 325 | 724 | 407 |
+
+All three JUnit reports contain the same 510 case identities and outcomes: 507
+passed and three unchanged platform skips. Both complete rebuilds are absent.
+Release also passed source quality (15 seconds), fast tests (73 seconds; 275 passed
+and four platform skips), metadata (less than one second), distributions and wheel
+checks (two seconds), and distribution upload (two seconds). Its total job was
+119 seconds longer than the native action. All three used Ubuntu 24.04 image
+`20260920.314.1`, Aseprite `1.3.18.5-dev`, and the same source and compiler settings.
+Runner names were `GitHub Actions 1000019465` (cold PR), `1000019467` (warm PR),
+and `1000019462` (cold Release).
+
+The warm run proves native cache reuse, but its longer pytest time offsets part
+of the avoided build time. It must not be presented as an isolated compiler or
+parallelism speedup. The cold Release build is also a counterexample to a robust
+20-minute cold routine capacity claim: that build alone took 23m 50s. The logs show
+the same 1,719-target build, with about 9m 19s of Ninja execution in PR and 22m 31s
+in Release. The observations do not isolate the host conditions behind this spread.
+All three workflow limits passed, but the routine cold-capacity criterion remains
+open; one faster PR sample does not resolve the measured slower condition.
+
+The next bounded candidate uses Clang `-O1 -DNDEBUG` in the Release configuration
+to reduce compilation cost, while keeping the same native source, two build
+processes, two test workers, and retained assertions. It records the CPU model,
+available CPU count, and build wall/CPU time in the existing job log. This is a
+functional test runtime; no Aseprite performance or bit-identical binary claim is
+made. The [Clang command guide](https://clang.llvm.org/docs/CommandGuide/clang.html)
+describes the optimization-level tradeoff. New cold observations are required;
+the earlier passing jobs do not validate this compiler configuration.
 
 ## Release PR maintenance repair
 
