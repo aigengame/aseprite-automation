@@ -61,6 +61,9 @@ runs:
         SPA_RELEASE_PR_NUMBER: ${{ steps.target.outputs.number }}
       shell: bash
       run: |
+        # The Release PR can predate this helper when release-please has no update.
+        spa_dispatch_script="$RUNNER_TEMP/spa-dispatch-release-ci.sh"
+        cp scripts/dispatch_release_ci.sh "$spa_dispatch_script"
         git fetch origin "$SPA_RELEASE_BRANCH"
         # actions/checkout configures a narrow refspec, so the explicit fetch
         # updates FETCH_HEAD without guaranteeing origin/<branch> exists.
@@ -81,4 +84,4 @@ runs:
 
         echo "Refreshed the Release PR lockfile for branch \`${SPA_RELEASE_BRANCH}\`." \
           >> "$GITHUB_STEP_SUMMARY"
-        bash scripts/dispatch_release_ci.sh
+        bash "$spa_dispatch_script"
