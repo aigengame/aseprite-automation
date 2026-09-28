@@ -32,7 +32,7 @@ test = ["pytest>=8,<10", "jsonschema>=4,<5"]
 testpaths = ["tests"]
 addopts = ["--strict-markers"]
 markers = [
-  "e2e: uses the installed SPA CLI with a real Aseprite executable",
+  "e2e: uses installed SPA or packaged Kernel code with a real Aseprite executable",
   "slow: rebuilds a complete example; included in full E2E runs",
 ]
 

@@ -26,6 +26,7 @@ from spa.mutation import (
     validate_native_sprite_path,
 )
 from spa.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
+from spa.palette import EFFECTIVE_PALETTE_RESOURCE
 from spa.ports import (
     OperationIssue,
     OperationServices,
@@ -291,6 +292,7 @@ SNAPSHOT_SUPPORT_RESOURCES = (
     CEL_SUPPORT_RESOURCE,
     SNAPSHOT_RESOURCE,
     RASTER_COLOR_RESOURCE,
+    EFFECTIVE_PALETTE_RESOURCE,
 )
 IMAGE_GET_HANDLER = PackagedHandler(
     "image_get",

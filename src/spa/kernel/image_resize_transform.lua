@@ -1,17 +1,6 @@
 -- Fixed Image-buffer resize semantic shared by Image and future Tile authors.
 local module = {}
-
-local function effective_palette(sprite, frame_number)
-  local selected, change_frame = nil, -1
-  for index = 1, #sprite.palettes do
-    local palette = sprite.palettes[index]
-    local candidate = palette.frame.frameNumber
-    if candidate <= frame_number and candidate > change_frame then
-      selected, change_frame = palette, candidate
-    end
-  end
-  return selected, change_frame
-end
+local palettes = dofile(app.params.effective_palette)
 
 -- Match Aseprite 1.3.18.5 Palette::findBestfit with the Sprite's transparent
 -- index as mask. Native Indexed resize instead derives its mask from RGBA-zero
@@ -113,7 +102,7 @@ function module.resize(source, sprite, width, height, method, palette_frame_numb
       "Indexed bilinear requires an existing Palette Frame Number"
     )
     local change_frame
-    selected_palette, change_frame = effective_palette(sprite, palette_frame_number)
+    selected_palette, change_frame = palettes.resolve(sprite, palette_frame_number)
     assert(selected_palette ~= nil, "Indexed bilinear requires an Effective Palette")
     basis = {
       requested_frame_number = palette_frame_number,

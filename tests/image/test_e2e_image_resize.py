@@ -253,6 +253,8 @@ def test_shared_resize_restores_active_context_on_success_and_failure(
                 "--script-param",
                 f"image_resize_transform={Path(__file__).parents[2] / 'src/spa/kernel/image_resize_transform.lua'}",
                 "--script-param",
+                f"effective_palette={Path(__file__).parents[2] / 'src/spa/kernel/effective_palette.lua'}",
+                "--script-param",
                 f"out={output}",
                 "--script",
                 str(
