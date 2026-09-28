@@ -15,6 +15,7 @@ this view instead of treating it as another decision authority.
 > `spa schema`, Sprite creation, inspection, copy, resize, crop, flatten, and
 > validation, Layer addressing and mutation, Frame inspection, authoring, and
 > editing, Tag inspection and authoring, Cel inspection, lifecycle, placement,
+> bounded position/opacity motion,
 > and native relationships, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, bounded Pixel Patch
 > application, and verified RGB
 > PNG Image Export, animation audit, Frame comparison, and continuity Preview
@@ -24,9 +25,10 @@ this view instead of treating it as another decision authority.
 > surface of each installation.
 
 Asset Preparation and reusable Bounded Motion Authoring are accepted ownership areas
-under ADR-0095, with feature contracts still to be delivered. The wizard examples use
-example-owned preparation and motion code; they do not add these capabilities to the
-installed CLI. Asset Delivery reuses the existing export implementations.
+under ADR-0095. `spa.motion` implements bounded position/opacity authoring over
+existing independent Cels, both standalone and in a Plan (#104). Asset Preparation
+remains planned. Wizard examples retain their recipe-owned pose and artistic rules;
+Asset Delivery reuses the existing export implementations.
 
 The document evolves with the product. An accepted change to the Bounded Context,
 module ownership, public contract, execution model, or integration boundary must be
@@ -404,7 +406,8 @@ candidates for the accepted owners, not a package migration or callable surface:
 ```text
 src/spa/
   preparation.py          # candidate: preparation policy and result use cases
-  motion.py               # candidate: bounded Frame/Cel motion authoring
+  motion.py               # bounded position/opacity authoring over existing Cels
+  rounding.py             # shared exact rounding policies and Kernel binding
   animation.py            # existing audit, comparison, and composed Preview use case
   frame.py, cel.py, cel_relationship.py
   image.py, image_snapshot.py, paint.py, raster.py
@@ -558,6 +561,15 @@ Cel relationship semantics live in `kernel/cel_relationship_support.lua`. The
 standalone relationship handler and `cel set` Plan Steps call its live entry point.
 `spa.cel_relationship` owns the shared input and evidence contracts; `spa.plan`
 composes those contracts and reports Step facts before final Plan persistence.
+
+`spa.motion` owns the bounded curve input, per-Cel evidence, and publication use
+case. `kernel/motion_support.lua` resolves the complete existing target set,
+rejects Image links, samples explicit curves with exact rational arithmetic, and
+validates all result positions before mutation. Standalone and Plan handlers call
+this live entry point. It reuses Cel addressing, Layer eligibility, and document
+snapshots; `kernel/rounding.lua` shares rounding meanings with Image resize.
+Offsets use each target's own Step-start position. Later Steps can change earlier
+facts; only the final live document is compared with the final reopened file.
 
 ### Aseprite Runtime Integration
 
@@ -814,8 +826,10 @@ Milestones group phase outcomes, and explicit issue dependencies determine imple
 order.
 
 ADR-0095 adds preparation and reusable motion as bounded follow-up work and reclassifies
-existing Delivery. Issues #103/#104 own the accepted planned contracts; reusable
-implementation remains unverified until those features validate distinct inputs. Existing
+existing Delivery. Issue #103 owns the planned preparation contract. The #104 motion
+slice verifies wizard and floating-emblem fixtures through standalone and Plan
+execution; its [performance evidence](docs/evidence/issue-104-motion-performance.md)
+reports a bounded local workload. Existing
 Image observation/import and export issues retain their scope. The examples' measured
 persisted-write cost motivates a separate Plan-eligibility slice; an architecture
 label alone establishes no speedup. These follow-ups do not add acceptance gates to
