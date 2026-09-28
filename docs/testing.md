@@ -193,6 +193,16 @@ nightly run. Its summary records the actual checked-out SHA and whether slow tes
 were included. Scheduled runs can be delayed; their result never replaces exact-SHA
 release verification.
 
+The Linux E2E job keeps a 40-minute budget for routine PR/push runs. Nightly and
+manual full runs have 75 minutes, including cold Aseprite compilation and report
+upload. Release verification has its own 80-minute budget because it also runs
+source, fast-test, metadata, and distribution checks. The
+[issue #107 measurements](evidence/issue-107-ci-capacity.md) record the observed
+capacity, margins, and remaining variability. These limits bound job execution;
+they are not performance targets or an automatic growth policy. Setup summaries
+record the tested commit, runner image/CPU/memory facts, native version, and exact cache hit/key;
+GitHub job and step logs retain timings for measurement without a profiling service.
+
 ## Platform and display requirements
 
 Verification tier, host platform, and display capability are separate properties.
