@@ -271,6 +271,7 @@ def test_merge_compositing_ignores_both_ambient_preference_values(
                 "inspection": str(kernel / "sprite_inspect.lua"),
                 "layer_select": str(kernel / "layer_select.lua"),
                 "mutation": str(kernel / "layer_mutation_support.lua"),
+                "effective_palette": str(kernel / "effective_palette.lua"),
                 "digest": str(kernel / "digest.lua"),
                 "persistence": str(kernel / "sprite_persistence.lua"),
                 "workspace": str(work),

@@ -62,6 +62,100 @@ def test_plan_check_admits_a_read_plan_without_launching_aseprite(
     assert result["commit_required"] is False
 
 
+def test_plan_check_admits_existing_cel_properties_without_launching_aseprite(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source.aseprite"
+    source.write_bytes(b"unused by static preflight")
+    run = spa(
+        "plan",
+        "check",
+        "--input-json",
+        json.dumps(
+            {
+                "plan": {
+                    "source_sprite_file": str(source),
+                    "target_sprite_file": str(tmp_path / "target.aseprite"),
+                    "steps": [
+                        {
+                            "operation": "cel set",
+                            "input": {
+                                "target": {
+                                    "layer": {"layer_path": [1]},
+                                    "frame_number": 2,
+                                },
+                                "position": {"x": -2, "y": 3},
+                                "opacity": 0,
+                                "z_index": -1,
+                            },
+                        }
+                    ],
+                }
+            }
+        ),
+        env=os.environ | {"SPA_ASEPRITE_EXECUTABLE": "/missing/aseprite"},
+    )
+    assert run.returncode == 0, run.stdout + run.stderr
+    result = json.loads(run.stdout)
+    assert result["step_count"] == 1
+    assert result["commit_required"] is True
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {},
+        {"position": {"x": 32768, "y": 0}},
+        {"position": {"x": 0, "y": -32769}},
+        {"opacity": 256},
+        {"opacity": True},
+        {"z_index": -32769},
+        {"z_index": 0.5},
+        {"opacity": 0, "source_sprite_file": "another.aseprite"},
+        {"opacity": 0, "aseprite": "/another/aseprite"},
+    ],
+)
+def test_plan_rejects_invalid_cel_properties_before_runtime(
+    tmp_path: Path, changes: dict
+) -> None:
+    source = tmp_path / "source.aseprite"
+    source.write_bytes(b"unused by static preflight")
+    target = tmp_path / "existing.aseprite"
+    target.write_bytes(b"prior Target bytes")
+    run = spa(
+        "plan",
+        "run",
+        "--input-json",
+        json.dumps(
+            {
+                "aseprite": "/missing/aseprite",
+                "plan": {
+                    "source_sprite_file": str(source),
+                    "target_sprite_file": str(target),
+                    "overwrite": True,
+                    "steps": [
+                        {
+                            "operation": "cel set",
+                            "input": {
+                                "target": {
+                                    "layer": {"layer_path": [1]},
+                                    "frame_number": 1,
+                                },
+                                **changes,
+                            },
+                        }
+                    ],
+                },
+            }
+        ),
+    )
+    assert run.returncode == 2, run.stdout + run.stderr
+    result = json.loads(run.stdout)
+    assert result["code"] == "invalid_request"
+    assert result["details"]["errors"][0]["location"][:3] == ["plan", "steps", 0]
+    assert target.read_bytes() == b"prior Target bytes"
+
+
 def test_plan_check_rejects_unknown_step_and_operation_owned_pixel_limit(
     tmp_path: Path,
 ) -> None:

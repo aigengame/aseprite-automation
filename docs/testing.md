@@ -15,6 +15,7 @@ verification tier. The layout does not mirror source packages or CLI Command Gro
 | `tests/frame/` | Frame timing, insertion, Cel copy/link intent, Tag adjustment, and native persistence. |
 | `tests/layer/` | Layer hierarchy, exact addressing, and native addition evidence. |
 | `tests/paint/` | Paint Domain Module contract, bounded mutation evidence, and native Pixel Patch behavior. |
+| `tests/palette/` | Shared Effective Palette resolution over native Frame-based Palette Changes. |
 | `tests/plan/` | Static Plan preflight, single-Sprite Step composition, and commit gates. |
 | `tests/release/` | Release metadata and publication gates. |
 | `tests/runtime/` | Aseprite Runtime Integration, including discovery, launch, private Kernel transport, and real-runtime evidence. |
@@ -34,7 +35,8 @@ Use the tier in the file name:
 - `test_integration_*.py` connects SPA components. It can invoke the installed `spa`
   CLI with a controlled fake Aseprite executable, but it does not prove native
   Aseprite behavior.
-- `test_e2e_*.py` invokes the installed `spa` CLI with a real Aseprite executable.
+- `test_e2e_*.py` invokes the installed `spa` CLI with a real Aseprite executable,
+  or exercises a shared packaged Kernel Interface directly with native fixtures.
   Mark the module or each test with `pytest.mark.e2e`.
 
 `pytest.mark.slow` is an additional cost marker, not a verification tier. Use it
@@ -50,6 +52,9 @@ execution when the selected Descriptor requires it. Each later Operation adds
 real-runtime evidence for the native capabilities named by its Descriptor.
 The Sprite E2E fixture covers nonempty Frames, Tags, Palettes, nested Layers, Cels,
 Slices, and Tilesets in addition to empty-section and unrequested-section semantics.
+The Palette fixture checks the shared resolver before, at, and after a Palette Change,
+with literal expected Frame and color facts and unrelated active editor state. Operation
+E2E tests retain coverage of caller-specific validation, resource loading, and publication.
 Slice inspection uses Aseprite's native sprite-sheet metadata export to observe the
 complete ordered Key list, converts its zero-based Frames to the public one-based model,
 and combines it with public Slice user data. The private metadata and texture remain in
@@ -77,6 +82,11 @@ that a document-dependent Postcondition failure leaves the Target absent.
 Aggregate discovery conservatively requires every eligible Plan Step capability;
 the Plan execution gate checks selected Step requirements plus mandatory final Sprite
 inspection in its one Aseprite process.
+The Cel Plan tests compare standalone and Plan properties, linked Image facts, and
+stored pixels for hidden and zero-opacity Cels. A CLI subprocess fixture observes
+the real invocation and commit adapters and injects invalid native evidence to test
+the publication gate. The bounded [Cel Plan profile](evidence/issue-105-profile.md)
+records one fixed wizard workload, stage timings, and its measurement limits.
 
 The initial evidence profiles use local macOS Aseprite 1.3.18.5-dev and the pinned
 Linux CI Aseprite 1.3.18.5 source release. Both expose `_VERSION == "Lua 5.4"` and

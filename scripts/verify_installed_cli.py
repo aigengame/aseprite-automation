@@ -48,6 +48,8 @@ for name in (
     "sprite_flatten.lua",
     "sprite_geometry.lua",
     "sprite_persistence.lua",
+    "effective_palette.lua",
+    "cel_relationship_support.lua",
     "selection_mask.lua",
     "selection_support.lua",
     "selection_create.lua",

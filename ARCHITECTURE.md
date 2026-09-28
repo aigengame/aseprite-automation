@@ -334,8 +334,14 @@ invoke Sprite-wide Color Mode conversion.
 The application reuses Artifact Files for JSON transport and Target Commit for native
 publication. `spa.paint` owns exact Pixel Patch application. `spa.raster` holds the
 shared Color Value, Rectangle, Snapshot, Patch, Selection, and Effective Palette types;
-`raster_color.lua` is the shared native Color Value and Effective Palette boundary for
-Paint and Image snapshots.
+`raster_color.lua` shares native Color Value handling and Palette result facts for
+Paint and Image snapshots. It delegates Frame-based Palette selection to the private
+`effective_palette.lua` Module owned by Color and Palette. That Module returns the
+native Palette and its starting Frame; callers retain index, opacity, applicability,
+and failure policies. Frame, Layer, Paint, and Image consumers use the same resolver.
+`spa.palette` declares its packaged-resource binding. Each affected handler supplies
+that binding explicitly, including Frame reads, Cel mutation, Image snapshots, Plan,
+and runtime probes; the runtime does not discover Lua dependencies recursively.
 Raster Authoring owns their
 pixel and Color Value semantics under ADR-0018; Color and Palette owns Palette and
 conversion behavior. The other groupings remain an integrated planning view rather
@@ -402,6 +408,7 @@ src/spa/
   animation.py            # existing audit, comparison, and composed Preview use case
   frame.py, cel.py, cel_relationship.py
   image.py, image_snapshot.py, paint.py, raster.py
+  palette.py              # shared private Palette Kernel resource binding
   export.py               # existing Delivery and publication support
   application.py, plan.py, mutation.py, ports.py
   file_adapter.py
@@ -409,8 +416,9 @@ src/spa/
   kernel/                 # fixed native semantic handlers and shared owners
 ```
 
-Add a module only with a complete functional slice. Color/Palette and other planned
-owners gain their physical structure when their features arrive. Reuse the canonical
+Add a module only with a complete functional slice. Color and Palette now owns the
+shared Effective Palette resolver; further structure follows delivered features.
+Reuse the canonical
 Pixel Region Snapshot and Color Value contracts where applicable; do not promote the
 wizard's temporary PNG decoder, palette matcher, or batching adapter as a second pixel
 authority. Exact preparation formats and dependencies remain feature decisions.
@@ -545,6 +553,11 @@ points. Standalone handlers save and reopen their Operation output; the Plan han
 keeps one Sprite live and applies one final save-and-reopen gate. A second Python or
 generated-Lua behavior path is prohibited. `spa script run` is a separate escape hatch
 for exact caller-owned Lua and does not inherit Ordinary Core Operation guarantees.
+
+Cel relationship semantics live in `kernel/cel_relationship_support.lua`. The
+standalone relationship handler and `cel set` Plan Steps call its live entry point.
+`spa.cel_relationship` owns the shared input and evidence contracts; `spa.plan`
+composes those contracts and reports Step facts before final Plan persistence.
 
 ### Aseprite Runtime Integration
 

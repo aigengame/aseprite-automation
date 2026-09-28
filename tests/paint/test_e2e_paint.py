@@ -782,6 +782,8 @@ def test_apply_ignores_ambient_editor_selection(tmp_path: Path) -> None:
                 "--script-param",
                 f"raster_color={support / 'raster_color.lua'}",
                 "--script-param",
+                f"effective_palette={support / 'effective_palette.lua'}",
+                "--script-param",
                 f"selection_mask={support / 'selection_mask.lua'}",
                 "--script-param",
                 f"digest={support / 'digest.lua'}",

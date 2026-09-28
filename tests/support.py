@@ -99,11 +99,16 @@ printf '%s' {quoted_response} > "$response_file"
 
 
 def inject_palette_change(
-    target: Path, entries: list[tuple[int, int, int, int]]
+    target: Path,
+    entries: list[tuple[int, int, int, int]],
+    *,
+    frame_number: int = 2,
 ) -> None:
-    """Add a second-Frame Palette Chunk unavailable through the public Lua API."""
+    """Add a Palette Chunk unavailable through the public Lua API."""
     payload = bytearray(target.read_bytes())
-    frame_offset = 128 + struct.unpack_from("<I", payload, 128)[0]
+    frame_offset = 128
+    for _ in range(1, frame_number):
+        frame_offset += struct.unpack_from("<I", payload, frame_offset)[0]
     colors = b"".join(struct.pack("<HBBBB", 0, *color) for color in entries)
     chunk_data = struct.pack("<III8x", len(entries), 0, len(entries) - 1) + colors
     chunk = struct.pack("<IH", len(chunk_data) + 6, 0x2019) + chunk_data

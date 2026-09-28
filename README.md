@@ -446,7 +446,7 @@ explicit Source/Target publication intent as Frame authoring.
 `spa plan check` validates a bounded Plan, including current Source and Target path
 conditions, without starting Aseprite. `spa plan run`
 executes up to 64 Sprite-bound `sprite create`, `sprite get`, `frame list`,
-`frame get`, `frame add`, `frame duplicate`, `cel add`, and `paint apply` Steps
+`frame get`, `frame add`, `frame duplicate`, `cel add`, `cel set`, and `paint apply` Steps
 on one live Sprite in one Aseprite process. A read Plan publishes no file. A mutating
 Plan declares one Target Sprite File; the staged file is reopened and verified before
 one Target Commit. A failed Step publishes no target. Typed Cel refusals identify the
@@ -456,6 +456,13 @@ one-based Step in `details.step_number`; execution failures use
 existing Source may edit in place only with `in_place: true` and `overwrite: true`.
 Plans reject a Source alias that traverses the Target publication entry for either
 `in_place` value. An explicit in-place edit uses the same Source and Target entry.
+
+A `cel set` Step accepts the standalone `target`, `position`, `opacity`, and
+`z_index` fields. It retains the standalone target rules and native Linked Cel
+effects. Its `before_cels`, `affected_cels`, and `cel` facts describe that Step's
+live state. The Step reports `persisted_reopen_verified: false`; the enclosing Plan
+reports persistence only after its final save/reopen gate. Source/Target paths,
+runtime settings, and overwrite intent belong to the Plan rather than its Steps.
 
 `spa export image` renders one explicit Frame of the full canvas with persisted visible
 Layers. It accepts RGB Source Sprites with no Color Profile or sRGB. It rejects

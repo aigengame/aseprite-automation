@@ -26,6 +26,7 @@ from spa.mutation import (
     validate_native_sprite_path,
 )
 from spa.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
+from spa.palette import EFFECTIVE_PALETTE_RESOURCE
 from spa.ports import (
     KernelInvocationResult,
     OperationIssue,
@@ -167,6 +168,7 @@ PAINT_PROBE_FIXTURE = PackagedResource("paint_fixture", "paint_apply_fixture.ase
 PAINT_PROBE_RESOURCES = (
     PAINT_SUPPORT_RESOURCE,
     RASTER_COLOR_RESOURCE,
+    EFFECTIVE_PALETTE_RESOURCE,
     SELECTION_MASK_RESOURCE,
     DIGEST_RESOURCE,
     PAINT_PROBE_FIXTURE,
@@ -176,6 +178,7 @@ PAINT_APPLY_HANDLER = PackagedHandler(
     (
         PAINT_SUPPORT_RESOURCE,
         RASTER_COLOR_RESOURCE,
+        EFFECTIVE_PALETTE_RESOURCE,
         SELECTION_MASK_RESOURCE,
         DIGEST_RESOURCE,
     ),

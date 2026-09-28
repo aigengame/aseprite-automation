@@ -18,6 +18,7 @@ from spa.mutation import (
 )
 from spa.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.paint import DIGEST_RESOURCE
+from spa.palette import EFFECTIVE_PALETTE_RESOURCE
 from spa.ports import (
     KernelInvocationResult,
     OperationServices,
@@ -232,7 +233,8 @@ FRAME_EDIT_REQUIREMENTS = RuntimeRequirements(
 )
 FRAME_SUPPORT_RESOURCE = PackagedResource("frame", "frame_support.lua")
 FRAME_GET_HANDLER = PackagedHandler(
-    "frame_get", (SPRITE_INSPECTION_RESOURCE, FRAME_SUPPORT_RESOURCE)
+    "frame_get",
+    (SPRITE_INSPECTION_RESOURCE, FRAME_SUPPORT_RESOURCE, EFFECTIVE_PALETTE_RESOURCE),
 )
 FRAME_MUTATE_HANDLER = PackagedHandler(
     "frame_mutate",
@@ -240,6 +242,7 @@ FRAME_MUTATE_HANDLER = PackagedHandler(
         SPRITE_INSPECTION_RESOURCE,
         SPRITE_PERSISTENCE_RESOURCE,
         FRAME_SUPPORT_RESOURCE,
+        EFFECTIVE_PALETTE_RESOURCE,
         DIGEST_RESOURCE,
     ),
 )

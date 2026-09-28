@@ -1,5 +1,6 @@
 -- Shared Raster Color Values and native Effective Palette observations.
 local module = {}
+local palettes = dofile(app.params.effective_palette)
 
 local function copy_color(color)
   if color.kind == "rgba" then
@@ -67,21 +68,6 @@ local function native_color(color, color_mode, background)
   return assert(math.tointeger(color.index))
 end
 
-local function effective_palette(sprite, frame_number)
-  local selected = nil
-  local selected_frame = -1
-  for palette_index = 1, #sprite.palettes do
-    local palette = sprite.palettes[palette_index]
-    local palette_frame = palette.frame.frameNumber
-    if palette_frame <= frame_number and palette_frame > selected_frame then
-      selected = palette
-      selected_frame = palette_frame
-    end
-  end
-  assert(selected ~= nil, "Indexed target has no Effective Palette")
-  return selected, selected_frame
-end
-
 local function palette_facts(sprite, affected_cels, used_indexes)
   if sprite.colorMode ~= ColorMode.INDEXED then return {} end
   local frames = {}
@@ -100,7 +86,8 @@ local function palette_facts(sprite, affected_cels, used_indexes)
   table.sort(indexes)
   local result = {}
   for _, frame_number in ipairs(frame_numbers) do
-    local palette, palette_frame = effective_palette(sprite, frame_number)
+    local palette, palette_frame = palettes.resolve(sprite, frame_number)
+    assert(palette ~= nil, "Indexed target has no Effective Palette")
     local index_facts = {}
     for _, index in ipairs(indexes) do
       assert(
@@ -127,6 +114,5 @@ module.copy_color = copy_color
 module.colors_equal = colors_equal
 module.color_mode_name = color_mode_name
 module.native_color = native_color
-module.effective_palette = effective_palette
 module.palette_facts = palette_facts
 return module

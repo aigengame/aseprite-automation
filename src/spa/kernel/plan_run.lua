@@ -5,6 +5,7 @@ local creation = dofile(app.params.creation)
 local paint = dofile(app.params.paint)
 local frame = dofile(app.params.frame)
 local cel = dofile(app.params.cel)
+local relationship = dofile(app.params.cel_relationship)
 local layer_select = dofile(app.params.layer_select)
 local digest = dofile(app.params.digest)
 local persistence = dofile(app.params.persistence)
@@ -123,6 +124,16 @@ local function execute_step(step)
   end
   if step.operation == "cel add" then
     return cel.add_live(open_sprite, input, layer_select, verified_uuids)
+  end
+  if step.operation == "cel set" then
+    local result = relationship.apply_live(
+      open_sprite,
+      "set",
+      { target = input.target, changes = input },
+      verified_uuids
+    )
+    if result.rejection == nil then result.persisted_reopen_verified = false end
+    return result
   end
   error("Operation is not Plan-eligible")
 end

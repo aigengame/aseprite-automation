@@ -1,1 +1,1 @@
-"""Versioned packaged Lua used only for private runtime probing in Phase 1."""
+"""Fixed Lua operation semantics and private runtime capability probes."""
