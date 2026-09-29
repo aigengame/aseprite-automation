@@ -24,6 +24,7 @@ operations and gesture algorithms through its own packaged native probes.
 | `app.useTool` consumes the points as one press/move/release sequence (`src/app/script/app_object.cpp`). | Pass one dense ordered sequence. Do not resample or normalize it. Results retain exact order and multiplicity. |
 | Eraser uses left-button erasure and right-button `replace_fg_with_bg` (`data/gui.xml`). Background erasure consumes the editor background-color preference, not only the supplied `bgColor` argument. | Keep explicit discriminated behaviors. Set and restore `app.bgColor` for the native call. Test both behaviors in RGB, Grayscale, and Indexed, on Transparent and Background Layers. |
 | Native effect Inks have distinct opacity semantics. For example, RGB alpha erasure at opacity 128 leaves alpha 127; Indexed erasure need not have that result. | Report requested opacity as Eraser's effective opacity and preserve native pixels. Fill/Pencil retain the #26 `simple` and `copy-color` effective-opacity rule. Test 0, 128, and 255 instead of adding a blending algorithm. |
+| A Sprite can persist `Palette(2)` with Transparent Color Index 7. Native Eraser writes index 7 and preserves it after reopening. | Treat native transparent output as a Sprite mask fact. Do not require a corresponding Palette Entry before or after erasure. Explicit Color Values and Background pixels retain Effective Palette validation. |
 
 ## Durable verification
 
@@ -35,6 +36,11 @@ operations and gesture algorithms through its own packaged native probes.
   `fixtures/freehand_paint_reference.lua`: direct native gesture comparison for
   algorithms, Point order/multiplicity, Ink/opacity, both Eraser behaviors,
   Backgrounds, links, clipping, and Selection.
+- `tests/paint/test_e2e_eraser_transparent_index.py` and
+  `fixtures/eraser_transparent_index.lua`: the out-of-Palette transparent index
+  counterexample, including a linked-frame target. Native reopen compares raw
+  indexes, Image geometry, links, and unchanged Palette entries. A missing
+  palette-backed replacement Color still fails without publishing a Target.
 - `tests/paint/test_e2e_native_paint.py` and
   `fixtures/native_paint_isolation.lua`: editor-state restoration after success,
   native-call failure, bounds refusal, and save failure for all eight fixed Tool
@@ -44,7 +50,9 @@ operations and gesture algorithms through its own packaged native probes.
   algorithm Capability Gaps; runtime and package tests check installed resources.
 
 The reference fixtures do not call SPA's Paint implementation. They compare public
-results with native Tools and independently decode saved output through Image Get.
+results with native Tools and decode saved output through Image Get or direct
+native reopen. The latter verifies mask indexes outside the Palette without
+changing Image Snapshot's separate Palette boundary.
 Coverage is distinct from changed pixels. Failure cases preserve Source bytes and
 do not publish a Target. Exact test counts and the reviewed commit belong to the PR
 validation report.

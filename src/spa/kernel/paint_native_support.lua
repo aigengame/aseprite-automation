@@ -93,7 +93,6 @@ function module.apply_live(sprite, payload, tool, uuids)
     end
     if behavior.foreground_color then validate_color(behavior.foreground_color) end
     if behavior.background_color then validate_color(behavior.background_color) end
-    if mode == "indexed" and not layer.isBackground then indexes[sprite.transparentColor] = true end
   else
     validate_color(payload.color)
   end
@@ -128,6 +127,10 @@ function module.apply_live(sprite, payload, tool, uuids)
       end
     end
   end
+  -- A Transparent Layer's mask is a Sprite fact, not a Palette Entry. Explicit
+  -- Color Values still use Palette validation; Background pixels do as well.
+  local transparent_index = mode == "indexed" and not layer.isBackground and sprite.transparentColor
+    or nil
   app.transaction("Native Paint", function()
     for _, row in ipairs(applied.rows) do
       for _, run in ipairs(row.runs) do
@@ -135,7 +138,7 @@ function module.apply_live(sprite, payload, tool, uuids)
           local native = rendered.image:getPixel(x, row.y)
           if image:getPixel(x, row.y) ~= native then changed = changed + 1 end
           image:putPixel(x, row.y, native)
-          if mode == "indexed" then indexes[native] = true end
+          if mode == "indexed" and native ~= transparent_index then indexes[native] = true end
         end
       end
     end
