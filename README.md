@@ -4,7 +4,7 @@ Aseprite Automation (SPA) provides agent-facing automation for Aseprite. `SPA` i
 short project name used in documentation; `spa` is the primary executable.
 
 > [!IMPORTANT]
-> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery, Sprite creation, inspection, copy, resize, crop, flatten, and validation, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Tag inspection and authoring, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, bounded Pixel Patch application, native Line, Rectangle, and Ellipse Paint operations, verified RGB PNG Image Export, animation audit, Frame comparison, and verified continuity Preview export. Feature issues own delivery contracts, evidence requirements, provenance links, curated evidence summaries, and status, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
+> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery, Sprite creation, inspection, copy, resize, crop, flatten, and validation, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Tag inspection and authoring, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, bounded Pixel Patch application, native Snapshot composition (`spa paint composite`), native Line, Rectangle, and Ellipse Paint operations, verified RGB PNG Image Export, animation audit, Frame comparison, and verified continuity Preview export. Feature issues own delivery contracts, evidence requirements, provenance links, curated evidence summaries, and status, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
 
 For a complete authoring example, see [Moonlit Spell Practice](examples/wizard_cast/README.md):
 a reproducible SPA wizard animation, reusable pixel assets, and a Godot target-practice demo.
@@ -237,6 +237,36 @@ In-place editing requires Source and Target to name the same publication entry,
 plus both `in_place: true` and `overwrite: true`.
 Standalone Paint rejects a Source alias that traverses the Target publication entry
 for either `in_place` value.
+
+`spa paint composite` blends a canonical Pixel Region Snapshot into one existing
+regular Cel through native `Image:drawImage`. Supply the Snapshot as
+`input: {"kind":"inline","snapshot":...}` (up to 4096 pixels) or the identical
+JSON in `input: {"kind":"artifact","path":"snapshot.json"}`. Source and target
+Color Modes must match. `position` places the rebased source origin in the target
+Image's pixel coordinates. Both position coordinates must be signed 32-bit integers
+(`-2147483648..2147483647`); out-of-range values fail before native invocation.
+`opacity` is an explicit integer in `0..255`, and
+`blend_mode` is explicit. Clipping and Selection follow `paint apply`; omitted
+Selection is unrestricted. A shared Image is composited once, preserving all Linked
+Cels. The result reports applied/skipped coverage, changed stored pixels, digests,
+and every affected Cel after save/reopen verification. Pixels included by coverage
+can be unchanged; native alpha-zero RGB values are not normalized by SPA.
+
+The current verified native profile supports all 19 published modes for RGB.
+Grayscale excludes `hue`, `saturation`, `color`, `luminosity`, and `addition`:
+those native combinations select Normal or Exclusion instead. Indexed accepts only
+`normal` at `opacity: 255`, using native index overlay with the Sprite's Transparent
+Color Index. Supply `palette_frame_number` equal to `target.frame_number`; the result
+reports that Frame's Effective Palette. An isolated temporary Sprite provides the
+correct native Palette basis. Source indexes and the mask must exist in that Palette;
+output indexes must exist in every affected Cel Frame's Palette. Other Indexed
+combinations return typed Capability Gaps. `spa info` and `spa schema` expose these
+gaps and omit the Indexed capability if its native probe fails. Composite is a
+standalone mutation; it is not an Operation Plan Step.
+
+```sh
+uv run spa paint composite --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"composited.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":1},"input":{"kind":"artifact","path":"snapshot.json"},"position":{"x":0,"y":0},"opacity":127,"blend_mode":"normal"}'
+```
 
 `spa paint line`, `spa paint rectangle`, and `spa paint ellipse` use native
 Aseprite Tools on an existing Cel addressed by `target.layer` and

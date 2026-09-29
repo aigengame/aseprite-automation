@@ -17,7 +17,8 @@ this view instead of treating it as another decision authority.
 > editing, Tag inspection and authoring, Cel inspection, lifecycle, placement,
 > bounded position/opacity motion,
 > and native relationships, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, bounded Pixel Patch
-> application, native Line, Rectangle, and Ellipse Paint operations, and verified RGB
+> application, native Snapshot composition (`spa paint composite`), native Line,
+> Rectangle, and Ellipse Paint operations, verified RGB
 > PNG Image Export, animation audit, Frame comparison, and continuity Preview
 > export. The module
 > ownership below includes both this delivered vertical slice and planned work. Feature
@@ -294,7 +295,7 @@ Sprite creation and inspection slice extends that same stack.
 | CLI adapter | Typer | Command access and human or machine presentation. |
 | Public contracts | Pydantic 2 and JSON Schema | Typed Operation Requests, Operation Results, Failure Envelopes, and discovery schemas. |
 | Project and packaging | `uv` | Environments, dependencies, builds, and installed-product tests. |
-| Ordinary Core Operations | Packaged Lua handlers | Core Operation Semantics and native mapping executed through Aseprite. The current package contains a fixed runtime probe, shared capability observations, Sprite creation, inspection, native flattening, resize and crop, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, Tag inspection and authoring, exact Pixel Patch, native Line, Rectangle, and Ellipse Paint, animation audit, Frame comparison, continuity Preview, Export Image, and Operation Plan handlers. Sprite copy uses the File Adapter for byte preservation and the packaged inspection handler for verification. |
+| Ordinary Core Operations | Packaged Lua handlers | Core Operation Semantics and native mapping executed through Aseprite. The current package contains a fixed runtime probe, shared capability observations, Sprite creation, inspection, native flattening, resize and crop, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, Tag inspection and authoring, exact Pixel Patch, native Snapshot composition, native Line, Rectangle, and Ellipse Paint, animation audit, Frame comparison, continuity Preview, Export Image, and Operation Plan handlers. Sprite copy uses the File Adapter for byte preservation and the packaged inspection handler for verification. |
 | Aseprite integration | External `aseprite --batch --script` | Native document, Tool, Filter, color, and export behavior. |
 | Private transport | Versioned JSON request and response files | Data exchange through `--script-param`, separate from diagnostics. |
 | Agent access | Version-matched Agent Skill and planned local stdio MCP Adapter with CLI subprocess invocation | Guidance and equivalent tool projection from the installed surface. |
@@ -336,8 +337,20 @@ native render. The composite's explicit output choice selects the native render 
 individual reads retain stored values. This does not create a second compositor or
 invoke Sprite-wide Color Mode conversion.
 The application reuses Artifact Files for JSON transport and Target Commit for native
-publication. `spa.paint` owns exact Pixel Patch application. `spa.raster` holds the
-shared Color Value, Rectangle, Snapshot, Patch, Selection, and Effective Palette types;
+publication. `spa.paint` owns exact Pixel Patch application.
+`spa.paint_composite` owns Snapshot composition intent, native support gaps, result
+validation, and staged publication. Its fixed Lua support constructs the source
+through `image_snapshot.lua`, invokes native `Image:drawImage`, and limits coverage
+through the same explicit Selection helper as Paint apply. The handler owns Cel
+eligibility, Background opacity, Linked Cel invariants, and persisted verification.
+For Indexed Normal/255, a scoped temporary Sprite binds the requested Effective
+Palette to native Cel-associated `drawImage`; cleanup restores active document state
+on success and failure. A separate runtime observation gates this Indexed path.
+Image replace and Paint composite share native Snapshot materialization; neither
+maintains a second Raster decoder or blend algorithm. `spa.raster` holds the
+shared Color Value, Rectangle, Snapshot, Patch, Selection, and Effective Palette types.
+It also checks Paint write counts and unchanged-pixel digests; operation-specific
+evidence stays with each owner.
 `raster_color.lua` shares native Color Value handling and Palette result facts for
 Paint and Image snapshots. It delegates Frame-based Palette selection to the private
 `effective_palette.lua` Module owned by Color and Palette. That Module returns the
@@ -413,7 +426,7 @@ src/spa/
   rounding.py             # shared exact rounding policies and Kernel binding
   animation.py            # existing audit, comparison, and composed Preview use case
   frame.py, cel.py, cel_relationship.py
-  image.py, image_snapshot.py, paint.py, paint_native.py, raster.py
+  image.py, image_snapshot.py, paint.py, paint_composite.py, paint_native.py, raster.py
   palette.py              # shared private Palette Kernel resource binding
   export.py               # existing Delivery and publication support
   application.py, plan.py, mutation.py, ports.py

@@ -163,4 +163,21 @@ function module.encode(mask)
   }
 end
 
+function module.copy_value(selection)
+  if selection == nil then return nil end
+  if selection.kind == "empty" then return { kind = "empty" } end
+  if selection.kind == "all" then
+    return { kind = "all", rectangle = module.rectangle(selection.rectangle) }
+  end
+  local rows = {}
+  for _, row in ipairs(selection.rows) do
+    local runs = {}
+    for _, run in ipairs(row.runs) do
+      runs[#runs + 1] = { x = run.x, length = run.length }
+    end
+    rows[#rows + 1] = { y = row.y, runs = runs }
+  end
+  return { kind = "mask", bounds = module.rectangle(selection.bounds), rows = rows }
+end
+
 return module

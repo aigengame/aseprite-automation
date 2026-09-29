@@ -32,6 +32,11 @@ from spa.operation import (
     OperationDescriptor,
 )
 from spa.paint import PAINT_OPERATIONS, PAINT_PROBE_RESOURCES
+from spa.paint_composite import (
+    COMPOSITE_OPERATIONS,
+    COMPOSITE_SUPPORT_RESOURCE,
+    composite_capability_gaps,
+)
 from spa.paint_native import NATIVE_PAINT_OPERATIONS, NATIVE_PAINT_RESOURCES
 from spa.plan import PLAN_OPERATIONS
 from spa.ports import OperationServices
@@ -53,6 +58,7 @@ PROBE_RESOURCES = (
     IMAGE_ORIENTATION_TRANSFORM_RESOURCE,
     *EXPORT_PROBE_RESOURCES,
     SELECTION_SUPPORT_RESOURCE,
+    COMPOSITE_SUPPORT_RESOURCE,
 )
 
 KERNEL_RUNTIME_REQUIREMENTS = RuntimeRequirements(
@@ -105,6 +111,12 @@ def _surface(runtime: RuntimeFacts) -> tuple[list[str], list[CapabilityGap]]:
                 capability=command,
                 aseprite_version=runtime.aseprite_version,
                 evidence="; ".join(evidence),
+            )
+        )
+    if "spa paint composite" in supported:
+        gaps.extend(
+            composite_capability_gaps(
+                runtime.aseprite_version, runtime.verified_capabilities
             )
         )
     return supported, gaps
@@ -198,6 +210,7 @@ OPERATIONS = (
     *SPRITE_OPERATIONS,
     *LAYER_OPERATIONS,
     *PAINT_OPERATIONS,
+    *COMPOSITE_OPERATIONS,
     *NATIVE_PAINT_OPERATIONS,
     *SELECTION_OPERATIONS,
     *FRAME_OPERATIONS,

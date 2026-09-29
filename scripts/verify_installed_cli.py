@@ -87,6 +87,8 @@ for name in (
     "image_snapshot.lua",
     "layer_composition.lua",
     "raster_color.lua",
+    "paint_composite.lua",
+    "paint_composite_support.lua",
     "native_tool.lua",
     "paint_native_support.lua",
     "paint_line.lua",

@@ -40,6 +40,7 @@ from spa.image import ImageRotatePositionDetails
 from spa.image_snapshot import SnapshotDetails
 from spa.layer import LayerAddress, LayerTargetDetails
 from spa.mutation import TargetCommitDetails
+from spa.paint_composite import CompositeCapabilityDetails, CompositeDetails
 from spa.paint_native import PaintCapabilityDetails
 from spa.ports import (
     ArtifactFileEvidence,
@@ -171,6 +172,14 @@ def test_failure_construction_derives_category_and_refuses_mismatch() -> None:
 
 def test_each_registered_code_has_a_constrained_public_schema() -> None:
     details_by_type = {
+        CompositeDetails: CompositeDetails(reason="Snapshot Color Mode differs"),
+        CompositeCapabilityDetails: CompositeCapabilityDetails(
+            gap=CapabilityGap(
+                capability="spa paint composite: grayscale addition",
+                aseprite_version="1.3.18.5-dev",
+                evidence="Native Addition selects Exclusion",
+            )
+        ),
         PaintCapabilityDetails: PaintCapabilityDetails(
             gap=CapabilityGap(
                 capability="shading Ink",

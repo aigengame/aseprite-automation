@@ -42,9 +42,9 @@ from spa.raster import (
     RASTER_COLOR_RESOURCE,
     SELECTION_MASK_RESOURCE,
     EffectivePaletteFact,
-    ImageContentDigest,
     PixelPatch,
     PixelRun,
+    PixelWriteEvidence,
     Point,
     Rectangle,
     SelectionApplication,
@@ -118,7 +118,7 @@ class AffectedCel(PublicModel):
     linked_to_target: Literal[True]
 
 
-class PaintApplyEvidence(PublicModel):
+class PaintApplyEvidence(PixelWriteEvidence):
     input_form: Literal["inline"]
     persisted_reopen_verified: Literal[True]
     target: CelAddress
@@ -131,19 +131,12 @@ class PaintApplyEvidence(PublicModel):
     applied_runs: list[PixelRun]
     skipped_by_bounds_runs: list[PixelRun]
     skipped_by_selection_runs: list[PixelRun]
-    pixels_requested: int = Field(ge=0)
-    pixels_written: int = Field(ge=0)
-    pixels_changed: int = Field(ge=0)
-    pixels_skipped_by_bounds: int = Field(ge=0)
-    pixels_skipped_by_selection: int = Field(ge=0)
     pixel_partition_verified: Literal[True]
     affected_cels: list[AffectedCel] = Field(min_length=1)
     linked_cels_preserved: Literal[True]
     geometry_unchanged: Literal[True]
     background_opaque: bool
     effective_palettes: list[EffectivePaletteFact]
-    before_content_digest: ImageContentDigest
-    after_content_digest: ImageContentDigest
 
 
 class PaintApplyResult(PaintApplyEvidence):
@@ -272,9 +265,6 @@ def validate_paint_evidence(
     invocation: KernelInvocationResult,
 ) -> None:
     requested_pixels = sum(run.length for run in request.patch.runs)
-    applied_pixels = sum(run.length for run in evidence.applied_runs)
-    bounds_pixels = sum(run.length for run in evidence.skipped_by_bounds_runs)
-    selection_pixels = sum(run.length for run in evidence.skipped_by_selection_runs)
     target_cels = [
         cel
         for cel in evidence.affected_cels
@@ -292,14 +282,10 @@ def validate_paint_evidence(
         == request.patch.rectangle.model_dump()
         and evidence.requested_runs == request.patch.runs
         and evidence.pixels_requested == requested_pixels
-        and evidence.pixels_written == applied_pixels
-        and evidence.pixels_skipped_by_bounds == bounds_pixels
-        and evidence.pixels_skipped_by_selection == selection_pixels
-        and requested_pixels == applied_pixels + bounds_pixels + selection_pixels
-        and evidence.pixels_changed <= evidence.pixels_written
-        and (
-            evidence.pixels_changed != 0
-            or evidence.before_content_digest == evidence.after_content_digest
+        and evidence.matches_coverage(
+            applied=sum(run.length for run in evidence.applied_runs),
+            bounds=sum(run.length for run in evidence.skipped_by_bounds_runs),
+            selection=sum(run.length for run in evidence.skipped_by_selection_runs),
         )
         and target_cel is not None
     )

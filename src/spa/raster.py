@@ -60,6 +60,31 @@ class ImageContentDigest(PublicModel):
     value: str = Field(pattern=r"^[0-9a-f]{16}$")
 
 
+class PixelWriteEvidence(PublicModel):
+    """Shared pixel accounting for Paint writes with explicit coverage."""
+
+    pixels_requested: int = Field(ge=0)
+    pixels_written: int = Field(ge=0)
+    pixels_changed: int = Field(ge=0)
+    pixels_skipped_by_bounds: int = Field(ge=0)
+    pixels_skipped_by_selection: int = Field(ge=0)
+    before_content_digest: ImageContentDigest
+    after_content_digest: ImageContentDigest
+
+    def matches_coverage(self, *, applied: int, bounds: int, selection: int) -> bool:
+        return (
+            self.pixels_written == applied
+            and self.pixels_skipped_by_bounds == bounds
+            and self.pixels_skipped_by_selection == selection
+            and self.pixels_requested == applied + bounds + selection
+            and self.pixels_changed <= self.pixels_written
+            and (
+                self.pixels_changed != 0
+                or self.before_content_digest == self.after_content_digest
+            )
+        )
+
+
 class Size(PublicModel):
     width: int = Field(ge=0)
     height: int = Field(ge=0)
