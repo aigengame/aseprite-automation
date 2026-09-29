@@ -41,8 +41,8 @@ from spa.ports import (
 from spa.raster import (
     SELECTION_MASK_RESOURCE,
     EffectivePaletteFact,
-    ImageContentDigest,
     PixelRegionSnapshot,
+    PixelWriteEvidence,
     Point,
     PositiveRectangle,
     Rectangle,
@@ -117,7 +117,7 @@ class CompositeCoverageRun(Point):
     length: int = Field(ge=1)
 
 
-class PaintCompositeEvidence(PublicModel):
+class PaintCompositeEvidence(PixelWriteEvidence):
     input_form: Literal["inline", "artifact"]
     target: CelAddress
     color_mode: Literal["rgb", "grayscale", "indexed"]
@@ -134,18 +134,12 @@ class PaintCompositeEvidence(PublicModel):
     skipped_by_bounds_runs: list[CompositeCoverageRun]
     skipped_by_selection_runs: list[CompositeCoverageRun]
     pixels_requested: int = Field(ge=1)
-    pixels_written: int = Field(ge=0)
-    pixels_changed: int = Field(ge=0)
-    pixels_skipped_by_bounds: int = Field(ge=0)
-    pixels_skipped_by_selection: int = Field(ge=0)
     composite_palette_basis: EffectivePaletteFact | None
     affected_cels: list[CelState] = Field(min_length=1)
     effective_palettes: list[EffectivePaletteFact]
     native_sharing_preserved: Literal[True]
     geometry_unchanged: Literal[True]
     background_opaque: bool
-    before_content_digest: ImageContentDigest
-    after_content_digest: ImageContentDigest
     persisted_reopen_verified: Literal[True]
     sprite: SpriteInspection
 
@@ -373,17 +367,13 @@ def composite_paint(
                 or evidence.selection != request.selection
                 or evidence.pixels_requested
                 != value.rectangle.width * value.rectangle.height
-                or evidence.pixels_written
-                != sum(run.length for run in evidence.applied_runs)
-                or evidence.pixels_skipped_by_bounds
-                != sum(run.length for run in evidence.skipped_by_bounds_runs)
-                or evidence.pixels_skipped_by_selection
-                != sum(run.length for run in evidence.skipped_by_selection_runs)
-                or evidence.pixels_requested
-                != evidence.pixels_written
-                + evidence.pixels_skipped_by_bounds
-                + evidence.pixels_skipped_by_selection
-                or evidence.pixels_changed > evidence.pixels_written
+                or not evidence.matches_coverage(
+                    applied=sum(run.length for run in evidence.applied_runs),
+                    bounds=sum(run.length for run in evidence.skipped_by_bounds_runs),
+                    selection=sum(
+                        run.length for run in evidence.skipped_by_selection_runs
+                    ),
+                )
                 or (
                     value.color_mode == "indexed"
                     and (
@@ -398,10 +388,6 @@ def composite_paint(
                         evidence.composite_palette_basis is not None
                         or evidence.effective_palettes
                     )
-                )
-                or (
-                    evidence.pixels_changed == 0
-                    and evidence.before_content_digest != evidence.after_content_digest
                 )
             ):
                 raise ValueError("Composite evidence differs from the request")

@@ -347,7 +347,9 @@ Palette to native Cel-associated `drawImage`; cleanup restores active document s
 on success and failure. A separate runtime observation gates this Indexed path.
 Image replace and Paint composite share native Snapshot materialization; neither
 maintains a second Raster decoder or blend algorithm. `spa.raster` holds the
-shared Color Value, Rectangle, Snapshot, Patch, Selection, and Effective Palette types;
+shared Color Value, Rectangle, Snapshot, Patch, Selection, and Effective Palette types.
+It also checks Paint write counts and unchanged-pixel digests; operation-specific
+evidence stays with each owner.
 `raster_color.lua` shares native Color Value handling and Palette result facts for
 Paint and Image snapshots. It delegates Frame-based Palette selection to the private
 `effective_palette.lua` Module owned by Color and Palette. That Module returns the
