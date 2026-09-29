@@ -45,6 +45,7 @@ def test_unverified_native_paint_candidates_have_independent_manifest_gaps(
     assert set(gaps) == expected
     assert all(gap["aseprite_version"] == "test-runtime" for gap in gaps.values())
     assert all(gap["evidence"] for gap in gaps.values())
+    assert all("1.3.18.5" not in gap["evidence"] for gap in gaps.values())
     assert all(gap in manifest["capability_gaps"] for gap in gaps.values())
     supported = set(info_result["supported_capabilities"])
     assert expected.isdisjoint(supported)

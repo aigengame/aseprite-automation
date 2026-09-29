@@ -82,6 +82,13 @@ def test_aseprite_13185_native_paint_candidate_boundaries(tmp_path: Path) -> Non
     assert all(
         gap["aseprite_version"] == observation.aseprite_version for gap in gaps.values()
     )
+    for tool, reason in (
+        ("spray", "random draw footprint"),
+        ("curve", "Four Points Controller"),
+        ("polygon", "Point-by-Point Controller"),
+        ("jumble", "zero-velocity Pointers"),
+    ):
+        assert reason in gaps[f"spa paint {tool}"]["evidence"]
     assert all(gap in schema_result["capability_gaps"] for gap in gaps.values())
     assert candidates.isdisjoint(info_result["supported_capabilities"])
     assert candidates.isdisjoint(

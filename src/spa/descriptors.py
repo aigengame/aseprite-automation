@@ -123,7 +123,12 @@ def _surface(runtime: RuntimeFacts) -> tuple[list[str], list[CapabilityGap]]:
                 runtime.aseprite_version, runtime.verified_capabilities
             )
         )
-    gaps.extend(native_paint_candidate_gaps(runtime.aseprite_version))
+    registered = {f"spa {descriptor.name}" for descriptor in OPERATIONS}
+    gaps.extend(
+        gap
+        for gap in native_paint_candidate_gaps(runtime.aseprite_version)
+        if gap.capability not in registered
+    )
     return supported, gaps
 
 

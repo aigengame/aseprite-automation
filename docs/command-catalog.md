@@ -143,20 +143,13 @@ does not add other motion modes or recipe-owned pose and particle behavior.
 | `spa paint fill` | Invoke native Paint Bucket with explicit matching and bounds. |
 | `spa paint pencil` | Draw one ordered native Pencil gesture. |
 | `spa paint eraser` | Apply one ordered native Eraser gesture and behavior. |
-| `spa paint spray` | Apply native-stochastic Spray when the runtime exposes its required inputs. |
+| `spa paint spray` | Apply native-stochastic Spray when its options and actual footprint can be governed. |
 | `spa paint gradient` | Apply native Linear or Radial Gradient when headless option control is complete. |
 | `spa paint curve` | Apply native Four-Point Curve when its controller is scriptable. |
 | `spa paint polygon` | Apply native Point-by-Point Polygon when its controller is scriptable. |
 | `spa paint contour` | Apply one native filled Contour gesture. |
 | `spa paint blur` | Apply deterministic native Blur Ink. |
 | `spa paint jumble` | Apply native-stochastic Jumble when Pointer velocity and direction are scriptable. |
-
-The Aseprite 1.3.18.5 investigation in [#29](https://github.com/aigengame/aseprite-automation/issues/29)
-found that Spray Width/Speed can be set after the headless preference reset, but its
-exact stochastic footprint is not exposed to Lua. One scripted press/release does not
-complete Curve or Polygon; scripted Jumble receives zero Pointer velocity. These rows
-remain candidate intents. The installed Surface Manifest reports current availability
-and versioned Capability Gaps.
 
 ## `filter`
 
