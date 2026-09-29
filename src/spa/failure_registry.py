@@ -13,6 +13,7 @@ from spa.image_snapshot import IMAGE_SNAPSHOT_FAILURE_CODE_SPECS
 from spa.layer import LAYER_FAILURE_CODE_SPECS
 from spa.motion import MOTION_FAILURE_CODE_SPECS
 from spa.mutation import MUTATION_FAILURE_CODE_SPECS
+from spa.paint_composite import COMPOSITE_FAILURE_CODE_SPECS
 from spa.selection import SELECTION_FAILURE_CODE_SPECS
 from spa.sprite import SPRITE_FAILURE_CODE_SPECS
 from spa.tag import TAG_FAILURE_CODE_SPECS
@@ -23,6 +24,7 @@ FAILURE_CODES = register_failure_codes(
         *ANIMATION_FAILURE_CODE_SPECS,
         *CEL_FAILURE_CODE_SPECS,
         *MUTATION_FAILURE_CODE_SPECS,
+        *COMPOSITE_FAILURE_CODE_SPECS,
         *MOTION_FAILURE_CODE_SPECS,
         *SELECTION_FAILURE_CODE_SPECS,
         *EXPORT_FAILURE_CODE_SPECS,

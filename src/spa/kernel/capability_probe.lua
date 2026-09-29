@@ -713,6 +713,16 @@ end
 
 function module.observe()
   local capabilities = { "aseprite_runtime_introspection" }
+  if app.params.paint_composite ~= nil then
+    local ok = pcall(function()
+      local composite = dofile(app.params.paint_composite)
+      local destination, source = Image(1, 1, ColorMode.RGB), Image(1, 1, ColorMode.RGB)
+      source:putPixel(0, 0, app.pixelColor.rgba(240, 80, 20, 128))
+      local result = composite.draw(destination, source, { x = 0, y = 0 }, 255, "normal")
+      assert(result:getPixel(0, 0) == app.pixelColor.rgba(240, 80, 20, 128))
+    end)
+    if ok then capabilities[#capabilities + 1] = "aseprite_paint_composite" end
+  end
   if selections ~= nil then
     local ok = pcall(function()
       local bounds = { x = -2, y = 3, width = 4, height = 4 }

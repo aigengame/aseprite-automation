@@ -1,0 +1,353 @@
+"""Snapshot composition contracts and staged native mutation orchestration."""
+
+from pathlib import Path
+from typing import Annotated, Literal
+
+from pydantic import Field, ValidationError, field_validator, model_validator
+
+from spa.cel import CelAddress, CelState, _reject
+from spa.contracts import (
+    FailureCodeSpec,
+    PublicModel,
+    RuntimeRequest,
+    RuntimeRequirements,
+)
+from spa.image_snapshot import (
+    SNAPSHOT_SUPPORT_RESOURCES,
+    ArtifactSnapshot,
+    InlineSnapshot,
+)
+from spa.layer import LAYER_ADDRESS_FAILURE_CODES
+from spa.mutation import (
+    TargetCommit,
+    require_overwrite_for_in_place,
+    source_target_identity_issue,
+    validate_native_sprite_path,
+)
+from spa.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
+from spa.ports import (
+    OperationIssue,
+    OperationServices,
+    PackagedHandler,
+    PackagedResource,
+    RequestIssue,
+    ResponseEvidence,
+    RuntimeIssue,
+    TargetCommitEvidence,
+)
+from spa.raster import (
+    SELECTION_MASK_RESOURCE,
+    EffectivePaletteFact,
+    ImageContentDigest,
+    PixelRegionSnapshot,
+    Point,
+    PositiveRectangle,
+    Rectangle,
+    SelectionApplication,
+)
+from spa.sprite import (
+    INSPECTION_SECTIONS,
+    SPRITE_DIGEST_RESOURCE,
+    SPRITE_PERSISTENCE_RESOURCE,
+    SpriteGetRequest,
+    SpriteInspection,
+    validated_scope,
+)
+
+BlendMode = Literal[
+    "normal",
+    "multiply",
+    "screen",
+    "overlay",
+    "darken",
+    "lighten",
+    "color-dodge",
+    "color-burn",
+    "hard-light",
+    "soft-light",
+    "difference",
+    "exclusion",
+    "hue",
+    "saturation",
+    "color",
+    "luminosity",
+    "addition",
+    "subtract",
+    "divide",
+]
+
+
+class PaintCompositeRequest(RuntimeRequest):
+    source_sprite_file: str = Field(min_length=1)
+    target_sprite_file: str = Field(min_length=1)
+    in_place: bool
+    overwrite: bool
+    target: CelAddress
+    input: Annotated[InlineSnapshot | ArtifactSnapshot, Field(discriminator="kind")]
+    position: Point = Field(
+        description="Source origin in target Image Pixel coordinates"
+    )
+    opacity: int = Field(ge=0, le=255)
+    blend_mode: BlendMode
+    clipping: Literal["reject", "clip"] = "reject"
+    selection: SelectionApplication | None = None
+    palette_frame_number: int | None = Field(default=None, ge=1)
+
+    _validate_source = field_validator("source_sprite_file")(
+        validate_native_sprite_path
+    )
+    _validate_target = field_validator("target_sprite_file")(
+        validate_native_sprite_path
+    )
+
+    @model_validator(mode="after")
+    def validate_intent(self) -> "PaintCompositeRequest":
+        require_overwrite_for_in_place(self.in_place, self.overwrite)
+        return self
+
+
+class CompositeCoverageRun(Point):
+    length: int = Field(ge=1)
+
+
+class PaintCompositeEvidence(PublicModel):
+    input_form: Literal["inline", "artifact"]
+    target: CelAddress
+    color_mode: Literal["rgb", "grayscale", "indexed"]
+    position: Point
+    opacity: int = Field(ge=0, le=255)
+    blend_mode: BlendMode
+    clipping: Literal["reject", "clip"]
+    selection: SelectionApplication | None = None
+    source_rectangle: PositiveRectangle
+    target_rectangle: PositiveRectangle
+    clipped_rectangle: Rectangle
+    applied_rectangle: Rectangle
+    applied_runs: list[CompositeCoverageRun]
+    skipped_by_bounds_runs: list[CompositeCoverageRun]
+    skipped_by_selection_runs: list[CompositeCoverageRun]
+    pixels_requested: int = Field(ge=1)
+    pixels_written: int = Field(ge=0)
+    pixels_changed: int = Field(ge=0)
+    pixels_skipped_by_bounds: int = Field(ge=0)
+    pixels_skipped_by_selection: int = Field(ge=0)
+    composite_palette_basis: EffectivePaletteFact | None
+    affected_cels: list[CelState] = Field(min_length=1)
+    effective_palettes: list[EffectivePaletteFact]
+    native_sharing_preserved: Literal[True]
+    geometry_unchanged: Literal[True]
+    background_opaque: bool
+    before_content_digest: ImageContentDigest
+    after_content_digest: ImageContentDigest
+    persisted_reopen_verified: Literal[True]
+    sprite: SpriteInspection
+
+
+class PaintCompositeResult(PaintCompositeEvidence):
+    status: Literal["success"] = "success"
+    operation: Literal["spa paint composite"] = "spa paint composite"
+    target_commit: TargetCommit
+
+
+class CompositeDetails(PublicModel):
+    kind: Literal["paint_composite"] = "paint_composite"
+    reason: str
+
+
+COMPOSITE_FAILURE_CODE_SPECS = (
+    FailureCodeSpec(
+        "paint_composite_invalid",
+        "Snapshot cannot be composited at the declared target",
+        "input",
+        CompositeDetails,
+    ),
+    FailureCodeSpec(
+        "paint_composite_unsupported",
+        "Native composition cannot preserve the requested semantics",
+        "input",
+        CompositeDetails,
+    ),
+)
+COMPOSITE_SUPPORT_RESOURCE = PackagedResource(
+    "paint_composite", "paint_composite_support.lua"
+)
+COMPOSITE_HANDLER = PackagedHandler(
+    "paint_composite",
+    (
+        *SNAPSHOT_SUPPORT_RESOURCES,
+        SPRITE_PERSISTENCE_RESOURCE,
+        SPRITE_DIGEST_RESOURCE,
+        SELECTION_MASK_RESOURCE,
+        COMPOSITE_SUPPORT_RESOURCE,
+    ),
+)
+COMPOSITE_REQUIREMENTS = RuntimeRequirements(
+    lua_language="Lua 5.4",
+    minimum_api_version=41,
+    required_capabilities=[
+        "aseprite_paint_composite",
+        "aseprite_sprite_inspection",
+        "aseprite_cel_lifecycle",
+    ],
+)
+
+
+def composite_paint(
+    request: PaintCompositeRequest, services: OperationServices
+) -> PaintCompositeResult:
+    source, target = Path(request.source_sprite_file), Path(request.target_sprite_file)
+    issue = source_target_identity_issue(
+        services.target_files, source, target, request.in_place
+    )
+    if issue is not None:
+        raise RequestIssue([issue])
+    if isinstance(request.input, InlineSnapshot):
+        value = request.input.snapshot
+    else:
+        assert services.artifact_files is not None
+        raw = services.artifact_files.read_input(Path(request.input.path))
+        try:
+            value = PixelRegionSnapshot.model_validate_json(raw)
+        except ValidationError as exc:
+            raise OperationIssue(
+                "paint_composite_invalid",
+                "Input is not a canonical Snapshot",
+                CompositeDetails(reason=str(exc)),
+            ) from exc
+    observation = services.probe_runtime(request)
+    staged = services.target_files.staged_path(target)
+    try:
+        payload = request.model_dump(
+            mode="json",
+            exclude_none=True,
+            exclude={
+                "aseprite",
+                "timeout_seconds",
+                "target_sprite_file",
+                "in_place",
+                "overwrite",
+                "input",
+            },
+        )
+        payload["staged_sprite_file"] = str(staged)
+        payload["input"] = {
+            "kind": request.input.kind,
+            "snapshot": value.model_dump(mode="json"),
+        }
+        invocation = services.invoke_kernel(
+            observation, COMPOSITE_HANDLER, payload, request.timeout_seconds
+        )
+        rejected = invocation.payload.get("rejection")
+        if (
+            isinstance(rejected, dict)
+            and isinstance(rejected.get("message"), str)
+            and rejected.get("code")
+            in {spec.code for spec in COMPOSITE_FAILURE_CODE_SPECS}
+        ):
+            raise OperationIssue(
+                rejected["code"],
+                rejected["message"],
+                CompositeDetails(reason=rejected["message"]),
+            )
+        number = request.target.frame_number
+        _reject(invocation, request.target.layer, request.target, (number, number))
+        try:
+            evidence = PaintCompositeEvidence.model_validate(invocation.payload)
+            if (
+                evidence.input_form != request.input.kind
+                or evidence.target.frame_number != number
+                or (
+                    request.target.layer.layer_path is not None
+                    and evidence.target.layer.layer_path
+                    != request.target.layer.layer_path
+                )
+                or evidence.color_mode != value.color_mode
+                or evidence.source_rectangle != value.rectangle
+                or evidence.position != request.position
+                or evidence.opacity != request.opacity
+                or evidence.blend_mode != request.blend_mode
+                or evidence.clipping != request.clipping
+                or evidence.selection != request.selection
+                or evidence.pixels_requested
+                != value.rectangle.width * value.rectangle.height
+                or evidence.pixels_written
+                != sum(run.length for run in evidence.applied_runs)
+                or evidence.pixels_skipped_by_bounds
+                != sum(run.length for run in evidence.skipped_by_bounds_runs)
+                or evidence.pixels_skipped_by_selection
+                != sum(run.length for run in evidence.skipped_by_selection_runs)
+                or evidence.pixels_requested
+                != evidence.pixels_written
+                + evidence.pixels_skipped_by_bounds
+                + evidence.pixels_skipped_by_selection
+                or evidence.pixels_changed > evidence.pixels_written
+                or (
+                    evidence.pixels_changed == 0
+                    and evidence.before_content_digest != evidence.after_content_digest
+                )
+            ):
+                raise ValueError("Composite evidence differs from the request")
+        except (ValueError, ValidationError) as exc:
+            raise RuntimeIssue(
+                "response_malformed",
+                f"Invalid Paint Composite evidence: {exc}",
+                ResponseEvidence(invocation.response_path),
+                invocation.diagnostics,
+            ) from exc
+        validated_scope(
+            SpriteGetRequest(
+                sprite_file=request.target_sprite_file,
+                inspection_scope=list(INSPECTION_SECTIONS),
+            ),
+            evidence.sprite,
+            invocation,
+        )
+        if (
+            source_target_identity_issue(
+                services.target_files, source, target, request.in_place
+            )
+            is not None
+        ):
+            raise RuntimeIssue(
+                "target_commit_failed",
+                "Source/Target identity changed",
+                TargetCommitEvidence(str(target), "source_target_identity_changed"),
+            )
+        committed = services.target_files.commit(
+            staged, target, overwrite=request.overwrite
+        )
+        return PaintCompositeResult(
+            **evidence.model_dump(),
+            target_commit=TargetCommit(
+                target_sprite_file=committed.target_sprite_file,
+                byte_size=committed.byte_size,
+                sha256=committed.sha256,
+            ),
+        )
+    finally:
+        services.target_files.discard(staged)
+
+
+COMPOSITE_OPERATIONS = (
+    OperationDescriptor(
+        "paint composite",
+        PaintCompositeRequest,
+        PaintCompositeResult,
+        composite_paint,
+        lambda result: result.target_commit.target_sprite_file,
+        COMPOSITE_REQUIREMENTS,
+        (
+            *RUNTIME_FAILURE_CODES,
+            "target_commit_failed",
+            "artifact_file_failed",
+            "cel_not_found",
+            "cel_unsupported_target",
+            "cel_frame_out_of_bounds",
+            *LAYER_ADDRESS_FAILURE_CODES,
+            *(spec.code for spec in COMPOSITE_FAILURE_CODE_SPECS),
+        ),
+        execution_kind="mutation",
+        side_effects=("publishes the declared Target Sprite File",),
+        probe_before_execute=False,
+    ),
+)

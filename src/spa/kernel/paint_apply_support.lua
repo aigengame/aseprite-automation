@@ -26,23 +26,6 @@ local function copy_address(address)
   return { layer_path = path, frame_number = address.frame_number }
 end
 
-local function copy_selection(selection)
-  if selection == nil then return nil end
-  if selection.kind == "empty" then return { kind = "empty" } end
-  if selection.kind == "all" then
-    return { kind = "all", rectangle = copy_rectangle(selection.rectangle) }
-  end
-  local rows = {}
-  for _, row in ipairs(selection.rows) do
-    local runs = {}
-    for _, run in ipairs(row.runs) do
-      runs[#runs + 1] = { x = run.x, length = run.length }
-    end
-    rows[#rows + 1] = { y = row.y, runs = runs }
-  end
-  return { kind = "mask", bounds = copy_rectangle(selection.bounds), rows = rows }
-end
-
 local function point(point_value) return { x = point_value.x, y = point_value.y } end
 
 local function rectangle(rectangle_value)
@@ -418,7 +401,7 @@ function module.apply_live(sprite, payload, digest)
     target = copy_address(payload.target),
     color_mode = color_mode,
     clipping = payload.clipping,
-    selection = copy_selection(payload.selection),
+    selection = selections.copy_value(payload.selection),
     requested_rectangle = copy_rectangle(requested_rectangle),
     applied_rectangle = applied_rectangle,
     requested_runs = requested_runs,
