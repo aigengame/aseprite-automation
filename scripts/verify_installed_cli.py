@@ -87,6 +87,8 @@ for name in (
     "image_snapshot.lua",
     "layer_composition.lua",
     "raster_color.lua",
+    "paint_composite.lua",
+    "paint_composite_support.lua",
     "export_image.lua",
     "export_image_support.lua",
 ):
