@@ -1,31 +1,20 @@
 """Native Snapshot composition through the installed SPA public boundary."""
 
 import json
-import os
 from pathlib import Path
 
 import pytest
 from jsonschema import validate
 
 from tests.image.support import image_fixture
+from tests.paint.support import call_spa
 from tests.support import spa
 
 pytestmark = pytest.mark.e2e
 
 
-def _call(*command: str, **request: object) -> tuple[int, dict]:
-    run = spa(
-        *command,
-        "--input-json",
-        "-",
-        stdin=json.dumps({"aseprite": os.environ["SPA_TEST_ASEPRITE"], **request}),
-    )
-    assert run.stdout, run.stderr
-    return run.returncode, json.loads(run.stdout)
-
-
 def _create(path: Path) -> None:
-    code, result = _call(
+    code, result = call_spa(
         "sprite",
         "create",
         target_sprite_file=str(path),
@@ -48,7 +37,7 @@ def _snapshot(color: dict, width: int = 1, mode: str = "rgb") -> dict:
 
 
 def _compose(source_file: Path, target_file: Path, value: dict, **options: object):
-    return _call(
+    return call_spa(
         "paint",
         "composite",
         **{
@@ -85,7 +74,7 @@ def test_composite_persists_native_alpha_at_declared_image_position(
     assert result["geometry_unchanged"] is True
     assert source.read_bytes() == original
 
-    code, reopened = _call(
+    code, reopened = call_spa(
         "image",
         "get",
         sprite_file=str(target),
@@ -199,7 +188,7 @@ def test_composite_uses_explicit_native_opacity(
     color = {"kind": "rgba", "red": 240, "green": 80, "blue": 20, "alpha": 128}
     code, result = _compose(source, target, _snapshot(color), opacity=opacity)
     assert code == 0, json.dumps(result)
-    code, pixels = _call(
+    code, pixels = call_spa(
         "image",
         "get",
         sprite_file=str(target),

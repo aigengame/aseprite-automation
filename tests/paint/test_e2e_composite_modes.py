@@ -12,7 +12,7 @@ from spa.contracts import RuntimeRequest
 from spa.descriptors import PROBE_RESOURCES
 from spa.runtime.aseprite import probe
 from spa.runtime.invocation import prepare_invocation
-from tests.support import spa
+from tests.paint.support import call_spa
 
 pytestmark = pytest.mark.e2e
 
@@ -45,17 +45,6 @@ GRAY_FRONT = {"kind": "grayscale", "gray": 200, "alpha": 128}
 RGB_BACK = {"kind": "rgba", "red": 40, "green": 100, "blue": 180, "alpha": 128}
 
 
-def _call(*command: str, **request: object) -> tuple[int, dict]:
-    run = spa(
-        *command,
-        "--input-json",
-        "-",
-        stdin=json.dumps({"aseprite": os.environ["SPA_TEST_ASEPRITE"], **request}),
-    )
-    assert run.stdout, run.stderr
-    return run.returncode, json.loads(run.stdout)
-
-
 def _snapshot(mode: str, colors: list[dict]) -> dict:
     runs: list[dict] = []
     for color in colors:
@@ -81,7 +70,7 @@ def _composite(
     opacity: int = 127,
     selection: dict | None = None,
 ) -> tuple[int, dict]:
-    return _call(
+    return call_spa(
         "paint",
         "composite",
         source_sprite_file=str(source),
@@ -98,7 +87,7 @@ def _composite(
 
 
 def _pixel(path: Path, *, frame: int = 1, x: int = 0) -> dict:
-    code, result = _call(
+    code, result = call_spa(
         "image",
         "get",
         sprite_file=str(path),

@@ -12,7 +12,8 @@ from spa.contracts import RuntimeRequest
 from spa.descriptors import PROBE_RESOURCES
 from spa.runtime.aseprite import probe
 from spa.runtime.invocation import prepare_invocation
-from tests.support import inject_palette_change, spa
+from tests.paint.support import call_spa
+from tests.support import inject_palette_change
 
 pytestmark = pytest.mark.e2e
 
@@ -27,17 +28,6 @@ FRAME_2_PALETTE = [
     (0, 0, 0, 0),
     (255, 0, 0, 255),
 ]
-
-
-def _call(*command: str, **request: object) -> tuple[int, dict]:
-    run = spa(
-        *command,
-        "--input-json",
-        "-",
-        stdin=json.dumps({"aseprite": os.environ["SPA_TEST_ASEPRITE"], **request}),
-    )
-    assert run.stdout, run.stderr
-    return run.returncode, json.loads(run.stdout)
 
 
 def _fixture(path: Path, *, kind: str = "independent") -> None:
@@ -103,7 +93,7 @@ def _compose(
         "palette_frame_number": 2,
     }
     request.update(options)
-    return _call(
+    return call_spa(
         "paint",
         "composite",
         **request,
@@ -111,7 +101,7 @@ def _compose(
 
 
 def _image(path: Path, frame: int) -> dict:
-    code, result = _call(
+    code, result = call_spa(
         "image",
         "get",
         sprite_file=str(path),
