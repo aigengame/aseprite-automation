@@ -546,7 +546,8 @@ flowchart TB
 
 The installed Surface Manifest reports the callable Operations, schemas, execution
 metadata, version constraints, and Capability Gaps for one SPA and Aseprite combination.
-It is runtime truth, not a product roadmap.
+It reports the selected runtime and applicable SPA support boundaries, not a product
+roadmap or a claim that every native behavior was retested on that runtime.
 
 ### Application orchestration
 
@@ -703,6 +704,12 @@ Lua-language or API-version mismatch, or a capability missing from the selected
 Descriptor's requirements, with typed evidence before Operation execution. The private
 Kernel Protocol continues to require an exact match with the one version co-packaged in
 the same pre-1.0 release.
+
+Aseprite 1.3.18.5 is the current real-integration baseline. SPA follows Aseprite's
+native version compatibility for other releases without an independent version
+allowlist, semantic guarantee, or per-release test matrix. The observed requirements
+above gate execution; they do not certify identical native pixels on every release.
+Feature delivery and claimed host launch paths still require their own real evidence.
 
 A completed Validation can return an Operation Result with typed Validation Findings.
 An invalid request, execution failure, or unmet commit gate returns a Failure Envelope;
