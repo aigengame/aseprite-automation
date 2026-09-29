@@ -119,3 +119,30 @@ def test_eraser_uses_native_alpha_erasure(tmp_path: Path) -> None:
     output = pixels(target)
     assert output[2][2] == RED | {"alpha": 127}
     assert output[2][3] == RED
+
+
+def test_fill_uses_original_canvas_and_reports_native_matching(tmp_path: Path) -> None:
+    source, target = tmp_path / "source.aseprite", tmp_path / "filled.aseprite"
+    create_sprite(source)
+    code, result = call_spa(
+        "paint",
+        "fill",
+        **paint_request(source, target),
+        seed={"x": 0, "y": 0},
+        color=RED,
+        ink="simple",
+        tolerance=0,
+        contiguous=True,
+        connectivity="four-connected",
+        refer_to="active-layer",
+        stop_at_grid=False,
+    )
+    assert code == 0, result
+    assert result["pixels_requested"] == result["pixels_changed"] == 48
+    assert result["source_scope"] == {
+        "kind": "active-layer",
+        "frame_number": 1,
+        "canvas_bounds": {"x": 0, "y": 0, "width": 8, "height": 6},
+    }
+    assert result["effective_grid_cell"] is None
+    assert all(color == RED for row in pixels(target) for color in row)

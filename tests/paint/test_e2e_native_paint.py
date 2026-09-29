@@ -538,7 +538,17 @@ def test_hidden_pixels_and_explicit_empty_selection_are_preserved(
 
 
 @pytest.mark.parametrize(
-    "tool", ["line", "rectangle", "filled_rectangle", "ellipse", "filled_ellipse"]
+    "tool",
+    [
+        "line",
+        "rectangle",
+        "filled_rectangle",
+        "ellipse",
+        "filled_ellipse",
+        "pencil",
+        "eraser",
+        "paint_bucket",
+    ],
 )
 def test_native_tool_state_is_restored_on_success_and_failure(
     tmp_path: Path, tool: str

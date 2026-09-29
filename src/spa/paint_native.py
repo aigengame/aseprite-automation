@@ -130,6 +130,43 @@ class PaintEraserRequest(
     behavior: EraserBehavior
 
 
+class FillMatching(PublicModel):
+    seed: Point
+    tolerance: int = Field(ge=0, le=255)
+    contiguous: bool
+    connectivity: Literal["four-connected", "eight-connected"] | None = None
+    refer_to: Literal["active-layer", "all-layers"]
+    stop_at_grid: bool
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "allOf": [
+                {
+                    "if": {"properties": {"contiguous": {"const": True}}},
+                    "then": {
+                        "required": ["connectivity"],
+                        "properties": {"connectivity": {"type": "string"}},
+                    },
+                    "else": {"properties": {"connectivity": {"type": "null"}}},
+                }
+            ]
+        }
+    )
+
+    @model_validator(mode="after")
+    def require_meaningful_connectivity(self) -> "FillMatching":
+        if self.contiguous != (self.connectivity is not None):
+            raise ValueError(
+                "Contiguous Fill requires connectivity; non-contiguous Fill forbids it"
+            )
+        return self
+
+
+class PaintFillRequest(CelRelationshipRequest, NativePaintTargetInput, FillMatching):
+    color: ColorValue
+    ink: PaintInk
+
+
 class PaintBrushFact(PublicModel):
     kind: Literal["circle", "square", "line"]
     size: int = Field(gt=0)
@@ -234,6 +271,24 @@ class PaintEraserResult(PaintEraserEvidence, NativePaintResult):
     operation: Literal["spa paint eraser"] = "spa paint eraser"
 
 
+class FillSourceScope(PublicModel):
+    kind: Literal["active-layer", "all-layers"]
+    frame_number: int = Field(gt=0)
+    canvas_bounds: PositiveRectangle
+
+
+class PaintFillEvidence(NativePaintWriteFacts, FillMatching):
+    color: ColorValue
+    ink: Literal["simple", "alpha-compositing", "copy-color", "lock-alpha"]
+    source_scope: FillSourceScope
+    effective_grid_cell: PositiveRectangle | None = None
+
+
+class PaintFillResult(PaintFillEvidence, NativePaintResult):
+    status: Literal["success"] = "success"
+    operation: Literal["spa paint fill"] = "spa paint fill"
+
+
 class PaintCapabilityDetails(PublicModel):
     kind: Literal["paint_capability_gap"] = "paint_capability_gap"
     gap: CapabilityGap
@@ -275,6 +330,7 @@ PAINT_RECTANGLE_HANDLER = PackagedHandler("paint_rectangle", NATIVE_PAINT_RESOUR
 PAINT_ELLIPSE_HANDLER = PackagedHandler("paint_ellipse", NATIVE_PAINT_RESOURCES)
 PAINT_PENCIL_HANDLER = PackagedHandler("paint_pencil", NATIVE_PAINT_RESOURCES)
 PAINT_ERASER_HANDLER = PackagedHandler("paint_eraser", NATIVE_PAINT_RESOURCES)
+PAINT_FILL_HANDLER = PackagedHandler("paint_fill", NATIVE_PAINT_RESOURCES)
 
 
 def native_paint_capability_gaps(
@@ -485,7 +541,30 @@ def paint_eraser(
     )
 
 
+def paint_fill(
+    request: PaintFillRequest, services: OperationServices
+) -> PaintFillResult:
+    return _execute(
+        request, services, PAINT_FILL_HANDLER, PaintFillEvidence, PaintFillResult
+    )
+
+
 NATIVE_PAINT_OPERATIONS = (
+    OperationDescriptor(
+        "paint fill",
+        PaintFillRequest,
+        PaintFillResult,
+        paint_fill,
+        lambda result: result.target_commit.target_sprite_file,
+        RuntimeRequirements(
+            lua_language="Lua 5.4",
+            minimum_api_version=41,
+            required_capabilities=["aseprite_paint_fill"],
+        ),
+        NATIVE_PAINT_FAILURE_CODES,
+        execution_kind="mutation",
+        side_effects=("publishes the declared Target Sprite File",),
+    ),
     OperationDescriptor(
         "paint eraser",
         PaintEraserRequest,

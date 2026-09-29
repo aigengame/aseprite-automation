@@ -3,6 +3,7 @@
 import json
 
 import pytest
+from jsonschema import Draft202012Validator
 
 from tests.support import operation_services, runtime_observation, spa
 
@@ -81,3 +82,66 @@ def test_unavailable_algorithm_does_not_hide_other_native_gestures() -> None:
     assert "eraser dots" in gaps
     assert "pencil dots" not in gaps and "eraser regular" not in gaps
     assert {"Paint Dynamics", "Image Brush", "shading Ink"} <= gaps
+
+
+def fill_request() -> dict:
+    request = gesture_request()
+    for key in ("brush", "points", "freehand_algorithm"):
+        del request[key]
+    return request | {
+        "seed": {"x": 1, "y": 2},
+        "color": {"kind": "palette-index", "index": 1},
+        "ink": "simple",
+        "tolerance": 0,
+        "contiguous": True,
+        "connectivity": "four-connected",
+        "refer_to": "active-layer",
+        "stop_at_grid": False,
+    }
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"contiguous": False},
+        {"connectivity": None},
+        {"connectivity": "six-connected"},
+        {"tolerance": -1},
+        {"tolerance": 256},
+        {"tolerance": True},
+        {"tolerance": 0.5},
+        {"seed": {"x": 1.5, "y": 0}},
+        {"refer_to": "visible"},
+        {"stop_at_grid": "if-visible"},
+        {"brush": {"kind": "circle", "size": 1}},
+        {"points": [{"x": 1, "y": 2}]},
+    ],
+)
+def test_fill_schema_and_cli_reject_invalid_matching_inputs(change: dict) -> None:
+    request = fill_request() | change
+    schema = json.loads(spa("paint", "fill", "--schema").stdout)["request_schema"]
+    assert not Draft202012Validator(schema).is_valid(request)
+    run = spa("paint", "fill", "--input-json", json.dumps(request))
+    assert run.returncode == 2, run.stdout + run.stderr
+    assert json.loads(run.stdout)["code"] == "invalid_request"
+
+
+def test_fill_schema_requires_explicit_matching_choices() -> None:
+    schema = json.loads(spa("paint", "fill", "--schema").stdout)["request_schema"]
+    Draft202012Validator.check_schema(schema)
+    validator = Draft202012Validator(schema)
+    request = fill_request()
+    assert validator.is_valid(request)
+    for field in (
+        "seed",
+        "tolerance",
+        "contiguous",
+        "connectivity",
+        "refer_to",
+        "stop_at_grid",
+    ):
+        assert not validator.is_valid({k: v for k, v in request.items() if k != field})
+    del request["connectivity"]
+    request["contiguous"] = False
+    assert validator.is_valid(request)
+    assert validator.is_valid(request | {"connectivity": None})

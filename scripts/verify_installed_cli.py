@@ -91,6 +91,7 @@ for name in (
     "paint_composite_support.lua",
     "native_tool.lua",
     "paint_native_support.lua",
+    "paint_fill.lua",
     "paint_line.lua",
     "paint_pencil.lua",
     "paint_eraser.lua",

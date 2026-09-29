@@ -150,7 +150,7 @@ function module.apply_live(sprite, payload, tool, uuids)
   local result = {
     target = payload.target,
     coordinate_space = "image-pixel",
-    brush = {
+    brush = payload.brush and {
       kind = payload.brush.kind,
       size = payload.brush.size,
       angle = payload.brush.angle or 0,
@@ -180,7 +180,13 @@ function module.apply_live(sprite, payload, tool, uuids)
     before_content_digest = before_digest,
     after_content_digest = digest.image_content(image, mode),
   }
-  if tool == "pencil" or tool == "eraser" then
+  if tool == "paint_bucket" then
+    result.seed, result.tolerance = payload.seed, payload.tolerance
+    result.contiguous, result.connectivity = payload.contiguous, payload.connectivity
+    result.refer_to, result.stop_at_grid = payload.refer_to, payload.stop_at_grid
+    result.source_scope, result.effective_grid_cell =
+      rendered.source_scope, rendered.effective_grid_cell
+  elseif tool == "pencil" or tool == "eraser" then
     result.points, result.freehand_algorithm = payload.points, payload.freehand_algorithm
   elseif tool == "line" then
     result["from"], result.to = payload["from"], payload.to

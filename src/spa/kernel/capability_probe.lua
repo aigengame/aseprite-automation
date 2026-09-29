@@ -743,6 +743,12 @@ local function observes_native_paint(tool, algorithm)
         or { { x = 2, y = 2 }, { x = 5, y = 2 } },
       freehand_algorithm = algorithm or "regular",
       behavior = { kind = "erase" },
+      seed = { x = 1, y = 1 },
+      tolerance = 0,
+      contiguous = true,
+      connectivity = "four-connected",
+      refer_to = "active-layer",
+      stop_at_grid = false,
     }, tool)
     assert(result.persisted_reopen_verified and result.pixels_changed > 0)
     if tool == "line" then assert(result.pixels_changed == 4) end
@@ -850,6 +856,9 @@ function module.observe()
   if observes_layer_merge() then capabilities[#capabilities + 1] = "aseprite_layer_merge" end
   if observes_background_conversion() then
     capabilities[#capabilities + 1] = "aseprite_background_conversion"
+  end
+  if observes_native_paint("paint_bucket") then
+    capabilities[#capabilities + 1] = "aseprite_paint_fill"
   end
   if observes_native_paint("line") then capabilities[#capabilities + 1] = "aseprite_paint_line" end
   for _, tool in ipairs { "pencil", "eraser" } do

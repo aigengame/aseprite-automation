@@ -456,7 +456,7 @@ for native nearest-neighbor sampling. Python validates wire constraints and
 orchestrates existing Artifact staging, independent JSON/PNG verification, and
 publication. No persistent editor Selection or second Mask engine is introduced.
 
-The native Line, Rectangle, and Ellipse slice uses `paint_native.py` for typed
+The native Fill, Pencil, Eraser, Line, Rectangle, and Ellipse operations use `paint_native.py` for typed
 contracts and publication orchestration. `paint_native_support.lua` owns footprint
 partitioning, Selection Application, linked mutation, and persisted evidence.
 `native_tool.lua` hides native Tool invocation and its local state restoration.
@@ -464,7 +464,16 @@ It uses isolated native working documents to prevent the editor's Cel expansion
 from changing the addressed Image. The native pixel result is copied into the
 existing shared Image; geometry and unrelated document facts are verified before
 publication. Existing Cel, Selection, Color, Palette, and persistence helpers retain
-their ownership. Each public primitive has its own handler and runtime gate.
+their ownership. Each public Operation has its own handler and runtime gate;
+Pencil and Eraser also admit each Freehand Algorithm independently.
+Fill keeps the original Canvas and saved Grid in its working Sprite. The native
+Magic Wand observes matching coverage through the same flood-fill point shape as
+Paint Bucket, including no-op colors or opacity. Shared Selection Application
+filters that coverage after matching. Gesture coverage uses a native opaque Brush
+pass, while native Eraser owns the actual alpha, index, or color replacement.
+No new rasterizer or public generic Tool wrapper is introduced. The
+[issue #27 evidence](docs/evidence/issue-27-native-paint.md) records the native
+assumptions and their verification.
 
 Each Domain Module owns a vertical slice of:
 

@@ -1,6 +1,7 @@
 -- Private native Paint invocation. The caller owns clipping, Selection Application,
 -- and the final write into the original shared Image.
 local module = {}
+local masks = dofile(app.params.selection_mask)
 
 local brush_types = {
   circle = BrushType.CIRCLE,
@@ -19,6 +20,7 @@ local allowed_tools = {
   line = true,
   pencil = true,
   eraser = true,
+  paint_bucket = true,
   rectangle = true,
   filled_rectangle = true,
   ellipse = true,
@@ -113,6 +115,9 @@ local function resolve_layer(layers, path)
 end
 
 local function geometry(payload, tool, position)
+  if tool == "paint_bucket" then
+    return { checked_point(payload.seed.x + position.x, payload.seed.y + position.y) }
+  end
   if tool == "pencil" or tool == "eraser" then
     assert(#payload.points > 0, "a gesture needs at least one Point")
     local points = {}
@@ -139,7 +144,19 @@ local function geometry(payload, tool, position)
   return { first, last }
 end
 
-local function invoke(tool, cel, brush, color, ink, opacity, points, algorithm, background, button)
+local function invoke(
+  tool,
+  cel,
+  brush,
+  color,
+  ink,
+  opacity,
+  points,
+  algorithm,
+  background,
+  button,
+  fill
+)
   local sprite = cel.sprite
   app.activeSprite = sprite
   app.activeLayer = cel.layer
@@ -156,8 +173,8 @@ local function invoke(tool, cel, brush, color, ink, opacity, points, algorithm, 
     opacity = opacity,
     button = button or MouseButton.LEFT,
     points = points,
-    contiguous = true,
-    tolerance = 0,
+    contiguous = fill == nil or fill.contiguous,
+    tolerance = fill and fill.tolerance or 0,
     freehandAlgorithm = algorithm,
     selection = SelectionMode.REPLACE,
     tilemapMode = TilemapMode.PIXELS,
@@ -210,7 +227,9 @@ function module.render(sprite, cel, payload, tool)
   if tool ~= "eraser" then ink = assert(ink_types[payload.ink], "unsupported Paint Ink") end
   local opacity = checked_integer(payload.opacity, "Paint opacity")
   assert(opacity >= 0 and opacity <= 255, "Paint opacity is outside native range")
-  local brush = make_brush(payload.brush)
+  local filling = tool == "paint_bucket"
+  local brush = filling and Brush { type = BrushType.CIRCLE, size = 1, angle = 0 }
+    or make_brush(payload.brush)
   local color, background, button
   if tool == "eraser" then
     local behavior = payload.behavior
@@ -239,7 +258,15 @@ function module.render(sprite, cel, payload, tool)
     right, bottom = math.max(right, point.x + 1), math.max(bottom, point.y + 1)
   end
   left, top, right, bottom = left - margin, top - margin, right + margin, bottom + margin
-  local crop = checked_rectangle(left, top, right - left, bottom - top)
+  local crop = filling and checked_rectangle(0, 0, sprite.width, sprite.height)
+    or checked_rectangle(left, top, right - left, bottom - top)
+  if filling then
+    local seed = points[1]
+    assert(
+      seed.x >= 0 and seed.y >= 0 and seed.x < sprite.width and seed.y < sprite.height,
+      "Fill seed is outside the Sprite Canvas"
+    )
+  end
   local native_points = {}
   for _, point in ipairs(points) do
     native_points[#native_points + 1] = checked_point(point.x - crop.x, point.y - crop.y)
@@ -264,6 +291,18 @@ function module.render(sprite, cel, payload, tool)
     filled_preview = pref.filled_preview,
     corner_radius = pref.corner_radius,
   }
+  local fill_preferences = {}
+  if filling then
+    for _, name in ipairs { "paint_bucket", "magic_wand" } do
+      local flood = app.preferences.tool(name).floodfill
+      fill_preferences[#fill_preferences + 1] = {
+        target = flood,
+        refer_to = flood.refer_to,
+        stop_at_grid = flood.stop_at_grid,
+        pixel_connectivity = flood.pixel_connectivity,
+      }
+    end
+  end
   local clone, mask_sprite
   local ok, answer = pcall(function()
     -- The native two-point controller must not pick up optional fill or
@@ -274,33 +313,42 @@ function module.render(sprite, cel, payload, tool)
     pref.corner_radius = 0
     app.preferences.symmetry_mode.enabled = false
 
-    mask_sprite = Sprite(crop.width, crop.height, ColorMode.RGB)
-    assert(
-      mask_sprite.width == crop.width and mask_sprite.height == crop.height,
-      "native Paint footprint canvas changed the requested extent"
-    )
-    local mask_cel = assert(mask_sprite.layers[1]:cel(1))
-    local mask_pref = app.preferences.document(mask_sprite)
-    mask_pref.grid.snap = false
-    mask_pref.tiled.mode = 0
-    mask_pref.symmetry.mode = 0
-    local white = Color { r = 255, g = 255, b = 255, a = 255 }
-    invoke(
-      tool == "eraser" and "pencil" or tool,
-      mask_cel,
-      brush,
-      white,
-      Ink.SIMPLE,
-      255,
-      native_points,
-      algorithm
-    )
-    mask_cel = mask_sprite.layers[1]:cel(1)
-    local footprint = footprint_from(mask_cel, crop, source_position)
+    for _, entry in ipairs(fill_preferences) do
+      entry.target.refer_to = payload.refer_to == "all-layers" and 1 or 0
+      entry.target.stop_at_grid = payload.stop_at_grid and 2 or 0
+      entry.target.pixel_connectivity = payload.connectivity == "eight-connected" and 1 or 0
+    end
+    local footprint
+    if not filling then
+      mask_sprite = Sprite(crop.width, crop.height, ColorMode.RGB)
+      assert(
+        mask_sprite.width == crop.width and mask_sprite.height == crop.height,
+        "native Paint footprint canvas changed the requested extent"
+      )
+      local mask_cel = assert(mask_sprite.layers[1]:cel(1))
+      local mask_pref = app.preferences.document(mask_sprite)
+      mask_pref.grid.snap = false
+      mask_pref.tiled.mode = 0
+      mask_pref.symmetry.mode = 0
+      local white = Color { r = 255, g = 255, b = 255, a = 255 }
+      invoke(
+        tool == "eraser" and "pencil" or tool,
+        mask_cel,
+        brush,
+        white,
+        Ink.SIMPLE,
+        255,
+        native_points,
+        algorithm
+      )
+      mask_cel = mask_sprite.layers[1]:cel(1)
+      footprint = footprint_from(mask_cel, crop, source_position)
+    end
 
     clone = Sprite(sprite)
     clone.selection = Selection()
-    clone:crop(crop)
+    clone.gridBounds = sprite.gridBounds
+    if not filling then clone:crop(crop) end
     assert(
       clone.width == crop.width and clone.height == crop.height,
       "native Paint working canvas changed the requested extent"
@@ -310,6 +358,26 @@ function module.render(sprite, cel, payload, tool)
     clone_pref.grid.snap = false
     clone_pref.tiled.mode = 0
     clone_pref.symmetry.mode = 0
+    if filling then
+      -- Both native tools use the same floodfill point shape. Observe matching
+      -- before painting, including no-op colors and opacity, then clear the mask.
+      invoke(
+        "magic_wand",
+        clone_cel,
+        brush,
+        color,
+        Ink.SIMPLE,
+        255,
+        native_points,
+        0,
+        nil,
+        nil,
+        payload
+      )
+      footprint =
+        masks.translate(masks.copy(clone.selection), -source_position.x, -source_position.y)
+      clone.selection = Selection()
+    end
     local output = Image(source_image)
     for y = 0, source_image.height - 1 do
       for x = 0, source_image.width - 1 do
@@ -332,7 +400,8 @@ function module.render(sprite, cel, payload, tool)
       native_points,
       algorithm,
       background,
-      button
+      button,
+      filling and payload or nil
     )
     clone_cel = resolve_layer(clone.layers, path):cel(frame_number)
     local transparent = sprite.colorMode == ColorMode.INDEXED and sprite.transparentColor or 0
@@ -345,12 +414,35 @@ function module.render(sprite, cel, payload, tool)
         if native ~= nil and requested then output:putPixel(x, y, native) end
       end
     end
-    return { image = output, footprint = footprint }
+    local result = { image = output, footprint = footprint }
+    if filling then
+      result.source_scope = {
+        kind = payload.refer_to,
+        frame_number = frame_number,
+        canvas_bounds = { x = 0, y = 0, width = sprite.width, height = sprite.height },
+      }
+      if payload.stop_at_grid then
+        local grid, seed = sprite.gridBounds, points[1]
+        assert(grid.width > 0 and grid.height > 0, "Fill requires a valid saved Grid")
+        result.effective_grid_cell = {
+          x = grid.x + math.floor((seed.x - grid.x) / grid.width) * grid.width,
+          y = grid.y + math.floor((seed.y - grid.y) / grid.height) * grid.height,
+          width = grid.width,
+          height = grid.height,
+        }
+      end
+    end
+    return result
   end)
 
   if clone ~= nil and clone.isValid then pcall(function() clone:close() end) end
   if mask_sprite ~= nil and mask_sprite.isValid then pcall(function() mask_sprite:close() end) end
   local restored, restore_error = pcall(function()
+    for _, entry in ipairs(fill_preferences) do
+      entry.target.refer_to = entry.refer_to
+      entry.target.stop_at_grid = entry.stop_at_grid
+      entry.target.pixel_connectivity = entry.pixel_connectivity
+    end
     pref.filled = pref_values.filled
     pref.filled_preview = pref_values.filled_preview
     pref.corner_radius = pref_values.corner_radius
