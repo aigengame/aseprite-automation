@@ -44,6 +44,17 @@ SPA_TEST_ASEPRITE=/absolute/path/to/aseprite \
   uv run --frozen --group test pytest tests/paint -q
 ```
 
+Native Paint #28 adds independent Contour and Blur gates. Contour tests compare
+complete ordered gestures, degenerates, repeated Points, both Freehand Algorithms,
+and all four color-paint Inks at opacity 0, 128, and 255. Blur tests compare native
+effect pixels across four Tiled Modes, three opacities, both algorithms, and all
+three Color Modes, including offset linked Cels and Frame-varying Palettes. A
+same-process fixture verifies ambient state and file preservation after success,
+bounds rejection, an injected failure after native invocation, and failed reopen.
+Discovery tests require the version-specific Gradient Capability Gap and callable
+Contour/Blur without invoking Gradient's unsafe headless Context Bar path. This
+delivery combination follows issue #28; it does not establish a callable Gradient.
+
 ## Verification tiers
 
 Use the tier in the file name:
