@@ -132,7 +132,13 @@ def test_info_reports_installed_runtime() -> None:
     assert [gap["capability"] for gap in result["capability_gaps"]] == [
         f"spa paint composite: grayscale {mode}"
         for mode in ("hue", "saturation", "color", "luminosity", "addition")
-    ] + ["spa paint composite: indexed blend-mode/opacity"]
+    ] + [
+        "spa paint composite: indexed blend-mode/opacity",
+        "spa paint spray",
+        "spa paint curve",
+        "spa paint polygon",
+        "spa paint jumble",
+    ]
     assert all(
         gap["aseprite_version"] == result["runtime"]["aseprite_version"]
         and gap["evidence"]

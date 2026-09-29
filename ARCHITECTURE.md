@@ -546,7 +546,10 @@ flowchart TB
 
 The installed Surface Manifest reports the callable Operations, schemas, execution
 metadata, version constraints, and Capability Gaps for one SPA and Aseprite combination.
-It is runtime truth, not a product roadmap.
+Callable entries come from Descriptors. Under `AUTHORITY_MATRIX.md`, a Gap can also
+report an assessed native limitation that prevents a capability from having a
+Descriptor. Its evidence applies to the selected runtime; uninvestigated candidates
+stay in their feature issues. A Gap is not an Operation registration or a roadmap item.
 
 ### Application orchestration
 
@@ -685,7 +688,7 @@ experimental commands and tactical types evolve.
 | Kernel Protocol | Private | Carries versioned data between Python and the packaged Lua Kernel; it can evolve without becoming a second public API. |
 | Operation Result | Public success | Reports verified domain facts and produced Artifacts. |
 | Failure Envelope | Public failure | Provides stable Failure Code and Category, typed Details where useful, and human Diagnostics. |
-| Surface Manifest | Public discovery | Reports what the installed SPA/Aseprite combination can call. |
+| Surface Manifest | Public discovery | Reports what the installed SPA/Aseprite combination can call and its applicable Capability Gaps. |
 
 Before SPA 1.0, the co-packaged Python and Lua components use only the current Kernel
 Protocol version. This private boundary can evolve without historical-version

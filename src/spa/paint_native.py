@@ -434,17 +434,14 @@ _CANDIDATE_GAP_EVIDENCE = {
 
 
 def native_paint_candidate_gaps(aseprite_version: str) -> list[CapabilityGap]:
-    """Report independently blocked candidates without publishing their Descriptors."""
-    investigated_version = aseprite_version.partition("-")[0] == "1.3.18.5"
+    """Scope recorded native limitations to the investigated Aseprite version."""
+    if aseprite_version.partition("-")[0] != "1.3.18.5":
+        return []
     return [
         CapabilityGap(
             capability=f"spa paint {tool}",
             aseprite_version=aseprite_version,
-            evidence=(
-                finding
-                if investigated_version
-                else "SPA has no verified native script route for this candidate on the selected runtime."
-            ),
+            evidence=finding,
         )
         for tool, finding in _CANDIDATE_GAP_EVIDENCE.items()
     ]

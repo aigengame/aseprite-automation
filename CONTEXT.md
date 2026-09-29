@@ -485,10 +485,11 @@ The versioned Operation Request, Operation Result, Failure Envelope, metadata, A
 and Surface Manifest schemas shared with callers.
 
 **Surface Manifest**
-The installed aggregate description of callable Operations. It is the runtime authority
-for shipped capability. A compositional Operation is listed as fully supported only
-when the runtime supports every currently eligible Step kind; a particular request
-can need fewer capabilities and remains independently executable.
+The installed aggregate description of callable Operations and applicable Capability
+Gaps. Its Operation entries are the runtime authority for shipped capability; a Gap
+does not register an Operation. A compositional Operation is listed as fully supported
+only when the runtime supports every currently eligible Step kind; a particular
+request can need fewer capabilities and remains independently executable.
 
 **Operation Request**
 The complete typed input to one Operation after public absent, null, and default
@@ -533,8 +534,9 @@ prohibit that value.
 
 **Capability Gap**
 A structured, versioned, evidence-backed fact that the supported Aseprite public
-non-interactive seams cannot provide a capability faithfully. A Gap can be reopened by
-new native evidence.
+non-interactive seams cannot provide a capability faithfully. The capability can be
+unimplemented because of that limitation. Lack of investigation is not a Gap, and the
+absence of a Gap does not prove support. A Gap can be reopened by new native evidence.
 
 #### Mutation and validation
 

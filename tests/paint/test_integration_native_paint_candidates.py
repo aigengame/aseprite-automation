@@ -3,11 +3,22 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from tests.support import fake_probe_response, spa
 
 
-def test_unverified_native_paint_candidates_have_independent_manifest_gaps(
-    tmp_path: Path,
+@pytest.mark.parametrize(
+    ("aseprite_version", "has_candidate_evidence"),
+    [
+        ("1.3.18.5", True),
+        ("1.3.18.5-dev", True),
+        ("1.3.19", False),
+        ("test-runtime", False),
+    ],
+)
+def test_native_paint_candidate_gaps_require_applicable_evidence(
+    tmp_path: Path, aseprite_version: str, has_candidate_evidence: bool
 ) -> None:
     binary = fake_probe_response(
         tmp_path,
@@ -15,7 +26,7 @@ def test_unverified_native_paint_candidates_have_independent_manifest_gaps(
             {
                 "kernel_protocol_version": 1,
                 "status": "ok",
-                "aseprite_version": "test-runtime",
+                "aseprite_version": aseprite_version,
                 "api_version": 41,
                 "lua_version": "Lua 5.4",
                 "verified_prerequisites": [
@@ -42,13 +53,14 @@ def test_unverified_native_paint_candidates_have_independent_manifest_gaps(
         for gap in info_result["capability_gaps"]
         if gap["capability"] in expected
     }
-    assert set(gaps) == expected
-    assert all(gap["aseprite_version"] == "test-runtime" for gap in gaps.values())
+    assert set(gaps) == (expected if has_candidate_evidence else set())
+    assert all(gap["aseprite_version"] == aseprite_version for gap in gaps.values())
     assert all(gap["evidence"] for gap in gaps.values())
-    assert all("1.3.18.5" not in gap["evidence"] for gap in gaps.values())
-    assert all(gap in manifest["capability_gaps"] for gap in gaps.values())
+    assert all("1.3.18.5" in gap["evidence"] for gap in gaps.values())
+    assert info_result["capability_gaps"] == manifest["capability_gaps"]
     supported = set(info_result["supported_capabilities"])
     assert expected.isdisjoint(supported)
+    assert expected.isdisjoint(item["operation"] for item in manifest["operations"])
     assert {"spa paint line", "spa paint rectangle", "spa paint ellipse"} <= supported
     for command in expected:
         _, _, tool = command.split()
