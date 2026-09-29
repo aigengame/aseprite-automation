@@ -2,7 +2,37 @@
 
 ## Current acceptance
 
-The latest owner decision on 2026-09-28 replaces the measured-build deduction
+The owner decision on 2026-09-29 reduces native execution frequency. Routine CI
+now has source, fast-test and distribution jobs only. Independent `native-e2e.yml`
+runs explicitly before merge on the current PR merge result and weekly/manual on
+main. It records base/head/merge identity, checks Git parents before testing and
+rejects PR changes after testing. The merger rechecks that evidence immediately
+before merge; a manual workflow check is not an automatic PR branch-protection
+gate. Release still reruns native tests on its exact publication SHA.
+
+Native time limits remain 20/40/40 minutes: the three routine jobs keep their
+smaller 10-minute limits, full Native E2E and Release verification use 40 minutes.
+The independent manual builder, fail-on-miss rule, shared recipe and exclusion of
+both full example rebuilds remain unchanged. CI debugging starts with local
+workflow/shell and behavior checks; hosted probes are reserved for unresolved
+platform behavior, followed by a final native verification after convergence.
+
+This follows the monthly-minutes review. Recent cache-hit native jobs took
+7m 7s (#121), 5m 57s (#122) and 8m 8s (#123). In #123 the native pytest command
+took 458.98 seconds of the 488-second job; compilation did not run. Binary caching
+therefore does not remove the dominant retained test cost on warm runs. Reducing
+unnecessary repetitions is the current change; no fixed savings are promised.
+
+Local workflow regressions exercise actual shell and Git with controlled API
+responses. Hosted target routing, permissions, cache visibility and the new weekly
+entry still require live verification. Actions quota is exhausted at this
+checkpoint. #107 remains open through promotion and main acceptance; earlier
+Linux passes are historical evidence, not a pass for the changed workflows.
+Current policy and execution commands are in [the test guide](../testing.md).
+
+## Previous acceptance — 2026-09-28
+
+The owner decision on 2026-09-28 replaces the measured-build deduction
 experiment. Verification now uses native job timeouts: PR/push 20 minutes,
 nightly/manual verification 40 minutes, and Release verification 40 minutes.
 Aseprite cache misses fail verification without compilation. Maintenance runs in

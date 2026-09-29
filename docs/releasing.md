@@ -16,10 +16,11 @@ wheel. PyPI publication is outside this phase.
   chooses or edits a version.
 
 The `Release` workflow runs on pushes to `main`. On an ordinary push, release-please
-creates or updates the reviewable Release PR. Because GitHub does not emit another
-workflow event for its `GITHUB_TOKEN` updates, the workflow refreshes the lockfile and
-explicitly dispatches CI for the resulting Release PR head. Review the complete change
-and its four CI jobs before merge.
+creates or updates the reviewable Release PR, refreshes its lockfile, and explicitly
+dispatches routine CI for the resulting head. Review the complete change and its
+three routine jobs, then run [pre-merge Native E2E](testing.md#native-e2e-before-merge)
+for its current merge result. Maintenance does not dispatch the costly native suite
+on each generated PR update.
 
 After lockfile maintenance, the action waits for the PR API to report the local
 Release PR commit before dispatch. It makes at most ten reads, two seconds apart,
@@ -43,7 +44,7 @@ with scripting enabled and the non-graphical backend. The Linux gate requires
 probe, and rejects zero or all-skipped E2E execution.
 Release verification selects `e2e and not slow` at the exact release SHA. It retains
 the real native suite and small wizard probes; complete example rebuilds are local
-opt-in checks. A routine CI or nightly result cannot replace release verification.
+opt-in checks. A routine CI or weekly result cannot replace release verification.
 
 The verification job uses GitHub's native **40-minute timeout**, including runtime
 setup, all tests, quality/package checks, and uploads. It does not compile Aseprite
@@ -64,9 +65,10 @@ commands and skip policy.
 
 ## Prepare and publish a release
 
-1. Merge ordinary changes through CI.
+1. Merge ordinary changes after routine CI, review and current-merge Native E2E pass.
 2. Review the Release PR. Confirm that its version, changelog, manifest, project
-   metadata, and lockfile agree and that its CI passes.
+   metadata, and lockfile agree, its routine CI passes, and pre-merge Native E2E
+   passed for the current base/head/merge target.
 3. Before the first public release, select the Release PR branch on the Actions page
    and manually run `Release`. A manual run is verification-only: it exercises source
    checks, fast tests, the Linux real Aseprite E2E gate, package build, metadata checks,

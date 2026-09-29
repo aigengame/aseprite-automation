@@ -8,6 +8,7 @@ verification tier. The layout does not mirror source packages or CLI Command Gro
 | Directory | Behavior owner |
 | --- | --- |
 | `tests/application/` | Application orchestration, including compatibility checks before Operation execution. |
+| `tests/ci/` | CI target selection and pre-merge evidence checks. |
 | `tests/cli/` | Access Projection through the installed CLI and its in-process projections. |
 | `tests/contracts/` | Shared Published Language rules, including Failure Code registration and Operation Descriptor constraints. |
 | `tests/export/` | Image Export contract, PNG Artifact verification and publication, and real Aseprite output evidence. |
@@ -162,77 +163,147 @@ behavior. Use the real-runtime E2E tier for that evidence.
 
 ## CI gates
 
-`.github/workflows/ci.yml` runs on every pull request and every push to `main`. The
-Release workflow also dispatches it explicitly for the Release PR branch because
-GitHub does not emit a second workflow event for a pull request updated with
-`GITHUB_TOKEN`. All jobs use Python 3.13, uv 0.11.19, and the committed `uv.lock` with
-`--frozen`.
+`.github/workflows/ci.yml` runs on every pull request, every push to `main`, and
+manual dispatch. Release maintenance also dispatches it for the resulting Release
+PR head. These routine jobs use Python 3.13, uv 0.11.19, and the committed `uv.lock`
+with `--frozen`. They do not set up Aseprite or run native E2E.
 
 | Job | Required evidence |
 | --- | --- |
 | Source quality | Ruff lint and formatting, Pyright for production source, and Luacheck plus StyLua for all tracked Lua. |
 | Fast tests | Unit and integration tests selected with `-m "not e2e"`. |
 | Build and smoke test distributions | One sdist and wheel, valid package metadata, and a successful `spa version` from a wheel-only environment populated from locked runtime dependencies. |
-| Linux real Aseprite E2E | The project CLI and a wheel-installed CLI drive the pinned real Aseprite `--batch --script` path. A wheel-only negative case reaches the packaged Sprite creation handler and proves that no Target Commit occurs after rejection; a wheel-only Export case verifies a PNG Artifact. The job records JUnit evidence. |
 
-A failure in any job fails CI. Configure these four named jobs as required checks on
-`main` when repository branch protection is enabled.
+A failure in any job fails routine CI. These three job names can be required checks
+when branch protection is available. Their success does **not** establish Linux
+native execution. There is no maintenance selector or skipped native job in CI.
+
+### Native E2E before merge
+
+`.github/workflows/native-e2e.yml` owns explicit pre-merge Linux verification and
+weekly main regression. It has one unconditional **Linux real Aseprite E2E** job.
+After review and local checks converge, run it once for the PR:
+
+```sh
+gh workflow run native-e2e.yml --ref main -f pr=125
+```
+
+In the Actions UI, use **Native E2E → Run workflow**, select main, and enter the PR
+number. The workflow resolves the open PR's current base SHA, head SHA and merge
+SHA, checks out that exact merge result, and verifies both Git parents before
+runtime setup. A conflict, unavailable preview or API failure fails the job.
+After native tests, it rechecks the PR and fails if its base, head, merge or open
+state changed. The summary and artifact retain the target and JUnit evidence.
+The suite rejects missing/zero/all-skipped execution. An artifact alone is not a
+passing result: the workflow and its native job must both succeed.
+
+Immediately before merging, the person or agent doing the merge must compare the
+recorded target with the current PR:
+
+```sh
+gh api repos/aigengame/aseprite-automation/pulls/125 \
+  --jq '{state, base_ref: .base.ref, base: .base.sha, head: .head.sha, merge: .merge_commit_sha}'
+```
+
+Require an open PR and an exact match of base ref, base SHA, head SHA and merge
+SHA to the successful run, plus the normal review and routine CI checks. Link the
+run in the PR. A later head/base update invalidates this evidence; dispatch a new
+run. Do not enable delayed auto-merge with stale native evidence. An unrun,
+cancelled, failed or skipped native job cannot admit merge.
+
+This is an explicit merge-process gate. GitHub associates a manual workflow with
+its dispatched ref; the green check is **not automatically a required check on
+the PR merge SHA**. Do not configure that manual check as though it enforced PR
+freshness. The summary's tested target, not the workflow's dispatch SHA, identifies
+coverage. See [GitHub event semantics](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows).
+No status publisher, registry or alternate merge service is introduced.
+
+Leave the PR input empty for a manual main regression:
+
+```sh
+gh workflow run native-e2e.yml --ref main
+```
+
+This mode rejects any ref other than main and tests its event SHA. The weekly run
+uses the same mode, Sunday 19:23 UTC (Monday 03:23 Asia/Shanghai), on the default
+branch main. Schedules can be delayed. There is no daily native run or dev schedule;
+a normal main push runs only routine CI. A main regression never replaces the PR
+merge-result check or exact-release-SHA gate. During initial rollout, a PR-mode
+run may use the delivered workflow on dev (`--ref dev -f pr=125`); record that
+workflow ref and verify its cache scope. It is not stable-main rollout evidence.
 
 ### Complete example rebuilds
 
-The Linux E2E job is required for every verification event. These events use the
-same native suite; excluding complete example rebuilds does not skip the required
-CI check. **Build Aseprite** is a separate manual maintenance workflow:
-
 | Trigger | Real-runtime selection |
 | --- | --- |
-| Every PR or push to `main`, including example and CI changes | `e2e and not slow`: all routine E2E cases, including the small wizard probes. |
-| Nightly on `main` | `e2e and not slow` at the scheduled main SHA. |
-| Manual **CI → Run workflow** | `e2e and not slow` at the selected ref. |
+| Routine PR update, main push, or manual CI | None; source, fast-test and distribution checks only. |
+| Explicit pre-merge Native E2E | `e2e and not slow` at the current PR merge result. |
+| Weekly or manual Native E2E on main | `e2e and not slow` at the event's main SHA. |
 | Release verification | `e2e and not slow` at the exact release SHA before publication. |
 
-The shared `.github/actions/run-linux-aseprite-e2e/action.yml` owns this selection.
-It retains all other native assertions, both small wizard probes, and the hybrid
-hidden-pixel comparison regression. The owner removed both complete example
-rebuilds from automated gates on 2026-09-28 after reviewing their measured cost.
-Nightly/manual full verification covers the required tool suite; it does not
-regenerate the example deliveries. To check complete asset reproducibility after
-an example change, use the example build/verify commands or run locally:
+The shared `.github/actions/run-linux-aseprite-e2e/action.yml` owns the native
+selection. It retains the project and wheel-installed CLI paths, real
+`--batch --script` probe, both small wizard probes, hidden-pixel regressions and
+all other native assertions. The owner removed both complete example rebuilds
+from automated gates on 2026-09-28 after reviewing their measured cost. Full native
+verification means the required tool suite, without regenerating example deliveries.
+For complete asset reproducibility after an example change, use its build/verify
+commands or run locally:
 
 ```sh
 SPA_TEST_ASEPRITE=/absolute/path/to/aseprite \
   uv run --frozen --group test pytest -m "e2e and slow" -rs
 ```
 
-These checks still compare full deliveries and hidden native pixels. Their results
-are separate, explicit evidence; automated CI no longer claims that coverage.
+These checks compare full deliveries and hidden native pixels. They remain
+separate, explicit local evidence.
 
-The nightly schedule is daily at 19:23 UTC (03:23 Asia/Shanghai). GitHub runs it
-from the default branch, `main`; the job also checks that ref explicitly. `dev`
-is a temporary integration branch and has no nightly target. The schedule becomes
-active after this workflow reaches `main`. Pushes and manual runs do not cancel a
-nightly run. Its summary records the actual checked-out SHA and selected test scope.
-Scheduled runs can be delayed; their result never replaces exact-SHA
-release verification.
+### Verify CI changes locally first
+
+Before pushing workflow changes, run the source checks above, `actionlint`, and the
+focused workflow regressions:
+
+```sh
+actionlint
+uv run --frozen --group test pytest tests/ci tests/release -q
+```
+
+`actionlint` checks workflow structure and expressions; install ShellCheck alongside
+it to check embedded shell too. It does not validate composite actions, so also
+inspect changed composite YAML and run its shell/behavior checks. The regression
+suite executes the actual workflow/action shell with real Git and controlled GitHub
+responses. It covers stale PR targets, merge-parent mismatches, main-only routing,
+API failures, Release PR head convergence and metadata checks. These tests do not
+establish hosted cache visibility, token permissions or Linux native execution.
+
+Run affected native tests locally before requesting Linux verification. For CI
+infrastructure, resolve syntax, shell and branch/dispatch logic locally first.
+Use a small hosted probe only for a remaining platform-specific hypothesis, then
+one final native run when the change has converged. Do not run the whole suite on
+every diagnostic push or rerun all jobs when only one failed. macOS results remain
+macOS evidence. `act` can help with shell/container checks, but does not reproduce
+all GitHub permissions, concurrency or timeout behavior; see its
+[unsupported features](https://nektosact.com/not_supported.html).
 
 ### Verification time limits
 
-GitHub's native job timeouts enforce **20 minutes for routine PR/push native
-verification**, **40 minutes for nightly/manual native verification**, and
-**40 minutes for Release verification**. All work inside each job counts, including
-checkout, runtime setup, tests, package checks where present, and uploads. There
-is no compilation deduction or second clock. Source quality, fast-test, and package
-CI jobs retain their smaller 10-minute limits and run in parallel.
+The owner limits remain **20 minutes for routine CI**, **40 minutes for full
+manual/periodic verification**, and **40 minutes for Release verification**.
+GitHub's native job timeouts enforce them: the three parallel routine jobs retain
+their smaller 10-minute limits, Native E2E has 40 minutes, and Release's
+`Verify exact release commit` has 40 minutes. All job steps count, including
+checkout, setup, tests, package checks where present and uploads. There is no
+compilation deduction or second clock.
 
 These are running-job limits, not queue-time or whole-pipeline latency promises.
-Release has separate draft and publication jobs; its 40-minute limit applies to
-`Verify exact release commit`. An overrun fails verification and prevents publication.
-The [issue #107 evidence](evidence/issue-107-ci-capacity.md) records the measurements
+Release has separate draft and publication jobs. A verification overrun prevents
+publication. The separate Build Aseprite maintenance job has a 40-minute limit.
+The [issue #107 evidence](evidence/issue-107-ci-capacity.md) records measurements
 and superseded experiments.
 
 ### Restore the Aseprite runtime
 
-Normal PR/push CI, nightly, manual CI, and Release only
+Native E2E and Release only
 restore an exact Aseprite cache entry. A miss fails before native dependency
 installation or compilation and identifies the required key. It does not skip the
 native gate or report success. A restored binary must still pass the executable,
@@ -246,9 +317,11 @@ To recover:
    timeout. It validates the pinned source checksum, builds if the exact cache is
    missing, checks the real batch/script path, and saves the verified tree.
 2. Confirm that the job succeeded for the key reported by the failed verification.
-3. Open the **original failed run** and choose **Re-run failed jobs**. This retains
-   its original SHA/ref. A successful maintenance job does not substitute for SPA
-   tests or for exact-release-SHA verification.
+3. Open the **original failed run** and choose **Re-run failed jobs**. Main and
+   Release verification retain their original event/release SHA. PR-mode Native
+   E2E resolves the current PR again; inspect its new base/head/merge record.
+   A successful maintenance job does not substitute for SPA tests or for
+   exact-release-SHA verification.
 
 CLI equivalent for the stable runtime:
 
@@ -259,8 +332,10 @@ gh run rerun <failed-run-id> --failed
 ```
 
 A stable cache is prepared on `main`, which is readable from the other branches.
-For a provisional recipe change, first deliver the independent builder and shared
-runtime action to the PR's **base branch** (normally `dev`), then run:
+Cache visibility follows the workflow event/ref, not a later checkout of a PR
+merge commit. For a provisional recipe change, first deliver the independent
+builder and shared runtime action to the integration branch (normally `dev`),
+then run:
 
 ```sh
 gh workflow run aseprite-build.yml --ref dev
@@ -268,9 +343,9 @@ gh workflow run aseprite-build.yml --ref dev
 gh run rerun <failed-run-id> --failed
 ```
 
-Keep the old CI consumer in that small bootstrap PR. Switch the consumer only after
-the base-branch cache is ready. After normal promotion, prepare the stable cache on
-main. This order needs no early promotion of unrelated development work.
+Dispatch provisional Native E2E from that same integration ref with the PR number.
+Switch the consumer only after the matching cache is ready. After normal promotion,
+prepare the stable cache on main. This order needs no early promotion of unrelated development work.
 
 In the recorded #121 experiment, the PR cache token granted access to its merge
 ref, dev, and main, but omitted the head branch. That run missed the exact cache
@@ -279,8 +354,9 @@ the [scope diagnosis](evidence/issue-107-ci-capacity.md#cache-scope-diagnosis--2
 This establishes the recovery procedure for the observed #121 runs, not a universal
 PR restriction. GitHub's cache reference also documents access to the current
 feature branch. Verify visibility for the actual consumer; for this rollout,
-prepare the matching cache on dev and rerun #121. Main cannot consume a dev or
-feature-branch cache.
+the matching dev cache recovered #121. New manual consumers follow their dispatch
+ref, so a PR checkout alone does not grant access to a dev cache. Main cannot
+consume a dev or feature-branch cache.
 
 The Actions UI needs the workflow on the default branch for normal discovery.
 During #107 rollout, a registered workflow was also successfully dispatched by CLI
@@ -351,7 +427,7 @@ under the repository cache limit; use the manual recovery above when this happen
 
 The Linux real Aseprite job is also part of release verification. A release workflow
 always reruns the required native suite, excluding complete example rebuilds, at the exact release commit
-and does not reuse a generally green CI or nightly run. A successful macOS local run
+and does not reuse a generally green CI or weekly run. A successful macOS local run
 remains separate developer evidence; it cannot replace the Linux release gate.
 Windowed Aseprite behavior has no CI coverage until a
 dedicated display-capable job is added with an execution-count gate.

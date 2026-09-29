@@ -114,9 +114,9 @@ The [Godot ownership map](GODOT_ARCHITECTURE.md) applies Systems, Content and UI
 with a thin composition root. No shared Add-on or Autoload is needed.
 
 Routine Linux E2E includes the small generated-raster handoff probe. The complete
-rebuild is `e2e` + `slow` and runs locally on demand. All automated CI, nightly,
-manual Actions, and Release gates exclude it, while retaining the small handoff
-and hidden-pixel comparison tests. See the repository
+rebuild is `e2e` + `slow` and runs locally on demand. Automated Native E2E and Release gates exclude it, while retaining the small
+handoff and hidden-pixel comparison tests. Routine CI runs only source, fast-test
+and distribution checks. See the repository
 [test policy](../../docs/testing.md#complete-example-rebuilds). Local macOS,
 Linux headless, Godot graphical input and final human review are separate evidence.
 
