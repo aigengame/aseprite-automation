@@ -37,7 +37,11 @@ from spa.paint_composite import (
     COMPOSITE_SUPPORT_RESOURCE,
     composite_capability_gaps,
 )
-from spa.paint_native import NATIVE_PAINT_OPERATIONS, NATIVE_PAINT_RESOURCES
+from spa.paint_native import (
+    NATIVE_PAINT_OPERATIONS,
+    NATIVE_PAINT_RESOURCES,
+    native_paint_candidate_gaps,
+)
 from spa.plan import PLAN_OPERATIONS
 from spa.ports import OperationServices
 from spa.selection import SELECTION_OPERATIONS, SELECTION_SUPPORT_RESOURCE
@@ -119,6 +123,12 @@ def _surface(runtime: RuntimeFacts) -> tuple[list[str], list[CapabilityGap]]:
                 runtime.aseprite_version, runtime.verified_capabilities
             )
         )
+    registered = {f"spa {descriptor.name}" for descriptor in OPERATIONS}
+    gaps.extend(
+        gap
+        for gap in native_paint_candidate_gaps(runtime.aseprite_version)
+        if gap.capability not in registered
+    )
     return supported, gaps
 
 
