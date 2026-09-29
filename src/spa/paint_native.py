@@ -64,15 +64,22 @@ StandardPaintBrush = Annotated[
 PaintInk = Literal["simple", "alpha-compositing", "copy-color", "lock-alpha", "shading"]
 
 
-class NativePaintInput(PublicModel):
+class BrushPaintInput(PublicModel):
     target: CelAddress
     coordinate_space: Literal["image-pixel"]
     brush: StandardPaintBrush
-    color: ColorValue
-    ink: PaintInk
     opacity: int = Field(ge=0, le=255)
     clipping: Literal["reject", "clip"] = "reject"
     selection: SelectionApplication | None = None
+
+
+class PaintColorInput(PublicModel):
+    color: ColorValue
+    ink: PaintInk
+
+
+class NativePaintInput(BrushPaintInput, PaintColorInput):
+    pass
 
 
 class LineGeometry(PublicModel):
@@ -103,6 +110,13 @@ class PaintContourRequest(CelRelationshipRequest, NativePaintInput, PaintGesture
     pass
 
 
+TiledMode = Literal["none", "x", "y", "both"]
+
+
+class PaintBlurRequest(CelRelationshipRequest, BrushPaintInput, PaintGesture):
+    tiled_mode: TiledMode
+
+
 class PaintBrushFact(PublicModel):
     kind: Literal["circle", "square", "line"]
     size: int = Field(gt=0)
@@ -125,8 +139,6 @@ class NativePaintFacts(PublicModel):
     target: CelAddress
     coordinate_space: Literal["image-pixel"]
     brush: PaintBrushFact
-    color: ColorValue
-    ink: Literal["simple", "alpha-compositing", "copy-color", "lock-alpha"]
     requested_opacity: int = Field(ge=0, le=255)
     effective_opacity: int = Field(ge=0, le=255)
     clipping: Literal["reject", "clip"]
@@ -151,7 +163,12 @@ class NativePaintFacts(PublicModel):
     persisted_reopen_verified: Literal[True]
 
 
-class PaintLineEvidence(NativePaintFacts, LineGeometry):
+class ColoredPaintFacts(NativePaintFacts):
+    color: ColorValue
+    ink: Literal["simple", "alpha-compositing", "copy-color", "lock-alpha"]
+
+
+class PaintLineEvidence(ColoredPaintFacts, LineGeometry):
     pass
 
 
@@ -164,7 +181,7 @@ class PaintLineResult(PaintLineEvidence, NativePaintResult):
     operation: Literal["spa paint line"] = "spa paint line"
 
 
-class PaintShapeEvidence(NativePaintFacts, ShapeGeometry):
+class PaintShapeEvidence(ColoredPaintFacts, ShapeGeometry):
     pass
 
 
@@ -178,7 +195,7 @@ class PaintEllipseResult(PaintShapeEvidence, NativePaintResult):
     operation: Literal["spa paint ellipse"] = "spa paint ellipse"
 
 
-class PaintContourEvidence(NativePaintFacts, PaintGesture):
+class PaintContourEvidence(ColoredPaintFacts, PaintGesture):
     pass
 
 
@@ -187,9 +204,49 @@ class PaintContourResult(PaintContourEvidence, NativePaintResult):
     operation: Literal["spa paint contour"] = "spa paint contour"
 
 
+class PaintBlurEvidence(NativePaintFacts, PaintGesture):
+    ink: Literal["blur"]
+    tiled_mode: TiledMode
+
+
+class PaintBlurResult(PaintBlurEvidence, NativePaintResult):
+    status: Literal["success"] = "success"
+    operation: Literal["spa paint blur"] = "spa paint blur"
+
+
 class PaintCapabilityDetails(PublicModel):
     kind: Literal["paint_capability_gap"] = "paint_capability_gap"
     gap: CapabilityGap
+
+
+def native_paint_capability_gaps(
+    aseprite_version: str, *, contour_available: bool
+) -> list[CapabilityGap]:
+    # No Gradient Descriptor is published until its complete native execution
+    # contract can be implemented. Calling the known 1.3.18.5 headless path can
+    # dereference a missing GUI Context Bar and corrupt the Kernel protocol.
+    gradient_evidence = (
+        "Aseprite 1.3.18.5 app.useTool reads Gradient Type and Dithering Matrix "
+        "from the GUI Context Bar; no faithful headless option control is available"
+        if aseprite_version.removesuffix("-dev") == "1.3.18.5"
+        else "No verified headless native route supplies Gradient Type and Dithering Matrix"
+    )
+    gaps = [
+        CapabilityGap(
+            capability="spa paint gradient",
+            aseprite_version=aseprite_version,
+            evidence=gradient_evidence,
+        )
+    ]
+    if contour_available:
+        gaps.append(
+            CapabilityGap(
+                capability="spa paint contour: Paint Dynamics",
+                aseprite_version=aseprite_version,
+                evidence="Pressure, velocity, tilt, and Paint Dynamics have no explicit verified native gesture contract",
+            )
+        )
+    return gaps
 
 
 NATIVE_PAINT_FAILURE_CODE_SPECS = (
@@ -227,6 +284,7 @@ PAINT_LINE_HANDLER = PackagedHandler("paint_line", NATIVE_PAINT_RESOURCES)
 PAINT_RECTANGLE_HANDLER = PackagedHandler("paint_rectangle", NATIVE_PAINT_RESOURCES)
 PAINT_ELLIPSE_HANDLER = PackagedHandler("paint_ellipse", NATIVE_PAINT_RESOURCES)
 PAINT_CONTOUR_HANDLER = PackagedHandler("paint_contour", NATIVE_PAINT_RESOURCES)
+PAINT_BLUR_HANDLER = PackagedHandler("paint_blur", NATIVE_PAINT_RESOURCES)
 
 
 def _execute[ResultT: NativePaintResult](
@@ -236,7 +294,7 @@ def _execute[ResultT: NativePaintResult](
     evidence_type: type[NativePaintFacts],
     result_type: type[ResultT],
 ) -> ResultT:
-    assert isinstance(request, NativePaintInput)
+    assert isinstance(request, BrushPaintInput)
     destination = Path(request.target_sprite_file)
     identity = source_target_identity_issue(
         services.target_files,
@@ -293,9 +351,7 @@ def _execute[ResultT: NativePaintResult](
             }
             if (
                 evidence.target != request.target
-                or evidence.color != request.color
                 or evidence.brush.model_dump() != brush
-                or evidence.ink != request.ink
                 or evidence.requested_opacity != request.opacity
                 or evidence.clipping != request.clipping
                 or evidence.selection != request.selection
@@ -316,6 +372,17 @@ def _execute[ResultT: NativePaintResult](
                 raise ValueError(
                     "Native Paint evidence differs from the requested target or coverage"
                 )
+            if isinstance(request, PaintColorInput) and (
+                not isinstance(evidence, ColoredPaintFacts)
+                or evidence.color != request.color
+                or evidence.ink != request.ink
+            ):
+                raise ValueError("Native Paint color or Ink differs from the request")
+            if isinstance(request, PaintBlurRequest) and (
+                not isinstance(evidence, PaintBlurEvidence)
+                or evidence.tiled_mode != request.tiled_mode
+            ):
+                raise ValueError("Native Blur Tiled Mode differs from the request")
             if isinstance(request, LineGeometry) and (
                 not isinstance(evidence, LineGeometry)
                 or evidence.from_point != request.from_point
@@ -396,6 +463,14 @@ def paint_contour(
     )
 
 
+def paint_blur(
+    request: PaintBlurRequest, services: OperationServices
+) -> PaintBlurResult:
+    return _execute(
+        request, services, PAINT_BLUR_HANDLER, PaintBlurEvidence, PaintBlurResult
+    )
+
+
 NATIVE_PAINT_OPERATIONS = (
     OperationDescriptor(
         "paint line",
@@ -452,6 +527,21 @@ NATIVE_PAINT_OPERATIONS = (
             lua_language="Lua 5.4",
             minimum_api_version=41,
             required_capabilities=["aseprite_paint_contour"],
+        ),
+        NATIVE_PAINT_FAILURE_CODES,
+        execution_kind="mutation",
+        side_effects=("publishes the declared Target Sprite File",),
+    ),
+    OperationDescriptor(
+        "paint blur",
+        PaintBlurRequest,
+        PaintBlurResult,
+        paint_blur,
+        lambda result: result.target_commit.target_sprite_file,
+        RuntimeRequirements(
+            lua_language="Lua 5.4",
+            minimum_api_version=41,
+            required_capabilities=["aseprite_paint_blur"],
         ),
         NATIVE_PAINT_FAILURE_CODES,
         execution_kind="mutation",

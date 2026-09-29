@@ -22,6 +22,7 @@ local allowed_tools = {
   ellipse = true,
   filled_ellipse = true,
   contour = true,
+  blur = true,
 }
 
 local function checked_integer(value, label)
@@ -112,7 +113,7 @@ local function resolve_layer(layers, path)
 end
 
 local function geometry(payload, tool, position)
-  if tool == "contour" then
+  if tool == "contour" or tool == "blur" then
     local points = {}
     for _, point in ipairs(assert(payload.points, "missing gesture Points")) do
       points[#points + 1] = checked_point(point.x + position.x, point.y + position.y)
@@ -213,11 +214,17 @@ function module.render(sprite, cel, payload, tool)
     "Paint target is not a regular Image Cel"
   )
   assert(type(payload) == "table" or type(payload) == "userdata", "missing native Paint payload")
-  local ink = assert(ink_types[payload.ink], "unsupported Paint Ink")
+  local ink = tool == "blur" and Ink.SIMPLE
+    or assert(ink_types[payload.ink], "unsupported Paint Ink")
   local opacity = checked_integer(payload.opacity, "Paint opacity")
   assert(opacity >= 0 and opacity <= 255, "Paint opacity is outside native range")
   local brush = make_brush(payload.brush)
-  local color = make_tool_color(payload.color, sprite.colorMode)
+  -- Blur's effect Ink ignores paint colors and cannot be replaced by SIMPLE.
+  local color = tool == "blur" and Color { r = 0, g = 0, b = 0, a = 255 }
+    or make_tool_color(payload.color, sprite.colorMode)
+  local tiled = tool == "blur"
+      and assert(({ none = 0, x = 1, y = 2, both = 3 })[payload.tiled_mode], "invalid Tiled Mode")
+    or 0
   local source_image = cel.image
   local source_position = cel.position
   local points = geometry(payload, tool, source_position)
@@ -231,6 +238,10 @@ function module.render(sprite, cel, payload, tool)
   end
   left, top, right, bottom = left - margin, top - margin, right + margin, bottom + margin
   local crop = checked_rectangle(left, top, right - left, bottom - top)
+  -- Any native Tiled Mode constrains both axes to the original document.
+  -- Without tiling, keep the complete Brush footprint for Image-bounds preflight.
+  local footprint_crop = tiled ~= 0 and Rectangle(0, 0, sprite.width, sprite.height) or crop
+  if tool == "blur" then crop = Rectangle(0, 0, sprite.width, sprite.height) end
   local path = assert(find_layer_path(sprite.layers, cel.layer, {}), "target Layer not in Sprite")
   local frame_number = cel.frame.frameNumber
 
@@ -251,6 +262,12 @@ function module.render(sprite, cel, payload, tool)
     filled_preview = pref.filled_preview,
     corner_radius = pref.corner_radius,
   }
+  -- Pencil and Blur use the same native brush/freehand coverage chain. A
+  -- separate opaque Pencil pass measures coverage even at Blur opacity zero.
+  local mask_tool = tool == "blur" and "pencil" or tool
+  local mask_pref = app.preferences.tool(mask_tool)
+  local mask_filled, mask_preview, mask_corner =
+    mask_pref.filled, mask_pref.filled_preview, mask_pref.corner_radius
   local clone, mask_sprite
   local ok, answer = pcall(function()
     -- The native two-point controller must not pick up optional fill or
@@ -259,35 +276,36 @@ function module.render(sprite, cel, payload, tool)
     pref.filled = false
     pref.filled_preview = false
     pref.corner_radius = 0
+    mask_pref.filled, mask_pref.filled_preview, mask_pref.corner_radius = false, false, 0
     app.preferences.symmetry_mode.enabled = false
 
-    mask_sprite = Sprite(crop.width, crop.height, ColorMode.RGB)
+    mask_sprite = Sprite(footprint_crop.width, footprint_crop.height, ColorMode.RGB)
     assert(
-      mask_sprite.width == crop.width and mask_sprite.height == crop.height,
+      mask_sprite.width == footprint_crop.width and mask_sprite.height == footprint_crop.height,
       "native Paint footprint canvas changed the requested extent"
     )
     local mask_cel = assert(mask_sprite.layers[1]:cel(1))
-    local mask_pref = app.preferences.document(mask_sprite)
-    mask_pref.grid.snap = false
-    mask_pref.tiled.mode = 0
-    mask_pref.symmetry.mode = 0
+    local mask_doc = app.preferences.document(mask_sprite)
+    mask_doc.grid.snap = false
+    mask_doc.tiled.mode = tiled
+    mask_doc.symmetry.mode = 0
     local white = Color { r = 255, g = 255, b = 255, a = 255 }
     invoke(
-      tool,
+      mask_tool,
       mask_cel,
       brush,
       white,
       Ink.SIMPLE,
       255,
-      translate_points(points, crop),
+      translate_points(points, footprint_crop),
       payload.freehand_algorithm
     )
     mask_cel = mask_sprite.layers[1]:cel(1)
-    local footprint = footprint_from(mask_cel, crop, source_position)
+    local footprint = footprint_from(mask_cel, footprint_crop, source_position)
 
     clone = Sprite(sprite)
     clone.selection = Selection()
-    clone:crop(crop)
+    if tool ~= "blur" then clone:crop(crop) end
     assert(
       clone.width == crop.width and clone.height == crop.height,
       "native Paint working canvas changed the requested extent"
@@ -295,7 +313,7 @@ function module.render(sprite, cel, payload, tool)
     local clone_cel = assert(resolve_layer(clone.layers, path):cel(frame_number))
     local clone_pref = app.preferences.document(clone)
     clone_pref.grid.snap = false
-    clone_pref.tiled.mode = 0
+    clone_pref.tiled.mode = tiled
     clone_pref.symmetry.mode = 0
     local output = Image(source_image)
     for y = 0, source_image.height - 1 do
@@ -335,6 +353,8 @@ function module.render(sprite, cel, payload, tool)
   if clone ~= nil and clone.isValid then pcall(function() clone:close() end) end
   if mask_sprite ~= nil and mask_sprite.isValid then pcall(function() mask_sprite:close() end) end
   local restored, restore_error = pcall(function()
+    mask_pref.filled, mask_pref.filled_preview, mask_pref.corner_radius =
+      mask_filled, mask_preview, mask_corner
     pref.filled = pref_values.filled
     pref.filled_preview = pref_values.filled_preview
     pref.corner_radius = pref_values.corner_radius

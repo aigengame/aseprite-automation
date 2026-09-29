@@ -51,6 +51,7 @@ def test_info_reports_installed_runtime() -> None:
         "aseprite_paint_rectangle",
         "aseprite_paint_ellipse",
         "aseprite_paint_contour",
+        "aseprite_paint_blur",
         "aseprite_paint_apply",
         "aseprite_frame_authoring",
         "aseprite_frame_editing",
@@ -86,6 +87,7 @@ def test_info_reports_installed_runtime() -> None:
         "spa paint rectangle",
         "spa paint ellipse",
         "spa paint contour",
+        "spa paint blur",
         "spa selection create",
         "spa selection combine",
         "spa selection invert",
@@ -134,7 +136,11 @@ def test_info_reports_installed_runtime() -> None:
     assert [gap["capability"] for gap in result["capability_gaps"]] == [
         f"spa paint composite: grayscale {mode}"
         for mode in ("hue", "saturation", "color", "luminosity", "addition")
-    ] + ["spa paint composite: indexed blend-mode/opacity"]
+    ] + [
+        "spa paint composite: indexed blend-mode/opacity",
+        "spa paint gradient",
+        "spa paint contour: Paint Dynamics",
+    ]
     assert all(
         gap["aseprite_version"] == result["runtime"]["aseprite_version"]
         and gap["evidence"]

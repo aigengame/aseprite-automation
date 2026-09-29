@@ -77,10 +77,10 @@ function module.apply_live(sprite, payload, tool, uuids)
   if cel == nil then return reject("cel_not_found", "Paint requires an existing Cel") end
   local image = cel.image
   local mode = colors.color_mode_name(sprite)
-  colors.native_color(payload.color, mode, false)
+  if tool ~= "blur" then colors.native_color(payload.color, mode, false) end
   local affected = cels.affected(sprite, image)
   local indexes = {}
-  if mode == "indexed" then indexes[payload.color.index] = true end
+  if mode == "indexed" and tool ~= "blur" then indexes[payload.color.index] = true end
   colors.palette_facts(sprite, affected, indexes)
   local selection = payload.selection ~= nil and masks.materialize(payload.selection) or nil
   local before = persistence.snapshot(sprite, inspection, digest, sections, uuids)
@@ -139,7 +139,7 @@ function module.apply_live(sprite, payload, tool, uuids)
       angle = payload.brush.angle or 0,
     },
     color = payload.color,
-    ink = payload.ink,
+    ink = tool == "blur" and "blur" or payload.ink,
     requested_opacity = payload.opacity,
     effective_opacity = (payload.ink == "simple" or payload.ink == "copy-color") and 255
       or payload.opacity,
@@ -163,8 +163,9 @@ function module.apply_live(sprite, payload, tool, uuids)
     before_content_digest = before_digest,
     after_content_digest = digest.image_content(image, mode),
   }
-  if tool == "contour" then
+  if tool == "contour" or tool == "blur" then
     result.points, result.freehand_algorithm = payload.points, payload.freehand_algorithm
+    if tool == "blur" then result.tiled_mode = payload.tiled_mode end
   elseif tool == "line" then
     result["from"], result.to = payload["from"], payload.to
   else
