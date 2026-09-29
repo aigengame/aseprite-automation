@@ -17,6 +17,7 @@ from spa.contracts import (
     CapabilityGap,
     FailureCodeSpec,
     PublicModel,
+    RuntimeCapability,
     RuntimeRequirements,
 )
 from spa.layer import LAYER_ADDRESS_FAILURE_CODES
@@ -64,15 +65,18 @@ StandardPaintBrush = Annotated[
 PaintInk = Literal["simple", "alpha-compositing", "copy-color", "lock-alpha", "shading"]
 
 
-class NativePaintInput(PublicModel):
+class NativePaintTargetInput(PublicModel):
     target: CelAddress
     coordinate_space: Literal["image-pixel"]
-    brush: StandardPaintBrush
-    color: ColorValue
-    ink: PaintInk
     opacity: int = Field(ge=0, le=255)
     clipping: Literal["reject", "clip"] = "reject"
     selection: SelectionApplication | None = None
+
+
+class NativePaintInput(NativePaintTargetInput):
+    brush: StandardPaintBrush
+    color: ColorValue
+    ink: PaintInk
 
 
 class LineGeometry(PublicModel):
@@ -103,6 +107,29 @@ class PaintPencilRequest(CelRelationshipRequest, NativePaintInput, GestureGeomet
     pass
 
 
+class EraseBehavior(PublicModel):
+    kind: Literal["erase"]
+    background_color: ColorValue | None = None
+
+
+class ReplaceForegroundBehavior(PublicModel):
+    kind: Literal["replace-foreground-with-background"]
+    foreground_color: ColorValue
+    background_color: ColorValue
+
+
+EraserBehavior = Annotated[
+    EraseBehavior | ReplaceForegroundBehavior, Field(discriminator="kind")
+]
+
+
+class PaintEraserRequest(
+    CelRelationshipRequest, NativePaintTargetInput, GestureGeometry
+):
+    brush: StandardPaintBrush
+    behavior: EraserBehavior
+
+
 class PaintBrushFact(PublicModel):
     kind: Literal["circle", "square", "line"]
     size: int = Field(gt=0)
@@ -121,12 +148,9 @@ class PaintCoverage(PublicModel):
         return self
 
 
-class NativePaintFacts(PublicModel):
+class NativePaintWriteFacts(PublicModel):
     target: CelAddress
     coordinate_space: Literal["image-pixel"]
-    brush: PaintBrushFact
-    color: ColorValue
-    ink: Literal["simple", "alpha-compositing", "copy-color", "lock-alpha"]
     requested_opacity: int = Field(ge=0, le=255)
     effective_opacity: int = Field(ge=0, le=255)
     clipping: Literal["reject", "clip"]
@@ -151,11 +175,17 @@ class NativePaintFacts(PublicModel):
     persisted_reopen_verified: Literal[True]
 
 
+class NativePaintFacts(NativePaintWriteFacts):
+    brush: PaintBrushFact
+    color: ColorValue
+    ink: Literal["simple", "alpha-compositing", "copy-color", "lock-alpha"]
+
+
 class PaintLineEvidence(NativePaintFacts, LineGeometry):
     pass
 
 
-class NativePaintResult(NativePaintFacts):
+class NativePaintResult(NativePaintWriteFacts):
     target_commit: TargetCommit
 
 
@@ -185,6 +215,23 @@ class PaintPencilEvidence(NativePaintFacts, GestureGeometry):
 class PaintPencilResult(PaintPencilEvidence, NativePaintResult):
     status: Literal["success"] = "success"
     operation: Literal["spa paint pencil"] = "spa paint pencil"
+
+
+class PaintEraserEvidence(NativePaintWriteFacts, GestureGeometry):
+    brush: PaintBrushFact
+    behavior: EraserBehavior
+    native_behavior: Literal[
+        "alpha-erasure",
+        "transparent-index",
+        "background-color",
+        "foreground-replacement",
+    ]
+    transparent_index: int | None = Field(default=None, ge=0, le=255)
+
+
+class PaintEraserResult(PaintEraserEvidence, NativePaintResult):
+    status: Literal["success"] = "success"
+    operation: Literal["spa paint eraser"] = "spa paint eraser"
 
 
 class PaintCapabilityDetails(PublicModel):
@@ -227,16 +274,56 @@ PAINT_LINE_HANDLER = PackagedHandler("paint_line", NATIVE_PAINT_RESOURCES)
 PAINT_RECTANGLE_HANDLER = PackagedHandler("paint_rectangle", NATIVE_PAINT_RESOURCES)
 PAINT_ELLIPSE_HANDLER = PackagedHandler("paint_ellipse", NATIVE_PAINT_RESOURCES)
 PAINT_PENCIL_HANDLER = PackagedHandler("paint_pencil", NATIVE_PAINT_RESOURCES)
+PAINT_ERASER_HANDLER = PackagedHandler("paint_eraser", NATIVE_PAINT_RESOURCES)
+
+
+def native_paint_capability_gaps(
+    version: str, capabilities: list[RuntimeCapability] | tuple[RuntimeCapability, ...]
+) -> list[CapabilityGap]:
+    gaps = []
+    for tool in ("pencil", "eraser"):
+        if f"aseprite_paint_{tool}" not in capabilities:
+            continue
+        for algorithm in ("regular", "pixel-perfect", "dots"):
+            capability = f"aseprite_paint_{tool}_{algorithm.replace('-', '_')}"
+            if capability not in capabilities:
+                gaps.append(
+                    CapabilityGap(
+                        capability=f"{tool} {algorithm}",
+                        aseprite_version=version,
+                        evidence="The installed native gesture did not pass its independent probe",
+                    )
+                )
+    for capability, evidence in (
+        (
+            "Paint Dynamics",
+            "Native scripted pressure, velocity, tilt, and dynamic Brush inputs are not verified",
+        ),
+        (
+            "Image Brush",
+            "Explicit native Image Brush mask and pattern semantics are not delivered",
+        ),
+        (
+            "shading Ink",
+            "Native Shade configuration cannot be supplied and restored explicitly",
+        ),
+    ):
+        gaps.append(
+            CapabilityGap(
+                capability=capability, aseprite_version=version, evidence=evidence
+            )
+        )
+    return gaps
 
 
 def _execute[ResultT: NativePaintResult](
     request: CelRelationshipRequest,
     services: OperationServices,
     handler: PackagedHandler,
-    evidence_type: type[NativePaintFacts],
+    evidence_type: type[NativePaintWriteFacts],
     result_type: type[ResultT],
 ) -> ResultT:
-    assert isinstance(request, NativePaintInput)
+    assert isinstance(request, NativePaintTargetInput)
     destination = Path(request.target_sprite_file)
     identity = source_target_identity_issue(
         services.target_files,
@@ -247,6 +334,23 @@ def _execute[ResultT: NativePaintResult](
     if identity is not None:
         raise RequestIssue([identity])
     observation = services.probe_runtime(request)
+    if isinstance(request, GestureGeometry):
+        tool = "eraser" if isinstance(request, PaintEraserRequest) else "pencil"
+        capability = (
+            f"aseprite_paint_{tool}_{request.freehand_algorithm.replace('-', '_')}"
+        )
+        if capability not in observation.verified_capabilities:
+            raise OperationIssue(
+                "paint_capability_gap",
+                "Requested native Freehand Algorithm is unavailable",
+                PaintCapabilityDetails(
+                    gap=CapabilityGap(
+                        capability=f"{tool} {request.freehand_algorithm}",
+                        aseprite_version=observation.aseprite_version,
+                        evidence="The installed native gesture did not pass its independent probe",
+                    )
+                ),
+            )
     staged = services.target_files.staged_path(destination)
     payload = request.model_dump(
         mode="json",
@@ -288,18 +392,19 @@ def _execute[ResultT: NativePaintResult](
         )
         try:
             evidence = evidence_type.model_validate(invocation.payload)
-            brush = request.brush.model_dump() | {
-                "angle": getattr(request.brush, "angle", 0)
-            }
+            expected = request.model_dump(
+                mode="json",
+                by_alias=True,
+                exclude=set(CelRelationshipRequest.model_fields),
+            )
+            expected["requested_opacity"] = expected.pop("opacity")
+            if "brush" in expected:
+                expected["brush"].setdefault("angle", 0)
+            observed = evidence.model_dump(mode="json", by_alias=True)
+            if any(observed.get(name) != value for name, value in expected.items()):
+                raise ValueError("Native Paint evidence differs from the request")
             if (
-                evidence.target != request.target
-                or evidence.color != request.color
-                or evidence.brush.model_dump() != brush
-                or evidence.ink != request.ink
-                or evidence.requested_opacity != request.opacity
-                or evidence.clipping != request.clipping
-                or evidence.selection != request.selection
-                or evidence.pixels_requested != evidence.requested_region.pixel_count
+                evidence.pixels_requested != evidence.requested_region.pixel_count
                 or evidence.pixels_written != evidence.applied_region.pixel_count
                 or evidence.pixels_skipped_by_bounds
                 != evidence.clipped_region.pixel_count
@@ -313,27 +418,7 @@ def _execute[ResultT: NativePaintResult](
                 )
                 or evidence.pixels_changed > evidence.pixels_written
             ):
-                raise ValueError(
-                    "Native Paint evidence differs from the requested target or coverage"
-                )
-            if isinstance(request, LineGeometry) and (
-                not isinstance(evidence, LineGeometry)
-                or evidence.from_point != request.from_point
-                or evidence.to != request.to
-            ):
-                raise ValueError("Native Line geometry differs from the request")
-            if isinstance(request, ShapeGeometry) and (
-                not isinstance(evidence, ShapeGeometry)
-                or evidence.bounds != request.bounds
-                or evidence.style != request.style
-            ):
-                raise ValueError("Native Shape geometry differs from the request")
-            if isinstance(request, GestureGeometry) and (
-                not isinstance(evidence, GestureGeometry)
-                or evidence.points != request.points
-                or evidence.freehand_algorithm != request.freehand_algorithm
-            ):
-                raise ValueError("Native gesture differs from the request")
+                raise ValueError("Native Paint coverage counts are inconsistent")
         except (TypeError, ValueError, ValidationError) as exc:
             raise RuntimeIssue(
                 "response_malformed",
@@ -392,7 +477,30 @@ def paint_pencil(
     )
 
 
+def paint_eraser(
+    request: PaintEraserRequest, services: OperationServices
+) -> PaintEraserResult:
+    return _execute(
+        request, services, PAINT_ERASER_HANDLER, PaintEraserEvidence, PaintEraserResult
+    )
+
+
 NATIVE_PAINT_OPERATIONS = (
+    OperationDescriptor(
+        "paint eraser",
+        PaintEraserRequest,
+        PaintEraserResult,
+        paint_eraser,
+        lambda result: result.target_commit.target_sprite_file,
+        RuntimeRequirements(
+            lua_language="Lua 5.4",
+            minimum_api_version=41,
+            required_capabilities=["aseprite_paint_eraser"],
+        ),
+        NATIVE_PAINT_FAILURE_CODES,
+        execution_kind="mutation",
+        side_effects=("publishes the declared Target Sprite File",),
+    ),
     OperationDescriptor(
         "paint pencil",
         PaintPencilRequest,

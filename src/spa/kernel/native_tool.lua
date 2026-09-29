@@ -18,6 +18,7 @@ local ink_types = {
 local allowed_tools = {
   line = true,
   pencil = true,
+  eraser = true,
   rectangle = true,
   filled_rectangle = true,
   ellipse = true,
@@ -112,7 +113,7 @@ local function resolve_layer(layers, path)
 end
 
 local function geometry(payload, tool, position)
-  if tool == "pencil" then
+  if tool == "pencil" or tool == "eraser" then
     assert(#payload.points > 0, "a gesture needs at least one Point")
     local points = {}
     for _, point in ipairs(payload.points) do
@@ -138,7 +139,7 @@ local function geometry(payload, tool, position)
   return { first, last }
 end
 
-local function invoke(tool, cel, brush, color, ink, opacity, points, algorithm)
+local function invoke(tool, cel, brush, color, ink, opacity, points, algorithm, background, button)
   local sprite = cel.sprite
   app.activeSprite = sprite
   app.activeLayer = cel.layer
@@ -149,11 +150,11 @@ local function invoke(tool, cel, brush, color, ink, opacity, points, algorithm)
     layer = cel.layer,
     frame = cel.frame,
     color = color,
-    bgColor = color,
+    bgColor = background or color,
     brush = brush,
     ink = ink,
     opacity = opacity,
-    button = MouseButton.LEFT,
+    button = button or MouseButton.LEFT,
     points = points,
     contiguous = true,
     tolerance = 0,
@@ -205,11 +206,25 @@ function module.render(sprite, cel, payload, tool)
     "Paint target is not a regular Image Cel"
   )
   assert(type(payload) == "table" or type(payload) == "userdata", "missing native Paint payload")
-  local ink = assert(ink_types[payload.ink], "unsupported Paint Ink")
+  local ink
+  if tool ~= "eraser" then ink = assert(ink_types[payload.ink], "unsupported Paint Ink") end
   local opacity = checked_integer(payload.opacity, "Paint opacity")
   assert(opacity >= 0 and opacity <= 255, "Paint opacity is outside native range")
   local brush = make_brush(payload.brush)
-  local color = make_tool_color(payload.color, sprite.colorMode)
+  local color, background, button
+  if tool == "eraser" then
+    local behavior = payload.behavior
+    color = behavior.foreground_color
+        and make_tool_color(behavior.foreground_color, sprite.colorMode)
+      or Color { r = 0, g = 0, b = 0, a = 255 }
+    background = behavior.background_color
+        and make_tool_color(behavior.background_color, sprite.colorMode)
+      or color
+    button = behavior.kind == "replace-foreground-with-background" and MouseButton.RIGHT
+      or MouseButton.LEFT
+  else
+    color = make_tool_color(payload.color, sprite.colorMode)
+  end
   local source_image = cel.image
   local source_position = cel.position
   local points = geometry(payload, tool, source_position)
@@ -270,7 +285,16 @@ function module.render(sprite, cel, payload, tool)
     mask_pref.tiled.mode = 0
     mask_pref.symmetry.mode = 0
     local white = Color { r = 255, g = 255, b = 255, a = 255 }
-    invoke(tool, mask_cel, brush, white, Ink.SIMPLE, 255, native_points, algorithm)
+    invoke(
+      tool == "eraser" and "pencil" or tool,
+      mask_cel,
+      brush,
+      white,
+      Ink.SIMPLE,
+      255,
+      native_points,
+      algorithm
+    )
     mask_cel = mask_sprite.layers[1]:cel(1)
     local footprint = footprint_from(mask_cel, crop, source_position)
 
@@ -297,7 +321,19 @@ function module.render(sprite, cel, payload, tool)
         )
       end
     end
-    invoke(tool, clone_cel, brush, color, ink, opacity, native_points, algorithm)
+    if tool == "eraser" then app.bgColor = background end
+    invoke(
+      tool,
+      clone_cel,
+      brush,
+      color,
+      ink,
+      opacity,
+      native_points,
+      algorithm,
+      background,
+      button
+    )
     clone_cel = resolve_layer(clone.layers, path):cel(frame_number)
     local transparent = sprite.colorMode == ColorMode.INDEXED and sprite.transparentColor or 0
     for y = 0, source_image.height - 1 do

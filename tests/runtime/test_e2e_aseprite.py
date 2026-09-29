@@ -49,6 +49,13 @@ def test_info_reports_installed_runtime() -> None:
         "aseprite_background_conversion",
         "aseprite_paint_line",
         "aseprite_paint_pencil",
+        "aseprite_paint_pencil_regular",
+        "aseprite_paint_pencil_pixel_perfect",
+        "aseprite_paint_pencil_dots",
+        "aseprite_paint_eraser",
+        "aseprite_paint_eraser_regular",
+        "aseprite_paint_eraser_pixel_perfect",
+        "aseprite_paint_eraser_dots",
         "aseprite_paint_rectangle",
         "aseprite_paint_ellipse",
         "aseprite_paint_apply",
@@ -82,6 +89,7 @@ def test_info_reports_installed_runtime() -> None:
         "spa layer convert-from-background",
         "spa paint apply",
         "spa paint composite",
+        "spa paint eraser",
         "spa paint pencil",
         "spa paint line",
         "spa paint rectangle",
@@ -134,7 +142,12 @@ def test_info_reports_installed_runtime() -> None:
     assert [gap["capability"] for gap in result["capability_gaps"]] == [
         f"spa paint composite: grayscale {mode}"
         for mode in ("hue", "saturation", "color", "luminosity", "addition")
-    ] + ["spa paint composite: indexed blend-mode/opacity"]
+    ] + [
+        "spa paint composite: indexed blend-mode/opacity",
+        "Paint Dynamics",
+        "Image Brush",
+        "shading Ink",
+    ]
     assert all(
         gap["aseprite_version"] == result["runtime"]["aseprite_version"]
         and gap["evidence"]

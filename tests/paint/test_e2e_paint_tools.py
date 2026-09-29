@@ -84,3 +84,38 @@ def test_pencil_keeps_one_ordered_gesture_and_persists_pixels(tmp_path: Path) ->
         for x, color in enumerate(row)
         if color["alpha"]
     } == {(2, 2), (3, 2), (4, 2), (5, 2)}
+
+
+def test_eraser_uses_native_alpha_erasure(tmp_path: Path) -> None:
+    source, drawn, target = (
+        tmp_path / name
+        for name in ("source.aseprite", "drawn.aseprite", "erased.aseprite")
+    )
+    create_sprite(source)
+    code, result = call_spa(
+        "paint",
+        "pencil",
+        **paint_request(source, drawn),
+        points=[{"x": 2, "y": 2}, {"x": 5, "y": 2}],
+        freehand_algorithm="regular",
+        brush={"kind": "circle", "size": 1},
+        color=RED,
+        ink="simple",
+    )
+    assert code == 0, result
+    request = paint_request(drawn, target) | {"opacity": 128}
+    code, result = call_spa(
+        "paint",
+        "eraser",
+        **request,
+        points=[{"x": 2, "y": 2}],
+        freehand_algorithm="regular",
+        brush={"kind": "circle", "size": 1},
+        behavior={"kind": "erase"},
+    )
+    assert code == 0, result
+    assert result["native_behavior"] == "alpha-erasure"
+    assert result["requested_opacity"] == result["effective_opacity"] == 128
+    output = pixels(target)
+    assert output[2][2] == RED | {"alpha": 127}
+    assert output[2][3] == RED
