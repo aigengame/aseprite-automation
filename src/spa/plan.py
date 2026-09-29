@@ -14,6 +14,7 @@ from spa.cel import (
     CelFrameRangeDetails,
     CelState,
     CelTargetDetails,
+    validate_added_cel,
 )
 from spa.cel import (
     CelAddress as LifecycleCelAddress,
@@ -96,6 +97,7 @@ from spa.sprite import (
     SpriteGetInput,
     SpriteGetRequest,
     SpriteInspection,
+    SpriteMetadata,
     validate_created_sprite,
     validated_scope,
 )
@@ -561,7 +563,7 @@ PLAN_DISCOVERY_REQUIREMENTS = _combined_requirements(list(ELIGIBLE_OPERATIONS))
 
 
 def _validated_steps(
-    request: PlanRunRequest, invocation: KernelInvocationResult
+    request: PlanRunRequest, invocation: KernelInvocationResult, canvas: SpriteMetadata
 ) -> list[StepOutcome]:
     raw = invocation.payload.get("steps")
     if not isinstance(raw, list) or len(raw) != len(request.plan.steps):
@@ -645,10 +647,9 @@ def _validated_steps(
                 outcome = CelAddStepOutcome.model_validate(item)
                 target = step.input.target
                 before, after = outcome.result.before, outcome.result.cel
+                validate_added_cel(step.input, after, canvas, invocation)
                 if (
                     before.exists
-                    or not after.exists
-                    or after.content != "transparent"
                     or before.frame_number != target.frame_number
                     or after.frame_number != target.frame_number
                     or before.layer_path != after.layer_path
@@ -889,7 +890,9 @@ def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunRes
             inspection_scope=list(INSPECTION_SECTIONS),
         )
         validated_scope(final_scope_request, final_sprite, invocation)
-        outcomes = _validated_steps(request, invocation)
+        # Eligible Steps keep the Canvas size; Add receipts describe their own
+        # initial state, even when a later Step paints or moves that Cel.
+        outcomes = _validated_steps(request, invocation, final_sprite.metadata)
         metadata = final_sprite.metadata
         for field, expected in plan.postconditions.model_dump(
             exclude_none=True

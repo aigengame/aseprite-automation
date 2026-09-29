@@ -177,10 +177,15 @@ local function add(sprite, layer, frame_number, image_size)
     spec.width = image_size.width
     spec.height = image_size.height
   end
-  local created = sprite:newCel(layer, frame_number, Image(spec), Point(0, 0))
+  local pixels = Image(spec)
+  assert(pixels.spec == spec, "initial Image does not inherit the Sprite specification")
+  local created = sprite:newCel(layer, frame_number, pixels, Point(0, 0))
   assert(
-    created.image.width == spec.width and created.image.height == spec.height,
-    "added Cel Image size differs from the request"
+    created.image.width == spec.width
+      and created.image.height == spec.height
+      and created.image.colorMode == spec.colorMode
+      and created.image.spec.transparentColor == spec.transparentColor,
+    "added Cel Image specification differs from the request"
   )
   assert(
     created.position.x == 0

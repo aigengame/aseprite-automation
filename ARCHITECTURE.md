@@ -319,6 +319,10 @@ inspection and authoring; `spa.cel` owns Cel existence, inspection, and lifecycl
 while `spa.cel_relationship` owns Cel placement, opacity, z-index, and native
 copy/link/unlink mutations; `spa.animation` owns declared animation audit,
 full-Canvas Frame comparison, and the composed continuity Preview use case.
+Cel Add accepts optional initial Image dimensions. Its `cel_support.lua` owner
+creates transparent native Images from the Sprite specification for both standalone
+mutations and Plan Steps. Add validates its initial state at the Step; the final
+save/reopen gate validates the state after all later Steps.
 The delivered `spa.image` slice owns Cel-targeted Image resize, crop,
 canvas-resize, flip, and quarter-turn rotation with explicit placement policies.
 Its fixed Lua Image Resize Transform owns buffer scaling, while Image Canvas

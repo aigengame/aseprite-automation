@@ -74,3 +74,30 @@ def _reject(tmp_path: Path, operation: str, image_size: dict | None) -> None:
     )
     assert source.read_bytes() == b"Source must remain unchanged"
     assert target.read_bytes() == b"Target must remain unchanged"
+
+
+def test_standalone_and_plan_advertise_the_same_size_contract() -> None:
+    schemas = []
+    for command in [("cel", "add"), ("plan", "run")]:
+        run = spa(*command, "--schema")
+        assert run.returncode == 0, run.stdout + run.stderr
+        schemas.append(json.loads(run.stdout)["request_schema"])
+    standalone, plan = schemas
+    assert standalone["$defs"]["CelImageSize"] == plan["$defs"]["CelImageSize"]
+    size = standalone["$defs"]["CelImageSize"]
+    assert size["required"] == ["width", "height"]
+    assert size["additionalProperties"] is False
+    for field in ["width", "height"]:
+        assert size["properties"][field]["type"] == "integer"
+        assert size["properties"][field]["minimum"] == 1
+        assert size["properties"][field]["maximum"] == 65535
+    assert (
+        standalone["properties"]["image_size"]
+        == plan["$defs"]["CelAddInput"]["properties"]["image_size"]
+    )
+    assert "image_size" not in standalone["required"]
+    for operation in ["clear", "remove"]:
+        run = spa("cel", operation, "--schema")
+        assert run.returncode == 0, run.stdout + run.stderr
+        schema = json.loads(run.stdout)["request_schema"]
+        assert "image_size" not in schema["properties"]
