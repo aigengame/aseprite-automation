@@ -14,6 +14,7 @@ def test_probe_resources_are_packaged() -> None:
         "paint_native_support.lua",
         "paint_line.lua",
         "paint_rectangle.lua",
+        "paint_ellipse.lua",
         "paint_apply_fixture.aseprite",
         "capability_probe.lua",
         "digest.lua",

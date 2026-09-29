@@ -29,6 +29,20 @@ the narrowest ownership directory that uses it. Move a helper to `tests/support.
 only when more than one ownership area needs it. Each directory is a Python package,
 so different owners can safely use the same focused file name later.
 
+Native Paint #26 has separate Line, Rectangle, and Ellipse runtime gates. Its
+real-runtime suite compares saved pixels with direct `app.useTool` references for
+all four color-paint Inks at opacity 0, 128, and 255. It also covers native Brush
+footprints, degenerate shapes, RGB/Grayscale/Indexed (including transparent index 7),
+Background and linked Cels, off-canvas Cel placement, explicit Selection, refusal
+without publication, and state restoration after success and failure. These tests
+use `--batch --script` and require no display. They establish batch native pixel
+parity; they do not certify windowed UI interactions. Run the focused slice with:
+
+```sh
+SPA_TEST_ASEPRITE=/absolute/path/to/aseprite \
+  uv run --frozen --group test pytest tests/paint -q
+```
+
 ## Verification tiers
 
 Use the tier in the file name:

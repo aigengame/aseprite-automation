@@ -5,6 +5,7 @@ local creation = dofile(app.params.creation)
 local layer_select = app.params.layer_select and dofile(app.params.layer_select) or nil
 local exporter = app.params.export_image_support and dofile(app.params.export_image_support) or nil
 local paint = dofile(app.params.paint)
+local paint_native = app.params.native_paint and dofile(app.params.native_paint) or nil
 local digest = dofile(app.params.digest)
 local frame = app.params.frame and dofile(app.params.frame) or nil
 local cel_support = app.params.cel and dofile(app.params.cel) or nil
@@ -712,7 +713,7 @@ local function observes_image_rotate()
 end
 
 local function observes_native_paint(tool)
-  local paint_native = dofile(app.params.native_paint)
+  if paint_native == nil then return false end
   local source = app.fs.joinPath(app.params.workspace, "native-" .. tool .. ".aseprite")
   local output = app.fs.joinPath(app.params.workspace, "native-" .. tool .. "-painted.aseprite")
   local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
@@ -816,6 +817,9 @@ function module.observe()
   if observes_native_paint("line") then capabilities[#capabilities + 1] = "aseprite_paint_line" end
   if observes_native_paint("rectangle") and observes_native_paint("filled_rectangle") then
     capabilities[#capabilities + 1] = "aseprite_paint_rectangle"
+  end
+  if observes_native_paint("ellipse") and observes_native_paint("filled_ellipse") then
+    capabilities[#capabilities + 1] = "aseprite_paint_ellipse"
   end
   if observes_paint_apply() then capabilities[#capabilities + 1] = "aseprite_paint_apply" end
   if observes_frame_authoring() then

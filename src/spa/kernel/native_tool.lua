@@ -307,6 +307,10 @@ function module.render(sprite, cel, payload, tool)
     app.preferences.symmetry_mode.enabled = false
 
     mask_sprite = Sprite(crop.width, crop.height, ColorMode.RGB)
+    assert(
+      mask_sprite.width == crop.width and mask_sprite.height == crop.height,
+      "native Paint footprint canvas changed the requested extent"
+    )
     local mask_cel = assert(mask_sprite.layers[1]:cel(1))
     local mask_pref = app.preferences.document(mask_sprite)
     mask_pref.grid.snap = false
@@ -329,6 +333,10 @@ function module.render(sprite, cel, payload, tool)
     clone = Sprite(sprite)
     clone.selection = Selection()
     clone:crop(crop)
+    assert(
+      clone.width == crop.width and clone.height == crop.height,
+      "native Paint working canvas changed the requested extent"
+    )
     local clone_cel = assert(resolve_layer(clone.layers, path):cel(frame_number))
     local clone_pref = app.preferences.document(clone)
     clone_pref.grid.snap = false

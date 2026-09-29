@@ -413,7 +413,7 @@ src/spa/
   rounding.py             # shared exact rounding policies and Kernel binding
   animation.py            # existing audit, comparison, and composed Preview use case
   frame.py, cel.py, cel_relationship.py
-  image.py, image_snapshot.py, paint.py, raster.py
+  image.py, image_snapshot.py, paint.py, paint_native.py, raster.py
   palette.py              # shared private Palette Kernel resource binding
   export.py               # existing Delivery and publication support
   application.py, plan.py, mutation.py, ports.py
@@ -442,6 +442,16 @@ native set operations, isolated temporary Sprite work, and binary Image adaptati
 for native nearest-neighbor sampling. Python validates wire constraints and
 orchestrates existing Artifact staging, independent JSON/PNG verification, and
 publication. No persistent editor Selection or second Mask engine is introduced.
+
+The native Line, Rectangle, and Ellipse slice uses `paint_native.py` for typed
+contracts and publication orchestration. `paint_native_support.lua` owns footprint
+partitioning, Selection Application, linked mutation, and persisted evidence.
+`native_tool.lua` hides native Tool invocation and its local state restoration.
+It uses isolated native working documents to prevent the editor's Cel expansion
+from changing the addressed Image. The native pixel result is copied into the
+existing shared Image; geometry and unrelated document facts are verified before
+publication. Existing Cel, Selection, Color, Palette, and persistence helpers retain
+their ownership. Each public primitive has its own handler and runtime gate.
 
 Each Domain Module owns a vertical slice of:
 

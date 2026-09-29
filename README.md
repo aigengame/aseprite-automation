@@ -237,6 +237,38 @@ In-place editing requires Source and Target to name the same publication entry,
 plus both `in_place: true` and `overwrite: true`.
 Standalone Paint rejects a Source alias that traverses the Target publication entry
 for either `in_place` value.
+
+`spa paint line`, `spa paint rectangle`, and `spa paint ellipse` use native
+Aseprite Tools on an existing Cel addressed by `target.layer` and
+`target.frame_number`. Geometry uses `coordinate_space: image-pixel`. Line takes
+exactly `from` and `to`; equal Points keep native single-point behavior. Shapes
+share positive half-open `bounds` and explicit `style: outline | filled`.
+Dimensions of 1 retain the selected native shape's output.
+
+A Standard Paint Brush has `kind: circle | square | line` and positive `size`.
+Circle fixes its angle to 0 and rejects an angle field; square and line require
+an integer `angle` in `-180..180`. A line Brush is an oriented footprint, distinct
+from the Line Tool. A Color Value must match the Sprite's Color Mode.
+`opacity` is required in `0..255`. Native `simple` and `copy-color` use effective
+opacity 255 at every valid requested opacity; `alpha-compositing` and `lock-alpha`
+use the requested value. Results report both. This does not change the Color
+Value's alpha. `shading` returns a typed `paint_capability_gap` until an explicit
+Shade contract is available; Image Brushes are outside this request schema.
+
+Clipping and optional Canvas Selection apply to the native rendered Brush
+footprint, which can extend beyond endpoints or shape bounds. `clipping: reject`
+refuses out-of-Image coverage; `clip` reports it. Results separate requested,
+applied, clipped, and Selection-excluded coverage, changed pixels, affected Cels,
+and before/after digests. Native tool preferences are isolated and restored.
+Drawing preserves Image size, Cel position, linked sharing, and opaque Background
+postconditions; it never creates a Cel or implicitly expands an Image. Each
+primitive has an independent runtime capability probe and a fixed packaged handler.
+These three standalone Operations are not Plan Steps.
+
+```sh
+uv run spa paint line --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"line.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":1},"coordinate_space":"image-pixel","from":{"x":2,"y":2},"to":{"x":10,"y":2},"brush":{"kind":"circle","size":1},"color":{"kind":"rgba","red":255,"green":0,"blue":0,"alpha":255},"ink":"simple","opacity":255}'
+```
+
 `spa selection create/combine/invert/grow/shrink/transform` return explicit
 Canvas Pixel values. Requests declare `coordinate_space: "canvas-pixel"`; values
 can be inline (`empty`, rectangular `all`, or canonical `mask`) or read from a

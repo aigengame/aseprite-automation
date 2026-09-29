@@ -164,6 +164,11 @@ class PaintRectangleResult(PaintShapeEvidence, NativePaintResult):
     operation: Literal["spa paint rectangle"] = "spa paint rectangle"
 
 
+class PaintEllipseResult(PaintShapeEvidence, NativePaintResult):
+    status: Literal["success"] = "success"
+    operation: Literal["spa paint ellipse"] = "spa paint ellipse"
+
+
 class PaintCapabilityDetails(PublicModel):
     kind: Literal["paint_capability_gap"] = "paint_capability_gap"
     gap: CapabilityGap
@@ -202,6 +207,7 @@ NATIVE_PAINT_RESOURCES = (
 )
 PAINT_LINE_HANDLER = PackagedHandler("paint_line", NATIVE_PAINT_RESOURCES)
 PAINT_RECTANGLE_HANDLER = PackagedHandler("paint_rectangle", NATIVE_PAINT_RESOURCES)
+PAINT_ELLIPSE_HANDLER = PackagedHandler("paint_ellipse", NATIVE_PAINT_RESOURCES)
 
 
 def _execute[ResultT: NativePaintResult](
@@ -345,6 +351,14 @@ def paint_rectangle(
     )
 
 
+def paint_ellipse(
+    request: PaintShapeRequest, services: OperationServices
+) -> PaintEllipseResult:
+    return _execute(
+        request, services, PAINT_ELLIPSE_HANDLER, PaintShapeEvidence, PaintEllipseResult
+    )
+
+
 NATIVE_PAINT_OPERATIONS = (
     OperationDescriptor(
         "paint line",
@@ -371,6 +385,21 @@ NATIVE_PAINT_OPERATIONS = (
             lua_language="Lua 5.4",
             minimum_api_version=41,
             required_capabilities=["aseprite_paint_rectangle"],
+        ),
+        NATIVE_PAINT_FAILURE_CODES,
+        execution_kind="mutation",
+        side_effects=("publishes the declared Target Sprite File",),
+    ),
+    OperationDescriptor(
+        "paint ellipse",
+        PaintShapeRequest,
+        PaintEllipseResult,
+        paint_ellipse,
+        lambda result: result.target_commit.target_sprite_file,
+        RuntimeRequirements(
+            lua_language="Lua 5.4",
+            minimum_api_version=41,
+            required_capabilities=["aseprite_paint_ellipse"],
         ),
         NATIVE_PAINT_FAILURE_CODES,
         execution_kind="mutation",
