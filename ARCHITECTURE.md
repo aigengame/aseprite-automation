@@ -551,6 +551,9 @@ report an assessed limitation that prevents a capability from having a Descripto
 The Manifest reports the selected runtime and applicable SPA support boundaries,
 without claiming that every native behavior was retested on that runtime. A Gap does
 not register an Operation or promise its future delivery.
+An unpublished candidate's Gap projection can be limited to its recorded investigation
+scope. Its absence on another release establishes neither callability nor a native
+behavior result there; the feature issue retains the investigation status.
 
 ### Application orchestration
 

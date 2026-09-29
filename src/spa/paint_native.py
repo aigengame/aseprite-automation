@@ -434,7 +434,8 @@ _CANDIDATE_GAP_EVIDENCE = {
 
 
 def native_paint_candidate_gaps(aseprite_version: str) -> list[CapabilityGap]:
-    """Scope recorded native limitations to the investigated Aseprite version."""
+    """Project the recorded 1.3.18.5 candidate evidence, not version compatibility."""
+    # This condition scopes evidence reporting; it does not gate any Operation.
     if aseprite_version.partition("-")[0] != "1.3.18.5":
         return []
     return [

@@ -27,7 +27,7 @@ milestones, and durable authorities; it does not own product or system knowledge
 | Operation Descriptor | Implemented public Operation identity, request/result/failure schemas, metadata, presentation bindings, and execution binding. | Executable native behavior, candidate territory, or installed-environment facts. | Implements an accepted issue contract and supplies public projections and the installed Surface Manifest. |
 | Implementation | Executable behavior. For an Ordinary Core Operation, its fixed packaged Lua handler is the sole executable Core Operation Semantics authority. Application code owns application-use-case orchestration without duplicating those semantics. | Product intent, planned scope, or independent public-contract definitions. | Implements issues and Descriptors under accepted ADR constraints. |
 | Tests and evidence | Executed verification assertions, observations, measurements, and retained results about contracts, behavior, integration, packaging, and regressions. | Product meaning, evidence requirements, executable behavior, or an independently editable contract. | Verify the applicable issue, Descriptor, implementation, and native claim; supply results that issues can link to and summarize. |
-| Installed Surface Manifest | Callable Operations, schemas, execution metadata, version constraints, and applicable Capability Gaps, including assessed capabilities without a Descriptor, for one installed SPA and Aseprite combination. | Roadmap, priority, design rationale, historical evidence, candidate inventory, or investigation status. | Is generated from installed Descriptors, the shared Failure Code registration for Access-level failure projection, observed runtime facts, and version-scoped native evidence for Gaps. |
+| Installed Surface Manifest | Callable Operations, schemas, execution metadata, version constraints, and applicable Capability Gaps, including assessed capabilities without a Descriptor, for one installed SPA and Aseprite combination. | Roadmap, priority, design rationale, historical evidence, candidate inventory, or investigation status. | Is generated from installed Descriptors, the shared Failure Code registration for Access-level failure projection, observed runtime facts, and native Gap evidence with its tested baseline. |
 
 Ordinary Core Operation and Core Operation Semantics name the packaged execution
 category defined in `CONTEXT.md` and ADR-0010. Their authority applies to native
@@ -188,9 +188,11 @@ feature issue owns a planned contract, while a Descriptor owns the implemented
 contract. Only Descriptors supply callable Operation entries in the installed Surface
 Manifest. A Capability Gap can report an evidence-backed native limitation that
 prevents an assessed capability from having a Descriptor. That diagnostic record does
-not register an Operation or promise its future delivery. Its evidence must apply to
-the selected runtime; an uninvestigated candidate stays in its issue, not in the Gap
-list. Absence from the Gap list does not establish callability.
+not register an Operation or promise its future delivery. An unpublished candidate's
+Gap projection can be limited to the scope of its recorded investigation. Candidate
+inventory and investigation status remain in the feature issue. An absent candidate
+Gap neither establishes callability nor asserts a native-behavior result on another
+release.
 
 A Capability Gap reports evidenced unavailability within the applicable SPA support
 boundary. Its selected Aseprite version identifies the installation. Evidence for a
