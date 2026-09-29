@@ -149,6 +149,10 @@ def test_info_reports_installed_runtime() -> None:
         "Paint Dynamics",
         "Image Brush",
         "shading Ink",
+        "spa paint spray",
+        "spa paint curve",
+        "spa paint polygon",
+        "spa paint jumble",
     ]
     assert all(
         gap["aseprite_version"] == result["runtime"]["aseprite_version"]

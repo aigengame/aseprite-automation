@@ -76,7 +76,7 @@ not a second public API.
 - Supported multi-target Mutations resolve the complete target set and produce a Target Commit for the whole set or none of it.
 - Every produced file is a verified Artifact in the owning Operation Result. Format-specific facts stay with that result.
 - Operation Descriptors own registration and projections. The Lua Operation Kernel owns SPA Core Operation Semantics and native mapping. Python coordinates use cases and adapters without duplicating that behavior.
-- Capability Gaps are versioned, evidence-backed runtime facts. They remove unfaithful Operations from the installed Surface Manifest instead of creating silent partial support.
+- Capability Gaps are versioned, evidence-backed runtime diagnostics, not proof of a separate native test on every selected Aseprite release. They make unavailable capabilities explicit instead of creating silent partial support.
 
 Before delivery, exact feature contracts and evidence requirements belong to their
 accepted issues under the shared language and decisions. Operation Descriptors own
@@ -252,7 +252,7 @@ Cels. The result reports applied/skipped coverage, changed stored pixels, digest
 and every affected Cel after save/reopen verification. Pixels included by coverage
 can be unchanged; native alpha-zero RGB values are not normalized by SPA.
 
-The current verified native profile supports all 19 published modes for RGB.
+The verified Aseprite 1.3.18.5 baseline supports all 19 published modes for RGB.
 Grayscale excludes `hue`, `saturation`, `color`, `luminosity`, and `addition`:
 those native combinations select Normal or Exclusion instead. Indexed accepts only
 `normal` at `opacity: 255`, using native index overlay with the Sprite's Transparent
@@ -263,6 +263,8 @@ output indexes must exist in every affected Cel Frame's Palette. Other Indexed
 combinations return typed Capability Gaps. `spa info` and `spa schema` expose these
 gaps and omit the Indexed capability if its native probe fails. Composite is a
 standalone mutation; it is not an Operation Plan Step.
+These exclusions are the delivered SPA support boundary based on the 1.3.18.5
+evidence, not a claim of separate mode-matrix tests on every Aseprite release.
 
 ```sh
 uv run spa paint composite --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"composited.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":1},"input":{"kind":"artifact","path":"snapshot.json"},"position":{"x":0,"y":0},"opacity":127,"blend_mode":"normal"}'
@@ -626,6 +628,9 @@ independently observed runtime capabilities. A prerequisite failure uses the typ
 process or Kernel failure channel. A Lua-language or API-version mismatch, or a
 capability required by the selected Operation but absent from the observation, returns
 `runtime_incompatible` before the Operation executes.
+Aseprite 1.3.18.5 is the current real-integration baseline, not a version allowlist.
+Other releases follow Aseprite's native compatibility policy. SPA makes no additional
+cross-version guarantee and runs no release-by-release compatibility test matrix.
 `spa plan run` observes the selected Steps' requirements plus mandatory final Sprite
 inspection requirements inside its one execution process. Incompatibility returns
 `runtime_incompatible`

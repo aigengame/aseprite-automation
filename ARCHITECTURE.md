@@ -555,7 +555,14 @@ flowchart TB
 
 The installed Surface Manifest reports the callable Operations, schemas, execution
 metadata, version constraints, and Capability Gaps for one SPA and Aseprite combination.
-It is runtime truth, not a product roadmap.
+Callable entries come from Descriptors. Under `AUTHORITY_MATRIX.md`, a Gap can also
+report an assessed limitation that prevents a capability from having a Descriptor.
+The Manifest reports the selected runtime and applicable SPA support boundaries,
+without claiming that every native behavior was retested on that runtime. A Gap does
+not register an Operation or promise its future delivery.
+An unpublished candidate's Gap projection can be limited to its recorded investigation
+scope. Its absence on another release establishes neither callability nor a native
+behavior result there; the feature issue retains the investigation status.
 
 ### Application orchestration
 
@@ -694,7 +701,7 @@ experimental commands and tactical types evolve.
 | Kernel Protocol | Private | Carries versioned data between Python and the packaged Lua Kernel; it can evolve without becoming a second public API. |
 | Operation Result | Public success | Reports verified domain facts and produced Artifacts. |
 | Failure Envelope | Public failure | Provides stable Failure Code and Category, typed Details where useful, and human Diagnostics. |
-| Surface Manifest | Public discovery | Reports what the installed SPA/Aseprite combination can call. |
+| Surface Manifest | Public discovery | Reports what the installed SPA/Aseprite combination can call and its applicable Capability Gaps. |
 
 Before SPA 1.0, the co-packaged Python and Lua components use only the current Kernel
 Protocol version. This private boundary can evolve without historical-version
@@ -712,6 +719,12 @@ Lua-language or API-version mismatch, or a capability missing from the selected
 Descriptor's requirements, with typed evidence before Operation execution. The private
 Kernel Protocol continues to require an exact match with the one version co-packaged in
 the same pre-1.0 release.
+
+Aseprite 1.3.18.5 is the current real-integration baseline. SPA follows Aseprite's
+native version compatibility for other releases without an independent version
+allowlist, semantic guarantee, or per-release test matrix. The observed requirements
+above gate execution; they do not certify identical native pixels on every release.
+Feature delivery and claimed host launch paths still require their own real evidence.
 
 A completed Validation can return an Operation Result with typed Validation Findings.
 An invalid request, execution failure, or unmet commit gate returns a Failure Envelope;
