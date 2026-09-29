@@ -4,7 +4,7 @@ Aseprite Automation (SPA) provides agent-facing automation for Aseprite. `SPA` i
 short project name used in documentation; `spa` is the primary executable.
 
 > [!IMPORTANT]
-> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery, Sprite creation, inspection, copy, resize, crop, flatten, and validation, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Tag inspection and authoring, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, bounded Pixel Patch application, verified RGB PNG Image Export, animation audit, Frame comparison, and verified continuity Preview export. Feature issues own delivery contracts, evidence requirements, provenance links, curated evidence summaries, and status, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
+> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery, Sprite creation, inspection, copy, resize, crop, flatten, and validation, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Tag inspection and authoring, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, bounded Pixel Patch application, native Line, Rectangle, and Ellipse Paint operations, verified RGB PNG Image Export, animation audit, Frame comparison, and verified continuity Preview export. Feature issues own delivery contracts, evidence requirements, provenance links, curated evidence summaries, and status, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
 
 For a complete authoring example, see [Moonlit Spell Practice](examples/wizard_cast/README.md):
 a reproducible SPA wizard animation, reusable pixel assets, and a Godot target-practice demo.
@@ -255,10 +255,11 @@ use the requested value. Results report both. This does not change the Color
 Value's alpha. `shading` returns a typed `paint_capability_gap` until an explicit
 Shade contract is available; Image Brushes are outside this request schema.
 
-Clipping and optional Canvas Selection apply to the native rendered Brush
-footprint, which can extend beyond endpoints or shape bounds. `clipping: reject`
-refuses out-of-Image coverage; `clip` reports it. Results separate requested,
-applied, clipped, and Selection-excluded coverage, changed pixels, affected Cels,
+Clipping is evaluated against the native rendered Brush footprint, which can
+extend beyond endpoints or shape bounds. `clipping: reject` refuses coverage
+outside the Image; `clip` reports and excludes it. Optional Selection Application
+then filters the remaining pixels by their Canvas Pixel positions. Results separate
+requested, applied, clipped, and Selection-excluded coverage, changed pixels, affected Cels,
 and before/after digests. Native tool preferences are isolated and restored.
 Drawing preserves Image size, Cel position, linked sharing, and opaque Background
 postconditions; it never creates a Cel or implicitly expands an Image. Each
