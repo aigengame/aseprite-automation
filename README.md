@@ -243,7 +243,9 @@ regular Cel through native `Image:drawImage`. Supply the Snapshot as
 `input: {"kind":"inline","snapshot":...}` (up to 4096 pixels) or the identical
 JSON in `input: {"kind":"artifact","path":"snapshot.json"}`. Source and target
 Color Modes must match. `position` places the rebased source origin in the target
-Image's pixel coordinates. `opacity` is an explicit integer in `0..255`, and
+Image's pixel coordinates. Both position coordinates must be signed 32-bit integers
+(`-2147483648..2147483647`); out-of-range values fail before native invocation.
+`opacity` is an explicit integer in `0..255`, and
 `blend_mode` is explicit. Clipping and Selection follow `paint apply`; omitted
 Selection is unrestricted. A shared Image is composited once, preserving all Linked
 Cels. The result reports applied/skipped coverage, changed stored pixels, digests,

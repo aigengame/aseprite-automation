@@ -100,7 +100,8 @@ def test_composite_persists_native_alpha_at_declared_image_position(
 
 
 @pytest.mark.parametrize(
-    "case", ["bounds", "color-mode", "palette-for-rgb", "malformed-artifact"]
+    "case",
+    ["bounds", "color-mode", "palette-for-rgb", "malformed-artifact", "position-range"],
 )
 def test_invalid_composite_preserves_source_and_existing_target(
     tmp_path: Path, case: str
@@ -119,13 +120,18 @@ def test_invalid_composite_preserves_source_and_existing_target(
         )
     elif case == "palette-for-rgb":
         options["palette_frame_number"] = 1
+    elif case == "position-range":
+        options["position"] = {"x": 2**53 + 1, "y": 0}
+        options["aseprite"] = "/missing/aseprite"
     else:
         invalid = tmp_path / "invalid.json"
         invalid.write_text('{"color_mode":"rgb"}')
         options["input"] = {"kind": "artifact", "path": str(invalid)}
     code, result = _compose(source, target, value, **options)
     assert code != 0, result
-    assert result["code"] == "paint_composite_invalid"
+    assert result["code"] == (
+        "invalid_request" if case == "position-range" else "paint_composite_invalid"
+    )
     assert source.read_bytes() == original
     assert target.read_bytes() == b"existing target"
     assert not list(tmp_path.glob("*.spa-stage-*"))
@@ -239,18 +245,23 @@ def test_composite_refuses_grayscale_modes_with_different_native_meaning(
     assert not target.exists()
 
 
-def test_composite_clips_a_fully_outside_position_without_native_integer_wrap(
-    tmp_path: Path,
+@pytest.mark.parametrize("x", [-(2**31), 2**31 - 1])
+def test_composite_clips_a_fully_outside_position_at_native_integer_limits(
+    tmp_path: Path, x: int
 ) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
     _create(source)
-    value = _snapshot({"kind": "rgba", "red": 1, "green": 2, "blue": 3, "alpha": 255})
+    value = _snapshot(
+        {"kind": "rgba", "red": 1, "green": 2, "blue": 3, "alpha": 255}, width=2
+    )
     code, result = _compose(
-        source, target, value, position={"x": 2**32, "y": 0}, clipping="clip"
+        source, target, value, position={"x": x, "y": 0}, clipping="clip"
     )
     assert code == 0, result
+    assert result["position"] == {"x": x, "y": 0}
+    assert result["skipped_by_bounds_runs"] == [{"x": x, "y": 0, "length": 2}]
     assert result["pixels_changed"] == result["pixels_written"] == 0
-    assert result["pixels_skipped_by_bounds"] == 1
+    assert result["pixels_skipped_by_bounds"] == 2
     assert result["before_content_digest"] == result["after_content_digest"]
 
 

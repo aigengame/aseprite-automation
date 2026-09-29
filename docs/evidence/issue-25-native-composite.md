@@ -55,6 +55,14 @@ missing-index and present-index Palette plus the nonzero transparent index.
 
 ## Executable verification
 
+Review reproduced a JSON/Lua precision loss with `position.x=9007199254740993`:
+the returned position differed from the request and publication was refused. The
+owner accepted signed 32-bit position coordinates, matching native Point, on
+2026-09-29. The request schema now rejects values outside that range before runtime
+invocation. Both range endpoints still support explicit clipping with exact skipped
+coverage; only the bounded intersection reaches native Point. This is an
+operation-specific limit under ADR-0025, not a change to every Raster Point.
+
 `tests/paint/fixtures/composite_modes.lua` generates a native oracle independently
 of SPA's composite helper. It also checks a literal HUE sample so an enum alias to
 Normal cannot silently make implementation and oracle agree on the wrong result.

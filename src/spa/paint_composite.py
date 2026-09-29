@@ -80,6 +80,11 @@ BlendMode = Literal[
 ]
 
 
+class CompositePosition(Point):
+    x: int = Field(ge=-(2**31), le=2**31 - 1)
+    y: int = Field(ge=-(2**31), le=2**31 - 1)
+
+
 class PaintCompositeRequest(RuntimeRequest):
     source_sprite_file: str = Field(min_length=1)
     target_sprite_file: str = Field(min_length=1)
@@ -87,8 +92,8 @@ class PaintCompositeRequest(RuntimeRequest):
     overwrite: bool
     target: CelAddress
     input: Annotated[InlineSnapshot | ArtifactSnapshot, Field(discriminator="kind")]
-    position: Point = Field(
-        description="Source origin in target Image Pixel coordinates"
+    position: CompositePosition = Field(
+        description="Source origin in target Image Pixels; signed 32-bit integer coordinates"
     )
     opacity: int = Field(ge=0, le=255)
     blend_mode: BlendMode
@@ -121,7 +126,7 @@ class PaintCompositeEvidence(PixelWriteEvidence):
     input_form: Literal["inline", "artifact"]
     target: CelAddress
     color_mode: Literal["rgb", "grayscale", "indexed"]
-    position: Point
+    position: CompositePosition
     opacity: int = Field(ge=0, le=255)
     blend_mode: BlendMode
     clipping: Literal["reject", "clip"]

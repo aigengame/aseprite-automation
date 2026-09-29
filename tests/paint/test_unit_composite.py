@@ -60,6 +60,16 @@ def test_composite_opacity_must_be_an_integer_byte(opacity: object) -> None:
         PaintCompositeRequest.model_validate({**_request(), "opacity": opacity})
 
 
+@pytest.mark.parametrize("coordinate", [-(2**31) - 1, 2**31, 2**53 + 1])
+@pytest.mark.parametrize("axis", ["x", "y"])
+def test_composite_position_rejects_coordinates_outside_signed_32_bit(
+    coordinate: int, axis: str
+) -> None:
+    position = {"x": 0, "y": 0, axis: coordinate}
+    with pytest.raises(ValidationError):
+        PaintCompositeRequest.model_validate({**_request(), "position": position})
+
+
 @pytest.mark.parametrize(
     "mode", ["src", "dst", "merge", "neg-bw", "addition-n", "normal-n"]
 )
