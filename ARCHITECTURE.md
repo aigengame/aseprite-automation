@@ -17,7 +17,7 @@ this view instead of treating it as another decision authority.
 > editing, Tag inspection and authoring, Cel inspection, lifecycle, placement,
 > bounded position/opacity motion,
 > and native relationships, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, bounded Pixel Patch
-> application, and verified RGB
+> application, native Snapshot composition (`spa paint composite`), verified RGB
 > PNG Image Export, animation audit, Frame comparison, and continuity Preview
 > export. The module
 > ownership below includes both this delivered vertical slice and planned work. Feature
