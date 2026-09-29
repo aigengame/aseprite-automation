@@ -368,7 +368,7 @@ a substitute. GitHub documents cache scope in
 
 The maintenance workflow has its own concurrency group and only its build job.
 It emits no SPA verification checks and must not replace them in branch protection
-or release gates. CI always runs its four verification jobs. Maintenance never
+or release gates. CI always runs its three routine verification jobs. Maintenance never
 publishes a SPA release. If a restored entry fails the native probe, inspect and
 remove that exact invalid cache entry before manually rebuilding; Actions caches
 are immutable.
