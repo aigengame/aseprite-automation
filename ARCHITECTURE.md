@@ -323,6 +323,19 @@ Cel Add accepts optional initial Image dimensions. Its `cel_support.lua` owner
 creates transparent native Images from the Sprite specification for both standalone
 mutations and Plan Steps. Add validates its initial state at the Step; the final
 save/reopen gate validates the state after all later Steps.
+The shared `sprite_persistence.lua` Module owns native snapshots and their
+persisted-fact comparison. Standalone Cel set/copy/link/unlink and Motion use its
+`save_verified` Interface to capture live facts, save, close, reopen, observe saved
+Layer UUIDs, and compare the complete document. The Interface consumes the live
+Sprite and returns a reopened Sprite, fresh UUID facts, and persisted inspection.
+It closes its owned Sprite on failure; after success, the caller owns the reopened
+Sprite and closes it after its remaining checks. Cel relationship and Motion owners
+retain target resolution and operation-specific postconditions. Their handlers retain
+protocol responses and whole-invocation editor-state restoration. Application still
+validates evidence and coordinates Target Commit. Other handlers retain the existing
+snapshot and comparison functions; Plan Steps use live semantic entry points and
+the Plan handler saves and verifies once at the end. This first migration does not
+change Frame/Tag normalization or expand native persistence support.
 The delivered `spa.image` slice owns Cel-targeted Image resize, crop,
 canvas-resize, flip, and quarter-turn rotation with explicit placement policies.
 Its fixed Lua Image Resize Transform owns buffer scaling, while Image Canvas

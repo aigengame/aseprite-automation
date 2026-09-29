@@ -74,4 +74,29 @@ function module.assert_same(before, after, operation)
   assert(mismatch == nil, "persisted " .. operation .. " differs at " .. tostring(mismatch))
 end
 
+-- Consumes the original Sprite. On success the caller owns the returned reopened
+-- Sprite; on failure this function closes whichever Sprite it still owns.
+-- Whole-invocation editor restoration and operation postconditions stay with callers.
+function module.save_verified(sprite, staged_path, live_uuids, operation)
+  local ok, uuids, facts = pcall(function()
+    local inspection = dofile(app.params.inspection)
+    local digest = dofile(app.params.digest)
+    local sections = { "frames", "tags", "palettes", "layers", "cels", "slices", "tilesets" }
+    local live = module.snapshot(sprite, inspection, digest, sections, live_uuids)
+    assert(sprite:saveAs(staged_path), "could not save staged Sprite")
+    sprite:close()
+    sprite = nil
+    sprite = assert(app.open(staged_path), "could not reopen staged Sprite")
+    local persisted_uuids = inspection.saved_layer_uuids(sprite, staged_path)
+    local persisted = module.snapshot(sprite, inspection, digest, sections, persisted_uuids)
+    module.assert_same(live, persisted, operation)
+    return persisted_uuids, persisted.sprite
+  end)
+  if not ok then
+    if sprite ~= nil then pcall(function() sprite:close() end) end
+    error(uuids, 0)
+  end
+  return sprite, uuids, facts
+end
+
 return module

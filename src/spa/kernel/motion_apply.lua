@@ -3,10 +3,8 @@ local kernel_protocol_version = 1
 local motion = dofile(app.params.motion)
 local inspection = dofile(app.params.inspection)
 local persistence = dofile(app.params.persistence)
-local digest = dofile(app.params.digest)
 local cel = dofile(app.params.cel)
 local selection = dofile(app.params.layer_select)
-local sections = { "frames", "tags", "palettes", "layers", "cels", "slices", "tilesets" }
 local sprite
 local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
 
@@ -20,18 +18,14 @@ local function execute()
   local uuids = inspection.saved_layer_uuids(sprite, input.source_sprite_file)
   local result = motion.apply_live(sprite, input, uuids)
   if result.rejection then return result end
-  local live = persistence.snapshot(sprite, inspection, digest, sections, uuids)
-  assert(sprite:saveAs(input.staged_sprite_file))
-  sprite:close()
-  sprite = assert(app.open(input.staged_sprite_file))
-  uuids = inspection.saved_layer_uuids(sprite, input.staged_sprite_file)
-  local reopened = persistence.snapshot(sprite, inspection, digest, sections, uuids)
-  persistence.assert_same(live, reopened, "Motion")
+  local persisted
+  sprite, uuids, persisted =
+    persistence.save_verified(sprite, input.staged_sprite_file, uuids, "Motion")
   local selected = assert(selection.resolve(sprite, input.layer, uuids))
   for _, change in ipairs(result.cels) do
     change.after = cel.inspect(sprite, selected.layer, selected.path, change.before.frame_number)
   end
-  result.sprite = reopened.sprite
+  result.sprite = persisted
   result.persisted_reopen_verified = true
   return result
 end

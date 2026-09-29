@@ -4,9 +4,7 @@ local inspection = dofile(app.params.inspection)
 local selection = dofile(app.params.layer_select)
 local cel = dofile(app.params.cel)
 local persistence = dofile(app.params.persistence)
-local digest = dofile(app.params.digest)
 local relationship = dofile(app.params.cel_relationship)
-local all_sections = { "frames", "tags", "palettes", "layers", "cels", "slices", "tilesets" }
 local open_sprite = nil
 local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
 
@@ -26,16 +24,11 @@ local function execute()
   if result.rejection then return result end
   local after, affected = result.cel, result.affected_cels
   local selected_number = after.frame_number
-  local live = persistence.snapshot(open_sprite, inspection, digest, all_sections, uuids)
-  assert(open_sprite:saveAs(payload.staged_sprite_file), "could not save staged Sprite")
-  open_sprite:close()
-  open_sprite = assert(app.open(payload.staged_sprite_file), "could not reopen staged Sprite")
-  local reopened_uuids = inspection.saved_layer_uuids(open_sprite, payload.staged_sprite_file)
-  local reopened =
-    persistence.snapshot(open_sprite, inspection, digest, all_sections, reopened_uuids)
-  persistence.assert_same(live, reopened, "Cel " .. operation)
+  local persisted
+  open_sprite, uuids, persisted =
+    persistence.save_verified(open_sprite, payload.staged_sprite_file, uuids, "Cel " .. operation)
   local reopened_selected, code, message =
-    selection.resolve(open_sprite, (payload.destination or payload.target).layer, reopened_uuids)
+    selection.resolve(open_sprite, (payload.destination or payload.target).layer, uuids)
   assert(reopened_selected ~= nil, code or message or "Cel Layer disappeared")
   local reopened_cel =
     cel.inspect(open_sprite, reopened_selected.layer, reopened_selected.path, selected_number)
@@ -54,7 +47,7 @@ local function execute()
     before_cels = result.before_cels,
     affected_cels = reopened_affected,
     cel = reopened_cel,
-    sprite = reopened.sprite,
+    sprite = persisted,
     persisted_reopen_verified = true,
   }
 end
