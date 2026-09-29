@@ -538,9 +538,8 @@ Aseprite version identifies the installation. Evidence for a bounded native-beha
 refusal identifies the tested baseline; evidence from a selected-runtime observation
 describes that installation's probe or rejection. Baseline evidence does not claim
 every behavior was retested on that installation. A delivered Operation's bounded
-refusal can follow Aseprite's native compatibility policy. Lack of investigation is
-not a Gap, and absence of a Gap does not prove support. A Gap can be reopened by new
-evidence.
+refusal can follow Aseprite's native compatibility policy. A Gap can be reopened by
+new evidence.
 
 #### Mutation and validation
 

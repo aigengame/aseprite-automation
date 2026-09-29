@@ -194,9 +194,8 @@ bounded native-behavior refusal identifies the tested baseline; evidence from a
 selected-runtime observation describes that installation's probe or rejection.
 Baseline evidence does not assert a separate native test on every release. A
 delivered Operation's documented refusal can remain in the Manifest under
-Aseprite's native compatibility policy. An uninvestigated candidate stays in its
-feature issue without an invented Gap. Absence of a Gap does not establish that a
-candidate is callable. This projection rule adds no SPA version certification matrix.
+Aseprite's native compatibility policy. This projection rule adds no SPA version
+certification matrix.
 
 ## Maintenance rules
 
