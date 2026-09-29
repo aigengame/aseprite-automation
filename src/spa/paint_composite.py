@@ -166,7 +166,7 @@ class CompositeCapabilityDetails(PublicModel):
 
 
 # These modes do not have the requested native Grayscale meaning in the verified
-# Aseprite implementation. Keep this support boundary with the Paint Operation.
+# Aseprite 1.3.18.5 baseline. Keep this support boundary with the Paint Operation.
 GRAYSCALE_GAPS = {
     "hue": "Native Grayscale Hue maps to Normal",
     "saturation": "Native Grayscale Saturation maps to Normal",
@@ -183,7 +183,10 @@ def composite_capability_gaps(
         CapabilityGap(
             capability=f"spa paint composite: grayscale {mode}",
             aseprite_version=aseprite_version,
-            evidence=f"Not exposed by SPA. {reason}; no replacement blender is used.",
+            evidence=(
+                f"Not exposed by SPA. Verified with Aseprite 1.3.18.5: {reason}; "
+                "no replacement blender is used."
+            ),
         )
         for mode, reason in GRAYSCALE_GAPS.items()
     ] + [
@@ -191,8 +194,9 @@ def composite_capability_gaps(
             capability="spa paint composite: indexed blend-mode/opacity",
             aseprite_version=aseprite_version,
             evidence=(
-                "Only normal with opacity=255 is supported. Native Indexed overlay "
-                "selects indexes and ignores other BlendMode/opacity values."
+                "Only normal with opacity=255 is supported. In the Aseprite "
+                "1.3.18.5 baseline, native Indexed overlay selects indexes and "
+                "ignores other BlendMode/opacity values."
             ),
         )
     ]

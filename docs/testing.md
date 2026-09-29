@@ -133,6 +133,10 @@ Linux CI Aseprite 1.3.18.5 source release. Both expose `_VERSION == "Lua 5.4"` a
 not a patch-level compatibility rule. The E2E assertion pins this evidence family while
 the runtime compatibility decision continues to use the Descriptor's observed language
 and API requirements.
+This pin verifies the current baseline and selected host execution profiles; it does
+not certify each later Aseprite release. Do not require an additional version test
+solely because another native release exists. An observed defect or newly accepted
+requirement warrants a targeted check of the affected Operation.
 
 Pytest rejects unregistered markers. The root e2e gate also rejects a selected e2e
 test when `SPA_TEST_ASEPRITE` is absent, is not a file, or is not executable. A missing

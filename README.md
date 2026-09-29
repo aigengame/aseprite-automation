@@ -76,7 +76,7 @@ not a second public API.
 - Supported multi-target Mutations resolve the complete target set and produce a Target Commit for the whole set or none of it.
 - Every produced file is a verified Artifact in the owning Operation Result. Format-specific facts stay with that result.
 - Operation Descriptors own registration and projections. The Lua Operation Kernel owns SPA Core Operation Semantics and native mapping. Python coordinates use cases and adapters without duplicating that behavior.
-- Capability Gaps are versioned, evidence-backed runtime facts. They remove unfaithful Operations from the installed Surface Manifest instead of creating silent partial support.
+- Capability Gaps are versioned, evidence-backed runtime diagnostics, not proof of a separate native test on every selected Aseprite release. They make unavailable capabilities explicit instead of creating silent partial support.
 
 Before delivery, exact feature contracts and evidence requirements belong to their
 accepted issues under the shared language and decisions. Operation Descriptors own
@@ -252,7 +252,7 @@ Cels. The result reports applied/skipped coverage, changed stored pixels, digest
 and every affected Cel after save/reopen verification. Pixels included by coverage
 can be unchanged; native alpha-zero RGB values are not normalized by SPA.
 
-The current verified native profile supports all 19 published modes for RGB.
+The verified Aseprite 1.3.18.5 baseline supports all 19 published modes for RGB.
 Grayscale excludes `hue`, `saturation`, `color`, `luminosity`, and `addition`:
 those native combinations select Normal or Exclusion instead. Indexed accepts only
 `normal` at `opacity: 255`, using native index overlay with the Sprite's Transparent
@@ -263,6 +263,8 @@ output indexes must exist in every affected Cel Frame's Palette. Other Indexed
 combinations return typed Capability Gaps. `spa info` and `spa schema` expose these
 gaps and omit the Indexed capability if its native probe fails. Composite is a
 standalone mutation; it is not an Operation Plan Step.
+These exclusions are the delivered SPA support boundary based on the 1.3.18.5
+evidence, not a claim of separate mode-matrix tests on every Aseprite release.
 
 ```sh
 uv run spa paint composite --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"composited.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":1},"input":{"kind":"artifact","path":"snapshot.json"},"position":{"x":0,"y":0},"opacity":127,"blend_mode":"normal"}'
@@ -291,7 +293,8 @@ unverified until a complete route passes the gate in [#28](https://github.com/ai
 Contour Paint Dynamics, pressure, velocity, and tilt are also reported as a
 Capability Gap and are outside its request schema.
 
-`spa paint line`, `spa paint rectangle`, and `spa paint ellipse` use native
+`spa paint fill`, `spa paint pencil`, `spa paint eraser`, `spa paint line`,
+`spa paint rectangle`, and `spa paint ellipse` use native
 Aseprite Tools on an existing Cel addressed by `target.layer` and
 `target.frame_number`. Geometry uses `coordinate_space: image-pixel`. Line takes
 exactly `from` and `to`; equal Points keep native single-point behavior. Shapes
@@ -302,26 +305,59 @@ A Standard Paint Brush has `kind: circle | square | line` and positive `size`.
 Circle fixes its angle to 0 and rejects an angle field; square and line require
 an integer `angle` in `-180..180`. A line Brush is an oriented footprint, distinct
 from the Line Tool. A Color Value must match the Sprite's Color Mode.
-`opacity` is required in `0..255`. Native `simple` and `copy-color` use effective
+`opacity` is required in `0..255`. For operations with an Ink input, native
+`simple` and `copy-color` use effective
 opacity 255 at every valid requested opacity; `alpha-compositing` and `lock-alpha`
 use the requested value. Results report both. This does not change the Color
 Value's alpha. `shading` returns a typed `paint_capability_gap` until an explicit
 Shade contract is available; Image Brushes are outside this request schema.
 
-Clipping is evaluated against the native rendered Brush footprint, which can
-extend beyond endpoints or shape bounds. `clipping: reject` refuses coverage
+Clipping is evaluated against native coverage, which can extend beyond the target
+Image. `clipping: reject` refuses coverage
 outside the Image; `clip` reports and excludes it. Optional Selection Application
 then filters the remaining pixels by their Canvas Pixel positions. Results separate
 requested, applied, clipped, and Selection-excluded coverage, changed pixels, affected Cels,
 and before/after digests. Native tool preferences are isolated and restored.
 Drawing preserves Image size, Cel position, linked sharing, and opaque Background
 postconditions; it never creates a Cel or implicitly expands an Image. Each
-primitive has an independent runtime capability probe and a fixed packaged handler.
+Operation has an independent runtime capability probe and a fixed packaged handler.
 These native Paint Operations are standalone mutations, not Plan Steps.
 
 ```sh
 uv run spa paint line --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"line.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":1},"coordinate_space":"image-pixel","from":{"x":2,"y":2},"to":{"x":10,"y":2},"brush":{"kind":"circle","size":1},"color":{"kind":"rgba","red":255,"green":0,"blue":0,"alpha":255},"ink":"simple","opacity":255}'
 ```
+
+Pencil and Eraser take one non-empty ordered `points` sequence and an explicit
+`freehand_algorithm: regular | pixel-perfect | dots`. A single Point is valid.
+The sequence is one native gesture; SPA preserves order and repeated Points.
+Each algorithm is admitted separately by a native probe. Image Brush, shading
+Ink, and Paint Dynamics remain reported Capability Gaps.
+
+Eraser takes `behavior` instead of Color and Ink. `{"kind":"erase"}` erases alpha
+on RGB/Grayscale Transparent Layers or writes the Transparent Color Index on
+Indexed Layers. Background erase requires `background_color` in that behavior;
+Transparent Layer erase forbids it. `kind: replace-foreground-with-background`
+requires both `foreground_color` and `background_color` and uses native matching
+replacement. Eraser retains its own native opacity behavior; its effective opacity
+is the requested value. No public mouse button or generic Ink is accepted.
+
+Fill takes one `seed` and no Brush. It requires `tolerance: 0..255`, `contiguous`,
+`refer_to: active-layer | all-layers`, and boolean `stop_at_grid`. A contiguous
+Fill also requires `connectivity: four-connected | eight-connected`; a
+non-contiguous Fill omits connectivity. `all-layers` matches the native visible
+composite at the addressed Frame and still writes only the target Cel.
+Grid stopping uses the saved Sprite Grid cell containing the seed; it does not
+depend on GUI grid visibility. Results report the matching source and effective
+Grid cell in Canvas Pixel coordinates.
+
+Fill matching is bounded by the original Sprite Canvas. Its Image Pixel seed is
+mapped through the target Cel position and must be inside that Canvas. Image
+clipping and optional Selection then filter the matched pixels for writing.
+Selection does not limit flood traversal: if only the two endpoints of five
+connected same-color pixels are selected, filling from the first endpoint writes
+both endpoints. These current policies follow [issue #27](https://github.com/aigengame/aseprite-automation/issues/27);
+future requirements can add explicit alternatives. See the
+[native validation evidence](docs/evidence/issue-27-native-paint.md).
 
 `spa selection create/combine/invert/grow/shrink/transform` return explicit
 Canvas Pixel values. Requests declare `coordinate_space: "canvas-pixel"`; values
@@ -615,6 +651,9 @@ independently observed runtime capabilities. A prerequisite failure uses the typ
 process or Kernel failure channel. A Lua-language or API-version mismatch, or a
 capability required by the selected Operation but absent from the observation, returns
 `runtime_incompatible` before the Operation executes.
+Aseprite 1.3.18.5 is the current real-integration baseline, not a version allowlist.
+Other releases follow Aseprite's native compatibility policy. SPA makes no additional
+cross-version guarantee and runs no release-by-release compatibility test matrix.
 `spa plan run` observes the selected Steps' requirements plus mandatory final Sprite
 inspection requirements inside its one execution process. Incompatibility returns
 `runtime_incompatible`
