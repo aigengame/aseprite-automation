@@ -94,6 +94,7 @@ for name in (
     "paint_line.lua",
     "paint_rectangle.lua",
     "paint_ellipse.lua",
+    "paint_contour.lua",
     "export_image.lua",
     "export_image_support.lua",
 ):

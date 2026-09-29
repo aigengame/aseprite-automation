@@ -64,7 +64,9 @@ assert(sprite:saveAs(app.params.source))
 if app.params.reference then
   local cel = layer:cel(1)
   local first, last
-  if input.tool == "line" then
+  if input.points then
+    first, last = input.points[1], input.points[#input.points]
+  elseif input.tool == "line" then
     first, last = input["from"], input.to
   else
     local b = input.bounds
@@ -81,6 +83,10 @@ if app.params.reference then
   }
   app.preferences.tool(input.tool).filled = false
   app.preferences.tool(input.tool).corner_radius = 0
+  local points = {}
+  for _, point in ipairs(input.points or { first, last }) do
+    points[#points + 1] = Point(point.x + cel.position.x, point.y + cel.position.y)
+  end
   app.useTool {
     tool = input.tool,
     cel = cel,
@@ -97,7 +103,8 @@ if app.params.reference then
     })[input.ink],
     opacity = input.opacity,
     button = MouseButton.LEFT,
-    points = { Point(first.x, first.y), Point(last.x, last.y) },
+    points = points,
+    freehandAlgorithm = input.freehand_algorithm == "pixel-perfect" and 1 or 0,
   }
   assert(sprite:saveAs(app.params.reference))
 end

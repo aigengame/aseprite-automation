@@ -94,6 +94,15 @@ class PaintShapeRequest(CelRelationshipRequest, NativePaintInput, ShapeGeometry)
     pass
 
 
+class PaintGesture(PublicModel):
+    points: list[Point] = Field(min_length=1)
+    freehand_algorithm: Literal["regular", "pixel-perfect"]
+
+
+class PaintContourRequest(CelRelationshipRequest, NativePaintInput, PaintGesture):
+    pass
+
+
 class PaintBrushFact(PublicModel):
     kind: Literal["circle", "square", "line"]
     size: int = Field(gt=0)
@@ -169,6 +178,15 @@ class PaintEllipseResult(PaintShapeEvidence, NativePaintResult):
     operation: Literal["spa paint ellipse"] = "spa paint ellipse"
 
 
+class PaintContourEvidence(NativePaintFacts, PaintGesture):
+    pass
+
+
+class PaintContourResult(PaintContourEvidence, NativePaintResult):
+    status: Literal["success"] = "success"
+    operation: Literal["spa paint contour"] = "spa paint contour"
+
+
 class PaintCapabilityDetails(PublicModel):
     kind: Literal["paint_capability_gap"] = "paint_capability_gap"
     gap: CapabilityGap
@@ -208,6 +226,7 @@ NATIVE_PAINT_RESOURCES = (
 PAINT_LINE_HANDLER = PackagedHandler("paint_line", NATIVE_PAINT_RESOURCES)
 PAINT_RECTANGLE_HANDLER = PackagedHandler("paint_rectangle", NATIVE_PAINT_RESOURCES)
 PAINT_ELLIPSE_HANDLER = PackagedHandler("paint_ellipse", NATIVE_PAINT_RESOURCES)
+PAINT_CONTOUR_HANDLER = PackagedHandler("paint_contour", NATIVE_PAINT_RESOURCES)
 
 
 def _execute[ResultT: NativePaintResult](
@@ -309,6 +328,12 @@ def _execute[ResultT: NativePaintResult](
                 or evidence.style != request.style
             ):
                 raise ValueError("Native Shape geometry differs from the request")
+            if isinstance(request, PaintGesture) and (
+                not isinstance(evidence, PaintGesture)
+                or evidence.points != request.points
+                or evidence.freehand_algorithm != request.freehand_algorithm
+            ):
+                raise ValueError("Native gesture differs from the request")
         except (TypeError, ValueError, ValidationError) as exc:
             raise RuntimeIssue(
                 "response_malformed",
@@ -359,6 +384,18 @@ def paint_ellipse(
     )
 
 
+def paint_contour(
+    request: PaintContourRequest, services: OperationServices
+) -> PaintContourResult:
+    return _execute(
+        request,
+        services,
+        PAINT_CONTOUR_HANDLER,
+        PaintContourEvidence,
+        PaintContourResult,
+    )
+
+
 NATIVE_PAINT_OPERATIONS = (
     OperationDescriptor(
         "paint line",
@@ -400,6 +437,21 @@ NATIVE_PAINT_OPERATIONS = (
             lua_language="Lua 5.4",
             minimum_api_version=41,
             required_capabilities=["aseprite_paint_ellipse"],
+        ),
+        NATIVE_PAINT_FAILURE_CODES,
+        execution_kind="mutation",
+        side_effects=("publishes the declared Target Sprite File",),
+    ),
+    OperationDescriptor(
+        "paint contour",
+        PaintContourRequest,
+        PaintContourResult,
+        paint_contour,
+        lambda result: result.target_commit.target_sprite_file,
+        RuntimeRequirements(
+            lua_language="Lua 5.4",
+            minimum_api_version=41,
+            required_capabilities=["aseprite_paint_contour"],
         ),
         NATIVE_PAINT_FAILURE_CODES,
         execution_kind="mutation",

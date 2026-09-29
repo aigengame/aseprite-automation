@@ -163,7 +163,9 @@ function module.apply_live(sprite, payload, tool, uuids)
     before_content_digest = before_digest,
     after_content_digest = digest.image_content(image, mode),
   }
-  if tool == "line" then
+  if tool == "contour" then
+    result.points, result.freehand_algorithm = payload.points, payload.freehand_algorithm
+  elseif tool == "line" then
     result["from"], result.to = payload["from"], payload.to
   else
     result.bounds, result.style = payload.bounds, payload.style

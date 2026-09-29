@@ -100,3 +100,26 @@ def test_a_rectangle_capability_gap_keeps_line_and_ellipse_callable() -> None:
         gap for gap in result.capability_gaps if gap.capability == "spa paint rectangle"
     )
     assert "aseprite_paint_rectangle" in gap.evidence
+
+
+def test_contour_schema_preserves_gestures_and_refuses_unowned_options() -> None:
+    schema = json.loads(spa("paint", "contour", "--schema").stdout)
+    assert schema["runtime_requirements"]["required_capabilities"] == [
+        "aseprite_paint_contour"
+    ]
+    request = _request()
+    del request["from"], request["to"]
+    request |= {"points": [{"x": 1, "y": 1}], "freehand_algorithm": "regular"}
+    validator = Draft202012Validator(schema["request_schema"])
+    assert validator.is_valid(request)
+    assert validator.is_valid(request | {"points": request["points"] * 2})
+    for change in (
+        {"points": []},
+        {"freehand_algorithm": "dots"},
+        {"closed": True},
+        {"filled": False},
+        {"outline": True},
+        {"button": "right"},
+        {"seed": 1},
+    ):
+        assert not validator.is_valid(request | change)

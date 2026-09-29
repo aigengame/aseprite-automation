@@ -737,6 +737,8 @@ local function observes_native_paint(tool)
       style = tool:match("^filled_") and "filled" or "outline",
       ["from"] = { x = 2, y = 2 },
       to = { x = 5, y = 2 },
+      points = { { x = 2, y = 2 }, { x = 5, y = 2 }, { x = 3, y = 5 } },
+      freehand_algorithm = "regular",
     }, tool)
     assert(result.persisted_reopen_verified and result.pixels_changed > 0)
     if tool == "line" then assert(result.pixels_changed == 4) end
@@ -845,6 +847,9 @@ function module.observe()
   end
   if observes_native_paint("ellipse") and observes_native_paint("filled_ellipse") then
     capabilities[#capabilities + 1] = "aseprite_paint_ellipse"
+  end
+  if observes_native_paint("contour") then
+    capabilities[#capabilities + 1] = "aseprite_paint_contour"
   end
   if observes_paint_apply() then capabilities[#capabilities + 1] = "aseprite_paint_apply" end
   if observes_frame_authoring() then
