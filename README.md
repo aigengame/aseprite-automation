@@ -237,6 +237,30 @@ In-place editing requires Source and Target to name the same publication entry,
 plus both `in_place: true` and `overwrite: true`.
 Standalone Paint rejects a Source alias that traverses the Target publication entry
 for either `in_place` value.
+
+`spa paint composite` blends a canonical Pixel Region Snapshot into one existing
+regular Cel through native `Image:drawImage`. Supply the Snapshot as
+`input: {"kind":"inline","snapshot":...}` (up to 4096 pixels) or the identical
+JSON in `input: {"kind":"artifact","path":"snapshot.json"}`. Source and target
+Color Modes must match. `position` places the rebased source origin in the target
+Image's pixel coordinates. `opacity` is an explicit integer in `0..255`, and
+`blend_mode` is explicit. Clipping and Selection follow `paint apply`; omitted
+Selection is unrestricted. A shared Image is composited once, preserving all Linked
+Cels. The result reports applied/skipped coverage, changed stored pixels, digests,
+and every affected Cel after save/reopen verification. Pixels included by coverage
+can be unchanged; native alpha-zero RGB values are not normalized by SPA.
+
+The current verified native profile supports all 19 published modes for RGB.
+Grayscale excludes `hue`, `saturation`, `color`, `luminosity`, and `addition`:
+those native combinations select Normal or Exclusion instead. Indexed requests
+currently return a typed Capability Gap while their Palette-correct integration
+boundary is being resolved. `spa info` and `spa schema` expose these gaps. Composite
+is a standalone mutation; it is not an Operation Plan Step.
+
+```sh
+uv run spa paint composite --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"composited.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":1},"input":{"kind":"artifact","path":"snapshot.json"},"position":{"x":0,"y":0},"opacity":127,"blend_mode":"normal"}'
+```
+
 `spa selection create/combine/invert/grow/shrink/transform` return explicit
 Canvas Pixel values. Requests declare `coordinate_space: "canvas-pixel"`; values
 can be inline (`empty`, rectangular `all`, or canonical `mask`) or read from a

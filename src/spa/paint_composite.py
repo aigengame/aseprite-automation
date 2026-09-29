@@ -7,6 +7,7 @@ from pydantic import Field, ValidationError, field_validator, model_validator
 
 from spa.cel import CelAddress, CelState, _reject
 from spa.contracts import (
+    CapabilityGap,
     FailureCodeSpec,
     PublicModel,
     RuntimeRequest,
@@ -154,6 +155,39 @@ class CompositeDetails(PublicModel):
     reason: str
 
 
+class CompositeCapabilityDetails(PublicModel):
+    kind: Literal["paint_composite_capability"] = "paint_composite_capability"
+    gap: CapabilityGap
+
+
+# These modes do not have the requested native Grayscale meaning in the verified
+# Aseprite implementation. Keep this support boundary with the Paint Operation.
+GRAYSCALE_GAPS = {
+    "hue": "Native Grayscale Hue maps to Normal",
+    "saturation": "Native Grayscale Saturation maps to Normal",
+    "color": "Native Grayscale Color maps to Normal",
+    "luminosity": "Native Grayscale Luminosity maps to Normal",
+    "addition": "Native Grayscale Addition selects Exclusion in Image:drawImage",
+}
+
+
+def composite_capability_gaps(aseprite_version: str) -> list[CapabilityGap]:
+    return [
+        CapabilityGap(
+            capability=f"spa paint composite: grayscale {mode}",
+            aseprite_version=aseprite_version,
+            evidence=f"Not exposed by SPA. {reason}; no replacement blender is used.",
+        )
+        for mode, reason in GRAYSCALE_GAPS.items()
+    ] + [
+        CapabilityGap(
+            capability="spa paint composite: indexed",
+            aseprite_version=aseprite_version,
+            evidence="An Indexed native composition route is not yet verified by SPA.",
+        )
+    ]
+
+
 COMPOSITE_FAILURE_CODE_SPECS = (
     FailureCodeSpec(
         "paint_composite_invalid",
@@ -165,7 +199,7 @@ COMPOSITE_FAILURE_CODE_SPECS = (
         "paint_composite_unsupported",
         "Native composition cannot preserve the requested semantics",
         "input",
-        CompositeDetails,
+        CompositeCapabilityDetails,
     ),
 )
 COMPOSITE_SUPPORT_RESOURCE = PackagedResource(
@@ -214,7 +248,34 @@ def composite_paint(
                 "Input is not a canonical Snapshot",
                 CompositeDetails(reason=str(exc)),
             ) from exc
+    if value.color_mode != "indexed" and request.palette_frame_number is not None:
+        raise OperationIssue(
+            "paint_composite_invalid",
+            "Only Indexed composition accepts palette_frame_number",
+            CompositeDetails(
+                reason="palette_frame_number is not applicable to this Color Mode"
+            ),
+        )
     observation = services.probe_runtime(request)
+    unsupported = (
+        value.color_mode == "grayscale" and request.blend_mode in GRAYSCALE_GAPS
+    ) or value.color_mode == "indexed"
+    if unsupported:
+        name = (
+            f"grayscale {request.blend_mode}"
+            if value.color_mode == "grayscale"
+            else "indexed"
+        )
+        gap = next(
+            item
+            for item in composite_capability_gaps(observation.aseprite_version)
+            if item.capability == f"spa paint composite: {name}"
+        )
+        raise OperationIssue(
+            "paint_composite_unsupported",
+            gap.evidence,
+            CompositeCapabilityDetails(gap=gap),
+        )
     staged = services.target_files.staged_path(target)
     try:
         payload = request.model_dump(
@@ -241,14 +302,21 @@ def composite_paint(
         if (
             isinstance(rejected, dict)
             and isinstance(rejected.get("message"), str)
+            and isinstance(rejected.get("code"), str)
             and rejected.get("code")
             in {spec.code for spec in COMPOSITE_FAILURE_CODE_SPECS}
         ):
-            raise OperationIssue(
-                rejected["code"],
-                rejected["message"],
-                CompositeDetails(reason=rejected["message"]),
-            )
+            if rejected["code"] == "paint_composite_unsupported":
+                details: PublicModel = CompositeCapabilityDetails(
+                    gap=CapabilityGap(
+                        capability=f"spa paint composite: {value.color_mode} {request.blend_mode}",
+                        aseprite_version=observation.aseprite_version,
+                        evidence=rejected["message"],
+                    )
+                )
+            else:
+                details = CompositeDetails(reason=rejected["message"])
+            raise OperationIssue(rejected["code"], rejected["message"], details)
         number = request.target.frame_number
         _reject(invocation, request.target.layer, request.target, (number, number))
         try:

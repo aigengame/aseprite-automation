@@ -21,30 +21,7 @@ local function replacement_image(image, value, background)
     area.x == 0 and area.y == 0 and area.width == image.width and area.height == image.height,
     "Snapshot must cover the complete Image bounds"
   )
-  assert(value.rows ~= nil and #value.rows == image.height, "incomplete Snapshot rows")
-  local result, used = Image(image), {}
-  for y, row in ipairs(value.rows) do
-    local x, previous_pixel = 0, nil
-    for _, run in ipairs(row) do
-      assert(
-        type(run.length) == "number" and run.length % 1 == 0 and run.length > 0,
-        "Snapshot run length must be positive"
-      )
-      assert(x + run.length <= image.width, "Snapshot row exceeds Image width")
-      local pixel = colors.native_color(run.color, value.color_mode, background)
-      assert(
-        previous_pixel == nil or pixel ~= previous_pixel,
-        "adjacent equal Snapshot runs must be merged"
-      )
-      if value.color_mode == "indexed" then used[run.color.index] = true end
-      for at = x, x + run.length - 1 do
-        result:putPixel(at, y - 1, pixel)
-      end
-      x, previous_pixel = x + run.length, pixel
-    end
-    assert(x == image.width, "incomplete Snapshot row")
-  end
-  return result, used
+  return snapshot.materialize(value, image.spec, background)
 end
 
 local function execute()

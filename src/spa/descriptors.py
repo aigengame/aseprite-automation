@@ -32,7 +32,11 @@ from spa.operation import (
     OperationDescriptor,
 )
 from spa.paint import PAINT_OPERATIONS, PAINT_PROBE_RESOURCES
-from spa.paint_composite import COMPOSITE_OPERATIONS, COMPOSITE_SUPPORT_RESOURCE
+from spa.paint_composite import (
+    COMPOSITE_OPERATIONS,
+    COMPOSITE_SUPPORT_RESOURCE,
+    composite_capability_gaps,
+)
 from spa.plan import PLAN_OPERATIONS
 from spa.ports import OperationServices
 from spa.selection import SELECTION_OPERATIONS, SELECTION_SUPPORT_RESOURCE
@@ -107,6 +111,8 @@ def _surface(runtime: RuntimeFacts) -> tuple[list[str], list[CapabilityGap]]:
                 evidence="; ".join(evidence),
             )
         )
+    if "spa paint composite" in supported:
+        gaps.extend(composite_capability_gaps(runtime.aseprite_version))
     return supported, gaps
 
 

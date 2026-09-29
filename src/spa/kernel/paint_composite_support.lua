@@ -16,10 +16,10 @@ local modes = {
   ["soft-light"] = BlendMode.SOFT_LIGHT,
   difference = BlendMode.DIFFERENCE,
   exclusion = BlendMode.EXCLUSION,
-  hue = BlendMode.HSL_HUE,
-  saturation = BlendMode.HSL_SATURATION,
-  color = BlendMode.HSL_COLOR,
-  luminosity = BlendMode.HSL_LUMINOSITY,
+  hue = BlendMode.HUE,
+  saturation = BlendMode.SATURATION,
+  color = BlendMode.COLOR,
+  luminosity = BlendMode.LUMINOSITY,
   addition = BlendMode.ADDITION,
   subtract = BlendMode.SUBTRACT,
   divide = BlendMode.DIVIDE,
@@ -27,6 +27,7 @@ local modes = {
 
 function module.draw(destination, source, position, opacity, blend_mode)
   local mode = assert(modes[blend_mode], "unsupported native BlendMode")
+  assert(blend_mode == "normal" or mode ~= BlendMode.NORMAL, "BlendMode aliases Normal")
   assert(opacity % 1 == 0 and opacity >= 0 and opacity <= 255, "invalid opacity")
   local result = Image(destination)
   -- Aseprite checks lua_isinteger here; JSON numbers otherwise select its 255 default.
@@ -63,12 +64,21 @@ function module.compose(image, cel, payload)
     )
   end
   local mask = payload.selection ~= nil and selections.materialize(payload.selection) or nil
-  local result = module.draw(image, source, position, payload.opacity, payload.blend_mode)
+  local result = Image(image)
+  if right > left and bottom > top then
+    -- Only bounded Image coordinates reach Aseprite's 32-bit Point constructor.
+    -- A wholly clipped request remains a no-op even for a large declared position.
+    local visible =
+      Image(source, Rectangle(left - area.x, top - area.y, right - left, bottom - top))
+    result = module.draw(image, visible, { x = left, y = top }, payload.opacity, payload.blend_mode)
+  end
   local applied, bounds, excluded = {}, {}, {}
   local written, changed, skipped_bounds, skipped_selection = 0, 0, 0, 0
   local min_x, min_y, max_x, max_y = nil, nil, nil, nil
-  for y = area.y, area.y + area.height - 1 do
-    for x = area.x, area.x + area.width - 1 do
+  for source_y = 0, source.height - 1 do
+    local y = area.y + source_y
+    for source_x = 0, source.width - 1 do
+      local x = area.x + source_x
       if x < 0 or y < 0 or x >= image.width or y >= image.height then
         append(bounds, x, y)
         skipped_bounds = skipped_bounds + 1

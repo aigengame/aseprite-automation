@@ -16,6 +16,7 @@ from spa.application import _runtime_failure, dispatch
 from spa.cel import CelAddress as LifecycleCelAddress
 from spa.cel import CelFrameRangeDetails, CelTargetDetails
 from spa.contracts import (
+    CapabilityGap,
     FailureEnvelope,
     KernelExecutionDetails,
     KernelProtocolDetail,
@@ -39,6 +40,7 @@ from spa.image import ImageRotatePositionDetails
 from spa.image_snapshot import SnapshotDetails
 from spa.layer import LayerAddress, LayerTargetDetails
 from spa.mutation import TargetCommitDetails
+from spa.paint_composite import CompositeCapabilityDetails, CompositeDetails
 from spa.ports import (
     ArtifactFileEvidence,
     ArtifactVerificationEvidence,
@@ -169,6 +171,14 @@ def test_failure_construction_derives_category_and_refuses_mismatch() -> None:
 
 def test_each_registered_code_has_a_constrained_public_schema() -> None:
     details_by_type = {
+        CompositeDetails: CompositeDetails(reason="Snapshot Color Mode differs"),
+        CompositeCapabilityDetails: CompositeCapabilityDetails(
+            gap=CapabilityGap(
+                capability="spa paint composite: grayscale addition",
+                aseprite_version="1.3.18.5-dev",
+                evidence="Native Addition selects Exclusion",
+            )
+        ),
         SelectionDetails: SelectionDetails(reason="coverage outside Canvas Rectangle"),
         SnapshotDetails: SnapshotDetails(reason="incompatible bounds"),
         RequestDetails: RequestDetails(errors=[]),

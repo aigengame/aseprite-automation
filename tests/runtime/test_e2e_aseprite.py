@@ -30,6 +30,7 @@ def test_info_reports_installed_runtime() -> None:
     ]
     assert result["runtime"]["verified_capabilities"] == [
         "aseprite_runtime_introspection",
+        "aseprite_paint_composite",
         "aseprite_selection",
         "aseprite_sprite_create",
         "aseprite_sprite_inspection",
@@ -75,6 +76,7 @@ def test_info_reports_installed_runtime() -> None:
         "spa layer convert-to-background",
         "spa layer convert-from-background",
         "spa paint apply",
+        "spa paint composite",
         "spa selection create",
         "spa selection combine",
         "spa selection invert",
@@ -120,7 +122,15 @@ def test_info_reports_installed_runtime() -> None:
         "spa plan check",
         "spa plan run",
     ]
-    assert result["capability_gaps"] == []
+    assert [gap["capability"] for gap in result["capability_gaps"]] == [
+        f"spa paint composite: grayscale {mode}"
+        for mode in ("hue", "saturation", "color", "luminosity", "addition")
+    ] + ["spa paint composite: indexed"]
+    assert all(
+        gap["aseprite_version"] == result["runtime"]["aseprite_version"]
+        and gap["evidence"]
+        for gap in result["capability_gaps"]
+    )
     info_schema = json.loads(spa("info", "--schema").stdout)
     validate(result, info_schema["result_schema"])
     input_run = spa(

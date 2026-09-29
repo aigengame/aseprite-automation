@@ -41,6 +41,7 @@ def test_manifest_is_projected_from_command_descriptors() -> None:
         "spa layer convert-to-background",
         "spa layer convert-from-background",
         "spa paint apply",
+        "spa paint composite",
         "spa selection create",
         "spa selection combine",
         "spa selection invert",

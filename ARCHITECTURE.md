@@ -336,7 +336,14 @@ native render. The composite's explicit output choice selects the native render 
 individual reads retain stored values. This does not create a second compositor or
 invoke Sprite-wide Color Mode conversion.
 The application reuses Artifact Files for JSON transport and Target Commit for native
-publication. `spa.paint` owns exact Pixel Patch application. `spa.raster` holds the
+publication. `spa.paint` owns exact Pixel Patch application.
+`spa.paint_composite` owns Snapshot composition intent, native support gaps, result
+validation, and staged publication. Its fixed Lua support constructs the source
+through `image_snapshot.lua`, invokes native `Image:drawImage`, and limits coverage
+through the same explicit Selection helper as Paint apply. The handler owns Cel
+eligibility, Background opacity, Linked Cel invariants, and persisted verification.
+Image replace and Paint composite share native Snapshot materialization; neither
+maintains a second Raster decoder or blend algorithm. `spa.raster` holds the
 shared Color Value, Rectangle, Snapshot, Patch, Selection, and Effective Palette types;
 `raster_color.lua` shares native Color Value handling and Palette result facts for
 Paint and Image snapshots. It delegates Frame-based Palette selection to the private
@@ -413,7 +420,7 @@ src/spa/
   rounding.py             # shared exact rounding policies and Kernel binding
   animation.py            # existing audit, comparison, and composed Preview use case
   frame.py, cel.py, cel_relationship.py
-  image.py, image_snapshot.py, paint.py, raster.py
+  image.py, image_snapshot.py, paint.py, paint_composite.py, raster.py
   palette.py              # shared private Palette Kernel resource binding
   export.py               # existing Delivery and publication support
   application.py, plan.py, mutation.py, ports.py
