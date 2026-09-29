@@ -182,7 +182,8 @@ native execution. There is no maintenance selector or skipped native job in CI.
 
 `.github/workflows/native-e2e.yml` owns explicit pre-merge Linux verification and
 weekly main regression. It has one unconditional **Linux real Aseprite E2E** job.
-After review and local checks converge, run it once for the PR:
+The main entry below applies after the workflow reaches main. After review and
+local checks converge, run it once for the PR:
 
 ```sh
 gh workflow run native-e2e.yml --ref main -f pr=125
@@ -228,9 +229,18 @@ This mode rejects any ref other than main and tests its event SHA. The weekly ru
 uses the same mode, Sunday 19:23 UTC (Monday 03:23 Asia/Shanghai), on the default
 branch main. Schedules can be delayed. There is no daily native run or dev schedule;
 a normal main push runs only routine CI. A main regression never replaces the PR
-merge-result check or exact-release-SHA gate. During initial rollout, a PR-mode
-run may use the delivered workflow on dev (`--ref dev -f pr=125`); record that
-workflow ref and verify its cache scope. It is not stable-main rollout evidence.
+merge-result check or exact-release-SHA gate.
+
+Before promotion, the dev entry also requires GitHub workflow registration.
+Having the YAML file on dev alone is not sufficient: confirm that
+`gh workflow list --all` lists Native E2E and that
+`gh workflow view native-e2e.yml --ref dev --yaml` returns its definition.
+Only then use `gh workflow run native-e2e.yml --ref dev -f pr=125`, with a cache
+visible from dev. A registration result or an accepted dispatch is not a native
+test pass. Keep pre-merge acceptance open until the current target finishes
+successfully. The bounded #125 rollout is recorded in the
+[capacity evidence](evidence/issue-107-ci-capacity.md#native-workflow-registration--2026-09-29).
+This provisional entry is not stable-main rollout evidence.
 
 ### Complete example rebuilds
 

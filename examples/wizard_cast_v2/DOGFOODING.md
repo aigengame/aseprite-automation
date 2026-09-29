@@ -237,9 +237,11 @@ cost observed here.
 Linux CI capacity. PR #101's warm-cache job passed in 38m 37s under a 40-minute
 limit; cold-cache completion was unverified at that time. Later measurements and
 the revised 20/40/40-minute owner limits are recorded in the
-[capacity evidence](../../docs/evidence/issue-107-ci-capacity.md). Main nightly and
-the exact-SHA native release gate remain; automatic complete-asset reproducibility
-is no longer part of those gates.
+[capacity evidence](../../docs/evidence/issue-107-ci-capacity.md). The 2026-09-28
+policy retained main nightly verification and the exact-SHA native release gate.
+The 2026-09-29 policy replaces nightly with weekly/manual main Native E2E and
+explicit pre-merge verification. The release gate remains. Complete asset rebuilds
+remain local and on demand under the current test policy linked above.
 
 ## Godot consumer and verification cost
 

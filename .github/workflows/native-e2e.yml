@@ -2,11 +2,6 @@ name: Native E2E
 run-name: "Native E2E for ${{ inputs.pr && format('PR #{0}', inputs.pr) || 'main' }} (${{ github.event_name }})"
 
 on:
-  # One-time registration for #125; remove after GitHub lists this workflow.
-  # The existing main-ref guard rejects this dev push before native setup.
-  push:
-    branches: [dev]
-    paths: [.github/workflows/native-e2e.yml]
   workflow_dispatch:
     inputs:
       pr:

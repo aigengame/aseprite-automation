@@ -30,6 +30,31 @@ checkpoint. #107 remains open through promotion and main acceptance; earlier
 Linux passes are historical evidence, not a pass for the changed workflows.
 Current policy and execution commands are in [the test guide](../testing.md).
 
+## Native workflow registration — 2026-09-29
+
+Review of #125 at `56b4fe8` found a real deployment gap: Native E2E existed only
+on dev, was absent from `gh workflow list --all`, and its definition lookup with
+`--ref dev` returned HTTP 404. The earlier registered Build Aseprite entry did
+not establish that this new file was registered. This was separate from the
+account's exhausted Actions allowance.
+
+Commit `610f6cec1aac5759a5dc713baf6ef285c73e0cff` temporarily added one push
+trigger, restricted to dev and this workflow file. The existing main-ref guard
+would reject that event before native setup. The
+[registration run](https://github.com/aigengame/aseprite-automation/actions/runs/36513875665)
+created active workflow ID `369722341`; both workflow listing and
+`gh workflow view native-e2e.yml --ref dev --yaml` then succeeded. The job could
+not start any steps under the account capacity block, so this proves registration
+and definition access only.
+
+The temporary trigger is removed from the final tree; Native E2E retains only
+manual and weekly triggers. The final-head manual dispatch result is recorded on
+[PR #125](https://github.com/aigengame/aseprite-automation/pull/125). Accepting a
+dispatch does not establish target resolution, cache access or native execution.
+Pre-merge Linux acceptance and #107 remain open until the required runs pass.
+Main scheduling and stable-cache rollout still require promotion. No standing
+registration mechanism or alternate verification workflow was added.
+
 ## Previous acceptance — 2026-09-28
 
 The owner decision on 2026-09-28 replaces the measured-build deduction
