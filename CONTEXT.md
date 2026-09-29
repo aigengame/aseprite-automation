@@ -532,9 +532,14 @@ the caller's script repeatability or randomness source. All other Execution Kind
 prohibit that value.
 
 **Capability Gap**
-A structured, versioned, evidence-backed fact that the supported Aseprite public
-non-interactive seams cannot provide a capability faithfully. A Gap can be reopened by
-new native evidence.
+A structured, versioned, evidence-backed diagnostic that SPA cannot faithfully
+expose an assessed capability under its declared support boundary. The selected
+Aseprite version identifies the installation. Evidence for a bounded native-behavior
+refusal identifies the tested baseline; evidence from a selected-runtime observation
+describes that installation's probe or rejection. Baseline evidence does not claim
+every behavior was retested on that installation. A delivered Operation's bounded
+refusal can follow Aseprite's native compatibility policy. A Gap can be reopened by
+new evidence.
 
 #### Mutation and validation
 

@@ -188,6 +188,15 @@ feature issue owns a planned contract, while a Descriptor owns the implemented
 contract; the installed Surface Manifest only reports whether that implementation is
 callable in one environment.
 
+A Capability Gap reports evidenced unavailability within the applicable SPA support
+boundary. Its selected Aseprite version identifies the installation. Evidence for a
+bounded native-behavior refusal identifies the tested baseline; evidence from a
+selected-runtime observation describes that installation's probe or rejection.
+Baseline evidence does not assert a separate native test on every release. A
+delivered Operation's documented refusal can remain in the Manifest under
+Aseprite's native compatibility policy. This projection rule adds no SPA version
+certification matrix.
+
 ## Maintenance rules
 
 1. Change the normative owner of a fact first.
