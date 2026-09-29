@@ -171,10 +171,39 @@ function module.prevalidate(sprite, layer, frame_number, operation, background_c
   return nil
 end
 
-function module.apply(sprite, layer, frame_number, operation, background_color, frame)
+local function add(sprite, layer, frame_number, image_size)
+  local spec = sprite.spec
+  if image_size ~= nil then
+    spec.width = image_size.width
+    spec.height = image_size.height
+  end
+  local pixels = Image(spec)
+  assert(pixels.spec == spec, "initial Image does not inherit the Sprite specification")
+  local created = sprite:newCel(layer, frame_number, pixels, Point(0, 0))
+  assert(
+    created.image.width == spec.width
+      and created.image.height == spec.height
+      and created.image.colorMode == spec.colorMode
+      and created.image.spec.transparentColor == spec.transparentColor,
+    "added Cel Image specification differs from the request"
+  )
+  assert(
+    created.position.x == 0
+      and created.position.y == 0
+      and created.opacity == 255
+      and created.zIndex == 0
+      and created.image:isEmpty(),
+    "added Cel initial state differs from the request"
+  )
+  for _, other in ipairs(sprite.cels) do
+    assert(other == created or other.image ~= created.image, "added Cel shares an existing Image")
+  end
+end
+
+function module.apply(sprite, layer, frame_number, operation, background_color, frame, image_size)
   app.transaction(operation .. " Cel", function()
     if operation == "add" then
-      sprite:newCel(layer, frame_number)
+      add(sprite, layer, frame_number, image_size)
     elseif operation == "remove" then
       sprite:deleteCel(layer, frame_number)
     elseif layer.isBackground then
@@ -194,7 +223,7 @@ function module.add_live(sprite, input, selection, verified_uuids)
   if rejected then return rejected end
   local before = module.inspect(sprite, layer, path, number)
   local before_count = #sprite.cels
-  module.apply(sprite, layer, number, "add", nil, nil)
+  module.apply(sprite, layer, number, "add", nil, nil, input.image_size)
   local after = module.inspect(sprite, layer, path, number)
   assert(after.exists and after.content == "transparent", "added Cel is not transparent")
   assert(#sprite.cels == before_count + 1, "Cel add changed unexpected Cel count")

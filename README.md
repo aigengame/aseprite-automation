@@ -414,8 +414,16 @@ present, and verify the staged Sprite after reopening it before Target Commit.
 `spa cel get` inspects one Layer/Frame intersection. Both report absence separately
 from an existing transparent Image. Existing Cel facts include position, Image
 bounds, opacity, z-index, and other native Cels sharing the Image. `cel add`
-creates a full-canvas transparent Image only at an absent regular Transparent
-Layer intersection. `cel clear` preserves the Cel and its Image bounds; on a
+creates an independent transparent Image at an absent regular Transparent
+Layer intersection. Optional `image_size: {"width": 24, "height": 32}` sets its
+initial dimensions; omit it or pass `null` for the Sprite Canvas size. Both
+dimensions must be integers from 1 through 65535. An Image may exceed the Canvas
+without resizing it. Creation uses the Sprite's Color Mode, Color Profile, and
+Transparent Color Index, with position `(0, 0)`, opacity 255, and z-index 0.
+The same option is available in a `cel add` Plan Step, including before a Paint
+Step; returned dimensions remain in `cel.image_bounds`.
+`cel clear` and `cel remove` do not accept `image_size`.
+`cel clear` preserves the Cel and its Image bounds; on a
 Background Layer it requires an explicit compatible `background_color` and fills
 the Cel with that color. Clearing a shared Image preserves native links and reports
 every affected Cel in `affected_cels`. `cel remove` makes a regular Transparent Cel

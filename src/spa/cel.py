@@ -39,6 +39,7 @@ from spa.sprite import (
     SPRITE_PERSISTENCE_RESOURCE,
     SpriteGetRequest,
     SpriteInspection,
+    SpriteMetadata,
     validated_scope,
 )
 
@@ -181,11 +182,20 @@ class CelGetResult(PublicModel):
     cel: CelState
 
 
-class CelAddInput(PublicModel):
+class CelTargetInput(PublicModel):
     target: CelAddress
 
 
-class CelMutationRequest(RuntimeRequest, CelAddInput):
+class CelImageSize(PublicModel):
+    width: int = Field(ge=1, le=65535, strict=True)
+    height: int = Field(ge=1, le=65535, strict=True)
+
+
+class CelAddInput(CelTargetInput):
+    image_size: CelImageSize | None = None
+
+
+class CelMutationRequest(RuntimeRequest, CelTargetInput):
     source_sprite_file: str = Field(min_length=1)
     target_sprite_file: str = Field(min_length=1)
     in_place: bool
@@ -204,7 +214,7 @@ class CelMutationRequest(RuntimeRequest, CelAddInput):
         return self
 
 
-class CelAddRequest(CelMutationRequest):
+class CelAddRequest(CelMutationRequest, CelAddInput):
     pass
 
 
@@ -214,6 +224,42 @@ class CelClearRequest(CelMutationRequest):
 
 class CelRemoveRequest(CelMutationRequest):
     pass
+
+
+def validate_added_cel(
+    request: CelAddInput,
+    cel: CelState,
+    canvas: SpriteMetadata,
+    invocation: KernelInvocationResult,
+) -> None:
+    """Check initial Image facts, before later Plan Steps can change the Cel."""
+    size = request.image_size
+    expected = Rectangle(
+        x=0,
+        y=0,
+        width=size.width if size is not None else canvas.width,
+        height=size.height if size is not None else canvas.height,
+    )
+    if (
+        not cel.exists
+        or cel.content != "transparent"
+        or cel.is_background
+        or cel.is_tilemap
+        or cel.image_bounds != expected
+        or cel.position != Point(x=0, y=0)
+        or cel.opacity != 255
+        or cel.z_index != 0
+        or cel.linked_cels
+    ):
+        raise RuntimeIssue(
+            "postcondition_failed",
+            "Added Cel Image differs from its requested initial state",
+            PostconditionEvidence(
+                response_path=invocation.response_path,
+                reason="Cel Image size, placement, transparency, or independence disagrees",
+            ),
+            invocation.diagnostics,
+        )
 
 
 class CelMutationEvidence(PublicModel):
@@ -405,6 +451,8 @@ def _mutate(
         "staged_sprite_file": str(staged),
         "target": request.target.model_dump(mode="json", exclude_none=True),
     }
+    if isinstance(request, CelAddRequest) and request.image_size is not None:
+        payload["image_size"] = request.image_size.model_dump(mode="json")
     if isinstance(request, CelClearRequest) and request.background_color is not None:
         payload["background_color"] = request.background_color.model_dump(mode="json")
     try:
@@ -474,7 +522,6 @@ def _mutate(
                 and not evidence.cel.is_background
                 and evidence.cel.content != "transparent"
             )
-            or (operation == "add" and evidence.cel.content != "transparent")
             or (
                 operation == "clear"
                 and (
@@ -509,6 +556,10 @@ def _mutate(
                     reason="Cel existence, content, or count disagrees",
                 ),
                 invocation.diagnostics,
+            )
+        if isinstance(request, CelAddRequest):
+            validate_added_cel(
+                request, evidence.cel, evidence.sprite.metadata, invocation
             )
         identity_issue = source_target_identity_issue(
             services.target_files, source, target_file, request.in_place
