@@ -406,3 +406,43 @@ NATIVE_PAINT_OPERATIONS = (
         side_effects=("publishes the declared Target Sprite File",),
     ),
 )
+
+
+_CANDIDATE_GAP_EVIDENCE = {
+    "spray": (
+        "Aseprite 1.3.18.5 accepts reset-aware Spray Width/Speed preferences, but "
+        "app.useTool returns no random draw footprint. A no-effect native stroke "
+        "cannot reveal its touched pixels, so complete coverage, bounds, and "
+        "Selection evidence remain unverified."
+    ),
+    "curve": (
+        "Aseprite 1.3.18.5 app.useTool supplies one press/move/release; the "
+        "Four Points Controller needs further phases. Distinct control-point "
+        "probes returned without painting pixels."
+    ),
+    "polygon": (
+        "Aseprite 1.3.18.5 app.useTool supplies one press/move/release; the "
+        "Point-by-Point Controller needs further presses to commit vertices and "
+        "complete. Distinct-vertex probes returned without painting pixels."
+    ),
+    "jumble": (
+        "Aseprite 1.3.18.5 app.useTool constructs zero-velocity Pointers; "
+        "native Jumble Ink uses Pointer speed and direction to sample pixels. "
+        "Stochastic pixel changes do not supply editor-equivalent Pointer behavior."
+    ),
+}
+
+
+def native_paint_candidate_gaps(aseprite_version: str) -> list[CapabilityGap]:
+    """Report independently blocked candidates without publishing their Descriptors."""
+    return [
+        CapabilityGap(
+            capability=f"spa paint {tool}",
+            aseprite_version=aseprite_version,
+            evidence=(
+                "No complete native script route is verified for this runtime. "
+                + finding
+            ),
+        )
+        for tool, finding in _CANDIDATE_GAP_EVIDENCE.items()
+    ]

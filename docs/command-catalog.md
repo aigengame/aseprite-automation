@@ -151,6 +151,13 @@ does not add other motion modes or recipe-owned pose and particle behavior.
 | `spa paint blur` | Apply deterministic native Blur Ink. |
 | `spa paint jumble` | Apply native-stochastic Jumble when Pointer velocity and direction are scriptable. |
 
+The Aseprite 1.3.18.5 investigation in [#29](https://github.com/aigengame/aseprite-automation/issues/29)
+found that Spray Width/Speed can be set after the headless preference reset, but its
+exact stochastic footprint is not exposed to Lua. One scripted press/release does not
+complete Curve or Polygon; scripted Jumble receives zero Pointer velocity. These rows
+remain candidate intents. The installed Surface Manifest reports current availability
+and versioned Capability Gaps.
+
 ## `filter`
 
 | Candidate command | Intended meaning |
