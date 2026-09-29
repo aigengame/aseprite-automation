@@ -712,7 +712,7 @@ local function observes_image_rotate()
   end)
 end
 
-local function observes_native_paint(tool)
+local function observes_native_paint(tool, algorithm)
   if paint_native == nil then return false end
   local source = app.fs.joinPath(app.params.workspace, "native-" .. tool .. ".aseprite")
   local output = app.fs.joinPath(app.params.workspace, "native-" .. tool .. "-painted.aseprite")
@@ -720,6 +720,7 @@ local function observes_native_paint(tool)
   local sprite
   local ok = pcall(function()
     sprite = Sprite(8, 8, ColorMode.RGB)
+    if tool == "eraser" then sprite.cels[1].image:clear(app.pixelColor.rgba(255, 0, 0, 255)) end
     assert(sprite:saveAs(source))
     sprite:close()
     sprite = nil
@@ -731,16 +732,33 @@ local function observes_native_paint(tool)
       brush = { kind = "circle", size = 1 },
       color = { kind = "rgba", red = 255, green = 0, blue = 0, alpha = 255 },
       ink = "simple",
-      opacity = 0,
+      opacity = tool == "eraser" and 255 or 0,
       clipping = "reject",
       bounds = { x = 2, y = 2, width = 4, height = 3 },
       style = tool:match("^filled_") and "filled" or "outline",
       ["from"] = { x = 2, y = 2 },
       to = { x = 5, y = 2 },
+      points = algorithm == "pixel-perfect"
+          and { { x = 2, y = 2 }, { x = 3, y = 2 }, { x = 3, y = 3 } }
+        or { { x = 2, y = 2 }, { x = 5, y = 2 } },
+      freehand_algorithm = algorithm or "regular",
+      behavior = { kind = "erase" },
+      seed = { x = 1, y = 1 },
+      tolerance = 0,
+      contiguous = true,
+      connectivity = "four-connected",
+      refer_to = "active-layer",
+      stop_at_grid = false,
     }, tool)
     assert(result.persisted_reopen_verified and result.pixels_changed > 0)
     if tool == "line" then assert(result.pixels_changed == 4) end
-    assert(result.requested_opacity == 0 and result.effective_opacity == 255)
+    if algorithm ~= nil then
+      assert(result.pixels_changed == (algorithm == "regular" and 4 or 2))
+    end
+    assert(
+      result.requested_opacity == (tool == "eraser" and 255 or 0)
+        and result.effective_opacity == 255
+    )
   end)
   if sprite ~= nil then pcall(function() sprite:close() end) end
   os.remove(source)
@@ -839,7 +857,24 @@ function module.observe()
   if observes_background_conversion() then
     capabilities[#capabilities + 1] = "aseprite_background_conversion"
   end
+  if observes_native_paint("paint_bucket") then
+    capabilities[#capabilities + 1] = "aseprite_paint_fill"
+  end
   if observes_native_paint("line") then capabilities[#capabilities + 1] = "aseprite_paint_line" end
+  for _, tool in ipairs { "pencil", "eraser" } do
+    local observed = {}
+    for _, algorithm in ipairs { "regular", "pixel-perfect", "dots" } do
+      if observes_native_paint(tool, algorithm) then
+        observed[#observed + 1] = "aseprite_paint_" .. tool .. "_" .. algorithm:gsub("-", "_")
+      end
+    end
+    if #observed > 0 then
+      capabilities[#capabilities + 1] = "aseprite_paint_" .. tool
+      for _, capability in ipairs(observed) do
+        capabilities[#capabilities + 1] = capability
+      end
+    end
+  end
   if observes_native_paint("rectangle") and observes_native_paint("filled_rectangle") then
     capabilities[#capabilities + 1] = "aseprite_paint_rectangle"
   end

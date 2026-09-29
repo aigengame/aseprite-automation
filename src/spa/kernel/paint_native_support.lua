@@ -77,10 +77,26 @@ function module.apply_live(sprite, payload, tool, uuids)
   if cel == nil then return reject("cel_not_found", "Paint requires an existing Cel") end
   local image = cel.image
   local mode = colors.color_mode_name(sprite)
-  colors.native_color(payload.color, mode, false)
-  local affected = cels.affected(sprite, image)
   local indexes = {}
-  if mode == "indexed" then indexes[payload.color.index] = true end
+  local function validate_color(value)
+    colors.native_color(value, mode, false)
+    if mode == "indexed" then indexes[value.index] = true end
+  end
+  if tool == "eraser" then
+    local behavior = payload.behavior
+    if behavior.kind == "erase" then
+      if layer.isBackground then
+        assert(behavior.background_color ~= nil, "Background erase requires background_color")
+      else
+        assert(behavior.background_color == nil, "Transparent erase accepts no Color")
+      end
+    end
+    if behavior.foreground_color then validate_color(behavior.foreground_color) end
+    if behavior.background_color then validate_color(behavior.background_color) end
+  else
+    validate_color(payload.color)
+  end
+  local affected = cels.affected(sprite, image)
   colors.palette_facts(sprite, affected, indexes)
   local selection = payload.selection ~= nil and masks.materialize(payload.selection) or nil
   local before = persistence.snapshot(sprite, inspection, digest, sections, uuids)
@@ -111,6 +127,10 @@ function module.apply_live(sprite, payload, tool, uuids)
       end
     end
   end
+  -- A Transparent Layer's mask is a Sprite fact, not a Palette Entry. Explicit
+  -- Color Values still use Palette validation; Background pixels do as well.
+  local transparent_index = mode == "indexed" and not layer.isBackground and sprite.transparentColor
+    or nil
   app.transaction("Native Paint", function()
     for _, row in ipairs(applied.rows) do
       for _, run in ipairs(row.runs) do
@@ -118,7 +138,7 @@ function module.apply_live(sprite, payload, tool, uuids)
           local native = rendered.image:getPixel(x, row.y)
           if image:getPixel(x, row.y) ~= native then changed = changed + 1 end
           image:putPixel(x, row.y, native)
-          if mode == "indexed" then indexes[native] = true end
+          if mode == "indexed" and native ~= transparent_index then indexes[native] = true end
         end
       end
     end
@@ -133,7 +153,7 @@ function module.apply_live(sprite, payload, tool, uuids)
   local result = {
     target = payload.target,
     coordinate_space = "image-pixel",
-    brush = {
+    brush = payload.brush and {
       kind = payload.brush.kind,
       size = payload.brush.size,
       angle = payload.brush.angle or 0,
@@ -163,10 +183,29 @@ function module.apply_live(sprite, payload, tool, uuids)
     before_content_digest = before_digest,
     after_content_digest = digest.image_content(image, mode),
   }
-  if tool == "line" then
+  if tool == "paint_bucket" then
+    result.seed, result.tolerance = payload.seed, payload.tolerance
+    result.contiguous, result.connectivity = payload.contiguous, payload.connectivity
+    result.refer_to, result.stop_at_grid = payload.refer_to, payload.stop_at_grid
+    result.source_scope, result.effective_grid_cell =
+      rendered.source_scope, rendered.effective_grid_cell
+  elseif tool == "pencil" or tool == "eraser" then
+    result.points, result.freehand_algorithm = payload.points, payload.freehand_algorithm
+  elseif tool == "line" then
     result["from"], result.to = payload["from"], payload.to
   else
     result.bounds, result.style = payload.bounds, payload.style
+  end
+  if tool == "eraser" then
+    result.behavior = payload.behavior
+    result.native_behavior = payload.behavior.kind == "replace-foreground-with-background"
+        and "foreground-replacement"
+      or layer.isBackground and "background-color"
+      or mode == "indexed" and "transparent-index"
+      or "alpha-erasure"
+    if result.native_behavior == "transparent-index" then
+      result.transparent_index = sprite.transparentColor
+    end
   end
   return result
 end
