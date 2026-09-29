@@ -75,6 +75,8 @@ def test_info_reports_installed_runtime() -> None:
         "spa layer convert-to-background",
         "spa layer convert-from-background",
         "spa paint apply",
+        "spa paint line",
+        "spa paint rectangle",
         "spa selection create",
         "spa selection combine",
         "spa selection invert",

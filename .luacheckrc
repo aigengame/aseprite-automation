@@ -4,6 +4,11 @@ std = "lua54"
 read_globals = {
   "AniDir",
   "BlendMode",
+  "Brush",
+  "BrushType",
+  "Ink",
+  "MouseButton",
+  "TilemapMode",
   "Color",
   "ColorMode",
   "ColorSpace",

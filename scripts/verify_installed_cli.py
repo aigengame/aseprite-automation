@@ -87,6 +87,10 @@ for name in (
     "image_snapshot.lua",
     "layer_composition.lua",
     "raster_color.lua",
+    "native_tool.lua",
+    "paint_native_support.lua",
+    "paint_line.lua",
+    "paint_rectangle.lua",
     "export_image.lua",
     "export_image_support.lua",
 ):
