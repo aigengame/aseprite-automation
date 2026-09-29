@@ -5,6 +5,7 @@ local creation = dofile(app.params.creation)
 local layer_select = app.params.layer_select and dofile(app.params.layer_select) or nil
 local exporter = app.params.export_image_support and dofile(app.params.export_image_support) or nil
 local paint = dofile(app.params.paint)
+local paint_native = app.params.native_paint and dofile(app.params.native_paint) or nil
 local digest = dofile(app.params.digest)
 local frame = app.params.frame and dofile(app.params.frame) or nil
 local cel_support = app.params.cel and dofile(app.params.cel) or nil
@@ -711,6 +712,46 @@ local function observes_image_rotate()
   end)
 end
 
+local function observes_native_paint(tool)
+  if paint_native == nil then return false end
+  local source = app.fs.joinPath(app.params.workspace, "native-" .. tool .. ".aseprite")
+  local output = app.fs.joinPath(app.params.workspace, "native-" .. tool .. "-painted.aseprite")
+  local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
+  local sprite
+  local ok = pcall(function()
+    sprite = Sprite(8, 8, ColorMode.RGB)
+    assert(sprite:saveAs(source))
+    sprite:close()
+    sprite = nil
+    local result = paint_native.execute({
+      source_sprite_file = source,
+      staged_sprite_file = output,
+      target = { layer = { layer_path = { 1 } }, frame_number = 1 },
+      coordinate_space = "image-pixel",
+      brush = { kind = "circle", size = 1 },
+      color = { kind = "rgba", red = 255, green = 0, blue = 0, alpha = 255 },
+      ink = "simple",
+      opacity = 0,
+      clipping = "reject",
+      bounds = { x = 2, y = 2, width = 4, height = 3 },
+      style = tool:match("^filled_") and "filled" or "outline",
+      ["from"] = { x = 2, y = 2 },
+      to = { x = 5, y = 2 },
+    }, tool)
+    assert(result.persisted_reopen_verified and result.pixels_changed > 0)
+    if tool == "line" then assert(result.pixels_changed == 4) end
+    assert(result.requested_opacity == 0 and result.effective_opacity == 255)
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  os.remove(source)
+  os.remove(output)
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    app.activeSprite, app.activeLayer, app.activeFrame =
+      previous.sprite, previous.layer, previous.frame
+  end
+  return ok
+end
+
 function module.observe()
   local capabilities = { "aseprite_runtime_introspection" }
   if app.params.paint_composite ~= nil then
@@ -797,6 +838,13 @@ function module.observe()
   if observes_layer_merge() then capabilities[#capabilities + 1] = "aseprite_layer_merge" end
   if observes_background_conversion() then
     capabilities[#capabilities + 1] = "aseprite_background_conversion"
+  end
+  if observes_native_paint("line") then capabilities[#capabilities + 1] = "aseprite_paint_line" end
+  if observes_native_paint("rectangle") and observes_native_paint("filled_rectangle") then
+    capabilities[#capabilities + 1] = "aseprite_paint_rectangle"
+  end
+  if observes_native_paint("ellipse") and observes_native_paint("filled_ellipse") then
+    capabilities[#capabilities + 1] = "aseprite_paint_ellipse"
   end
   if observes_paint_apply() then capabilities[#capabilities + 1] = "aseprite_paint_apply" end
   if observes_frame_authoring() then

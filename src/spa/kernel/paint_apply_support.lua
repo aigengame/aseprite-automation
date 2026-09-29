@@ -1,6 +1,5 @@
 -- Paint-owned exact Pixel Patch semantics shared by the handler and capability probe.
 local module = {}
-local palettes = dofile(app.params.effective_palette)
 local selections = dofile(app.params.selection_mask)
 local colors = dofile(app.params.raster_color)
 local max_patch_pixels = 256
@@ -144,39 +143,6 @@ local function collect_affected_cels(sprite, target_image)
   return result
 end
 
-local function background_is_opaque(sprite, image, color_mode, layer, affected_cels)
-  if not layer.isBackground then return false end
-  if color_mode == "indexed" then
-    local indexes = {}
-    for pixel in image:pixels() do
-      indexes[pixel()] = true
-    end
-    local checked_frames = {}
-    for _, cel in ipairs(affected_cels) do
-      local frame_number = cel.frame_number
-      if
-        not checked_frames[frame_number]
-        and resolve_layer(sprite, cel.layer_path).isBackground
-      then
-        local palette =
-          assert(palettes.resolve(sprite, frame_number), "Indexed target has no Effective Palette")
-        for index, _ in pairs(indexes) do
-          if index >= #palette or palette:getColor(index).alpha ~= 255 then return false end
-        end
-        checked_frames[frame_number] = true
-      end
-    end
-    return true
-  end
-  for pixel in image:pixels() do
-    local native = pixel()
-    local alpha = color_mode == "rgb" and app.pixelColor.rgbaA(native)
-      or app.pixelColor.grayaA(native)
-    if alpha ~= 255 then return false end
-  end
-  return true
-end
-
 local function same_path(left, right)
   if #left ~= #right then return false end
   for index = 1, #left do
@@ -234,7 +200,7 @@ local function validate_reopened(
     )
   end
   local content_digest = digest.image_content(image, evidence.color_mode)
-  local opaque = background_is_opaque(sprite, image, evidence.color_mode, layer, reopened_affected)
+  local opaque = colors.background_is_opaque(sprite, image)
   if layer.isBackground then assert(opaque, "persisted Background Image is not opaque") end
   return opaque, content_digest
 end

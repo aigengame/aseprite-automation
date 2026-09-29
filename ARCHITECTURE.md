@@ -17,7 +17,8 @@ this view instead of treating it as another decision authority.
 > editing, Tag inspection and authoring, Cel inspection, lifecycle, placement,
 > bounded position/opacity motion,
 > and native relationships, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, bounded Pixel Patch
-> application, native Snapshot composition (`spa paint composite`), verified RGB
+> application, native Snapshot composition (`spa paint composite`), native Line,
+> Rectangle, and Ellipse Paint operations, verified RGB
 > PNG Image Export, animation audit, Frame comparison, and continuity Preview
 > export. The module
 > ownership below includes both this delivered vertical slice and planned work. Feature
@@ -294,7 +295,7 @@ Sprite creation and inspection slice extends that same stack.
 | CLI adapter | Typer | Command access and human or machine presentation. |
 | Public contracts | Pydantic 2 and JSON Schema | Typed Operation Requests, Operation Results, Failure Envelopes, and discovery schemas. |
 | Project and packaging | `uv` | Environments, dependencies, builds, and installed-product tests. |
-| Ordinary Core Operations | Packaged Lua handlers | Core Operation Semantics and native mapping executed through Aseprite. The current package contains a fixed runtime probe, shared capability observations, Sprite creation, inspection, native flattening, resize and crop, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, Tag inspection and authoring, exact Pixel Patch, animation audit, Frame comparison, continuity Preview, Export Image, and Operation Plan handlers. Sprite copy uses the File Adapter for byte preservation and the packaged inspection handler for verification. |
+| Ordinary Core Operations | Packaged Lua handlers | Core Operation Semantics and native mapping executed through Aseprite. The current package contains a fixed runtime probe, shared capability observations, Sprite creation, inspection, native flattening, resize and crop, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, Tag inspection and authoring, exact Pixel Patch, native Snapshot composition, native Line, Rectangle, and Ellipse Paint, animation audit, Frame comparison, continuity Preview, Export Image, and Operation Plan handlers. Sprite copy uses the File Adapter for byte preservation and the packaged inspection handler for verification. |
 | Aseprite integration | External `aseprite --batch --script` | Native document, Tool, Filter, color, and export behavior. |
 | Private transport | Versioned JSON request and response files | Data exchange through `--script-param`, separate from diagnostics. |
 | Agent access | Version-matched Agent Skill and planned local stdio MCP Adapter with CLI subprocess invocation | Guidance and equivalent tool projection from the installed surface. |
@@ -425,7 +426,7 @@ src/spa/
   rounding.py             # shared exact rounding policies and Kernel binding
   animation.py            # existing audit, comparison, and composed Preview use case
   frame.py, cel.py, cel_relationship.py
-  image.py, image_snapshot.py, paint.py, paint_composite.py, raster.py
+  image.py, image_snapshot.py, paint.py, paint_composite.py, paint_native.py, raster.py
   palette.py              # shared private Palette Kernel resource binding
   export.py               # existing Delivery and publication support
   application.py, plan.py, mutation.py, ports.py
@@ -454,6 +455,16 @@ native set operations, isolated temporary Sprite work, and binary Image adaptati
 for native nearest-neighbor sampling. Python validates wire constraints and
 orchestrates existing Artifact staging, independent JSON/PNG verification, and
 publication. No persistent editor Selection or second Mask engine is introduced.
+
+The native Line, Rectangle, and Ellipse slice uses `paint_native.py` for typed
+contracts and publication orchestration. `paint_native_support.lua` owns footprint
+partitioning, Selection Application, linked mutation, and persisted evidence.
+`native_tool.lua` hides native Tool invocation and its local state restoration.
+It uses isolated native working documents to prevent the editor's Cel expansion
+from changing the addressed Image. The native pixel result is copied into the
+existing shared Image; geometry and unrelated document facts are verified before
+publication. Existing Cel, Selection, Color, Palette, and persistence helpers retain
+their ownership. Each public primitive has its own handler and runtime gate.
 
 Each Domain Module owns a vertical slice of:
 

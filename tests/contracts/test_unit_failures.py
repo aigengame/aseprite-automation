@@ -41,6 +41,7 @@ from spa.image_snapshot import SnapshotDetails
 from spa.layer import LayerAddress, LayerTargetDetails
 from spa.mutation import TargetCommitDetails
 from spa.paint_composite import CompositeCapabilityDetails, CompositeDetails
+from spa.paint_native import PaintCapabilityDetails
 from spa.ports import (
     ArtifactFileEvidence,
     ArtifactVerificationEvidence,
@@ -177,6 +178,13 @@ def test_each_registered_code_has_a_constrained_public_schema() -> None:
                 capability="spa paint composite: grayscale addition",
                 aseprite_version="1.3.18.5-dev",
                 evidence="Native Addition selects Exclusion",
+            )
+        ),
+        PaintCapabilityDetails: PaintCapabilityDetails(
+            gap=CapabilityGap(
+                capability="shading Ink",
+                aseprite_version="1.3.18.5",
+                evidence="explicit Shade configuration unavailable",
             )
         ),
         SelectionDetails: SelectionDetails(reason="coverage outside Canvas Rectangle"),

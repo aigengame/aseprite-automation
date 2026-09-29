@@ -37,6 +37,7 @@ from spa.paint_composite import (
     COMPOSITE_SUPPORT_RESOURCE,
     composite_capability_gaps,
 )
+from spa.paint_native import NATIVE_PAINT_OPERATIONS, NATIVE_PAINT_RESOURCES
 from spa.plan import PLAN_OPERATIONS
 from spa.ports import OperationServices
 from spa.selection import SELECTION_OPERATIONS, SELECTION_SUPPORT_RESOURCE
@@ -44,6 +45,7 @@ from spa.sprite import SPRITE_OPERATIONS, SPRITE_PROBE_RESOURCES
 from spa.tag import TAG_OPERATIONS
 
 PROBE_RESOURCES = (
+    *NATIVE_PAINT_RESOURCES,
     *SPRITE_PROBE_RESOURCES,
     LAYER_SELECT_RESOURCE,
     *PAINT_PROBE_RESOURCES,
@@ -209,6 +211,7 @@ OPERATIONS = (
     *LAYER_OPERATIONS,
     *PAINT_OPERATIONS,
     *COMPOSITE_OPERATIONS,
+    *NATIVE_PAINT_OPERATIONS,
     *SELECTION_OPERATIONS,
     *FRAME_OPERATIONS,
     *CEL_OPERATIONS,

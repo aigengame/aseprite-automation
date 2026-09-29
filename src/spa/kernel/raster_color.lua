@@ -110,6 +110,39 @@ local function palette_facts(sprite, affected_cels, used_indexes)
   return result
 end
 
+-- Observe every Background consumer of one shared native Image.
+function module.background_is_opaque(sprite, image)
+  local background = false
+  for _, cel in ipairs(sprite.cels) do
+    if cel.image == image and cel.layer.isBackground then background = true end
+  end
+  if not background then return false end
+  local mode = color_mode_name(sprite)
+  local indexes = {}
+  for pixel in image:pixels() do
+    local value = pixel()
+    if mode == "indexed" then
+      indexes[value] = true
+    elseif
+      (mode == "rgb" and app.pixelColor.rgbaA(value) or app.pixelColor.grayaA(value)) ~= 255
+    then
+      return false
+    end
+  end
+  for _, cel in ipairs(sprite.cels) do
+    if cel.image == image and cel.layer.isBackground then
+      background = true
+      if mode == "indexed" then
+        local palette = assert(palettes.resolve(sprite, cel.frameNumber))
+        for index, _ in pairs(indexes) do
+          if index >= #palette or palette:getColor(index).alpha ~= 255 then return false end
+        end
+      end
+    end
+  end
+  return background
+end
+
 module.copy_color = copy_color
 module.colors_equal = colors_equal
 module.color_mode_name = color_mode_name
