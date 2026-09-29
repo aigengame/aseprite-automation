@@ -2,7 +2,9 @@
 
 import json
 import os
+import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -152,6 +154,59 @@ def test_filled_ellipse_has_native_pixel_coverage(tmp_path: Path) -> None:
         (3, 4),
     }
     assert result["pixels_changed"] == 5
+
+
+@pytest.mark.parametrize("in_place", [False, True])
+def test_native_save_failure_after_drawing_never_publishes(
+    tmp_path: Path, in_place: bool
+) -> None:
+    source = tmp_path / "source.aseprite"
+    _create(source)
+    target = source if in_place else tmp_path / "target.aseprite"
+    if not in_place:
+        target.write_bytes(source.read_bytes())
+    before_source, before_target = source.read_bytes(), target.read_bytes()
+    cli = shutil.which("spa")
+    assert cli is not None
+    observations = tmp_path / "observations.json"
+    request = {
+        "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+        "source_sprite_file": str(source),
+        "target_sprite_file": str(target),
+        "in_place": in_place,
+        "overwrite": True,
+        "target": {"layer": {"layer_path": [1]}, "frame_number": 1},
+        "coordinate_space": "image-pixel",
+        "from": {"x": 2, "y": 2},
+        "to": {"x": 5, "y": 2},
+        "brush": {"kind": "circle", "size": 1},
+        "color": RED,
+        "ink": "simple",
+        "opacity": 255,
+    }
+    run = subprocess.run(
+        [
+            sys.executable,
+            str(Path(__file__).parent / "fixtures" / "fail_native_save_cli.py"),
+            str(observations),
+            cli,
+            "paint",
+            "line",
+            "--input-json",
+            "-",
+        ],
+        input=json.dumps(request),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    failure = json.loads(run.stdout)
+    assert run.returncode == 1 and failure["code"] == "kernel_execution_failed", failure
+    assert "could not reopen Native Paint" in failure["details"]["reason"], failure
+    assert json.loads(observations.read_text()) == {"commits": 0, "discarded": True}
+    assert source.read_bytes() == before_source
+    assert target.read_bytes() == before_target
+    assert not list(tmp_path.rglob("*.staged.aseprite"))
 
 
 def _native_fixture(tmp_path: Path, *, reference: bool = False, **options: object):
@@ -499,6 +554,8 @@ def test_native_tool_state_is_restored_on_success_and_failure(
     prepared = prepare_invocation(
         Path(observation.canonical_path), Path(observation.resource_path), workspace
     )
+    blocked_parent = tmp_path / "blocked-stage-parent"
+    blocked_parent.write_bytes(b"not a directory")
     kernel = Path(__file__).parents[2] / "src" / "spa" / "kernel"
     args = [str(prepared.executable), "--batch"]
     params = {
@@ -506,6 +563,7 @@ def test_native_tool_state_is_restored_on_success_and_failure(
         "source": str(source),
         "target": str(tmp_path / "painted.aseprite"),
         "failure": str(tmp_path / "failure.aseprite"),
+        "unwritable": str(blocked_parent / "painted.aseprite"),
     }
     for resource in NATIVE_PAINT_RESOURCES:
         params[resource.parameter_name] = str(kernel / resource.package_name)

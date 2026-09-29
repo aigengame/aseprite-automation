@@ -1,5 +1,12 @@
 -- Observe packaged native Paint in the same editor process, including handled failure.
 local paint = dofile(app.params.native_paint)
+local function contents(path)
+  local file = assert(io.open(path, "rb"))
+  local bytes = file:read("*a")
+  file:close()
+  return bytes
+end
+local source_bytes = contents(app.params.source)
 local ambient = Sprite(3, 3, ColorMode.RGB)
 ambient.selection = Selection(Rectangle(1, 1, 1, 1))
 local layer, frame = ambient.layers[1], ambient.frames[1]
@@ -53,6 +60,7 @@ local request = {
 local result = paint.execute(request, native_tool)
 assert(result.persisted_reopen_verified and result.pixels_changed > 0)
 assert_restored()
+local target_bytes = contents(app.params.target)
 request["from"] = { x = -2, y = -2 }
 request.to = { x = 1, y = 1 }
 request.bounds = { x = -2, y = -2, width = 4, height = 3 }
@@ -61,4 +69,14 @@ local ok, reason = pcall(paint.execute, request, native_tool)
 assert(not ok and tostring(reason):find("footprint is outside Image bounds", 1, true))
 assert_restored()
 assert(not app.fs.isFile(app.params.failure))
+-- Aseprite can report saveAs success for an unwritable destination. The
+-- subsequent reopen must refuse publication after the native Image was changed.
+request["from"], request.to = { x = 2, y = 2 }, { x = 5, y = 2 }
+request.bounds = { x = 2, y = 2, width = 4, height = 3 }
+request.staged_sprite_file = app.params.unwritable
+ok, reason = pcall(paint.execute, request, native_tool)
+assert(not ok and tostring(reason):find("could not reopen Native Paint", 1, true))
+assert_restored()
+assert(contents(app.params.source) == source_bytes)
+assert(contents(app.params.target) == target_bytes)
 ambient:close()

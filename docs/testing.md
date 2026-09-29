@@ -34,7 +34,8 @@ real-runtime suite compares saved pixels with direct `app.useTool` references fo
 all four color-paint Inks at opacity 0, 128, and 255. It also covers native Brush
 footprints, degenerate shapes, RGB/Grayscale/Indexed (including transparent index 7),
 Background and linked Cels, off-canvas Cel placement, explicit Selection, refusal
-without publication, and state restoration after success and failure. These tests
+without publication, post-write save/reopen failure, and state restoration after
+success and failure. These tests
 use `--batch --script` and require no display. They establish batch native pixel
 parity; they do not certify windowed UI interactions. Run the focused slice with:
 

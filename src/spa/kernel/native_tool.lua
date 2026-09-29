@@ -23,69 +23,6 @@ local allowed_tools = {
   filled_ellipse = true,
 }
 
--- These are the options reset by Aseprite's batch script path in v1.3.18.5.
--- Capture the whole tree so restoring a GUI invocation also restores unrelated
--- options that native tool setup can touch.
-local tool_fields = {
-  {
-    "opacity",
-    "tolerance",
-    "contiguous",
-    "filled",
-    "filled_preview",
-    "ink",
-    "freehand_algorithm",
-    "corner_radius",
-  },
-  brush = { "type", "size", "angle" },
-  spray = { "width", "speed" },
-  floodfill = { "stop_at_grid", "refer_to", "pixel_connectivity" },
-  dynamics = {
-    "stabilizer",
-    "stabilizer_factor",
-    "size",
-    "angle",
-    "gradient",
-    "min_size",
-    "min_angle",
-    "color_from_to",
-    "matrix_name",
-    "min_pressure_threshold",
-    "max_pressure_threshold",
-    "min_velocity_threshold",
-    "max_velocity_threshold",
-  },
-}
-
-local function capture_tool_preferences(pref)
-  local values = {}
-  for _, field in ipairs(tool_fields[1]) do
-    values[field] = pref[field]
-  end
-  for section, fields in pairs(tool_fields) do
-    if type(section) == "string" then
-      values[section] = {}
-      for _, field in ipairs(fields) do
-        values[section][field] = pref[section][field]
-      end
-    end
-  end
-  return values
-end
-
-local function restore_tool_preferences(pref, values)
-  for _, field in ipairs(tool_fields[1]) do
-    pref[field] = values[field]
-  end
-  for section, fields in pairs(tool_fields) do
-    if type(section) == "string" then
-      for _, field in ipairs(fields) do
-        pref[section][field] = values[section][field]
-      end
-    end
-  end
-end
-
 local function checked_integer(value, label)
   assert(type(value) == "number" and value % 1 == 0, "invalid " .. label)
   return value
@@ -131,7 +68,9 @@ local function make_brush(value)
   return brush
 end
 
-local function make_color(value, mode)
+-- Color Value policy is validated by raster_color in the calling Paint module.
+-- This adapter constructs Tool Color userdata, rather than packed Image pixels.
+local function make_tool_color(value, mode)
   assert(type(value) == "table" or type(value) == "userdata", "missing Color Value")
   if mode == ColorMode.RGB then
     assert(value.kind == "rgba", "RGB target requires rgba Color Value")
@@ -261,7 +200,7 @@ function module.render(sprite, cel, payload, tool)
   local opacity = checked_integer(payload.opacity, "Paint opacity")
   assert(opacity >= 0 and opacity <= 255, "Paint opacity is outside native range")
   local brush = make_brush(payload.brush)
-  local color = make_color(payload.color, sprite.colorMode)
+  local color = make_tool_color(payload.color, sprite.colorMode)
   local source_image = cel.image
   local source_position = cel.position
   local first, last = geometry(payload, tool, source_position)
@@ -295,7 +234,12 @@ function module.render(sprite, cel, payload, tool)
     symmetry = app.preferences.symmetry_mode.enabled,
   }
   local pref = app.preferences.tool(tool)
-  local pref_values = capture_tool_preferences(pref)
+  -- Capture only the tool preferences this invocation changes.
+  local pref_values = {
+    filled = pref.filled,
+    filled_preview = pref.filled_preview,
+    corner_radius = pref.corner_radius,
+  }
   local clone, mask_sprite
   local ok, answer = pcall(function()
     -- The native two-point controller must not pick up optional fill or
@@ -380,7 +324,9 @@ function module.render(sprite, cel, payload, tool)
   if clone ~= nil and clone.isValid then pcall(function() clone:close() end) end
   if mask_sprite ~= nil and mask_sprite.isValid then pcall(function() mask_sprite:close() end) end
   local restored, restore_error = pcall(function()
-    restore_tool_preferences(pref, pref_values)
+    pref.filled = pref_values.filled
+    pref.filled_preview = pref_values.filled_preview
+    pref.corner_radius = pref_values.corner_radius
     app.preferences.symmetry_mode.enabled = previous.symmetry
     if previous.sprite ~= nil and previous.sprite.isValid then
       app.activeSprite = previous.sprite
