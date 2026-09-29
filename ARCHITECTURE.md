@@ -342,6 +342,9 @@ validation, and staged publication. Its fixed Lua support constructs the source
 through `image_snapshot.lua`, invokes native `Image:drawImage`, and limits coverage
 through the same explicit Selection helper as Paint apply. The handler owns Cel
 eligibility, Background opacity, Linked Cel invariants, and persisted verification.
+For Indexed Normal/255, a scoped temporary Sprite binds the requested Effective
+Palette to native Cel-associated `drawImage`; cleanup restores active document state
+on success and failure. A separate runtime observation gates this Indexed path.
 Image replace and Paint composite share native Snapshot materialization; neither
 maintains a second Raster decoder or blend algorithm. `spa.raster` holds the
 shared Color Value, Rectangle, Snapshot, Patch, Selection, and Effective Palette types;

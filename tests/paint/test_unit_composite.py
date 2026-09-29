@@ -10,7 +10,11 @@ from spa.application import dispatch
 from spa.contracts import Diagnostics, FailureEnvelope
 from spa.failure_registry import FAILURE_CODES
 from spa.file_adapter import LocalArtifactFiles, LocalTargetFiles
-from spa.paint_composite import COMPOSITE_OPERATIONS, PaintCompositeRequest
+from spa.paint_composite import (
+    COMPOSITE_OPERATIONS,
+    PaintCompositeRequest,
+    composite_capability_gaps,
+)
 from spa.ports import KernelInvocationResult, OperationServices
 from tests.support import runtime_observation
 
@@ -115,3 +119,44 @@ def test_malformed_kernel_result_does_not_replace_existing_target(
         "source.aseprite",
         "target.aseprite",
     }
+
+
+def test_missing_indexed_capability_refuses_before_kernel(tmp_path: Path) -> None:
+    request = _request()
+    snapshot = request["input"]["snapshot"]
+    snapshot["color_mode"] = "indexed"
+    snapshot["rows"][0][0]["color"] = {"kind": "palette-index", "index": 1}
+    request["palette_frame_number"] = 1
+    request["source_sprite_file"] = str(tmp_path / "source.aseprite")
+    request["target_sprite_file"] = str(tmp_path / "target.aseprite")
+    observation = runtime_observation(
+        "aseprite_paint_composite",
+        "aseprite_sprite_inspection",
+        "aseprite_cel_lifecycle",
+    )
+
+    def unexpected_invoke(*_args):
+        raise AssertionError("unverified native capability must not be invoked")
+
+    outcome = dispatch(
+        COMPOSITE_OPERATIONS[0],
+        json.dumps(request),
+        {},
+        OperationServices(
+            probe_runtime=lambda _: observation,
+            invoke_kernel=unexpected_invoke,
+            target_files=LocalTargetFiles(),
+        ),
+        FAILURE_CODES,
+    )
+    assert isinstance(outcome, FailureEnvelope)
+    assert outcome.code == "paint_composite_unsupported"
+    assert (
+        outcome.details.model_dump()["gap"]["capability"]
+        == "spa paint composite: indexed"
+    )
+    assert any(
+        gap.capability == "spa paint composite: indexed"
+        for gap in composite_capability_gaps("test", observation.verified_capabilities)
+    )
+    assert not list(tmp_path.iterdir())

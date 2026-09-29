@@ -1,5 +1,6 @@
 """Snapshot composition contracts and staged native mutation orchestration."""
 
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Annotated, Literal
 
@@ -10,6 +11,7 @@ from spa.contracts import (
     CapabilityGap,
     FailureCodeSpec,
     PublicModel,
+    RuntimeCapability,
     RuntimeRequest,
     RuntimeRequirements,
 )
@@ -92,7 +94,11 @@ class PaintCompositeRequest(RuntimeRequest):
     blend_mode: BlendMode
     clipping: Literal["reject", "clip"] = "reject"
     selection: SelectionApplication | None = None
-    palette_frame_number: int | None = Field(default=None, ge=1)
+    palette_frame_number: int | None = Field(
+        default=None,
+        ge=1,
+        description="Indexed only: must equal target.frame_number; selects its Effective Palette",
+    )
 
     _validate_source = field_validator("source_sprite_file")(
         validate_native_sprite_path
@@ -171,8 +177,10 @@ GRAYSCALE_GAPS = {
 }
 
 
-def composite_capability_gaps(aseprite_version: str) -> list[CapabilityGap]:
-    return [
+def composite_capability_gaps(
+    aseprite_version: str, capabilities: Sequence[RuntimeCapability]
+) -> list[CapabilityGap]:
+    gaps = [
         CapabilityGap(
             capability=f"spa paint composite: grayscale {mode}",
             aseprite_version=aseprite_version,
@@ -181,11 +189,23 @@ def composite_capability_gaps(aseprite_version: str) -> list[CapabilityGap]:
         for mode, reason in GRAYSCALE_GAPS.items()
     ] + [
         CapabilityGap(
-            capability="spa paint composite: indexed",
+            capability="spa paint composite: indexed blend-mode/opacity",
             aseprite_version=aseprite_version,
-            evidence="An Indexed native composition route is not yet verified by SPA.",
+            evidence=(
+                "Only normal with opacity=255 is supported. Native Indexed overlay "
+                "selects indexes and ignores other BlendMode/opacity values."
+            ),
         )
     ]
+    if "aseprite_paint_composite_indexed" not in capabilities:
+        gaps.append(
+            CapabilityGap(
+                capability="spa paint composite: indexed",
+                aseprite_version=aseprite_version,
+                evidence="The isolated Palette-correct native Indexed route was not observed by the runtime probe.",
+            )
+        )
+    return gaps
 
 
 COMPOSITE_FAILURE_CODE_SPECS = (
@@ -256,20 +276,35 @@ def composite_paint(
                 reason="palette_frame_number is not applicable to this Color Mode"
             ),
         )
-    observation = services.probe_runtime(request)
-    unsupported = (
-        value.color_mode == "grayscale" and request.blend_mode in GRAYSCALE_GAPS
-    ) or value.color_mode == "indexed"
-    if unsupported:
-        name = (
-            f"grayscale {request.blend_mode}"
-            if value.color_mode == "grayscale"
-            else "indexed"
+    if (
+        value.color_mode == "indexed"
+        and request.palette_frame_number != request.target.frame_number
+    ):
+        raise OperationIssue(
+            "paint_composite_invalid",
+            "Indexed palette_frame_number must equal the target Cel Frame Number",
+            CompositeDetails(
+                reason="Indexed composition requires the addressed Frame's Effective Palette"
+            ),
         )
+    observation = services.probe_runtime(request)
+    unsupported = None
+    if value.color_mode == "grayscale" and request.blend_mode in GRAYSCALE_GAPS:
+        unsupported = f"grayscale {request.blend_mode}"
+    elif value.color_mode == "indexed":
+        if request.blend_mode != "normal" or request.opacity != 255:
+            unsupported = "indexed blend-mode/opacity"
+        elif (
+            "aseprite_paint_composite_indexed" not in observation.verified_capabilities
+        ):
+            unsupported = "indexed"
+    if unsupported is not None:
         gap = next(
             item
-            for item in composite_capability_gaps(observation.aseprite_version)
-            if item.capability == f"spa paint composite: {name}"
+            for item in composite_capability_gaps(
+                observation.aseprite_version, observation.verified_capabilities
+            )
+            if item.capability == f"spa paint composite: {unsupported}"
         )
         raise OperationIssue(
             "paint_composite_unsupported",
@@ -349,6 +384,21 @@ def composite_paint(
                 + evidence.pixels_skipped_by_bounds
                 + evidence.pixels_skipped_by_selection
                 or evidence.pixels_changed > evidence.pixels_written
+                or (
+                    value.color_mode == "indexed"
+                    and (
+                        evidence.composite_palette_basis is None
+                        or evidence.composite_palette_basis.frame_number != number
+                        or not evidence.effective_palettes
+                    )
+                )
+                or (
+                    value.color_mode != "indexed"
+                    and (
+                        evidence.composite_palette_basis is not None
+                        or evidence.effective_palettes
+                    )
+                )
                 or (
                     evidence.pixels_changed == 0
                     and evidence.before_content_digest != evidence.after_content_digest

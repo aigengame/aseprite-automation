@@ -45,8 +45,13 @@ temporary Sprite corrects the Palette basis, but cannot add color blending or
 opacity semantics. Native Indexed-to-Indexed composition is index selection, with
 source-mask and Palette-size checks; it does not quantize RGBA blend results.
 See the [native branch](https://github.com/aseprite/aseprite/blob/375989a61c3425cd4e8cdedfcfcca4bdfef7e1d9/src/doc/blend_internals.h#L200).
-This prototype is not production Indexed delivery or failure-cleanup evidence.
-Issue #25 retains the product intent; its present integration gate remains closed.
+This prototype alone was not production Indexed delivery or failure-cleanup evidence.
+The owner accepted Normal/255 native index overlay on 2026-09-29. Other Indexed
+combinations remain typed gaps; SPA does not emulate RGBA blending or conversion.
+The production helper binds the addressed Frame's Palette to a temporary Sprite,
+draws once through its associated Cel, copies the result, closes the Sprite, and
+restores active Sprite/Layer/Frame. A separate capability probe observes both a
+missing-index and present-index Palette plus the nonzero transparent index.
 
 ## Executable verification
 
@@ -64,3 +69,8 @@ mode refusals, invalid requests, and unchanged Source/existing Target on failure
 `tests/paint/test_unit_composite.py` checks public input constraints and rejection
 of malformed Kernel evidence before publication. Existing Image replace tests
 verify the shared Snapshot materializer against replacement semantics.
+
+`tests/paint/test_e2e_composite_indexed.py` adds the public CLI tracer above,
+Palette Changes, linked-frame Palette applicability, Background opacity, explicit
+normal/255 restrictions, and atomic failures. Its native context probe also injects
+an error after temporary Sprite creation to check cleanup and active-state restoration.

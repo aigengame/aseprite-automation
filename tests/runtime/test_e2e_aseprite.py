@@ -31,6 +31,7 @@ def test_info_reports_installed_runtime() -> None:
     assert result["runtime"]["verified_capabilities"] == [
         "aseprite_runtime_introspection",
         "aseprite_paint_composite",
+        "aseprite_paint_composite_indexed",
         "aseprite_selection",
         "aseprite_sprite_create",
         "aseprite_sprite_inspection",
@@ -125,7 +126,7 @@ def test_info_reports_installed_runtime() -> None:
     assert [gap["capability"] for gap in result["capability_gaps"]] == [
         f"spa paint composite: grayscale {mode}"
         for mode in ("hue", "saturation", "color", "luminosity", "addition")
-    ] + ["spa paint composite: indexed"]
+    ] + ["spa paint composite: indexed blend-mode/opacity"]
     assert all(
         gap["aseprite_version"] == result["runtime"]["aseprite_version"]
         and gap["evidence"]

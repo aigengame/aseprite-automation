@@ -2,6 +2,8 @@
 local module = {}
 local snapshot = dofile(app.params.image_snapshot)
 local selections = dofile(app.params.selection_mask)
+local colors = dofile(app.params.raster_color)
+local palettes = dofile(app.params.effective_palette)
 
 local modes = {
   normal = BlendMode.NORMAL,
@@ -35,6 +37,30 @@ function module.draw(destination, source, position, opacity, blend_mode)
   return result
 end
 
+function module.draw_indexed(destination, source, position, palette)
+  local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
+  local scratch = nil
+  local ok, result = pcall(function()
+    scratch = Sprite(destination.width, destination.height, ColorMode.INDEXED)
+    scratch.transparentColor = destination.spec.transparentColor
+    scratch:setPalette(palette)
+    app.activeSprite = scratch
+    local cel = assert(scratch.layers[1]:cel(1))
+    cel.image = Image(destination)
+    -- Keep the destination associated with the temporary Cel: the native binding
+    -- reads its Sprite's first Palette, which is the requested Effective Palette.
+    cel.image:drawImage(source, Point(position.x, position.y), 255, BlendMode.NORMAL)
+    return Image(cel.image)
+  end)
+  if scratch ~= nil then scratch:close() end
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    app.activeSprite, app.activeLayer, app.activeFrame =
+      previous.sprite, previous.layer, previous.frame
+  end
+  if not ok then error(result) end
+  return result
+end
+
 local function append(runs, x, y)
   local prior = runs[#runs]
   if prior ~= nil and prior.y == y and prior.x + prior.length == x then
@@ -44,9 +70,28 @@ local function append(runs, x, y)
   end
 end
 
-function module.compose(image, cel, payload)
-  local source = snapshot.materialize(payload.input.snapshot, image.spec, false)
+function module.compose(image, cel, payload, sprite, affected)
+  local source, used = snapshot.materialize(payload.input.snapshot, image.spec, false)
   assert(source.colorMode == image.colorMode, "Source and target Color Modes must match")
+  local palette = nil
+  if image.colorMode == ColorMode.INDEXED then
+    assert(
+      payload.palette_frame_number == payload.target.frame_number,
+      "Indexed composition requires the target Frame Palette"
+    )
+    assert(
+      payload.blend_mode == "normal" and payload.opacity == 255,
+      "Indexed composition supports only Normal at opacity 255"
+    )
+    palette = assert(
+      palettes.resolve(sprite, payload.palette_frame_number),
+      "Indexed target has no Effective Palette"
+    )
+    used[image.spec.transparentColor] = true
+    for index, _ in pairs(used) do
+      assert(index < #palette, "Source or transparent index is absent from the Effective Palette")
+    end
+  end
   local position = payload.position
   assert(position.x % 1 == 0 and position.y % 1 == 0, "position must use integer Image Pixels")
   local area = { x = position.x, y = position.y, width = source.width, height = source.height }
@@ -70,7 +115,12 @@ function module.compose(image, cel, payload)
     -- A wholly clipped request remains a no-op even for a large declared position.
     local visible =
       Image(source, Rectangle(left - area.x, top - area.y, right - left, bottom - top))
-    result = module.draw(image, visible, { x = left, y = top }, payload.opacity, payload.blend_mode)
+    if palette ~= nil then
+      result = module.draw_indexed(image, visible, { x = left, y = top }, palette)
+    else
+      result =
+        module.draw(image, visible, { x = left, y = top }, payload.opacity, payload.blend_mode)
+    end
   end
   local applied, bounds, excluded = {}, {}, {}
   local written, changed, skipped_bounds, skipped_selection = 0, 0, 0, 0
@@ -92,6 +142,28 @@ function module.compose(image, cel, payload)
         if result:getPixel(x, y) ~= image:getPixel(x, y) then changed = changed + 1 end
         min_x, min_y = math.min(min_x or x, x), math.min(min_y or y, y)
         max_x, max_y = math.max(max_x or x + 1, x + 1), math.max(max_y or y + 1, y + 1)
+      end
+    end
+  end
+  local palette_basis, effective_palettes = json.decode("null"), {}
+  if palette ~= nil then
+    local output_indexes = {}
+    for pixel in result:pixels() do
+      output_indexes[pixel()] = true
+      used[pixel()] = true
+    end
+    palette_basis =
+      colors.palette_facts(sprite, { { frame_number = payload.target.frame_number } }, used)[1]
+    effective_palettes = colors.palette_facts(sprite, affected, output_indexes)
+    for _, state in ipairs(affected) do
+      if state.is_background then
+        for _, fact in ipairs(effective_palettes) do
+          if fact.frame_number == state.frame_number then
+            for _, index in ipairs(fact.indexes) do
+              assert(index.color.alpha == 255, "Background Palette colors must remain opaque")
+            end
+          end
+        end
       end
     end
   end
@@ -126,8 +198,8 @@ function module.compose(image, cel, payload)
       pixels_changed = changed,
       pixels_skipped_by_bounds = skipped_bounds,
       pixels_skipped_by_selection = skipped_selection,
-      composite_palette_basis = json.decode("null"),
-      effective_palettes = {},
+      composite_palette_basis = palette_basis,
+      effective_palettes = effective_palettes,
     }
 end
 

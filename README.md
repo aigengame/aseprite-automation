@@ -252,10 +252,15 @@ can be unchanged; native alpha-zero RGB values are not normalized by SPA.
 
 The current verified native profile supports all 19 published modes for RGB.
 Grayscale excludes `hue`, `saturation`, `color`, `luminosity`, and `addition`:
-those native combinations select Normal or Exclusion instead. Indexed requests
-currently return a typed Capability Gap while their Palette-correct integration
-boundary is being resolved. `spa info` and `spa schema` expose these gaps. Composite
-is a standalone mutation; it is not an Operation Plan Step.
+those native combinations select Normal or Exclusion instead. Indexed accepts only
+`normal` at `opacity: 255`, using native index overlay with the Sprite's Transparent
+Color Index. Supply `palette_frame_number` equal to `target.frame_number`; the result
+reports that Frame's Effective Palette. An isolated temporary Sprite provides the
+correct native Palette basis. Source indexes and the mask must exist in that Palette;
+output indexes must exist in every affected Cel Frame's Palette. Other Indexed
+combinations return typed Capability Gaps. `spa info` and `spa schema` expose these
+gaps and omit the Indexed capability if its native probe fails. Composite is a
+standalone mutation; it is not an Operation Plan Step.
 
 ```sh
 uv run spa paint composite --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"composited.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":1},"input":{"kind":"artifact","path":"snapshot.json"},"position":{"x":0,"y":0},"opacity":127,"blend_mode":"normal"}'

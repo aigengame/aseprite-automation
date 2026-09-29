@@ -722,6 +722,21 @@ function module.observe()
       assert(result:getPixel(0, 0) == app.pixelColor.rgba(240, 80, 20, 128))
     end)
     if ok then capabilities[#capabilities + 1] = "aseprite_paint_composite" end
+    local indexed_ok = pcall(function()
+      local composite = dofile(app.params.paint_composite)
+      local spec =
+        ImageSpec { width = 2, height = 1, colorMode = ColorMode.INDEXED, transparentColor = 7 }
+      local destination, source = Image(spec), Image(spec)
+      destination:clear(1)
+      source:putPixel(0, 0, 7)
+      source:putPixel(1, 0, 8)
+      local missing = composite.draw_indexed(destination, source, { x = 0, y = 0 }, Palette(8))
+      local present = composite.draw_indexed(destination, source, { x = 0, y = 0 }, Palette(9))
+      assert(missing:getPixel(1, 0) == 1)
+      assert(present:getPixel(0, 0) == 1 and present:getPixel(1, 0) == 8)
+      assert(destination:getPixel(0, 0) == 1 and destination:getPixel(1, 0) == 1)
+    end)
+    if indexed_ok then capabilities[#capabilities + 1] = "aseprite_paint_composite_indexed" end
   end
   if selections ~= nil then
     local ok = pcall(function()

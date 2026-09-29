@@ -31,14 +31,13 @@ local function execute()
   if target == nil then return reject("cel_not_found", "Cel does not exist") end
   local image = target.image
   local is_background = layer.isBackground
-  if snapshot.mode(image) == "indexed" then
-    return reject("paint_composite_unsupported", "Indexed native composition is not verified")
-  end
+  local affected = cels.affected(opened, image)
   local before_digest = digest.image_content(image, snapshot.mode(image))
   local expected = persistence.snapshot(opened, inspection, digest, sections, uuids)
-  local valid, replacement, facts = pcall(composite.compose, image, target, payload)
+  local valid, replacement, facts =
+    pcall(composite.compose, image, target, payload, opened, affected)
   if not valid then return reject("paint_composite_invalid", tostring(replacement)) end
-  if layer.isBackground then
+  if layer.isBackground and image.colorMode ~= ColorMode.INDEXED then
     for pixel in replacement:pixels() do
       local alpha = image.colorMode == ColorMode.RGB and app.pixelColor.rgbaA(pixel())
         or app.pixelColor.grayaA(pixel())

@@ -112,7 +112,11 @@ def _surface(runtime: RuntimeFacts) -> tuple[list[str], list[CapabilityGap]]:
             )
         )
     if "spa paint composite" in supported:
-        gaps.extend(composite_capability_gaps(runtime.aseprite_version))
+        gaps.extend(
+            composite_capability_gaps(
+                runtime.aseprite_version, runtime.verified_capabilities
+            )
+        )
     return supported, gaps
 
 
