@@ -224,19 +224,24 @@ the builder's initial-placement optimization also changed between these runs.
 
 The larger assets make this full rebuild expensive on the pull-request path.
 On 2026-09-27, the owner moved all PR and push CI to routine E2E without complete
-example rebuilds, including example and CI changes. The small real handoff and
-hidden-pixel regression remain routine; full generation uses main nightly, manual
-full CI, and exact-SHA release verification. See the current
+example rebuilds, including example and CI changes. On 2026-09-28, the owner also
+removed both v1 and v2 complete rebuilds from main nightly, manual CI, and Release
+verification. The small real handoff and hidden-pixel regression remain automatic;
+complete asset rebuilds and verification are now local and on demand. See the current
 [test policy](../../docs/testing.md#complete-example-rebuilds).
 Import ergonomics and bounded Plan coverage deserve separate measurement;
 increasing Pixel Patch limits alone would not remove the dominant persisted-write
 cost observed here.
 
 [#107](https://github.com/aigengame/aseprite-automation/issues/107) separately tracks
-Linux full-run capacity: PR #101's warm-cache job passed in 38m 37s under a 40-minute
-limit; cold-cache completion remains unverified. The issue preserves main nightly and
-the full exact-SHA release gate. Test selection frequency does not establish enough
-time for a required full run.
+Linux CI capacity. PR #101's warm-cache job passed in 38m 37s under a 40-minute
+limit; cold-cache completion was unverified at that time. Later measurements and
+the revised 20/40/40-minute owner limits are recorded in the
+[capacity evidence](../../docs/evidence/issue-107-ci-capacity.md). The 2026-09-28
+policy retained main nightly verification and the exact-SHA native release gate.
+The 2026-09-29 policy replaces nightly with weekly/manual main Native E2E and
+explicit pre-merge verification. The release gate remains. Complete asset rebuilds
+remain local and on demand under the current test policy linked above.
 
 ## Godot consumer and verification cost
 

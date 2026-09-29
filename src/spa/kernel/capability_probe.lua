@@ -11,6 +11,14 @@ local cel_support = app.params.cel and dofile(app.params.cel) or nil
 local image_resize_transform = app.params.image_resize_transform
     and dofile(app.params.image_resize_transform)
   or nil
+local image_snapshot = app.params.image_snapshot and dofile(app.params.image_snapshot) or nil
+local layer_composition = app.params.layer_composition and dofile(app.params.layer_composition)
+  or nil
+local raster_color = dofile(app.params.raster_color)
+local selections = app.params.selection_support and dofile(app.params.selection_support) or nil
+local image_orientation_transform = app.params.image_orientation_transform
+    and dofile(app.params.image_orientation_transform)
+  or nil
 
 local function observes_sprite_inspection()
   local open_sprite = nil
@@ -477,6 +485,47 @@ local function observes_sprite_resize()
   return ok
 end
 
+local function observes_image_canvas_transform()
+  if app.params.image_canvas_transform == nil then return false end
+  return pcall(function()
+    local transform = dofile(app.params.image_canvas_transform)
+    local source = Image(2, 2, ColorMode.RGB)
+    local pixel = app.pixelColor.rgba(10, 20, 30, 0)
+    source:putPixel(1, 0, pixel)
+    local cropped = transform.crop(source, { x = 1, y = 0, width = 1, height = 2 })
+    assert(cropped.width == 1 and cropped.height == 2)
+    assert(cropped:getPixel(0, 0) == pixel and source:getPixel(1, 0) == pixel)
+    local shifted = transform.canvas_resize(
+      source,
+      3,
+      3,
+      { x = -1, y = 1 },
+      { kind = "rgba", red = 0, green = 255, blue = 0, alpha = 255 }
+    )
+    assert(shifted:getPixel(0, 1) == pixel)
+    assert(shifted:getPixel(2, 2) == app.pixelColor.rgba(0, 255, 0, 255))
+    local gray = transform.canvas_resize(
+      Image(1, 1, ColorMode.GRAY),
+      2,
+      1,
+      { x = 2, y = 0 },
+      { kind = "grayscale", gray = 73, alpha = 0 }
+    )
+    assert(gray:getPixel(0, 0) == app.pixelColor.graya(73, 0))
+    local indexed = Image(
+      ImageSpec { width = 1, height = 1, colorMode = ColorMode.INDEXED, transparentColor = 2 }
+    )
+    local filled = transform.canvas_resize(
+      indexed,
+      2,
+      1,
+      { x = -1, y = 0 },
+      json.decode('{"kind":"palette-index","index":2}')
+    )
+    assert(filled:getPixel(0, 0) == 2 and filled.spec.transparentColor == 2)
+  end)
+end
+
 local function observes_image_resize()
   if image_resize_transform == nil then return false end
   local sprite = nil
@@ -569,8 +618,138 @@ local function observes_tag_authoring()
   return ok
 end
 
+local function observes_image_snapshot()
+  if image_snapshot == nil or layer_composition == nil then return false end
+  local sprite = nil
+  local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
+  local ok = pcall(function()
+    for _, mode in ipairs({ ColorMode.RGB, ColorMode.GRAY, ColorMode.INDEXED }) do
+      sprite = Sprite(2, 1, mode)
+      local image = sprite.layers[1]:cel(1).image
+      local value = mode == ColorMode.RGB and app.pixelColor.rgba(1, 2, 3, 0)
+        or mode == ColorMode.GRAY and app.pixelColor.graya(7, 0)
+        or raster_color.native_color(
+          json.decode('{"kind":"palette-index","index":3}'),
+          "indexed",
+          false
+        )
+      image:putPixel(0, 0, value)
+      assert(image:getPixel(0, 0) == value)
+      local result = image_snapshot.read(image, { x = 0, y = 0, width = 1, height = 1 })
+      local color = result.rows[1][1].color
+      assert(color.red == 1 or color.gray == 7 or color.index == 3)
+      if mode == ColorMode.INDEXED then
+        sprite.transparentColor = 2
+        sprite.palettes[1]:setColor(3, Color { r = 12, g = 34, b = 56, a = 255 })
+        image:putPixel(1, 0, 2)
+        local rendered = assert(
+          layer_composition.render(
+            sprite,
+            1,
+            { mode = "visible" },
+            { x = 0, y = 0, width = 2, height = 1 },
+            layer_select,
+            {},
+            "rgb"
+          )
+        )
+        assert(rendered:getPixel(0, 0) == app.pixelColor.rgba(12, 34, 56, 255))
+        assert(rendered:getPixel(1, 0) == 0)
+        assert(image:getPixel(0, 0) == 3 and image:getPixel(1, 0) == 2)
+      end
+      sprite:close()
+      sprite = nil
+    end
+    sprite = Sprite(2, 2, ColorMode.RGB)
+    sprite.layers[1]:cel(1).image:putPixel(1, 1, app.pixelColor.rgba(255, 0, 0, 255))
+    sprite.layers[1].isVisible = false
+    local image = assert(
+      layer_composition.render(
+        sprite,
+        1,
+        { mode = "include", layers = { { layer_path = { 1 } } } },
+        { x = 1, y = 1, width = 1, height = 1 },
+        layer_select,
+        {},
+        "preserve"
+      )
+    )
+    assert(image:getPixel(0, 0) == app.pixelColor.rgba(255, 0, 0, 255))
+    assert(not sprite.layers[1].isVisible)
+    sprite:close()
+    sprite = nil
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
+  return ok
+end
+
+local function observes_image_flip()
+  if image_orientation_transform == nil then return false end
+  return pcall(function()
+    local image = Image(3, 2, ColorMode.INDEXED)
+    image:putPixel(0, 0, 7)
+    image_orientation_transform.flip(image, "horizontal")
+    assert(image:getPixel(2, 0) == 7 and image:getPixel(0, 0) == 0)
+    image_orientation_transform.flip(image, "vertical")
+    assert(image:getPixel(2, 1) == 7 and image:getPixel(2, 0) == 0)
+  end)
+end
+
+local function observes_image_rotate()
+  if image_orientation_transform == nil then return false end
+  return pcall(function()
+    local source = Image(3, 2, ColorMode.INDEXED)
+    source:putPixel(2, 0, 9)
+    local rotated = image_orientation_transform.rotate(source, 90)
+    assert(rotated.width == 2 and rotated.height == 3 and rotated:getPixel(1, 2) == 9)
+    assert(source:getPixel(2, 0) == 9)
+  end)
+end
+
 function module.observe()
   local capabilities = { "aseprite_runtime_introspection" }
+  if selections ~= nil then
+    local ok = pcall(function()
+      local bounds = { x = -2, y = 3, width = 4, height = 4 }
+      local ellipse = selections.create { shape = { kind = "ellipse", bounds = bounds } }
+      assert(ellipse.pixel_count == 12 and ellipse.bounds.x == -2)
+      local dot = { kind = "all", rectangle = { x = -1, y = 4, width = 1, height = 1 } }
+      local grown =
+        selections.grow { selection = dot, canvas = bounds, radius = 1, shape = "circle" }
+      assert(grown.pixel_count == 5)
+      local shrunken = selections.shrink {
+        selection = grown.selection,
+        canvas = bounds,
+        radius = 1,
+        shape = "circle",
+      }
+      assert(shrunken.pixel_count == 1)
+      local flipped = selections.transform {
+        selection = grown.selection,
+        canvas = bounds,
+        transform = { kind = "flip", axis = "horizontal" },
+      }
+      assert(flipped.pixel_count == 5)
+      local rotated = selections.transform {
+        selection = grown.selection,
+        canvas = bounds,
+        transform = { kind = "rotate", angle = 90 },
+      }
+      assert(rotated.pixel_count == 5)
+      local scaled = selections.transform {
+        selection = dot,
+        canvas = bounds,
+        transform = { kind = "scale", width = 2, height = 2 },
+      }
+      assert(scaled.pixel_count == 4)
+    end)
+    if ok then capabilities[#capabilities + 1] = "aseprite_selection" end
+  end
   local supports_inspection = observes_sprite_inspection()
   if supports_inspection and observes_sprite_creation() then
     capabilities[#capabilities + 1] = "aseprite_sprite_create"
@@ -578,7 +757,13 @@ function module.observe()
   if supports_inspection then capabilities[#capabilities + 1] = "aseprite_sprite_inspection" end
   if observes_sprite_flatten() then capabilities[#capabilities + 1] = "aseprite_sprite_flatten" end
   if observes_sprite_resize() then capabilities[#capabilities + 1] = "aseprite_sprite_resize" end
+  if observes_image_canvas_transform() then
+    capabilities[#capabilities + 1] = "aseprite_image_canvas_transform"
+  end
   if observes_image_resize() then capabilities[#capabilities + 1] = "aseprite_image_resize" end
+  if observes_image_snapshot() then capabilities[#capabilities + 1] = "aseprite_image_snapshot" end
+  if observes_image_flip() then capabilities[#capabilities + 1] = "aseprite_image_flip" end
+  if observes_image_rotate() then capabilities[#capabilities + 1] = "aseprite_image_rotate" end
   if observes_sprite_crop() then capabilities[#capabilities + 1] = "aseprite_sprite_crop" end
   if observes_layer_hierarchy() then
     capabilities[#capabilities + 1] = "aseprite_layer_hierarchy"

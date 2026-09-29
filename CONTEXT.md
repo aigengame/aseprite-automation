@@ -405,6 +405,9 @@ expresses Tool and Filter intent. Raster is not a second Image object model.
 A complete bounded Raster value whose serialized pixels use local Image Pixel
 coordinates from `(0,0)`. The owning Operation Result reports a different source
 Coordinate Space and source Rectangle separately.
+_SPA use_: Individual Image observation preserves stored Color Mode and pixel values.
+A composite observes rendered content in an explicitly selected output Color Mode;
+an RGBA composite does not retain authored Palette Index identity.
 
 **Pixel Patch**
 A bounded set of explicitly addressed pixel changes that leaves unlisted pixels
@@ -428,8 +431,8 @@ The Canvas Rectangle rendered by an Export Image Operation. It is distinct from 
 Selection Mask.
 
 **Layer Composition**
-The explicit Layer set and native stacking context rendered by an Export Operation.
-Aseprite remains the compositor.
+The explicit Layer set and native stacking context used to render composited pixels
+for Image observation or an Export Operation. Aseprite remains the compositor.
 
 #### Targeting rule
 

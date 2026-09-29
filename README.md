@@ -4,7 +4,7 @@ Aseprite Automation (SPA) provides agent-facing automation for Aseprite. `SPA` i
 short project name used in documentation; `spa` is the primary executable.
 
 > [!IMPORTANT]
-> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery, Sprite creation, inspection, copy, resize, crop, flatten, and validation, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Tag inspection and authoring, Cel-targeted Image Resize, bounded Pixel Patch application, verified RGB PNG Image Export, animation audit, Frame comparison, and verified continuity Preview export. Feature issues own delivery contracts, evidence requirements, provenance links, curated evidence summaries, and status, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
+> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery, Sprite creation, inspection, copy, resize, crop, flatten, and validation, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Tag inspection and authoring, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, bounded Pixel Patch application, verified RGB PNG Image Export, animation audit, Frame comparison, and verified continuity Preview export. Feature issues own delivery contracts, evidence requirements, provenance links, curated evidence summaries, and status, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
 
 For a complete authoring example, see [Moonlit Spell Practice](examples/wizard_cast/README.md):
 a reproducible SPA wizard animation, reusable pixel assets, and a Godot target-practice demo.
@@ -90,8 +90,8 @@ installed Surface Manifest reports callable facts for one installation. See
 The accepted domain strategy separates **Sprite Authoring** (Core), **Asset
 Preparation** (Supporting), and **Asset Delivery** (Supporting) within one context.
 Reusable motion belongs to authoring; native save remains part of mutation completion.
-Preparation and motion feature contracts are planned, while Asset Delivery reuses
-existing exports. See [domain ownership](ARCHITECTURE.md#domain-ownership-view) and
+Preparation contracts remain planned. Bounded Cel motion is available through
+`motion apply`; Asset Delivery reuses existing exports. See [domain ownership](ARCHITECTURE.md#domain-ownership-view) and
 [ADR-0095](docs/adr/0095-asset-preparation-authoring-and-delivery.md); the installed
 Surface Manifest remains the source for callable capabilities.
 
@@ -147,6 +147,11 @@ uv run spa cel add --input-json '{"aseprite":"/path/to/aseprite","source_sprite_
 uv run spa cel clear --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"with-cel.aseprite","target_sprite_file":"cleared.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":2}}'
 uv run spa cel remove --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"cleared.aseprite","target_sprite_file":"without-cel.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":2}}'
 uv run spa image resize --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"resized-image.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":1},"width":32,"height":32,"method":"nearest-neighbor","position_policy":{"kind":"keep"}}'
+uv run spa image get --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite","source":{"kind":"individual","target":{"layer":{"layer_path":[1]},"frame_number":1},"rectangle":{"x":0,"y":0,"width":16,"height":16}},"snapshot_destination":{"path":"pixels.json","if_exists":"fail"}}'
+uv run spa image get --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite","source":{"kind":"composite","output_color_mode":"rgb","frame_number":1,"rectangle":{"x":0,"y":0,"width":16,"height":16},"layer_composition":{"mode":"visible"}}}'
+uv run spa image replace --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"replaced.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":1},"input":{"kind":"artifact","path":"pixels.json"}}'
+uv run spa image flip --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"flipped.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":1},"axis":"horizontal"}'
+uv run spa image rotate --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"rotated.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":1},"angle":90,"position_policy":{"kind":"pivot","pivot_x":1,"pivot_y":0}}'
 uv run spa layer list --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite"}'
 uv run spa layer get --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite","target":{"layer_path":[1]}}'
 uv run spa layer add --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"layered.aseprite","in_place":false,"overwrite":false,"kind":"group","name":"effects"}'
@@ -232,6 +237,41 @@ In-place editing requires Source and Target to name the same publication entry,
 plus both `in_place: true` and `overwrite: true`.
 Standalone Paint rejects a Source alias that traverses the Target publication entry
 for either `in_place` value.
+`spa selection create/combine/invert/grow/shrink/transform` return explicit
+Canvas Pixel values. Requests declare `coordinate_space: "canvas-pixel"`; values
+can be inline (`empty`, rectangular `all`, or canonical `mask`) or read from a
+`{"kind":"artifact","path":"mask.json"}` input. Pass a result's `selection` to
+Paint explicitly. Omitting Paint's Selection remains unrestricted; `empty`
+selects no pixels.
+
+Create accepts `shape.kind` of `rectangle`, `ellipse`, or `mask`. Combine accepts
+`union`, `intersect`, `subtract`, and `xor`. Invert and morphology require a
+positive `canvas` Rectangle. Grow/shrink require an explicit positive `radius`
+and `shape: "circle" | "square"`; grow clips to that Canvas, while input coverage
+outside it is rejected.
+
+Transform requires `canvas` and one of `translate` (integer `offset`), `flip`
+(`axis`), `rotate` (`angle: 90 | -90 | 180`), or `scale` (positive `width/height`).
+Scale uses native nearest-neighbor sampling. Flip/rotate/scale retain the source
+tight bounds' left/top. `target_placement` reports the requested placement;
+`bounds` and `pixel_count` describe actual selected coverage, which can shrink or
+vanish during scaling. A transform refuses out-of-canvas selected pixels.
+The native adapter also refuses lossy integer conversion or a native temporary
+Canvas that differs from the request; it cannot report wrapped coordinates as success.
+
+`spa selection validate` returns encoding, Coordinate Space, and optional Canvas
+containment Findings without repairing the input. `selection export` stages and
+verifies canonical JSON. `selection preview` requires an explicit Canvas and
+stages and independently decodes a PNG: selected pixels are opaque white,
+unselected pixels transparent black. That image is derived evidence. Both use
+`destination: {"path": "...", "if_exists": "fail" | "replace"}` and publish only
+after verification; input Artifact aliases cannot be overwritten.
+
+```sh
+uv run spa selection create --input-json '{"aseprite":"/path/to/aseprite","coordinate_space":"canvas-pixel","shape":{"kind":"ellipse","bounds":{"x":10,"y":20,"width":4,"height":4}}}'
+uv run spa selection transform --input-json '{"aseprite":"/path/to/aseprite","coordinate_space":"canvas-pixel","selection":{"kind":"all","rectangle":{"x":10,"y":20,"width":2,"height":1}},"canvas":{"x":0,"y":0,"width":32,"height":32},"transform":{"kind":"rotate","angle":90}}'
+```
+
 `spa frame add` inserts an empty Frame at a one-based position with an explicit
 `duration_ms` (1–65535). A Sprite with a Background Layer also requires a compatible
 `background_color`; other new Layer/Frame intersections remain absent.
@@ -269,6 +309,47 @@ Paint requires an existing Cel and Image and reports `cel_not_found` when absent
 Tilemap Cel inspection reports existence and Canvas Pixel position with
 `image_bounds: null`; Tile Cell geometry belongs to Tilemap inspection.
 
+`spa motion apply` authors position offsets, absolute opacity, or both over an
+inclusive `from_frame`/`to_frame` range on one exact `layer`. Every target Cel
+must already exist on a regular Transparent Layer. RGB, Grayscale, and Indexed
+are supported, including hidden and locked Layers. A target sharing its Image
+with any other Cel is refused; explicitly unlink it first when appropriate.
+Images, stored pixels, z-index, Frame durations, and unrelated facts are preserved.
+
+Each curve requires ordered unique keys at both range endpoints (one key for a
+single Frame), its own `interpolation` (`step`, `linear`, or `smoothstep`), and its
+own `rounding` (`toward-zero`, `floor`, `ceil`, or `nearest-away-from-zero`).
+Sampling uses Frame Number, not duration. Step interpolation holds the left key
+until the next key's Frame. Smoothstep uses `3t² - 2t³`. Position offsets are
+rounded before addition to each Cel's own starting position; they accept ±65535,
+while resulting positions must fit signed 16-bit coordinates. Movement outside
+the canvas is permitted. Opacity is absolute, from 0 through 255. Omitted curves
+preserve their property. The timeline and unique in-range keys bound the work;
+there is no 64-Cel limit.
+
+```sh
+spa motion apply --input-json '{
+  "source_sprite_file": "poses.aseprite",
+  "target_sprite_file": "moved.aseprite",
+  "in_place": false, "overwrite": false,
+  "layer": {"layer_path": [1]}, "from_frame": 1, "to_frame": 5,
+  "position_offsets": {
+    "interpolation": "smoothstep", "rounding": "nearest-away-from-zero",
+    "keys": [
+      {"frame_number": 1, "offset": {"x": 0, "y": 0}},
+      {"frame_number": 5, "offset": {"x": 8, "y": -4}}
+    ]
+  }
+}'
+```
+
+Motion validates every target and sampled result before mutation. Its `cels`
+result records each Cel's `before`, `after`, and sampled `offset`, and the
+standalone operation verifies save/reopen before Target Commit. The same frozen
+input and request reproduce native facts and pixels; applying relative motion to
+an already moved input accumulates displacement. Numeric verification does not
+establish visual continuity or artistic quality.
+
 `spa image resize` targets an existing Image on a regular Transparent Cel.
 It requires positive dimensions, `nearest-neighbor`, `bilinear`, or `rotsprite`,
 and a `keep` or `pivot` Cel-position policy. `pivot` requires signed 32-bit
@@ -279,6 +360,120 @@ also requires `palette_frame_number` to select the Effective Palette; other
 Color Modes and methods reject that input. The operation transforms a source
 copy, preserves every native Cel link to the Image, applies one rounded offset
 to each affected Cel, and verifies the staged Sprite after save/reopen.
+
+`spa image get` reads complete stored Color Values from an individual Cel Image,
+including hidden pixels and RGB under zero alpha, or reads a native composite of an
+explicit Frame. Both return the same canonical Snapshot: a local `(0,0,width,height)`
+Rectangle and complete rows of `{length,color}` runs. The Result reports the source
+Rectangle and Coordinate Space separately. RGB uses `rgba`, Grayscale uses
+`grayscale`, and Indexed retains `palette-index` with mask and Effective Palette facts.
+
+Individual reads require an existing raster Cel and an in-bounds Image Pixel Rectangle.
+Composite reads require an in-bounds Canvas Pixel Rectangle and `layer_composition`:
+`{"mode":"visible"}` uses saved visibility; `{"mode":"include","layers":[{"layer_path":[1]}]}`
+uses the union of exact Layer selectors. An included Group includes hidden descendants;
+ancestors retain their native opacity, Blend Mode, and stacking context. Composition
+uses native Tilemap rendering, excludes Reference Layers as the native renderer does,
+and restores temporary visibility and Group-composition preferences. Individual reads
+and replacement support Reference Images but reject raw Tilemap Images. Reads never
+save the Source.
+
+Each composite request also requires `output_color_mode: preserve|rgb`.
+`preserve` uses the Source Color Mode and its native composition semantics; Indexed
+output selects indexes and does not promise RGB Blend Mode/opacity equivalence.
+`rgb` renders directly into a separate RGB Image for an RGBA visual observation.
+It retains the Source Color Space and does not assign or convert a Color Profile.
+The Result's `source.color_mode` and `source.mask_color` describe the Source;
+top-level Color Mode and mask describe the output. Effective Palette facts identify
+the Indexed Source's requested Frame basis; their `indexes` are empty for RGB output
+because blended pixels do not retain a Palette Index identity.
+
+For preserve-Indexed composition with a nonzero Transparent Color Index, Image Get
+temporarily exchanges index zero with that index in its private loaded document,
+renders through Aseprite, then restores the original index numbering in the
+Snapshot. The requested Frame's Effective Palette must contain the Transparent
+Color Index and every index in the returned Snapshot. A missing entry returns
+`image_composition_unsupported`; Image Get does not extend the Palette or switch
+to RGB. This route preserves native Indexed index-selection semantics, including
+the Layer tree, and leaves the Source file unchanged. Select `rgb` for visual
+observation or individual Get for exact stored indexes.
+
+Without `snapshot_destination`, the inline Operation Limit is 4096 pixels. Larger
+reads require an explicit `.json` destination with `if_exists: fail|replace` and
+publish the entire Snapshot as one JSON Artifact. Smaller reads can also select this
+transport. `image replace` accepts `input.kind: inline` with `snapshot`, or
+`input.kind: artifact` with `path`; both use the same Snapshot schema. Replacement
+requires the complete Image bounds and the same Color Mode, ignores editor Selection,
+and preserves Cel geometry and native sharing. It supports regular Transparent,
+Background, and Reference Images; Background colors must remain opaque. The native
+file is saved and reopened before Target Commit, and any preservation failure blocks
+publication. Under [#20's current scope](https://github.com/aigengame/aseprite-automation/issues/20),
+replacement excludes Source documents with any Group whose opacity is not `255` or
+Blend Mode is not `NORMAL`. This includes hidden Groups and Groups outside the target
+Cel's ancestry, even for an unchanged Snapshot. Aseprite 1.3.18.5 batch saving loses
+these properties; replacement refuses publication and leaves Source and any existing
+Target unchanged. Image Get remains available under its own contract.
+[#117](https://github.com/aigengame/aseprite-automation/issues/117) tracks native save support.
+
+`spa image crop` requires a positive `rectangle` fully contained in the source
+Image. `coordinate_space` is `image-pixel`; the Rectangle uses source Image Pixel
+coordinates. `position_policy` is required: `preserve_canvas_pixels` adds the
+Rectangle origin to every sharing Cel position, while `keep_cel_position` keeps
+the Cel origin. Crop never pads or expands an Image.
+
+`spa image canvas-resize` requires exact positive `width` and `height`, an integer
+`offset`, an explicit mode-compatible `fill` Color Value, and
+`coordinate_space: "image-pixel"`. The offset places source Image Pixel `(0,0)` in
+the target Image Pixel space. Stored pixels copy 1:1; pixels outside the target
+are discarded, and uncovered pixels keep the fill. An empty intersection is a
+valid fill-only result. Indexed fill must name an existing Palette Index in every
+sharing Cel's Effective Palette. No implicit color conversion or compositing occurs.
+Its required `position_policy` is `keep_cel_position` or `preserve_source_canvas`;
+the latter subtracts the offset from every sharing Cel position.
+
+Both Operations preserve links and change the Image and all affected Cel positions
+as one Mutation. They reject absent Cels, Group, Background, Reference, and Tilemap
+Layers. Dimensions are 1–65535; request coordinates and offsets are signed 32-bit
+integers. A resulting Cel position outside the native signed 16-bit range is refused.
+Results report source/target bounds, copied rectangles, discarded source regions,
+uncovered target regions, native content digests, and every affected Cel's old/new
+Canvas Pixel positions and Image dimensions. Empty intersections are reported as
+`{x:0,y:0,width:0,height:0}` in each Image Pixel space. Save/reopen verification runs
+before Target Commit; the Sprite canvas size is unchanged.
+
+```sh
+uv run spa image crop --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"cropped-image.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":1},"coordinate_space":"image-pixel","rectangle":{"x":1,"y":1,"width":8,"height":8},"position_policy":"preserve_canvas_pixels"}'
+uv run spa image canvas-resize --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"padded-image.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":1},"coordinate_space":"image-pixel","width":32,"height":32,"offset":{"x":4,"y":4},"fill":{"kind":"rgba","red":0,"green":0,"blue":0,"alpha":0},"position_policy":"preserve_source_canvas"}'
+```
+
+`spa image flip` requires `axis: "horizontal"` or `"vertical"`. It flips the
+whole Image once, including pixels outside the current Selection, and preserves
+Image dimensions and every sharing Cel's placement. Cels on regular Transparent,
+Background, and Reference Layers are supported; Tilemap and absent Cels are rejected.
+
+`spa image rotate` accepts integer `angle: 90`, `-90`, or `180` on regular
+Transparent Layers only. It requires `position_policy: {"kind":"keep"}` or
+`{"kind":"pivot","pivot_x":1,"pivot_y":0}`. The pivot is a signed 32-bit
+integer point in the old Image Pixel space and may lie outside the Image.
+Rotation uses the following exact pixel mappings for old dimensions `W` by `H`:
+
+| Angle | Old `(x, y)` becomes | New dimensions |
+| --- | --- | --- |
+| `90` (clockwise) | `(H - 1 - y, x)` | `H` by `W` |
+| `-90` (counterclockwise) | `(y, W - 1 - x)` | `H` by `W` |
+| `180` | `(W - 1 - x, H - 1 - y)` | `W` by `H` |
+
+`keep` retains Cel placement. `pivot` maps the declared point by the same rule
+and applies `old_pivot - rotated_pivot` to every sharing Cel's Canvas Pixel
+position. There is no interpolation or rounding. A resulting Cel position outside
+the native signed 16-bit range is rejected before publication.
+The `image_rotate_position_out_of_bounds` failure reports the attempted Canvas
+Pixel position and the inclusive `allowed_minimum`/`allowed_maximum` for each axis.
+Both operations preserve stored pixel values, Color Mode, native links, Cel
+opacity and z-index, and unrelated Cels. Their results include before/after Image
+content digests, Image sizes, Canvas Pixel bounds and positions, affected Cel
+states and links, and verification of the staged file after save/reopen. They use
+the same explicit Source/Target publication intent as Image Resize.
 
 `spa tag list` and `spa tag get` inspect stored Tags with a one-based current
 `tag_index`. `get`, `set`, and `remove` accept exactly one of `tag_index` or
@@ -294,7 +489,7 @@ explicit Source/Target publication intent as Frame authoring.
 `spa plan check` validates a bounded Plan, including current Source and Target path
 conditions, without starting Aseprite. `spa plan run`
 executes up to 64 Sprite-bound `sprite create`, `sprite get`, `frame list`,
-`frame get`, `frame add`, `frame duplicate`, `cel add`, and `paint apply` Steps
+`frame get`, `frame add`, `frame duplicate`, `cel add`, `cel set`, `motion apply`, and `paint apply` Steps
 on one live Sprite in one Aseprite process. A read Plan publishes no file. A mutating
 Plan declares one Target Sprite File; the staged file is reopened and verified before
 one Target Commit. A failed Step publishes no target. Typed Cel refusals identify the
@@ -304,6 +499,19 @@ one-based Step in `details.step_number`; execution failures use
 existing Source may edit in place only with `in_place: true` and `overwrite: true`.
 Plans reject a Source alias that traverses the Target publication entry for either
 `in_place` value. An explicit in-place edit uses the same Source and Target entry.
+
+A `cel set` Step accepts the standalone `target`, `position`, `opacity`, and
+`z_index` fields. It retains the standalone target rules and native Linked Cel
+effects. Its `before_cels`, `affected_cels`, and `cel` facts describe that Step's
+live state. The Step reports `persisted_reopen_verified: false`; the enclosing Plan
+reports persistence only after its final save/reopen gate. Source/Target paths,
+runtime settings, and overwrite intent belong to the Plan rather than its Steps.
+
+A `motion apply` Step accepts the same `layer`, range, and curve fields as the
+standalone operation. It resolves targets and captures baselines when that Step
+starts. Use separate Steps for different Layers. Its before/after facts describe
+that Step, with `persisted_reopen_verified: false`; later Steps may change those
+facts. Final verification compares the final live Sprite with the reopened file.
 
 `spa export image` renders one explicit Frame of the full canvas with persisted visible
 Layers. It accepts RGB Source Sprites with no Color Profile or sRGB. It rejects
@@ -336,10 +544,17 @@ run `uv run --frozen --group test pytest -m e2e -rs`. See
 [`docs/testing.md`](docs/testing.md) for the test ownership, verification-tier,
 platform, and display-environment conventions.
 
-Pull requests and `main` run locked source, fast-test, distribution, and Linux
-real-Aseprite gates. PR and push CI exclude complete example rebuilds, including
-when example or CI files change. Nightly on `main`, manual full CI, and release
-verification run the complete E2E suite; routine CI retains the other E2E cases.
+Pull requests and main pushes run locked source, fast-test and distribution checks.
+The separate **Native E2E** workflow verifies the current PR merge result on demand
+before merge and runs a weekly regression on main. Routine CI success does not
+replace that explicit native gate. Release verification keeps the exact-release-SHA
+gate. Native runs exclude complete wizard rebuilds while retaining the small probes,
+hidden-pixel regressions and other native cases. Full example rebuilds remain local
+opt-in work; see the [test policy](docs/testing.md#ci-gates).
+Native verification requires a prepared Aseprite binary. On a cache miss, follow
+[manual runtime recovery](docs/testing.md#restore-the-aseprite-runtime). The separate
+**Build Aseprite** workflow prepares the runtime; its success does not satisfy SPA
+verification checks.
 Releases use a reviewed version and changelog change, then
 repeat all gates on the exact release commit before publishing a GitHub Release. See
 [`docs/releasing.md`](docs/releasing.md) for the release and recovery procedure.

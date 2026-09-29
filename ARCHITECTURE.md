@@ -15,7 +15,8 @@ this view instead of treating it as another decision authority.
 > `spa schema`, Sprite creation, inspection, copy, resize, crop, flatten, and
 > validation, Layer addressing and mutation, Frame inspection, authoring, and
 > editing, Tag inspection and authoring, Cel inspection, lifecycle, placement,
-> and native relationships, Cel-targeted Image Resize, bounded Pixel Patch
+> bounded position/opacity motion,
+> and native relationships, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, bounded Pixel Patch
 > application, and verified RGB
 > PNG Image Export, animation audit, Frame comparison, and continuity Preview
 > export. The module
@@ -24,9 +25,10 @@ this view instead of treating it as another decision authority.
 > surface of each installation.
 
 Asset Preparation and reusable Bounded Motion Authoring are accepted ownership areas
-under ADR-0095, with feature contracts still to be delivered. The wizard examples use
-example-owned preparation and motion code; they do not add these capabilities to the
-installed CLI. Asset Delivery reuses the existing export implementations.
+under ADR-0095. `spa.motion` implements bounded position/opacity authoring over
+existing independent Cels, both standalone and in a Plan (#104). Asset Preparation
+remains planned. Wizard examples retain their recipe-owned pose and artistic rules;
+Asset Delivery reuses the existing export implementations.
 
 The document evolves with the product. An accepted change to the Bounded Context,
 module ownership, public contract, execution model, or integration boundary must be
@@ -292,7 +294,7 @@ Sprite creation and inspection slice extends that same stack.
 | CLI adapter | Typer | Command access and human or machine presentation. |
 | Public contracts | Pydantic 2 and JSON Schema | Typed Operation Requests, Operation Results, Failure Envelopes, and discovery schemas. |
 | Project and packaging | `uv` | Environments, dependencies, builds, and installed-product tests. |
-| Ordinary Core Operations | Packaged Lua handlers | Core Operation Semantics and native mapping executed through Aseprite. The current package contains a fixed runtime probe, shared capability observations, Sprite creation, inspection, native flattening, resize and crop, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Cel-targeted Image Resize, Tag inspection and authoring, exact Pixel Patch, animation audit, Frame comparison, continuity Preview, Export Image, and Operation Plan handlers. Sprite copy uses the File Adapter for byte preservation and the packaged inspection handler for verification. |
+| Ordinary Core Operations | Packaged Lua handlers | Core Operation Semantics and native mapping executed through Aseprite. The current package contains a fixed runtime probe, shared capability observations, Sprite creation, inspection, native flattening, resize and crop, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, Tag inspection and authoring, exact Pixel Patch, animation audit, Frame comparison, continuity Preview, Export Image, and Operation Plan handlers. Sprite copy uses the File Adapter for byte preservation and the packaged inspection handler for verification. |
 | Aseprite integration | External `aseprite --batch --script` | Native document, Tool, Filter, color, and export behavior. |
 | Private transport | Versioned JSON request and response files | Data exchange through `--script-param`, separate from diagnostics. |
 | Agent access | Version-matched Agent Skill and planned local stdio MCP Adapter with CLI subprocess invocation | Guidance and equivalent tool projection from the installed surface. |
@@ -316,11 +318,34 @@ inspection and authoring; `spa.cel` owns Cel existence, inspection, and lifecycl
 while `spa.cel_relationship` owns Cel placement, opacity, z-index, and native
 copy/link/unlink mutations; `spa.animation` owns declared animation audit,
 full-Canvas Frame comparison, and the composed continuity Preview use case.
-The delivered `spa.image` slice owns Cel-targeted Image Resize and its explicit
-placement policy; its fixed Lua Image Resize Transform owns buffer scaling and
-can be reused by eligible Tile Bitmap authoring. `spa.paint` owns exact Pixel
-Patch application, while
-`spa.raster` holds the shared Color Value, Rectangle, Patch, and Selection types.
+The delivered `spa.image` slice owns Cel-targeted Image resize, crop,
+canvas-resize, flip, and quarter-turn rotation with explicit placement policies.
+Its fixed Lua Image Resize Transform owns buffer scaling, while Image Canvas
+Transform owns exact copy, clipping, and fill. These buffer semantics can be reused
+by eligible Tile Bitmap authoring. Image Orientation Transform owns native
+whole-Image flip and exact pixel/pivot permutation. The Cel-targeted handlers own
+eligibility, complete Linked Cel scope, coherent placement, unchanged document
+facts, and staged save/reopen verification. Python validates intent and Kernel
+evidence and coordinates the existing Source/Target commit boundary.
+`spa.image_snapshot` owns individual
+and native composite Image reads plus complete Image replacement. Its Lua helpers
+own canonical native pixel reads and Layer Composition over the original tree;
+preserve-Indexed composition with a nonzero mask temporarily permutes pixel indexes
+and Palette entries in the privately loaded document, then restores them after the
+native render. The composite's explicit output choice selects the native render destination, while
+individual reads retain stored values. This does not create a second compositor or
+invoke Sprite-wide Color Mode conversion.
+The application reuses Artifact Files for JSON transport and Target Commit for native
+publication. `spa.paint` owns exact Pixel Patch application. `spa.raster` holds the
+shared Color Value, Rectangle, Snapshot, Patch, Selection, and Effective Palette types;
+`raster_color.lua` shares native Color Value handling and Palette result facts for
+Paint and Image snapshots. It delegates Frame-based Palette selection to the private
+`effective_palette.lua` Module owned by Color and Palette. That Module returns the
+native Palette and its starting Frame; callers retain index, opacity, applicability,
+and failure policies. Frame, Layer, Paint, and Image consumers use the same resolver.
+`spa.palette` declares its packaged-resource binding. Each affected handler supplies
+that binding explicitly, including Frame reads, Cel mutation, Image snapshots, Plan,
+and runtime probes; the runtime does not discover Lua dependencies recursively.
 Raster Authoring owns their
 pixel and Color Value semantics under ADR-0018; Color and Palette owns Palette and
 conversion behavior. The other groupings remain an integrated planning view rather
@@ -337,7 +362,7 @@ than a frozen package graph.
 
 Document and Animation, Raster Authoring, Color and Palette, and Tile Authoring form
 the Sprite Authoring Core. Bounded Motion Authoring belongs to Document and Animation;
-the planned [#104](https://github.com/aigengame/aseprite-automation/issues/104) slice
+the implemented [#104](https://github.com/aigengame/aseprite-automation/issues/104) slice
 applies position offsets and opacity keys to existing per-Frame Cels, preserving each
 Frame's artwork. It owns explicit sampling, interpolation, rounding, and standalone/Plan
 semantics. Further motion modes need their own accepted scope and native evidence.
@@ -377,16 +402,19 @@ For the accepted preparation and authoring direction:
 
 ### Incremental physical modules
 
-Preserve the current compact vertical slices. The following names are implementation
-candidates for the accepted owners, not a package migration or callable surface:
+Preserve the current compact vertical slices. The list below shows implemented
+modules and the planned `preparation.py` candidate under their accepted owners.
+The installed Surface Manifest reports callable Operations.
 
 ```text
 src/spa/
   preparation.py          # candidate: preparation policy and result use cases
-  motion.py               # candidate: bounded Frame/Cel motion authoring
+  motion.py               # bounded position/opacity authoring over existing Cels
+  rounding.py             # shared exact rounding policies and Kernel binding
   animation.py            # existing audit, comparison, and composed Preview use case
   frame.py, cel.py, cel_relationship.py
-  image.py, paint.py, raster.py
+  image.py, image_snapshot.py, paint.py, raster.py
+  palette.py              # shared private Palette Kernel resource binding
   export.py               # existing Delivery and publication support
   application.py, plan.py, mutation.py, ports.py
   file_adapter.py
@@ -394,8 +422,9 @@ src/spa/
   kernel/                 # fixed native semantic handlers and shared owners
 ```
 
-Add a module only with a complete functional slice. Color/Palette and other planned
-owners gain their physical structure when their features arrive. Reuse the canonical
+Add a module only with a complete functional slice. Color and Palette now owns the
+shared Effective Palette resolver; further structure follows delivered features.
+Reuse the canonical
 Pixel Region Snapshot and Color Value contracts where applicable; do not promote the
 wizard's temporary PNG decoder, palette matcher, or batching adapter as a second pixel
 authority. Exact preparation formats and dependencies remain feature decisions.
@@ -404,6 +433,15 @@ Inspection and Validation stay with the module that owns the inspected concept. 
 not form a horizontal subsystem. Selection authoring stays adjacent to Raster Authoring
 while the Selection value can be consumed by other eligible Operations. A future split
 requires evidence of a different language and reason to change.
+
+The implemented Selection slice lives in `selection.py`; `raster.py` retains the
+canonical value types shared with Paint. `selection_mask.lua` materializes those
+values and encodes native coverage. Both Selection operations and Paint consume
+that adapter, including Paint in an Operation Plan. `selection_support.lua` owns
+native set operations, isolated temporary Sprite work, and binary Image adaptation
+for native nearest-neighbor sampling. Python validates wire constraints and
+orchestrates existing Artifact staging, independent JSON/PNG verification, and
+publication. No persistent editor Selection or second Mask engine is introduced.
 
 Each Domain Module owns a vertical slice of:
 
@@ -521,6 +559,20 @@ points. Standalone handlers save and reopen their Operation output; the Plan han
 keeps one Sprite live and applies one final save-and-reopen gate. A second Python or
 generated-Lua behavior path is prohibited. `spa script run` is a separate escape hatch
 for exact caller-owned Lua and does not inherit Ordinary Core Operation guarantees.
+
+Cel relationship semantics live in `kernel/cel_relationship_support.lua`. The
+standalone relationship handler and `cel set` Plan Steps call its live entry point.
+`spa.cel_relationship` owns the shared input and evidence contracts; `spa.plan`
+composes those contracts and reports Step facts before final Plan persistence.
+
+`spa.motion` owns the bounded curve input, per-Cel evidence, and publication use
+case. `kernel/motion_support.lua` resolves the complete existing target set,
+rejects Image links, samples explicit curves with exact rational arithmetic, and
+validates all result positions before mutation. Standalone and Plan handlers call
+this live entry point. It reuses Cel addressing, Layer eligibility, and document
+snapshots; `kernel/rounding.lua` shares rounding meanings with Image resize.
+Offsets use each target's own Step-start position. Later Steps can change earlier
+facts; only the final live document is compared with the final reopened file.
 
 ### Aseprite Runtime Integration
 
@@ -777,8 +829,10 @@ Milestones group phase outcomes, and explicit issue dependencies determine imple
 order.
 
 ADR-0095 adds preparation and reusable motion as bounded follow-up work and reclassifies
-existing Delivery. Issues #103/#104 own the accepted planned contracts; reusable
-implementation remains unverified until those features validate distinct inputs. Existing
+existing Delivery. Issue #103 owns the planned preparation contract. The #104 motion
+slice verifies wizard and floating-emblem fixtures through standalone and Plan
+execution; its [performance evidence](docs/evidence/issue-104-motion-performance.md)
+reports a bounded local workload. Existing
 Image observation/import and export issues retain their scope. The examples' measured
 persisted-write cost motivates a separate Plan-eligibility slice; an architecture
 label alone establishes no speedup. These follow-ups do not add acceptance gates to

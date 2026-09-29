@@ -90,6 +90,16 @@ better Aseprite-aligned evidence.
 | `spa cel link` | Link destination Cels to one native shared Image. |
 | `spa cel unlink` | Replace a linked Cel with independent Image content. |
 
+## `motion`
+
+| Candidate command | Intended meaning |
+| --- | --- |
+| `spa motion apply` | Apply explicit position-offset and/or absolute-opacity curves to existing independent Cels on one exact Layer and inclusive Frame Range. |
+
+The #104 implementation provides standalone and Plan entries with the same curve
+semantics. The installed Surface Manifest owns the available schema; this catalog
+does not add other motion modes or recipe-owned pose and particle behavior.
+
 ## `tag`
 
 | Candidate command | Intended meaning |
@@ -240,17 +250,16 @@ better Aseprite-aligned evidence.
 
 ## Unresolved candidate groups
 
-### Preparation and bounded motion
+### Preparation
 
 [ADR-0095](adr/0095-asset-preparation-authoring-and-delivery.md) assigns Asset
 Preparation to a Supporting Subdomain and Bounded Motion Authoring to Document and
 Animation. Candidate intents are preparing a selected raster under explicit geometry,
-color, transparency, and anchor rules; verifying frozen input facts; and applying
-position/opacity keys to existing per-Frame Cels. Their feature issues
-[#103](https://github.com/aigengame/aseprite-automation/issues/103) and
-[#104](https://github.com/aigengame/aseprite-automation/issues/104) own the accepted
-planned contracts and the choice of command spellings during implementation. Their
-alignment does not establish installed support. This catalog adds no
+color, transparency, and anchor rules, and verifying frozen input facts. Feature issue
+[#103](https://github.com/aigengame/aseprite-automation/issues/103) owns that accepted
+planned contract and the choice of command spellings during implementation. Its
+alignment does not establish installed support. Bounded Cel motion is listed above.
+This catalog adds no
 `preprocess`/`postprocess` command surface, provider API, or general workflow engine.
 Existing `export` candidates belong to Asset Delivery and retain their separate format
 contracts.

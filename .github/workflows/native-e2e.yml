@@ -1,0 +1,122 @@
+name: Native E2E
+run-name: "Native E2E for ${{ inputs.pr && format('PR #{0}', inputs.pr) || 'main' }} (${{ github.event_name }})"
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: "PR number to test its current merge result; leave empty to test main"
+        type: string
+        default: ""
+  schedule:
+    # Default branch (main), Monday 03:23 Asia/Shanghai.
+    - cron: "23 19 * * 0"
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: native-e2e-${{ github.event_name }}-${{ inputs.pr || 'main' }}
+  cancel-in-progress: true
+
+jobs:
+  aseprite-e2e:
+    name: Linux real Aseprite E2E
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      SPA_PR_NUMBER: ${{ inputs.pr }}
+    steps:
+      - name: Resolve the native test target
+        id: target
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          SPA_NATIVE_TARGET="$RUNNER_TEMP/spa-native-target.json"
+          if [ -z "$SPA_PR_NUMBER" ]; then
+            if [ "$GITHUB_REF" != refs/heads/main ]; then
+              echo "Main verification must be dispatched from main." >&2
+              exit 1
+            fi
+            jq -n --arg sha "$GITHUB_SHA" '{kind: "main", sha: $sha}' > "$SPA_NATIVE_TARGET"
+          else
+            if [[ ! "$SPA_PR_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
+              echo "Specify a positive PR number, or leave it empty for main." >&2
+              exit 1
+            fi
+            if ! gh api "repos/$GITHUB_REPOSITORY/pulls/$SPA_PR_NUMBER" |
+              jq -e 'select(.state == "open" and .mergeable == true) |
+                {kind: "pull_request", number, base_ref: .base.ref,
+                 base: .base.sha, head: .head.sha, sha: .merge_commit_sha}' > "$SPA_NATIVE_TARGET"; then
+              echo "PR has no current merge result, or the API failed. Resolve conflicts or retry after GitHub computes it." >&2
+              exit 1
+            fi
+          fi
+          sha="$(jq -r .sha "$SPA_NATIVE_TARGET")"
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]]
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          {
+            echo '### Native E2E target (not the dispatch SHA)'
+            echo '```json'
+            cat "$SPA_NATIVE_TARGET"
+            echo '```'
+            echo "Workflow dispatch/schedule SHA: $GITHUB_SHA"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check out the exact test target
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ steps.target.outputs.sha }}
+          fetch-depth: 2
+          lfs: true
+          persist-credentials: false
+
+      - name: Check the merge parents before testing
+        shell: bash
+        run: |
+          SPA_NATIVE_TARGET="$RUNNER_TEMP/spa-native-target.json"
+          test "$(git rev-parse HEAD)" = "$(jq -r .sha "$SPA_NATIVE_TARGET")"
+          if [ -n "$SPA_PR_NUMBER" ]; then
+            if [ "$(git show -s --format=%P HEAD)" != "$(jq -r '.base + " " + .head' "$SPA_NATIVE_TARGET")" ]; then
+              echo "Merge preview parents do not match the PR base/head; dispatch a new run." >&2
+              exit 1
+            fi
+          fi
+          echo "Tested tree: $(git rev-parse 'HEAD^{tree}')" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run the headless real-runtime gate
+        uses: ./.github/actions/run-linux-aseprite-e2e
+        with:
+          junit-path: ${{ runner.temp }}/spa-real-aseprite-e2e.xml
+
+      - name: Reject a changed PR after testing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          SPA_NATIVE_TARGET="$RUNNER_TEMP/spa-native-target.json"
+          if [ -n "$SPA_PR_NUMBER" ]; then
+            if ! gh api "repos/$GITHUB_REPOSITORY/pulls/$SPA_PR_NUMBER" |
+              jq -e --slurpfile target "$SPA_NATIVE_TARGET" '
+                .state == "open" and .mergeable == true and
+                .number == $target[0].number and .base.ref == $target[0].base_ref and
+                .base.sha == $target[0].base and .head.sha == $target[0].head and
+                .merge_commit_sha == $target[0].sha' > /dev/null; then
+              echo "PR changed or is not mergeable; this run cannot admit merge. Dispatch a new run." >&2
+              exit 1
+            fi
+            echo "PR target is unchanged after testing. Recheck the recorded base/head/merge immediately before merge." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Preserve native target and test evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: native-e2e-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/spa-native-target.json
+            ${{ runner.temp }}/spa-real-aseprite-e2e.xml
+          if-no-files-found: warn
+          retention-days: 14

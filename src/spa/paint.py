@@ -26,6 +26,7 @@ from spa.mutation import (
     validate_native_sprite_path,
 )
 from spa.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
+from spa.palette import EFFECTIVE_PALETTE_RESOURCE
 from spa.ports import (
     KernelInvocationResult,
     OperationIssue,
@@ -38,12 +39,14 @@ from spa.ports import (
     RuntimeIssue,
 )
 from spa.raster import (
+    RASTER_COLOR_RESOURCE,
+    SELECTION_MASK_RESOURCE,
+    EffectivePaletteFact,
     ImageContentDigest,
     PixelPatch,
     PixelRun,
     Point,
     Rectangle,
-    RgbaColor,
     SelectionApplication,
 )
 
@@ -115,18 +118,6 @@ class AffectedCel(PublicModel):
     linked_to_target: Literal[True]
 
 
-class PaletteIndexFact(PublicModel):
-    index: int = Field(ge=0, le=255)
-    color: RgbaColor
-
-
-class EffectivePaletteFact(PublicModel):
-    frame_number: int = Field(ge=1)
-    palette_frame_number: int = Field(ge=1)
-    palette_size: int = Field(ge=1, le=256)
-    indexes: list[PaletteIndexFact]
-
-
 class PaintApplyEvidence(PublicModel):
     input_form: Literal["inline"]
     persisted_reopen_verified: Literal[True]
@@ -176,11 +167,21 @@ DIGEST_RESOURCE = PackagedResource("digest", "digest.lua")
 PAINT_PROBE_FIXTURE = PackagedResource("paint_fixture", "paint_apply_fixture.aseprite")
 PAINT_PROBE_RESOURCES = (
     PAINT_SUPPORT_RESOURCE,
+    RASTER_COLOR_RESOURCE,
+    EFFECTIVE_PALETTE_RESOURCE,
+    SELECTION_MASK_RESOURCE,
     DIGEST_RESOURCE,
     PAINT_PROBE_FIXTURE,
 )
 PAINT_APPLY_HANDLER = PackagedHandler(
-    "paint_apply", (PAINT_SUPPORT_RESOURCE, DIGEST_RESOURCE)
+    "paint_apply",
+    (
+        PAINT_SUPPORT_RESOURCE,
+        RASTER_COLOR_RESOURCE,
+        EFFECTIVE_PALETTE_RESOURCE,
+        SELECTION_MASK_RESOURCE,
+        DIGEST_RESOURCE,
+    ),
 )
 
 

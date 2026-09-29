@@ -7,6 +7,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from spa.contracts import RuntimeCapability
 from spa.ports import (
     KernelInvocationResult,
     OperationServices,
@@ -98,11 +99,16 @@ printf '%s' {quoted_response} > "$response_file"
 
 
 def inject_palette_change(
-    target: Path, entries: list[tuple[int, int, int, int]]
+    target: Path,
+    entries: list[tuple[int, int, int, int]],
+    *,
+    frame_number: int = 2,
 ) -> None:
-    """Add a second-Frame Palette Chunk unavailable through the public Lua API."""
+    """Add a Palette Chunk unavailable through the public Lua API."""
     payload = bytearray(target.read_bytes())
-    frame_offset = 128 + struct.unpack_from("<I", payload, 128)[0]
+    frame_offset = 128
+    for _ in range(1, frame_number):
+        frame_offset += struct.unpack_from("<I", payload, frame_offset)[0]
     colors = b"".join(struct.pack("<HBBBB", 0, *color) for color in entries)
     chunk_data = struct.pack("<III8x", len(entries), 0, len(entries) - 1) + colors
     chunk = struct.pack("<IH", len(chunk_data) + 6, 0x2019) + chunk_data
@@ -111,10 +117,28 @@ def inject_palette_change(
     old_chunk_count = struct.unpack_from("<H", payload, frame_offset + 6)[0]
     new_chunk_count = struct.unpack_from("<I", payload, frame_offset + 12)[0]
     struct.pack_into("<I", payload, frame_offset, frame_size + len(chunk))
-    if new_chunk_count:
-        struct.pack_into("<I", payload, frame_offset + 12, new_chunk_count + 1)
-    else:
-        struct.pack_into("<H", payload, frame_offset + 6, old_chunk_count + 1)
+    chunk_count = new_chunk_count if old_chunk_count == 0xFFFF else old_chunk_count
+    struct.pack_into("<H", payload, frame_offset + 6, min(chunk_count + 1, 0xFFFF))
+    struct.pack_into("<I", payload, frame_offset + 12, chunk_count + 1)
     payload[insert_at:insert_at] = chunk
     struct.pack_into("<I", payload, 0, len(payload))
     target.write_bytes(payload)
+
+
+def runtime_observation(*capabilities: RuntimeCapability) -> RuntimeObservation:
+    return RuntimeObservation(
+        selection_source="explicit",
+        requested_path="/aseprite",
+        discovered_path="/aseprite",
+        canonical_path="/aseprite",
+        resource_path="/data/gui.xml",
+        aseprite_version="test",
+        api_version=41,
+        lua_version="Lua 5.4",
+        verified_prerequisites=(
+            "aseprite_scripting",
+            "lua_file_io",
+            "aseprite_json",
+        ),
+        verified_capabilities=capabilities,
+    )

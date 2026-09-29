@@ -30,7 +30,8 @@ function module.resolve(sprite, address, verified_uuids)
     end
     local path = {}
     for _, index in ipairs(address.layer_path) do
-      path[#path + 1] = index
+      -- JSON numbers are floats; resolved paths use native integer indexes.
+      path[#path + 1] = assert(math.tointeger(index))
     end
     return { layer = layer, path = path }
   end

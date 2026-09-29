@@ -1,7 +1,8 @@
 """Bounded, single-Sprite Operation Plan preflight and execution."""
 
+from dataclasses import replace
 from pathlib import Path
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, assert_never
 
 from pydantic import Field, ValidationError, model_validator
 
@@ -16,6 +17,13 @@ from spa.cel import (
 )
 from spa.cel import (
     CelAddress as LifecycleCelAddress,
+)
+from spa.cel_relationship import (
+    CEL_RELATIONSHIP_OPERATIONS,
+    CEL_RELATIONSHIP_RESOURCE,
+    CelRelationshipChangeEvidence,
+    CelSetInput,
+    validate_relationship_evidence,
 )
 from spa.contracts import (
     PublicModel,
@@ -35,6 +43,14 @@ from spa.frame import (
     validate_frame_sequence,
 )
 from spa.layer import LAYER_ADDRESS_FAILURE_CODES, LayerAddress, LayerTargetDetails
+from spa.motion import (
+    MOTION_OPERATIONS,
+    MOTION_RESOURCE,
+    MotionEvidence,
+    MotionInput,
+    reject_motion,
+    validate_motion_evidence,
+)
 from spa.mutation import (
     TargetCommit,
     source_target_identity_issue,
@@ -46,10 +62,12 @@ from spa.paint import (
     PAINT_OPERATIONS,
     PAINT_PROBE_FIXTURE,
     PAINT_SUPPORT_RESOURCE,
+    RASTER_COLOR_RESOURCE,
     PaintApplyEvidence,
     PaintApplyInput,
     validate_paint_evidence,
 )
+from spa.palette import EFFECTIVE_PALETTE_RESOURCE
 from spa.ports import (
     KernelInvocationResult,
     OperationIssue,
@@ -61,6 +79,8 @@ from spa.ports import (
     RuntimeIssue,
     TargetCommitEvidence,
 )
+from spa.raster import SELECTION_MASK_RESOURCE
+from spa.rounding import ROUNDING_RESOURCE
 from spa.sprite import (
     INSPECTION_SECTIONS,
     SPRITE_CREATION_RESOURCE,
@@ -88,6 +108,8 @@ ELIGIBLE_OPERATIONS = {
         *PAINT_OPERATIONS,
         *FRAME_OPERATIONS,
         *CEL_OPERATIONS,
+        *CEL_RELATIONSHIP_OPERATIONS,
+        *MOTION_OPERATIONS,
     )
     if descriptor.plan_eligible
 }
@@ -98,9 +120,15 @@ PLAN_RUN_HANDLER = PackagedHandler(
         SPRITE_PERSISTENCE_RESOURCE,
         SPRITE_CREATION_RESOURCE,
         PAINT_SUPPORT_RESOURCE,
+        RASTER_COLOR_RESOURCE,
+        EFFECTIVE_PALETTE_RESOURCE,
+        SELECTION_MASK_RESOURCE,
         FRAME_SUPPORT_RESOURCE,
         CEL_SUPPORT_RESOURCE,
         CEL_SELECT_RESOURCE,
+        CEL_RELATIONSHIP_RESOURCE,
+        MOTION_RESOURCE,
+        ROUNDING_RESOURCE,
         DIGEST_RESOURCE,
         SPRITE_INSPECTION_FIXTURE,
         PAINT_PROBE_FIXTURE,
@@ -156,6 +184,16 @@ class CelAddStep(PublicModel):
     input: CelAddInput
 
 
+class CelSetStep(PublicModel):
+    operation: Literal["cel set"]
+    input: CelSetInput
+
+
+class MotionStep(PublicModel):
+    operation: Literal["motion apply"]
+    input: MotionInput
+
+
 PlanStep = Annotated[
     CreateStep
     | GetStep
@@ -164,7 +202,9 @@ PlanStep = Annotated[
     | FrameGetStep
     | FrameAddStep
     | FrameDuplicateStep
-    | CelAddStep,
+    | CelAddStep
+    | CelSetStep
+    | MotionStep,
     Field(discriminator="operation"),
 ]
 
@@ -215,7 +255,17 @@ class PlanDefinition(PublicModel):
                         f"Plan {field} Postcondition contradicts Sprite creation"
                     )
         mutates = creates or any(
-            isinstance(step, (PaintStep, FrameAddStep, FrameDuplicateStep, CelAddStep))
+            isinstance(
+                step,
+                (
+                    PaintStep,
+                    FrameAddStep,
+                    FrameDuplicateStep,
+                    CelAddStep,
+                    CelSetStep,
+                    MotionStep,
+                ),
+            )
             for step in self.steps
         )
         if (creates and self.source_sprite_file is not None) or (
@@ -296,6 +346,14 @@ class CelAddStepResult(PublicModel):
     cel: CelState
 
 
+class CelSetStepResult(CelRelationshipChangeEvidence):
+    persisted_reopen_verified: Literal[False]
+
+
+class MotionStepResult(MotionEvidence):
+    persisted_reopen_verified: Literal[False]
+
+
 class CreateStepOutcome(PublicModel):
     operation: Literal["sprite create"]
     result: CreateStepResult
@@ -336,6 +394,16 @@ class CelAddStepOutcome(PublicModel):
     result: CelAddStepResult
 
 
+class CelSetStepOutcome(PublicModel):
+    operation: Literal["cel set"]
+    result: CelSetStepResult
+
+
+class MotionStepOutcome(PublicModel):
+    operation: Literal["motion apply"]
+    result: MotionStepResult
+
+
 StepOutcome = Annotated[
     CreateStepOutcome
     | GetStepOutcome
@@ -344,7 +412,9 @@ StepOutcome = Annotated[
     | FrameGetStepOutcome
     | FrameAddStepOutcome
     | FrameDuplicateStepOutcome
-    | CelAddStepOutcome,
+    | CelAddStepOutcome
+    | CelSetStepOutcome
+    | MotionStepOutcome,
     Field(discriminator="operation"),
 ]
 
@@ -563,6 +633,14 @@ def _validated_steps(
             elif isinstance(step, FrameAddStep):
                 outcome = FrameAddStepOutcome.model_validate(item)
                 validate_frame_evidence(step.input, outcome.result, invocation)
+            elif isinstance(step, CelSetStep):
+                outcome = CelSetStepOutcome.model_validate(item)
+                validate_relationship_evidence(
+                    step.input, outcome.result, invocation, "set"
+                )
+            elif isinstance(step, MotionStep):
+                outcome = MotionStepOutcome.model_validate(item)
+                validate_motion_evidence(step.input, outcome.result, invocation)
             elif isinstance(step, CelAddStep):
                 outcome = CelAddStepOutcome.model_validate(item)
                 target = step.input.target
@@ -602,6 +680,43 @@ def _validated_steps(
     return outcomes
 
 
+def _validate_cel_count_sequence(
+    outcomes: list[StepOutcome],
+    final_sprite: SpriteInspection,
+    invocation: KernelInvocationResult,
+) -> None:
+    """Reconcile live Step counts with the final Sprite and validated Cel deltas."""
+    cel_count = final_sprite.metadata.cel_count
+    for index in range(len(outcomes) - 1, -1, -1):
+        outcome = outcomes[index]
+        reported_count = None
+        if isinstance(outcome, (CreateStepOutcome, GetStepOutcome)):
+            reported_count = outcome.result.sprite.metadata.cel_count
+        elif isinstance(outcome, CelAddStepOutcome):
+            cel_count -= 1
+            reported_count = outcome.result.before_cel_count
+        elif isinstance(outcome, (CelSetStepOutcome, MotionStepOutcome)):
+            reported_count = outcome.result.before_cel_count
+        elif isinstance(outcome, (FrameAddStepOutcome, FrameDuplicateStepOutcome)):
+            # Both copied and linked Images add one Cel per inserted Layer/Frame.
+            cel_count -= outcome.result.inserted_cel_count
+        elif isinstance(
+            outcome, (PaintStepOutcome, FrameListStepOutcome, FrameGetStepOutcome)
+        ):
+            pass
+        else:
+            assert_never(outcome)
+        if cel_count < 0 or (
+            reported_count is not None and reported_count != cel_count
+        ):
+            raise _malformed(
+                invocation,
+                "Plan Step Cel count contradicts the final Sprite and Step changes",
+                failed_step=index + 1,
+                failed_operation=outcome.operation,
+            )
+
+
 def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunResult:
     if services.invoke_kernel_direct is None:
         raise TypeError("Plan run requires the direct Kernel invocation adapter")
@@ -615,7 +730,9 @@ def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunRes
     payload: dict[str, Any] = {
         "source_sprite_file": plan.source_sprite_file,
         "staged_sprite_file": str(staged) if staged is not None else None,
-        "steps": [step.model_dump(mode="json") for step in plan.steps],
+        "steps": [
+            step.model_dump(mode="json", exclude_none=True) for step in plan.steps
+        ],
         "postconditions": plan.postconditions.model_dump(
             mode="json", exclude_none=True
         ),
@@ -637,6 +754,25 @@ def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunRes
                     invocation, "Plan Kernel returned invalid Cel rejection"
                 )
             step = plan.steps[index - 1]
+            if isinstance(step, MotionStep):
+                try:
+                    reject_motion(
+                        step.input,
+                        replace(invocation, payload={"rejection": cel_rejection}),
+                    )
+                except OperationIssue as exc:
+                    raise OperationIssue(
+                        exc.code,
+                        str(exc),
+                        exc.details.model_copy(update={"step_number": index}),
+                    ) from exc
+                except RuntimeIssue as exc:
+                    raise _malformed(
+                        invocation,
+                        str(exc),
+                        failed_step=index,
+                        failed_operation=step.operation,
+                    ) from exc
             code = cel_rejection.get("code")
             message = cel_rejection.get("message")
             add_codes = {
@@ -645,24 +781,37 @@ def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunRes
                 "cel_unsupported_target",
                 "cel_frame_out_of_bounds",
             }
+            set_codes = {
+                *LAYER_ADDRESS_FAILURE_CODES,
+                "cel_not_found",
+                "cel_unsupported_target",
+                "cel_frame_out_of_bounds",
+            }
             if (
                 not isinstance(code, str)
                 or not isinstance(message, str)
                 or not (
                     (isinstance(step, CelAddStep) and code in add_codes)
+                    or (isinstance(step, CelSetStep) and code in set_codes)
                     or (isinstance(step, PaintStep) and code == "cel_not_found")
                 )
             ):
                 raise _malformed(
                     invocation, "Plan Kernel returned invalid Cel rejection"
                 )
-            if isinstance(step, CelAddStep) and code in LAYER_ADDRESS_FAILURE_CODES:
+            if (
+                isinstance(step, (CelAddStep, CelSetStep))
+                and code in LAYER_ADDRESS_FAILURE_CODES
+            ):
                 details = LayerTargetDetails(
                     address_role="target",
                     address=step.input.target.layer,
                     step_number=index,
                 )
-            elif isinstance(step, CelAddStep) and code == "cel_frame_out_of_bounds":
+            elif (
+                isinstance(step, (CelAddStep, CelSetStep))
+                and code == "cel_frame_out_of_bounds"
+            ):
                 details = CelFrameRangeDetails(
                     from_frame=step.input.target.frame_number,
                     to_frame=step.input.target.frame_number,
@@ -671,7 +820,7 @@ def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunRes
             else:
                 target = (
                     step.input.target
-                    if isinstance(step, CelAddStep)
+                    if isinstance(step, (CelAddStep, CelSetStep))
                     else LifecycleCelAddress(
                         layer=LayerAddress(layer_path=step.input.target.layer_path),
                         frame_number=step.input.target.frame_number,
@@ -770,6 +919,7 @@ def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunRes
                     failed_step=1,
                     failed_operation="sprite create",
                 ) from exc
+        _validate_cel_count_sequence(outcomes, final_sprite, invocation)
         target_commit = None
         if staged is not None:
             assert plan.target_sprite_file is not None
@@ -835,6 +985,8 @@ PLAN_OPERATIONS = (
             "cel_not_found",
             "cel_unsupported_target",
             "cel_frame_out_of_bounds",
+            "motion_linked_cel",
+            "motion_position_out_of_bounds",
             "target_commit_failed",
         ),
         execution_kind="mutation",

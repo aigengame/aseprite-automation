@@ -16,9 +16,10 @@ compact sparse value for exact edits. A sparse representation cannot use one omi
 pixel rule for both meanings. Large payloads also need Artifact transport without
 creating a second Raster encoding.
 
-The value must preserve native Indexed pixels rather than making rendered RGBA a
-second authority, and it must distinguish pixel replacement from geometry or Color
-Mode changes.
+Stored pixels and rendered appearance answer different questions. A stored Indexed
+Image must retain its Palette Indexes. A composite is a derived observation whose
+native rendering semantics depend on the output Color Mode. Treating these as two
+encodings of the same result would lose that distinction.
 
 ## Decision
 
@@ -36,6 +37,15 @@ Mode changes.
 - RGB snapshots use `rgba`, Grayscale snapshots use `grayscale`, and Indexed
   snapshots preserve stored `palette-index` values. No implicit Color Mode change or
   RGBA expansion becomes authoritative.
+- Individual Image reads preserve stored Color Mode and pixel values. Composite
+  reads explicitly select a native output Color Mode policy and report the Source
+  Color Mode and transparency separately from the output. A caller-selected RGB
+  output is a derived RGBA observation, not an alternative authority for stored
+  Indexed pixels. It does not convert or save the Source Sprite.
+- Render directly into the selected native output format. Do not first compose an
+  unsupported Indexed result and then convert its corrupted pixels to RGBA. Native
+  Indexed composition and RGB visual blending need not produce equivalent colors
+  or opacity. Exact supported choices and refusals belong to the feature issue.
 - Inline JSON and JSON Artifact forms use the same schema. A value exceeding the
   inline Operation Limit is emitted as a complete Artifact without truncation or an
   alternate encoding.
@@ -60,7 +70,28 @@ Mode changes.
 - Agents and Artifacts exchange one complete and one sparse lossless Raster structure.
 - Run-length rows reduce common pixel-art repetition without an implicit fill rule.
 - Indexed round-trips preserve native Palette Indexes.
+- A composite RGB Snapshot cannot replace an Indexed Image under the same-mode
+  replacement contract. Explicit conversion is a separate intent.
 - Complete state and sparse change have distinct omission semantics.
+
+## Native evidence behind the observation boundary
+
+Aseprite v1.3.18.5's [Group renderer](https://github.com/aseprite/aseprite/blob/375989a61c3425cd4e8cdedfcfcca4bdfef7e1d9/src/render/render.cpp#L1139)
+clears an intermediate buffer to zero, including the implicit root Group. In Indexed
+output, zero can be an opaque Palette Index instead of the transparent index. Clearing
+the outer destination cannot repair this internal buffer. The native
+[Indexed-to-Indexed blender](https://github.com/aseprite/aseprite/blob/375989a61c3425cd4e8cdedfcfcca4bdfef7e1d9/src/doc/blend_internals.h#L200)
+also preserves indexes without ordinary RGB opacity or Blend Mode mathematics.
+
+Native probes confirmed that direct RGB output interprets the Source mask correctly
+and applies Group opacity and blending, without changing Source pixels. This supports
+an explicit visual observation intent. It does not by itself prove faithful native
+Indexed composition for the affected inputs. Issue #116 adds a bounded native
+preserve-Indexed route for nonzero masks: a private loaded document is temporarily
+permuted so zero is the native transparent index, then the output indexes and native
+state are restored. Its requested Frame Effective Palette must contain the mask and
+all returned indexes. This does not introduce a SPA pixel compositor or general
+compatibility registry.
 
 ## Rejected alternatives
 
@@ -84,3 +115,9 @@ It would create a second public Raster representation instead of changing transp
 ### Let transport select a different Raster model
 
 Artifact transport changes payload location, not value semantics.
+
+### Silently fall back from Indexed to RGBA
+
+The caller would receive different rendering semantics and lose Palette Index
+identity without choosing that trade-off. Reject unsupported preserve requests;
+allow explicit RGB observation independently.

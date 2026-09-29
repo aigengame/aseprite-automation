@@ -26,14 +26,18 @@ dev = [
     "ruff==0.16.8",
     "twine==6.2.0",
 ]
-test = ["pytest>=8,<10", "jsonschema>=4,<5"]
+test = [
+    "pytest>=8,<10",
+    "jsonschema>=4,<5",
+    "pytest-xdist>=3.8,<4",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = ["--strict-markers"]
 markers = [
-  "e2e: uses the installed SPA CLI with a real Aseprite executable",
-  "slow: rebuilds a complete example; included in full E2E runs",
+  "e2e: uses installed SPA or packaged Kernel code with a real Aseprite executable",
+  "slow: complete example rebuild; run locally on demand, excluded from automated CI and release",
 ]
 
 [tool.pyright]

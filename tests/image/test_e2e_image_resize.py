@@ -7,47 +7,17 @@ import tempfile
 from pathlib import Path
 
 import pytest
-from PIL import Image
 
 from spa.contracts import RuntimeRequest
 from spa.descriptors import PROBE_RESOURCES
 from spa.runtime.aseprite import probe
 from spa.runtime.invocation import prepare_invocation
+from tests.image.support import export_image as _export
+from tests.image.support import image_fixture as _fixture
+from tests.image.support import inspect_native as _inspect_native
 from tests.support import inject_palette_change, spa
 
 pytestmark = pytest.mark.e2e
-
-
-def _fixture(tmp_path: Path, mode: str = "rgb") -> Path:
-    source = tmp_path / "source.aseprite"
-    observation = probe(
-        RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
-    )
-    with tempfile.TemporaryDirectory(prefix="spa-image-fixture-") as work:
-        prepared = prepare_invocation(
-            Path(observation.canonical_path),
-            Path(observation.resource_path),
-            Path(work),
-        )
-        run = subprocess.run(
-            [
-                str(prepared.executable),
-                "--batch",
-                "--script-param",
-                f"out={source}",
-                "--script-param",
-                f"mode={mode}",
-                "--script",
-                str(Path(__file__).parent / "fixtures" / "resize_targets.lua"),
-            ],
-            text=True,
-            capture_output=True,
-            check=False,
-            env=prepared.environment,
-        )
-    assert run.returncode == 0, run.stderr
-    assert source.is_file()
-    return source
 
 
 def _resize(source: Path, output: Path, **options: object) -> tuple[int, dict]:
@@ -66,72 +36,6 @@ def _resize(source: Path, output: Path, **options: object) -> tuple[int, dict]:
     }
     run = spa("image", "resize", "--input-json", json.dumps(request))
     return run.returncode, json.loads(run.stdout)
-
-
-def _export(source: Path, output: Path, frame_number: int = 1) -> Image.Image:
-    run = spa(
-        "export",
-        "image",
-        "--input-json",
-        json.dumps(
-            {
-                "source_sprite_file": str(source),
-                "destination": {"path": str(output), "if_exists": "fail"},
-                "frame_number": frame_number,
-                "color_mode": "preserve",
-                "color_profile": "preserve",
-                "transparency": "preserve",
-                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-            }
-        ),
-    )
-    assert run.returncode == 0, run.stdout
-    with Image.open(output) as image:
-        image.load()
-        return image.convert("RGBA")
-
-
-def _inspect_native(
-    source: Path,
-    tmp_path: Path,
-    x: int,
-    y: int,
-    frame_number: int = 1,
-    *,
-    row: bool = False,
-) -> dict:
-    observation = probe(
-        RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
-    )
-    output = tmp_path / f"pixel-{frame_number}-{x}-{y}.json"
-    with tempfile.TemporaryDirectory(prefix="spa-image-inspect-") as work:
-        prepared = prepare_invocation(
-            Path(observation.canonical_path),
-            Path(observation.resource_path),
-            Path(work),
-        )
-        arguments = [str(prepared.executable), "--batch"]
-        for key, value in {
-            "source": source,
-            "frame": frame_number,
-            "x": x,
-            "y": y,
-            "out": output,
-            "row": "true" if row else "false",
-        }.items():
-            arguments.extend(("--script-param", f"{key}={value}"))
-        arguments.extend(
-            ("--script", str(Path(__file__).parent / "fixtures" / "inspect_image.lua"))
-        )
-        run = subprocess.run(
-            arguments,
-            text=True,
-            capture_output=True,
-            check=False,
-            env=prepared.environment,
-        )
-    assert run.returncode == 0, run.stderr
-    return json.loads(output.read_text())
 
 
 def test_resize_keeps_cel_position_and_persists_native_pixels(tmp_path: Path) -> None:
@@ -255,6 +159,7 @@ def test_indexed_bilinear_uses_declared_effective_palette(tmp_path: Path) -> Non
     center = _inspect_native(target, tmp_path, 1, 1)
     assert center == {
         "pixel": 3,
+        "transparent_index": 0,
         "width": 4,
         "height": 4,
         "palette_color": {"red": 127, "green": 0, "blue": 127, "alpha": 255},
@@ -347,6 +252,8 @@ def test_shared_resize_restores_active_context_on_success_and_failure(
                 "--batch",
                 "--script-param",
                 f"image_resize_transform={Path(__file__).parents[2] / 'src/spa/kernel/image_resize_transform.lua'}",
+                "--script-param",
+                f"effective_palette={Path(__file__).parents[2] / 'src/spa/kernel/effective_palette.lua'}",
                 "--script-param",
                 f"out={output}",
                 "--script",
