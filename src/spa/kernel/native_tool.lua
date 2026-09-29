@@ -144,38 +144,27 @@ local function geometry(payload, tool, position)
   return { first, last }
 end
 
-local function invoke(
-  tool,
-  cel,
-  brush,
-  color,
-  ink,
-  opacity,
-  points,
-  algorithm,
-  background,
-  button,
-  fill
-)
+local function invoke(options)
+  local cel, fill = options.cel, options.fill
   local sprite = cel.sprite
   app.activeSprite = sprite
   app.activeLayer = cel.layer
   app.activeFrame = cel.frame
   app.useTool {
-    tool = tool,
+    tool = options.tool,
     cel = cel,
     layer = cel.layer,
     frame = cel.frame,
-    color = color,
-    bgColor = background or color,
-    brush = brush,
-    ink = ink,
-    opacity = opacity,
-    button = button or MouseButton.LEFT,
-    points = points,
+    color = options.color,
+    bgColor = options.background or options.color,
+    brush = options.brush,
+    ink = options.ink,
+    opacity = options.opacity,
+    button = options.button or MouseButton.LEFT,
+    points = options.points,
     contiguous = fill == nil or fill.contiguous,
     tolerance = fill and fill.tolerance or 0,
-    freehandAlgorithm = algorithm,
+    freehandAlgorithm = options.algorithm,
     selection = SelectionMode.REPLACE,
     tilemapMode = TilemapMode.PIXELS,
     tilesetMode = TilesetMode.MANUAL,
@@ -331,16 +320,16 @@ function module.render(sprite, cel, payload, tool)
       mask_pref.tiled.mode = 0
       mask_pref.symmetry.mode = 0
       local white = Color { r = 255, g = 255, b = 255, a = 255 }
-      invoke(
-        tool == "eraser" and "pencil" or tool,
-        mask_cel,
-        brush,
-        white,
-        Ink.SIMPLE,
-        255,
-        native_points,
-        algorithm
-      )
+      invoke {
+        tool = tool == "eraser" and "pencil" or tool,
+        cel = mask_cel,
+        brush = brush,
+        color = white,
+        ink = Ink.SIMPLE,
+        opacity = 255,
+        points = native_points,
+        algorithm = algorithm,
+      }
       mask_cel = mask_sprite.layers[1]:cel(1)
       footprint = footprint_from(mask_cel, crop, source_position)
     end
@@ -361,19 +350,17 @@ function module.render(sprite, cel, payload, tool)
     if filling then
       -- Both native tools use the same floodfill point shape. Observe matching
       -- before painting, including no-op colors and opacity, then clear the mask.
-      invoke(
-        "magic_wand",
-        clone_cel,
-        brush,
-        color,
-        Ink.SIMPLE,
-        255,
-        native_points,
-        0,
-        nil,
-        nil,
-        payload
-      )
+      invoke {
+        tool = "magic_wand",
+        cel = clone_cel,
+        brush = brush,
+        color = color,
+        ink = Ink.SIMPLE,
+        opacity = 255,
+        points = native_points,
+        algorithm = 0,
+        fill = payload,
+      }
       footprint =
         masks.translate(masks.copy(clone.selection), -source_position.x, -source_position.y)
       clone.selection = Selection()
@@ -390,19 +377,19 @@ function module.render(sprite, cel, payload, tool)
       end
     end
     if tool == "eraser" then app.bgColor = background end
-    invoke(
-      tool,
-      clone_cel,
-      brush,
-      color,
-      ink,
-      opacity,
-      native_points,
-      algorithm,
-      background,
-      button,
-      filling and payload or nil
-    )
+    invoke {
+      tool = tool,
+      cel = clone_cel,
+      brush = brush,
+      color = color,
+      ink = ink,
+      opacity = opacity,
+      points = native_points,
+      algorithm = algorithm,
+      background = background,
+      button = button,
+      fill = filling and payload or nil,
+    }
     clone_cel = resolve_layer(clone.layers, path):cel(frame_number)
     local transparent = sprite.colorMode == ColorMode.INDEXED and sprite.transparentColor or 0
     for y = 0, source_image.height - 1 do
