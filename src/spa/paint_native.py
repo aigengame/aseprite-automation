@@ -167,6 +167,23 @@ class PaintFillRequest(CelRelationshipRequest, NativePaintTargetInput, FillMatch
     ink: PaintInk
 
 
+class PaintGesture(PublicModel):
+    points: list[Point] = Field(min_length=1)
+    freehand_algorithm: Literal["regular", "pixel-perfect"]
+
+
+class PaintContourRequest(CelRelationshipRequest, NativePaintInput, PaintGesture):
+    pass
+
+
+TiledMode = Literal["none", "x", "y", "both"]
+
+
+class PaintBlurRequest(CelRelationshipRequest, NativePaintTargetInput, PaintGesture):
+    brush: StandardPaintBrush
+    tiled_mode: TiledMode
+
+
 class PaintBrushFact(PublicModel):
     kind: Literal["circle", "square", "line"]
     size: int = Field(gt=0)
@@ -289,6 +306,26 @@ class PaintFillResult(PaintFillEvidence, NativePaintResult):
     operation: Literal["spa paint fill"] = "spa paint fill"
 
 
+class PaintContourEvidence(NativePaintFacts, PaintGesture):
+    pass
+
+
+class PaintContourResult(PaintContourEvidence, NativePaintResult):
+    status: Literal["success"] = "success"
+    operation: Literal["spa paint contour"] = "spa paint contour"
+
+
+class PaintBlurEvidence(NativePaintWriteFacts, PaintGesture):
+    brush: PaintBrushFact
+    ink: Literal["blur"]
+    tiled_mode: TiledMode
+
+
+class PaintBlurResult(PaintBlurEvidence, NativePaintResult):
+    status: Literal["success"] = "success"
+    operation: Literal["spa paint blur"] = "spa paint blur"
+
+
 class PaintCapabilityDetails(PublicModel):
     kind: Literal["paint_capability_gap"] = "paint_capability_gap"
     gap: CapabilityGap
@@ -331,10 +368,15 @@ PAINT_ELLIPSE_HANDLER = PackagedHandler("paint_ellipse", NATIVE_PAINT_RESOURCES)
 PAINT_PENCIL_HANDLER = PackagedHandler("paint_pencil", NATIVE_PAINT_RESOURCES)
 PAINT_ERASER_HANDLER = PackagedHandler("paint_eraser", NATIVE_PAINT_RESOURCES)
 PAINT_FILL_HANDLER = PackagedHandler("paint_fill", NATIVE_PAINT_RESOURCES)
+PAINT_CONTOUR_HANDLER = PackagedHandler("paint_contour", NATIVE_PAINT_RESOURCES)
+PAINT_BLUR_HANDLER = PackagedHandler("paint_blur", NATIVE_PAINT_RESOURCES)
 
 
 def native_paint_capability_gaps(
-    version: str, capabilities: list[RuntimeCapability] | tuple[RuntimeCapability, ...]
+    version: str,
+    capabilities: list[RuntimeCapability] | tuple[RuntimeCapability, ...],
+    *,
+    contour_available: bool,
 ) -> list[CapabilityGap]:
     gaps = []
     for tool in ("pencil", "eraser"):
@@ -367,6 +409,30 @@ def native_paint_capability_gaps(
         gaps.append(
             CapabilityGap(
                 capability=capability, aseprite_version=version, evidence=evidence
+            )
+        )
+    # No Gradient Descriptor is published until its complete native execution
+    # contract can be implemented. Calling the known 1.3.18.5 headless path can
+    # dereference a missing GUI Context Bar and corrupt the Kernel protocol.
+    gradient_evidence = (
+        "Aseprite 1.3.18.5 app.useTool reads Gradient Type and Dithering Matrix "
+        "from the GUI Context Bar; no faithful headless option control is available"
+        if version.removesuffix("-dev") == "1.3.18.5"
+        else "No verified headless native route supplies Gradient Type and Dithering Matrix"
+    )
+    gaps.append(
+        CapabilityGap(
+            capability="spa paint gradient",
+            aseprite_version=version,
+            evidence=gradient_evidence,
+        )
+    )
+    if contour_available:
+        gaps.append(
+            CapabilityGap(
+                capability="spa paint contour: Paint Dynamics",
+                aseprite_version=version,
+                evidence="Pressure, velocity, tilt, and Paint Dynamics have no explicit verified native gesture contract",
             )
         )
     return gaps
@@ -549,6 +615,26 @@ def paint_fill(
     )
 
 
+def paint_contour(
+    request: PaintContourRequest, services: OperationServices
+) -> PaintContourResult:
+    return _execute(
+        request,
+        services,
+        PAINT_CONTOUR_HANDLER,
+        PaintContourEvidence,
+        PaintContourResult,
+    )
+
+
+def paint_blur(
+    request: PaintBlurRequest, services: OperationServices
+) -> PaintBlurResult:
+    return _execute(
+        request, services, PAINT_BLUR_HANDLER, PaintBlurEvidence, PaintBlurResult
+    )
+
+
 NATIVE_PAINT_OPERATIONS = (
     OperationDescriptor(
         "paint fill",
@@ -635,6 +721,36 @@ NATIVE_PAINT_OPERATIONS = (
             lua_language="Lua 5.4",
             minimum_api_version=41,
             required_capabilities=["aseprite_paint_ellipse"],
+        ),
+        NATIVE_PAINT_FAILURE_CODES,
+        execution_kind="mutation",
+        side_effects=("publishes the declared Target Sprite File",),
+    ),
+    OperationDescriptor(
+        "paint contour",
+        PaintContourRequest,
+        PaintContourResult,
+        paint_contour,
+        lambda result: result.target_commit.target_sprite_file,
+        RuntimeRequirements(
+            lua_language="Lua 5.4",
+            minimum_api_version=41,
+            required_capabilities=["aseprite_paint_contour"],
+        ),
+        NATIVE_PAINT_FAILURE_CODES,
+        execution_kind="mutation",
+        side_effects=("publishes the declared Target Sprite File",),
+    ),
+    OperationDescriptor(
+        "paint blur",
+        PaintBlurRequest,
+        PaintBlurResult,
+        paint_blur,
+        lambda result: result.target_commit.target_sprite_file,
+        RuntimeRequirements(
+            lua_language="Lua 5.4",
+            minimum_api_version=41,
+            required_capabilities=["aseprite_paint_blur"],
         ),
         NATIVE_PAINT_FAILURE_CODES,
         execution_kind="mutation",

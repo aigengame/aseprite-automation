@@ -93,7 +93,7 @@ function module.apply_live(sprite, payload, tool, uuids)
     end
     if behavior.foreground_color then validate_color(behavior.foreground_color) end
     if behavior.background_color then validate_color(behavior.background_color) end
-  else
+  elseif tool ~= "blur" then
     validate_color(payload.color)
   end
   local affected = cels.affected(sprite, image)
@@ -159,7 +159,7 @@ function module.apply_live(sprite, payload, tool, uuids)
       angle = payload.brush.angle or 0,
     },
     color = payload.color,
-    ink = payload.ink,
+    ink = tool == "blur" and "blur" or payload.ink,
     requested_opacity = payload.opacity,
     effective_opacity = (payload.ink == "simple" or payload.ink == "copy-color") and 255
       or payload.opacity,
@@ -189,8 +189,9 @@ function module.apply_live(sprite, payload, tool, uuids)
     result.refer_to, result.stop_at_grid = payload.refer_to, payload.stop_at_grid
     result.source_scope, result.effective_grid_cell =
       rendered.source_scope, rendered.effective_grid_cell
-  elseif tool == "pencil" or tool == "eraser" then
+  elseif tool == "pencil" or tool == "eraser" or tool == "contour" or tool == "blur" then
     result.points, result.freehand_algorithm = payload.points, payload.freehand_algorithm
+    if tool == "blur" then result.tiled_mode = payload.tiled_mode end
   elseif tool == "line" then
     result["from"], result.to = payload["from"], payload.to
   else

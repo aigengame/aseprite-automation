@@ -54,6 +54,8 @@ RuntimeCapability = Literal[
     "aseprite_paint_line",
     "aseprite_paint_rectangle",
     "aseprite_paint_ellipse",
+    "aseprite_paint_contour",
+    "aseprite_paint_blur",
     "aseprite_paint_pencil",
     "aseprite_paint_eraser",
     "aseprite_paint_fill",

@@ -48,6 +48,8 @@ def test_manifest_is_projected_from_command_descriptors() -> None:
         "spa paint line",
         "spa paint rectangle",
         "spa paint ellipse",
+        "spa paint contour",
+        "spa paint blur",
         "spa selection create",
         "spa selection combine",
         "spa selection invert",

@@ -22,6 +22,22 @@ if mode == ColorMode.INDEXED then
   sprite.transparentColor = 7
 end
 image:clear(blue)
+if input.pattern then
+  for y = 0, image.height - 1 do
+    for x = 0, image.width - 1 do
+      local value = mode == ColorMode.RGB
+          and app.pixelColor.rgba(
+            (x * x * 29 + y * 17) % 256,
+            (x * 61 + y * y * 23) % 256,
+            (x * y * 47) % 256,
+            255
+          )
+        or mode == ColorMode.GRAY and app.pixelColor.graya((x * x * 29 + y * y * 17) % 256, 255)
+        or (x + y) % 4
+      image:putPixel(x, y, value)
+    end
+  end
+end
 if input.hidden then
   image:putPixel(
     7,
@@ -46,6 +62,11 @@ if input.linked then
   sprite:newEmptyFrame()
   sprite:newCel(layer, 3, Image(image), layer:cel(1).position)
 end
+if input.source_sprite_file then
+  sprite:close()
+  sprite = assert(app.open(input.source_sprite_file))
+  layer = sprite.layers[1]
+end
 if input.target_kind == "absent" then
   sprite:newEmptyFrame()
 elseif input.target_kind == "group" then
@@ -62,9 +83,13 @@ elseif input.target_kind == "reference" or input.target_kind == "tilemap" then
 end
 assert(sprite:saveAs(app.params.source))
 if app.params.reference then
-  local cel = layer:cel(1)
+  local frame_number = input.frame_number or 1
+  local cel = layer:cel(frame_number)
+  local original_image, original_position = Image(cel.image), cel.position
   local first, last
-  if input.tool == "line" then
+  if input.points then
+    first, last = input.points[1], input.points[#input.points]
+  elseif input.tool == "line" then
     first, last = input["from"], input.to
   else
     local b = input.bounds
@@ -81,11 +106,16 @@ if app.params.reference then
   }
   app.preferences.tool(input.tool).filled = false
   app.preferences.tool(input.tool).corner_radius = 0
+  app.preferences.document(sprite).tiled.mode = ({ none = 0, x = 1, y = 2, both = 3 })[input.tiled_mode or "none"]
+  local points = {}
+  for _, point in ipairs(input.points or { first, last }) do
+    points[#points + 1] = Point(point.x + cel.position.x, point.y + cel.position.y)
+  end
   app.useTool {
     tool = input.tool,
     cel = cel,
     layer = layer,
-    frame = sprite.frames[1],
+    frame = sprite.frames[frame_number],
     color = color,
     bgColor = color,
     brush = brush,
@@ -97,8 +127,26 @@ if app.params.reference then
     })[input.ink],
     opacity = input.opacity,
     button = MouseButton.LEFT,
-    points = { Point(first.x, first.y), Point(last.x, last.y) },
+    points = points,
+    freehandAlgorithm = input.freehand_algorithm == "pixel-perfect" and 1 or 0,
   }
+  if input.preserve_geometry then
+    local native = layer:cel(frame_number)
+    for y = 0, original_image.height - 1 do
+      for x = 0, original_image.width - 1 do
+        local cx, cy = x + original_position.x, y + original_position.y
+        local in_canvas = cx >= 0 and cy >= 0 and cx < sprite.width and cy < sprite.height
+        if native and (input.tiled_mode == "none" or in_canvas) then
+          local nx, ny = cx - native.position.x, cy - native.position.y
+          if nx >= 0 and ny >= 0 and nx < native.image.width and ny < native.image.height then
+            original_image:putPixel(x, y, native.image:getPixel(nx, ny))
+          end
+        end
+      end
+    end
+    assert(native).image = original_image
+    native.position = original_position
+  end
   assert(sprite:saveAs(app.params.reference))
 end
 sprite:close()

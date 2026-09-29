@@ -18,7 +18,7 @@ this view instead of treating it as another decision authority.
 > bounded position/opacity motion,
 > and native relationships, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, bounded Pixel Patch
 > application, native Snapshot composition (`spa paint composite`), native Line,
-> Rectangle, and Ellipse Paint operations, verified RGB
+> Rectangle, Ellipse, Contour, and Blur Paint operations, verified RGB
 > PNG Image Export, animation audit, Frame comparison, and continuity Preview
 > export. The module
 > ownership below includes both this delivered vertical slice and planned work. Feature
@@ -295,7 +295,7 @@ Sprite creation and inspection slice extends that same stack.
 | CLI adapter | Typer | Command access and human or machine presentation. |
 | Public contracts | Pydantic 2 and JSON Schema | Typed Operation Requests, Operation Results, Failure Envelopes, and discovery schemas. |
 | Project and packaging | `uv` | Environments, dependencies, builds, and installed-product tests. |
-| Ordinary Core Operations | Packaged Lua handlers | Core Operation Semantics and native mapping executed through Aseprite. The current package contains a fixed runtime probe, shared capability observations, Sprite creation, inspection, native flattening, resize and crop, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, Tag inspection and authoring, exact Pixel Patch, native Snapshot composition, native Line, Rectangle, and Ellipse Paint, animation audit, Frame comparison, continuity Preview, Export Image, and Operation Plan handlers. Sprite copy uses the File Adapter for byte preservation and the packaged inspection handler for verification. |
+| Ordinary Core Operations | Packaged Lua handlers | Core Operation Semantics and native mapping executed through Aseprite. The current package contains a fixed runtime probe, shared capability observations, Sprite creation, inspection, native flattening, resize and crop, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, Tag inspection and authoring, exact Pixel Patch, native Snapshot composition, native Line, Rectangle, Ellipse, Contour, and Blur Paint, animation audit, Frame comparison, continuity Preview, Export Image, and Operation Plan handlers. Sprite copy uses the File Adapter for byte preservation and the packaged inspection handler for verification. |
 | Aseprite integration | External `aseprite --batch --script` | Native document, Tool, Filter, color, and export behavior. |
 | Private transport | Versioned JSON request and response files | Data exchange through `--script-param`, separate from diagnostics. |
 | Agent access | Version-matched Agent Skill and planned local stdio MCP Adapter with CLI subprocess invocation | Guidance and equivalent tool projection from the installed surface. |
@@ -456,7 +456,8 @@ for native nearest-neighbor sampling. Python validates wire constraints and
 orchestrates existing Artifact staging, independent JSON/PNG verification, and
 publication. No persistent editor Selection or second Mask engine is introduced.
 
-The native Fill, Pencil, Eraser, Line, Rectangle, and Ellipse operations use `paint_native.py` for typed
+The native Fill, Pencil, Eraser, Line, Rectangle, Ellipse, Contour, and Blur
+operations use `paint_native.py` for typed
 contracts and publication orchestration. `paint_native_support.lua` owns footprint
 partitioning, Selection Application, linked mutation, and persisted evidence.
 `native_tool.lua` hides native Tool invocation and its local state restoration.
@@ -471,6 +472,15 @@ Magic Wand observes matching coverage through the same flood-fill point shape as
 Paint Bucket, including no-op colors or opacity. Shared Selection Application
 filters that coverage after matching. Gesture coverage uses a native opaque Brush
 pass, while native Eraser owns the actual alpha, index, or color replacement.
+Blur keeps the original working Sprite dimensions so native source expansion and
+Tiled Mode retain their document boundaries. Its coverage pass uses native Pencil,
+which shares Blur's Brush and freehand geometry; only native Blur supplies effect
+pixels. Contour delegates the complete ordered gesture, including closure and fill,
+to its native tool. The runtime gates independently verify Contour's two algorithms
+and Blur's four Tiled Modes. Gradient has no implemented Descriptor or callable
+handler while complete headless Gradient Type and Dithering Matrix control remains
+unverified; installed discovery reports the version-specific Capability Gap under
+issue #28's permitted delivery combination.
 No new rasterizer or public generic Tool wrapper is introduced. The
 [issue #27 evidence](docs/evidence/issue-27-native-paint.md) records the native
 assumptions and their verification.

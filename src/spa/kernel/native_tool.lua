@@ -25,6 +25,8 @@ local allowed_tools = {
   filled_rectangle = true,
   ellipse = true,
   filled_ellipse = true,
+  contour = true,
+  blur = true,
 }
 
 local function checked_integer(value, label)
@@ -118,7 +120,7 @@ local function geometry(payload, tool, position)
   if tool == "paint_bucket" then
     return { checked_point(payload.seed.x + position.x, payload.seed.y + position.y) }
   end
-  if tool == "pencil" or tool == "eraser" then
+  if tool == "pencil" or tool == "eraser" or tool == "contour" or tool == "blur" then
     assert(#payload.points > 0, "a gesture needs at least one Point")
     local points = {}
     for _, point in ipairs(payload.points) do
@@ -142,6 +144,14 @@ local function geometry(payload, tool, position)
     )
   end
   return { first, last }
+end
+
+local function translate_points(points, offset)
+  local translated = {}
+  for _, point in ipairs(points) do
+    translated[#translated + 1] = checked_point(point.x - offset.x, point.y - offset.y)
+  end
+  return translated
 end
 
 local function invoke(options)
@@ -213,7 +223,11 @@ function module.render(sprite, cel, payload, tool)
   )
   assert(type(payload) == "table" or type(payload) == "userdata", "missing native Paint payload")
   local ink
-  if tool ~= "eraser" then ink = assert(ink_types[payload.ink], "unsupported Paint Ink") end
+  if tool == "blur" then
+    ink = Ink.SIMPLE
+  elseif tool ~= "eraser" then
+    ink = assert(ink_types[payload.ink], "unsupported Paint Ink")
+  end
   local opacity = checked_integer(payload.opacity, "Paint opacity")
   assert(opacity >= 0 and opacity <= 255, "Paint opacity is outside native range")
   local filling = tool == "paint_bucket"
@@ -230,9 +244,15 @@ function module.render(sprite, cel, payload, tool)
       or color
     button = behavior.kind == "replace-foreground-with-background" and MouseButton.RIGHT
       or MouseButton.LEFT
+  elseif tool == "blur" then
+    -- Blur's effect Ink ignores Tool Color; its public request has no Color.
+    color = Color { r = 0, g = 0, b = 0, a = 255 }
   else
     color = make_tool_color(payload.color, sprite.colorMode)
   end
+  local tiled = tool == "blur"
+      and assert(({ none = 0, x = 1, y = 2, both = 3 })[payload.tiled_mode], "invalid Tiled Mode")
+    or 0
   local source_image = cel.image
   local source_position = cel.position
   local points = geometry(payload, tool, source_position)
@@ -247,7 +267,11 @@ function module.render(sprite, cel, payload, tool)
     right, bottom = math.max(right, point.x + 1), math.max(bottom, point.y + 1)
   end
   left, top, right, bottom = left - margin, top - margin, right + margin, bottom + margin
-  local crop = filling and checked_rectangle(0, 0, sprite.width, sprite.height)
+  local crop = (filling or tool == "blur") and checked_rectangle(0, 0, sprite.width, sprite.height)
+    or checked_rectangle(left, top, right - left, bottom - top)
+  -- Tiled Blur coverage wraps within the original Sprite Canvas. Untiled
+  -- coverage retains the complete Brush extent for Image-bounds preflight.
+  local footprint_crop = (filling or tiled ~= 0) and crop
     or checked_rectangle(left, top, right - left, bottom - top)
   if filling then
     local seed = points[1]
@@ -256,10 +280,7 @@ function module.render(sprite, cel, payload, tool)
       "Fill seed is outside the Sprite Canvas"
     )
   end
-  local native_points = {}
-  for _, point in ipairs(points) do
-    native_points[#native_points + 1] = checked_point(point.x - crop.x, point.y - crop.y)
-  end
+  local native_points = translate_points(points, crop)
   local path = assert(find_layer_path(sprite.layers, cel.layer, {}), "target Layer not in Sprite")
   local frame_number = cel.frame.frameNumber
 
@@ -280,6 +301,12 @@ function module.render(sprite, cel, payload, tool)
     filled_preview = pref.filled_preview,
     corner_radius = pref.corner_radius,
   }
+  -- A separate opaque Pencil pass measures Blur's brush coverage even when
+  -- the native Blur effect changes no pixel.
+  local mask_tool = (tool == "blur" or tool == "eraser") and "pencil" or tool
+  local mask_pref = app.preferences.tool(mask_tool)
+  local mask_filled, mask_preview, mask_corner =
+    mask_pref.filled, mask_pref.filled_preview, mask_pref.corner_radius
   local fill_preferences = {}
   if filling then
     for _, name in ipairs { "paint_bucket", "magic_wand" } do
@@ -300,6 +327,7 @@ function module.render(sprite, cel, payload, tool)
     pref.filled = false
     pref.filled_preview = false
     pref.corner_radius = 0
+    mask_pref.filled, mask_pref.filled_preview, mask_pref.corner_radius = false, false, 0
     app.preferences.symmetry_mode.enabled = false
 
     for _, entry in ipairs(fill_preferences) do
@@ -309,35 +337,35 @@ function module.render(sprite, cel, payload, tool)
     end
     local footprint
     if not filling then
-      mask_sprite = Sprite(crop.width, crop.height, ColorMode.RGB)
+      mask_sprite = Sprite(footprint_crop.width, footprint_crop.height, ColorMode.RGB)
       assert(
-        mask_sprite.width == crop.width and mask_sprite.height == crop.height,
+        mask_sprite.width == footprint_crop.width and mask_sprite.height == footprint_crop.height,
         "native Paint footprint canvas changed the requested extent"
       )
       local mask_cel = assert(mask_sprite.layers[1]:cel(1))
-      local mask_pref = app.preferences.document(mask_sprite)
-      mask_pref.grid.snap = false
-      mask_pref.tiled.mode = 0
-      mask_pref.symmetry.mode = 0
+      local mask_doc = app.preferences.document(mask_sprite)
+      mask_doc.grid.snap = false
+      mask_doc.tiled.mode = tiled
+      mask_doc.symmetry.mode = 0
       local white = Color { r = 255, g = 255, b = 255, a = 255 }
       invoke {
-        tool = tool == "eraser" and "pencil" or tool,
+        tool = mask_tool,
         cel = mask_cel,
         brush = brush,
         color = white,
         ink = Ink.SIMPLE,
         opacity = 255,
-        points = native_points,
+        points = translate_points(points, footprint_crop),
         algorithm = algorithm,
       }
       mask_cel = mask_sprite.layers[1]:cel(1)
-      footprint = footprint_from(mask_cel, crop, source_position)
+      footprint = footprint_from(mask_cel, footprint_crop, source_position)
     end
 
     clone = Sprite(sprite)
     clone.selection = Selection()
     clone.gridBounds = sprite.gridBounds
-    if not filling then clone:crop(crop) end
+    if not filling and tool ~= "blur" then clone:crop(crop) end
     assert(
       clone.width == crop.width and clone.height == crop.height,
       "native Paint working canvas changed the requested extent"
@@ -345,7 +373,7 @@ function module.render(sprite, cel, payload, tool)
     local clone_cel = assert(resolve_layer(clone.layers, path):cel(frame_number))
     local clone_pref = app.preferences.document(clone)
     clone_pref.grid.snap = false
-    clone_pref.tiled.mode = 0
+    clone_pref.tiled.mode = tiled
     clone_pref.symmetry.mode = 0
     if filling then
       -- Both native tools use the same floodfill point shape. Observe matching
@@ -425,6 +453,8 @@ function module.render(sprite, cel, payload, tool)
   if clone ~= nil and clone.isValid then pcall(function() clone:close() end) end
   if mask_sprite ~= nil and mask_sprite.isValid then pcall(function() mask_sprite:close() end) end
   local restored, restore_error = pcall(function()
+    mask_pref.filled, mask_pref.filled_preview, mask_pref.corner_radius =
+      mask_filled, mask_preview, mask_corner
     for _, entry in ipairs(fill_preferences) do
       entry.target.refer_to = entry.refer_to
       entry.target.stop_at_grid = entry.stop_at_grid

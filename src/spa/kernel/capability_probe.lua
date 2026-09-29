@@ -712,7 +712,7 @@ local function observes_image_rotate()
   end)
 end
 
-local function observes_native_paint(tool, algorithm)
+local function observes_native_paint(tool, algorithm, tiled)
   if paint_native == nil then return false end
   local source = app.fs.joinPath(app.params.workspace, "native-" .. tool .. ".aseprite")
   local output = app.fs.joinPath(app.params.workspace, "native-" .. tool .. "-painted.aseprite")
@@ -721,6 +721,11 @@ local function observes_native_paint(tool, algorithm)
   local ok = pcall(function()
     sprite = Sprite(8, 8, ColorMode.RGB)
     if tool == "eraser" then sprite.cels[1].image:clear(app.pixelColor.rgba(255, 0, 0, 255)) end
+    if tool == "blur" then
+      local image = sprite.layers[1]:cel(1).image
+      image:clear(app.pixelColor.rgba(0, 0, 255, 255))
+      image:putPixel(0, 0, app.pixelColor.rgba(255, 0, 0, 255))
+    end
     assert(sprite:saveAs(source))
     sprite:close()
     sprite = nil
@@ -730,18 +735,28 @@ local function observes_native_paint(tool, algorithm)
       target = { layer = { layer_path = { 1 } }, frame_number = 1 },
       coordinate_space = "image-pixel",
       brush = { kind = "circle", size = 1 },
-      color = { kind = "rgba", red = 255, green = 0, blue = 0, alpha = 255 },
-      ink = "simple",
-      opacity = tool == "eraser" and 255 or 0,
+      color = tool ~= "blur" and { kind = "rgba", red = 255, green = 0, blue = 0, alpha = 255 }
+        or nil,
+      ink = tool ~= "blur" and "simple" or nil,
+      opacity = (tool == "eraser" or tool == "blur") and 255 or 0,
       clipping = "reject",
       bounds = { x = 2, y = 2, width = 4, height = 3 },
       style = tool:match("^filled_") and "filled" or "outline",
       ["from"] = { x = 2, y = 2 },
       to = { x = 5, y = 2 },
-      points = algorithm == "pixel-perfect"
-          and { { x = 2, y = 2 }, { x = 3, y = 2 }, { x = 3, y = 3 } }
+      points = tool == "blur" and { { x = 0, y = 0 } }
+        or tool == "contour" and {
+          { x = 1, y = 1 },
+          { x = 2, y = 1 },
+          { x = 2, y = 2 },
+          { x = 3, y = 2 },
+          { x = 3, y = 3 },
+          { x = 4, y = 3 },
+        }
+        or algorithm == "pixel-perfect" and { { x = 2, y = 2 }, { x = 3, y = 2 }, { x = 3, y = 3 } }
         or { { x = 2, y = 2 }, { x = 5, y = 2 } },
       freehand_algorithm = algorithm or "regular",
+      tiled_mode = tiled,
       behavior = { kind = "erase" },
       seed = { x = 1, y = 1 },
       tolerance = 0,
@@ -752,13 +767,30 @@ local function observes_native_paint(tool, algorithm)
     }, tool)
     assert(result.persisted_reopen_verified and result.pixels_changed > 0)
     if tool == "line" then assert(result.pixels_changed == 4) end
-    if algorithm ~= nil then
-      assert(result.pixels_changed == (algorithm == "regular" and 4 or 2))
+    if tool == "blur" then
+      assert(result.requested_opacity == 255 and result.effective_opacity == 255)
+      sprite = assert(app.open(output))
+      local pixel = sprite.layers[1]:cel(1).image:getPixel(0, 0)
+      -- Independent 1.3.18.5 native oracle: one red corner on opaque blue.
+      -- These include native source-area expansion and tiled edge sampling.
+      local expected = ({
+        none = app.pixelColor.rgba(113, 0, 141, 255),
+        x = app.pixelColor.rgba(85, 0, 170, 170),
+        y = app.pixelColor.rgba(85, 0, 170, 170),
+        both = app.pixelColor.rgba(63, 0, 191, 113),
+      })[tiled]
+      assert(pixel == expected)
+    else
+      assert(
+        result.requested_opacity == (tool == "eraser" and 255 or 0)
+          and result.effective_opacity == 255
+      )
+      if tool == "contour" then
+        assert(result.pixels_changed == (algorithm == "pixel-perfect" and 5 or 6))
+      elseif algorithm ~= nil then
+        assert(result.pixels_changed == (algorithm == "regular" and 4 or 2))
+      end
     end
-    assert(
-      result.requested_opacity == (tool == "eraser" and 255 or 0)
-        and result.effective_opacity == 255
-    )
   end)
   if sprite ~= nil then pcall(function() sprite:close() end) end
   os.remove(source)
@@ -880,6 +912,20 @@ function module.observe()
   end
   if observes_native_paint("ellipse") and observes_native_paint("filled_ellipse") then
     capabilities[#capabilities + 1] = "aseprite_paint_ellipse"
+  end
+  if
+    observes_native_paint("contour", "regular")
+    and observes_native_paint("contour", "pixel-perfect")
+  then
+    capabilities[#capabilities + 1] = "aseprite_paint_contour"
+  end
+  if
+    observes_native_paint("blur", "regular", "none")
+    and observes_native_paint("blur", "pixel-perfect", "x")
+    and observes_native_paint("blur", "regular", "y")
+    and observes_native_paint("blur", "pixel-perfect", "both")
+  then
+    capabilities[#capabilities + 1] = "aseprite_paint_blur"
   end
   if observes_paint_apply() then capabilities[#capabilities + 1] = "aseprite_paint_apply" end
   if observes_frame_authoring() then

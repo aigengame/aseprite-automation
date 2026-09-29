@@ -126,7 +126,9 @@ def _surface(runtime: RuntimeFacts) -> tuple[list[str], list[CapabilityGap]]:
         )
     gaps.extend(
         native_paint_capability_gaps(
-            runtime.aseprite_version, runtime.verified_capabilities
+            runtime.aseprite_version,
+            runtime.verified_capabilities,
+            contour_available="spa paint contour" in supported,
         )
     )
     registered = {f"spa {descriptor.name}" for descriptor in OPERATIONS}

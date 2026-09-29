@@ -100,3 +100,77 @@ def test_a_rectangle_capability_gap_keeps_line_and_ellipse_callable() -> None:
         gap for gap in result.capability_gaps if gap.capability == "spa paint rectangle"
     )
     assert "aseprite_paint_rectangle" in gap.evidence
+
+
+def test_contour_schema_preserves_gestures_and_refuses_unowned_options() -> None:
+    schema = json.loads(spa("paint", "contour", "--schema").stdout)
+    assert schema["runtime_requirements"]["required_capabilities"] == [
+        "aseprite_paint_contour"
+    ]
+    request = _request()
+    del request["from"], request["to"]
+    request |= {"points": [{"x": 1, "y": 1}], "freehand_algorithm": "regular"}
+    validator = Draft202012Validator(schema["request_schema"])
+    assert validator.is_valid(request)
+    assert validator.is_valid(request | {"points": request["points"] * 2})
+    for change in (
+        {"points": []},
+        {"freehand_algorithm": "dots"},
+        {"closed": True},
+        {"filled": False},
+        {"outline": True},
+        {"button": "right"},
+        {"seed": 1},
+    ):
+        assert not validator.is_valid(request | change)
+
+
+def test_gradient_gap_does_not_hide_verified_contour_or_blur() -> None:
+    from spa.contracts import RuntimeRequest
+    from spa.descriptors import schema_result
+    from tests.support import operation_services, runtime_observation
+
+    result = schema_result(
+        RuntimeRequest(),
+        operation_services(
+            lambda _: runtime_observation(
+                "aseprite_runtime_introspection",
+                "aseprite_paint_contour",
+                "aseprite_paint_blur",
+            )
+        ),
+    )
+    available = {item.operation for item in result.operations}
+    assert {"spa paint contour", "spa paint blur"} <= available
+    assert "spa paint gradient" not in available
+    gaps = {gap.capability: gap for gap in result.capability_gaps}
+    assert "Gradient Type" in gaps["spa paint gradient"].evidence
+    assert "Dithering Matrix" in gaps["spa paint gradient"].evidence
+    assert (
+        gaps["spa paint contour: Paint Dynamics"].aseprite_version
+        == result.runtime.aseprite_version
+    )
+
+
+def test_blur_has_fixed_effect_ink_and_explicit_tiled_mode() -> None:
+    schema = json.loads(spa("paint", "blur", "--schema").stdout)
+    request = _request()
+    del request["from"], request["to"], request["ink"], request["color"]
+    request |= {
+        "points": [{"x": 0, "y": 0}],
+        "freehand_algorithm": "regular",
+        "tiled_mode": "none",
+    }
+    validator = Draft202012Validator(schema["request_schema"])
+    assert validator.is_valid(request)
+    for change in (
+        {"color": _request()["color"]},
+        {"ink": "simple"},
+        {"points": []},
+        {"tiled_mode": "xy"},
+        {"freehand_algorithm": "dots"},
+        {"seed": 1},
+    ):
+        assert not validator.is_valid(request | change)
+    del request["tiled_mode"]
+    assert not validator.is_valid(request)
