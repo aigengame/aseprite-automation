@@ -737,6 +737,8 @@ local function observes_native_paint(tool)
       style = tool:match("^filled_") and "filled" or "outline",
       ["from"] = { x = 2, y = 2 },
       to = { x = 5, y = 2 },
+      points = { { x = 2, y = 2 }, { x = 5, y = 2 }, { x = 2, y = 2 } },
+      freehand_algorithm = "regular",
     }, tool)
     assert(result.persisted_reopen_verified and result.pixels_changed > 0)
     if tool == "line" then assert(result.pixels_changed == 4) end
@@ -840,6 +842,9 @@ function module.observe()
     capabilities[#capabilities + 1] = "aseprite_background_conversion"
   end
   if observes_native_paint("line") then capabilities[#capabilities + 1] = "aseprite_paint_line" end
+  if observes_native_paint("pencil") then
+    capabilities[#capabilities + 1] = "aseprite_paint_pencil"
+  end
   if observes_native_paint("rectangle") and observes_native_paint("filled_rectangle") then
     capabilities[#capabilities + 1] = "aseprite_paint_rectangle"
   end

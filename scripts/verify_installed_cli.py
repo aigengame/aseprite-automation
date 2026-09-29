@@ -92,6 +92,7 @@ for name in (
     "native_tool.lua",
     "paint_native_support.lua",
     "paint_line.lua",
+    "paint_pencil.lua",
     "paint_rectangle.lua",
     "paint_ellipse.lua",
     "export_image.lua",

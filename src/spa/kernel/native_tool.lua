@@ -17,6 +17,7 @@ local ink_types = {
 
 local allowed_tools = {
   line = true,
+  pencil = true,
   rectangle = true,
   filled_rectangle = true,
   ellipse = true,
@@ -111,6 +112,14 @@ local function resolve_layer(layers, path)
 end
 
 local function geometry(payload, tool, position)
+  if tool == "pencil" then
+    assert(#payload.points > 0, "a gesture needs at least one Point")
+    local points = {}
+    for _, point in ipairs(payload.points) do
+      points[#points + 1] = checked_point(point.x + position.x, point.y + position.y)
+    end
+    return points
+  end
   local first, last
   if tool == "line" then
     local from = assert(payload["from"], "missing Line from Point")
@@ -126,10 +135,10 @@ local function geometry(payload, tool, position)
       bounds.y + bounds.height - 1 + position.y
     )
   end
-  return first, last
+  return { first, last }
 end
 
-local function invoke(tool, cel, brush, color, ink, opacity, first, last)
+local function invoke(tool, cel, brush, color, ink, opacity, points, algorithm)
   local sprite = cel.sprite
   app.activeSprite = sprite
   app.activeLayer = cel.layer
@@ -145,10 +154,10 @@ local function invoke(tool, cel, brush, color, ink, opacity, first, last)
     ink = ink,
     opacity = opacity,
     button = MouseButton.LEFT,
-    points = { first, last },
+    points = points,
     contiguous = true,
     tolerance = 0,
-    freehandAlgorithm = 0,
+    freehandAlgorithm = algorithm,
     selection = SelectionMode.REPLACE,
     tilemapMode = TilemapMode.PIXELS,
     tilesetMode = TilesetMode.MANUAL,
@@ -203,23 +212,23 @@ function module.render(sprite, cel, payload, tool)
   local color = make_tool_color(payload.color, sprite.colorMode)
   local source_image = cel.image
   local source_position = cel.position
-  local first, last = geometry(payload, tool, source_position)
+  local points = geometry(payload, tool, source_position)
+  local algorithm = ({ regular = 0, ["pixel-perfect"] = 1, dots = 2 })[payload.freehand_algorithm or "regular"]
+  assert(algorithm ~= nil, "unsupported Freehand Algorithm")
   local margin = brush.size * 2 + 2
-  local left = math.min(0, source_position.x, first.x, last.x) - margin
-  local top = math.min(0, source_position.y, first.y, last.y) - margin
-  local right = math.max(
-    sprite.width,
-    source_position.x + source_image.width,
-    first.x + 1,
-    last.x + 1
-  ) + margin
-  local bottom = math.max(
-    sprite.height,
-    source_position.y + source_image.height,
-    first.y + 1,
-    last.y + 1
-  ) + margin
+  local left, top = math.min(0, source_position.x), math.min(0, source_position.y)
+  local right = math.max(sprite.width, source_position.x + source_image.width)
+  local bottom = math.max(sprite.height, source_position.y + source_image.height)
+  for _, point in ipairs(points) do
+    left, top = math.min(left, point.x), math.min(top, point.y)
+    right, bottom = math.max(right, point.x + 1), math.max(bottom, point.y + 1)
+  end
+  left, top, right, bottom = left - margin, top - margin, right + margin, bottom + margin
   local crop = checked_rectangle(left, top, right - left, bottom - top)
+  local native_points = {}
+  for _, point in ipairs(points) do
+    native_points[#native_points + 1] = checked_point(point.x - crop.x, point.y - crop.y)
+  end
   local path = assert(find_layer_path(sprite.layers, cel.layer, {}), "target Layer not in Sprite")
   local frame_number = cel.frame.frameNumber
 
@@ -261,16 +270,7 @@ function module.render(sprite, cel, payload, tool)
     mask_pref.tiled.mode = 0
     mask_pref.symmetry.mode = 0
     local white = Color { r = 255, g = 255, b = 255, a = 255 }
-    invoke(
-      tool,
-      mask_cel,
-      brush,
-      white,
-      Ink.SIMPLE,
-      255,
-      checked_point(first.x - crop.x, first.y - crop.y),
-      checked_point(last.x - crop.x, last.y - crop.y)
-    )
+    invoke(tool, mask_cel, brush, white, Ink.SIMPLE, 255, native_points, algorithm)
     mask_cel = mask_sprite.layers[1]:cel(1)
     local footprint = footprint_from(mask_cel, crop, source_position)
 
@@ -297,16 +297,7 @@ function module.render(sprite, cel, payload, tool)
         )
       end
     end
-    invoke(
-      tool,
-      clone_cel,
-      brush,
-      color,
-      ink,
-      opacity,
-      checked_point(first.x - crop.x, first.y - crop.y),
-      checked_point(last.x - crop.x, last.y - crop.y)
-    )
+    invoke(tool, clone_cel, brush, color, ink, opacity, native_points, algorithm)
     clone_cel = resolve_layer(clone.layers, path):cel(frame_number)
     local transparent = sprite.colorMode == ColorMode.INDEXED and sprite.transparentColor or 0
     for y = 0, source_image.height - 1 do
