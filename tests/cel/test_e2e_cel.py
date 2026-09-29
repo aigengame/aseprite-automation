@@ -94,6 +94,30 @@ def test_tilemap_cel_existence_does_not_mix_canvas_and_tile_cell_bounds(
     assert result["cel"]["image_bounds"] is None
 
 
+def test_add_with_explicit_image_size_survives_reopen(tmp_path: Path) -> None:
+    source = tmp_path / "source.aseprite"
+    target_file = tmp_path / "added.aseprite"
+    _fixture(source)
+    target = {"layer": {"layer_path": [1]}, "frame_number": 1}
+    code, added = _run(
+        "add",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target_file),
+            "in_place": False,
+            "overwrite": False,
+            "target": target,
+            "image_size": {"width": 5, "height": 5},
+        },
+    )
+    assert code == 0, added
+    assert added["cel"]["image_bounds"] == {"x": 0, "y": 0, "width": 5, "height": 5}
+    assert added["cel"]["content"] == "transparent"
+    code, reopened = _run("get", {"sprite_file": str(target_file), "target": target})
+    assert code == 0, reopened
+    assert reopened["cel"] == added["cel"]
+
+
 def test_add_and_remove_preserve_explicit_cel_existence(tmp_path: Path) -> None:
     source = tmp_path / "source.aseprite"
     added_file = tmp_path / "added.aseprite"
@@ -326,7 +350,10 @@ def test_clear_reports_and_preserves_all_native_linked_cels(tmp_path: Path) -> N
         ]
 
 
-def test_plan_adds_cel_then_paints_it_in_one_commit(tmp_path: Path) -> None:
+@pytest.mark.parametrize("image_size", [None, {"width": 5, "height": 5}])
+def test_plan_adds_cel_then_paints_it_in_one_commit(
+    tmp_path: Path, image_size: dict | None
+) -> None:
     source = tmp_path / "source.aseprite"
     target_file = tmp_path / "painted.aseprite"
     _fixture(source)
@@ -342,7 +369,8 @@ def test_plan_adds_cel_then_paints_it_in_one_commit(tmp_path: Path) -> None:
                         "target": {
                             "layer": {"layer_path": [1]},
                             "frame_number": 1,
-                        }
+                        },
+                        "image_size": image_size,
                     },
                 },
                 {
@@ -381,6 +409,11 @@ def test_plan_adds_cel_then_paints_it_in_one_commit(tmp_path: Path) -> None:
         "paint apply",
     ]
     assert result["steps"][0]["result"]["cel"]["content"] == "transparent"
+    assert result["steps"][0]["result"]["cel"]["image_bounds"] == {
+        "x": 0,
+        "y": 0,
+        **(image_size or {"width": 4, "height": 3}),
+    }
     code, reopened = _run(
         "get",
         {

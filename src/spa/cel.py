@@ -181,11 +181,20 @@ class CelGetResult(PublicModel):
     cel: CelState
 
 
-class CelAddInput(PublicModel):
+class CelTargetInput(PublicModel):
     target: CelAddress
 
 
-class CelMutationRequest(RuntimeRequest, CelAddInput):
+class CelImageSize(PublicModel):
+    width: int = Field(ge=1, le=65535, strict=True)
+    height: int = Field(ge=1, le=65535, strict=True)
+
+
+class CelAddInput(CelTargetInput):
+    image_size: CelImageSize | None = None
+
+
+class CelMutationRequest(RuntimeRequest, CelTargetInput):
     source_sprite_file: str = Field(min_length=1)
     target_sprite_file: str = Field(min_length=1)
     in_place: bool
@@ -204,7 +213,7 @@ class CelMutationRequest(RuntimeRequest, CelAddInput):
         return self
 
 
-class CelAddRequest(CelMutationRequest):
+class CelAddRequest(CelMutationRequest, CelAddInput):
     pass
 
 
@@ -405,6 +414,8 @@ def _mutate(
         "staged_sprite_file": str(staged),
         "target": request.target.model_dump(mode="json", exclude_none=True),
     }
+    if isinstance(request, CelAddRequest) and request.image_size is not None:
+        payload["image_size"] = request.image_size.model_dump(mode="json")
     if isinstance(request, CelClearRequest) and request.background_color is not None:
         payload["background_color"] = request.background_color.model_dump(mode="json")
     try:

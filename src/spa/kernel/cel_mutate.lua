@@ -96,7 +96,15 @@ local function execute()
   end
   local before = cel.inspect(open_sprite, layer, path, number)
   local before_count = #open_sprite.cels
-  cel.apply(open_sprite, layer, number, payload.operation, payload.background_color, frame)
+  cel.apply(
+    open_sprite,
+    layer,
+    number,
+    payload.operation,
+    payload.background_color,
+    frame,
+    payload.image_size
+  )
   local live = persistence.snapshot(open_sprite, inspection, digest, all_sections, uuids)
   local expected_count = before_count
     + (payload.operation == "add" and 1 or payload.operation == "remove" and -1 or 0)
