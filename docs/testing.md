@@ -189,8 +189,11 @@ The existing Runtime Integration failure reports preserve the process exit statu
 and available stdout/stderr; signal termination includes the number and the host's
 signal name when known. Direct native fixtures retain the same process evidence in
 their assertions through `tests.support.process_diagnostics`. Use that helper when
-adding a captured direct subprocess check. Do not infer a signal from an ordinary
-positive exit status, or replace a test failure with a skip.
+adding a captured direct subprocess check. If a fixture's preliminary probe raises an
+uncaught `RuntimeIssue`, `tests/conftest.py` attaches its diagnostics through pytest's
+report hook as an exception note for the normal traceback and JUnit report. Expected
+exceptions handled by a passing test do not reach that hook as failures. Do not infer a signal
+from an ordinary positive exit status, or replace a test failure with a skip.
 
 When saving logs, also stream them to the terminal and preserve the failing exit code.
 For Bash or zsh:
