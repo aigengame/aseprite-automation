@@ -47,18 +47,15 @@ local function observes_change_color_mode()
     result =
       color_mode.change(sprite, { source_color_mode = "indexed", target = { color_mode = "rgb" } })
     assert(result.changed and result.after.images[1].bytes_per_pixel == 4)
-    result = color_mode.change(
-      sprite,
-      {
-        source_color_mode = "rgb",
-        target = {
-          color_mode = "indexed",
-          rgb_map_algorithm = "octree",
-          color_best_fit_criteria = "rgb",
-          dithering = { algorithm = "ordered" },
-        },
-      }
-    )
+    result = color_mode.change(sprite, {
+      source_color_mode = "rgb",
+      target = {
+        color_mode = "indexed",
+        rgb_map_algorithm = "octree",
+        color_best_fit_criteria = "rgb",
+        dithering = { algorithm = "ordered" },
+      },
+    })
     assert(result.changed and result.dithering.matrix.identity == "bayer8x8")
     sprite = persistence.save_verified(sprite, app.params.capability_sprite, {}, "Color Mode probe")
     persistence.assert_equal(result.after, color_mode.observe(sprite), "Color Mode probe")
