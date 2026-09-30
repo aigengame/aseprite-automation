@@ -236,7 +236,20 @@ def _reject(invocation: KernelInvocationResult) -> None:
         spec = next(
             spec for spec in PALETTE_FAILURE_CODE_SPECS if spec.code == rejected["code"]
         )
-        details = spec.details_type.model_validate(rejected["details"])
+        # Palette addresses cross Lua JSON as decimal text. Keep even invalid large
+        # addresses exact in the public Failure Envelope without a new input limit.
+        wire_details = rejected["details"]
+        if not isinstance(wire_details, dict):
+            raise TypeError("Rejection details must be an object")
+        details = spec.details_type.model_validate(
+            {
+                key: int(value)
+                if key in {"frame_number", "palette_frame_number", "index"}
+                and isinstance(value, str)
+                else value
+                for key, value in wire_details.items()
+            }
+        )
         message = rejected["message"]
         if not isinstance(message, str):
             raise TypeError("Rejection message must be text")
@@ -256,7 +269,7 @@ def _read(
     observation = services.probe_runtime(request)
     payload: dict[str, object] = {"sprite_file": request.sprite_file}
     if isinstance(request, PaletteGetRequest):
-        payload["frame_number"] = request.frame_number
+        payload["frame_number"] = str(request.frame_number)
     invocation = services.invoke_kernel(
         observation, PALETTE_READ_HANDLER, payload, request.timeout_seconds
     )
@@ -320,8 +333,11 @@ def set_palette(
             {
                 "source_sprite_file": request.source_sprite_file,
                 "staged_sprite_file": str(mutation.staged_sprite_file),
-                "palette_frame_number": request.palette_frame_number,
-                "entries": [entry.model_dump() for entry in request.entries],
+                "palette_frame_number": str(request.palette_frame_number),
+                "entries": [
+                    {"index": str(entry.index), "color": entry.color.model_dump()}
+                    for entry in request.entries
+                ],
             },
             request.timeout_seconds,
         )

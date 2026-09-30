@@ -22,12 +22,14 @@ function module.list(sprite)
 end
 
 function module.get(sprite, frame_number)
+  local requested_frame = frame_number
+  frame_number = tonumber(frame_number)
   if frame_number > #sprite.frames then
     return {
       rejection = {
         code = "palette_frame_out_of_bounds",
         message = "Requested Frame is outside the Sprite timeline",
-        details = { frame_number = frame_number, frame_count = #sprite.frames },
+        details = { frame_number = requested_frame, frame_count = #sprite.frames },
       },
     }
   end
@@ -42,10 +44,9 @@ function module.get(sprite, frame_number)
 end
 
 function module.set(sprite, payload, verified_uuids)
-  local selected, change_frame = effective.resolve(sprite, payload.palette_frame_number)
-  if
-    payload.palette_frame_number > #sprite.frames or change_frame ~= payload.palette_frame_number
-  then
+  local requested_frame = tonumber(payload.palette_frame_number)
+  local selected, change_frame = effective.resolve(sprite, requested_frame)
+  if requested_frame > #sprite.frames or change_frame ~= requested_frame then
     return {
       rejection = {
         code = "palette_change_missing",
@@ -57,8 +58,10 @@ function module.set(sprite, payload, verified_uuids)
       },
     }
   end
+  local entries = {}
   for _, edit in ipairs(payload.entries) do
-    if edit.index >= #selected then
+    local index = tonumber(edit.index)
+    if index >= #selected then
       return {
         rejection = {
           code = "palette_index_out_of_bounds",
@@ -71,6 +74,7 @@ function module.set(sprite, payload, verified_uuids)
         },
       }
     end
+    entries[#entries + 1] = { index = index, color = edit.color }
   end
   local persistence = dofile(app.params.persistence)
   local digest = dofile(app.params.digest)
@@ -78,7 +82,7 @@ function module.set(sprite, payload, verified_uuids)
   local expected = persistence.snapshot(sprite, inspection, digest, sections, verified_uuids)
   for _, palette in ipairs(expected.sprite.palettes) do
     if palette.frame_number == change_frame then
-      for _, edit in ipairs(payload.entries) do
+      for _, edit in ipairs(entries) do
         local color = edit.color
         palette.entries[edit.index + 1].color = {
           red = color.red,
@@ -90,7 +94,7 @@ function module.set(sprite, payload, verified_uuids)
     end
   end
   app.transaction("Set Palette Entries", function()
-    for _, edit in ipairs(payload.entries) do
+    for _, edit in ipairs(entries) do
       local color = edit.color
       selected:setColor(
         edit.index,

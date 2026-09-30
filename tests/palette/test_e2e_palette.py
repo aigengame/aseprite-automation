@@ -103,12 +103,26 @@ def test_list_and_get_distinguish_requested_frame_from_owning_change(
     assert source.read_bytes() == original
 
 
-def test_get_rejects_a_frame_outside_the_timeline(tmp_path: Path, runtime) -> None:
+@pytest.mark.parametrize(
+    "frame_number",
+    [6, 2**53 + 1, 2**63, 10**400],
+    ids=[
+        "past-last-frame",
+        "beyond-exact-double",
+        "beyond-signed-64",
+        "beyond-double-range",
+    ],
+)
+def test_get_rejects_a_frame_outside_the_timeline(
+    tmp_path: Path, runtime, frame_number: int
+) -> None:
     source = tmp_path / "source.aseprite"
     _fixture(source, runtime)
-    code, result = _run("palette", "get", sprite_file=str(source), frame_number=6)
+    code, result = _run(
+        "palette", "get", sprite_file=str(source), frame_number=frame_number
+    )
     assert code != 0 and result["code"] == "palette_frame_out_of_bounds", result
-    assert result["details"]["frame_number"] == 6
+    assert result["details"]["frame_number"] == frame_number
     assert result["details"]["frame_count"] == 5
 
 
@@ -208,6 +222,10 @@ def test_info_publishes_entry_edit_capability_and_explains_lifecycle_gaps() -> N
         (2, 1, "palette_change_missing"),
         (6, 1, "palette_change_missing"),
         (3, 4, "palette_index_out_of_bounds"),
+        (2**53 + 1, 1, "palette_change_missing"),
+        (2**63, 1, "palette_change_missing"),
+        (3, 2**53 + 1, "palette_index_out_of_bounds"),
+        (3, 10**400, "palette_index_out_of_bounds"),
     ],
 )
 def test_set_validates_every_address_before_publication(
@@ -232,6 +250,9 @@ def test_set_validates_every_address_before_publication(
         ],
     )
     assert code != 0 and result["code"] == failure, result
+    assert result["details"]["palette_frame_number"] == change_frame
+    if failure == "palette_index_out_of_bounds":
+        assert result["details"]["index"] == index
     assert source.read_bytes() == original and target.read_bytes() == original
     assert sorted(path.name for path in tmp_path.iterdir()) == [
         "source.aseprite",

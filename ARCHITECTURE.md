@@ -499,7 +499,7 @@ src/spa/
       image.py, image_snapshot.py, selection.py
       paint.py, paint_composite.py, paint_native.py
     color/
-      palette.py          # Effective Palette binding
+      palette.py          # Palette Change reads, Entry edits, and Effective Palette binding
   delivery/
     export.py             # Export Image contract, native invocation, and result
     png_publication.py    # staged PNG verification/publication for Export and Preview
@@ -513,7 +513,7 @@ src/spa/
     raster/
       image/, paint/, selection/
       raster_color.lua
-    color/                # Effective Palette
+    color/                # Palette Change semantics and Effective Palette resolution
     delivery/             # native Image Export
     runtime/              # runtime and capability probes
       fixtures/           # real native probe inputs
