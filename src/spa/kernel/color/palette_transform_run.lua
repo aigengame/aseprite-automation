@@ -14,7 +14,9 @@ local function execute()
   local payload = assert(request.payload)
   sprite = assert(app.open(payload.source_sprite_file), "could not open Source Sprite File")
   local uuids = inspection.saved_layer_uuids(sprite, payload.source_sprite_file)
-  local execute_operation = assert(({ resize = transforms.resize })[payload.operation])
+  local execute_operation = assert(
+    ({ resize = transforms.resize, remap = transforms.remap, reorder = transforms.reorder })[payload.operation]
+  )
   local live = execute_operation(sprite, payload, uuids)
   if live.rejection then return live end
   local live_facts = transforms.snapshot(sprite, uuids)
@@ -30,10 +32,16 @@ local function execute()
     "Persisted Palette Images and metadata"
   )
   local persisted = palettes.list(sprite)
-  persistence.assert_equal(live, persisted, "Persisted Palette timeline")
-  persisted.palette = palettes.get(sprite, payload.palette_frame_number).palette
-  persisted.persisted_reopen_verified = true
-  return persisted
+  persistence.assert_equal(
+    { frame_count = live.frame_count, palette_changes = live.palette_changes },
+    persisted,
+    "Persisted Palette timeline"
+  )
+  if payload.operation == "resize" then
+    live.palette = palettes.get(sprite, payload.palette_frame_number).palette
+  end
+  live.persisted_reopen_verified = true
+  return live
 end
 
 local ok, result = pcall(execute)

@@ -118,13 +118,11 @@ class PaletteGetRequest(PaletteListRequest):
     frame_number: int = Field(ge=1)
 
 
-class PaletteSetRequest(RuntimeRequest):
+class PaletteMutationRequest(RuntimeRequest):
     source_sprite_file: str = Field(min_length=1)
     target_sprite_file: str = Field(min_length=1)
     in_place: bool
     overwrite: bool
-    palette_frame_number: int = Field(ge=1)
-    entries: list[PaletteEntry] = Field(min_length=1)
 
     _validate_source = field_validator("source_sprite_file")(
         validate_native_sprite_path
@@ -134,8 +132,17 @@ class PaletteSetRequest(RuntimeRequest):
     )
 
     @model_validator(mode="after")
-    def validate_intent(self) -> "PaletteSetRequest":
+    def validate_intent(self) -> "PaletteMutationRequest":
         require_overwrite_for_in_place(self.in_place, self.overwrite)
+        return self
+
+
+class PaletteSetRequest(PaletteMutationRequest):
+    palette_frame_number: int = Field(ge=1)
+    entries: list[PaletteEntry] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_entries(self) -> "PaletteSetRequest":
         indexes = [entry.index for entry in self.entries]
         if len(set(indexes)) != len(indexes):
             raise ValueError("Each Palette Index can occur only once in an Entry edit")
@@ -150,6 +157,40 @@ class PaletteFrameRange(PublicModel):
 class PaletteResizeRequest(PaletteSetRequest):
     size: int = Field(ge=1)
     entries: list[PaletteEntry]
+
+
+class PaletteIndexMapping(PublicModel):
+    old_index: int = Field(ge=0)
+    new_index: int = Field(ge=0)
+
+
+class PaletteRemapRequest(PaletteMutationRequest):
+    mapping: list[PaletteIndexMapping] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_mapping(self) -> "PaletteRemapRequest":
+        indexes = [entry.old_index for entry in self.mapping]
+        if len(set(indexes)) != len(indexes):
+            raise ValueError("Each old Palette Index can occur only once")
+        return self
+
+
+class PaletteReorderRequest(PaletteRemapRequest):
+    scope: Literal["palette-change", "sprite"]
+    palette_frame_number: int | None = Field(default=None, ge=1)
+
+    @model_validator(mode="after")
+    def validate_permutation(self) -> "PaletteReorderRequest":
+        if (self.scope == "palette-change") != (self.palette_frame_number is not None):
+            raise ValueError("Only palette-change scope requires palette_frame_number")
+        expected = set(range(len(self.mapping)))
+        if {item.old_index for item in self.mapping} != expected or {
+            item.new_index for item in self.mapping
+        } != expected:
+            raise ValueError(
+                "Reorder requires a complete bijective permutation starting at index zero"
+            )
+        return self
 
 
 class PaletteChange(PublicModel):
@@ -249,9 +290,48 @@ class PaletteTileUse(PublicModel):
     cel_uses: list[PaletteCelUse]
 
 
+class PaletteImageChange(PublicModel):
+    cel_uses: list[PaletteCelUse]
+    tile_uses: list[PaletteTileUse]
+    before_digest: str = Field(min_length=1)
+    after_digest: str = Field(min_length=1)
+
+
+class PaletteMappingEvidence(PaletteTimeline):
+    scope: Literal["palette-change", "sprite"]
+    palette_frame_number: int | None = Field(default=None, ge=1)
+    mapping: list[PaletteIndexMapping]
+    transparent_color_index_before: int = Field(ge=0)
+    transparent_color_index_after: int = Field(ge=0)
+    affected_images: list[PaletteImageChange]
+    persisted_reopen_verified: Literal[True]
+
+
+class PaletteRemapResult(PaletteMappingEvidence):
+    status: Literal["success"] = "success"
+    operation: Literal["spa palette remap"] = "spa palette remap"
+    target_commit: TargetCommit
+
+
+class PaletteReorderResult(PaletteMappingEvidence):
+    status: Literal["success"] = "success"
+    operation: Literal["spa palette reorder"] = "spa palette reorder"
+    target_commit: TargetCommit
+
+
 class PaletteTransformDetails(PublicModel):
     kind: Literal["palette_transform"] = "palette_transform"
-    reason: Literal["growth_entries", "transparent_index_removed", "index_removed"]
+    reason: Literal[
+        "growth_entries",
+        "transparent_index_removed",
+        "index_removed",
+        "color_mode",
+        "invalid_destination",
+        "invalid_pixel",
+        "permutation_size",
+        "transparent_index_moved",
+        "shared_image_outside_range",
+    ]
     palette_frame_number: int = Field(ge=1)
     index: int | None = Field(default=None, ge=0)
     cel_uses: list[PaletteCelUse] = Field(default_factory=list)
@@ -479,7 +559,117 @@ def resize_palette(
         )
 
 
+def _map_palette(
+    request: PaletteRemapRequest, services: OperationServices
+) -> tuple[PaletteMappingEvidence, TargetCommit]:
+    operation = "reorder" if isinstance(request, PaletteReorderRequest) else "remap"
+    scope = request.scope if isinstance(request, PaletteReorderRequest) else "sprite"
+    frame = (
+        request.palette_frame_number
+        if isinstance(request, PaletteReorderRequest)
+        else None
+    )
+    completion = prepare_mutation(
+        services.target_files,
+        Path(request.source_sprite_file),
+        Path(request.target_sprite_file),
+        in_place=request.in_place,
+        overwrite=request.overwrite,
+        identity_change_message="Source/Target publication identity changed before Target Commit",
+    )
+    observation = services.probe_runtime(request)
+    with completion as mutation:
+        invocation = services.invoke_kernel(
+            observation,
+            PALETTE_TRANSFORM_HANDLER,
+            {
+                "operation": operation,
+                "scope": scope,
+                "palette_frame_number": str(frame) if frame is not None else None,
+                "source_sprite_file": request.source_sprite_file,
+                "staged_sprite_file": str(mutation.staged_sprite_file),
+                "mapping": [
+                    {"old_index": str(item.old_index), "new_index": str(item.new_index)}
+                    for item in request.mapping
+                ],
+            },
+            request.timeout_seconds,
+        )
+        _reject(invocation)
+        try:
+            evidence = PaletteMappingEvidence.model_validate(invocation.payload)
+            if (
+                evidence.scope != scope
+                or evidence.palette_frame_number != frame
+                or evidence.mapping != request.mapping
+            ):
+                raise ValueError("Persisted mapping evidence differs from the request")
+        except ValueError as exc:
+            raise RuntimeIssue(
+                "response_malformed",
+                "Invalid persisted Palette mapping evidence",
+                ResponseEvidence(response_path=invocation.response_path),
+                invocation.diagnostics,
+            ) from exc
+        return evidence, mutation.commit()
+
+
+def remap_palette(
+    request: PaletteRemapRequest, services: OperationServices
+) -> PaletteRemapResult:
+    evidence, committed = _map_palette(request, services)
+    return PaletteRemapResult(**evidence.model_dump(), target_commit=committed)
+
+
+def reorder_palette(
+    request: PaletteReorderRequest, services: OperationServices
+) -> PaletteReorderResult:
+    evidence, committed = _map_palette(request, services)
+    return PaletteReorderResult(**evidence.model_dump(), target_commit=committed)
+
+
 PALETTE_OPERATIONS = (
+    OperationDescriptor(
+        "palette reorder",
+        PaletteReorderRequest,
+        PaletteReorderResult,
+        reorder_palette,
+        lambda result: result.target_commit.target_sprite_file,
+        RuntimeRequirements(
+            lua_language="Lua 5.4",
+            minimum_api_version=41,
+            required_capabilities=[
+                "aseprite_sprite_inspection",
+                "aseprite_palette_reorder",
+            ],
+        ),
+        (
+            *RUNTIME_FAILURE_CODES,
+            "palette_change_missing",
+            "palette_transform_rejected",
+            "target_commit_failed",
+        ),
+        execution_kind="mutation",
+        side_effects=("publishes the declared Target Sprite File",),
+    ),
+    OperationDescriptor(
+        "palette remap",
+        PaletteRemapRequest,
+        PaletteRemapResult,
+        remap_palette,
+        lambda result: result.target_commit.target_sprite_file,
+        RuntimeRequirements(
+            lua_language="Lua 5.4",
+            minimum_api_version=41,
+            required_capabilities=[
+                "aseprite_sprite_inspection",
+                "aseprite_palette_remap",
+            ],
+        ),
+        (*RUNTIME_FAILURE_CODES, "palette_transform_rejected", "target_commit_failed"),
+        execution_kind="mutation",
+        side_effects=("publishes the declared Target Sprite File",),
+    ),
     OperationDescriptor(
         "palette resize",
         PaletteResizeRequest,

@@ -16,10 +16,10 @@ end
 
 function module.resolve(sprite)
   local groups, by_id = {}, {}
-  local function record(image)
+  local function record(image, owner)
     local item = by_id[image.id]
     if item == nil then
-      item = { image = image, cel_uses = {}, tile_uses = {} }
+      item = { image = image, owner = owner, cel_uses = {}, tile_uses = {} }
       by_id[image.id] = item
       groups[#groups + 1] = item
     end
@@ -27,7 +27,7 @@ function module.resolve(sprite)
   end
   for _, cel in ipairs(sprite.cels) do
     if not cel.layer.isTilemap then
-      local item = record(cel.image)
+      local item = record(cel.image, cel)
       item.cel_uses[#item.cel_uses + 1] = cel_use(sprite, cel)
     end
   end
@@ -35,7 +35,8 @@ function module.resolve(sprite)
     local tileset = sprite.tilesets[tileset_index]
     for tile_index = 0, #tileset - 1 do
       local tile = assert(tileset:tile(tile_index), "Missing Tile in Palette target resolution")
-      local item = record(assert(tile.image, "Missing Tile Image in Palette target resolution"))
+      local item =
+        record(assert(tile.image, "Missing Tile Image in Palette target resolution"), tile)
       local uses = {}
       for _, cel in ipairs(sprite.cels) do
         if cel.layer.isTilemap and cel.layer.tileset == tileset then

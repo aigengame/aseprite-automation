@@ -499,7 +499,7 @@ src/spa/
       image.py, image_snapshot.py, selection.py
       paint.py, paint_composite.py, paint_native.py
     color/
-      palette.py          # Palette Change reads, Entry edits, and Effective Palette binding
+      palette.py          # Palette reads, Entry edits, sizing, reorder, and remap contracts
   delivery/
     export.py             # Export Image contract, native invocation, and result
     png_publication.py    # staged PNG verification/publication for Export and Preview
@@ -549,13 +549,22 @@ Operation registry.
 
 Add a module only with a complete functional slice. Preparation and Tile packages
 have no placeholder implementation. Color and Palette owns the shared Effective
-Palette resolver and standalone Palette list/get/set. Its native module resolves
+Palette resolver and standalone Palette list/get/set/resize/remap/reorder. Its native module resolves
 Frame-based change points, edits only exact existing changes, and checks the full
 Palette timeline after shared Sprite persistence completes. This Palette-specific
 postcondition includes RGB/Grayscale Entries, which generic document persistence
 can otherwise treat as unrelated metadata. Python validates native evidence and
 uses shared mutation completion before Target Commit. Unsupported Palette Change
 add/remove operations remain evidence-backed Capability Gaps without Descriptors.
+The private `palette_images` module resolves per-invocation Cel and Tile Image uses,
+including unused Tiles, and supplies Image digests and Tile metadata facts to Palette
+checks. It has no persistent registry or Tile authoring policy. Palette transforms
+delegate shared replacement to the native Cel/Tile Image setter, which preserves
+sharing and updates Tileset persistence caches; raw Image byte writes do not do that.
+Palette-change reorder rejects changed Images with uses outside its effective range.
+Whole-Sprite remap and reorder include all Indexed Images and the global Transparent
+Color Index. Palette resize remains a native capability that Preparation can consume
+without importing Preparation's policy into Color and Palette.
 Reuse the canonical
 Pixel Region Snapshot and Color Value contracts where applicable; do not promote the
 wizard's temporary PNG decoder, palette matcher, or batching adapter as a second pixel
