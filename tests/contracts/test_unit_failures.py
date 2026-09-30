@@ -18,6 +18,7 @@ from spa.authoring.color.palette import (
     PaletteChangeDetails,
     PaletteEntryDetails,
     PaletteFrameDetails,
+    PaletteTransformDetails,
 )
 from spa.authoring.document.animation import AuditLimitDetails
 from spa.authoring.document.cel import CelAddress as LifecycleCelAddress
@@ -180,6 +181,9 @@ def test_failure_construction_derives_category_and_refuses_mismatch() -> None:
 
 def test_each_registered_code_has_a_constrained_public_schema() -> None:
     details_by_type = {
+        PaletteTransformDetails: PaletteTransformDetails(
+            reason="growth_entries", palette_frame_number=1
+        ),
         PaletteFrameDetails: PaletteFrameDetails(frame_number=6, frame_count=5),
         PaletteChangeDetails: PaletteChangeDetails(
             palette_frame_number=2, frame_count=5

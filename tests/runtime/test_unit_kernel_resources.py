@@ -74,6 +74,9 @@ def test_probe_resources_are_packaged() -> None:
         "color/palette_support.lua",
         "color/palette_read.lua",
         "color/palette_set.lua",
+        "color/palette_transform.lua",
+        "color/palette_transform_run.lua",
+        "color/palette_images.lua",
         "raster/image/image_orientation.lua",
         "raster/image/image_orientation_transform.lua",
     ):

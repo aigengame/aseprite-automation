@@ -1,71 +1,13 @@
 """Public Palette operations against native Frame-based Palette Changes."""
 
-import json
-import os
-import subprocess
-import tempfile
 from pathlib import Path
 
 import pytest
 
-from spa.adapters.aseprite.aseprite import probe
-from spa.adapters.aseprite.invocation import prepare_invocation
-from spa.application.surface import PROBE_RESOURCES
-from spa.contracts.public import RuntimeRequest
-from tests.support import inject_palette_change, process_diagnostics, spa
+from tests.palette.support import palette_fixture as _fixture
+from tests.palette.support import run_palette as _run
 
 pytestmark = pytest.mark.e2e
-
-
-def _run(*command: str, **request: object) -> tuple[int, dict]:
-    result = spa(
-        *command,
-        "--input-json",
-        json.dumps({**request, "aseprite": os.environ["SPA_TEST_ASEPRITE"]}),
-    )
-    assert result.stdout, process_diagnostics(result)
-    return result.returncode, json.loads(result.stdout)
-
-
-@pytest.fixture(scope="module")
-def runtime():
-    return probe(
-        RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
-    )
-
-
-def _fixture(
-    source: Path, runtime, mode: str = "indexed", *, short_palette: bool = False
-) -> None:
-    with tempfile.TemporaryDirectory(prefix="spa-palette-fixture-") as work:
-        prepared = prepare_invocation(
-            Path(runtime.canonical_path), Path(runtime.resource_path), Path(work)
-        )
-        run = subprocess.run(
-            [
-                str(prepared.executable),
-                "--batch",
-                "--script-param",
-                f"source={source}",
-                "--script-param",
-                f"mode={mode}",
-                "--script-param",
-                f"short_palette={str(short_palette).lower()}",
-                "--script",
-                str(Path(__file__).parent / "fixtures" / "palette_changes.lua"),
-            ],
-            text=True,
-            capture_output=True,
-            check=False,
-            env=prepared.environment,
-        )
-    assert run.returncode == 0, process_diagnostics(run)
-    for frame, color in [(3, (40, 80, 220, 255)), (5, (220, 100, 30, 255))]:
-        inject_palette_change(
-            source,
-            [(10, 20, 30, 255), color, (20, 200, 40, 128), (50, 60, 70, 0)],
-            frame_number=frame,
-        )
 
 
 def test_list_and_get_distinguish_requested_frame_from_owning_change(
