@@ -11,9 +11,9 @@ local function execute()
   assert(request.kernel_protocol_version == 1, "unsupported Kernel Protocol version")
   local payload = assert(request.payload)
   sprite = assert(app.open(payload.source_sprite_file), "could not open Source Sprite File")
-  profile.restore_file_profile(sprite, payload.source_sprite_file)
+  local profile_state = profile.restore_file_profile(sprite, payload.source_sprite_file)
   local uuids = inspection.saved_layer_uuids(sprite, payload.source_sprite_file)
-  local result = profile.apply_live(sprite, payload.operation, payload, uuids)
+  local result = profile.apply_live(sprite, payload.operation, payload, uuids, profile_state)
   if result.rejection then return result end
   local live = profile.snapshot(sprite, uuids)
   sprite, uuids =

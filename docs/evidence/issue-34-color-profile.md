@@ -68,6 +68,18 @@ this conversion constraint does not narrow assignment. Unsupported conversion
 targets, invalid files, and unreadable inputs produce typed `color_profile_file_failed` results.
 Lua loads the snapshot through the native constructor before mutation.
 
+Adversarial review also reproduced native LAB-ICC Source to sRGB conversion that
+only relabeled the profile: both the midtone Image and Palette stayed unchanged.
+An independent LittleCMS check converted the sample `(48, 96, 144)` to `(0, 56, 20)`;
+this is test evidence only, not a production transform. SPA therefore refuses
+non-RGB ICC Sources with `color_profile_source_unsupported` before conversion.
+The encoded-profile reader retains the ICC header's data-color-space signature.
+The native profile owner binds it to the live ColorSpace and updates that private
+state from frozen ICC bytes after each Assign/Convert. This covers both opened
+Sources and Assign-then-Convert Plan Steps without a second color engine or registry.
+Tests verify the refusal preserves Source and Target, and that a later explicit
+Assign of a supported RGB profile replaces the live source interpretation.
+
 The result includes the requested path, byte size, SHA-256, native name, and equality
 with the effective Sprite profile. Native names are observations and need not match
 ICC description text. For example, the generated fixture's description is `sRGB

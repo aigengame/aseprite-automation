@@ -27,6 +27,7 @@ local all_sections = {
 }
 local open_sprite = nil
 local verified_uuids = {}
+local profile_state = {}
 local failed_step = nil
 local failed_operation = nil
 local runtime_incompatibility = nil
@@ -143,7 +144,7 @@ local function execute_step(step)
   end
   local profile_operation = profile_operations[step.operation]
   if profile_operation then
-    return profiles.apply_live(open_sprite, profile_operation, input, verified_uuids)
+    return profiles.apply_live(open_sprite, profile_operation, input, verified_uuids, profile_state)
   end
   if step.operation == "motion apply" then
     local result = motion.apply_live(open_sprite, input, verified_uuids)
@@ -171,7 +172,9 @@ local function execute()
   end
   if type(payload.source_sprite_file) == "string" then
     open_sprite = assert(app.open(payload.source_sprite_file), "could not open Source Sprite File")
-    if profile_steps then profiles.restore_file_profile(open_sprite, payload.source_sprite_file) end
+    if profile_steps then
+      profile_state = profiles.restore_file_profile(open_sprite, payload.source_sprite_file)
+    end
     verified_uuids = inspection.saved_layer_uuids(open_sprite, payload.source_sprite_file)
   end
   local outcomes = {}

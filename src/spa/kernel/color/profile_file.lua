@@ -4,7 +4,7 @@ local module = {}
 -- app.open() assigns sRGB to that old-file form. Read only this file fact.
 function module.declared_profile(source_file)
   local file = assert(io.open(source_file, "rb"), "could not read Source Sprite File")
-  local ok, result = pcall(function()
+  local ok, result, icc_color_space = pcall(function()
     local header = assert(file:read(128), "incomplete Sprite header")
     local file_size, magic, frames = string.unpack("<I4I2I2", header)
     assert(magic == 0xa5e0 and frames > 0, "invalid Sprite header")
@@ -12,6 +12,7 @@ function module.declared_profile(source_file)
     assert(file_size <= actual_size, "incomplete Source Sprite File")
     local frame_at = 128
     local observed = nil
+    local observed_icc_space = nil
     for _ = 1, frames do
       assert(frame_at + 16 <= file_size, "incomplete Sprite Frame")
       assert(file:seek("set", frame_at))
@@ -39,17 +40,30 @@ function module.declared_profile(source_file)
             or profile_type == 2 and "icc"
             or "unsupported"
           assert(observed == nil or observed == kind, "conflicting Color Profile chunks")
+          if kind == "icc" then
+            assert(chunk_size >= 46, "incomplete ICC profile header")
+            assert(file:seek("set", chunk_at + 22))
+            local icc_size = string.unpack("<I4", assert(file:read(4)))
+            assert(icc_size >= 20 and icc_size <= chunk_size - 26, "incomplete ICC profile")
+            assert(file:seek("cur", 16))
+            local space = assert(file:read(4))
+            assert(
+              observed_icc_space == nil or observed_icc_space == space,
+              "conflicting ICC color spaces"
+            )
+            observed_icc_space = space
+          end
           observed = kind
         end
         chunk_at = chunk_at + chunk_size
       end
       frame_at = frame_end
     end
-    return observed or "none"
+    return observed or "none", observed_icc_space
   end)
   file:close()
   if not ok then error(result) end
-  return result
+  return result, icc_color_space
 end
 
 return module

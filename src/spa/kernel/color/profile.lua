@@ -17,7 +17,7 @@ local function profile_facts(profile)
 end
 
 function module.restore_file_profile(sprite, path)
-  local declared = profile_file.declared_profile(path)
+  local declared, icc_color_space = profile_file.declared_profile(path)
   -- Headless app.open uses FileOpConfig defaults even after changing preferences.
   -- Restore only an encoded None, through native assignment; never transform stored colors.
   if declared == "none" then sprite:assignColorSpace(ColorSpace()) end
@@ -25,6 +25,7 @@ function module.restore_file_profile(sprite, path)
     profile_facts(sprite.colorSpace).kind == declared,
     "Loaded Color Profile differs from file"
   )
+  return { profile = sprite.colorSpace, icc_color_space = icc_color_space }
 end
 
 function module.snapshot(sprite, uuids)
@@ -100,12 +101,26 @@ local function requested_profile(input)
   local ok, profile = pcall(function() return ColorSpace { fromFile = path } end)
   os.remove(path)
   if not ok or profile_facts(profile).kind ~= "icc" then return nil end
-  return profile
+  return profile, bytes:sub(17, 20)
 end
 
-function module.apply_live(sprite, operation, input, uuids)
+function module.apply_live(sprite, operation, input, uuids, profile_state)
   assert(operation == "assign" or operation == "convert", "Unsupported Color Profile operation")
-  local target = requested_profile(input)
+  -- Track only the current native profile's encoded ICC signature. A successful
+  -- ColorSpace constructor does not prove that the native converter supports it.
+  if operation == "convert" and profile_facts(sprite.colorSpace).kind == "icc" then
+    assert(profile_state.profile == sprite.colorSpace, "ICC source profile evidence is stale")
+    assert(profile_state.icc_color_space ~= nil, "ICC source color space is unknown")
+    if profile_state.icc_color_space ~= "RGB " then
+      return {
+        rejection = {
+          code = "color_profile_source_unsupported",
+          details = { icc_color_space = profile_state.icc_color_space:gsub("%s+$", "") },
+        },
+      }
+    end
+  end
+  local target, icc_color_space = requested_profile(input)
   if target == nil then
     return {
       rejection = {
@@ -122,6 +137,8 @@ function module.apply_live(sprite, operation, input, uuids)
   end
   local after = module.snapshot(sprite, uuids)
   assert(sprite.colorSpace == target, "Effective Color Profile differs from requested profile")
+  profile_state.profile = after.profile
+  profile_state.icc_color_space = icc_color_space
   if operation == "convert" then
     -- The native operation may change stored Images and Palettes, preserving other document facts.
     before.document.images = after.document.images

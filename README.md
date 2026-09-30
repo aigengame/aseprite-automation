@@ -654,6 +654,8 @@ Both use explicit `source_sprite_file`, `target_sprite_file`, `in_place`, and
 
 ICC inputs must be readable, valid profiles; Convert currently accepts RGB ICC targets.
 Assign also supports validated LAB ICC metadata without transforming stored colors.
+Convert refuses a non-RGB ICC Source with `color_profile_source_unsupported`;
+an explicit Assign can establish a supported interpretation before conversion.
 The result reports the input path,
 byte size, SHA-256, native name, and equality with the effective Sprite profile.
 Results distinguish `source_profile`, `requested_profile`, and `effective_profile`;
@@ -680,7 +682,7 @@ executes up to 64 Sprite-bound `sprite create`, `sprite get`, `frame list`,
 `paint apply`, `sprite assign-color-profile`, and `sprite convert-color-profile` Steps
 on one live Sprite in one Aseprite process. A read Plan publishes no file. A mutating
 Plan declares one Target Sprite File; the staged file is reopened and verified before
-one Target Commit. A failed Step publishes no target. Typed Cel and ICC input refusals identify the
+one Target Commit. A failed Step publishes no target. Typed Cel and Color Profile refusals identify the
 one-based Step in `details.step_number`; execution failures use
 `details.failed_step` when a Step was active. Each Paint Step retains its own
 256-pixel Operation Limit. A Plan with an

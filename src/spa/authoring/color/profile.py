@@ -84,12 +84,24 @@ class ProfileFileDetails(PublicModel):
     step_number: int | None = Field(default=None, ge=1)
 
 
+class ProfileSourceDetails(PublicModel):
+    kind: Literal["color_profile_source"] = "color_profile_source"
+    icc_color_space: str
+    step_number: int | None = Field(default=None, ge=1)
+
+
 PROFILE_FAILURE_SPECS = (
     FailureCodeSpec(
         "color_profile_file_failed",
         "The requested ICC file could not be used",
         "input",
         ProfileFileDetails,
+    ),
+    FailureCodeSpec(
+        "color_profile_source_unsupported",
+        "Native conversion does not support the current Sprite's ICC color space",
+        "input",
+        ProfileSourceDetails,
     ),
 )
 
@@ -148,9 +160,15 @@ def reject_profile(
     if rejected is None:
         return
     try:
-        if rejected["code"] != "color_profile_file_failed":
+        code = rejected["code"]
+        if code == "color_profile_file_failed":
+            details = ProfileFileDetails.model_validate(rejected["details"])
+            message = "Native Aseprite could not load the ICC file"
+        elif code == "color_profile_source_unsupported":
+            details = ProfileSourceDetails.model_validate(rejected["details"])
+            message = "Native conversion requires an RGB ICC source profile"
+        else:
             raise ValueError("Unknown Color Profile rejection")
-        details = ProfileFileDetails.model_validate(rejected["details"])
     except (KeyError, TypeError, ValueError) as exc:
         raise RuntimeIssue(
             "response_malformed",
@@ -159,8 +177,8 @@ def reject_profile(
             invocation.diagnostics,
         ) from exc
     raise OperationIssue(
-        "color_profile_file_failed",
-        "Native Aseprite could not load the ICC file",
+        code,
+        message,
         details.model_copy(update={"step_number": step_number}),
     )
 
@@ -425,7 +443,12 @@ PROFILE_OPERATIONS = (
                 "aseprite_convert_color_profile",
             ],
         ),
-        (*RUNTIME_FAILURE_CODES, "color_profile_file_failed", "target_commit_failed"),
+        (
+            *RUNTIME_FAILURE_CODES,
+            "color_profile_file_failed",
+            "color_profile_source_unsupported",
+            "target_commit_failed",
+        ),
         plan_eligible=True,
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),

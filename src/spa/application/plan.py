@@ -1084,6 +1084,7 @@ PLAN_OPERATIONS = (
             "cel_unsupported_target",
             "cel_frame_out_of_bounds",
             "color_profile_file_failed",
+            "color_profile_source_unsupported",
             "motion_linked_cel",
             "motion_position_out_of_bounds",
             "target_commit_failed",

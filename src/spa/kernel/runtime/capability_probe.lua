@@ -35,19 +35,20 @@ local function observes_color_profile(operation)
     sprite.palettes[1]:setColor(0, Color { r = 32, g = 64, b = 96, a = 255 })
     sprite.palettes[1]:setColor(1, Color { r = 48, g = 96, b = 144, a = 255 })
     local icc_bytes = dofile(app.params.profile_fixture)
+    local profile_state = {}
     local input = {
       profile = { kind = "icc", icc_file = "probe.icc" },
       icc_bytes = icc_bytes,
       icc_file = { path = "probe.icc", byte_size = #icc_bytes // 2, sha256 = string.rep("0", 64) },
     }
     local function verify(input_profile)
-      local result = profiles.apply_live(sprite, operation, input_profile, {})
+      local result = profiles.apply_live(sprite, operation, input_profile, {}, profile_state)
       assert(result.rejection == nil and result.matches_requested_profile)
       local live = profiles.snapshot(sprite, {})
       assert(sprite:saveAs(path))
       sprite:close()
       sprite = assert(app.open(path))
-      profiles.restore_file_profile(sprite, path)
+      profile_state = profiles.restore_file_profile(sprite, path)
       profiles.verify_persisted(live, sprite, inspection.saved_layer_uuids(sprite, path))
       return result
     end

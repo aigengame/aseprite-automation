@@ -446,6 +446,52 @@ def test_convert_plan_matches_standalone_and_step_evidence(tmp_path: Path, runti
     assert target.read_bytes() == original
 
 
+def test_convert_refuses_lab_source_and_live_plan_profile_before_publication(
+    tmp_path: Path, runtime
+):
+    from PIL import ImageCms
+
+    _require_conversion(runtime)
+    source, lab_source, target = (
+        tmp_path / name
+        for name in ["source.aseprite", "lab.aseprite", "target.aseprite"]
+    )
+    _native(runtime, source, action="create")
+    icc = tmp_path / "lab.icc"
+    icc.write_bytes(ImageCms.ImageCmsProfile(ImageCms.createProfile("LAB")).tobytes())
+    lab = {"kind": "icc", "icc_file": str(icc)}
+    code, assigned = _run("assign-color-profile", source, lab_source, lab)
+    assert code == 0, assigned
+    original = lab_source.read_bytes()
+    target.write_bytes(b"existing Target")
+    code, result = _run("convert-color-profile", lab_source, target, {"kind": "srgb"})
+    assert code != 0 and result["code"] == "color_profile_source_unsupported", result
+    assert result["details"]["icc_color_space"] == "Lab"
+    assert result["details"]["step_number"] is None
+    convert = {
+        "operation": "sprite convert-color-profile",
+        "input": {"profile": {"kind": "srgb"}},
+    }
+    assign = {"operation": "sprite assign-color-profile", "input": {"profile": lab}}
+    for plan_source, steps in [(lab_source, [convert]), (source, [assign, convert])]:
+        code, result = _plan(plan_source, target, steps)
+        assert code != 0 and result["code"] == "color_profile_source_unsupported", (
+            result
+        )
+        assert result["details"]["icc_color_space"] == "Lab"
+        assert result["details"]["step_number"] == len(steps)
+        assert (
+            lab_source.read_bytes() == original
+            and target.read_bytes() == b"existing Target"
+        )
+        assert not list(tmp_path.glob(".*.staged.aseprite"))
+    # A later explicit Assign replaces the live source interpretation for Convert.
+    _linear_icc(icc)
+    code, result = _plan(lab_source, target, [assign, convert])
+    assert code == 0, result
+    assert result["steps"][1]["result"]["images"][0]["changed"] is True
+
+
 def test_conversion_discovery_matches_runtime_and_missing_converter_refuses_publication(
     tmp_path: Path, runtime
 ):
