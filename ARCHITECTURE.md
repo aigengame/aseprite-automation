@@ -326,8 +326,9 @@ save/reopen gate validates the state after all later Steps.
 The shared `sprite_persistence.lua` Module owns native snapshots and their
 persisted-fact comparison. Standalone Cel set/copy/link/unlink and Motion use its
 `save_verified` Interface to capture live facts, save, close, reopen, observe saved
-Layer UUIDs, and compare the complete document. The Interface consumes the live
-Sprite and returns a reopened Sprite, fresh UUID facts, and persisted inspection.
+Layer UUIDs, and compare the captured native document snapshot. The Interface
+consumes the live Sprite and returns a reopened Sprite, fresh UUID facts, and
+persisted inspection.
 It closes its owned Sprite on failure; after success, the caller owns the reopened
 Sprite and closes it after its remaining checks. Cel relationship and Motion owners
 retain target resolution and operation-specific postconditions. Their handlers retain
