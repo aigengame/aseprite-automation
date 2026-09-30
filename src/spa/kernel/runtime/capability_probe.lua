@@ -21,6 +21,32 @@ local image_orientation_transform = app.params.image_orientation_transform
     and dofile(app.params.image_orientation_transform)
   or nil
 
+local function observes_assign_color_profile()
+  if app.params.color_profile == nil then return false end
+  local profiles = dofile(app.params.color_profile)
+  local sprite = nil
+  local path = app.params.capability_sprite
+  local ok = pcall(function()
+    sprite = Sprite(1, 1, ColorMode.RGB)
+    sprite.palettes[1]:resize(2)
+    sprite.palettes[1]:setColor(0, Color { r = 32, g = 64, b = 96, a = 255 })
+    sprite.palettes[1]:setColor(1, Color { r = 48, g = 96, b = 144, a = 255 })
+    local result = profiles.apply_live(sprite, "assign", { profile = { kind = "none" } }, {})
+    assert(result.effective_profile.kind == "none")
+    result = profiles.apply_live(sprite, "assign", { profile = { kind = "srgb" } }, {})
+    assert(result.effective_profile.kind == "srgb")
+    local live = profiles.snapshot(sprite, {})
+    assert(sprite:saveAs(path))
+    sprite:close()
+    sprite = assert(app.open(path))
+    profiles.restore_file_profile(sprite, path)
+    profiles.verify_persisted(live, sprite, inspection.saved_layer_uuids(sprite, path))
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  pcall(function() os.remove(path) end)
+  return ok
+end
+
 local function observes_palette_entries()
   if app.params.palette == nil or app.params.persistence == nil then return false end
   local palettes = dofile(app.params.palette)
@@ -903,6 +929,9 @@ function module.observe()
     if ok then capabilities[#capabilities + 1] = "aseprite_selection" end
   end
   local supports_inspection = observes_sprite_inspection()
+  if observes_assign_color_profile() then
+    capabilities[#capabilities + 1] = "aseprite_assign_color_profile"
+  end
   if observes_palette_entries() then
     capabilities[#capabilities + 1] = "aseprite_palette_entries"
   end
