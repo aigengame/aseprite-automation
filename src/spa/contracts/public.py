@@ -77,6 +77,7 @@ RuntimeCapability = Literal[
     "aseprite_tag_authoring",
     "aseprite_palette_entries",
     "aseprite_assign_color_profile",
+    "aseprite_convert_color_profile",
     "aseprite_export_image",
     "aseprite_selection",
 ]

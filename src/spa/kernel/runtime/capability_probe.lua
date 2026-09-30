@@ -21,29 +21,49 @@ local image_orientation_transform = app.params.image_orientation_transform
     and dofile(app.params.image_orientation_transform)
   or nil
 
-local function observes_assign_color_profile()
-  if app.params.color_profile == nil then return false end
+local function observes_color_profile(operation)
+  if app.params.color_profile == nil or app.params.profile_fixture == nil then return false end
   local profiles = dofile(app.params.color_profile)
   local sprite = nil
   local path = app.params.capability_sprite
+  local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
   local ok = pcall(function()
     sprite = Sprite(1, 1, ColorMode.RGB)
+    sprite:assignColorSpace(ColorSpace { sRGB = true })
+    sprite.cels[1].image:drawPixel(0, 0, app.pixelColor.rgba(48, 96, 144, 255))
     sprite.palettes[1]:resize(2)
     sprite.palettes[1]:setColor(0, Color { r = 32, g = 64, b = 96, a = 255 })
     sprite.palettes[1]:setColor(1, Color { r = 48, g = 96, b = 144, a = 255 })
-    local result = profiles.apply_live(sprite, "assign", { profile = { kind = "none" } }, {})
-    assert(result.effective_profile.kind == "none")
-    result = profiles.apply_live(sprite, "assign", { profile = { kind = "srgb" } }, {})
-    assert(result.effective_profile.kind == "srgb")
-    local live = profiles.snapshot(sprite, {})
-    assert(sprite:saveAs(path))
-    sprite:close()
-    sprite = assert(app.open(path))
-    profiles.restore_file_profile(sprite, path)
-    profiles.verify_persisted(live, sprite, inspection.saved_layer_uuids(sprite, path))
+    local icc_bytes = dofile(app.params.profile_fixture)
+    local input = {
+      profile = { kind = "icc", icc_file = "probe.icc" },
+      icc_bytes = icc_bytes,
+      icc_file = { path = "probe.icc", byte_size = #icc_bytes // 2, sha256 = string.rep("0", 64) },
+    }
+    local function verify(input_profile)
+      local result = profiles.apply_live(sprite, operation, input_profile, {})
+      assert(result.rejection == nil and result.matches_requested_profile)
+      local live = profiles.snapshot(sprite, {})
+      assert(sprite:saveAs(path))
+      sprite:close()
+      sprite = assert(app.open(path))
+      profiles.restore_file_profile(sprite, path)
+      profiles.verify_persisted(live, sprite, inspection.saved_layer_uuids(sprite, path))
+      return result
+    end
+    local changed = verify(input)
+    assert(changed.images[1].changed == (operation == "convert"))
+    assert(changed.palettes[1].changed == (operation == "convert"))
+    verify { profile = { kind = "srgb" } }
+    if operation == "assign" then verify { profile = { kind = "none" } } end
   end)
   if sprite ~= nil then pcall(function() sprite:close() end) end
   pcall(function() os.remove(path) end)
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
   return ok
 end
 
@@ -929,8 +949,11 @@ function module.observe()
     if ok then capabilities[#capabilities + 1] = "aseprite_selection" end
   end
   local supports_inspection = observes_sprite_inspection()
-  if observes_assign_color_profile() then
+  if observes_color_profile("assign") then
     capabilities[#capabilities + 1] = "aseprite_assign_color_profile"
+  end
+  if observes_color_profile("convert") then
+    capabilities[#capabilities + 1] = "aseprite_convert_color_profile"
   end
   if observes_palette_entries() then
     capabilities[#capabilities + 1] = "aseprite_palette_entries"

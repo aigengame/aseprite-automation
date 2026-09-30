@@ -91,6 +91,8 @@ def test_manifest_is_projected_from_command_descriptors() -> None:
         "spa palette list",
         "spa palette get",
         "spa palette set",
+        "spa sprite assign-color-profile",
+        "spa sprite convert-color-profile",
         "spa export image",
         "spa animation audit",
         "spa animation compare",
@@ -112,6 +114,8 @@ def test_manifest_is_projected_from_command_descriptors() -> None:
         "spa cel add",
         "spa cel set",
         "spa motion apply",
+        "spa sprite assign-color-profile",
+        "spa sprite convert-color-profile",
     }
     for entry in manifest["operations"]:
         command = entry["operation"].split()[1:]

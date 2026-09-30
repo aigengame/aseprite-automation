@@ -85,15 +85,51 @@ local function change(before, after)
   }
 end
 
+local function requested_profile(input)
+  if input.profile.kind == "none" then return ColorSpace() end
+  if input.profile.kind == "srgb" then return ColorSpace { sRGB = true } end
+  assert(input.profile.kind == "icc", "Unknown Color Profile kind")
+  local path = app.params.workspace .. "/profile-input.icc"
+  local bytes = input.icc_bytes:gsub(
+    "%x%x",
+    function(value) return string.char(tonumber(value, 16)) end
+  )
+  local file = assert(io.open(path, "wb"))
+  assert(file:write(bytes))
+  file:close()
+  local ok, profile = pcall(function() return ColorSpace { fromFile = path } end)
+  os.remove(path)
+  if not ok or profile_facts(profile).kind ~= "icc" then return nil end
+  return profile
+end
+
 function module.apply_live(sprite, operation, input, uuids)
-  assert(operation == "assign", "Unsupported Color Profile operation")
-  local target = input.profile.kind == "none" and ColorSpace() or ColorSpace { sRGB = true }
+  assert(operation == "assign" or operation == "convert", "Unsupported Color Profile operation")
+  local target = requested_profile(input)
+  if target == nil then
+    return {
+      rejection = {
+        code = "color_profile_file_failed",
+        details = { path = input.profile.icc_file, reason = "native_load_failed" },
+      },
+    }
+  end
   local before = module.snapshot(sprite, uuids)
-  sprite:assignColorSpace(target)
+  if operation == "assign" then
+    sprite:assignColorSpace(target)
+  else
+    sprite:convertColorSpace(target)
+  end
   local after = module.snapshot(sprite, uuids)
   assert(sprite.colorSpace == target, "Effective Color Profile differs from requested profile")
-  persistence.assert_equal(before.document, after.document, "Assign Color Profile")
-  persistence.assert_equal(before.tilesets, after.tilesets, "Assign Color Profile Tilesets")
+  if operation == "convert" then
+    -- The native operation may change stored Images and Palettes, preserving other document facts.
+    before.document.images = after.document.images
+    before.document.sprite.palettes = after.document.sprite.palettes
+  else
+    persistence.assert_equal(before.tilesets, after.tilesets, "Assign Color Profile Tilesets")
+  end
+  persistence.assert_equal(before.document, after.document, "Color Profile " .. operation)
   local images, palettes, tilesets = {}, {}, {}
   for index, image in ipairs(after.images) do
     local facts = change(before.images[index], image)
@@ -119,7 +155,18 @@ function module.apply_live(sprite, operation, input, uuids)
     end
     tilesets[#tilesets + 1] = facts
   end
+  local icc_file = json.decode("null")
+  if input.profile.kind == "icc" then
+    icc_file = {
+      path = input.icc_file.path,
+      byte_size = input.icc_file.byte_size,
+      sha256 = input.icc_file.sha256,
+      native_name = after.profile.name,
+      matches_effective_profile = sprite.colorSpace == target,
+    }
+  end
   return {
+    icc_file = icc_file,
     source_profile = profile_facts(before.profile),
     requested_profile = profile_facts(target),
     effective_profile = profile_facts(after.profile),
