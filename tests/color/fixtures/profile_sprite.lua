@@ -99,5 +99,9 @@ local facts = {
   pixels = pixels,
   entries = entries,
 }
+if app.params.expected_icc then
+  facts.matches_requested_icc = sprite.colorSpace
+    == ColorSpace { fromFile = app.params.expected_icc }
+end
 sprite:close()
 print(json.encode(facts))

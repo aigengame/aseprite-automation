@@ -124,10 +124,10 @@ def profile_payload(
             "ICC file is invalid",
             ProfileFileDetails(path=path, reason="invalid", step_number=step_number),
         ) from exc
-    if facts.color_space != "RGB":
+    if isinstance(request, ConvertProfileInput) and facts.color_space != "RGB":
         raise OperationIssue(
             "color_profile_file_failed",
-            "Native Color Profile operations require an RGB ICC profile",
+            "Native Color Profile conversion requires an RGB ICC target",
             ProfileFileDetails(
                 path=path, reason="unsupported_color_space", step_number=step_number
             ),

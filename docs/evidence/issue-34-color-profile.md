@@ -25,6 +25,7 @@ Palettes. It skips Tilemap Images and Grayscale Palettes; see
 | Tested input and operation | Cel Image values | Palette Entries | Tileset values |
 | --- | --- | --- | --- |
 | Assign None, sRGB, or RGB ICC | Unchanged | Unchanged | Unchanged |
+| Assign LAB ICC | Unchanged | Unchanged | Not in this case |
 | RGB Convert sRGB to linear RGB ICC | Changed | Changed | Unchanged on this baseline |
 | Grayscale Convert sRGB to linear RGB ICC | Gray changes; alpha preserved | Unchanged | Not in this case |
 | Indexed Convert sRGB to linear RGB ICC | Stored indexes unchanged | Changed | Not in this case |
@@ -59,9 +60,12 @@ Tile bytes, and the complete Palette timeline. It refuses publication on a misma
 
 Native `ColorSpace{fromFile=...}` accepted both empty bytes and arbitrary text as
 unnamed ICC objects. Constructor success alone does not validate a profile.
-Python therefore validates ICC bytes with the existing Pillow/LittleCMS dependency,
-requires an RGB ICC, and snapshots the exact bytes. Non-RGB profiles, invalid files,
-and unreadable inputs produce typed `color_profile_file_failed` results.
+Python therefore validates ICC bytes with the existing Pillow/LittleCMS dependency
+and snapshots the exact bytes. Assign accepts valid ICC metadata, including tested
+LAB ICC; native assignment and save/reopen preserve its profile equality and all
+stored Image/Palette values. Convert currently requires an RGB ICC target;
+this conversion constraint does not narrow assignment. Unsupported conversion
+targets, invalid files, and unreadable inputs produce typed `color_profile_file_failed` results.
 Lua loads the snapshot through the native constructor before mutation.
 
 The result includes the requested path, byte size, SHA-256, native name, and equality

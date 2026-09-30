@@ -652,7 +652,9 @@ convert-color-profile` accepts the sRGB and ICC targets and invokes native conve
 Both use explicit `source_sprite_file`, `target_sprite_file`, `in_place`, and
 `overwrite` fields and verify save/close/reopen before Target Commit.
 
-ICC inputs must be readable, valid RGB profiles. The result reports the input path,
+ICC inputs must be readable, valid profiles; Convert currently accepts RGB ICC targets.
+Assign also supports validated LAB ICC metadata without transforming stored colors.
+The result reports the input path,
 byte size, SHA-256, native name, and equality with the effective Sprite profile.
 Results distinguish `source_profile`, `requested_profile`, and `effective_profile`;
 `profile_changed` is independent of content changes. Each Cel Image, Palette Change,

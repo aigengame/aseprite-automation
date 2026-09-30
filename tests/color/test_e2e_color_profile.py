@@ -179,13 +179,22 @@ def _linear_icc(path: Path) -> bytes:
     return bytes(data)
 
 
-def test_assign_icc_reports_frozen_input_and_preserves_pixels(tmp_path: Path, runtime):
+@pytest.mark.parametrize("profile_kind", ["linear_rgb", "lab"])
+def test_assign_icc_reports_frozen_input_and_preserves_pixels(
+    tmp_path: Path, runtime, profile_kind: str
+):
     import hashlib
+
+    from PIL import ImageCms
 
     source, target = tmp_path / "source.aseprite", tmp_path / "icc.aseprite"
     before = _native(runtime, source, action="create")
     icc = tmp_path / "linear.icc"
-    contents = _linear_icc(icc)
+    if profile_kind == "linear_rgb":
+        contents = _linear_icc(icc)
+    else:
+        contents = ImageCms.ImageCmsProfile(ImageCms.createProfile("LAB")).tobytes()
+        icc.write_bytes(contents)
     code, result = _run(
         "assign-color-profile", source, target, {"kind": "icc", "icc_file": str(icc)}
     )
@@ -202,9 +211,26 @@ def test_assign_icc_reports_frozen_input_and_preserves_pixels(tmp_path: Path, ru
         "native_name": result["effective_profile"]["name"],
         "matches_effective_profile": True,
     }
-    after = _native(runtime, target, action="observe")
+    after = _native(runtime, target, action="observe", expected_icc=str(icc))
     assert _encoded_profile(target) == "icc"
+    assert after["matches_requested_icc"] is True
     assert before["pixels"] == after["pixels"] and before["entries"] == after["entries"]
+    plan_target = tmp_path / "plan-assigned.aseprite"
+    code, planned = _plan(
+        source,
+        plan_target,
+        [
+            {
+                "operation": "sprite assign-color-profile",
+                "input": {"profile": {"kind": "icc", "icc_file": str(icc)}},
+            }
+        ],
+    )
+    assert code == 0, planned
+    assert planned["steps"][0]["result"]["icc_file"] == result["icc_file"]
+    assert (
+        _native(runtime, plan_target, action="observe", expected_icc=str(icc)) == after
+    )
 
 
 @pytest.mark.parametrize("mode", ["rgb", "grayscale", "indexed"])
@@ -330,14 +356,19 @@ def test_convert_preserves_linked_cels_and_reports_all_palette_changes_and_tiles
     assert not any(tile["changed"] for tile in result["tilesets"][0]["tiles"])
 
 
-@pytest.mark.parametrize("command", ["assign-color-profile", "convert-color-profile"])
 @pytest.mark.parametrize(
-    "case,reason",
+    "command,case,reason",
     [
-        ("missing", "unreadable"),
-        ("directory", "unreadable"),
-        ("invalid", "invalid"),
-        ("lab", "unsupported_color_space"),
+        (command, case, reason)
+        for command in ["assign-color-profile", "convert-color-profile"]
+        for case, reason in [
+            ("missing", "unreadable"),
+            ("directory", "unreadable"),
+            ("invalid", "invalid"),
+        ]
+    ]
+    + [
+        ("convert-color-profile", "lab", "unsupported_color_space"),
     ],
 )
 def test_bad_icc_is_typed_and_never_publishes(
