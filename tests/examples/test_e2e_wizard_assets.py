@@ -15,6 +15,7 @@ from spa.adapters.aseprite.aseprite import probe
 from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.application.surface import PROBE_RESOURCES
 from spa.contracts.public import RuntimeRequest
+from tests.support import process_diagnostics
 
 pytestmark = [pytest.mark.e2e, pytest.mark.slow]
 
@@ -43,7 +44,7 @@ def inspect_stored_pixels(source: Path, aseprite: str, output: Path) -> dict:
             text=True,
             check=False,
         )
-    assert run.returncode == 0, run.stdout + run.stderr
+    assert run.returncode == 0, process_diagnostics(run)
     result = json.loads(output.read_text())
     assert result["nonbinary_alpha"] == 0
     assert result["noninteger_positions"] == 0

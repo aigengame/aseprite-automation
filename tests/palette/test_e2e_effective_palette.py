@@ -13,7 +13,7 @@ from spa.adapters.aseprite.aseprite import probe
 from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.application.surface import PROBE_RESOURCES
 from spa.contracts.public import RuntimeRequest
-from tests.support import inject_palette_change
+from tests.support import inject_palette_change, process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
@@ -57,7 +57,7 @@ def test_effective_palette_resolves_change_points_without_active_frame_state(
                 check=False,
                 env=prepared.environment,
             )
-        assert run.returncode == 0, run.stdout + run.stderr
+        assert run.returncode == 0, process_diagnostics(run)
 
     run_fixture("create")
     inject_palette_change(source, [(0, 0, 0, 0), (20, 40, 200, 255)], frame_number=3)

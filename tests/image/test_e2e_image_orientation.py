@@ -14,7 +14,7 @@ from spa.adapters.aseprite.aseprite import probe
 from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.application.surface import PROBE_RESOURCES
 from spa.contracts.public import RuntimeRequest
-from tests.support import spa
+from tests.support import process_diagnostics, spa
 
 pytestmark = pytest.mark.e2e
 
@@ -36,7 +36,7 @@ def _native(script: str, **parameters: object) -> None:
         run = subprocess.run(
             args, capture_output=True, text=True, env=prepared.environment, check=False
         )
-    assert run.returncode == 0, run.stdout + run.stderr
+    assert run.returncode == 0, process_diagnostics(run)
 
 
 def _fixture(tmp_path: Path, mode: str = "rgb", kind: str = "regular") -> Path:

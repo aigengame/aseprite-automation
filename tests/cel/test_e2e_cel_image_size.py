@@ -10,7 +10,7 @@ import pytest
 from PIL import ImageCms
 
 from spa.adapters.aseprite.invocation import prepare_invocation
-from tests.support import spa
+from tests.support import process_diagnostics, spa
 
 pytestmark = pytest.mark.e2e
 
@@ -29,7 +29,7 @@ def _native(**params: object) -> None:
         run = subprocess.run(
             args, text=True, capture_output=True, check=False, env=prepared.environment
         )
-    assert run.returncode == 0, run.stdout + run.stderr
+    assert run.returncode == 0, process_diagnostics(run)
     assert "Error" not in run.stdout + run.stderr, run.stdout + run.stderr
 
 

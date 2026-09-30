@@ -13,6 +13,7 @@ from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.application.surface import PROBE_RESOURCES
 from spa.contracts.public import RuntimeRequest
 from tests.paint.support import call_spa
+from tests.support import process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
@@ -131,7 +132,7 @@ def native(tmp_path_factory: pytest.TempPathFactory) -> dict:
         run = subprocess.run(
             args, text=True, capture_output=True, check=False, env=prepared.environment
         )
-    assert run.returncode == 0, run.stdout + run.stderr
+    assert run.returncode == 0, process_diagnostics(run)
     assert all(path.is_file() for path in paths.values())
     oracle = json.loads(oracle_file.read_text())
     assert oracle["matrix"]["rgb"]["normal"]["127"] == {

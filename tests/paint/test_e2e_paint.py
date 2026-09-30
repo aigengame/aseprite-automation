@@ -17,7 +17,7 @@ from spa.application.surface import PROBE_RESOURCES
 from spa.authoring.raster.paint import PAINT_APPLY_HANDLER
 from spa.contracts.ports import HandlerEvidence, RuntimeIssue
 from spa.contracts.public import RuntimeRequest
-from tests.support import inject_palette_change, spa
+from tests.support import inject_palette_change, process_diagnostics, spa
 
 pytestmark = pytest.mark.e2e
 
@@ -51,7 +51,7 @@ def _fixture(target: Path, kind: str, *, palette_alpha: int | None = None) -> No
             check=False,
             env=prepared.environment,
         )
-    assert run.returncode == 0, run.stdout + run.stderr
+    assert run.returncode == 0, process_diagnostics(run)
     assert target.is_file()
     if kind == "indexed-palette-change":
         inject_palette_change(target, [(0, 0, 0, 0), (65, 105, 225, 255)])
@@ -799,7 +799,7 @@ def test_apply_ignores_ambient_editor_selection(tmp_path: Path) -> None:
             env=prepared.environment,
         )
 
-    assert run.returncode == 0, run.stderr
+    assert run.returncode == 0, process_diagnostics(run)
     assert target.is_file()
 
 

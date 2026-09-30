@@ -14,7 +14,7 @@ from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.application.surface import PROBE_RESOURCES
 from spa.contracts.public import RuntimeRequest
 from tests.paint.support import call_spa
-from tests.support import inject_palette_change
+from tests.support import inject_palette_change, process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
@@ -57,7 +57,7 @@ def _fixture(path: Path, *, kind: str = "independent") -> None:
             check=False,
             env=prepared.environment,
         )
-    assert run.returncode == 0, run.stdout + run.stderr
+    assert run.returncode == 0, process_diagnostics(run)
     assert path.is_file()
 
 
@@ -381,7 +381,7 @@ def test_indexed_helper_closes_scratch_and_restores_context_after_error(
         run = subprocess.run(
             args, text=True, capture_output=True, check=False, env=prepared.environment
         )
-    assert run.returncode == 0, run.stdout + run.stderr
+    assert run.returncode == 0, process_diagnostics(run)
     result = json.loads(output.read_text())
     assert result["successful"] is True
     assert result["restored_after_error"] is True, result

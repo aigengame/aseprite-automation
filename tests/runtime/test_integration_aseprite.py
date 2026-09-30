@@ -144,12 +144,18 @@ def test_process_exit_before_kernel_response_is_execution_failure(
 def test_signal_terminated_process_is_reported_as_process_failure(
     tmp_path: Path,
 ) -> None:
-    binary = fake_aseprite(tmp_path, "kill -TERM $$\n")
+    binary = fake_aseprite(
+        tmp_path, "echo 'native stdout'\necho 'native stderr' >&2\nkill -TERM $$\n"
+    )
     run = spa("info", "--aseprite", str(binary), "--json")
     failure = json.loads(run.stdout)
     assert failure["code"] == "process_failed"
     assert failure["details"]["exit_status"] == -signal.SIGTERM
     assert "signal 15" in failure["message"]
+    assert "SIGTERM" in failure["message"]
+    assert failure["diagnostics"]["exit_status"] == -signal.SIGTERM
+    assert "native stdout" in failure["diagnostics"]["stdout"]
+    assert "native stderr" in failure["diagnostics"]["stderr"]
 
 
 def test_nonzero_exit_with_truncated_kernel_response_is_process_failure(

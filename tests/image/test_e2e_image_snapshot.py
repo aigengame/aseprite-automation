@@ -15,7 +15,7 @@ from spa.adapters.aseprite.aseprite import probe
 from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.application.surface import PROBE_RESOURCES
 from spa.contracts.public import RuntimeRequest
-from tests.support import inject_palette_change, spa
+from tests.support import inject_palette_change, process_diagnostics, spa
 
 pytestmark = pytest.mark.e2e
 
@@ -140,7 +140,7 @@ def _fixture(
             check=False,
             env=prepared.environment,
         )
-    assert run.returncode == 0, run.stderr
+    assert run.returncode == 0, process_diagnostics(run)
     if mode in {
         "composition",
         "blend",
@@ -287,7 +287,7 @@ def test_composition_restores_preferences_and_visibility_on_success_and_failure(
         run = subprocess.run(
             args, text=True, capture_output=True, check=False, env=prepared.environment
         )
-    assert run.returncode == 0, run.stdout + run.stderr
+    assert run.returncode == 0, process_diagnostics(run)
     assert json.loads(output.read_text()) == {
         "success_restored": True,
         "failure_restored": True,

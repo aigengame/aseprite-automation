@@ -14,7 +14,7 @@ from spa.adapters.aseprite.aseprite import probe
 from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.application.surface import PROBE_RESOURCES
 from spa.contracts.public import RuntimeRequest
-from tests.support import spa
+from tests.support import process_diagnostics, spa
 
 pytestmark = pytest.mark.e2e
 
@@ -71,7 +71,7 @@ def _fixture(tmp_path: Path, name: str, **params: str) -> Path:
             check=False,
             env=prepared.environment,
         )
-    assert run.returncode == 0, run.stderr
+    assert run.returncode == 0, process_diagnostics(run)
     assert source.is_file()
     return source
 

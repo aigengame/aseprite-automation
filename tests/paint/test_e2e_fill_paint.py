@@ -12,6 +12,7 @@ from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.application.surface import PROBE_RESOURCES
 from spa.contracts.public import RuntimeRequest
 from tests.paint.support import call_spa
+from tests.support import process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
@@ -103,7 +104,7 @@ def _fixture(tmp_path: Path, config: dict) -> tuple[Path, Path, dict]:
         env=prepared.environment,
         check=False,
     )
-    assert run.returncode == 0, run.stdout + run.stderr
+    assert run.returncode == 0, process_diagnostics(run)
     return source, reference, json.loads(oracle_file.read_text())
 
 

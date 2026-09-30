@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from spa.adapters.aseprite.invocation import prepare_invocation
-from tests.support import spa
+from tests.support import process_diagnostics, spa
 
 pytestmark = pytest.mark.e2e
 
@@ -35,7 +35,7 @@ def _fixture(target: Path, name: str = "mutations.lua") -> None:
             env=prepared.environment,
             check=False,
         )
-    assert run.returncode == 0, run.stderr
+    assert run.returncode == 0, process_diagnostics(run)
 
 
 def _run(command: str, request: dict[str, object]) -> tuple[int, dict]:
@@ -297,7 +297,7 @@ def test_merge_compositing_ignores_both_ambient_preference_values(
                 env=prepared.environment,
                 check=False,
             )
-        assert run.returncode == 0, run.stdout + run.stderr
+        assert run.returncode == 0, process_diagnostics(run)
         reports.append(json.loads(report.read_text()))
     assert (
         reports[0]
@@ -527,7 +527,7 @@ def _linked_cels(sprite_file: Path) -> bool:
             env=prepared.environment,
             check=False,
         )
-        assert run.returncode == 0, run.stdout + run.stderr
+        assert run.returncode == 0, process_diagnostics(run)
         return json.loads(report.read_text())["linked"]
 
 

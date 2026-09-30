@@ -12,6 +12,7 @@ from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.application.surface import PROBE_RESOURCES
 from spa.authoring.raster.paint_native import NATIVE_PAINT_RESOURCES
 from spa.contracts.public import RuntimeRequest
+from tests.support import process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
@@ -53,7 +54,7 @@ def test_gesture_restores_invocation_state_and_preserves_files(
     run = subprocess.run(
         args, text=True, capture_output=True, env=prepared.environment, check=False
     )
-    assert run.returncode == 0, run.stdout + run.stderr
+    assert run.returncode == 0, process_diagnostics(run)
     assert Path(params["source"]).is_file()
     assert Path(params["target"]).is_file()
     assert not Path(params["failure"]).exists()
