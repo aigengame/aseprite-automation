@@ -7,6 +7,7 @@ palette:setColor(0, Color { r = 10, g = 20, b = 30, a = 255 })
 palette:setColor(1, Color { r = 240, g = 40, b = 60, a = 255 })
 palette:setColor(2, Color { r = 20, g = 200, b = 40, a = 128 })
 palette:setColor(3, Color { r = 50, g = 60, b = 70, a = 0 })
+if app.params.short_palette == "true" then palette:resize(2) end
 sprite.transparentColor = 3
 local image = sprite.cels[1].image
 if mode == ColorMode.INDEXED then

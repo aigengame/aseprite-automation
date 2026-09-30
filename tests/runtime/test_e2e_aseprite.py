@@ -33,6 +33,7 @@ def test_info_reports_installed_runtime() -> None:
         "aseprite_paint_composite",
         "aseprite_paint_composite_indexed",
         "aseprite_selection",
+        "aseprite_palette_entries",
         "aseprite_sprite_create",
         "aseprite_sprite_inspection",
         "aseprite_sprite_flatten",
@@ -138,6 +139,9 @@ def test_info_reports_installed_runtime() -> None:
         "spa tag add",
         "spa tag set",
         "spa tag remove",
+        "spa palette list",
+        "spa palette get",
+        "spa palette set",
         "spa export image",
         "spa animation audit",
         "spa animation compare",
@@ -159,6 +163,8 @@ def test_info_reports_installed_runtime() -> None:
         "spa paint curve",
         "spa paint polygon",
         "spa paint jumble",
+        "spa palette add",
+        "spa palette remove",
     ]
     assert all(
         gap["aseprite_version"] == result["runtime"]["aseprite_version"]

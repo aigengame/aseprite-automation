@@ -1,14 +1,22 @@
-"""Frame-based Palette Changes and their public read operations."""
+"""Frame-based Palette Changes, exact Entry edits, and native capability gaps."""
 
+from pathlib import Path
 from typing import Literal
 
 from pydantic import Field, ValidationError, field_validator, model_validator
 
+from spa.application.mutation import prepare_mutation
 from spa.authoring.document.sprite import (
     SPRITE_INSPECTION_RESOURCES,
+    SPRITE_PERSISTENCE_RESOURCE,
     PaletteEntry,
 )
-from spa.contracts.mutation import validate_native_sprite_path
+from spa.contracts.digest import DIGEST_RESOURCE
+from spa.contracts.mutation import (
+    TargetCommit,
+    require_overwrite_for_in_place,
+    validate_native_sprite_path,
+)
 from spa.contracts.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.contracts.ports import (
     KernelInvocationResult,
@@ -20,6 +28,7 @@ from spa.contracts.ports import (
     RuntimeIssue,
 )
 from spa.contracts.public import (
+    CapabilityGap,
     FailureCodeSpec,
     PublicModel,
     RuntimeRequest,
@@ -39,11 +48,45 @@ PALETTE_READ_HANDLER = PackagedHandler(
         PALETTE_SUPPORT_RESOURCE,
     ),
 )
+PALETTE_SET_HANDLER = PackagedHandler(
+    "palette_set",
+    "color/palette_set.lua",
+    (
+        *PALETTE_READ_HANDLER.support_resources,
+        SPRITE_PERSISTENCE_RESOURCE,
+        DIGEST_RESOURCE,
+    ),
+)
 PALETTE_READ_REQUIREMENTS = RuntimeRequirements(
     lua_language="Lua 5.4",
     minimum_api_version=41,
     required_capabilities=["aseprite_sprite_inspection"],
 )
+PALETTE_SET_REQUIREMENTS = RuntimeRequirements(
+    lua_language="Lua 5.4",
+    minimum_api_version=41,
+    required_capabilities=["aseprite_sprite_inspection", "aseprite_palette_entries"],
+)
+PALETTE_PROBE_RESOURCES = (PALETTE_SUPPORT_RESOURCE, SPRITE_PERSISTENCE_RESOURCE)
+
+
+def palette_lifecycle_gaps(aseprite_version: str) -> list[CapabilityGap]:
+    """Report bounded native lifecycle evidence without registering unsupported commands."""
+    if aseprite_version.partition("-")[0] != "1.3.18.5":
+        return []
+    return [
+        CapabilityGap(
+            capability=f"spa palette {operation}",
+            aseprite_version=aseprite_version,
+            evidence=(
+                "Aseprite 1.3.18.5 has no public non-interactive Lua seam to add/remove "
+                "Palette Changes: Palette.frame/frameNumber are read-only and Sprite has "
+                "no newPalette/deletePalette. Entry edits target existing changes. "
+                "A later public seam needs a successful save/close/reopen probe before admission."
+            ),
+        )
+        for operation in ("add", "remove")
+    ]
 
 
 class PaletteListRequest(RuntimeRequest):
@@ -54,6 +97,30 @@ class PaletteListRequest(RuntimeRequest):
 
 class PaletteGetRequest(PaletteListRequest):
     frame_number: int = Field(ge=1)
+
+
+class PaletteSetRequest(RuntimeRequest):
+    source_sprite_file: str = Field(min_length=1)
+    target_sprite_file: str = Field(min_length=1)
+    in_place: bool
+    overwrite: bool
+    palette_frame_number: int = Field(ge=1)
+    entries: list[PaletteEntry] = Field(min_length=1)
+
+    _validate_source = field_validator("source_sprite_file")(
+        validate_native_sprite_path
+    )
+    _validate_target = field_validator("target_sprite_file")(
+        validate_native_sprite_path
+    )
+
+    @model_validator(mode="after")
+    def validate_intent(self) -> "PaletteSetRequest":
+        require_overwrite_for_in_place(self.in_place, self.overwrite)
+        indexes = [entry.index for entry in self.entries]
+        if len(set(indexes)) != len(indexes):
+            raise ValueError("Each Palette Index can occur only once in an Entry edit")
+        return self
 
 
 class PaletteFrameRange(PublicModel):
@@ -109,10 +176,34 @@ class PaletteGetResult(PublicModel):
     palette: PaletteChange
 
 
+class PaletteSetEvidence(PaletteTimeline):
+    palette: PaletteChange
+    persisted_reopen_verified: Literal[True]
+
+
+class PaletteSetResult(PaletteSetEvidence):
+    status: Literal["success"] = "success"
+    operation: Literal["spa palette set"] = "spa palette set"
+    target_commit: TargetCommit
+
+
 class PaletteFrameDetails(PublicModel):
     kind: Literal["palette_frame"] = "palette_frame"
     frame_number: int = Field(ge=1)
     frame_count: int = Field(ge=1)
+
+
+class PaletteChangeDetails(PublicModel):
+    kind: Literal["palette_change"] = "palette_change"
+    palette_frame_number: int = Field(ge=1)
+    frame_count: int = Field(ge=1)
+
+
+class PaletteEntryDetails(PublicModel):
+    kind: Literal["palette_entry"] = "palette_entry"
+    palette_frame_number: int = Field(ge=1)
+    index: int = Field(ge=0)
+    palette_size: int = Field(ge=1)
 
 
 PALETTE_FAILURE_CODE_SPECS = (
@@ -121,6 +212,18 @@ PALETTE_FAILURE_CODE_SPECS = (
         "The requested Frame is outside the Sprite timeline",
         "input",
         PaletteFrameDetails,
+    ),
+    FailureCodeSpec(
+        "palette_change_missing",
+        "No Palette Change starts at the requested Frame",
+        "input",
+        PaletteChangeDetails,
+    ),
+    FailureCodeSpec(
+        "palette_index_out_of_bounds",
+        "An Entry edit addresses an index outside the Palette",
+        "input",
+        PaletteEntryDetails,
     ),
 )
 
@@ -198,6 +301,57 @@ def get_palette(
         ) from exc
 
 
+def set_palette(
+    request: PaletteSetRequest, services: OperationServices
+) -> PaletteSetResult:
+    completion = prepare_mutation(
+        services.target_files,
+        Path(request.source_sprite_file),
+        Path(request.target_sprite_file),
+        in_place=request.in_place,
+        overwrite=request.overwrite,
+        identity_change_message="Source/Target publication identity changed before Target Commit",
+    )
+    observation = services.probe_runtime(request)
+    with completion as mutation:
+        invocation = services.invoke_kernel(
+            observation,
+            PALETTE_SET_HANDLER,
+            {
+                "source_sprite_file": request.source_sprite_file,
+                "staged_sprite_file": str(mutation.staged_sprite_file),
+                "palette_frame_number": request.palette_frame_number,
+                "entries": [entry.model_dump() for entry in request.entries],
+            },
+            request.timeout_seconds,
+        )
+        _reject(invocation)
+        try:
+            evidence = PaletteSetEvidence.model_validate(invocation.payload)
+            selected = next(
+                change
+                for change in evidence.palette_changes
+                if change.palette_frame_number == request.palette_frame_number
+            )
+            if selected != evidence.palette or any(
+                edit.index >= len(selected.entries)
+                or selected.entries[edit.index] != edit
+                for edit in request.entries
+            ):
+                raise ValueError(
+                    "Persisted Palette does not contain the requested Entry edits"
+                )
+        except (ValueError, StopIteration) as exc:
+            raise RuntimeIssue(
+                "response_malformed",
+                "Invalid persisted Palette evidence",
+                ResponseEvidence(response_path=invocation.response_path),
+                invocation.diagnostics,
+            ) from exc
+        committed = mutation.commit()
+        return PaletteSetResult(**evidence.model_dump(), target_commit=committed)
+
+
 PALETTE_OPERATIONS = (
     OperationDescriptor(
         "palette list",
@@ -218,5 +372,21 @@ PALETTE_OPERATIONS = (
         ),
         PALETTE_READ_REQUIREMENTS,
         (*RUNTIME_FAILURE_CODES, "palette_frame_out_of_bounds"),
+    ),
+    OperationDescriptor(
+        "palette set",
+        PaletteSetRequest,
+        PaletteSetResult,
+        set_palette,
+        lambda result: result.target_commit.target_sprite_file,
+        PALETTE_SET_REQUIREMENTS,
+        (
+            *RUNTIME_FAILURE_CODES,
+            "palette_change_missing",
+            "palette_index_out_of_bounds",
+            "target_commit_failed",
+        ),
+        execution_kind="mutation",
+        side_effects=("publishes the declared Target Sprite File",),
     ),
 )

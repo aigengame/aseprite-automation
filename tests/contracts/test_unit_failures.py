@@ -14,7 +14,11 @@ from pydantic import ValidationError
 from spa.application.dispatch import _runtime_failure, dispatch
 from spa.application.failure_registry import FAILURE_CODES
 from spa.application.surface import ACCESS_FAILURE_CODES, OPERATIONS
-from spa.authoring.color.palette import PaletteFrameDetails
+from spa.authoring.color.palette import (
+    PaletteChangeDetails,
+    PaletteEntryDetails,
+    PaletteFrameDetails,
+)
 from spa.authoring.document.animation import AuditLimitDetails
 from spa.authoring.document.cel import CelAddress as LifecycleCelAddress
 from spa.authoring.document.cel import CelFrameRangeDetails, CelTargetDetails
@@ -177,6 +181,12 @@ def test_failure_construction_derives_category_and_refuses_mismatch() -> None:
 def test_each_registered_code_has_a_constrained_public_schema() -> None:
     details_by_type = {
         PaletteFrameDetails: PaletteFrameDetails(frame_number=6, frame_count=5),
+        PaletteChangeDetails: PaletteChangeDetails(
+            palette_frame_number=2, frame_count=5
+        ),
+        PaletteEntryDetails: PaletteEntryDetails(
+            palette_frame_number=1, index=4, palette_size=4
+        ),
         CompositeDetails: CompositeDetails(reason="Snapshot Color Mode differs"),
         CompositeCapabilityDetails: CompositeCapabilityDetails(
             gap=CapabilityGap(
