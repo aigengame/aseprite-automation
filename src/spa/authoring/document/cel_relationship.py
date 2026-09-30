@@ -5,6 +5,7 @@ from typing import Literal
 
 from pydantic import Field, ValidationError, field_validator, model_validator
 
+from spa.application.mutation import prepare_mutation
 from spa.authoring.document.cel import (
     CEL_SELECT_RESOURCE,
     CEL_SUPPORT_RESOURCE,
@@ -24,7 +25,6 @@ from spa.contracts.digest import DIGEST_RESOURCE
 from spa.contracts.mutation import (
     TargetCommit,
     require_overwrite_for_in_place,
-    source_target_identity_issue,
     validate_native_sprite_path,
 )
 from spa.contracts.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
@@ -34,10 +34,8 @@ from spa.contracts.ports import (
     PackagedHandler,
     PackagedResource,
     PostconditionEvidence,
-    RequestIssue,
     ResponseEvidence,
     RuntimeIssue,
-    TargetCommitEvidence,
 )
 from spa.contracts.public import PublicModel, RuntimeRequest, RuntimeRequirements
 from spa.contracts.raster import Point
@@ -237,33 +235,41 @@ def _mutate(
 ) -> CelSetResult | CelCopyResult | CelLinkResult | CelUnlinkResult:
     source = Path(request.source_sprite_file)
     target_file = Path(request.target_sprite_file)
-    identity_issue = source_target_identity_issue(
-        services.target_files, source, target_file, request.in_place
+    completion = prepare_mutation(
+        services.target_files,
+        source,
+        target_file,
+        in_place=request.in_place,
+        overwrite=request.overwrite,
+        identity_change_message=(
+            "Source/Target publication identity changed before Target Commit"
+        ),
     )
-    if identity_issue is not None:
-        raise RequestIssue([identity_issue])
     observation = services.probe_runtime(request)
-    staged = services.target_files.staged_path(target_file)
-    payload: dict[str, object] = {
-        "operation": operation,
-        "source_sprite_file": request.source_sprite_file,
-        "staged_sprite_file": str(staged),
-    }
-    address_role: Literal["target", "source", "destination"] = "target"
-    if isinstance(request, CelPairRequest):
-        payload["source"] = request.source.model_dump(mode="json", exclude_none=True)
-        payload["destination"] = request.destination.model_dump(
-            mode="json", exclude_none=True
-        )
-        addressed = request.destination
-    else:
-        payload["target"] = request.target.model_dump(mode="json", exclude_none=True)
-        addressed = request.target
-    if isinstance(request, CelSetRequest):
-        payload["changes"] = request.model_dump(
-            include={"position", "opacity", "z_index"}, exclude_none=True
-        )
-    try:
+    with completion as mutation:
+        payload: dict[str, object] = {
+            "operation": operation,
+            "source_sprite_file": request.source_sprite_file,
+            "staged_sprite_file": str(mutation.staged_sprite_file),
+        }
+        address_role: Literal["target", "source", "destination"] = "target"
+        if isinstance(request, CelPairRequest):
+            payload["source"] = request.source.model_dump(
+                mode="json", exclude_none=True
+            )
+            payload["destination"] = request.destination.model_dump(
+                mode="json", exclude_none=True
+            )
+            addressed = request.destination
+        else:
+            payload["target"] = request.target.model_dump(
+                mode="json", exclude_none=True
+            )
+            addressed = request.target
+        if isinstance(request, CelSetRequest):
+            payload["changes"] = request.model_dump(
+                include={"position", "opacity", "z_index"}, exclude_none=True
+            )
         invocation = services.invoke_kernel(
             observation, CEL_RELATIONSHIP_HANDLER, payload, request.timeout_seconds
         )
@@ -304,27 +310,10 @@ def _mutate(
             invocation,
         )
         validate_relationship_evidence(request, evidence, invocation, operation)
-        identity_issue = source_target_identity_issue(
-            services.target_files, source, target_file, request.in_place
-        )
-        if identity_issue is not None:
-            raise RuntimeIssue(
-                "target_commit_failed",
-                "Source/Target publication identity changed before Target Commit",
-                TargetCommitEvidence(
-                    str(target_file), "source_target_identity_changed"
-                ),
-            )
-        committed = services.target_files.commit(
-            staged, target_file, overwrite=request.overwrite
-        )
+        committed = mutation.commit()
         fields = {
             **evidence.model_dump(),
-            "target_commit": TargetCommit(
-                target_sprite_file=committed.target_sprite_file,
-                byte_size=committed.byte_size,
-                sha256=committed.sha256,
-            ),
+            "target_commit": committed,
         }
         return {
             "set": CelSetResult,
@@ -332,8 +321,6 @@ def _mutate(
             "link": CelLinkResult,
             "unlink": CelUnlinkResult,
         }[operation].model_validate(fields)
-    finally:
-        services.target_files.discard(staged)
 
 
 def set_cel(request: CelSetRequest, services: OperationServices) -> CelSetResult:
