@@ -11,12 +11,12 @@ import pytest
 from jsonschema import validate
 from typer.testing import CliRunner
 
-from spa.cli import build_app
-from spa.contracts import RuntimeRequest
-from spa.descriptors import OPERATIONS
-from spa.failure_registry import FAILURE_CODES
-from spa.ports import PackagedHandler, RuntimeObservation
-from spa.runtime.aseprite import invoke, probe
+from spa.access.cli import build_app
+from spa.adapters.aseprite.aseprite import invoke, probe
+from spa.application.failure_registry import FAILURE_CODES
+from spa.application.surface import OPERATIONS
+from spa.contracts.ports import PackagedHandler, RuntimeObservation
+from spa.contracts.public import RuntimeRequest
 from tests.support import fake_aseprite, fake_probe_response, operation_services, spa
 
 
@@ -482,7 +482,7 @@ def test_unwritable_temporary_workspace_has_typed_start_failure(
         raise PermissionError("temporary workspace denied")
 
     monkeypatch.setattr(
-        "spa.runtime.aseprite.tempfile.TemporaryDirectory", deny_workspace
+        "spa.adapters.aseprite.aseprite.tempfile.TemporaryDirectory", deny_workspace
     )
     _assert_preparation_failure(binary)
 

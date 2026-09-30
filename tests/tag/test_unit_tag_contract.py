@@ -5,9 +5,15 @@ from dataclasses import replace
 import pytest
 from pydantic import ValidationError
 
-from spa.contracts import Diagnostics
-from spa.ports import KernelInvocationResult, RuntimeIssue
-from spa.tag import TagAddRequest, TagAddress, TagGetRequest, TagSetProperties, get_tag
+from spa.authoring.document.tag import (
+    TagAddRequest,
+    TagAddress,
+    TagGetRequest,
+    TagSetProperties,
+    get_tag,
+)
+from spa.contracts.ports import KernelInvocationResult, RuntimeIssue
+from spa.contracts.public import Diagnostics
 from tests.support import operation_services
 
 

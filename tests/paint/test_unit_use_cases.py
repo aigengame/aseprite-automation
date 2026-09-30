@@ -6,15 +6,15 @@ from typing import Any
 
 import pytest
 
-from spa.contracts import Diagnostics
-from spa.paint import PaintApplyRequest, apply_paint
-from spa.ports import (
+from spa.authoring.raster.paint import PaintApplyRequest, apply_paint
+from spa.contracts.ports import (
     KernelInvocationResult,
     OperationServices,
     RuntimeIssue,
     RuntimeObservation,
     TargetCommitObservation,
 )
+from spa.contracts.public import Diagnostics
 
 
 def _request() -> PaintApplyRequest:

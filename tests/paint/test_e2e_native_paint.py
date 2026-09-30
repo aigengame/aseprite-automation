@@ -9,10 +9,10 @@ from pathlib import Path
 
 import pytest
 
-from spa.contracts import RuntimeRequest
-from spa.descriptors import PROBE_RESOURCES
-from spa.runtime.aseprite import probe
-from spa.runtime.invocation import prepare_invocation
+from spa.adapters.aseprite.aseprite import probe
+from spa.adapters.aseprite.invocation import prepare_invocation
+from spa.application.surface import PROBE_RESOURCES
+from spa.contracts.public import RuntimeRequest
 from tests.support import spa
 
 pytestmark = pytest.mark.e2e
@@ -553,7 +553,7 @@ def test_hidden_pixels_and_explicit_empty_selection_are_preserved(
 def test_native_tool_state_is_restored_on_success_and_failure(
     tmp_path: Path, tool: str
 ) -> None:
-    from spa.paint_native import NATIVE_PAINT_RESOURCES
+    from spa.authoring.raster.paint_native import NATIVE_PAINT_RESOURCES
 
     source, _ = _native_fixture(tmp_path)
     observation = probe(

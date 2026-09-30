@@ -11,10 +11,10 @@ import pytest
 from examples.wizard_cast.build import build
 from examples.wizard_cast.verify import compare_delivery, inspect_build
 from examples.wizard_cast.workflow import Spa
-from spa.contracts import RuntimeRequest
-from spa.descriptors import PROBE_RESOURCES
-from spa.runtime.aseprite import probe
-from spa.runtime.invocation import prepare_invocation
+from spa.adapters.aseprite.aseprite import probe
+from spa.adapters.aseprite.invocation import prepare_invocation
+from spa.application.surface import PROBE_RESOURCES
+from spa.contracts.public import RuntimeRequest
 
 pytestmark = [pytest.mark.e2e, pytest.mark.slow]
 

@@ -3,8 +3,8 @@
 import pytest
 from pydantic import ValidationError
 
-from spa.descriptors import OPERATIONS
-from spa.paint import PaintApplyRequest
+from spa.application.surface import OPERATIONS
+from spa.authoring.raster.paint import PaintApplyRequest
 
 
 def _request() -> dict[str, object]:

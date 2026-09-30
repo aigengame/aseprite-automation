@@ -1,7 +1,7 @@
 """Frame Operation discovery keeps independent native capabilities separate."""
 
-from spa.contracts import RuntimeFacts
-from spa.descriptors import _surface
+from spa.application.surface import _surface
+from spa.contracts.public import RuntimeFacts
 
 
 def test_frame_editing_gap_does_not_hide_existing_add_and_duplicate() -> None:

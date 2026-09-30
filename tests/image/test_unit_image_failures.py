@@ -5,16 +5,16 @@ from pathlib import Path
 
 import pytest
 
-from spa.application import dispatch
-from spa.contracts import Diagnostics, FailureEnvelope
-from spa.failure_registry import FAILURE_CODES
-from spa.image import IMAGE_OPERATIONS
-from spa.ports import (
+from spa.application.dispatch import dispatch
+from spa.application.failure_registry import FAILURE_CODES
+from spa.authoring.raster.image import IMAGE_OPERATIONS
+from spa.contracts.ports import (
     KernelInvocationResult,
     OperationServices,
     RuntimeObservation,
     TargetCommitObservation,
 )
+from spa.contracts.public import Diagnostics, FailureEnvelope
 
 
 class _TargetFiles:

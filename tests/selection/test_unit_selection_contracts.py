@@ -3,7 +3,10 @@
 import pytest
 from pydantic import ValidationError
 
-from spa.selection import SelectionMorphologyRequest, SelectionTransformRequest
+from spa.authoring.raster.selection import (
+    SelectionMorphologyRequest,
+    SelectionTransformRequest,
+)
 
 
 @pytest.mark.parametrize(

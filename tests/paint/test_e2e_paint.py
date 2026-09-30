@@ -10,12 +10,12 @@ from pathlib import Path
 import pytest
 from jsonschema import validate
 
-from spa.contracts import RuntimeRequest
-from spa.descriptors import PROBE_RESOURCES
-from spa.paint import PAINT_APPLY_HANDLER
-from spa.ports import HandlerEvidence, RuntimeIssue
-from spa.runtime.aseprite import invoke, probe
-from spa.runtime.invocation import prepare_invocation
+from spa.adapters.aseprite.aseprite import invoke, probe
+from spa.adapters.aseprite.invocation import prepare_invocation
+from spa.application.surface import PROBE_RESOURCES
+from spa.authoring.raster.paint import PAINT_APPLY_HANDLER
+from spa.contracts.ports import HandlerEvidence, RuntimeIssue
+from spa.contracts.public import RuntimeRequest
 from tests.support import inject_palette_change, spa
 
 pytestmark = pytest.mark.e2e

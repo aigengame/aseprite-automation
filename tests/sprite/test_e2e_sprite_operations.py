@@ -10,10 +10,10 @@ import pytest
 from jsonschema import validate
 from PIL import Image
 
-from spa.contracts import RuntimeRequest
-from spa.descriptors import PROBE_RESOURCES
-from spa.runtime.aseprite import probe
-from spa.runtime.invocation import prepare_invocation
+from spa.adapters.aseprite.aseprite import probe
+from spa.adapters.aseprite.invocation import prepare_invocation
+from spa.application.surface import PROBE_RESOURCES
+from spa.contracts.public import RuntimeRequest
 from tests.support import spa
 
 pytestmark = pytest.mark.e2e

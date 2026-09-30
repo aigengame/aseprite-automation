@@ -5,8 +5,8 @@ from copy import deepcopy
 import pytest
 from pydantic import ValidationError
 
-from spa.image_snapshot import ImageGetRequest, ImageReplaceRequest
-from spa.raster import PixelRegionSnapshot
+from spa.authoring.raster.image_snapshot import ImageGetRequest, ImageReplaceRequest
+from spa.contracts.raster import PixelRegionSnapshot
 
 
 def _snapshot() -> dict:

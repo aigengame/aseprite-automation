@@ -6,11 +6,9 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from spa.application import dispatch
-from spa.contracts import FailureEnvelope
-from spa.failure_registry import FAILURE_CODES
-from spa.ports import RuntimeObservation
-from spa.sprite import (
+from spa.application.dispatch import dispatch
+from spa.application.failure_registry import FAILURE_CODES
+from spa.authoring.document.sprite import (
     SPRITE_OPERATIONS,
     SliceFacts,
     SpriteCreateRequest,
@@ -18,6 +16,8 @@ from spa.sprite import (
     SpriteGetRequest,
     TagFacts,
 )
+from spa.contracts.ports import RuntimeObservation
+from spa.contracts.public import FailureEnvelope
 from tests.support import operation_services
 
 

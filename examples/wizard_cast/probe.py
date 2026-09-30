@@ -45,7 +45,7 @@ def build_probe(executable: str, aseprite: str, output: Path) -> dict:
             for frame in (1, 2)
         ]
     )
-    spa.plan(source, steps)
+    spa.application.plan(source, steps)
     for frame, (x, y) in enumerate(((5, 5), (9, 7), (11, 5)), 1):
         spa.mutate(
             "cel set",
@@ -98,7 +98,7 @@ def build_probe(executable: str, aseprite: str, output: Path) -> dict:
     frames = []
     for frame in (1, 2, 3):
         destination = output / f"frame-{frame}.png"
-        spa.export(component, frame, destination)
+        spa.delivery.export(component, frame, destination)
         frames.append(str(destination))
     evidence = {
         "frames": frames,

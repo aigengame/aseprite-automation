@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from spa.runtime.invocation import prepare_invocation
+from spa.adapters.aseprite.invocation import prepare_invocation
 from tests.support import spa
 
 pytestmark = pytest.mark.e2e

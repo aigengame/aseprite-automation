@@ -4,7 +4,7 @@ import re
 from importlib.resources import files
 from typing import get_args
 
-from spa.layer import LAYER_OPERATIONS, BlendModeName
+from spa.authoring.document.layer import LAYER_OPERATIONS, BlendModeName
 
 
 def test_layer_mutations_require_hierarchy_capability() -> None:

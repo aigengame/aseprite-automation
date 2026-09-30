@@ -6,15 +6,15 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from spa.contracts import Diagnostics
-from spa.export import ExportImageRequest, export_image
-from spa.file_adapter import LocalArtifactFiles, LocalTargetFiles
-from spa.png_verifier import verify_png
-from spa.ports import (
+from spa.adapters.files import LocalArtifactFiles, LocalTargetFiles
+from spa.adapters.png import verify_png
+from spa.contracts.ports import (
     KernelInvocationResult,
     OperationServices,
     RuntimeIssue,
 )
+from spa.contracts.public import Diagnostics
+from spa.delivery.export import ExportImageRequest, export_image
 from tests.support import runtime_observation
 
 

@@ -5,7 +5,7 @@ import runpy
 import sys
 from pathlib import Path
 
-from spa import file_adapter
+from spa.adapters import files as file_adapter
 
 observations_file, cli, *arguments = sys.argv[1:]
 observations = {"commits": 0, "discarded": False}

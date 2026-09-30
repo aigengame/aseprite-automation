@@ -8,10 +8,10 @@ from pathlib import Path
 
 import pytest
 
-from spa.contracts import RuntimeRequest
-from spa.descriptors import PROBE_RESOURCES
-from spa.runtime.aseprite import probe
-from spa.runtime.invocation import prepare_invocation
+from spa.adapters.aseprite.aseprite import probe
+from spa.adapters.aseprite.invocation import prepare_invocation
+from spa.application.surface import PROBE_RESOURCES
+from spa.contracts.public import RuntimeRequest
 from tests.image.support import export_image as _export
 from tests.image.support import image_fixture as _fixture
 from tests.image.support import inspect_native as _inspect_native

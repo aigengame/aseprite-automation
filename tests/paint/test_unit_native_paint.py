@@ -79,8 +79,8 @@ def test_shape_commands_share_one_request_schema_and_independent_runtime_gates()
 
 
 def test_a_rectangle_capability_gap_keeps_line_and_ellipse_callable() -> None:
-    from spa.contracts import RuntimeRequest
-    from spa.descriptors import schema_result
+    from spa.application.surface import schema_result
+    from spa.contracts.public import RuntimeRequest
     from tests.support import operation_services, runtime_observation
 
     result = schema_result(
@@ -126,8 +126,8 @@ def test_contour_schema_preserves_gestures_and_refuses_unowned_options() -> None
 
 
 def test_gradient_gap_does_not_hide_verified_contour_or_blur() -> None:
-    from spa.contracts import RuntimeRequest
-    from spa.descriptors import schema_result
+    from spa.application.surface import schema_result
+    from spa.contracts.public import RuntimeRequest
     from tests.support import operation_services, runtime_observation
 
     result = schema_result(

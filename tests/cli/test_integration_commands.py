@@ -7,9 +7,9 @@ from pathlib import Path
 import pytest
 from jsonschema import Draft202012Validator, validate
 
-from spa.contracts import failure_schema
-from spa.descriptors import ACCESS_FAILURE_CODES
-from spa.failure_registry import FAILURE_CODES
+from spa.application.failure_registry import FAILURE_CODES
+from spa.application.surface import ACCESS_FAILURE_CODES
+from spa.contracts.public import failure_schema
 from tests.support import fake_probe_response, spa
 
 

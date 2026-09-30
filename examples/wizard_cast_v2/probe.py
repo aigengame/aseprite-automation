@@ -58,7 +58,7 @@ def build_probe(executable: str, aseprite: str, output: Path) -> dict:
         for frame in (1, 2)
     )
     for offset in range(0, len(steps), 64):
-        spa.plan(source, steps[offset : offset + 64])
+        spa.application.plan(source, steps[offset : offset + 64])
     for frame, position in enumerate(((0, 0), (2, 1), (0, 0)), 1):
         spa.mutate(
             "cel set",
@@ -77,7 +77,7 @@ def build_probe(executable: str, aseprite: str, output: Path) -> dict:
         prepared = original.convert("RGBA")
     for frame, position in enumerate(((0, 0), (2, 1), (0, 0)), 1):
         destination = output / f"frame-{frame}.png"
-        spa.export(source, frame, destination)
+        spa.delivery.export(source, frame, destination)
         expected = Image.new("RGBA", (width + 4, height + 4))
         expected.paste(prepared, position)
         if frame == 3:

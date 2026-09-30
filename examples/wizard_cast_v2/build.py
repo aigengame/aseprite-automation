@@ -17,7 +17,7 @@ def write_json(path: Path, value: object) -> None:
 
 def _run_plan_batches(spa: Spa, source: Path, steps: list[dict]) -> None:
     for offset in range(0, len(steps), 64):
-        spa.plan(source, steps[offset : offset + 64])
+        spa.application.plan(source, steps[offset : offset + 64])
 
 
 def _colored(component: art.Component, palette: dict) -> dict:
@@ -250,7 +250,7 @@ def build(
     )
 
     for index in range(len(sampled)):
-        spa.export(source, index + 1, assets / "scene" / f"{index + 1:04}.png")
+        spa.delivery.export(source, index + 1, assets / "scene" / f"{index + 1:04}.png")
 
     components = {}
     for name, definition in recipe["export"]["components"].items():
@@ -294,7 +294,7 @@ def build(
         exported = []
         for index in range(len(sampled)):
             relative = f"{name}/{index + 1:04}.png"
-            spa.export(derived, index + 1, assets / relative)
+            spa.delivery.export(derived, index + 1, assets / relative)
             exported.append({"frame_number": index + 1, "path": relative})
         components[name] = {
             "size": {"width": rectangle["width"], "height": rectangle["height"]},
@@ -312,7 +312,7 @@ def build(
             1, 1, target_art.width, target_art.height, _colored(target_art, palette)
         ),
     )
-    spa.export(target_source, 1, assets / "target" / "0001.png")
+    spa.delivery.export(target_source, 1, assets / "target" / "0001.png")
     components["target"] = {
         "size": {"width": target_art.width, "height": target_art.height},
         "anchor": {

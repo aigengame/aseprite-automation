@@ -5,7 +5,7 @@ from copy import deepcopy
 import pytest
 from pydantic import ValidationError
 
-from spa.motion import MotionInput
+from spa.authoring.document.motion import MotionInput
 from tests.motion.test_e2e_motion import curves
 
 
