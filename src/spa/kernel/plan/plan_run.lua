@@ -11,6 +11,10 @@ local layer_select = dofile(app.params.layer_select)
 local digest = dofile(app.params.digest)
 local persistence = dofile(app.params.persistence)
 local profiles = dofile(app.params.color_profile)
+local profile_operations = {
+  ["sprite assign-color-profile"] = "assign",
+  ["sprite convert-color-profile"] = "convert",
+}
 local capability_probe = dofile(app.params.capability_probe)
 local all_sections = {
   "frames",
@@ -137,16 +141,9 @@ local function execute_step(step)
     if result.rejection == nil then result.persisted_reopen_verified = false end
     return result
   end
-  if
-    step.operation == "sprite assign-color-profile"
-    or step.operation == "sprite convert-color-profile"
-  then
-    return profiles.apply_live(
-      open_sprite,
-      step.operation == "sprite assign-color-profile" and "assign" or "convert",
-      input,
-      verified_uuids
-    )
+  local profile_operation = profile_operations[step.operation]
+  if profile_operation then
+    return profiles.apply_live(open_sprite, profile_operation, input, verified_uuids)
   end
   if step.operation == "motion apply" then
     local result = motion.apply_live(open_sprite, input, verified_uuids)
@@ -170,12 +167,7 @@ local function execute()
   assert(payload.steps ~= nil and #payload.steps > 0, "Plan has no Steps")
   local profile_steps = false
   for _, step in ipairs(payload.steps) do
-    if
-      step.operation == "sprite assign-color-profile"
-      or step.operation == "sprite convert-color-profile"
-    then
-      profile_steps = true
-    end
+    if profile_operations[step.operation] then profile_steps = true end
   end
   if type(payload.source_sprite_file) == "string" then
     open_sprite = assert(app.open(payload.source_sprite_file), "could not open Source Sprite File")
@@ -190,10 +182,7 @@ local function execute()
     if result.rejection ~= nil then
       open_sprite:close()
       open_sprite = nil
-      if
-        step.operation == "sprite assign-color-profile"
-        or step.operation == "sprite convert-color-profile"
-      then
+      if profile_operations[step.operation] then
         return { profile_rejection = { step_number = index, rejection = result.rejection } }
       end
       return {
