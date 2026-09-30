@@ -121,6 +121,7 @@ ELIGIBLE_OPERATIONS = {
 }
 PLAN_RUN_HANDLER = PackagedHandler(
     "plan_run",
+    "plan/plan_run.lua",
     (
         SPRITE_INSPECTION_RESOURCE,
         SPRITE_PERSISTENCE_RESOURCE,

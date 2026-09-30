@@ -352,8 +352,10 @@ NATIVE_PAINT_FAILURE_CODES = (
     "paint_capability_gap",
     "target_commit_failed",
 )
-NATIVE_TOOL_RESOURCE = PackagedResource("native_tool", "native_tool.lua")
-NATIVE_PAINT_RESOURCE = PackagedResource("native_paint", "paint_native_support.lua")
+NATIVE_TOOL_RESOURCE = PackagedResource("native_tool", "raster/paint/native_tool.lua")
+NATIVE_PAINT_RESOURCE = PackagedResource(
+    "native_paint", "raster/paint/paint_native_support.lua"
+)
 NATIVE_PAINT_RESOURCES = (
     NATIVE_TOOL_RESOURCE,
     NATIVE_PAINT_RESOURCE,
@@ -366,14 +368,30 @@ NATIVE_PAINT_RESOURCES = (
     SPRITE_PERSISTENCE_RESOURCE,
     DIGEST_RESOURCE,
 )
-PAINT_LINE_HANDLER = PackagedHandler("paint_line", NATIVE_PAINT_RESOURCES)
-PAINT_RECTANGLE_HANDLER = PackagedHandler("paint_rectangle", NATIVE_PAINT_RESOURCES)
-PAINT_ELLIPSE_HANDLER = PackagedHandler("paint_ellipse", NATIVE_PAINT_RESOURCES)
-PAINT_PENCIL_HANDLER = PackagedHandler("paint_pencil", NATIVE_PAINT_RESOURCES)
-PAINT_ERASER_HANDLER = PackagedHandler("paint_eraser", NATIVE_PAINT_RESOURCES)
-PAINT_FILL_HANDLER = PackagedHandler("paint_fill", NATIVE_PAINT_RESOURCES)
-PAINT_CONTOUR_HANDLER = PackagedHandler("paint_contour", NATIVE_PAINT_RESOURCES)
-PAINT_BLUR_HANDLER = PackagedHandler("paint_blur", NATIVE_PAINT_RESOURCES)
+PAINT_LINE_HANDLER = PackagedHandler(
+    "paint_line", "raster/paint/paint_line.lua", NATIVE_PAINT_RESOURCES
+)
+PAINT_RECTANGLE_HANDLER = PackagedHandler(
+    "paint_rectangle", "raster/paint/paint_rectangle.lua", NATIVE_PAINT_RESOURCES
+)
+PAINT_ELLIPSE_HANDLER = PackagedHandler(
+    "paint_ellipse", "raster/paint/paint_ellipse.lua", NATIVE_PAINT_RESOURCES
+)
+PAINT_PENCIL_HANDLER = PackagedHandler(
+    "paint_pencil", "raster/paint/paint_pencil.lua", NATIVE_PAINT_RESOURCES
+)
+PAINT_ERASER_HANDLER = PackagedHandler(
+    "paint_eraser", "raster/paint/paint_eraser.lua", NATIVE_PAINT_RESOURCES
+)
+PAINT_FILL_HANDLER = PackagedHandler(
+    "paint_fill", "raster/paint/paint_fill.lua", NATIVE_PAINT_RESOURCES
+)
+PAINT_CONTOUR_HANDLER = PackagedHandler(
+    "paint_contour", "raster/paint/paint_contour.lua", NATIVE_PAINT_RESOURCES
+)
+PAINT_BLUR_HANDLER = PackagedHandler(
+    "paint_blur", "raster/paint/paint_blur.lua", NATIVE_PAINT_RESOURCES
+)
 
 
 def native_paint_capability_gaps(

@@ -3,5 +3,5 @@
 from spa.contracts.ports import PackagedResource
 
 EFFECTIVE_PALETTE_RESOURCE = PackagedResource(
-    "effective_palette", "effective_palette.lua"
+    "effective_palette", "color/effective_palette.lua"
 )

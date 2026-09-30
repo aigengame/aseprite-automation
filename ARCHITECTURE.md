@@ -452,6 +452,8 @@ src/spa/
   contracts/
     public.py, operation.py, ports.py
     mutation.py           # Source/Target identity and Target Commit contracts
+    artifact.py           # shared publication/verification failure details
+    digest.py             # one shared native evidence digest binding
     raster.py, rounding.py # shared values and their native bindings
   authoring/
     document/
@@ -468,6 +470,18 @@ src/spa/
     aseprite/             # process, resource discovery, and transport
     files.py, png.py       # filesystem mechanics and independent PNG decoding
   kernel/                 # fixed native semantic handlers and shared owners
+    __init__.py
+    document/
+      sprite/, layer/, frame/, cel/, tag/, animation/
+    raster/
+      image/, paint/, selection/
+      raster_color.lua
+    color/                # Effective Palette
+    delivery/             # native Image Export
+    runtime/              # runtime and capability probes
+      fixtures/           # real native probe inputs
+    plan/                 # single-Sprite Plan execution
+    foundation/           # digest and rounding algorithms
 ```
 
 Package initialization does not register Operations or re-export implementations.
@@ -477,6 +491,24 @@ contains only values and contracts already used across owners. Feature-specific
 requests, evidence, Descriptors, and use cases stay with their feature. Imports
 between feature modules retain a single direction; no runtime lookup or directory
 scan replaces the explicit bindings.
+
+The Lua family directories colocate handlers and their supporting semantics.
+Native Sprite persistence remains under `kernel/document/sprite`; it does not
+acquire Application's Target Commit responsibility. The small `foundation` group
+holds existing shared algorithms and does not become an owner for feature policy.
+It includes the established Image evidence digest encoding, not a new generic
+service. Shared Python contracts do not import feature implementations. Frame
+and Paint use the same digest binding; dispatch consumes shared Artifact failure
+details without importing the Delivery implementation.
+
+A `PackagedHandler` separates its logical name from its explicit path relative
+to `spa.kernel`. A `PackagedResource` maps a semantic script parameter to a
+relative packaged path. The runtime uses the logical name for its temporary
+workspace and the path for loading. Probe and Plan dependencies remain explicit;
+the runtime does not discover resources recursively. The installed-package check
+compares all nested Kernel files with source bytes outside the checkout, including
+real LFS fixture content. This inventory verifies the distribution and is not an
+Operation registry.
 
 Add a module only with a complete functional slice. Preparation and Tile packages
 have no placeholder implementation. Color and Palette now owns the

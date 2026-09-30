@@ -288,9 +288,26 @@ printf '%s' '{{"kernel_protocol_version":1,"status":"ok","result":{{}}}}' > "$re
         verified_capabilities=(),
     )
 
-    invoke(observation, PackagedHandler("generic_test"), {}, 1)
+    invoke(
+        observation,
+        PackagedHandler("generic_test", "document/sprite/sprite_get.lua"),
+        {},
+        1,
+    )
 
     arguments = recorded.read_text(encoding="utf-8").splitlines()
+    script = Path(arguments[arguments.index("--script") + 1])
+    assert script.as_posix().endswith("/document/sprite/sprite_get.lua")
+    assert script.is_file()
+    request = Path(
+        next(
+            arg.removeprefix("request=")
+            for arg in arguments
+            if arg.startswith("request=")
+        )
+    )
+    assert request.parent.name.startswith("spa-generic_test-")
+    assert not request.parent.exists()
     assert not any(argument.startswith("inspection=") for argument in arguments)
     assert not any(argument.startswith("creation=") for argument in arguments)
 

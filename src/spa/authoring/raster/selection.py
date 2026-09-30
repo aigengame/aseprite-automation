@@ -285,7 +285,7 @@ class SelectionPreviewResult(SelectionFacts):
 
 
 SELECTION_SUPPORT_RESOURCE = PackagedResource(
-    "selection_support", "selection_support.lua"
+    "selection_support", "raster/selection/selection_support.lua"
 )
 SELECTION_REQUIREMENTS = RuntimeRequirements(
     lua_language="Lua 5.4",
@@ -316,7 +316,11 @@ def _invoke(
     observation = services.probe_runtime(request)
     invocation = services.invoke_kernel(
         observation,
-        PackagedHandler(name, (SELECTION_MASK_RESOURCE, SELECTION_SUPPORT_RESOURCE)),
+        PackagedHandler(
+            name,
+            f"raster/selection/{name}.lua",
+            (SELECTION_MASK_RESOURCE, SELECTION_SUPPORT_RESOURCE),
+        ),
         payload,
         request.timeout_seconds,
     )

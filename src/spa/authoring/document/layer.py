@@ -376,23 +376,32 @@ LAYER_MOVE_FAILURE_CODES = (
     "layer_invalid_position",
     "target_commit_failed",
 )
-LAYER_INSPECTION_RESOURCE = PackagedResource("inspection", "sprite_inspect.lua")
-LAYER_SELECT_RESOURCE = PackagedResource("layer_select", "layer_select.lua")
+LAYER_INSPECTION_RESOURCE = PackagedResource(
+    "inspection", "document/sprite/sprite_inspect.lua"
+)
+LAYER_SELECT_RESOURCE = PackagedResource(
+    "layer_select", "document/layer/layer_select.lua"
+)
 LAYER_GET_HANDLER = PackagedHandler(
-    "layer_get", (LAYER_INSPECTION_RESOURCE, LAYER_SELECT_RESOURCE)
+    "layer_get",
+    "document/layer/layer_get.lua",
+    (LAYER_INSPECTION_RESOURCE, LAYER_SELECT_RESOURCE),
 )
 LAYER_ADD_HANDLER = PackagedHandler(
-    "layer_add", (LAYER_INSPECTION_RESOURCE, LAYER_SELECT_RESOURCE)
+    "layer_add",
+    "document/layer/layer_add.lua",
+    (LAYER_INSPECTION_RESOURCE, LAYER_SELECT_RESOURCE),
 )
 LAYER_MUTATE_HANDLER = PackagedHandler(
     "layer_mutate",
+    "document/layer/layer_mutate.lua",
     (
         LAYER_INSPECTION_RESOURCE,
         LAYER_SELECT_RESOURCE,
-        PackagedResource("layer_mutation", "layer_mutation_support.lua"),
+        PackagedResource("layer_mutation", "document/layer/layer_mutation_support.lua"),
         DIGEST_RESOURCE,
-        PackagedResource("persistence", "sprite_persistence.lua"),
-        PackagedResource("frame", "frame_support.lua"),
+        PackagedResource("persistence", "document/sprite/sprite_persistence.lua"),
+        PackagedResource("frame", "document/frame/frame_support.lua"),
         EFFECTIVE_PALETTE_RESOURCE,
     ),
 )

@@ -138,10 +138,11 @@ class CelUnlinkResult(CelRelationshipResult):
 
 
 CEL_RELATIONSHIP_RESOURCE = PackagedResource(
-    "cel_relationship", "cel_relationship_support.lua"
+    "cel_relationship", "document/cel/cel_relationship_support.lua"
 )
 CEL_RELATIONSHIP_HANDLER = PackagedHandler(
     "cel_relationship",
+    "document/cel/cel_relationship.lua",
     (
         SPRITE_INSPECTION_RESOURCE,
         SPRITE_PERSISTENCE_RESOURCE,

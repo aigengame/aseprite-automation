@@ -2,4 +2,4 @@
 
 from spa.contracts.ports import PackagedResource
 
-DIGEST_RESOURCE = PackagedResource("digest", "digest.lua")
+DIGEST_RESOURCE = PackagedResource("digest", "foundation/digest.lua")

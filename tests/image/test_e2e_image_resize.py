@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import tempfile
+from importlib.resources import files
 from pathlib import Path
 
 import pytest
@@ -251,9 +252,9 @@ def test_shared_resize_restores_active_context_on_success_and_failure(
                 str(prepared.executable),
                 "--batch",
                 "--script-param",
-                f"image_resize_transform={Path(__file__).parents[2] / 'src/spa/kernel/image_resize_transform.lua'}",
+                f"image_resize_transform={files('spa.kernel').joinpath('raster/image/image_resize_transform.lua')}",
                 "--script-param",
-                f"effective_palette={Path(__file__).parents[2] / 'src/spa/kernel/effective_palette.lua'}",
+                f"effective_palette={files('spa.kernel').joinpath('color/effective_palette.lua')}",
                 "--script-param",
                 f"out={output}",
                 "--script",

@@ -118,7 +118,7 @@ def test_background_postcondition_rejects_a_nonuniform_reopened_fill(
                 str(prepared.executable),
                 "--batch",
                 "--script-param",
-                f"creation={files('spa.kernel').joinpath('sprite_create_support.lua')}",
+                f"creation={files('spa.kernel').joinpath('document/sprite/sprite_create_support.lua')}",
                 "--script-param",
                 f"target={target}",
                 "--script-param",

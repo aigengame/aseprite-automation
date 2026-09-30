@@ -36,7 +36,9 @@ from spa.contracts.public import (
 
 KERNEL_PROTOCOL_VERSION = 1
 OUTPUT_LIMIT_BYTES = 65536
-CAPABILITY_PROBE_RESOURCE = PackagedResource("capability_probe", "capability_probe.lua")
+CAPABILITY_PROBE_RESOURCE = PackagedResource(
+    "capability_probe", "runtime/capability_probe.lua"
+)
 PROBE_PREREQUISITES: frozenset[ProbePrerequisite] = frozenset(
     {"aseprite_scripting", "lua_file_io", "aseprite_json"}
 )
@@ -187,7 +189,7 @@ def _process_failure(
 def _resource_arguments(resources: tuple[PackagedResource, ...]) -> list[str]:
     arguments: list[str] = []
     for resource in resources:
-        path = files("spa.kernel").joinpath(resource.package_name)
+        path = files("spa.kernel").joinpath(resource.package_path)
         arguments.extend(("--script-param", f"{resource.parameter_name}={path}"))
     return arguments
 
@@ -196,7 +198,7 @@ def probe(
     request: RuntimeRequest, resources: tuple[PackagedResource, ...] = ()
 ) -> RuntimeObservation:
     discovered, canonical, resource, selection_source = _discover(request.aseprite)
-    script = files("spa.kernel").joinpath("probe.lua")
+    script = files("spa.kernel").joinpath("runtime/probe.lua")
     sentinel = {
         "nullable": None,
         "nested": [{"value": None}, [1, None, {"flag": True}]],
@@ -406,8 +408,8 @@ def _invoke_at(
     *,
     with_capability_probe: bool = False,
 ) -> KernelInvocationResult:
-    handler_name = handler.resource_name
-    script = files("spa.kernel").joinpath(f"{handler_name}.lua")
+    handler_name = handler.name
+    script = files("spa.kernel").joinpath(handler.package_path)
     try:
         workspace = tempfile.TemporaryDirectory(prefix=f"spa-{handler_name}-")
     except OSError as exc:

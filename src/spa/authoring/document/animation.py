@@ -268,9 +268,12 @@ class AnimationPreviewResult(PublicModel):
     artifact: PreviewArtifact
 
 
-ANIMATION_SUPPORT = PackagedResource("animation", "animation_support.lua")
+ANIMATION_SUPPORT = PackagedResource(
+    "animation", "document/animation/animation_support.lua"
+)
 ANIMATION_HANDLER = PackagedHandler(
     "animation",
+    "document/animation/animation.lua",
     (
         ANIMATION_SUPPORT,
         CEL_SELECT_RESOURCE,

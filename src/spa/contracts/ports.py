@@ -36,31 +36,38 @@ class RuntimeObservation:
 
 RuntimeProbe = Callable[[RuntimeRequest], RuntimeObservation]
 
+_PACKAGE_STEM = r"(?:[a-z][a-z0-9_]*/)*[a-z][a-z0-9_]*"
+
 
 @dataclass(frozen=True)
 class PackagedResource:
-    """One packaged Kernel resource and its private script parameter."""
+    """A Kernel-relative path bound to a semantic private script parameter."""
 
     parameter_name: str
-    package_name: str
+    package_path: str
 
     def __post_init__(self) -> None:
         if not re.fullmatch(r"[a-z][a-z0-9_]*", self.parameter_name):
             raise ValueError("Packaged resource parameter must be lower_snake_case")
-        if not re.fullmatch(r"[a-z][a-z0-9_]*\.(?:lua|aseprite)", self.package_name):
-            raise ValueError("Packaged resource must be a Lua or Aseprite file name")
+        if not re.fullmatch(_PACKAGE_STEM + r"\.(?:lua|aseprite)", self.package_path):
+            raise ValueError(
+                "Packaged resource must be a relative Lua or Aseprite path"
+            )
 
 
 @dataclass(frozen=True)
 class PackagedHandler:
-    """Opaque packaged-resource identity selected by a Domain Module."""
+    """A logical handler identity and explicit Kernel-relative script path."""
 
-    resource_name: str
+    name: str
+    package_path: str
     support_resources: tuple[PackagedResource, ...] = ()
 
     def __post_init__(self) -> None:
-        if not re.fullmatch(r"[a-z][a-z0-9_]*", self.resource_name):
+        if not re.fullmatch(r"[a-z][a-z0-9_]*", self.name):
             raise ValueError("Packaged handler name must be lower_snake_case")
+        if not re.fullmatch(_PACKAGE_STEM + r"\.lua", self.package_path):
+            raise ValueError("Packaged handler must be a relative Lua path")
         parameters = [resource.parameter_name for resource in self.support_resources]
         if len(parameters) != len(set(parameters)):
             raise ValueError("Packaged resource parameters must be unique")

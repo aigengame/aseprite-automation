@@ -5,6 +5,7 @@ import os
 import shutil
 import subprocess
 import sys
+from importlib.resources import files
 from pathlib import Path
 
 import pytest
@@ -566,7 +567,7 @@ def test_native_tool_state_is_restored_on_success_and_failure(
     )
     blocked_parent = tmp_path / "blocked-stage-parent"
     blocked_parent.write_bytes(b"not a directory")
-    kernel = Path(__file__).parents[2] / "src" / "spa" / "kernel"
+    kernel = files("spa.kernel")
     args = [str(prepared.executable), "--batch"]
     params = {
         "tool": tool,
@@ -576,7 +577,7 @@ def test_native_tool_state_is_restored_on_success_and_failure(
         "unwritable": str(blocked_parent / "painted.aseprite"),
     }
     for resource in NATIVE_PAINT_RESOURCES:
-        params[resource.parameter_name] = str(kernel / resource.package_name)
+        params[resource.parameter_name] = str(kernel.joinpath(resource.package_path))
     for name, value in params.items():
         args += ["--script-param", f"{name}={value}"]
     args += [

@@ -7,8 +7,10 @@ from pydantic import Field, model_validator
 from spa.contracts.ports import PackagedResource
 from spa.contracts.public import PublicModel
 
-SELECTION_MASK_RESOURCE = PackagedResource("selection_mask", "selection_mask.lua")
-RASTER_COLOR_RESOURCE = PackagedResource("raster_color", "raster_color.lua")
+SELECTION_MASK_RESOURCE = PackagedResource(
+    "selection_mask", "raster/selection/selection_mask.lua"
+)
+RASTER_COLOR_RESOURCE = PackagedResource("raster_color", "raster/raster_color.lua")
 
 
 class RgbaColor(PublicModel):

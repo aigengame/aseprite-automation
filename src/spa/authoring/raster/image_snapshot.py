@@ -290,8 +290,12 @@ class ImageReplaceResult(ImageReplaceEvidence):
     target_commit: TargetCommit
 
 
-SNAPSHOT_RESOURCE = PackagedResource("image_snapshot", "image_snapshot.lua")
-COMPOSITION_RESOURCE = PackagedResource("layer_composition", "layer_composition.lua")
+SNAPSHOT_RESOURCE = PackagedResource(
+    "image_snapshot", "raster/image/image_snapshot.lua"
+)
+COMPOSITION_RESOURCE = PackagedResource(
+    "layer_composition", "raster/image/layer_composition.lua"
+)
 SNAPSHOT_SUPPORT_RESOURCES = (
     SPRITE_INSPECTION_RESOURCE,
     LAYER_SELECT_RESOURCE,
@@ -302,6 +306,7 @@ SNAPSHOT_SUPPORT_RESOURCES = (
 )
 IMAGE_GET_HANDLER = PackagedHandler(
     "image_get",
+    "raster/image/image_get.lua",
     (*SNAPSHOT_SUPPORT_RESOURCES, COMPOSITION_RESOURCE),
 )
 IMAGE_SNAPSHOT_REQUIREMENTS = RuntimeRequirements(
@@ -315,6 +320,7 @@ IMAGE_SNAPSHOT_REQUIREMENTS = RuntimeRequirements(
 )
 IMAGE_REPLACE_HANDLER = PackagedHandler(
     "image_replace",
+    "raster/image/image_replace.lua",
     (
         *SNAPSHOT_SUPPORT_RESOURCES,
         SPRITE_PERSISTENCE_RESOURCE,

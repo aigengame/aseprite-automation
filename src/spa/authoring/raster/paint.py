@@ -156,8 +156,12 @@ PAINT_APPLY_FAILURE_CODES = (
     "cel_not_found",
     "target_commit_failed",
 )
-PAINT_SUPPORT_RESOURCE = PackagedResource("paint", "paint_apply_support.lua")
-PAINT_PROBE_FIXTURE = PackagedResource("paint_fixture", "paint_apply_fixture.aseprite")
+PAINT_SUPPORT_RESOURCE = PackagedResource(
+    "paint", "raster/paint/paint_apply_support.lua"
+)
+PAINT_PROBE_FIXTURE = PackagedResource(
+    "paint_fixture", "runtime/fixtures/paint_apply_fixture.aseprite"
+)
 PAINT_PROBE_RESOURCES = (
     PAINT_SUPPORT_RESOURCE,
     RASTER_COLOR_RESOURCE,
@@ -168,6 +172,7 @@ PAINT_PROBE_RESOURCES = (
 )
 PAINT_APPLY_HANDLER = PackagedHandler(
     "paint_apply",
+    "raster/paint/paint_apply.lua",
     (
         PAINT_SUPPORT_RESOURCE,
         RASTER_COLOR_RESOURCE,

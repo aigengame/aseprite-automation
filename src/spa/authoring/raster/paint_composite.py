@@ -226,10 +226,11 @@ COMPOSITE_FAILURE_CODE_SPECS = (
     ),
 )
 COMPOSITE_SUPPORT_RESOURCE = PackagedResource(
-    "paint_composite", "paint_composite_support.lua"
+    "paint_composite", "raster/paint/paint_composite_support.lua"
 )
 COMPOSITE_HANDLER = PackagedHandler(
     "paint_composite",
+    "raster/paint/paint_composite.lua",
     (
         *SNAPSHOT_SUPPORT_RESOURCES,
         SPRITE_PERSISTENCE_RESOURCE,

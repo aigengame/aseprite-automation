@@ -299,10 +299,14 @@ CEL_READ_REQUIREMENTS = RuntimeRequirements(
     minimum_api_version=41,
     required_capabilities=["aseprite_cel_lifecycle"],
 )
-CEL_SUPPORT_RESOURCE = PackagedResource("cel", "cel_support.lua")
-CEL_SELECT_RESOURCE = PackagedResource("layer_select", "layer_select.lua")
+CEL_SUPPORT_RESOURCE = PackagedResource("cel", "document/cel/cel_support.lua")
+CEL_SELECT_RESOURCE = PackagedResource(
+    "layer_select", "document/layer/layer_select.lua"
+)
 CEL_GET_HANDLER = PackagedHandler(
-    "cel_get", (SPRITE_INSPECTION_RESOURCE, CEL_SELECT_RESOURCE, CEL_SUPPORT_RESOURCE)
+    "cel_get",
+    "document/cel/cel_get.lua",
+    (SPRITE_INSPECTION_RESOURCE, CEL_SELECT_RESOURCE, CEL_SUPPORT_RESOURCE),
 )
 CEL_MUTATION_REQUIREMENTS = RuntimeRequirements(
     lua_language="Lua 5.4",
@@ -311,12 +315,13 @@ CEL_MUTATION_REQUIREMENTS = RuntimeRequirements(
 )
 CEL_MUTATE_HANDLER = PackagedHandler(
     "cel_mutate",
+    "document/cel/cel_mutate.lua",
     (
         SPRITE_INSPECTION_RESOURCE,
         SPRITE_PERSISTENCE_RESOURCE,
         CEL_SELECT_RESOURCE,
         CEL_SUPPORT_RESOURCE,
-        PackagedResource("frame", "frame_support.lua"),
+        PackagedResource("frame", "document/frame/frame_support.lua"),
         EFFECTIVE_PALETTE_RESOURCE,
         DIGEST_RESOURCE,
     ),

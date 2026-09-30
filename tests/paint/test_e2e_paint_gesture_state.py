@@ -2,6 +2,7 @@
 
 import os
 import subprocess
+from importlib.resources import files
 from pathlib import Path
 
 import pytest
@@ -29,7 +30,7 @@ def test_gesture_restores_invocation_state_and_preserves_files(
     )
     blocked_parent = tmp_path / "blocked-stage-parent"
     blocked_parent.write_bytes(b"not a directory")
-    kernel = Path(__file__).parents[2] / "src" / "spa" / "kernel"
+    kernel = files("spa.kernel")
     params = {
         "tool": tool,
         "source": str(tmp_path / "source.aseprite"),
@@ -39,7 +40,7 @@ def test_gesture_restores_invocation_state_and_preserves_files(
         "unwritable": str(blocked_parent / "painted.aseprite"),
     }
     for resource in NATIVE_PAINT_RESOURCES:
-        params[resource.parameter_name] = str(kernel / resource.package_name)
+        params[resource.parameter_name] = str(kernel.joinpath(resource.package_path))
     args = [str(prepared.executable), "--batch"]
     for name, value in params.items():
         args.extend(("--script-param", f"{name}={value}"))

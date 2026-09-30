@@ -147,7 +147,7 @@ MOTION_FAILURE_CODES = (
     "motion_position_out_of_bounds",
     "target_commit_failed",
 )
-MOTION_RESOURCE = PackagedResource("motion", "motion_support.lua")
+MOTION_RESOURCE = PackagedResource("motion", "document/animation/motion_support.lua")
 MOTION_RESOURCES = (
     SPRITE_INSPECTION_RESOURCE,
     SPRITE_PERSISTENCE_RESOURCE,
@@ -157,7 +157,9 @@ MOTION_RESOURCES = (
     DIGEST_RESOURCE,
     MOTION_RESOURCE,
 )
-MOTION_HANDLER = PackagedHandler("motion_apply", MOTION_RESOURCES)
+MOTION_HANDLER = PackagedHandler(
+    "motion_apply", "document/animation/motion_apply.lua", MOTION_RESOURCES
+)
 MOTION_REQUIREMENTS = RuntimeRequirements(
     lua_language="Lua 5.4",
     minimum_api_version=41,

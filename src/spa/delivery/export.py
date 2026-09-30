@@ -109,9 +109,13 @@ EXPORT_REQUIREMENTS = RuntimeRequirements(
     minimum_api_version=41,
     required_capabilities=["aseprite_export_image"],
 )
-EXPORT_SUPPORT = PackagedResource("export_image_support", "export_image_support.lua")
+EXPORT_SUPPORT = PackagedResource(
+    "export_image_support", "delivery/export_image_support.lua"
+)
 EXPORT_PROBE_RESOURCES = (EXPORT_SUPPORT,)
-EXPORT_HANDLER = PackagedHandler("export_image", EXPORT_PROBE_RESOURCES)
+EXPORT_HANDLER = PackagedHandler(
+    "export_image", "delivery/export_image.lua", EXPORT_PROBE_RESOURCES
+)
 
 
 def _native_facts(invocation: KernelInvocationResult) -> NativeImageFacts:

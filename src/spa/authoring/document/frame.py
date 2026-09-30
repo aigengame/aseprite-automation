@@ -231,13 +231,15 @@ FRAME_EDIT_REQUIREMENTS = RuntimeRequirements(
     minimum_api_version=41,
     required_capabilities=["aseprite_sprite_inspection", "aseprite_frame_editing"],
 )
-FRAME_SUPPORT_RESOURCE = PackagedResource("frame", "frame_support.lua")
+FRAME_SUPPORT_RESOURCE = PackagedResource("frame", "document/frame/frame_support.lua")
 FRAME_GET_HANDLER = PackagedHandler(
     "frame_get",
+    "document/frame/frame_get.lua",
     (SPRITE_INSPECTION_RESOURCE, FRAME_SUPPORT_RESOURCE, EFFECTIVE_PALETTE_RESOURCE),
 )
 FRAME_MUTATE_HANDLER = PackagedHandler(
     "frame_mutate",
+    "document/frame/frame_mutate.lua",
     (
         SPRITE_INSPECTION_RESOURCE,
         SPRITE_PERSISTENCE_RESOURCE,

@@ -285,21 +285,22 @@ IMAGE_ROTATE_FAILURE_CODE_SPECS = (
 )
 
 IMAGE_RESIZE_TRANSFORM_RESOURCE = PackagedResource(
-    "image_resize_transform", "image_resize_transform.lua"
+    "image_resize_transform", "raster/image/image_resize_transform.lua"
 )
 IMAGE_CEL_MUTATION_RESOURCE = PackagedResource(
-    "image_cel_mutation", "image_cel_mutation.lua"
+    "image_cel_mutation", "raster/image/image_cel_mutation.lua"
 )
 IMAGE_MUTATION_RESOURCES = (
     SPRITE_INSPECTION_RESOURCE,
     SPRITE_PERSISTENCE_RESOURCE,
-    PackagedResource("layer_select", "layer_select.lua"),
-    PackagedResource("cel", "cel_support.lua"),
+    PackagedResource("layer_select", "document/layer/layer_select.lua"),
+    PackagedResource("cel", "document/cel/cel_support.lua"),
     DIGEST_RESOURCE,
     IMAGE_CEL_MUTATION_RESOURCE,
 )
 IMAGE_RESIZE_HANDLER = PackagedHandler(
     "image_resize",
+    "raster/image/image_resize.lua",
     (
         *IMAGE_MUTATION_RESOURCES,
         IMAGE_RESIZE_TRANSFORM_RESOURCE,
@@ -320,15 +321,16 @@ IMAGE_RESIZE_REQUIREMENTS = RuntimeRequirements(
 )
 
 IMAGE_ORIENTATION_TRANSFORM_RESOURCE = PackagedResource(
-    "image_orientation_transform", "image_orientation_transform.lua"
+    "image_orientation_transform", "raster/image/image_orientation_transform.lua"
 )
 IMAGE_ORIENTATION_HANDLER = PackagedHandler(
     "image_orientation",
+    "raster/image/image_orientation.lua",
     (
         SPRITE_INSPECTION_RESOURCE,
         SPRITE_PERSISTENCE_RESOURCE,
-        PackagedResource("layer_select", "layer_select.lua"),
-        PackagedResource("cel", "cel_support.lua"),
+        PackagedResource("layer_select", "document/layer/layer_select.lua"),
+        PackagedResource("cel", "document/cel/cel_support.lua"),
         DIGEST_RESOURCE,
         IMAGE_ORIENTATION_TRANSFORM_RESOURCE,
     ),
@@ -599,12 +601,16 @@ IMAGE_CANVAS_FAILURE_CODE_SPECS = (
     ),
 )
 IMAGE_CANVAS_TRANSFORM_RESOURCE = PackagedResource(
-    "image_canvas_transform", "image_canvas_transform.lua"
+    "image_canvas_transform", "raster/image/image_canvas_transform.lua"
 )
 IMAGE_CANVAS_RESOURCES = (*IMAGE_MUTATION_RESOURCES, IMAGE_CANVAS_TRANSFORM_RESOURCE)
-IMAGE_CROP_HANDLER = PackagedHandler("image_crop", IMAGE_CANVAS_RESOURCES)
+IMAGE_CROP_HANDLER = PackagedHandler(
+    "image_crop", "raster/image/image_crop.lua", IMAGE_CANVAS_RESOURCES
+)
 IMAGE_CANVAS_RESIZE_HANDLER = PackagedHandler(
-    "image_canvas_resize", (*IMAGE_CANVAS_RESOURCES, EFFECTIVE_PALETTE_RESOURCE)
+    "image_canvas_resize",
+    "raster/image/image_canvas_resize.lua",
+    (*IMAGE_CANVAS_RESOURCES, EFFECTIVE_PALETTE_RESOURCE),
 )
 IMAGE_CANVAS_REQUIREMENTS = RuntimeRequirements(
     lua_language="Lua 5.4",

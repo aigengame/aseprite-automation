@@ -1,9 +1,11 @@
-"""Smoke test a wheel-installed SPA executable against project metadata."""
+"""Verify a wheel-installed CLI and every packaged Kernel resource."""
 
+import hashlib
 import json
 import os
 import subprocess
 import sys
+import tempfile
 import tomllib
 from pathlib import Path
 
@@ -12,111 +14,83 @@ def main() -> None:
     if len(sys.argv) != 2:
         raise SystemExit("usage: verify_installed_cli.py /path/to/spa")
 
-    executable = Path(sys.argv[1])
+    executable = Path(sys.argv[1]).resolve()
     metadata = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
     expected_version = metadata["project"]["version"]
-    completed = subprocess.run(
-        [str(executable), "version"],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    response = json.loads(completed.stdout)
-    expected = {
-        "status": "success",
-        "operation": "spa version",
-        "spa_version": expected_version,
+    source_kernel = Path("src/spa/kernel")
+    expected_resources = {
+        path.relative_to(source_kernel).as_posix(): hashlib.sha256(
+            path.read_bytes()
+        ).hexdigest()
+        for path in source_kernel.rglob("*")
+        if path.suffix in {".lua", ".aseprite"}
     }
-    if response != expected:
-        raise SystemExit(f"installed CLI returned {response!r}; expected {expected!r}")
-
+    if not expected_resources:
+        raise SystemExit("source Kernel resource inventory is empty")
     installed_python = executable.parent / (
         "python.exe" if os.name == "nt" else "python"
     )
-    subprocess.run(
-        [
-            str(installed_python),
-            "-c",
-            """from importlib.resources import files
-kernel = files("spa.kernel")
-for name in (
-    "probe.lua",
-    "sprite_create.lua",
-    "sprite_create_support.lua",
-    "sprite_get.lua",
-    "sprite_inspect.lua",
-    "sprite_flatten.lua",
-    "sprite_geometry.lua",
-    "sprite_persistence.lua",
-    "effective_palette.lua",
-    "cel_relationship_support.lua",
-    "motion_apply.lua",
-    "motion_support.lua",
-    "rounding.lua",
-    "selection_mask.lua",
-    "selection_support.lua",
-    "selection_create.lua",
-    "selection_combine.lua",
-    "selection_invert.lua",
-    "selection_grow.lua",
-    "selection_shrink.lua",
-    "selection_transform.lua",
-    "selection_export.lua",
-    "selection_preview.lua",
-    "image_resize.lua",
-    "image_resize_transform.lua",
-    "image_orientation.lua",
-    "image_orientation_transform.lua",
-    "layer_add.lua",
-    "layer_get.lua",
-    "layer_select.lua",
-    "layer_mutate.lua",
-    "layer_mutation_support.lua",
-    "digest.lua",
-    "sprite_inspection_fixture.aseprite",
-    "paint_apply_fixture.aseprite",
-    "frame_mutate.lua",
-    "frame_get.lua",
-    "frame_support.lua",
-    "tag_mutate.lua",
-    "tag_support.lua",
-    "tag_select.lua",
-    "tag_get.lua",
-    "image_get.lua",
-    "image_replace.lua",
-    "image_snapshot.lua",
-    "layer_composition.lua",
-    "raster_color.lua",
-    "paint_composite.lua",
-    "paint_composite_support.lua",
-    "native_tool.lua",
-    "paint_native_support.lua",
-    "paint_fill.lua",
-    "paint_line.lua",
-    "paint_pencil.lua",
-    "paint_eraser.lua",
-    "paint_rectangle.lua",
-    "paint_ellipse.lua",
-    "paint_contour.lua",
-    "paint_blur.lua",
-    "export_image.lua",
-    "export_image_support.lua",
-):
-    resource = kernel.joinpath(name)
-    if not resource.is_file() or not resource.read_bytes():
-        raise SystemExit(f"missing installed Kernel resource: {name}")
-    if resource.read_bytes().startswith(b"version https://git-lfs.github.com/spec/v1"):
-        raise SystemExit(f"unresolved Git LFS pointer in installed Kernel resource: {name}")
+    environment = os.environ.copy()
+    environment.pop("PYTHONPATH", None)
+    with tempfile.TemporaryDirectory(prefix="spa-installed-check-") as work:
+        completed = subprocess.run(
+            [str(executable), "version"],
+            cwd=work,
+            env=environment,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        response = json.loads(completed.stdout)
+        expected = {
+            "status": "success",
+            "operation": "spa version",
+            "spa_version": expected_version,
+        }
+        if response != expected:
+            raise SystemExit(
+                f"installed CLI returned {response!r}; expected {expected!r}"
+            )
+
+        subprocess.run(
+            [
+                str(installed_python),
+                "-I",
+                "-c",
+                """import hashlib, json, sys
+from importlib.resources import files
+
+def inventory(directory, prefix=""):
+    result = {}
+    for resource in directory.iterdir():
+        name = prefix + resource.name
+        if resource.is_dir():
+            result.update(inventory(resource, name + "/"))
+        elif name.endswith((".lua", ".aseprite")):
+            payload = resource.read_bytes()
+            if not payload or payload.startswith(b"version https://git-lfs.github.com/spec/v1"):
+                raise SystemExit(f"empty resource or unresolved LFS pointer: {name}")
+            result[name] = hashlib.sha256(payload).hexdigest()
+    return result
+
+expected = json.loads(sys.argv[1])
+actual = inventory(files("spa.kernel"))
+if actual != expected:
+    missing = sorted(expected.keys() - actual.keys())
+    extra = sorted(actual.keys() - expected.keys())
+    changed = sorted(name for name in expected.keys() & actual.keys() if expected[name] != actual[name])
+    raise SystemExit(f"Kernel mismatch: missing={missing}, extra={extra}, changed={changed}")
 """,
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+                json.dumps(expected_resources),
+            ],
+            cwd=work,
+            env=environment,
+            check=True,
+        )
 
     print(
-        f"verified installed SPA {expected_version} and Kernel resources at "
-        f"{executable}"
+        f"verified installed SPA {expected_version} and {len(expected_resources)} "
+        f"Kernel resources at {executable}"
     )
 
 

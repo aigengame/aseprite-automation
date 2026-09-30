@@ -225,17 +225,20 @@ TAG_MUTATION_REQUIREMENTS = RuntimeRequirements(
     minimum_api_version=41,
     required_capabilities=["aseprite_sprite_inspection", "aseprite_tag_authoring"],
 )
-TAG_SELECT_RESOURCE = PackagedResource("tag_select", "tag_select.lua")
+TAG_SELECT_RESOURCE = PackagedResource("tag_select", "document/tag/tag_select.lua")
 TAG_GET_HANDLER = PackagedHandler(
-    "tag_get", (SPRITE_INSPECTION_RESOURCE, TAG_SELECT_RESOURCE)
+    "tag_get",
+    "document/tag/tag_get.lua",
+    (SPRITE_INSPECTION_RESOURCE, TAG_SELECT_RESOURCE),
 )
 TAG_MUTATE_HANDLER = PackagedHandler(
     "tag_mutate",
+    "document/tag/tag_mutate.lua",
     (
         SPRITE_INSPECTION_RESOURCE,
         SPRITE_PERSISTENCE_RESOURCE,
         DIGEST_RESOURCE,
-        PackagedResource("tag", "tag_support.lua"),
+        PackagedResource("tag", "document/tag/tag_support.lua"),
         TAG_SELECT_RESOURCE,
     ),
 )
