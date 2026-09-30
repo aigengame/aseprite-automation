@@ -14,6 +14,7 @@ from spa.authoring.document.sprite import (
     TagFacts,
     _inspection_from_kernel,
 )
+from spa.contracts.digest import DIGEST_RESOURCE
 from spa.contracts.mutation import (
     TargetCommit,
     require_overwrite_for_in_place,
@@ -233,7 +234,7 @@ TAG_MUTATE_HANDLER = PackagedHandler(
     (
         SPRITE_INSPECTION_RESOURCE,
         SPRITE_PERSISTENCE_RESOURCE,
-        PackagedResource("digest", "digest.lua"),
+        DIGEST_RESOURCE,
         PackagedResource("tag", "tag_support.lua"),
         TAG_SELECT_RESOURCE,
     ),

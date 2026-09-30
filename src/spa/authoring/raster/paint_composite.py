@@ -10,7 +10,6 @@ from spa.authoring.document.cel import CelAddress, CelState, _reject
 from spa.authoring.document.layer import LAYER_ADDRESS_FAILURE_CODES
 from spa.authoring.document.sprite import (
     INSPECTION_SECTIONS,
-    SPRITE_DIGEST_RESOURCE,
     SPRITE_PERSISTENCE_RESOURCE,
     SpriteGetRequest,
     SpriteInspection,
@@ -21,6 +20,7 @@ from spa.authoring.raster.image_snapshot import (
     ArtifactSnapshot,
     InlineSnapshot,
 )
+from spa.contracts.digest import DIGEST_RESOURCE
 from spa.contracts.mutation import (
     TargetCommit,
     require_overwrite_for_in_place,
@@ -233,7 +233,7 @@ COMPOSITE_HANDLER = PackagedHandler(
     (
         *SNAPSHOT_SUPPORT_RESOURCES,
         SPRITE_PERSISTENCE_RESOURCE,
-        SPRITE_DIGEST_RESOURCE,
+        DIGEST_RESOURCE,
         SELECTION_MASK_RESOURCE,
         COMPOSITE_SUPPORT_RESOURCE,
     ),

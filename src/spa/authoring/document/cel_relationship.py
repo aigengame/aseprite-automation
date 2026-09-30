@@ -20,6 +20,7 @@ from spa.authoring.document.sprite import (
     SpriteInspection,
     validated_scope,
 )
+from spa.contracts.digest import DIGEST_RESOURCE
 from spa.contracts.mutation import (
     TargetCommit,
     require_overwrite_for_in_place,
@@ -147,7 +148,7 @@ CEL_RELATIONSHIP_HANDLER = PackagedHandler(
         CEL_SELECT_RESOURCE,
         CEL_SUPPORT_RESOURCE,
         CEL_RELATIONSHIP_RESOURCE,
-        PackagedResource("digest", "digest.lua"),
+        DIGEST_RESOURCE,
     ),
 )
 CEL_RELATIONSHIP_REQUIREMENTS = RuntimeRequirements(

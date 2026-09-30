@@ -11,6 +11,7 @@ from pydantic import (
     model_validator,
 )
 
+from spa.contracts.digest import DIGEST_RESOURCE
 from spa.contracts.mutation import (
     TargetCommit,
     require_overwrite_for_in_place,
@@ -476,7 +477,6 @@ SPRITE_CROP_REQUIREMENTS = RuntimeRequirements(
 SPRITE_CREATE_FAILURE_CODES = (*RUNTIME_FAILURE_CODES, "target_commit_failed")
 SPRITE_INSPECTION_RESOURCE = PackagedResource("inspection", "sprite_inspect.lua")
 SPRITE_PERSISTENCE_RESOURCE = PackagedResource("persistence", "sprite_persistence.lua")
-SPRITE_DIGEST_RESOURCE = PackagedResource("digest", "digest.lua")
 SPRITE_CREATION_RESOURCE = PackagedResource("creation", "sprite_create_support.lua")
 SPRITE_INSPECTION_FIXTURE = PackagedResource(
     "inspection_fixture", "sprite_inspection_fixture.aseprite"
@@ -492,11 +492,11 @@ SPRITE_CREATE_HANDLER = PackagedHandler(
 SPRITE_GET_HANDLER = PackagedHandler("sprite_get", (SPRITE_INSPECTION_RESOURCE,))
 SPRITE_FLATTEN_HANDLER = PackagedHandler(
     "sprite_flatten",
-    (SPRITE_INSPECTION_RESOURCE, SPRITE_PERSISTENCE_RESOURCE, SPRITE_DIGEST_RESOURCE),
+    (SPRITE_INSPECTION_RESOURCE, SPRITE_PERSISTENCE_RESOURCE, DIGEST_RESOURCE),
 )
 SPRITE_GEOMETRY_HANDLER = PackagedHandler(
     "sprite_geometry",
-    (SPRITE_INSPECTION_RESOURCE, SPRITE_PERSISTENCE_RESOURCE, SPRITE_DIGEST_RESOURCE),
+    (SPRITE_INSPECTION_RESOURCE, SPRITE_PERSISTENCE_RESOURCE, DIGEST_RESOURCE),
 )
 
 

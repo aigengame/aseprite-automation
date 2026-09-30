@@ -15,6 +15,7 @@ from spa.authoring.document.sprite import (
     get_sprite,
     validated_scope,
 )
+from spa.contracts.digest import DIGEST_RESOURCE
 from spa.contracts.mutation import (
     TargetCommit,
     require_overwrite_for_in_place,
@@ -389,7 +390,7 @@ LAYER_MUTATE_HANDLER = PackagedHandler(
         LAYER_INSPECTION_RESOURCE,
         LAYER_SELECT_RESOURCE,
         PackagedResource("layer_mutation", "layer_mutation_support.lua"),
-        PackagedResource("digest", "digest.lua"),
+        DIGEST_RESOURCE,
         PackagedResource("persistence", "sprite_persistence.lua"),
         PackagedResource("frame", "frame_support.lua"),
         EFFECTIVE_PALETTE_RESOURCE,

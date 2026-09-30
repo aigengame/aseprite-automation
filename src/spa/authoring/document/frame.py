@@ -17,7 +17,7 @@ from spa.authoring.document.sprite import (
     _inspection_from_kernel,
     validated_scope,
 )
-from spa.authoring.raster.paint import DIGEST_RESOURCE
+from spa.contracts.digest import DIGEST_RESOURCE
 from spa.contracts.mutation import (
     TargetCommit,
     source_target_identity_issue,

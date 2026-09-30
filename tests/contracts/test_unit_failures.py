@@ -33,6 +33,7 @@ from spa.authoring.raster.paint_composite import (
 )
 from spa.authoring.raster.paint_native import PaintCapabilityDetails
 from spa.authoring.raster.selection import SelectionDetails
+from spa.contracts.artifact import ArtifactFileDetails, ArtifactVerificationDetails
 from spa.contracts.mutation import TargetCommitDetails
 from spa.contracts.ports import (
     ArtifactFileEvidence,
@@ -67,7 +68,6 @@ from spa.contracts.public import (
     register_failure_codes,
 )
 from spa.contracts.raster import Point, PositiveRectangle, Size
-from spa.delivery.export import ArtifactFileDetails, ArtifactVerificationDetails
 from tests.support import operation_services
 
 registered_failure_envelope = partial(failure_envelope, failure_codes=FAILURE_CODES)

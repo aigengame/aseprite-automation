@@ -20,6 +20,7 @@ from spa.authoring.document.sprite import (
     SpriteMetadata,
     validated_scope,
 )
+from spa.contracts.digest import DIGEST_RESOURCE
 from spa.contracts.mutation import (
     TargetCommit,
     require_overwrite_for_in_place,
@@ -317,7 +318,7 @@ CEL_MUTATE_HANDLER = PackagedHandler(
         CEL_SUPPORT_RESOURCE,
         PackagedResource("frame", "frame_support.lua"),
         EFFECTIVE_PALETTE_RESOURCE,
-        PackagedResource("digest", "digest.lua"),
+        DIGEST_RESOURCE,
     ),
 )
 

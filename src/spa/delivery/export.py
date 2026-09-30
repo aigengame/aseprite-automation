@@ -5,9 +5,9 @@ from typing import Literal
 
 from pydantic import Field, ValidationError
 
+from spa.contracts.artifact import ArtifactFileDetails, ArtifactVerificationDetails
 from spa.contracts.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.contracts.ports import (
-    ArtifactFileFailureReason,
     ArtifactVerificationEvidence,
     KernelInvocationResult,
     OperationServices,
@@ -87,18 +87,6 @@ class NativeImageFacts(PublicModel):
     alpha_min: int = Field(ge=0, le=255)
     alpha_max: int = Field(ge=0, le=255)
     rendered_byte_size: int = Field(gt=0)
-
-
-class ArtifactFileDetails(PublicModel):
-    kind: Literal["artifact_file"] = "artifact_file"
-    path: str
-    reason: ArtifactFileFailureReason
-
-
-class ArtifactVerificationDetails(PublicModel):
-    kind: Literal["artifact_verification"] = "artifact_verification"
-    path: str
-    reason: str
 
 
 EXPORT_FAILURE_CODE_SPECS = (

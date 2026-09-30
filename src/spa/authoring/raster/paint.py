@@ -15,6 +15,7 @@ from spa.authoring.color.palette import EFFECTIVE_PALETTE_RESOURCE
 from spa.authoring.document.cel import CelAddress as LifecycleCelAddress
 from spa.authoring.document.cel import CelTargetDetails
 from spa.authoring.document.layer import LayerAddress
+from spa.contracts.digest import DIGEST_RESOURCE
 from spa.contracts.mutation import (
     TargetCommit,
     require_overwrite_for_in_place,
@@ -156,7 +157,6 @@ PAINT_APPLY_FAILURE_CODES = (
     "target_commit_failed",
 )
 PAINT_SUPPORT_RESOURCE = PackagedResource("paint", "paint_apply_support.lua")
-DIGEST_RESOURCE = PackagedResource("digest", "digest.lua")
 PAINT_PROBE_FIXTURE = PackagedResource("paint_fixture", "paint_apply_fixture.aseprite")
 PAINT_PROBE_RESOURCES = (
     PAINT_SUPPORT_RESOURCE,

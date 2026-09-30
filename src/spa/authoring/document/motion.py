@@ -24,6 +24,7 @@ from spa.authoring.document.sprite import (
     SpriteInspection,
     validated_scope,
 )
+from spa.contracts.digest import DIGEST_RESOURCE
 from spa.contracts.mutation import TargetCommit, source_target_identity_issue
 from spa.contracts.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.contracts.ports import (
@@ -153,7 +154,7 @@ MOTION_RESOURCES = (
     CEL_SELECT_RESOURCE,
     CEL_SUPPORT_RESOURCE,
     ROUNDING_RESOURCE,
-    PackagedResource("digest", "digest.lua"),
+    DIGEST_RESOURCE,
     MOTION_RESOURCE,
 )
 MOTION_HANDLER = PackagedHandler("motion_apply", MOTION_RESOURCES)

@@ -7,6 +7,7 @@ from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
+from spa.contracts.artifact import ArtifactFileDetails, ArtifactVerificationDetails
 from spa.contracts.mutation import TargetCommitDetails
 from spa.contracts.operation import OperationDescriptor
 from spa.contracts.ports import (
@@ -43,7 +44,6 @@ from spa.contracts.public import (
     ValidationIssue,
     failure_envelope,
 )
-from spa.delivery.export import ArtifactFileDetails, ArtifactVerificationDetails
 
 
 def _request_failure(

@@ -26,6 +26,7 @@ from spa.authoring.document.sprite import (
     SpriteInspection,
     validated_scope,
 )
+from spa.contracts.digest import DIGEST_RESOURCE
 from spa.contracts.mutation import (
     TargetCommit,
     require_overwrite_for_in_place,
@@ -317,7 +318,7 @@ IMAGE_REPLACE_HANDLER = PackagedHandler(
     (
         *SNAPSHOT_SUPPORT_RESOURCES,
         SPRITE_PERSISTENCE_RESOURCE,
-        PackagedResource("digest", "digest.lua"),
+        DIGEST_RESOURCE,
     ),
 )
 

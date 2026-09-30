@@ -18,6 +18,7 @@ from spa.authoring.document.sprite import (
     validated_scope,
 )
 from spa.authoring.raster.image_snapshot import IMAGE_SNAPSHOT_OPERATIONS
+from spa.contracts.digest import DIGEST_RESOURCE
 from spa.contracts.mutation import (
     TargetCommit,
     require_overwrite_for_in_place,
@@ -294,7 +295,7 @@ IMAGE_MUTATION_RESOURCES = (
     SPRITE_PERSISTENCE_RESOURCE,
     PackagedResource("layer_select", "layer_select.lua"),
     PackagedResource("cel", "cel_support.lua"),
-    PackagedResource("digest", "digest.lua"),
+    DIGEST_RESOURCE,
     IMAGE_CEL_MUTATION_RESOURCE,
 )
 IMAGE_RESIZE_HANDLER = PackagedHandler(
@@ -328,7 +329,7 @@ IMAGE_ORIENTATION_HANDLER = PackagedHandler(
         SPRITE_PERSISTENCE_RESOURCE,
         PackagedResource("layer_select", "layer_select.lua"),
         PackagedResource("cel", "cel_support.lua"),
-        PackagedResource("digest", "digest.lua"),
+        DIGEST_RESOURCE,
         IMAGE_ORIENTATION_TRANSFORM_RESOURCE,
     ),
 )

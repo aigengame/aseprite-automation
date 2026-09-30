@@ -19,6 +19,7 @@ from spa.authoring.document.sprite import (
     SPRITE_INSPECTION_RESOURCE,
     SPRITE_PERSISTENCE_RESOURCE,
 )
+from spa.contracts.digest import DIGEST_RESOURCE
 from spa.contracts.mutation import TargetCommit, source_target_identity_issue
 from spa.contracts.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.contracts.ports import (
@@ -363,7 +364,7 @@ NATIVE_PAINT_RESOURCES = (
     EFFECTIVE_PALETTE_RESOURCE,
     SPRITE_INSPECTION_RESOURCE,
     SPRITE_PERSISTENCE_RESOURCE,
-    PackagedResource("digest", "digest.lua"),
+    DIGEST_RESOURCE,
 )
 PAINT_LINE_HANDLER = PackagedHandler("paint_line", NATIVE_PAINT_RESOURCES)
 PAINT_RECTANGLE_HANDLER = PackagedHandler("paint_rectangle", NATIVE_PAINT_RESOURCES)

@@ -70,7 +70,6 @@ from spa.authoring.document.sprite import (
     validated_scope,
 )
 from spa.authoring.raster.paint import (
-    DIGEST_RESOURCE,
     PAINT_OPERATIONS,
     PAINT_PROBE_FIXTURE,
     PAINT_SUPPORT_RESOURCE,
@@ -79,6 +78,7 @@ from spa.authoring.raster.paint import (
     PaintApplyInput,
     validate_paint_evidence,
 )
+from spa.contracts.digest import DIGEST_RESOURCE
 from spa.contracts.mutation import (
     TargetCommit,
     source_target_identity_issue,
