@@ -29,7 +29,7 @@ DIAGNOSTICS = Diagnostics(exit_status=0, stderr="native evidence")
 class Caller:
     name: str
     source: Path
-    source_bytes: Path
+    original_source: Path
     destination: Path
     native: dict
 
@@ -247,7 +247,7 @@ def test_failure_preserves_destination_and_cleans_both_stages(
     assert len(invocations) == 1
     assert len(files.publications) == publication_attempts
     assert caller.destination.read_bytes() == b"existing destination"
-    assert caller.source_bytes.read_bytes() == b"source bytes"
+    assert caller.original_source.read_bytes() == b"source bytes"
     assert {path.suffix for path in files.discarded} == {".png", ".rgba"}
     assert all(not path.exists() for path in files.discarded)
 
@@ -301,6 +301,6 @@ def test_verified_callers_publish_once_and_report_actual_bytes(caller):
     assert result.artifact.byte_size == len(actual)
     assert result.artifact.sha256 == hashlib.sha256(actual).hexdigest()
     assert result.artifact.role == ("image" if caller.name == "export" else "preview")
-    assert caller.source_bytes.read_bytes() == b"source bytes"
+    assert caller.original_source.read_bytes() == b"source bytes"
     assert len(files.discarded) == 2
     assert all(not path.exists() for path in files.discarded)
