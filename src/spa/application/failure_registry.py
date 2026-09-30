@@ -1,5 +1,6 @@
 """Immutable composition of installed public Failure Code semantics."""
 
+from spa.authoring.color.palette import PALETTE_FAILURE_CODE_SPECS
 from spa.authoring.document.animation import ANIMATION_FAILURE_CODE_SPECS
 from spa.authoring.document.cel import CEL_FAILURE_CODE_SPECS
 from spa.authoring.document.layer import LAYER_FAILURE_CODE_SPECS
@@ -22,6 +23,7 @@ from spa.delivery.export import EXPORT_FAILURE_CODE_SPECS
 FAILURE_CODES = register_failure_codes(
     (
         *CORE_FAILURE_CODE_SPECS,
+        *PALETTE_FAILURE_CODE_SPECS,
         *ANIMATION_FAILURE_CODE_SPECS,
         *CEL_FAILURE_CODE_SPECS,
         *MUTATION_FAILURE_CODE_SPECS,

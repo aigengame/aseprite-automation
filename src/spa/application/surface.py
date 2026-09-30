@@ -2,6 +2,7 @@
 
 from spa.application.failure_registry import FAILURE_CODES
 from spa.application.plan import PLAN_OPERATIONS
+from spa.authoring.color.palette import PALETTE_OPERATIONS
 from spa.authoring.document.animation import ANIMATION_OPERATIONS
 from spa.authoring.document.cel import CEL_OPERATIONS, CEL_SUPPORT_RESOURCE
 from spa.authoring.document.cel_relationship import CEL_RELATIONSHIP_OPERATIONS
@@ -240,6 +241,7 @@ OPERATIONS = (
     *MOTION_OPERATIONS,
     *IMAGE_OPERATIONS,
     *TAG_OPERATIONS,
+    *PALETTE_OPERATIONS,
     *EXPORT_OPERATIONS,
     *ANIMATION_OPERATIONS,
     *PLAN_OPERATIONS,

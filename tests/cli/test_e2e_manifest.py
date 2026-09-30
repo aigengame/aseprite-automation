@@ -88,6 +88,8 @@ def test_manifest_is_projected_from_command_descriptors() -> None:
         "spa tag add",
         "spa tag set",
         "spa tag remove",
+        "spa palette list",
+        "spa palette get",
         "spa export image",
         "spa animation audit",
         "spa animation compare",
