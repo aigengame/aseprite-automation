@@ -16,7 +16,7 @@ from spa.contracts.public import RuntimeRequest
 from tests.image.support import export_image as _export
 from tests.image.support import image_fixture as _fixture
 from tests.image.support import inspect_native as _inspect_native
-from tests.support import inject_palette_change, spa
+from tests.support import inject_palette_change, process_diagnostics, spa
 
 pytestmark = pytest.mark.e2e
 
@@ -267,7 +267,7 @@ def test_shared_resize_restores_active_context_on_success_and_failure(
             check=False,
             env=prepared.environment,
         )
-    assert run.returncode == 0, run.stderr
+    assert run.returncode == 0, process_diagnostics(run)
     result = json.loads(output.read_text())
     assert result["before"] == {"sprite": True, "layer": True, "frame": True}
     assert result["success"] is True

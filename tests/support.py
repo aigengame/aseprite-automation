@@ -18,6 +18,15 @@ from spa.contracts.ports import (
 from spa.contracts.public import RuntimeCapability
 
 
+def process_diagnostics(run: subprocess.CompletedProcess[str]) -> str:
+    """Describe a failed captured process, including POSIX signal names."""
+    failure = subprocess.CalledProcessError(run.returncode, run.args)
+    return (
+        f"{failure}\nexit status: {run.returncode}\n"
+        f"stdout:\n{run.stdout}\nstderr:\n{run.stderr}"
+    )
+
+
 class _UnusedTargetFiles:
     def staged_path(self, _target: Path) -> Path:
         raise AssertionError("test did not configure Target Files")

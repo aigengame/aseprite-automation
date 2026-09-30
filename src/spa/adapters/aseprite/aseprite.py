@@ -4,6 +4,7 @@ import json
 import os
 import selectors
 import shutil
+import signal
 import subprocess
 import tempfile
 import time
@@ -178,6 +179,11 @@ def _process_failure(
         if status < 0
         else f"exited with status {status}"
     )
+    if status < 0:
+        try:
+            reason += f" ({signal.Signals(-status).name})"
+        except ValueError:
+            pass  # The numeric signal remains useful if the host has no name for it.
     return RuntimeIssue(
         "process_failed",
         f"Aseprite {reason} before writing a complete Kernel response",

@@ -8,7 +8,7 @@ verification tier. The layout does not mirror source packages or CLI Command Gro
 | Directory | Behavior owner |
 | --- | --- |
 | `tests/application/` | Application orchestration, including compatibility checks before Operation execution. |
-| `tests/ci/` | CI target selection and pre-merge evidence checks. |
+| `tests/ci/` | CI target selection, native test execution policy, and pre-merge evidence checks. |
 | `tests/cli/` | Access Projection through the installed CLI and its in-process projections. |
 | `tests/contracts/` | Shared Published Language rules, including Failure Code registration and Operation Descriptor constraints. |
 | `tests/export/` | Image Export contract, PNG Artifact verification and publication, and real Aseprite output evidence. |
@@ -41,7 +41,7 @@ parity; they do not certify windowed UI interactions. Run the focused slice with
 
 ```sh
 SPA_TEST_ASEPRITE=/absolute/path/to/aseprite \
-  uv run --frozen --group test pytest tests/paint -q
+  uv run --frozen --group test pytest tests/paint -x -vv --tb=short -rs
 ```
 
 Native Paint #28 adds independent Contour and Blur gates. Contour tests compare
@@ -152,14 +152,14 @@ Run the routine real-runtime tests, including the small wizard probe, with:
 
 ```sh
 SPA_TEST_ASEPRITE=/path/to/aseprite \
-  uv run --frozen --group test pytest -m "e2e and not slow" -rs
+  uv run --frozen --group test pytest -m "e2e and not slow" -x -vv --tb=short -rs
 ```
 
 Run the full real-runtime tier, including complete example rebuilds, with:
 
 ```sh
 SPA_TEST_ASEPRITE=/path/to/aseprite \
-  uv run --frozen --group test pytest -m e2e -rs
+  uv run --frozen --group test pytest -m e2e -x -vv --tb=short -rs
 ```
 
 Use `-rs` so platform and environment skips remain visible. Use collection output when
@@ -168,6 +168,51 @@ moving tests to confirm that parametrized cases were preserved:
 ```sh
 uv run --frozen --group test pytest --collect-only -q
 ```
+
+### Observe native failures during execution
+
+Start with affected representative native cases. Keep the active output visible,
+investigate the first failure, and rerun the failed cases after the fix before wider
+regression. Do not leave a failing native suite running while waiting for a human to
+report a crash dialog.
+
+Documented local native commands and the shared Native E2E/Release action use pytest's
+`-x` to stop after the first failed test, `-vv` to identify each result as it arrives,
+and `--tb=short` to retain concise failure details. Expected rejection and controlled
+failure tests that satisfy their assertions pass normally and do not stop the run.
+The action retains two xdist workers: already-running work can finish during shutdown,
+and another native invocation can occur before workers stop. The failing test name is
+visible when its report arrives; the final traceback and JUnit report follow worker
+shutdown. This policy does not cancel native processes in flight or monitor OS dialogs.
+
+The existing Runtime Integration failure reports preserve the process exit status
+and available stdout/stderr; signal termination includes the number and the host's
+signal name when known. Direct native fixtures retain the same process evidence in
+their assertions through `tests.support.process_diagnostics`. Use that helper when
+adding a captured direct subprocess check. If a fixture's preliminary probe raises an
+uncaught `RuntimeIssue`, `tests/conftest.py` attaches its diagnostics through pytest's
+report hook as an exception note for the normal traceback and JUnit report. Expected
+exceptions handled by a passing test do not reach that hook as failures. Do not infer a signal
+from an ordinary positive exit status, or replace a test failure with a skip.
+
+When saving logs, also stream them to the terminal and preserve the failing exit code.
+For Bash or zsh:
+
+```bash
+set -o pipefail
+SPA_TEST_ASEPRITE=/path/to/aseprite \
+  uv run --frozen --group test pytest -m "e2e and not slow" -x -vv --tb=short -rs \
+  --junitxml=native-e2e.xml 2>&1 | tee native-e2e.log
+```
+
+For a deliberate diagnostic run that collects all failures, append `--maxfail=0`
+after `-x`. That choice does not change the shared CI default. A stopped run remains
+failed even if its partial JUnit report records executed tests. The shared action
+keeps pytest's nonzero result, still audits the report for missing/empty/all-skipped
+execution, and the workflows retain JUnit evidence on failure. Passing cases from a
+partial run do not establish full-suite verification.
+
+### Source checks
 
 Run the same source checks used by CI with:
 
@@ -292,7 +337,7 @@ commands or run locally:
 
 ```sh
 SPA_TEST_ASEPRITE=/absolute/path/to/aseprite \
-  uv run --frozen --group test pytest -m "e2e and slow" -rs
+  uv run --frozen --group test pytest -m "e2e and slow" -x -vv --tb=short -rs
 ```
 
 These checks compare full deliveries and hidden native pixels. They remain

@@ -11,7 +11,7 @@ import pytest
 from PIL import Image
 
 from spa.adapters.aseprite.invocation import prepare_invocation
-from tests.support import spa
+from tests.support import process_diagnostics, spa
 
 pytestmark = pytest.mark.e2e
 
@@ -47,7 +47,7 @@ def _run_fixture(name: str, **params: str) -> None:
             check=False,
             env=prepared.environment,
         )
-    assert run.returncode == 0, run.stdout + run.stderr
+    assert run.returncode == 0, process_diagnostics(run)
 
 
 def _tagged_sprite(target: Path) -> None:

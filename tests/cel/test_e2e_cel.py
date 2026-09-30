@@ -12,7 +12,7 @@ import pytest
 from PIL import Image
 
 from spa.adapters.aseprite.invocation import prepare_invocation
-from tests.support import spa
+from tests.support import process_diagnostics, spa
 
 pytestmark = pytest.mark.e2e
 
@@ -36,7 +36,7 @@ def _fixture(target: Path, name: str = "cels.lua") -> None:
             check=False,
             env=prepared.environment,
         )
-    assert run.returncode == 0, run.stdout + run.stderr
+    assert run.returncode == 0, process_diagnostics(run)
 
 
 def _run(command: str, request: dict[str, object]) -> tuple[int, dict]:

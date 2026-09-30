@@ -13,6 +13,7 @@ from spa.adapters.aseprite.aseprite import probe
 from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.application.surface import PROBE_RESOURCES
 from spa.contracts.public import RuntimeRequest
+from tests.support import process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
@@ -60,7 +61,7 @@ def test_selection_kernel_preserves_caller_and_closes_temporary_sprites(
             check=False,
             timeout=45,
         )
-    assert run.returncode == 0, run.stdout + run.stderr
+    assert run.returncode == 0, process_diagnostics(run)
     assert source.read_bytes() == original.read_bytes()
     assert json.loads(report.read_text()) == {
         "checked": (

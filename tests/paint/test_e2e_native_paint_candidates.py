@@ -11,7 +11,7 @@ from spa.adapters.aseprite.aseprite import probe
 from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.application.surface import PROBE_RESOURCES
 from spa.contracts.public import RuntimeRequest
-from tests.support import spa
+from tests.support import process_diagnostics, spa
 
 pytestmark = pytest.mark.e2e
 
@@ -36,7 +36,7 @@ def test_aseprite_13185_native_paint_candidate_boundaries(tmp_path: Path) -> Non
         check=False,
         timeout=120,
     )
-    assert run.returncode == 0, run.stdout + run.stderr
+    assert run.returncode == 0, process_diagnostics(run)
     records = json.loads(
         next(
             line.removeprefix("SPA29_PROBE=")
