@@ -685,17 +685,17 @@ keeps one Sprite live and applies one final save-and-reopen gate. A second Pytho
 generated-Lua behavior path is prohibited. `spa script run` is a separate escape hatch
 for exact caller-owned Lua and does not inherit Ordinary Core Operation guarantees.
 
-Cel relationship semantics live in `kernel/cel_relationship_support.lua`. The
+Cel relationship semantics live in `kernel/document/cel/cel_relationship_support.lua`. The
 standalone relationship handler and `cel set` Plan Steps call its live entry point.
 `spa.authoring.document.cel_relationship` owns the shared input and evidence contracts; `spa.application.plan`
 composes those contracts and reports Step facts before final Plan persistence.
 
 `spa.authoring.document.motion` owns the bounded curve input, per-Cel evidence, and publication use
-case. `kernel/motion_support.lua` resolves the complete existing target set,
+case. `kernel/document/animation/motion_support.lua` resolves the complete existing target set,
 rejects Image links, samples explicit curves with exact rational arithmetic, and
 validates all result positions before mutation. Standalone and Plan handlers call
 this live entry point. It reuses Cel addressing, Layer eligibility, and document
-snapshots; `kernel/rounding.lua` shares rounding meanings with Image resize.
+snapshots; `kernel/foundation/rounding.lua` shares rounding meanings with Image resize.
 Offsets use each target's own Step-start position. Later Steps can change earlier
 facts; only the final live document is compared with the final reopened file.
 

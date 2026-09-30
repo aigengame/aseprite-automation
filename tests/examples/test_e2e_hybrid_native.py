@@ -52,7 +52,7 @@ def test_native_comparison_detects_hidden_pixels_with_unchanged_exports(
         width, height = image.size
     # Image-pixel (0,0) is in the prepared raster's transparent padding. Writing
     # a declared opaque color changes its hidden content without changing bounds.
-    spa.application.plan(
+    spa.plan(
         changed,
         paint_steps(
             1, 3, width - 4, height - 4, {(0, 0): preparation["palette"]["gold"]}
@@ -61,8 +61,8 @@ def test_native_comparison_detects_hidden_pixels_with_unchanged_exports(
     for frame in range(1, 4):
         before = tmp_path / f"before-{frame}.png"
         after = tmp_path / f"after-{frame}.png"
-        spa.delivery.export(original, frame, before)
-        spa.delivery.export(changed, frame, after)
+        spa.export(original, frame, before)
+        spa.export(changed, frame, after)
         with Image.open(before) as left, Image.open(after) as right:
             assert left.convert("RGBA").tobytes() == right.convert("RGBA").tobytes()
     with pytest.raises(AssertionError, match="stored RGBA pixels differ"):
