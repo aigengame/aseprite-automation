@@ -6,6 +6,7 @@ from typing import Literal, Self
 
 from pydantic import Field, ValidationError, model_validator
 
+from spa.application.mutation import prepare_mutation
 from spa.authoring.document.cel import (
     CEL_SELECT_RESOURCE,
     CEL_SUPPORT_RESOURCE,
@@ -25,7 +26,7 @@ from spa.authoring.document.sprite import (
     validated_scope,
 )
 from spa.contracts.digest import DIGEST_RESOURCE
-from spa.contracts.mutation import TargetCommit, source_target_identity_issue
+from spa.contracts.mutation import TargetCommit
 from spa.contracts.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.contracts.ports import (
     KernelInvocationResult,
@@ -33,10 +34,8 @@ from spa.contracts.ports import (
     OperationServices,
     PackagedHandler,
     PackagedResource,
-    RequestIssue,
     ResponseEvidence,
     RuntimeIssue,
-    TargetCommitEvidence,
 )
 from spa.contracts.public import FailureCodeSpec, PublicModel, RuntimeRequirements
 from spa.contracts.rounding import ROUNDING_RESOURCE, Rounding
@@ -281,18 +280,23 @@ def validate_motion_evidence(
 
 def apply_motion(request: MotionRequest, services: OperationServices) -> MotionResult:
     source, target = Path(request.source_sprite_file), Path(request.target_sprite_file)
-    issue = source_target_identity_issue(
-        services.target_files, source, target, request.in_place
+    completion = prepare_mutation(
+        services.target_files,
+        source,
+        target,
+        in_place=request.in_place,
+        overwrite=request.overwrite,
+        identity_change_message=("Source/Target identity changed before Target Commit"),
     )
-    if issue is not None:
-        raise RequestIssue([issue])
     observation = services.probe_runtime(request)
-    staged = services.target_files.staged_path(target)
-    payload = request.model_dump(
-        include=set(MotionInput.model_fields), exclude_none=True, mode="json"
-    )
-    payload.update(source_sprite_file=str(source), staged_sprite_file=str(staged))
-    try:
+    with completion as mutation:
+        payload = request.model_dump(
+            include=set(MotionInput.model_fields), exclude_none=True, mode="json"
+        )
+        payload.update(
+            source_sprite_file=str(source),
+            staged_sprite_file=str(mutation.staged_sprite_file),
+        )
         invocation = services.invoke_kernel(
             observation, MOTION_HANDLER, payload, request.timeout_seconds
         )
@@ -318,32 +322,13 @@ def apply_motion(request: MotionRequest, services: OperationServices) -> MotionR
         validate_motion_evidence(request, evidence, invocation)
         if sprite.metadata.cel_count != evidence.before_cel_count:
             raise _invalid(invocation, "Motion changed the Cel count")
-        if (
-            source_target_identity_issue(
-                services.target_files, source, target, request.in_place
-            )
-            is not None
-        ):
-            raise RuntimeIssue(
-                "target_commit_failed",
-                "Source/Target identity changed before Target Commit",
-                TargetCommitEvidence(str(target), "source_target_identity_changed"),
-            )
-        committed = services.target_files.commit(
-            staged, target, overwrite=request.overwrite
-        )
+        committed = mutation.commit()
         return MotionResult(
             **evidence.model_dump(),
             sprite=sprite,
             persisted_reopen_verified=True,
-            target_commit=TargetCommit(
-                target_sprite_file=committed.target_sprite_file,
-                byte_size=committed.byte_size,
-                sha256=committed.sha256,
-            ),
+            target_commit=committed,
         )
-    finally:
-        services.target_files.discard(staged)
 
 
 MOTION_OPERATIONS = (

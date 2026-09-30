@@ -348,6 +348,17 @@ validates evidence and coordinates Target Commit. Other handlers retain the exis
 snapshot and comparison functions; Plan Steps use live semantic entry points and
 the Plan handler saves and verifies once at the end. This first migration does not
 change Frame/Tag normalization or expand native persistence support.
+
+For standalone Cel set/copy/link/unlink and Motion Apply, Application's
+`mutation.prepare_mutation` checks Source/Target identity before the caller's runtime
+probe. Entering its scope allocates the staged Sprite path; leaving it always discards
+that path. The caller owns native invocation, typed evidence validation, and its
+operation-specific postconditions, then explicitly requests `commit`. Completion
+rechecks publication identity, publishes through `TargetFiles`, and returns the
+existing Target Commit facts. A staged file or a normal scope exit never implies
+success or publication. This scope does not participate in Plan finalization, which
+retains one final Target Commit and no per-Step persistence.
+
 The delivered `spa.authoring.raster.image` slice owns Cel-targeted Image resize, crop,
 canvas-resize, flip, and quarter-turn rotation with explicit placement policies.
 Its fixed Lua Image Resize Transform owns buffer scaling, while Image Canvas
@@ -469,6 +480,7 @@ src/spa/
     cli.py                # Descriptor-derived command projection
   application/
     dispatch.py           # dispatch and outcome classification
+    mutation.py           # standalone staging, identity recheck, commit, cleanup
     plan.py               # cross-module Plan orchestration
     surface.py            # installed Operation registration and discovery
     failure_registry.py   # assembled Failure Code projection
