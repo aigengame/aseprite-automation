@@ -14,7 +14,7 @@ from pydantic import (
 from spa.authoring.color.palette import EFFECTIVE_PALETTE_RESOURCE
 from spa.authoring.document.cel import CelAddress as LifecycleCelAddress
 from spa.authoring.document.cel import CelTargetDetails
-from spa.authoring.document.layer import LayerAddress
+from spa.authoring.document.layer import LAYER_SELECT_RESOURCE, LayerAddress
 from spa.contracts.digest import DIGEST_RESOURCE
 from spa.contracts.mutation import (
     TargetCommit,
@@ -163,6 +163,7 @@ PAINT_PROBE_FIXTURE = PackagedResource(
     "paint_fixture", "runtime/fixtures/paint_apply_fixture.aseprite"
 )
 PAINT_PROBE_RESOURCES = (
+    LAYER_SELECT_RESOURCE,
     PAINT_SUPPORT_RESOURCE,
     RASTER_COLOR_RESOURCE,
     EFFECTIVE_PALETTE_RESOURCE,
@@ -174,6 +175,7 @@ PAINT_APPLY_HANDLER = PackagedHandler(
     "paint_apply",
     "raster/paint/paint_apply.lua",
     (
+        LAYER_SELECT_RESOURCE,
         PAINT_SUPPORT_RESOURCE,
         RASTER_COLOR_RESOURCE,
         EFFECTIVE_PALETTE_RESOURCE,

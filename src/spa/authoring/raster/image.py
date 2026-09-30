@@ -7,7 +7,12 @@ from typing import Annotated, Literal, Self, cast
 from pydantic import Field, ValidationError, field_validator, model_validator
 
 from spa.authoring.color.palette import EFFECTIVE_PALETTE_RESOURCE
-from spa.authoring.document.cel import CelAddress, CelState, CelTargetDetails, _reject
+from spa.authoring.document.cel import (
+    CelAddress,
+    CelState,
+    CelTargetDetails,
+    raise_cel_rejection,
+)
 from spa.authoring.document.layer import LAYER_ADDRESS_FAILURE_CODES
 from spa.authoring.document.sprite import (
     INSPECTION_SECTIONS,
@@ -414,7 +419,9 @@ def _orient_image(
                 details,
             )
         number = request.target.frame_number
-        _reject(invocation, request.target.layer, request.target, (number, number))
+        raise_cel_rejection(
+            invocation, request.target.layer, request.target, (number, number)
+        )
         try:
             evidence = (
                 ImageFlipEvidence.model_validate(invocation.payload)
@@ -673,7 +680,9 @@ def _mutate_image[Evidence: _ImageMutationEvidence, Result: _ImageMutationEviden
                 CelTargetDetails(target=request.target),
             )
         number = request.target.frame_number
-        _reject(invocation, request.target.layer, request.target, (number, number))
+        raise_cel_rejection(
+            invocation, request.target.layer, request.target, (number, number)
+        )
         try:
             evidence = evidence_type.model_validate(invocation.payload)
         except (TypeError, ValueError) as exc:

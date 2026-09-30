@@ -323,6 +323,17 @@ Cel Add accepts optional initial Image dimensions. Its `cel_support.lua` owner
 creates transparent native Images from the Sprite specification for both standalone
 mutations and Plan Steps. Add validates its initial state at the Step; the final
 save/reopen gate validates the state after all later Steps.
+The Layer-owned `layer_select.lua` Module supplies `current_path` for an already
+attached native Layer. Cel, Frame, Sprite inspection, Pixel Patch, and native Paint
+reuse this current stack-index fact. Exact name/path/verified-UUID selection remains
+separate from that observation; tree traversal and composition keep their own rules.
+The Cel-owned `is_regular_transparent` predicate is also used by Layer mutation and
+Animation audit where the same eligibility rule applies. Their Group, Background,
+Reference, and Tilemap policies remain with each Operation. Python consumers use
+`spa.authoring.document.cel.raise_cel_rejection` for shared failure translation and
+supply their own address roles and Frame Ranges. Each handler binding explicitly
+includes the Lua resources these dependencies require, including standalone,
+capability-probe, and Plan paths.
 The shared `sprite_persistence.lua` Module owns native snapshots and their
 persisted-fact comparison. Standalone Cel set/copy/link/unlink and Motion use its
 `save_verified` Interface to capture live facts, save, close, reopen, observe saved

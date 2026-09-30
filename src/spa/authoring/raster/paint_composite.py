@@ -6,7 +6,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field, ValidationError, field_validator, model_validator
 
-from spa.authoring.document.cel import CelAddress, CelState, _reject
+from spa.authoring.document.cel import CelAddress, CelState, raise_cel_rejection
 from spa.authoring.document.layer import LAYER_ADDRESS_FAILURE_CODES
 from spa.authoring.document.sprite import (
     INSPECTION_SECTIONS,
@@ -357,7 +357,9 @@ def composite_paint(
                 details = CompositeDetails(reason=rejected["message"])
             raise OperationIssue(rejected["code"], rejected["message"], details)
         number = request.target.frame_number
-        _reject(invocation, request.target.layer, request.target, (number, number))
+        raise_cel_rejection(
+            invocation, request.target.layer, request.target, (number, number)
+        )
         try:
             evidence = PaintCompositeEvidence.model_validate(invocation.payload)
             if (

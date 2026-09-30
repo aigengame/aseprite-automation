@@ -1,5 +1,6 @@
 -- Exact Layer mutation, impact facts, and staged persistence verification.
 local module = {}
+local cel_rules = dofile(assert(app.params.cel, "Missing Kernel resource: cel"))
 local palettes = dofile(app.params.effective_palette)
 local all_sections = { "frames", "tags", "palettes", "layers", "cels", "slices", "tilesets" }
 local result_sections = { "layers", "cels" }
@@ -149,16 +150,7 @@ local function affected(ordered, other)
   return result
 end
 
-local function is_regular_image(layer)
-  return layer.isImage
-    and layer.isTransparent
-    and not layer.isTilemap
-    and not layer.isReference
-    and not layer.isBackground
-    and not layer.isGroup
-end
-
-local function is_regular(layer) return layer.isGroup or is_regular_image(layer) end
+local function is_regular(layer) return layer.isGroup or cel_rules.is_regular_transparent(layer) end
 
 local function subtree_has_tilemap(layer)
   if layer.isTilemap then return true end
@@ -214,7 +206,7 @@ local function prevalidate(sprite, selected, payload, inspection, frame)
         end
       elseif key == "opacity" then
         if
-          not is_regular_image(layer)
+          not cel_rules.is_regular_transparent(layer)
           or type(value) ~= "number"
           or value % 1 ~= 0
           or value < 0
@@ -226,7 +218,10 @@ local function prevalidate(sprite, selected, payload, inspection, frame)
           )
         end
       elseif key == "blend_mode" then
-        if not is_regular_image(layer) or inspection.blend_mode_constant(value) == nil then
+        if
+          not cel_rules.is_regular_transparent(layer)
+          or inspection.blend_mode_constant(value) == nil
+        then
           return rejection(
             "layer_unsupported_target",
             "blend_mode requires a regular Image and supported mode"
@@ -268,7 +263,7 @@ local function prevalidate(sprite, selected, payload, inspection, frame)
       return rejection("layer_unsupported_target", "Layer remove cannot delete a Tilemap subtree")
     end
   elseif operation == "merge" then
-    if not is_regular_image(layer) then
+    if not cel_rules.is_regular_transparent(layer) then
       return rejection(
         "layer_unsupported_target",
         "Merge source must be a regular Transparent Image"
@@ -276,7 +271,7 @@ local function prevalidate(sprite, selected, payload, inspection, frame)
     end
     local siblings = layer.parent == sprite and sprite.layers or layer.parent.layers
     local lower = siblings[layer.stackIndex - 1]
-    if lower == nil or not is_regular_image(lower) then
+    if lower == nil or not cel_rules.is_regular_transparent(lower) then
       return rejection(
         "layer_unsupported_target",
         "Merge requires the immediate lower regular Transparent Image sibling"
@@ -284,7 +279,7 @@ local function prevalidate(sprite, selected, payload, inspection, frame)
     end
     return nil, lower
   elseif operation == "convert-to-background" then
-    if not is_regular_image(layer) or not effectively_enabled(layer) then
+    if not cel_rules.is_regular_transparent(layer) or not effectively_enabled(layer) then
       return rejection(
         "layer_unsupported_target",
         "Background conversion requires a visible, editable regular Transparent Image Layer"
@@ -359,7 +354,7 @@ local function preflight_merge_effects(sprite, source, lower, before_by_id)
             record == nil
             or peer.frameNumber < 1
             or peer.frameNumber > #sprite.frames
-            or not is_regular_image(peer.layer)
+            or not cel_rules.is_regular_transparent(peer.layer)
           then
             return nil,
               rejection(
@@ -521,7 +516,10 @@ local function apply(sprite, payload, layer, lower, inspection, frame)
     app.activeLayer = layer
     app.activeFrame = sprite.frames[1]
     assert(app.command.LayerFromBackground(), "native Transparent conversion failed")
-    assert(is_regular_image(layer), "native conversion did not create Transparent Image Layer")
+    assert(
+      cel_rules.is_regular_transparent(layer),
+      "native conversion did not create Transparent Image Layer"
+    )
     assert(background_layer(sprite) == nil, "native conversion retained Background Layer")
     for number, before_cel in ipairs(before_cels) do
       local cel = assert(layer:cel(number), "native conversion removed a Cel")

@@ -1,5 +1,7 @@
 -- Paint-owned exact Pixel Patch semantics shared by the handler and capability probe.
 local module = {}
+local layer_selection =
+  dofile(assert(app.params.layer_select, "Missing Kernel resource: layer_select"))
 local selections = dofile(app.params.selection_mask)
 local colors = dofile(app.params.raster_color)
 local max_patch_pixels = 256
@@ -52,23 +54,6 @@ local function resolve_layer(sprite, path)
   return layer
 end
 
-local function find_layer_path(layers, target, prefix)
-  for index = 1, #layers do
-    local layer = layers[index]
-    local path = {}
-    for _, value in ipairs(prefix) do
-      path[#path + 1] = value
-    end
-    path[#path + 1] = index
-    if layer == target then return path end
-    if layer.isGroup then
-      local nested = find_layer_path(layer.layers, target, path)
-      if nested ~= nil then return nested end
-    end
-  end
-  return nil
-end
-
 local function resolve_target(sprite, address, allow_missing_cel)
   assert(address ~= nil, "missing target Cel address")
   assert(
@@ -114,10 +99,7 @@ local function collect_affected_cels(sprite, target_image)
   for cel_index = 1, #sprite.cels do
     local cel = sprite.cels[cel_index]
     if cel.image == target_image then
-      local path = assert(
-        find_layer_path(sprite.layers, cel.layer, {}),
-        "could not resolve affected Cel Layer path"
-      )
+      local path = layer_selection.current_path(sprite, cel.layer)
       result[#result + 1] = {
         layer_path = path,
         frame_number = cel.frame.frameNumber,

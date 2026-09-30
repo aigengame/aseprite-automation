@@ -9,7 +9,7 @@ from spa.authoring.color.palette import EFFECTIVE_PALETTE_RESOURCE
 from spa.authoring.document.sprite import (
     INSPECTION_SECTIONS,
     SPRITE_GET_HANDLER,
-    SPRITE_INSPECTION_RESOURCE,
+    SPRITE_INSPECTION_RESOURCES,
     SPRITE_PERSISTENCE_RESOURCE,
     FrameFacts,
     SpriteGetRequest,
@@ -235,13 +235,13 @@ FRAME_SUPPORT_RESOURCE = PackagedResource("frame", "document/frame/frame_support
 FRAME_GET_HANDLER = PackagedHandler(
     "frame_get",
     "document/frame/frame_get.lua",
-    (SPRITE_INSPECTION_RESOURCE, FRAME_SUPPORT_RESOURCE, EFFECTIVE_PALETTE_RESOURCE),
+    (*SPRITE_INSPECTION_RESOURCES, FRAME_SUPPORT_RESOURCE, EFFECTIVE_PALETTE_RESOURCE),
 )
 FRAME_MUTATE_HANDLER = PackagedHandler(
     "frame_mutate",
     "document/frame/frame_mutate.lua",
     (
-        SPRITE_INSPECTION_RESOURCE,
+        *SPRITE_INSPECTION_RESOURCES,
         SPRITE_PERSISTENCE_RESOURCE,
         FRAME_SUPPORT_RESOURCE,
         EFFECTIVE_PALETTE_RESOURCE,

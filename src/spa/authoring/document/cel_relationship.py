@@ -10,7 +10,7 @@ from spa.authoring.document.cel import (
     CEL_SUPPORT_RESOURCE,
     CelAddress,
     CelState,
-    _reject,
+    raise_cel_rejection,
 )
 from spa.authoring.document.sprite import (
     INSPECTION_SECTIONS,
@@ -279,7 +279,7 @@ def _mutate(
                 )
             address_role = role
             addressed = request.source if role == "source" else request.destination
-        _reject(
+        raise_cel_rejection(
             invocation,
             addressed.layer,
             addressed,

@@ -1,5 +1,7 @@
 -- Cel-owned inspection and lifecycle semantics over exact Layer/Frame addresses.
 local module = {}
+local layer_selection =
+  dofile(assert(app.params.layer_select, "Missing Kernel resource: layer_select"))
 local json_null = json.decode("null")
 
 local function rejection(code, message) return { rejection = { code = code, message = message } } end
@@ -10,16 +12,6 @@ local function path_copy(path)
     result[index] = value
   end
   return result
-end
-
-local function layer_path(sprite, layer)
-  local path = {}
-  local current = layer
-  while current ~= sprite do
-    table.insert(path, 1, current.stackIndex)
-    current = current.parent
-  end
-  return path
 end
 
 local function is_regular_transparent(layer)
@@ -76,7 +68,7 @@ function module.inspect(sprite, layer, path, frame_number)
   for _, other in ipairs(sprite.cels) do
     if other ~= cel and other.image == cel.image then
       fact.linked_cels[#fact.linked_cels + 1] = {
-        layer_path = layer_path(sprite, other.layer),
+        layer_path = layer_selection.current_path(sprite, other.layer),
         frame_number = other.frameNumber,
       }
     end
@@ -91,7 +83,7 @@ function module.affected(sprite, image)
       result[#result + 1] = module.inspect(
         sprite,
         current.layer,
-        layer_path(sprite, current.layer),
+        layer_selection.current_path(sprite, current.layer),
         current.frameNumber
       )
     end

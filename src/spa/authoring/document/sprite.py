@@ -478,6 +478,10 @@ SPRITE_CREATE_FAILURE_CODES = (*RUNTIME_FAILURE_CODES, "target_commit_failed")
 SPRITE_INSPECTION_RESOURCE = PackagedResource(
     "inspection", "document/sprite/sprite_inspect.lua"
 )
+SPRITE_INSPECTION_RESOURCES = (
+    SPRITE_INSPECTION_RESOURCE,
+    PackagedResource("layer_select", "document/layer/layer_select.lua"),
+)
 SPRITE_PERSISTENCE_RESOURCE = PackagedResource(
     "persistence", "document/sprite/sprite_persistence.lua"
 )
@@ -488,27 +492,27 @@ SPRITE_INSPECTION_FIXTURE = PackagedResource(
     "inspection_fixture", "runtime/fixtures/sprite_inspection_fixture.aseprite"
 )
 SPRITE_PROBE_RESOURCES = (
-    SPRITE_INSPECTION_RESOURCE,
+    *SPRITE_INSPECTION_RESOURCES,
     SPRITE_CREATION_RESOURCE,
     SPRITE_INSPECTION_FIXTURE,
 )
 SPRITE_CREATE_HANDLER = PackagedHandler(
     "sprite_create",
     "document/sprite/sprite_create.lua",
-    (SPRITE_INSPECTION_RESOURCE, SPRITE_CREATION_RESOURCE),
+    (*SPRITE_INSPECTION_RESOURCES, SPRITE_CREATION_RESOURCE),
 )
 SPRITE_GET_HANDLER = PackagedHandler(
-    "sprite_get", "document/sprite/sprite_get.lua", (SPRITE_INSPECTION_RESOURCE,)
+    "sprite_get", "document/sprite/sprite_get.lua", SPRITE_INSPECTION_RESOURCES
 )
 SPRITE_FLATTEN_HANDLER = PackagedHandler(
     "sprite_flatten",
     "document/sprite/sprite_flatten.lua",
-    (SPRITE_INSPECTION_RESOURCE, SPRITE_PERSISTENCE_RESOURCE, DIGEST_RESOURCE),
+    (*SPRITE_INSPECTION_RESOURCES, SPRITE_PERSISTENCE_RESOURCE, DIGEST_RESOURCE),
 )
 SPRITE_GEOMETRY_HANDLER = PackagedHandler(
     "sprite_geometry",
     "document/sprite/sprite_geometry.lua",
-    (SPRITE_INSPECTION_RESOURCE, SPRITE_PERSISTENCE_RESOURCE, DIGEST_RESOURCE),
+    (*SPRITE_INSPECTION_RESOURCES, SPRITE_PERSISTENCE_RESOURCE, DIGEST_RESOURCE),
 )
 
 

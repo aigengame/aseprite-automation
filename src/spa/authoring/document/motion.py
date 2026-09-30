@@ -12,7 +12,7 @@ from spa.authoring.document.cel import (
     CelAddress,
     CelState,
     CelTargetDetails,
-    _reject,
+    raise_cel_rejection,
 )
 from spa.authoring.document.cel_relationship import CelRelationshipRequest
 from spa.authoring.document.layer import LAYER_ADDRESS_FAILURE_CODES, LayerAddress
@@ -192,7 +192,9 @@ def reject_motion(input: MotionInput, invocation: KernelInvocationResult) -> Non
         raise OperationIssue(
             rejected["code"], rejected["message"], CelTargetDetails(target=target)
         )
-    _reject(invocation, input.layer, target, (input.from_frame, input.to_frame))
+    raise_cel_rejection(
+        invocation, input.layer, target, (input.from_frame, input.to_frame)
+    )
 
 
 def _invalid(invocation: KernelInvocationResult, reason: str) -> RuntimeIssue:

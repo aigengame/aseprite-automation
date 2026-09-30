@@ -7,7 +7,7 @@ from pydantic import Field, ValidationError, field_validator, model_validator
 
 from spa.authoring.document.sprite import (
     SPRITE_GET_HANDLER,
-    SPRITE_INSPECTION_RESOURCE,
+    SPRITE_INSPECTION_RESOURCES,
     SPRITE_PERSISTENCE_RESOURCE,
     SpriteInspection,
     TagDirection,
@@ -229,13 +229,13 @@ TAG_SELECT_RESOURCE = PackagedResource("tag_select", "document/tag/tag_select.lu
 TAG_GET_HANDLER = PackagedHandler(
     "tag_get",
     "document/tag/tag_get.lua",
-    (SPRITE_INSPECTION_RESOURCE, TAG_SELECT_RESOURCE),
+    (*SPRITE_INSPECTION_RESOURCES, TAG_SELECT_RESOURCE),
 )
 TAG_MUTATE_HANDLER = PackagedHandler(
     "tag_mutate",
     "document/tag/tag_mutate.lua",
     (
-        SPRITE_INSPECTION_RESOURCE,
+        *SPRITE_INSPECTION_RESOURCES,
         SPRITE_PERSISTENCE_RESOURCE,
         DIGEST_RESOURCE,
         PackagedResource("tag", "document/tag/tag_support.lua"),
