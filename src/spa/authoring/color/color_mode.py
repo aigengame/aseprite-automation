@@ -64,9 +64,7 @@ class NoDithering(PublicModel):
 
 class MatrixDithering(PublicModel):
     algorithm: Literal["ordered", "old"]
-    matrix: Matrix | None = Field(
-        default=None, json_schema_extra=lambda schema: schema.pop("default", None)
-    )
+    matrix: Matrix | None = Field(default_factory=lambda: None)
 
     @field_validator("matrix", mode="before", json_schema_input_type=Matrix)
     @classmethod
