@@ -8,7 +8,6 @@ from pydantic import Field, ValidationError
 from spa.contracts.artifact import ArtifactFileDetails, ArtifactVerificationDetails
 from spa.contracts.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.contracts.ports import (
-    ArtifactVerificationEvidence,
     KernelInvocationResult,
     OperationServices,
     PackagedHandler,
@@ -23,6 +22,7 @@ from spa.contracts.public import (
     RuntimeRequest,
     RuntimeRequirements,
 )
+from spa.delivery.png_publication import staged_png
 
 
 class ExportDestination(PublicModel):
@@ -139,19 +139,21 @@ def export_image(
     verify_png = services.verify_png
     if verify_png is None:
         raise RuntimeError("Export Image requires the PNG Artifact Verifier")
-    destination = files.normalize_destination(request.destination.path)
-    files.ensure_source_separate(Path(request.source_sprite_file), destination)
-    staged = files.staged_path(destination, if_exists=request.destination.if_exists)
-    rendered = files.rendered_path(staged)
-    try:
+    with staged_png(
+        files,
+        verify_png,
+        source=Path(request.source_sprite_file),
+        destination=request.destination.path,
+        if_exists=request.destination.if_exists,
+    ) as staged:
         observation = services.probe_runtime(request)
         invocation = services.invoke_kernel(
             observation,
             EXPORT_HANDLER,
             {
                 "source_sprite_file": request.source_sprite_file,
-                "staged_png_file": str(staged),
-                "staged_rgba_file": str(rendered),
+                "staged_png_file": str(staged.png_file),
+                "staged_rgba_file": str(staged.rgba_file),
                 "frame_number": request.frame_number,
                 "color_mode": request.color_mode,
                 "color_profile": request.color_profile,
@@ -160,29 +162,12 @@ def export_image(
             request.timeout_seconds,
         )
         native = _native_facts(invocation)
-        staged_artifact = files.read_staged(staged)
-        decoded = verify_png(staged_artifact.payload, staged)
-        rendered_bytes = files.read_staged(rendered).payload
-        if (
-            native.frame_number != request.frame_number
-            or native.width != decoded.width
-            or native.height != decoded.height
-            or native.color_profile != decoded.color_profile
-            or native.alpha_min != decoded.alpha_min
-            or native.alpha_max != decoded.alpha_max
-            or native.rendered_byte_size != native.width * native.height * 4
-            or len(rendered_bytes) != native.rendered_byte_size
-            or rendered_bytes != decoded.rgba_bytes
-            or (native.alpha_min < 255 and not decoded.alpha_channel_present)
-        ):
-            raise RuntimeIssue(
-                "artifact_verification_failed",
-                "Decoded PNG differs from the native rendered Image",
-                ArtifactVerificationEvidence(
-                    str(staged), "native and decoded facts differ"
-                ),
-                invocation.diagnostics,
-            )
+        decoded = staged.verify(
+            native,
+            invocation,
+            matches_expected=native.frame_number == request.frame_number,
+            mismatch_message="Decoded PNG differs from the native rendered Image",
+        )
         if native.alpha_min > native.alpha_max:
             raise RuntimeIssue(
                 "postcondition_failed",
@@ -190,13 +175,7 @@ def export_image(
                 PostconditionEvidence(invocation.response_path, "invalid alpha bounds"),
                 invocation.diagnostics,
             )
-        files.ensure_source_separate(Path(request.source_sprite_file), destination)
-        published = files.publish(
-            staged,
-            destination,
-            if_exists=request.destination.if_exists,
-            sha256=staged_artifact.sha256,
-        )
+        published = staged.publish()
         return ExportImageResult(
             destination=ExportDestination(
                 path=published.path, if_exists=request.destination.if_exists
@@ -216,9 +195,6 @@ def export_image(
                 sha256=published.sha256,
             ),
         )
-    finally:
-        files.discard(staged)
-        files.discard(rendered)
 
 
 EXPORT_OPERATIONS = (

@@ -407,6 +407,18 @@ rules; this view does not establish installed support.
 Animation comparison and continuity inspection have a Document and Animation owner;
 the Preview Artifact has Asset Delivery export and publication guarantees. The current
 `spa.authoring.document.animation` use case composes these responsibilities with existing export support.
+Export Image and Animation Preview share `spa.delivery.png_publication`. Its
+`staged_png` scope owns the PNG and native RGBA evidence paths, independent decoding,
+common native/decoded comparisons, verified digest, Source/destination checks,
+publication, and cleanup through inner-owned ports. The File Adapter implements the
+filesystem mechanics; the PNG Artifact Verifier decodes bytes independently.
+Each caller invokes its own native handler and validates its own native facts model.
+It supplies its expected-facts verdict to `verify`, performs any remaining domain
+postconditions, then explicitly calls `publish`. Result models and Artifact roles
+remain with their callers. Export Image's separate invalid-alpha-bounds postcondition
+still follows common Artifact checks; Animation Preview retains that check as an
+Artifact verification failure. The scope adds no native invocation or rendering.
+Selection Preview and other Artifact formats retain their existing paths.
 The same distinction applies when a domain-specific observation produces an Artifact:
 the observed concept retains its semantic owner. No duplicate exporter or verifier is
 introduced by the strategic classification.
@@ -465,7 +477,8 @@ src/spa/
     color/
       palette.py          # Effective Palette binding
   delivery/
-    export.py             # native export and verified Artifact publication
+    export.py             # Export Image contract, native invocation, and result
+    png_publication.py    # staged PNG verification/publication for Export and Preview
   adapters/
     aseprite/             # process, resource discovery, and transport
     files.py, png.py       # filesystem mechanics and independent PNG decoding
