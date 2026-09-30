@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from spa.image import ImageCanvasResizeRequest, ImageCropRequest
+from spa.authoring.raster.image import ImageCanvasResizeRequest, ImageCropRequest
 
 COMMON = {
     "source_sprite_file": "source.aseprite",

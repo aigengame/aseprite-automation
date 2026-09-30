@@ -17,7 +17,8 @@ this view instead of treating it as another decision authority.
 > editing, Tag inspection and authoring, Cel inspection, lifecycle, placement,
 > bounded position/opacity motion,
 > and native relationships, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, bounded Pixel Patch
-> application, and verified RGB
+> application, native Snapshot composition (`spa paint composite`), native Line,
+> Rectangle, Ellipse, Contour, and Blur Paint operations, verified RGB
 > PNG Image Export, animation audit, Frame comparison, and continuity Preview
 > export. The module
 > ownership below includes both this delivered vertical slice and planned work. Feature
@@ -25,7 +26,7 @@ this view instead of treating it as another decision authority.
 > surface of each installation.
 
 Asset Preparation and reusable Bounded Motion Authoring are accepted ownership areas
-under ADR-0095. `spa.motion` implements bounded position/opacity authoring over
+under ADR-0095. `spa.authoring.document.motion` implements bounded position/opacity authoring over
 existing independent Cels, both standalone and in a Plan (#104). Asset Preparation
 remains planned. Wizard examples retain their recipe-owned pose and artistic rules;
 Asset Delivery reuses the existing export implementations.
@@ -294,7 +295,7 @@ Sprite creation and inspection slice extends that same stack.
 | CLI adapter | Typer | Command access and human or machine presentation. |
 | Public contracts | Pydantic 2 and JSON Schema | Typed Operation Requests, Operation Results, Failure Envelopes, and discovery schemas. |
 | Project and packaging | `uv` | Environments, dependencies, builds, and installed-product tests. |
-| Ordinary Core Operations | Packaged Lua handlers | Core Operation Semantics and native mapping executed through Aseprite. The current package contains a fixed runtime probe, shared capability observations, Sprite creation, inspection, native flattening, resize and crop, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, Tag inspection and authoring, exact Pixel Patch, animation audit, Frame comparison, continuity Preview, Export Image, and Operation Plan handlers. Sprite copy uses the File Adapter for byte preservation and the packaged inspection handler for verification. |
+| Ordinary Core Operations | Packaged Lua handlers | Core Operation Semantics and native mapping executed through Aseprite. The current package contains a fixed runtime probe, shared capability observations, Sprite creation, inspection, native flattening, resize and crop, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, Tag inspection and authoring, exact Pixel Patch, native Snapshot composition, native Line, Rectangle, Ellipse, Contour, and Blur Paint, animation audit, Frame comparison, continuity Preview, Export Image, and Operation Plan handlers. Sprite copy uses the File Adapter for byte preservation and the packaged inspection handler for verification. |
 | Aseprite integration | External `aseprite --batch --script` | Native document, Tool, Filter, color, and export behavior. |
 | Private transport | Versioned JSON request and response files | Data exchange through `--script-param`, separate from diagnostics. |
 | Agent access | Version-matched Agent Skill and planned local stdio MCP Adapter with CLI subprocess invocation | Guidance and equivalent tool projection from the installed surface. |
@@ -309,16 +310,56 @@ Python framework or packaging tool.
 
 The current view groups Core and Supporting domain rules into cohesive areas. They guide
 feature ownership and can become Domain Modules as implementation evidence confirms
-their change boundaries. The delivered `spa.sprite` vertical slice owns Sprite creation,
+their change boundaries. The delivered `spa.authoring.document.sprite` vertical slice owns Sprite creation,
 structural inspection, byte-preserving copy, native resize and crop, native flattening,
-and bounded validation within Document and Animation; `spa.layer` owns Layer
+and bounded validation within Document and Animation; `spa.authoring.document.layer` owns Layer
 addressing and mutation;
-`spa.frame` owns Frame inspection, authoring, and editing; `spa.tag` owns Tag
-inspection and authoring; `spa.cel` owns Cel existence, inspection, and lifecycle,
-while `spa.cel_relationship` owns Cel placement, opacity, z-index, and native
-copy/link/unlink mutations; `spa.animation` owns declared animation audit,
+`spa.authoring.document.frame` owns Frame inspection, authoring, and editing; `spa.authoring.document.tag` owns Tag
+inspection and authoring; `spa.authoring.document.cel` owns Cel existence, inspection, and lifecycle,
+while `spa.authoring.document.cel_relationship` owns Cel placement, opacity, z-index, and native
+copy/link/unlink mutations; `spa.authoring.document.animation` owns declared animation audit,
 full-Canvas Frame comparison, and the composed continuity Preview use case.
-The delivered `spa.image` slice owns Cel-targeted Image resize, crop,
+Cel Add accepts optional initial Image dimensions. Its `cel_support.lua` owner
+creates transparent native Images from the Sprite specification for both standalone
+mutations and Plan Steps. Add validates its initial state at the Step; the final
+save/reopen gate validates the state after all later Steps.
+The Layer-owned `layer_select.lua` Module supplies `current_path` for an already
+attached native Layer. Cel, Frame, Sprite inspection, Pixel Patch, and native Paint
+reuse this current stack-index fact. Exact name/path/verified-UUID selection remains
+separate from that observation; tree traversal and composition keep their own rules.
+The Cel-owned `is_regular_transparent` predicate is also used by Layer mutation and
+Animation audit where the same eligibility rule applies. Their Group, Background,
+Reference, and Tilemap policies remain with each Operation. Python consumers use
+`spa.authoring.document.cel.raise_cel_rejection` for shared failure translation and
+supply their own address roles and Frame Ranges. Each handler binding explicitly
+includes the Lua resources these dependencies require, including standalone,
+capability-probe, and Plan paths.
+The shared `sprite_persistence.lua` Module owns native snapshots and their
+persisted-fact comparison. Standalone Cel set/copy/link/unlink and Motion use its
+`save_verified` Interface to capture live facts, save, close, reopen, observe saved
+Layer UUIDs, and compare the captured native document snapshot. The Interface
+consumes the live Sprite and returns a reopened Sprite, fresh UUID facts, and
+persisted inspection.
+It closes its owned Sprite on failure; after success, the caller owns the reopened
+Sprite and closes it after its remaining checks. Cel relationship and Motion owners
+retain target resolution and operation-specific postconditions. Their handlers retain
+protocol responses and whole-invocation editor-state restoration. Application still
+validates evidence and coordinates Target Commit. Other handlers retain the existing
+snapshot and comparison functions; Plan Steps use live semantic entry points and
+the Plan handler saves and verifies once at the end. This first migration does not
+change Frame/Tag normalization or expand native persistence support.
+
+For standalone Cel set/copy/link/unlink and Motion Apply, Application's
+`mutation.prepare_mutation` checks Source/Target identity before the caller's runtime
+probe. Entering its scope allocates the staged Sprite path; leaving it always discards
+that path. The caller owns native invocation, typed evidence validation, and its
+operation-specific postconditions, then explicitly requests `commit`. Completion
+rechecks publication identity, publishes through `TargetFiles`, and returns the
+existing Target Commit facts. A staged file or a normal scope exit never implies
+success or publication. This scope does not participate in Plan finalization, which
+retains one final Target Commit and no per-Step persistence.
+
+The delivered `spa.authoring.raster.image` slice owns Cel-targeted Image resize, crop,
 canvas-resize, flip, and quarter-turn rotation with explicit placement policies.
 Its fixed Lua Image Resize Transform owns buffer scaling, while Image Canvas
 Transform owns exact copy, clipping, and fill. These buffer semantics can be reused
@@ -327,7 +368,7 @@ whole-Image flip and exact pixel/pivot permutation. The Cel-targeted handlers ow
 eligibility, complete Linked Cel scope, coherent placement, unchanged document
 facts, and staged save/reopen verification. Python validates intent and Kernel
 evidence and coordinates the existing Source/Target commit boundary.
-`spa.image_snapshot` owns individual
+`spa.authoring.raster.image_snapshot` owns individual
 and native composite Image reads plus complete Image replacement. Its Lua helpers
 own canonical native pixel reads and Layer Composition over the original tree;
 preserve-Indexed composition with a nonzero mask temporarily permutes pixel indexes
@@ -336,14 +377,26 @@ native render. The composite's explicit output choice selects the native render 
 individual reads retain stored values. This does not create a second compositor or
 invoke Sprite-wide Color Mode conversion.
 The application reuses Artifact Files for JSON transport and Target Commit for native
-publication. `spa.paint` owns exact Pixel Patch application. `spa.raster` holds the
-shared Color Value, Rectangle, Snapshot, Patch, Selection, and Effective Palette types;
+publication. `spa.authoring.raster.paint` owns exact Pixel Patch application.
+`spa.authoring.raster.paint_composite` owns Snapshot composition intent, native support gaps, result
+validation, and staged publication. Its fixed Lua support constructs the source
+through `image_snapshot.lua`, invokes native `Image:drawImage`, and limits coverage
+through the same explicit Selection helper as Paint apply. The handler owns Cel
+eligibility, Background opacity, Linked Cel invariants, and persisted verification.
+For Indexed Normal/255, a scoped temporary Sprite binds the requested Effective
+Palette to native Cel-associated `drawImage`; cleanup restores active document state
+on success and failure. A separate runtime observation gates this Indexed path.
+Image replace and Paint composite share native Snapshot materialization; neither
+maintains a second Raster decoder or blend algorithm. `spa.contracts.raster` holds the
+shared Color Value, Rectangle, Snapshot, Patch, Selection, and Effective Palette types.
+It also checks Paint write counts and unchanged-pixel digests; operation-specific
+evidence stays with each owner.
 `raster_color.lua` shares native Color Value handling and Palette result facts for
 Paint and Image snapshots. It delegates Frame-based Palette selection to the private
 `effective_palette.lua` Module owned by Color and Palette. That Module returns the
 native Palette and its starting Frame; callers retain index, opacity, applicability,
 and failure policies. Frame, Layer, Paint, and Image consumers use the same resolver.
-`spa.palette` declares its packaged-resource binding. Each affected handler supplies
+`spa.authoring.color.palette` declares its packaged-resource binding. Each affected handler supplies
 that binding explicitly, including Frame reads, Cel mutation, Image snapshots, Plan,
 and runtime probes; the runtime does not discover Lua dependencies recursively.
 Raster Authoring owns their
@@ -375,7 +428,19 @@ rules; this view does not establish installed support.
 
 Animation comparison and continuity inspection have a Document and Animation owner;
 the Preview Artifact has Asset Delivery export and publication guarantees. The current
-`spa.animation` use case composes these responsibilities with existing export support.
+`spa.authoring.document.animation` use case composes these responsibilities with existing export support.
+Export Image and Animation Preview share `spa.delivery.png_publication`. Its
+`staged_png` scope owns the PNG and native RGBA evidence paths, independent decoding,
+common native/decoded comparisons, verified digest, Source/destination checks,
+publication, and cleanup through inner-owned ports. The File Adapter implements the
+filesystem mechanics; the PNG Artifact Verifier decodes bytes independently.
+Each caller invokes its own native handler and validates its own native facts model.
+It supplies its expected-facts verdict to `verify`, performs any remaining domain
+postconditions, then explicitly calls `publish`. Result models and Artifact roles
+remain with their callers. Export Image's separate invalid-alpha-bounds postcondition
+still follows common Artifact checks; Animation Preview retains that check as an
+Artifact verification failure. The scope adds no native invocation or rendering.
+Selection Preview and other Artifact formats retain their existing paths.
 The same distinction applies when a domain-specific observation produces an Artifact:
 the observed concept retains its semantic owner. No duplicate exporter or verifier is
 introduced by the strategic classification.
@@ -400,29 +465,89 @@ For the accepted preparation and authoring direction:
 - Production code never imports an example. An external model adapter can depend on
   SPA contracts; core rules do not import a generation provider or Godot model.
 
-### Incremental physical modules
+### Physical modules
 
-Preserve the current compact vertical slices. The list below shows implemented
-modules and the planned `preparation.py` candidate under their accepted owners.
-The installed Surface Manifest reports callable Operations.
+The source layout makes the existing responsibility boundaries visible. Feature
+modules retain vertical ownership; the packages below group related concepts, not
+separate contexts or deployment units. The installed Surface Manifest reports
+callable Operations.
 
 ```text
 src/spa/
-  preparation.py          # candidate: preparation policy and result use cases
-  motion.py               # bounded position/opacity authoring over existing Cels
-  rounding.py             # shared exact rounding policies and Kernel binding
-  animation.py            # existing audit, comparison, and composed Preview use case
-  frame.py, cel.py, cel_relationship.py
-  image.py, image_snapshot.py, paint.py, raster.py
-  palette.py              # shared private Palette Kernel resource binding
-  export.py               # existing Delivery and publication support
-  application.py, plan.py, mutation.py, ports.py
-  file_adapter.py
-  runtime/                # process and transport mechanisms
+  __init__.py
+  bootstrap.py            # composition and installed entry point
+  access/
+    cli.py                # Descriptor-derived command projection
+  application/
+    dispatch.py           # dispatch and outcome classification
+    mutation.py           # standalone staging, identity recheck, commit, cleanup
+    plan.py               # cross-module Plan orchestration
+    surface.py            # installed Operation registration and discovery
+    failure_registry.py   # assembled Failure Code projection
+  contracts/
+    public.py, operation.py, ports.py
+    mutation.py           # Source/Target identity and Target Commit contracts
+    artifact.py           # shared publication/verification failure details
+    digest.py             # one shared native evidence digest binding
+    raster.py, rounding.py # shared values and their native bindings
+  authoring/
+    document/
+      sprite.py, layer.py, frame.py, cel.py, cel_relationship.py
+      tag.py, animation.py, motion.py
+    raster/
+      image.py, image_snapshot.py, selection.py
+      paint.py, paint_composite.py, paint_native.py
+    color/
+      palette.py          # Effective Palette binding
+  delivery/
+    export.py             # Export Image contract, native invocation, and result
+    png_publication.py    # staged PNG verification/publication for Export and Preview
+  adapters/
+    aseprite/             # process, resource discovery, and transport
+    files.py, png.py       # filesystem mechanics and independent PNG decoding
   kernel/                 # fixed native semantic handlers and shared owners
+    __init__.py
+    document/
+      sprite/, layer/, frame/, cel/, tag/, animation/
+    raster/
+      image/, paint/, selection/
+      raster_color.lua
+    color/                # Effective Palette
+    delivery/             # native Image Export
+    runtime/              # runtime and capability probes
+      fixtures/           # real native probe inputs
+    plan/                 # single-Sprite Plan execution
+    foundation/           # digest and rounding algorithms
 ```
 
-Add a module only with a complete functional slice. Color and Palette now owns the
+Package initialization does not register Operations or re-export implementations.
+Access calls Application; Application composes feature contracts and inner-owned
+ports; outbound adapters implement those ports. The shared `contracts` package
+contains only values and contracts already used across owners. Feature-specific
+requests, evidence, Descriptors, and use cases stay with their feature. Imports
+between feature modules retain a single direction; no runtime lookup or directory
+scan replaces the explicit bindings.
+
+The Lua family directories colocate handlers and their supporting semantics.
+Native Sprite persistence remains under `kernel/document/sprite`; it does not
+acquire Application's Target Commit responsibility. The small `foundation` group
+holds existing shared algorithms and does not become an owner for feature policy.
+It includes the established Image evidence digest encoding, not a new generic
+service. Shared Python contracts do not import feature implementations. Frame
+and Paint use the same digest binding; dispatch consumes shared Artifact failure
+details without importing the Delivery implementation.
+
+A `PackagedHandler` separates its logical name from its explicit path relative
+to `spa.kernel`. A `PackagedResource` maps a semantic script parameter to a
+relative packaged path. The runtime uses the logical name for its temporary
+workspace and the path for loading. Probe and Plan dependencies remain explicit;
+the runtime does not discover resources recursively. The installed-package check
+compares all nested Kernel files with source bytes outside the checkout, including
+real LFS fixture content. This inventory verifies the distribution and is not an
+Operation registry.
+
+Add a module only with a complete functional slice. Preparation and Tile packages
+have no placeholder implementation. Color and Palette now owns the
 shared Effective Palette resolver; further structure follows delivered features.
 Reuse the canonical
 Pixel Region Snapshot and Color Value contracts where applicable; do not promote the
@@ -442,6 +567,35 @@ native set operations, isolated temporary Sprite work, and binary Image adaptati
 for native nearest-neighbor sampling. Python validates wire constraints and
 orchestrates existing Artifact staging, independent JSON/PNG verification, and
 publication. No persistent editor Selection or second Mask engine is introduced.
+
+The native Fill, Pencil, Eraser, Line, Rectangle, Ellipse, Contour, and Blur
+operations use `paint_native.py` for typed
+contracts and publication orchestration. `paint_native_support.lua` owns footprint
+partitioning, Selection Application, linked mutation, and persisted evidence.
+`native_tool.lua` hides native Tool invocation and its local state restoration.
+It uses isolated native working documents to prevent the editor's Cel expansion
+from changing the addressed Image. The native pixel result is copied into the
+existing shared Image; geometry and unrelated document facts are verified before
+publication. Existing Cel, Selection, Color, Palette, and persistence helpers retain
+their ownership. Each public Operation has its own handler and runtime gate;
+Pencil and Eraser also admit each Freehand Algorithm independently.
+Fill keeps the original Canvas and saved Grid in its working Sprite. The native
+Magic Wand observes matching coverage through the same flood-fill point shape as
+Paint Bucket, including no-op colors or opacity. Shared Selection Application
+filters that coverage after matching. Gesture coverage uses a native opaque Brush
+pass, while native Eraser owns the actual alpha, index, or color replacement.
+Blur keeps the original working Sprite dimensions so native source expansion and
+Tiled Mode retain their document boundaries. Its coverage pass uses native Pencil,
+which shares Blur's Brush and freehand geometry; only native Blur supplies effect
+pixels. Contour delegates the complete ordered gesture, including closure and fill,
+to its native tool. The runtime gates independently verify Contour's two algorithms
+and Blur's four Tiled Modes. Gradient has no implemented Descriptor or callable
+handler while complete headless Gradient Type and Dithering Matrix control remains
+unverified; installed discovery reports the version-specific Capability Gap under
+issue #28's permitted delivery combination.
+No new rasterizer or public generic Tool wrapper is introduced. The
+[issue #27 evidence](docs/evidence/issue-27-native-paint.md) records the native
+assumptions and their verification.
 
 Each Domain Module owns a vertical slice of:
 
@@ -523,7 +677,14 @@ flowchart TB
 
 The installed Surface Manifest reports the callable Operations, schemas, execution
 metadata, version constraints, and Capability Gaps for one SPA and Aseprite combination.
-It is runtime truth, not a product roadmap.
+Callable entries come from Descriptors. Under `AUTHORITY_MATRIX.md`, a Gap can also
+report an assessed limitation that prevents a capability from having a Descriptor.
+The Manifest reports the selected runtime and applicable SPA support boundaries,
+without claiming that every native behavior was retested on that runtime. A Gap does
+not register an Operation or promise its future delivery.
+An unpublished candidate's Gap projection can be limited to its recorded investigation
+scope. Its absence on another release establishes neither callability nor a native
+behavior result there; the feature issue retains the investigation status.
 
 ### Application orchestration
 
@@ -560,17 +721,17 @@ keeps one Sprite live and applies one final save-and-reopen gate. A second Pytho
 generated-Lua behavior path is prohibited. `spa script run` is a separate escape hatch
 for exact caller-owned Lua and does not inherit Ordinary Core Operation guarantees.
 
-Cel relationship semantics live in `kernel/cel_relationship_support.lua`. The
+Cel relationship semantics live in `kernel/document/cel/cel_relationship_support.lua`. The
 standalone relationship handler and `cel set` Plan Steps call its live entry point.
-`spa.cel_relationship` owns the shared input and evidence contracts; `spa.plan`
+`spa.authoring.document.cel_relationship` owns the shared input and evidence contracts; `spa.application.plan`
 composes those contracts and reports Step facts before final Plan persistence.
 
-`spa.motion` owns the bounded curve input, per-Cel evidence, and publication use
-case. `kernel/motion_support.lua` resolves the complete existing target set,
+`spa.authoring.document.motion` owns the bounded curve input, per-Cel evidence, and publication use
+case. `kernel/document/animation/motion_support.lua` resolves the complete existing target set,
 rejects Image links, samples explicit curves with exact rational arithmetic, and
 validates all result positions before mutation. Standalone and Plan handlers call
 this live entry point. It reuses Cel addressing, Layer eligibility, and document
-snapshots; `kernel/rounding.lua` shares rounding meanings with Image resize.
+snapshots; `kernel/foundation/rounding.lua` shares rounding meanings with Image resize.
 Offsets use each target's own Step-start position. Later Steps can change earlier
 facts; only the final live document is compared with the final reopened file.
 
@@ -662,7 +823,7 @@ experimental commands and tactical types evolve.
 | Kernel Protocol | Private | Carries versioned data between Python and the packaged Lua Kernel; it can evolve without becoming a second public API. |
 | Operation Result | Public success | Reports verified domain facts and produced Artifacts. |
 | Failure Envelope | Public failure | Provides stable Failure Code and Category, typed Details where useful, and human Diagnostics. |
-| Surface Manifest | Public discovery | Reports what the installed SPA/Aseprite combination can call. |
+| Surface Manifest | Public discovery | Reports what the installed SPA/Aseprite combination can call and its applicable Capability Gaps. |
 
 Before SPA 1.0, the co-packaged Python and Lua components use only the current Kernel
 Protocol version. This private boundary can evolve without historical-version
@@ -680,6 +841,12 @@ Lua-language or API-version mismatch, or a capability missing from the selected
 Descriptor's requirements, with typed evidence before Operation execution. The private
 Kernel Protocol continues to require an exact match with the one version co-packaged in
 the same pre-1.0 release.
+
+Aseprite 1.3.18.5 is the current real-integration baseline. SPA follows Aseprite's
+native version compatibility for other releases without an independent version
+allowlist, semantic guarantee, or per-release test matrix. The observed requirements
+above gate execution; they do not certify identical native pixels on every release.
+Feature delivery and claimed host launch paths still require their own real evidence.
 
 A completed Validation can return an Operation Result with typed Validation Findings.
 An invalid request, execution failure, or unmet commit gate returns a Failure Envelope;

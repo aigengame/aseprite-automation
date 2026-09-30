@@ -7,22 +7,22 @@ import pytest
 from PIL import Image
 from pydantic import ValidationError
 
-from spa.animation import (
+from spa.adapters.files import LocalArtifactFiles, LocalTargetFiles
+from spa.adapters.png import verify_png
+from spa.authoring.document.animation import (
     AnimationAuditRequest,
     AnimationCompareRequest,
     AnimationPreviewRequest,
     audit_animation,
     preview_animation,
 )
-from spa.contracts import Diagnostics
-from spa.file_adapter import LocalArtifactFiles, LocalTargetFiles
-from spa.png_verifier import verify_png
-from spa.ports import (
+from spa.contracts.ports import (
     KernelInvocationResult,
     OperationServices,
     RuntimeIssue,
     RuntimeObservation,
 )
+from spa.contracts.public import Diagnostics
 
 
 @pytest.mark.parametrize(

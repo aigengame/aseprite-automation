@@ -6,15 +6,7 @@ from typing import Any
 
 import pytest
 
-from spa.contracts import Diagnostics
-from spa.ports import (
-    KernelInvocationResult,
-    OperationServices,
-    RuntimeIssue,
-    RuntimeObservation,
-    TargetCommitObservation,
-)
-from spa.sprite import (
+from spa.authoring.document.sprite import (
     SpriteCreateRequest,
     SpriteCropRequest,
     SpriteGetRequest,
@@ -22,6 +14,14 @@ from spa.sprite import (
     crop_sprite,
     get_sprite,
 )
+from spa.contracts.ports import (
+    KernelInvocationResult,
+    OperationServices,
+    RuntimeIssue,
+    RuntimeObservation,
+    TargetCommitObservation,
+)
+from spa.contracts.public import Diagnostics
 
 
 def _observation() -> RuntimeObservation:

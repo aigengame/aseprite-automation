@@ -2,9 +2,9 @@
 
 from typer.main import get_command
 
-from spa.cli import build_app
-from spa.descriptors import OPERATIONS
-from spa.failure_registry import FAILURE_CODES
+from spa.access.cli import build_app
+from spa.application.failure_registry import FAILURE_CODES
+from spa.application.surface import OPERATIONS
 from tests.support import operation_services
 
 

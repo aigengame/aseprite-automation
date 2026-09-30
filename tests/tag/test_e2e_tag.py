@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from spa.runtime.invocation import prepare_invocation
-from tests.support import spa
+from spa.adapters.aseprite.invocation import prepare_invocation
+from tests.support import process_diagnostics, spa
 
 pytestmark = pytest.mark.e2e
 
@@ -42,7 +42,7 @@ def _fixture(target: Path) -> None:
             check=False,
             env=prepared.environment,
         )
-    assert run.returncode == 0, run.stderr
+    assert run.returncode == 0, process_diagnostics(run)
 
 
 def _mutation(source: Path, destination: Path, **fields: object) -> dict[str, object]:

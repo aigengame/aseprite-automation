@@ -8,11 +8,11 @@ from pathlib import Path
 
 from PIL import Image
 
-from spa.contracts import RuntimeRequest
-from spa.descriptors import PROBE_RESOURCES
-from spa.runtime.aseprite import probe
-from spa.runtime.invocation import prepare_invocation
-from tests.support import spa
+from spa.adapters.aseprite.aseprite import probe
+from spa.adapters.aseprite.invocation import prepare_invocation
+from spa.application.surface import PROBE_RESOURCES
+from spa.contracts.public import RuntimeRequest
+from tests.support import process_diagnostics, spa
 
 
 def image_fixture(tmp_path: Path, mode: str = "rgb") -> Path:
@@ -42,7 +42,7 @@ def image_fixture(tmp_path: Path, mode: str = "rgb") -> Path:
             check=False,
             env=prepared.environment,
         )
-    assert run.returncode == 0, run.stderr
+    assert run.returncode == 0, process_diagnostics(run)
     assert source.is_file()
     return source
 
@@ -109,5 +109,5 @@ def inspect_native(
             check=False,
             env=prepared.environment,
         )
-    assert run.returncode == 0, run.stderr
+    assert run.returncode == 0, process_diagnostics(run)
     return json.loads(output.read_text())

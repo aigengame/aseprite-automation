@@ -42,6 +42,17 @@ Step requirements are observed. An individual Plan can use a subset and is check
 against its selected Step requirements plus final Sprite inspection. Aseprite product
 version remains provenance and does not replace runtime observations.
 
+The current real-integration baseline is Aseprite 1.3.18.5. For other releases,
+SPA follows [Aseprite's native scripting compatibility policy](https://github.com/aseprite/api/blob/main/Changes.md)
+under [PRD #1](https://github.com/aigengame/aseprite-automation/issues/1)
+and [issue #132](https://github.com/aigengame/aseprite-automation/issues/132).
+SPA has no independent Aseprite-version allowlist, release-by-release test matrix,
+or guarantee of unchanged native behavior. The Descriptor checks above establish
+the requirements needed to execute an Operation, not semantic parity across
+untested Aseprite releases. An observed incompatibility is assessed for its
+affected Operation; a hypothetical later release alone is not an acceptance gate.
+Feature-delivery evidence and checks for claimed host execution profiles remain.
+
 The Aseprite Adapter and Lua Operation Kernel communicate through a versioned private
 Kernel Protocol. Public defaults and null semantics are resolved before transport.
 The adapter decodes private Kernel Protocol responses and reports typed runtime

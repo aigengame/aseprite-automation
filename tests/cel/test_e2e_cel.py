@@ -2,15 +2,17 @@
 
 import json
 import os
+import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
 import pytest
 from PIL import Image
 
-from spa.runtime.invocation import prepare_invocation
-from tests.support import spa
+from spa.adapters.aseprite.invocation import prepare_invocation
+from tests.support import process_diagnostics, spa
 
 pytestmark = pytest.mark.e2e
 
@@ -34,7 +36,7 @@ def _fixture(target: Path, name: str = "cels.lua") -> None:
             check=False,
             env=prepared.environment,
         )
-    assert run.returncode == 0, run.stderr
+    assert run.returncode == 0, process_diagnostics(run)
 
 
 def _run(command: str, request: dict[str, object]) -> tuple[int, dict]:
@@ -92,6 +94,30 @@ def test_tilemap_cel_existence_does_not_mix_canvas_and_tile_cell_bounds(
     assert result["cel"]["is_tilemap"] is True
     assert result["cel"]["position"] == {"x": 4, "y": 2}
     assert result["cel"]["image_bounds"] is None
+
+
+def test_add_with_explicit_image_size_survives_reopen(tmp_path: Path) -> None:
+    source = tmp_path / "source.aseprite"
+    target_file = tmp_path / "added.aseprite"
+    _fixture(source)
+    target = {"layer": {"layer_path": [1]}, "frame_number": 1}
+    code, added = _run(
+        "add",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target_file),
+            "in_place": False,
+            "overwrite": False,
+            "target": target,
+            "image_size": {"width": 5, "height": 5},
+        },
+    )
+    assert code == 0, added
+    assert added["cel"]["image_bounds"] == {"x": 0, "y": 0, "width": 5, "height": 5}
+    assert added["cel"]["content"] == "transparent"
+    code, reopened = _run("get", {"sprite_file": str(target_file), "target": target})
+    assert code == 0, reopened
+    assert reopened["cel"] == added["cel"]
 
 
 def test_add_and_remove_preserve_explicit_cel_existence(tmp_path: Path) -> None:
@@ -326,7 +352,10 @@ def test_clear_reports_and_preserves_all_native_linked_cels(tmp_path: Path) -> N
         ]
 
 
-def test_plan_adds_cel_then_paints_it_in_one_commit(tmp_path: Path) -> None:
+@pytest.mark.parametrize("image_size", [None, {"width": 5, "height": 5}])
+def test_plan_adds_cel_then_paints_it_in_one_commit(
+    tmp_path: Path, image_size: dict | None
+) -> None:
     source = tmp_path / "source.aseprite"
     target_file = tmp_path / "painted.aseprite"
     _fixture(source)
@@ -342,7 +371,8 @@ def test_plan_adds_cel_then_paints_it_in_one_commit(tmp_path: Path) -> None:
                         "target": {
                             "layer": {"layer_path": [1]},
                             "frame_number": 1,
-                        }
+                        },
+                        "image_size": image_size,
                     },
                 },
                 {
@@ -372,8 +402,30 @@ def test_plan_adds_cel_then_paints_it_in_one_commit(tmp_path: Path) -> None:
             ],
         },
     }
-    run = spa("plan", "run", "--input-json", json.dumps(request))
+    observations = tmp_path / "observations.json"
+    executable = shutil.which("spa")
+    assert executable
+    run = subprocess.run(
+        [
+            sys.executable,
+            str(Path(__file__).parents[1] / "plan/fixtures/observe_cli.py"),
+            "valid",
+            str(observations),
+            executable,
+            "plan",
+            "run",
+            "--input-json",
+            json.dumps(request),
+        ],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
     assert run.returncode == 0, run.stdout + run.stderr
+    assert json.loads(observations.read_text()) == {
+        "native_invocations": 1,
+        "commits": 1,
+    }
     result = json.loads(run.stdout)
     assert result["persisted_reopen_verified"] is True
     assert [step["operation"] for step in result["steps"]] == [
@@ -381,6 +433,11 @@ def test_plan_adds_cel_then_paints_it_in_one_commit(tmp_path: Path) -> None:
         "paint apply",
     ]
     assert result["steps"][0]["result"]["cel"]["content"] == "transparent"
+    assert result["steps"][0]["result"]["cel"]["image_bounds"] == {
+        "x": 0,
+        "y": 0,
+        **(image_size or {"width": 4, "height": 3}),
+    }
     code, reopened = _run(
         "get",
         {
@@ -527,6 +584,30 @@ def test_plan_duplicate_cel_add_rejects_without_commit(tmp_path: Path) -> None:
     ("fixture", "target", "expected_code", "details_kind"),
     [
         (
+            "cels.lua",
+            {"layer": {"layer_path": [1]}, "frame_number": 2},
+            "cel_already_exists",
+            "cel_target",
+        ),
+        (
+            "unsupported_add.lua",
+            {"layer": {"layer_path": [2]}, "frame_number": 1},
+            "cel_unsupported_target",
+            "cel_target",
+        ),
+        (
+            "unsupported_add.lua",
+            {"layer": {"layer_path": [3]}, "frame_number": 1},
+            "cel_unsupported_target",
+            "cel_target",
+        ),
+        (
+            "tilemap.lua",
+            {"layer": {"layer_path": [2]}, "frame_number": 1},
+            "cel_unsupported_target",
+            "cel_target",
+        ),
+        (
             "background.lua",
             {"layer": {"layer_path": [1]}, "frame_number": 1},
             "cel_unsupported_target",
@@ -546,30 +627,36 @@ def test_plan_duplicate_cel_add_rejects_without_commit(tmp_path: Path) -> None:
         ),
     ],
 )
+@pytest.mark.parametrize("size", [{}, {"image_size": {"width": 5, "height": 5}}])
 def test_plan_cel_add_preserves_standalone_typed_refusal(
     tmp_path: Path,
     fixture: str,
     target: dict[str, object],
     expected_code: str,
     details_kind: str,
+    size: dict,
 ) -> None:
     source = tmp_path / "source.aseprite"
     standalone_target = tmp_path / "standalone.aseprite"
     plan_target = tmp_path / "plan.aseprite"
     _fixture(source, fixture)
+    source_bytes = source.read_bytes()
+    standalone_target.write_bytes(b"prior standalone Target")
+    plan_target.write_bytes(b"prior Plan Target")
     code, standalone = _run(
         "add",
         {
             "source_sprite_file": str(source),
             "target_sprite_file": str(standalone_target),
             "in_place": False,
-            "overwrite": False,
+            "overwrite": True,
             "target": target,
+            **size,
         },
     )
     assert code == 2, standalone
     assert standalone["code"] == expected_code
-    assert not standalone_target.exists()
+    assert standalone_target.read_bytes() == b"prior standalone Target"
     run = spa(
         "plan",
         "run",
@@ -580,7 +667,10 @@ def test_plan_cel_add_preserves_standalone_typed_refusal(
                 "plan": {
                     "source_sprite_file": str(source),
                     "target_sprite_file": str(plan_target),
-                    "steps": [{"operation": "cel add", "input": {"target": target}}],
+                    "overwrite": True,
+                    "steps": [
+                        {"operation": "cel add", "input": {"target": target, **size}}
+                    ],
                 },
             }
         ),
@@ -590,4 +680,43 @@ def test_plan_cel_add_preserves_standalone_typed_refusal(
     assert failure["code"] == standalone["code"]
     assert failure["details"]["kind"] == details_kind
     assert failure["details"]["step_number"] == 1
-    assert not plan_target.exists()
+    assert plan_target.read_bytes() == b"prior Plan Target"
+    assert source.read_bytes() == source_bytes
+
+
+def test_sized_add_then_failed_step_does_not_publish(tmp_path: Path) -> None:
+    source = tmp_path / "source.aseprite"
+    target = tmp_path / "target.aseprite"
+    _fixture(source)
+    before = source.read_bytes()
+    target.write_bytes(b"prior Target")
+    step = {
+        "operation": "cel add",
+        "input": {
+            "target": {"layer": {"layer_path": [1]}, "frame_number": 1},
+            "image_size": {"width": 5, "height": 5},
+        },
+    }
+    run = spa(
+        "plan",
+        "run",
+        "--input-json",
+        json.dumps(
+            {
+                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+                "plan": {
+                    "source_sprite_file": str(source),
+                    "target_sprite_file": str(target),
+                    "overwrite": True,
+                    "steps": [step, step],
+                },
+            }
+        ),
+    )
+    assert run.returncode == 2, run.stdout + run.stderr
+    failure = json.loads(run.stdout)
+    assert failure["code"] == "cel_already_exists"
+    assert failure["details"]["step_number"] == 2
+    assert source.read_bytes() == before
+    assert target.read_bytes() == b"prior Target"
+    assert not list(tmp_path.glob("*.staged.aseprite"))

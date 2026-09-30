@@ -382,7 +382,7 @@ def test_validate_returns_findings_without_repair(
 def test_export_roundtrip_and_preview_use_explicit_canvas(tmp_path, spelling) -> None:
     import hashlib
 
-    from spa.png_verifier import verify_png
+    from spa.adapters.png import verify_png
 
     destination = tmp_path / "mask.json"
     code, exported = selection(

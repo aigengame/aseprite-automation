@@ -11,8 +11,8 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from spa.runtime.invocation import prepare_invocation
-from tests.support import spa
+from spa.adapters.aseprite.invocation import prepare_invocation
+from tests.support import process_diagnostics, spa
 
 pytestmark = pytest.mark.e2e
 
@@ -39,7 +39,7 @@ def _fixture(target: Path, name: str, mode: str | None = None) -> None:
             env=prepared.environment,
             check=False,
         )
-    assert run.returncode == 0, (run.stdout, run.stderr)
+    assert run.returncode == 0, process_diagnostics(run)
 
 
 def _run(command: str, request: dict[str, object]) -> tuple[int, dict]:
@@ -97,7 +97,7 @@ def _assert_native_fill(source: Path, mode: str) -> None:
             env=prepared.environment,
             check=False,
         )
-    assert run.returncode == 0, run.stderr
+    assert run.returncode == 0, process_diagnostics(run)
 
 
 def _make_second_frame_fill_index_transparent(source: Path) -> None:

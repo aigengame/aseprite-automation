@@ -7,10 +7,10 @@ import tempfile
 from pathlib import Path
 
 from examples.wizard_cast_v2.workflow import Spa
-from spa.contracts import RuntimeRequest
-from spa.descriptors import PROBE_RESOURCES
-from spa.runtime.aseprite import probe
-from spa.runtime.invocation import prepare_invocation
+from spa.adapters.aseprite.aseprite import probe
+from spa.adapters.aseprite.invocation import prepare_invocation
+from spa.application.surface import PROBE_RESOURCES
+from spa.contracts.public import RuntimeRequest
 
 # Inspection only: raw bytes live in a temporary directory. The Lua script never
 # changes or saves the source. All production writes remain public SPA Operations.

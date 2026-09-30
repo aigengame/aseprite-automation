@@ -7,8 +7,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from spa.contracts import RuntimeCapability
-from spa.ports import (
+from spa.contracts.ports import (
     KernelInvocationResult,
     OperationServices,
     PackagedHandler,
@@ -16,6 +15,16 @@ from spa.ports import (
     RuntimeProbe,
     TargetCommitObservation,
 )
+from spa.contracts.public import RuntimeCapability
+
+
+def process_diagnostics(run: subprocess.CompletedProcess[str]) -> str:
+    """Describe a failed captured process, including POSIX signal names."""
+    failure = subprocess.CalledProcessError(run.returncode, run.args)
+    return (
+        f"{failure}\nexit status: {run.returncode}\n"
+        f"stdout:\n{run.stdout}\nstderr:\n{run.stderr}"
+    )
 
 
 class _UnusedTargetFiles:

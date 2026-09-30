@@ -2,13 +2,13 @@
 
 from functools import partial
 
-from spa.cli import build_app, run_cli
-from spa.descriptors import PROBE_RESOURCES
-from spa.failure_registry import FAILURE_CODES
-from spa.file_adapter import LocalArtifactFiles, LocalTargetFiles
-from spa.png_verifier import verify_png
-from spa.ports import OperationServices
-from spa.runtime.aseprite import invoke, invoke_direct, probe
+from spa.access.cli import build_app, run_cli
+from spa.adapters.aseprite.aseprite import invoke, invoke_direct, probe
+from spa.adapters.files import LocalArtifactFiles, LocalTargetFiles
+from spa.adapters.png import verify_png
+from spa.application.failure_registry import FAILURE_CODES
+from spa.application.surface import PROBE_RESOURCES
+from spa.contracts.ports import OperationServices
 
 
 def main() -> None:

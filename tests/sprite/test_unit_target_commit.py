@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from spa.file_adapter import LocalTargetFiles
-from spa.ports import RuntimeIssue
+from spa.adapters.files import LocalTargetFiles
+from spa.contracts.ports import RuntimeIssue
 
 
 def test_success_has_no_fallible_checks_after_atomic_replace(
