@@ -2,6 +2,11 @@
 
 from spa.application.failure_registry import FAILURE_CODES
 from spa.application.plan import PLAN_OPERATIONS
+from spa.authoring.color.palette import (
+    PALETTE_OPERATIONS,
+    PALETTE_PROBE_RESOURCES,
+    palette_lifecycle_gaps,
+)
 from spa.authoring.document.animation import ANIMATION_OPERATIONS
 from spa.authoring.document.cel import CEL_OPERATIONS, CEL_SUPPORT_RESOURCE
 from spa.authoring.document.cel_relationship import CEL_RELATIONSHIP_OPERATIONS
@@ -53,6 +58,7 @@ from spa.contracts.public import (
 from spa.delivery.export import EXPORT_OPERATIONS, EXPORT_PROBE_RESOURCES
 
 PROBE_RESOURCES = (
+    *PALETTE_PROBE_RESOURCES,
     *NATIVE_PAINT_RESOURCES,
     *SPRITE_PROBE_RESOURCES,
     LAYER_SELECT_RESOURCE,
@@ -140,6 +146,7 @@ def _surface(runtime: RuntimeFacts) -> tuple[list[str], list[CapabilityGap]]:
         for gap in native_paint_candidate_gaps(runtime.aseprite_version)
         if gap.capability not in registered
     )
+    gaps.extend(palette_lifecycle_gaps(runtime.aseprite_version))
     return supported, gaps
 
 
@@ -240,6 +247,7 @@ OPERATIONS = (
     *MOTION_OPERATIONS,
     *IMAGE_OPERATIONS,
     *TAG_OPERATIONS,
+    *PALETTE_OPERATIONS,
     *EXPORT_OPERATIONS,
     *ANIMATION_OPERATIONS,
     *PLAN_OPERATIONS,

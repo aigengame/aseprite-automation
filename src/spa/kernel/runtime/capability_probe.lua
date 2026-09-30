@@ -21,6 +21,42 @@ local image_orientation_transform = app.params.image_orientation_transform
     and dofile(app.params.image_orientation_transform)
   or nil
 
+local function observes_palette_entries()
+  if app.params.palette == nil or app.params.persistence == nil then return false end
+  local palettes = dofile(app.params.palette)
+  local persistence = dofile(app.params.persistence)
+  local sprite = nil
+  local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
+  local path = assert(app.params.capability_sprite)
+  local ok = pcall(function()
+    for _, mode in ipairs { ColorMode.RGB, ColorMode.GRAY, ColorMode.INDEXED } do
+      sprite = Sprite(1, 1, mode)
+      sprite:newEmptyFrame()
+      local before_count = #sprite.palettes
+      local live = palettes.set(sprite, {
+        palette_frame_number = 1,
+        entries = { { index = 1, color = { red = 12, green = 34, blue = 56, alpha = 77 } } },
+      }, {})
+      assert(live.rejection == nil and #sprite.palettes == before_count)
+      local got = palettes.get(sprite, 2)
+      assert(got.palette.palette_frame_number == 1)
+      assert(got.palette.entries[2].color.alpha == 77)
+      sprite = persistence.save_verified(sprite, path, {}, "Palette entry probe")
+      persistence.assert_equal(live, palettes.list(sprite), "Palette entry probe")
+      sprite:close()
+      sprite = nil
+    end
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  pcall(function() os.remove(path) end)
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
+  return ok
+end
+
 local function observes_sprite_inspection()
   local open_sprite = nil
   local inspection_path = assert(app.params.inspection_fixture)
@@ -867,6 +903,9 @@ function module.observe()
     if ok then capabilities[#capabilities + 1] = "aseprite_selection" end
   end
   local supports_inspection = observes_sprite_inspection()
+  if observes_palette_entries() then
+    capabilities[#capabilities + 1] = "aseprite_palette_entries"
+  end
   if supports_inspection and observes_sprite_creation() then
     capabilities[#capabilities + 1] = "aseprite_sprite_create"
   end

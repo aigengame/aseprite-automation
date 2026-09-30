@@ -616,6 +616,35 @@ repeats stays a stored value without an inferred playback sequence. Indexes
 are snapshot-relative and can change after range edits. Mutations use the same
 explicit Source/Target publication intent as Frame authoring.
 
+`spa palette list` reports the ordered Palette Changes, their RGBA Entries, and
+inclusive effective Frame Ranges. `spa palette get` takes a one-based
+`frame_number` and returns both that requested Frame and the supplying
+`palette.palette_frame_number`. Palette Indexes are zero-based.
+
+`spa palette set` takes an exact existing `palette_frame_number` and a nonempty
+`entries` list of `{index, color: {red, green, blue, alpha}}` edits. Each index
+occurs once and must already exist. It recolors Entries without resizing the
+Palette or rewriting Indexed pixels. The result reports the reopened Palette,
+its effective range, and all persisted change points. Source/Target publication
+intent is explicit, as for other mutations. These operations are standalone;
+their Descriptors do not declare Plan eligibility.
+
+```sh
+uv run spa palette get --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite","frame_number":4}'
+uv run spa palette set --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"recolored.aseprite","in_place":false,"overwrite":false,"palette_frame_number":1,"entries":[{"index":1,"color":{"red":240,"green":80,"blue":40,"alpha":255}}]}'
+```
+
+Palette edits verify exact RGBA Entries and change points after save/close/reopen
+in RGB, Grayscale, and Indexed documents. They reject publication if native
+behavior changes the global Transparent Color Index, removes an adjacent equal
+Palette Change, or changes other document content. Same-value edits are allowed
+when those invariants hold. No hidden remap or Palette Change creation occurs.
+On the tested Aseprite 1.3.18.5 baseline, `spa info` reports add/remove as native
+lifecycle Capability Gaps: public Lua has no change-point creation/deletion seam.
+These gaps do not indicate executable discovery failure and do not register
+callable commands. A future public seam needs save/close/reopen evidence before
+admission; the current boundary does not prevent that extension.
+
 `spa plan check` validates a bounded Plan, including current Source and Target path
 conditions, without starting Aseprite. `spa plan run`
 executes up to 64 Sprite-bound `sprite create`, `sprite get`, `frame list`,
