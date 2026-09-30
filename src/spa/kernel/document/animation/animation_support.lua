@@ -1,5 +1,6 @@
 -- Exact declared audit and native full-canvas animation rendering.
 local module = {}
+local cels = dofile(app.params.cel)
 local selection = dofile(assert(app.params.layer_select))
 local inspection = dofile(assert(app.params.inspection))
 local exporter = dofile(assert(app.params.export_image_support))
@@ -19,15 +20,6 @@ local function visible(layer, sprite)
     current = current.parent
   end
   return true
-end
-
-local function regular_transparent(layer)
-  return layer.isImage
-    and layer.isTransparent
-    and not layer.isGroup
-    and not layer.isReference
-    and not layer.isTilemap
-    and not layer.isBackground
 end
 
 local function effective_alpha_bytes(sprite, layer, number)
@@ -134,7 +126,7 @@ local function audit(payload)
       local second, second_rejected = resolve(sprite, pair.second_layer, uuids)
       if second_rejected then return second_rejected end
       assert(
-        regular_transparent(first.layer) and regular_transparent(second.layer),
+        cels.is_regular_transparent(first.layer) and cels.is_regular_transparent(second.layer),
         "non-overlap requires regular Transparent Layers"
       )
       assert(first.layer ~= second.layer, "non-overlap requires distinct Layers")

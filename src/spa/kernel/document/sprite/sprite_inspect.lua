@@ -1,5 +1,6 @@
 -- Shared fixed inspection semantics for packaged Sprite handlers.
 local module = {}
+local layer_selection = dofile(app.params.layer_select)
 local json_null = json.decode("null")
 
 local function rgba(color)
@@ -160,17 +161,6 @@ local function requested_set(scope)
     result[scope[index]] = true
   end
   return result
-end
-
-local function cel_layer_path(sprite, layer)
-  local path = {}
-  local current = layer
-  while true do
-    table.insert(path, 1, current.stackIndex)
-    if current.parent == sprite then break end
-    current = current.parent
-  end
-  return path
 end
 
 local function read_file(path)
@@ -374,7 +364,7 @@ function module.inspect(sprite, scope, verified_uuids)
     for index = 1, #sprite.cels do
       local cel = sprite.cels[index]
       cels[#cels + 1] = {
-        layer_path = cel_layer_path(sprite, cel.layer),
+        layer_path = layer_selection.current_path(sprite, cel.layer),
         frame_number = cel.frameNumber,
         bounds = rectangle(cel.bounds),
         opacity = cel.opacity,

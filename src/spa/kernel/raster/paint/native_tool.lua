@@ -1,6 +1,7 @@
 -- Private native Paint invocation. The caller owns clipping, Selection Application,
 -- and the final write into the original shared Image.
 local module = {}
+local layer_selection = dofile(app.params.layer_select)
 local masks = dofile(app.params.selection_mask)
 
 local brush_types = {
@@ -89,22 +90,6 @@ local function make_tool_color(value, mode)
     return Color { index = value.index }
   end
   error("unsupported Color Mode")
-end
-
-local function find_layer_path(layers, target, prefix)
-  for index, layer in ipairs(layers) do
-    local path = {}
-    for _, part in ipairs(prefix) do
-      path[#path + 1] = part
-    end
-    path[#path + 1] = index
-    if layer == target then return path end
-    if layer.isGroup then
-      local nested = find_layer_path(layer.layers, target, path)
-      if nested then return nested end
-    end
-  end
-  return nil
 end
 
 local function resolve_layer(layers, path)
@@ -281,7 +266,7 @@ function module.render(sprite, cel, payload, tool)
     )
   end
   local native_points = translate_points(points, crop)
-  local path = assert(find_layer_path(sprite.layers, cel.layer, {}), "target Layer not in Sprite")
+  local path = layer_selection.current_path(sprite, cel.layer)
   local frame_number = cel.frame.frameNumber
 
   local previous = {

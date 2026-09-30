@@ -11,7 +11,7 @@ from spa.authoring.document.cel import (
     CEL_SUPPORT_RESOURCE,
     CelAddress,
     CelState,
-    _reject,
+    raise_cel_rejection,
 )
 from spa.authoring.document.cel_relationship import CelRelationshipRequest
 from spa.authoring.document.layer import LAYER_ADDRESS_FAILURE_CODES
@@ -528,7 +528,7 @@ def _execute[ResultT: NativePaintResult](
                     )
                 ),
             )
-        _reject(
+        raise_cel_rejection(
             invocation,
             request.target.layer,
             request.target,

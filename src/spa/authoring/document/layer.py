@@ -402,6 +402,7 @@ LAYER_MUTATE_HANDLER = PackagedHandler(
         DIGEST_RESOURCE,
         PackagedResource("persistence", "document/sprite/sprite_persistence.lua"),
         PackagedResource("frame", "document/frame/frame_support.lua"),
+        PackagedResource("cel", "document/cel/cel_support.lua"),
         EFFECTIVE_PALETTE_RESOURCE,
     ),
 )

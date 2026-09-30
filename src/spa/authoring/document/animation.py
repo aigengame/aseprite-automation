@@ -11,7 +11,11 @@ from pydantic import (
     model_validator,
 )
 
-from spa.authoring.document.cel import CEL_SELECT_RESOURCE, CelAddress
+from spa.authoring.document.cel import (
+    CEL_SELECT_RESOURCE,
+    CEL_SUPPORT_RESOURCE,
+    CelAddress,
+)
 from spa.authoring.document.layer import (
     LAYER_ADDRESS_FAILURE_CODES,
     LayerAddress,
@@ -276,6 +280,7 @@ ANIMATION_HANDLER = PackagedHandler(
     "document/animation/animation.lua",
     (
         ANIMATION_SUPPORT,
+        CEL_SUPPORT_RESOURCE,
         CEL_SELECT_RESOURCE,
         SPRITE_INSPECTION_RESOURCE,
         EXPORT_SUPPORT,

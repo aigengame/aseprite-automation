@@ -73,16 +73,7 @@ local function execute()
         local peer = current.layer
         if
           peer.isBackground ~= target_background
-          or (
-            not target_background
-            and (
-              not peer.isImage
-              or not peer.isTransparent
-              or peer.isGroup
-              or peer.isReference
-              or peer.isTilemap
-            )
-          )
+          or (not target_background and not cel.is_regular_transparent(peer))
         then
           return {
             rejection = {

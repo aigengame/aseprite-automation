@@ -11,7 +11,7 @@ from spa.authoring.document.cel import (
     CelAddress,
     CelFrameRangeDetails,
     CelState,
-    _reject,
+    raise_cel_rejection,
 )
 from spa.authoring.document.layer import (
     LAYER_ADDRESS_FAILURE_CODES,
@@ -351,7 +351,7 @@ def _reject_get(
     _reject_snapshot(invocation)
     if isinstance(source, IndividualImageSource):
         target = source.target
-        _reject(
+        raise_cel_rejection(
             invocation, target.layer, target, (target.frame_number, target.frame_number)
         )
         return
@@ -373,7 +373,7 @@ def _reject_get(
             and isinstance(index, int)
             and 1 <= index <= len(source.layer_composition.layers)
         ):
-            _reject(
+            raise_cel_rejection(
                 invocation,
                 source.layer_composition.layers[index - 1],
                 None,
@@ -536,7 +536,9 @@ def replace_image(
         )
         _reject_snapshot(invocation)
         number = request.target.frame_number
-        _reject(invocation, request.target.layer, request.target, (number, number))
+        raise_cel_rejection(
+            invocation, request.target.layer, request.target, (number, number)
+        )
         try:
             evidence = ImageReplaceEvidence.model_validate(invocation.payload)
             if (

@@ -1,5 +1,16 @@
--- Layer-owned exact target selection against one open Sprite.
+-- Layer-owned exact selection and current address facts in one open Sprite.
 local module = {}
+
+-- The caller supplies an attached native Layer, not an unresolved address.
+function module.current_path(sprite, layer)
+  local path = {}
+  local current = layer
+  while current ~= sprite do
+    table.insert(path, 1, current.stackIndex)
+    current = current.parent
+  end
+  return path
+end
 
 local function find_by_value(layers, prefix, predicate, found)
   for index = 1, #layers do

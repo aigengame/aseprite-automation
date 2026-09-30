@@ -1,5 +1,6 @@
 -- Frame insertion and shared Background Color validation over native Sprite facts.
 local module = {}
+local layer_selection = dofile(app.params.layer_select)
 local palettes = dofile(app.params.effective_palette)
 local json_null = json.decode("null")
 local all_sections = {
@@ -119,16 +120,6 @@ local function source_cels(sprite, number)
   return result
 end
 
-local function layer_path(sprite, layer)
-  local path = {}
-  local current = layer
-  while current ~= sprite do
-    table.insert(path, 1, current.stackIndex)
-    current = current.parent
-  end
-  return path
-end
-
 function module.get_live(sprite, frame_number, inspection)
   assert(
     type(frame_number) == "number" and frame_number % 1 == 0 and frame_number >= 1,
@@ -178,7 +169,7 @@ local function verify_cels(sprite, operation, input, inserted_number, source_cou
       assert(original.zIndex == copied.zIndex, "duplicated Cel z-index differs")
       assert(original.image.bytes == copied.image.bytes, "duplicated Cel pixels differ")
       relationships[#relationships + 1] = {
-        layer_path = layer_path(sprite, original.layer),
+        layer_path = layer_selection.current_path(sprite, original.layer),
         source_frame_number = source_number,
         kind = shared and "link" or "copy",
       }

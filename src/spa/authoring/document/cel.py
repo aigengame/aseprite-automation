@@ -328,13 +328,18 @@ CEL_MUTATE_HANDLER = PackagedHandler(
 )
 
 
-def _reject(
+def raise_cel_rejection(
     invocation: KernelInvocationResult,
     layer: LayerAddress,
     target: CelAddress | None,
     frame_range: tuple[int, int],
     address_role: Literal["target", "source", "destination"] = "target",
 ) -> None:
+    """Translate native Cel/Layer rejection facts for Document and raster callers.
+
+    The caller supplies the addressed Layer, Cel, Frame Range, and address role.
+    Unrecognized or malformed rejections remain Kernel response failures.
+    """
     rejected = invocation.payload.get("rejection")
     if rejected is None:
         return
@@ -380,7 +385,9 @@ def list_cels(request: CelListRequest, services: OperationServices) -> CelListRe
         },
         request.timeout_seconds,
     )
-    _reject(invocation, request.layer, None, (request.from_frame, request.to_frame))
+    raise_cel_rejection(
+        invocation, request.layer, None, (request.from_frame, request.to_frame)
+    )
     try:
         cels = [CelState.model_validate(item) for item in invocation.payload["cels"]]
         selected_path = invocation.payload["selected_path"]
@@ -418,7 +425,7 @@ def get_cel(request: CelGetRequest, services: OperationServices) -> CelGetResult
         },
         request.timeout_seconds,
     )
-    _reject(
+    raise_cel_rejection(
         invocation,
         request.target.layer,
         request.target,
@@ -470,7 +477,9 @@ def _mutate(
             observation, CEL_MUTATE_HANDLER, payload, request.timeout_seconds
         )
         number = request.target.frame_number
-        _reject(invocation, request.target.layer, request.target, (number, number))
+        raise_cel_rejection(
+            invocation, request.target.layer, request.target, (number, number)
+        )
         try:
             mutation_payload = dict(invocation.payload)
             raw_affected = mutation_payload.pop("affected_cels", None)
