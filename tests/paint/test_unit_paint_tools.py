@@ -59,8 +59,8 @@ def test_eraser_rejects_ignored_or_invalid_gesture_inputs(change: dict) -> None:
 
 
 def test_unavailable_algorithm_does_not_hide_other_native_gestures() -> None:
-    from spa.contracts import RuntimeRequest
-    from spa.descriptors import schema_result
+    from spa.application.surface import schema_result
+    from spa.contracts.public import RuntimeRequest
 
     result = schema_result(
         RuntimeRequest(),

@@ -7,8 +7,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from spa.contracts import RuntimeCapability
-from spa.ports import (
+from spa.contracts.ports import (
     KernelInvocationResult,
     OperationServices,
     PackagedHandler,
@@ -16,6 +15,7 @@ from spa.ports import (
     RuntimeProbe,
     TargetCommitObservation,
 )
+from spa.contracts.public import RuntimeCapability
 
 
 class _UnusedTargetFiles:

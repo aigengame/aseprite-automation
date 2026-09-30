@@ -4,11 +4,11 @@ from dataclasses import replace
 
 import pytest
 
-from spa.application import dispatch
-from spa.contracts import FailureEnvelope
-from spa.descriptors import OPERATIONS
-from spa.failure_registry import FAILURE_CODES
-from spa.ports import RuntimeObservation
+from spa.application.dispatch import dispatch
+from spa.application.failure_registry import FAILURE_CODES
+from spa.application.surface import OPERATIONS
+from spa.contracts.ports import RuntimeObservation
+from spa.contracts.public import FailureEnvelope
 from tests.support import operation_services
 
 

@@ -4,7 +4,7 @@ import re
 from importlib.resources import files
 from typing import get_args
 
-from spa.layer import LAYER_OPERATIONS, BlendModeName
+from spa.authoring.document.layer import LAYER_OPERATIONS, BlendModeName
 
 
 def test_layer_mutations_require_hierarchy_capability() -> None:
@@ -40,7 +40,9 @@ def test_invalid_position_applies_only_to_move() -> None:
 
 
 def test_python_and_lua_blend_mode_names_match() -> None:
-    source = files("spa.kernel").joinpath("sprite_inspect.lua").read_text()
+    source = (
+        files("spa.kernel").joinpath("document/sprite/sprite_inspect.lua").read_text()
+    )
     table = source.split("local blend_modes = {", 1)[1].split("\n}", 1)[0]
     names = re.findall(r'\{ BlendMode\.[A-Z_]+, "([a-z_]+)" \}', table)
     assert len(names) == len(set(names))

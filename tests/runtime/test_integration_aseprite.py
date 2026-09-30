@@ -11,12 +11,12 @@ import pytest
 from jsonschema import validate
 from typer.testing import CliRunner
 
-from spa.cli import build_app
-from spa.contracts import RuntimeRequest
-from spa.descriptors import OPERATIONS
-from spa.failure_registry import FAILURE_CODES
-from spa.ports import PackagedHandler, RuntimeObservation
-from spa.runtime.aseprite import invoke, probe
+from spa.access.cli import build_app
+from spa.adapters.aseprite.aseprite import invoke, probe
+from spa.application.failure_registry import FAILURE_CODES
+from spa.application.surface import OPERATIONS
+from spa.contracts.ports import PackagedHandler, RuntimeObservation
+from spa.contracts.public import RuntimeRequest
 from tests.support import fake_aseprite, fake_probe_response, operation_services, spa
 
 
@@ -288,9 +288,26 @@ printf '%s' '{{"kernel_protocol_version":1,"status":"ok","result":{{}}}}' > "$re
         verified_capabilities=(),
     )
 
-    invoke(observation, PackagedHandler("generic_test"), {}, 1)
+    invoke(
+        observation,
+        PackagedHandler("generic_test", "document/sprite/sprite_get.lua"),
+        {},
+        1,
+    )
 
     arguments = recorded.read_text(encoding="utf-8").splitlines()
+    script = Path(arguments[arguments.index("--script") + 1])
+    assert script.as_posix().endswith("/document/sprite/sprite_get.lua")
+    assert script.is_file()
+    request = Path(
+        next(
+            arg.removeprefix("request=")
+            for arg in arguments
+            if arg.startswith("request=")
+        )
+    )
+    assert request.parent.name.startswith("spa-generic_test-")
+    assert not request.parent.exists()
     assert not any(argument.startswith("inspection=") for argument in arguments)
     assert not any(argument.startswith("creation=") for argument in arguments)
 
@@ -482,7 +499,7 @@ def test_unwritable_temporary_workspace_has_typed_start_failure(
         raise PermissionError("temporary workspace denied")
 
     monkeypatch.setattr(
-        "spa.runtime.aseprite.tempfile.TemporaryDirectory", deny_workspace
+        "spa.adapters.aseprite.aseprite.tempfile.TemporaryDirectory", deny_workspace
     )
     _assert_preparation_failure(binary)
 

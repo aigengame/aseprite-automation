@@ -4,14 +4,15 @@ import json
 import os
 import subprocess
 import tempfile
+from importlib.resources import files
 from pathlib import Path
 
 import pytest
 
-from spa.contracts import RuntimeRequest
-from spa.descriptors import PROBE_RESOURCES
-from spa.runtime.aseprite import probe
-from spa.runtime.invocation import prepare_invocation
+from spa.adapters.aseprite.aseprite import probe
+from spa.adapters.aseprite.invocation import prepare_invocation
+from spa.application.surface import PROBE_RESOURCES
+from spa.contracts.public import RuntimeRequest
 from tests.image.support import export_image as _export
 from tests.image.support import image_fixture as _fixture
 from tests.image.support import inspect_native as _inspect_native
@@ -251,9 +252,9 @@ def test_shared_resize_restores_active_context_on_success_and_failure(
                 str(prepared.executable),
                 "--batch",
                 "--script-param",
-                f"image_resize_transform={Path(__file__).parents[2] / 'src/spa/kernel/image_resize_transform.lua'}",
+                f"image_resize_transform={files('spa.kernel').joinpath('raster/image/image_resize_transform.lua')}",
                 "--script-param",
-                f"effective_palette={Path(__file__).parents[2] / 'src/spa/kernel/effective_palette.lua'}",
+                f"effective_palette={files('spa.kernel').joinpath('color/effective_palette.lua')}",
                 "--script-param",
                 f"out={output}",
                 "--script",

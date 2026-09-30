@@ -11,11 +11,45 @@ from jsonschema import Draft202012Validator
 from jsonschema import ValidationError as SchemaError
 from pydantic import ValidationError
 
-from spa.animation import AuditLimitDetails
-from spa.application import _runtime_failure, dispatch
-from spa.cel import CelAddress as LifecycleCelAddress
-from spa.cel import CelFrameRangeDetails, CelTargetDetails
-from spa.contracts import (
+from spa.application.dispatch import _runtime_failure, dispatch
+from spa.application.failure_registry import FAILURE_CODES
+from spa.application.surface import ACCESS_FAILURE_CODES, OPERATIONS
+from spa.authoring.document.animation import AuditLimitDetails
+from spa.authoring.document.cel import CelAddress as LifecycleCelAddress
+from spa.authoring.document.cel import CelFrameRangeDetails, CelTargetDetails
+from spa.authoring.document.layer import LayerAddress, LayerTargetDetails
+from spa.authoring.document.sprite import (
+    SpriteCopyStagingDetails,
+    SpriteCropBoundsDetails,
+    SpriteGeometryUnsupportedDetails,
+    SpriteUnsupportedContentDetails,
+)
+from spa.authoring.document.tag import TagAddress, TagRangeDetails, TagTargetDetails
+from spa.authoring.raster.image import ImageRotatePositionDetails
+from spa.authoring.raster.image_snapshot import SnapshotDetails
+from spa.authoring.raster.paint_composite import (
+    CompositeCapabilityDetails,
+    CompositeDetails,
+)
+from spa.authoring.raster.paint_native import PaintCapabilityDetails
+from spa.authoring.raster.selection import SelectionDetails
+from spa.contracts.artifact import ArtifactFileDetails, ArtifactVerificationDetails
+from spa.contracts.mutation import TargetCommitDetails
+from spa.contracts.ports import (
+    ArtifactFileEvidence,
+    ArtifactVerificationEvidence,
+    DiscoveryEvidence,
+    HandlerEvidence,
+    LaunchEvidence,
+    PostconditionEvidence,
+    ProcessEvidence,
+    ResourceEvidence,
+    ResponseEvidence,
+    RuntimeCompatibilityEvidence,
+    RuntimeIssue,
+    TargetCommitEvidence,
+)
+from spa.contracts.public import (
     CapabilityGap,
     FailureEnvelope,
     KernelExecutionDetails,
@@ -33,38 +67,7 @@ from spa.contracts import (
     failure_schema,
     register_failure_codes,
 )
-from spa.descriptors import ACCESS_FAILURE_CODES, OPERATIONS
-from spa.export import ArtifactFileDetails, ArtifactVerificationDetails
-from spa.failure_registry import FAILURE_CODES
-from spa.image import ImageRotatePositionDetails
-from spa.image_snapshot import SnapshotDetails
-from spa.layer import LayerAddress, LayerTargetDetails
-from spa.mutation import TargetCommitDetails
-from spa.paint_composite import CompositeCapabilityDetails, CompositeDetails
-from spa.paint_native import PaintCapabilityDetails
-from spa.ports import (
-    ArtifactFileEvidence,
-    ArtifactVerificationEvidence,
-    DiscoveryEvidence,
-    HandlerEvidence,
-    LaunchEvidence,
-    PostconditionEvidence,
-    ProcessEvidence,
-    ResourceEvidence,
-    ResponseEvidence,
-    RuntimeCompatibilityEvidence,
-    RuntimeIssue,
-    TargetCommitEvidence,
-)
-from spa.raster import Point, PositiveRectangle, Size
-from spa.selection import SelectionDetails
-from spa.sprite import (
-    SpriteCopyStagingDetails,
-    SpriteCropBoundsDetails,
-    SpriteGeometryUnsupportedDetails,
-    SpriteUnsupportedContentDetails,
-)
-from spa.tag import TagAddress, TagRangeDetails, TagTargetDetails
+from spa.contracts.raster import Point, PositiveRectangle, Size
 from tests.support import operation_services
 
 registered_failure_envelope = partial(failure_envelope, failure_codes=FAILURE_CODES)
@@ -113,13 +116,13 @@ def test_all_installed_failure_codes_are_registered_once() -> None:
 
 
 def test_installed_failure_registry_is_one_immutable_composition() -> None:
-    from spa import contracts
+    from spa.contracts import public as contracts
 
     assert isinstance(FAILURE_CODES, MappingProxyType)
     assert "FAILURE_CODES" not in vars(contracts)
     assert "install_failure_codes" not in vars(contracts)
     assert "failure_registry" not in getsource(contracts)
-    assert TargetCommitDetails.__module__ == "spa.mutation"
+    assert TargetCommitDetails.__module__ == "spa.contracts.mutation"
 
 
 def test_registration_refuses_duplicate_invalid_and_unsupported_entries() -> None:

@@ -1,7 +1,7 @@
 """Relationship operations depend on their own observed runtime behavior."""
 
-from spa.contracts import RuntimeFacts
-from spa.descriptors import _surface
+from spa.application.surface import _surface
+from spa.contracts.public import RuntimeFacts
 
 
 def test_relationship_surface_does_not_require_cel_lifecycle() -> None:

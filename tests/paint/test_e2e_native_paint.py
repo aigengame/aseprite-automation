@@ -5,14 +5,15 @@ import os
 import shutil
 import subprocess
 import sys
+from importlib.resources import files
 from pathlib import Path
 
 import pytest
 
-from spa.contracts import RuntimeRequest
-from spa.descriptors import PROBE_RESOURCES
-from spa.runtime.aseprite import probe
-from spa.runtime.invocation import prepare_invocation
+from spa.adapters.aseprite.aseprite import probe
+from spa.adapters.aseprite.invocation import prepare_invocation
+from spa.application.surface import PROBE_RESOURCES
+from spa.contracts.public import RuntimeRequest
 from tests.support import spa
 
 pytestmark = pytest.mark.e2e
@@ -553,7 +554,7 @@ def test_hidden_pixels_and_explicit_empty_selection_are_preserved(
 def test_native_tool_state_is_restored_on_success_and_failure(
     tmp_path: Path, tool: str
 ) -> None:
-    from spa.paint_native import NATIVE_PAINT_RESOURCES
+    from spa.authoring.raster.paint_native import NATIVE_PAINT_RESOURCES
 
     source, _ = _native_fixture(tmp_path)
     observation = probe(
@@ -566,7 +567,7 @@ def test_native_tool_state_is_restored_on_success_and_failure(
     )
     blocked_parent = tmp_path / "blocked-stage-parent"
     blocked_parent.write_bytes(b"not a directory")
-    kernel = Path(__file__).parents[2] / "src" / "spa" / "kernel"
+    kernel = files("spa.kernel")
     args = [str(prepared.executable), "--batch"]
     params = {
         "tool": tool,
@@ -576,7 +577,7 @@ def test_native_tool_state_is_restored_on_success_and_failure(
         "unwritable": str(blocked_parent / "painted.aseprite"),
     }
     for resource in NATIVE_PAINT_RESOURCES:
-        params[resource.parameter_name] = str(kernel / resource.package_name)
+        params[resource.parameter_name] = str(kernel.joinpath(resource.package_path))
     for name, value in params.items():
         args += ["--script-param", f"{name}={value}"]
     args += [

@@ -5,17 +5,18 @@ import json
 import os
 import subprocess
 import tempfile
+from importlib.resources import files
 from pathlib import Path
 
 import pytest
 from jsonschema import validate
 
-from spa.contracts import RuntimeRequest
-from spa.descriptors import PROBE_RESOURCES
-from spa.paint import PAINT_APPLY_HANDLER
-from spa.ports import HandlerEvidence, RuntimeIssue
-from spa.runtime.aseprite import invoke, probe
-from spa.runtime.invocation import prepare_invocation
+from spa.adapters.aseprite.aseprite import invoke, probe
+from spa.adapters.aseprite.invocation import prepare_invocation
+from spa.application.surface import PROBE_RESOURCES
+from spa.authoring.raster.paint import PAINT_APPLY_HANDLER
+from spa.contracts.ports import HandlerEvidence, RuntimeIssue
+from spa.contracts.public import RuntimeRequest
 from tests.support import inject_palette_change, spa
 
 pytestmark = pytest.mark.e2e
@@ -762,7 +763,7 @@ def test_apply_ignores_ambient_editor_selection(tmp_path: Path) -> None:
         RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
     )
     fixture = Path(__file__).parent / "fixtures" / "ambient_selection.lua"
-    support = Path(__file__).parents[2] / "src" / "spa" / "kernel"
+    support = files("spa.kernel")
     with tempfile.TemporaryDirectory(prefix="spa-paint-selection-") as work:
         prepared = prepare_invocation(
             Path(observation.canonical_path),
@@ -778,15 +779,15 @@ def test_apply_ignores_ambient_editor_selection(tmp_path: Path) -> None:
                 "--script-param",
                 f"target={target}",
                 "--script-param",
-                f"paint={support / 'paint_apply_support.lua'}",
+                f"paint={support.joinpath('raster/paint/paint_apply_support.lua')}",
                 "--script-param",
-                f"raster_color={support / 'raster_color.lua'}",
+                f"raster_color={support.joinpath('raster/raster_color.lua')}",
                 "--script-param",
-                f"effective_palette={support / 'effective_palette.lua'}",
+                f"effective_palette={support.joinpath('color/effective_palette.lua')}",
                 "--script-param",
-                f"selection_mask={support / 'selection_mask.lua'}",
+                f"selection_mask={support.joinpath('raster/selection/selection_mask.lua')}",
                 "--script-param",
-                f"digest={support / 'digest.lua'}",
+                f"digest={support.joinpath('foundation/digest.lua')}",
                 "--script",
                 str(fixture),
             ],

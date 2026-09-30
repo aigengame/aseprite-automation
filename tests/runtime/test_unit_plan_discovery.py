@@ -1,8 +1,8 @@
 """Conservative discovery of the complete eligible Plan Step surface."""
 
-from spa.contracts import RuntimeFacts
-from spa.descriptors import _surface
-from spa.plan import ELIGIBLE_OPERATIONS, PLAN_DISCOVERY_REQUIREMENTS
+from spa.application.plan import ELIGIBLE_OPERATIONS, PLAN_DISCOVERY_REQUIREMENTS
+from spa.application.surface import _surface
+from spa.contracts.public import RuntimeFacts
 
 
 def test_plan_discovery_requires_every_current_eligible_step_capability() -> None:

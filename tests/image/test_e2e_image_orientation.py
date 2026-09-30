@@ -4,15 +4,16 @@ import json
 import os
 import subprocess
 import tempfile
+from importlib.resources import files
 from pathlib import Path
 
 import pytest
 from jsonschema import validate
 
-from spa.contracts import RuntimeRequest
-from spa.descriptors import PROBE_RESOURCES
-from spa.runtime.aseprite import probe
-from spa.runtime.invocation import prepare_invocation
+from spa.adapters.aseprite.aseprite import probe
+from spa.adapters.aseprite.invocation import prepare_invocation
+from spa.application.surface import PROBE_RESOURCES
+from spa.contracts.public import RuntimeRequest
 from tests.support import spa
 
 pytestmark = pytest.mark.e2e
@@ -302,8 +303,9 @@ def test_native_transform_ignores_active_selection(
         out=output,
         operation=operation,
         **options,
-        image_orientation_transform=Path(__file__).parents[2]
-        / "src/spa/kernel/image_orientation_transform.lua",
+        image_orientation_transform=files("spa.kernel").joinpath(
+            "raster/image/image_orientation_transform.lua"
+        ),
     )
     result = json.loads(output.read_text())
     assert result["pixels"] == pixels

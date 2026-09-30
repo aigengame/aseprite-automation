@@ -9,10 +9,10 @@ from pathlib import Path
 
 import pytest
 
-from spa.contracts import RuntimeRequest
-from spa.descriptors import PROBE_RESOURCES
-from spa.runtime.aseprite import probe
-from spa.runtime.invocation import prepare_invocation
+from spa.adapters.aseprite.aseprite import probe
+from spa.adapters.aseprite.invocation import prepare_invocation
+from spa.application.surface import PROBE_RESOURCES
+from spa.contracts.public import RuntimeRequest
 from tests.support import inject_palette_change
 
 pytestmark = pytest.mark.e2e
@@ -40,7 +40,7 @@ def test_effective_palette_resolves_change_points_without_active_frame_state(
                 "source": source,
                 "out": output,
                 "effective_palette": files("spa.kernel").joinpath(
-                    "effective_palette.lua"
+                    "color/effective_palette.lua"
                 ),
             }.items():
                 arguments.extend(("--script-param", f"{key}={value}"))

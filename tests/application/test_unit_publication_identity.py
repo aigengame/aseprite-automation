@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from spa.file_adapter import LocalArtifactFiles, LocalTargetFiles
-from spa.mutation import source_target_identity_issue
+from spa.adapters.files import LocalArtifactFiles, LocalTargetFiles
+from spa.contracts.mutation import source_target_identity_issue
 
 
 def test_case_variant_names_identify_one_existing_publication_entry(

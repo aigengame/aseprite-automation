@@ -10,10 +10,10 @@ from pathlib import Path
 import pytest
 from jsonschema import validate
 
-from spa.contracts import RuntimeRequest
-from spa.descriptors import PROBE_RESOURCES
-from spa.runtime.aseprite import probe
-from spa.runtime.invocation import prepare_invocation
+from spa.adapters.aseprite.aseprite import probe
+from spa.adapters.aseprite.invocation import prepare_invocation
+from spa.application.surface import PROBE_RESOURCES
+from spa.contracts.public import RuntimeRequest
 from tests.support import spa
 
 pytestmark = pytest.mark.e2e
@@ -118,7 +118,7 @@ def test_background_postcondition_rejects_a_nonuniform_reopened_fill(
                 str(prepared.executable),
                 "--batch",
                 "--script-param",
-                f"creation={files('spa.kernel').joinpath('sprite_create_support.lua')}",
+                f"creation={files('spa.kernel').joinpath('document/sprite/sprite_create_support.lua')}",
                 "--script-param",
                 f"target={target}",
                 "--script-param",

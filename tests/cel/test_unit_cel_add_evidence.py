@@ -4,11 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from spa.cel import CelAddRequest, add_cel
-from spa.contracts import Diagnostics
-from spa.file_adapter import LocalTargetFiles
-from spa.plan import PlanRunRequest, run_plan
-from spa.ports import KernelInvocationResult, OperationServices, RuntimeIssue
+from spa.adapters.files import LocalTargetFiles
+from spa.application.plan import PlanRunRequest, run_plan
+from spa.authoring.document.cel import CelAddRequest, add_cel
+from spa.contracts.ports import KernelInvocationResult, OperationServices, RuntimeIssue
+from spa.contracts.public import Diagnostics
 from tests.support import runtime_observation
 
 

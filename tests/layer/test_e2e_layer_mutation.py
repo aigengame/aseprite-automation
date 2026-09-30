@@ -4,11 +4,12 @@ import json
 import os
 import subprocess
 import tempfile
+from importlib.resources import files
 from pathlib import Path
 
 import pytest
 
-from spa.runtime.invocation import prepare_invocation
+from spa.adapters.aseprite.invocation import prepare_invocation
 from tests.support import spa
 
 pytestmark = pytest.mark.e2e
@@ -255,7 +256,7 @@ def test_merge_compositing_ignores_both_ambient_preference_values(
     _fixture(source, "merge_composite.lua")
     aseprite = Path(os.environ["SPA_TEST_ASEPRITE"]).resolve()
     resource = aseprite.parent.parent / "Resources" / "data" / "gui.xml"
-    kernel = Path(__file__).parents[2] / "src" / "spa" / "kernel"
+    kernel = files("spa.kernel")
     script = Path(__file__).parent / "fixtures" / "merge_under_ambient.lua"
     reports = []
     for ambient in (False, True):
@@ -268,12 +269,20 @@ def test_merge_compositing_ignores_both_ambient_preference_values(
                 "source": str(source),
                 "target": str(target),
                 "report": str(report),
-                "inspection": str(kernel / "sprite_inspect.lua"),
-                "layer_select": str(kernel / "layer_select.lua"),
-                "mutation": str(kernel / "layer_mutation_support.lua"),
-                "effective_palette": str(kernel / "effective_palette.lua"),
-                "digest": str(kernel / "digest.lua"),
-                "persistence": str(kernel / "sprite_persistence.lua"),
+                "inspection": str(
+                    kernel.joinpath("document/sprite/sprite_inspect.lua")
+                ),
+                "layer_select": str(kernel.joinpath("document/layer/layer_select.lua")),
+                "mutation": str(
+                    kernel.joinpath("document/layer/layer_mutation_support.lua")
+                ),
+                "effective_palette": str(
+                    kernel.joinpath("color/effective_palette.lua")
+                ),
+                "digest": str(kernel.joinpath("foundation/digest.lua")),
+                "persistence": str(
+                    kernel.joinpath("document/sprite/sprite_persistence.lua")
+                ),
                 "workspace": str(work),
             }
             command = [str(prepared.executable), "--batch"]

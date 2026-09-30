@@ -6,16 +6,16 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from spa.application import dispatch
-from spa.contracts import Diagnostics, FailureEnvelope
-from spa.failure_registry import FAILURE_CODES
-from spa.file_adapter import LocalArtifactFiles, LocalTargetFiles
-from spa.paint_composite import (
+from spa.adapters.files import LocalArtifactFiles, LocalTargetFiles
+from spa.application.dispatch import dispatch
+from spa.application.failure_registry import FAILURE_CODES
+from spa.authoring.raster.paint_composite import (
     COMPOSITE_OPERATIONS,
     PaintCompositeRequest,
     composite_capability_gaps,
 )
-from spa.ports import KernelInvocationResult, OperationServices
+from spa.contracts.ports import KernelInvocationResult, OperationServices
+from spa.contracts.public import Diagnostics, FailureEnvelope
 from tests.support import runtime_observation
 
 

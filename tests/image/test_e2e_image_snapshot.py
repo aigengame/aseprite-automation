@@ -5,15 +5,16 @@ import os
 import struct
 import subprocess
 import tempfile
+from importlib.resources import files
 from pathlib import Path
 
 import pytest
 from jsonschema import validate
 
-from spa.contracts import RuntimeRequest
-from spa.descriptors import PROBE_RESOURCES
-from spa.runtime.aseprite import probe
-from spa.runtime.invocation import prepare_invocation
+from spa.adapters.aseprite.aseprite import probe
+from spa.adapters.aseprite.invocation import prepare_invocation
+from spa.application.surface import PROBE_RESOURCES
+from spa.contracts.public import RuntimeRequest
 from tests.support import inject_palette_change, spa
 
 pytestmark = pytest.mark.e2e
@@ -261,7 +262,7 @@ def test_composition_restores_preferences_and_visibility_on_success_and_failure(
         RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
     )
     output = tmp_path / "context.json"
-    kernel = Path(__file__).parents[2] / "src/spa/kernel"
+    kernel = files("spa.kernel")
     with tempfile.TemporaryDirectory(prefix="spa-composition-context-") as work:
         prepared = prepare_invocation(
             Path(observation.canonical_path),
@@ -271,9 +272,9 @@ def test_composition_restores_preferences_and_visibility_on_success_and_failure(
         args = [str(prepared.executable), "--batch"]
         for name, value in {
             "out": output,
-            "layer_composition": kernel / "layer_composition.lua",
-            "effective_palette": kernel / "effective_palette.lua",
-            "layer_select": kernel / "layer_select.lua",
+            "layer_composition": kernel.joinpath("raster/image/layer_composition.lua"),
+            "effective_palette": kernel.joinpath("color/effective_palette.lua"),
+            "layer_select": kernel.joinpath("document/layer/layer_select.lua"),
             "output_mode": output_mode,
         }.items():
             args.extend(("--script-param", f"{name}={value}"))

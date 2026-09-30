@@ -4,14 +4,15 @@ import json
 import os
 import subprocess
 import tempfile
+from importlib.resources import files
 from pathlib import Path
 
 import pytest
 
-from spa.contracts import RuntimeRequest
-from spa.descriptors import PROBE_RESOURCES
-from spa.runtime.aseprite import probe
-from spa.runtime.invocation import prepare_invocation
+from spa.adapters.aseprite.aseprite import probe
+from spa.adapters.aseprite.invocation import prepare_invocation
+from spa.application.surface import PROBE_RESOURCES
+from spa.contracts.public import RuntimeRequest
 from tests.paint.support import call_spa
 from tests.support import inject_palette_change
 
@@ -348,7 +349,7 @@ def test_indexed_helper_closes_scratch_and_restores_context_after_error(
     observation = probe(
         RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
     )
-    support = Path(__file__).parents[2] / "src" / "spa" / "kernel"
+    support = files("spa.kernel")
     output = tmp_path / "helper.json"
     with tempfile.TemporaryDirectory(prefix="spa-composite-helper-") as work:
         prepared = prepare_invocation(
@@ -360,11 +361,15 @@ def test_indexed_helper_closes_scratch_and_restores_context_after_error(
         for key, value in {
             "kind": "helper",
             "out": str(output),
-            "paint_composite": str(support / "paint_composite_support.lua"),
-            "image_snapshot": str(support / "image_snapshot.lua"),
-            "raster_color": str(support / "raster_color.lua"),
-            "effective_palette": str(support / "effective_palette.lua"),
-            "selection_mask": str(support / "selection_mask.lua"),
+            "paint_composite": str(
+                support.joinpath("raster/paint/paint_composite_support.lua")
+            ),
+            "image_snapshot": str(support.joinpath("raster/image/image_snapshot.lua")),
+            "raster_color": str(support.joinpath("raster/raster_color.lua")),
+            "effective_palette": str(support.joinpath("color/effective_palette.lua")),
+            "selection_mask": str(
+                support.joinpath("raster/selection/selection_mask.lua")
+            ),
         }.items():
             args.extend(("--script-param", f"{key}={value}"))
         args.extend(

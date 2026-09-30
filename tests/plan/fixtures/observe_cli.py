@@ -5,8 +5,8 @@ import runpy
 import sys
 from pathlib import Path
 
-from spa import file_adapter
-from spa.runtime import aseprite
+from spa.adapters import files as file_adapter
+from spa.adapters.aseprite import aseprite
 
 case, observations_file, cli, *arguments = sys.argv[1:]
 observations = {"native_invocations": 0, "commits": 0}

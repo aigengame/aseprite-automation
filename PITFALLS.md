@@ -123,7 +123,7 @@ another environment can have different capabilities._
   environment-specific adaptation.
 - **Prevention:** Use SPA's normal runtime path. When a repository maintenance script
   must invoke Aseprite directly, consider reusing
-  `spa.runtime.invocation.prepare_invocation()` with a task-scoped writable workspace
+  `spa.adapters.aseprite.invocation.prepare_invocation()` with a task-scoped writable workspace
   instead of launching the bundle binary itself.
 - **Recovery:** Retry the same script through `prepare_invocation()` and verify its
   expected output before classifying the failure as a Lua or Aseprite behavior defect.
