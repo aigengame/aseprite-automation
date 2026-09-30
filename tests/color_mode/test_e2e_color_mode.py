@@ -633,3 +633,29 @@ def test_in_place_conversion_commits_only_after_verified_reopen(tmp_path, runtim
     )
     assert code != 0 and rejected["code"] == "color_mode_mismatch", rejected
     assert source.read_bytes() == stable
+
+
+def test_shared_owner_restores_editor_state_on_success_and_failure(tmp_path, runtime):
+    from importlib.resources import files
+
+    from spa.authoring.color.color_mode import COLOR_MODE_RESOURCES
+
+    source, invalid = tmp_path / "source.aseprite", tmp_path / "invalid.bmp"
+    make_source(source, runtime)
+    original = source.read_bytes()
+    invalid.write_bytes(b"invalid image")
+    native_script(
+        runtime,
+        "state_restoration.lua",
+        source=source,
+        invalid_matrix=invalid,
+        workspace=tmp_path,
+        aseprite_data=Path(runtime.resource_path).parent,
+        **{
+            resource.parameter_name: str(
+                files("spa.kernel").joinpath(resource.package_path)
+            )
+            for resource in COLOR_MODE_RESOURCES
+        },
+    )
+    assert source.read_bytes() == original

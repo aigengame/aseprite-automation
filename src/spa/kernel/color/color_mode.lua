@@ -17,7 +17,7 @@ function module.observe(sprite)
     seen[image.id] = number
     local palette_frame = null
     if frame then
-      local _palette, change = effective.resolve(sprite, frame)
+      local _, change = effective.resolve(sprite, frame)
       palette_frame = change
     end
     local indexes = null
@@ -224,7 +224,8 @@ local function change(sprite, conversion)
     if target.dithering then
       command.dithering = target.dithering.algorithm
       command.ditheringFactor = target.dithering.dithering_factor
-      local matrix, path, failed = nil, nil, nil
+      local matrix
+      local path, failed
       if command.dithering == "ordered" or command.dithering == "old" then
         matrix, path, failed = resolve_matrix(target.dithering.matrix)
         if failed then return failed end
