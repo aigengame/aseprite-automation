@@ -672,6 +672,7 @@ factor and native effective integer percentage. Ordered/old optionally take
 `matrix: {kind: "installed", id: "bayer4x4"}` or
 `matrix: {kind: "file", path: "/absolute/matrix.bmp"}`; neither accepts a factor.
 An omitted matrix means native Bayer 8×8, reported with `native-default` provenance.
+Explicit `matrix: null` is rejected.
 Installed IDs resolve uniquely among the selected Aseprite installation's
 `data/extensions` manifests; SPA starts with isolated user configuration. A custom
 matrix outside that installation can be selected by file path. Requested files are

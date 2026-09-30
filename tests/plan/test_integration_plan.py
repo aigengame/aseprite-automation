@@ -710,3 +710,55 @@ cp {shlex.quote(str(response_file))} "$response_file"
     failure = json.loads(run.stdout)
     assert failure["code"] == "runtime_incompatible"
     assert failure["details"]["missing_capabilities"] == ["aseprite_sprite_inspection"]
+
+
+@pytest.mark.parametrize("operation", ["cel add", "cel set"])
+@pytest.mark.parametrize("code", ["color_mode_mismatch", "dithering_matrix_invalid"])
+def test_color_mode_failure_cannot_travel_through_a_cel_rejection(
+    tmp_path, operation, code
+):
+    from dataclasses import replace
+
+    from spa.adapters.files import LocalTargetFiles
+    from spa.application.plan import PlanRunRequest, run_plan
+    from spa.contracts.ports import KernelInvocationResult, RuntimeIssue
+    from spa.contracts.public import Diagnostics
+    from tests.support import operation_services, runtime_observation
+
+    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
+    source.write_bytes(b"original source")
+    step_input = {"target": {"layer": {"layer_path": [1]}, "frame_number": 1}}
+    if operation == "cel set":
+        step_input["opacity"] = 128
+    request = PlanRunRequest.model_validate(
+        {
+            "plan": {
+                "source_sprite_file": str(source),
+                "target_sprite_file": str(target),
+                "steps": [{"operation": operation, "input": step_input}],
+            }
+        }
+    )
+
+    def invoke(_request, _handler, _payload, _timeout):
+        return KernelInvocationResult(
+            payload={
+                "cel_rejection": {
+                    "step_number": 1,
+                    "code": code,
+                    "message": "wrong owner",
+                }
+            },
+            response_path="/response.json",
+            diagnostics=Diagnostics(exit_status=0),
+        )
+
+    services = replace(
+        operation_services(lambda _: runtime_observation()),
+        invoke_kernel_direct=invoke,
+        target_files=LocalTargetFiles(),
+    )
+    with pytest.raises(RuntimeIssue, match="invalid Cel rejection"):
+        run_plan(request, services)
+    assert source.read_bytes() == b"original source"
+    assert not target.exists()

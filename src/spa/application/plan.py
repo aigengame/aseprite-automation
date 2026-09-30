@@ -865,14 +865,12 @@ def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunRes
             message = cel_rejection.get("message")
             add_codes = {
                 *LAYER_ADDRESS_FAILURE_CODES,
-                *(item.code for item in COLOR_MODE_FAILURE_SPECS),
                 "cel_already_exists",
                 "cel_unsupported_target",
                 "cel_frame_out_of_bounds",
             }
             set_codes = {
                 *LAYER_ADDRESS_FAILURE_CODES,
-                *(item.code for item in COLOR_MODE_FAILURE_SPECS),
                 "cel_not_found",
                 "cel_unsupported_target",
                 "cel_frame_out_of_bounds",

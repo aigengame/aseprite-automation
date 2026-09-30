@@ -64,7 +64,18 @@ class NoDithering(PublicModel):
 
 class MatrixDithering(PublicModel):
     algorithm: Literal["ordered", "old"]
-    matrix: Matrix | None = None
+    matrix: Matrix | None = Field(
+        default=None, json_schema_extra=lambda schema: schema.pop("default", None)
+    )
+
+    @field_validator("matrix", mode="before", json_schema_input_type=Matrix)
+    @classmethod
+    def reject_null_matrix(cls, value: object) -> object:
+        if value is None:
+            raise ValueError(
+                "Matrix cannot be null; omit it to select the native default"
+            )
+        return value
 
 
 class ErrorDiffusion(PublicModel):
@@ -417,14 +428,16 @@ def validate_evidence(request: ColorModeInput, evidence: ColorModeEvidence) -> N
     ):
         raise ValueError("To Gray evidence differs from the requested conversion")
     if isinstance(options, IndexedTarget):
-        expected_mapping = MappingEvidence(
-            requested_rgb_map_algorithm=options.rgb_map_algorithm,
-            effective_rgb_map_algorithm="octree"
-            if options.rgb_map_algorithm == "default"
-            else options.rgb_map_algorithm,
-            color_best_fit_criteria=options.color_best_fit_criteria,
-        )
-        if evidence.mapping != expected_mapping:
+        mapping = evidence.mapping
+        if (
+            mapping is None
+            or mapping.requested_rgb_map_algorithm != options.rgb_map_algorithm
+            or mapping.color_best_fit_criteria != options.color_best_fit_criteria
+            or (
+                options.rgb_map_algorithm != "default"
+                and mapping.effective_rgb_map_algorithm != options.rgb_map_algorithm
+            )
+        ):
             raise ValueError("Native mapping evidence differs from explicit choices")
     elif evidence.mapping is not None:
         raise ValueError("Inapplicable native mapping evidence")
