@@ -273,6 +273,7 @@ def test_merge_compositing_ignores_both_ambient_preference_values(
                     kernel.joinpath("document/sprite/sprite_inspect.lua")
                 ),
                 "layer_select": str(kernel.joinpath("document/layer/layer_select.lua")),
+                "cel": str(kernel.joinpath("document/cel/cel_support.lua")),
                 "mutation": str(
                     kernel.joinpath("document/layer/layer_mutation_support.lua")
                 ),

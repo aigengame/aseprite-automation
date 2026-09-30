@@ -22,6 +22,7 @@ def run_verified_save(tmp_path: Path, case: str) -> None:
         str(Path(__file__).parent / "fixtures" / "verified_save.lua"),
         persistence=str(kernel.joinpath("document/sprite/sprite_persistence.lua")),
         inspection=str(kernel.joinpath("document/sprite/sprite_inspect.lua")),
+        layer_select=str(kernel.joinpath("document/layer/layer_select.lua")),
         digest=str(kernel.joinpath("foundation/digest.lua")),
         staged=str(tmp_path / "staged.aseprite"),
         case=case,

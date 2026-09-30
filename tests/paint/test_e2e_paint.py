@@ -781,6 +781,8 @@ def test_apply_ignores_ambient_editor_selection(tmp_path: Path) -> None:
                 "--script-param",
                 f"paint={support.joinpath('raster/paint/paint_apply_support.lua')}",
                 "--script-param",
+                f"layer_select={support.joinpath('document/layer/layer_select.lua')}",
+                "--script-param",
                 f"raster_color={support.joinpath('raster/raster_color.lua')}",
                 "--script-param",
                 f"effective_palette={support.joinpath('color/effective_palette.lua')}",
