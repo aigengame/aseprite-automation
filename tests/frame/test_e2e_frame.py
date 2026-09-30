@@ -47,7 +47,7 @@ def _run_fixture(name: str, **params: str) -> None:
             check=False,
             env=prepared.environment,
         )
-    assert run.returncode == 0, run.stderr
+    assert run.returncode == 0, run.stdout + run.stderr
 
 
 def _tagged_sprite(target: Path) -> None:

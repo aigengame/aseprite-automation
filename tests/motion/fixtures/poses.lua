@@ -2,6 +2,7 @@
 local modes = { rgb = ColorMode.RGB, grayscale = ColorMode.GRAY, indexed = ColorMode.INDEXED }
 local mode = modes[app.params.mode or "rgb"]
 local sprite = Sprite(24, 20, mode)
+sprite.useLayerUuids = app.params.uuids == "true"
 if mode == ColorMode.INDEXED then sprite.transparentColor = tonumber(app.params.mask or "0") end
 local layer = sprite.layers[1]
 layer.name = app.params.artwork or "wizard"
