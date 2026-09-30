@@ -21,6 +21,27 @@ local image_orientation_transform = app.params.image_orientation_transform
     and dofile(app.params.image_orientation_transform)
   or nil
 
+local function observes_change_color_mode()
+  if not app.params.color_mode then return false end
+  local color_mode = dofile(app.params.color_mode)
+  local persistence = dofile(app.params.persistence)
+  local sprite = nil
+  local ok = pcall(function()
+    sprite = Sprite(1, 1, ColorMode.RGB)
+    sprite.cels[1].image:drawPixel(0, 0, app.pixelColor.rgba(255, 0, 0, 255))
+    local result = color_mode.change(sprite, {
+      source_color_mode = "rgb",
+      target = { color_mode = "grayscale", to_gray = "luma" },
+    })
+    assert(result.changed and result.after.images[1].bytes_per_pixel == 2)
+    sprite = persistence.save_verified(sprite, app.params.capability_sprite, {}, "Color Mode probe")
+    persistence.assert_equal(result.after, color_mode.observe(sprite), "Color Mode probe")
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  os.remove(app.params.capability_sprite)
+  return ok
+end
+
 local function observes_palette_entries()
   if app.params.palette == nil or app.params.persistence == nil then return false end
   local palettes = dofile(app.params.palette)
@@ -903,6 +924,9 @@ function module.observe()
     if ok then capabilities[#capabilities + 1] = "aseprite_selection" end
   end
   local supports_inspection = observes_sprite_inspection()
+  if observes_change_color_mode() then
+    capabilities[#capabilities + 1] = "aseprite_change_color_mode"
+  end
   if observes_palette_entries() then
     capabilities[#capabilities + 1] = "aseprite_palette_entries"
   end

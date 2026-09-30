@@ -2,6 +2,7 @@
 
 from spa.application.failure_registry import FAILURE_CODES
 from spa.application.plan import PLAN_OPERATIONS
+from spa.authoring.color.color_mode import COLOR_MODE_OPERATIONS, COLOR_MODE_RESOURCE
 from spa.authoring.color.palette import (
     PALETTE_OPERATIONS,
     PALETTE_PROBE_RESOURCES,
@@ -58,6 +59,7 @@ from spa.contracts.public import (
 from spa.delivery.export import EXPORT_OPERATIONS, EXPORT_PROBE_RESOURCES
 
 PROBE_RESOURCES = (
+    COLOR_MODE_RESOURCE,
     *PALETTE_PROBE_RESOURCES,
     *NATIVE_PAINT_RESOURCES,
     *SPRITE_PROBE_RESOURCES,
@@ -248,6 +250,7 @@ OPERATIONS = (
     *IMAGE_OPERATIONS,
     *TAG_OPERATIONS,
     *PALETTE_OPERATIONS,
+    *COLOR_MODE_OPERATIONS,
     *EXPORT_OPERATIONS,
     *ANIMATION_OPERATIONS,
     *PLAN_OPERATIONS,
