@@ -47,11 +47,7 @@ def test_effective_palette_resolves_change_points_without_active_frame_state(
             arguments.extend(
                 (
                     "--script",
-                    str(
-                        Path(__file__).parent
-                        / "fixtures"
-                        / "color/effective_palette.lua"
-                    ),
+                    str(Path(__file__).parent / "fixtures" / "effective_palette.lua"),
                 )
             )
             run = subprocess.run(
