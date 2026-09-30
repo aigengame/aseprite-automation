@@ -419,8 +419,91 @@ def test_file_matrix_matches_installed_matrix_and_native_pixels(
     )
 
 
+@pytest.mark.parametrize("algorithm", ["ordered", "old"])
+@pytest.mark.parametrize("via_plan", [False, True])
+def test_matrix_image_can_extend_beyond_canvas(tmp_path, runtime, algorithm, via_plan):
+    source = tmp_path / "source.aseprite"
+    make_source(source, runtime, scene=True)
+    original = source.read_bytes()
+    matrices = [tmp_path / f"matrix-{size}.aseprite" for size in (2, 4)]
+    for matrix, size in zip(matrices, (2, 4), strict=True):
+        native_script(
+            runtime,
+            "matrix_coverage.lua",
+            target=matrix,
+            image_width=size,
+            image_height=size,
+        )
+    conversion = conversion_for("rgb", "indexed")
+    conversion["target"]["dithering"] = {"algorithm": algorithm}
+    code, default = convert(source, tmp_path / "default.aseprite", conversion)
+    assert code == 0, default
+    conversion["target"]["dithering"]["matrix"] = {
+        "kind": "file",
+        "path": str(matrices[0]),
+    }
+    code, equivalent = convert(source, tmp_path / "equivalent.aseprite", conversion)
+    assert code == 0, equivalent
+    assert equivalent["after"] != default["after"]
+    for matrix in matrices:
+        # The independent native command must produce the same pixels for both
+        # Images, and differ from omitted Bayer 8x8 to rule out native fallback.
+        reference_dir = tmp_path / f"native-{matrix.stem}"
+        reference_dir.mkdir()
+        assert_native_reference(
+            reference_dir,
+            runtime,
+            source,
+            equivalent,
+            {
+                "format": "indexed",
+                "rgbmap": "default",
+                "fitCriteria": "default",
+                "dithering": algorithm,
+                "ditheringMatrix": str(matrix),
+            },
+        )
+    conversion["target"]["dithering"]["matrix"]["path"] = str(matrices[1])
+    target = tmp_path / "target.aseprite"
+    if via_plan:
+        code, result = run(
+            "plan",
+            "run",
+            plan={
+                "source_sprite_file": str(source),
+                "target_sprite_file": str(target),
+                "steps": [
+                    {
+                        "operation": "sprite change-color-mode",
+                        "input": {"conversion": conversion},
+                    }
+                ],
+            },
+        )
+    else:
+        code, result = convert(source, target, conversion)
+    assert code == 0, result
+    assert result["persisted_reopen_verified"] is True
+    evidence = result["steps"][0]["result"] if via_plan else result
+    assert evidence["after"] == equivalent["after"]
+    matrix = evidence["dithering"]["matrix"]
+    assert matrix["width"] == matrix["height"] == 2
+    assert matrix["provenance"] == "file"
+    assert matrix["resolved_path"] == str(matrices[1])
+    assert source.read_bytes() == original
+
+
 @pytest.mark.parametrize(
-    "failure", ["missing-id", "missing-file", "invalid", "unreadable", "wrong-source"]
+    "failure",
+    [
+        "missing-id",
+        "missing-file",
+        "invalid",
+        "unreadable",
+        "undersized-width",
+        "undersized-height",
+        "wrong-source",
+    ],
 )
 @pytest.mark.parametrize("via_plan", [False, True])
 def test_preflight_failure_preserves_existing_source_and_target(
@@ -432,6 +515,15 @@ def test_preflight_failure_preserves_existing_source_and_target(
     target.write_bytes(b"existing target must survive")
     conversion = conversion_for("rgb", "indexed")
     matrix = tmp_path / "matrix.bmp"
+    if failure.startswith("undersized-"):
+        matrix = matrix.with_suffix(".aseprite")
+        native_script(
+            runtime,
+            "matrix_coverage.lua",
+            target=matrix,
+            image_width=1 if failure == "undersized-width" else 2,
+            image_height=1 if failure == "undersized-height" else 2,
+        )
     if failure == "missing-id":
         selected = {"kind": "installed", "id": "Bayer8x8-does-not-exist"}
     else:
@@ -483,6 +575,8 @@ def test_preflight_failure_preserves_existing_source_and_target(
         assert result["details"]["step_number"] == 2
     if failure in {"unreadable", "invalid"}:
         assert result["details"]["reason"] == failure
+    if failure.startswith("undersized-"):
+        assert result["details"]["reason"] == "invalid"
     assert source.read_bytes() == original
     assert target.read_bytes() == b"existing target must survive"
     assert not list(tmp_path.glob("*.stage*"))

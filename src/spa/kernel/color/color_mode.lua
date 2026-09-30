@@ -175,7 +175,7 @@ local function resolve_matrix(requested)
     local first = assert(matrix.layers[1], "Matrix has no first Layer")
     local cel = assert(first:cel(1), "Matrix has no first Frame Cel")
     assert(
-      cel.image.width == matrix.width and cel.image.height == matrix.height,
+      cel.image.width >= matrix.width and cel.image.height >= matrix.height,
       "Matrix Image does not cover its native dimensions"
     )
     return { width = matrix.width, height = matrix.height }
