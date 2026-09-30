@@ -1,6 +1,7 @@
 -- Paint-owned exact Pixel Patch semantics shared by the handler and capability probe.
 local module = {}
-local layer_selection = dofile(app.params.layer_select)
+local layer_selection =
+  dofile(assert(app.params.layer_select, "Missing Kernel resource: layer_select"))
 local selections = dofile(app.params.selection_mask)
 local colors = dofile(app.params.raster_color)
 local max_patch_pixels = 256

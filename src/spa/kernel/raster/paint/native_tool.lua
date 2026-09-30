@@ -1,7 +1,8 @@
 -- Private native Paint invocation. The caller owns clipping, Selection Application,
 -- and the final write into the original shared Image.
 local module = {}
-local layer_selection = dofile(app.params.layer_select)
+local layer_selection =
+  dofile(assert(app.params.layer_select, "Missing Kernel resource: layer_select"))
 local masks = dofile(app.params.selection_mask)
 
 local brush_types = {

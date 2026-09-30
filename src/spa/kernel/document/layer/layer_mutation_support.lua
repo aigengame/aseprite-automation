@@ -1,6 +1,6 @@
 -- Exact Layer mutation, impact facts, and staged persistence verification.
 local module = {}
-local cel_rules = dofile(app.params.cel)
+local cel_rules = dofile(assert(app.params.cel, "Missing Kernel resource: cel"))
 local palettes = dofile(app.params.effective_palette)
 local all_sections = { "frames", "tags", "palettes", "layers", "cels", "slices", "tilesets" }
 local result_sections = { "layers", "cels" }

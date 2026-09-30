@@ -1,6 +1,7 @@
 -- Cel-owned inspection and lifecycle semantics over exact Layer/Frame addresses.
 local module = {}
-local layer_selection = dofile(app.params.layer_select)
+local layer_selection =
+  dofile(assert(app.params.layer_select, "Missing Kernel resource: layer_select"))
 local json_null = json.decode("null")
 
 local function rejection(code, message) return { rejection = { code = code, message = message } } end

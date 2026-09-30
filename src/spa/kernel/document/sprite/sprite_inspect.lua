@@ -1,6 +1,7 @@
 -- Shared fixed inspection semantics for packaged Sprite handlers.
 local module = {}
-local layer_selection = dofile(app.params.layer_select)
+local layer_selection =
+  dofile(assert(app.params.layer_select, "Missing Kernel resource: layer_select"))
 local json_null = json.decode("null")
 
 local function rgba(color)

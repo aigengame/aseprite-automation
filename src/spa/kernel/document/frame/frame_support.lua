@@ -1,6 +1,7 @@
 -- Frame insertion and shared Background Color validation over native Sprite facts.
 local module = {}
-local layer_selection = dofile(app.params.layer_select)
+local layer_selection =
+  dofile(assert(app.params.layer_select, "Missing Kernel resource: layer_select"))
 local palettes = dofile(app.params.effective_palette)
 local json_null = json.decode("null")
 local all_sections = {

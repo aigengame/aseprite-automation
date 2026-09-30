@@ -1,6 +1,6 @@
 -- Exact declared audit and native full-canvas animation rendering.
 local module = {}
-local cels = dofile(app.params.cel)
+local cels = dofile(assert(app.params.cel, "Missing Kernel resource: cel"))
 local selection = dofile(assert(app.params.layer_select))
 local inspection = dofile(assert(app.params.inspection))
 local exporter = dofile(assert(app.params.export_image_support))
