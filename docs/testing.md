@@ -10,6 +10,7 @@ verification tier. The layout does not mirror source packages or CLI Command Gro
 | `tests/application/` | Application orchestration, including compatibility checks before Operation execution. |
 | `tests/ci/` | CI target selection, native test execution policy, and pre-merge evidence checks. |
 | `tests/cli/` | Access Projection through the installed CLI and its in-process projections. |
+| `tests/color_mode/` | Conditional Color Mode choices, native mapping/Dithering, complete Sprite and Plan conversion evidence. |
 | `tests/contracts/` | Shared Published Language rules, including Failure Code registration and Operation Descriptor constraints. |
 | `tests/export/` | Image Export contract, PNG Artifact verification and publication, and real Aseprite output evidence. |
 | `tests/examples/` | Installed-CLI workflows, deterministic asset production, and checked-in downstream asset agreement. |
@@ -54,6 +55,14 @@ bounds rejection, an injected failure after native invocation, and failed reopen
 Discovery tests require the version-specific Gradient Capability Gap and callable
 Contour/Blur without invoking Gradient's unsafe headless Context Bar path. This
 delivery combination follows issue #28; it does not establish a callable Gradient.
+
+Change Color Mode #33 compares conversion output with independent native
+`app.command.ChangePixelFormat` calls for every RGB Map and Color Best Fit choice,
+To Gray choice, Dithering algorithm, and Factor boundaries. Fixtures include
+Frame-varying Palettes, Alpha/Transparent Color Index, Background and linked Cels,
+Tilemaps, and unreferenced Tilesets. Tests cover all source/target pairs, typed
+Matrix resolution failures, standalone/Plan parity, in-place intent, rollback, and
+save/close/reopen. These are batch tests and require no windowed graphics session.
 
 ## Verification tiers
 

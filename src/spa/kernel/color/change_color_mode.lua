@@ -13,6 +13,7 @@ local function execute()
   sprite = assert(app.open(payload.source_sprite_file), "could not open Source Sprite File")
   local uuids = inspection.saved_layer_uuids(sprite, payload.source_sprite_file)
   local result = color_mode.change(sprite, payload.conversion)
+  if result.rejection then return result end
   sprite = persistence.save_verified(sprite, payload.staged_sprite_file, uuids, "Change Color Mode")
   local persisted = color_mode.observe(sprite)
   persistence.assert_equal(result.after, persisted, "Persisted Change Color Mode")

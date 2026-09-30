@@ -6,7 +6,21 @@ from typing import Annotated, Any, Literal, assert_never
 
 from pydantic import Field, ValidationError, model_validator
 
-from spa.authoring.color.palette import EFFECTIVE_PALETTE_RESOURCE
+from spa.authoring.color.color_mode import (
+    COLOR_MODE_FAILURE_SPECS,
+    COLOR_MODE_OPERATIONS,
+    COLOR_MODE_RESOURCE,
+    ColorModeEvidence,
+    ColorModeInput,
+    reject_color_mode,
+)
+from spa.authoring.color.color_mode import (
+    validate_evidence as validate_color_mode_evidence,
+)
+from spa.authoring.color.palette import (
+    EFFECTIVE_PALETTE_RESOURCE,
+    PALETTE_SUPPORT_RESOURCE,
+)
 from spa.authoring.document.cel import (
     CEL_OPERATIONS,
     CEL_SELECT_RESOURCE,
@@ -116,6 +130,7 @@ ELIGIBLE_OPERATIONS = {
         *CEL_OPERATIONS,
         *CEL_RELATIONSHIP_OPERATIONS,
         *MOTION_OPERATIONS,
+        *COLOR_MODE_OPERATIONS,
     )
     if descriptor.plan_eligible
 }
@@ -129,6 +144,8 @@ PLAN_RUN_HANDLER = PackagedHandler(
         PAINT_SUPPORT_RESOURCE,
         RASTER_COLOR_RESOURCE,
         EFFECTIVE_PALETTE_RESOURCE,
+        PALETTE_SUPPORT_RESOURCE,
+        COLOR_MODE_RESOURCE,
         SELECTION_MASK_RESOURCE,
         FRAME_SUPPORT_RESOURCE,
         CEL_SUPPORT_RESOURCE,
@@ -201,6 +218,11 @@ class MotionStep(PublicModel):
     input: MotionInput
 
 
+class ColorModeStep(PublicModel):
+    operation: Literal["sprite change-color-mode"]
+    input: ColorModeInput
+
+
 PlanStep = Annotated[
     CreateStep
     | GetStep
@@ -211,7 +233,8 @@ PlanStep = Annotated[
     | FrameDuplicateStep
     | CelAddStep
     | CelSetStep
-    | MotionStep,
+    | MotionStep
+    | ColorModeStep,
     Field(discriminator="operation"),
 ]
 
@@ -254,6 +277,14 @@ class PlanDefinition(PublicModel):
                     for step in self.steps
                 ),
             }
+            for step in self.steps:
+                if isinstance(step, ColorModeStep):
+                    conversion = step.input.conversion
+                    if conversion.source_color_mode != known["color_mode"]:
+                        raise ValueError(
+                            "Color Mode Step contradicts the preceding known Color Mode"
+                        )
+                    known["color_mode"] = conversion.target.color_mode
             for field, expected in self.postconditions.model_dump(
                 exclude_none=True
             ).items():
@@ -271,6 +302,7 @@ class PlanDefinition(PublicModel):
                     CelAddStep,
                     CelSetStep,
                     MotionStep,
+                    ColorModeStep,
                 ),
             )
             for step in self.steps
@@ -361,6 +393,15 @@ class MotionStepResult(MotionEvidence):
     persisted_reopen_verified: Literal[False]
 
 
+class ColorModeStepResult(ColorModeEvidence):
+    persisted_reopen_verified: Literal[False]
+
+
+class ColorModeStepOutcome(PublicModel):
+    operation: Literal["sprite change-color-mode"]
+    result: ColorModeStepResult
+
+
 class CreateStepOutcome(PublicModel):
     operation: Literal["sprite create"]
     result: CreateStepResult
@@ -421,7 +462,8 @@ StepOutcome = Annotated[
     | FrameDuplicateStepOutcome
     | CelAddStepOutcome
     | CelSetStepOutcome
-    | MotionStepOutcome,
+    | MotionStepOutcome
+    | ColorModeStepOutcome,
     Field(discriminator="operation"),
 ]
 
@@ -588,6 +630,14 @@ def _validated_steps(
             ),
         )
     outcomes: list[StepOutcome] = []
+    mode = next(
+        (
+            step.input.conversion.source_color_mode
+            for step in request.plan.steps
+            if isinstance(step, ColorModeStep)
+        ),
+        canvas.color_mode,
+    )
     for index, (step, item) in enumerate(zip(request.plan.steps, raw, strict=True), 1):
         if not isinstance(item, dict) or item.get("operation") != step.operation:
             raise _malformed(
@@ -648,11 +698,22 @@ def _validated_steps(
             elif isinstance(step, MotionStep):
                 outcome = MotionStepOutcome.model_validate(item)
                 validate_motion_evidence(step.input, outcome.result, invocation)
+            elif isinstance(step, ColorModeStep):
+                outcome = ColorModeStepOutcome.model_validate(item)
+                validate_color_mode_evidence(step.input, outcome.result)
+                if outcome.result.source_color_mode != mode:
+                    raise ValueError("Color Mode Step sequence is inconsistent")
+                mode = outcome.result.target_color_mode
             elif isinstance(step, CelAddStep):
                 outcome = CelAddStepOutcome.model_validate(item)
                 target = step.input.target
                 before, after = outcome.result.before, outcome.result.cel
-                validate_added_cel(step.input, after, canvas, invocation)
+                validate_added_cel(
+                    step.input,
+                    after,
+                    canvas.model_copy(update={"color_mode": mode}),
+                    invocation,
+                )
                 if (
                     before.exists
                     or before.frame_number != target.frame_number
@@ -683,6 +744,10 @@ def _validated_steps(
                 failed_operation=step.operation,
             ) from exc
         outcomes.append(outcome)
+    if mode != canvas.color_mode:
+        raise _malformed(
+            invocation, "Final Sprite Color Mode differs from Step sequence"
+        )
     return outcomes
 
 
@@ -701,6 +766,8 @@ def _validate_cel_count_sequence(
         elif isinstance(outcome, CelAddStepOutcome):
             cel_count -= 1
             reported_count = outcome.result.before_cel_count
+        elif isinstance(outcome, ColorModeStepOutcome):
+            reported_count = len(outcome.result.before.cels)
         elif isinstance(outcome, (CelSetStepOutcome, MotionStepOutcome)):
             reported_count = outcome.result.before_cel_count
         elif isinstance(outcome, (FrameAddStepOutcome, FrameDuplicateStepOutcome)):
@@ -748,6 +815,21 @@ def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunRes
         invocation = services.invoke_kernel_direct(
             request, PLAN_RUN_HANDLER, payload, request.timeout_seconds
         )
+        rejected_color_mode = invocation.payload.get("color_mode_rejection")
+        if rejected_color_mode is not None:
+            index = (
+                rejected_color_mode.get("step_number")
+                if isinstance(rejected_color_mode, dict)
+                else None
+            )
+            if (
+                type(index) is not int
+                or not 1 <= index <= len(plan.steps)
+                or not isinstance(plan.steps[index - 1], ColorModeStep)
+            ):
+                raise _malformed(invocation, "Invalid Color Mode rejection Step")
+            reject_color_mode(invocation, rejected_color_mode.get("rejection"), index)
+            raise _malformed(invocation, "Missing Color Mode rejection")
         cel_rejection = invocation.payload.get("cel_rejection")
         if cel_rejection is not None:
             if not isinstance(cel_rejection, dict):
@@ -783,12 +865,14 @@ def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunRes
             message = cel_rejection.get("message")
             add_codes = {
                 *LAYER_ADDRESS_FAILURE_CODES,
+                *(item.code for item in COLOR_MODE_FAILURE_SPECS),
                 "cel_already_exists",
                 "cel_unsupported_target",
                 "cel_frame_out_of_bounds",
             }
             set_codes = {
                 *LAYER_ADDRESS_FAILURE_CODES,
+                *(item.code for item in COLOR_MODE_FAILURE_SPECS),
                 "cel_not_found",
                 "cel_unsupported_target",
                 "cel_frame_out_of_bounds",
@@ -989,6 +1073,7 @@ PLAN_OPERATIONS = (
         (
             *RUNTIME_FAILURE_CODES,
             *LAYER_ADDRESS_FAILURE_CODES,
+            *(item.code for item in COLOR_MODE_FAILURE_SPECS),
             "cel_already_exists",
             "cel_not_found",
             "cel_unsupported_target",

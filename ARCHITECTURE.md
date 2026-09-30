@@ -500,6 +500,7 @@ src/spa/
       paint.py, paint_composite.py, paint_native.py
     color/
       palette.py          # Palette Change reads, Entry edits, and Effective Palette binding
+      color_mode.py       # Conditional native conversion contract and evidence
   delivery/
     export.py             # Export Image contract, native invocation, and result
     png_publication.py    # staged PNG verification/publication for Export and Preview
@@ -513,13 +514,22 @@ src/spa/
     raster/
       image/, paint/, selection/
       raster_color.lua
-    color/                # Palette Change semantics and Effective Palette resolution
+    color/                # Palette semantics, Effective Palette resolution, native Color Mode conversion
     delivery/             # native Image Export
     runtime/              # runtime and capability probes
       fixtures/           # real native probe inputs
     plan/                 # single-Sprite Plan execution
     foundation/           # digest and rounding algorithms
 ```
+
+`authoring/color/color_mode.py` owns Change Color Mode's conditional request and
+result contracts. `kernel/color/color_mode.lua` owns complete-Sprite native
+conversion, Effective Palette observations, and Dithering Matrix preflight. It
+accepts an attached Sprite without owning its publication. The standalone wrapper
+and Plan call that same owner, then verify native persistence before Target Commit.
+The process adapter supplies the selected installation's data directory as private
+invocation context. Matrix pixels and native mapping remain inside Aseprite; later
+export composition can reuse this owner on a disposable Sprite.
 
 Package initialization does not register Operations or re-export implementations.
 Access calls Application; Application composes feature contracts and inner-owned

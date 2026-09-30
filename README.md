@@ -645,10 +645,59 @@ These gaps do not indicate executable discovery failure and do not register
 callable commands. A future public seam needs save/close/reopen evidence before
 admission; the current boundary does not prevent that extension.
 
+### Change Color Mode
+
+`spa sprite change-color-mode` declares a `conversion.source_color_mode` expectation
+and a `conversion.target` branch. The live Sprite must match the source expectation.
+The same `conversion` input is available in a `sprite change-color-mode` Plan Step.
+
+| Source → Target | Required target fields besides `color_mode` |
+| --- | --- |
+| Same mode | None; reports `changed: false` and unchanged content |
+| RGB / Indexed → Grayscale | `to_gray`: `luma`, `hsv`, or `hsl` |
+| Grayscale / Indexed → RGB | None |
+| Grayscale → Indexed | `rgb_map_algorithm`, `color_best_fit_criteria` |
+| RGB → Indexed | `rgb_map_algorithm`, `color_best_fit_criteria`, `dithering` |
+
+RGB Map Algorithm accepts `default`, `rgb5a3`, or `octree`. Color Best Fit Criteria
+accepts `default`, `rgb`, `linearizedRGB`, `ciexyz`, or `cielab`. These are explicit
+native choices; omission and inapplicable fields are rejected. On the verified
+Aseprite baseline, native RGB Map `default` resolves to `octree`. Existing Effective
+Palettes supply conversion; this operation does not generate a Palette.
+
+Dithering is one of `{algorithm: "none"}`, `{algorithm: "ordered"}`, `{algorithm: "old"}`,
+or `{algorithm: "error-diffusion", dithering_factor: 0.5}`. Error Diffusion requires a
+finite factor from 0 through 1 and accepts no matrix. Its result includes the supplied
+factor and native effective integer percentage. Ordered/old optionally take
+`matrix: {kind: "installed", id: "bayer4x4"}` or
+`matrix: {kind: "file", path: "/absolute/matrix.bmp"}`; neither accepts a factor.
+An omitted matrix means native Bayer 8×8, reported with `native-default` provenance.
+Installed IDs resolve uniquely among the selected Aseprite installation's
+`data/extensions` manifests; SPA starts with isolated user configuration. A custom
+matrix outside that installation can be selected by file path. Requested files are
+snapshotted, loaded by Aseprite, and checked before conversion. Missing, ambiguous,
+unreadable, or invalid matrices fail without native fallback.
+
+```sh
+uv run spa sprite change-color-mode --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"indexed.aseprite","in_place":false,"overwrite":false,"conversion":{"source_color_mode":"rgb","target":{"color_mode":"indexed","rgb_map_algorithm":"default","color_best_fit_criteria":"default","dithering":{"algorithm":"none"}}}}'
+```
+
+Results report complete before/after Cel and Tile Image facts, shared Image numbers,
+Effective Palette change points, Transparent Color Index, Palette Index counts,
+and requested/effective mapping choices. Image content is a native-byte FNV-1a 64-bit
+digest. Image numbers address one observation and are not persistent identifiers.
+Linked Cels use their native representative Frame's Palette; Tiles use Frame 1.
+Tilemap cell indexes are preserved. Native conversion to Indexed makes Cel opacity
+255; conversion to Grayscale replaces Palette Changes with the native grayscale
+Palette. These effects are reported and verified after save/close/reopen. Plan
+Steps report live evidence with `persisted_reopen_verified: false`; their enclosing
+Plan verifies the final document, including Tile Images, before one Target Commit.
+
 `spa plan check` validates a bounded Plan, including current Source and Target path
 conditions, without starting Aseprite. `spa plan run`
 executes up to 64 Sprite-bound `sprite create`, `sprite get`, `frame list`,
-`frame get`, `frame add`, `frame duplicate`, `cel add`, `cel set`, `motion apply`, and `paint apply` Steps
+`frame get`, `frame add`, `frame duplicate`, `cel add`, `cel set`, `motion apply`,
+`paint apply`, and `sprite change-color-mode` Steps
 on one live Sprite in one Aseprite process. A read Plan publishes no file. A mutating
 Plan declares one Target Sprite File; the staged file is reopened and verified before
 one Target Commit. A failed Step publishes no target. Typed Cel refusals identify the

@@ -26,6 +26,7 @@ local function observes_change_color_mode()
   local color_mode = dofile(app.params.color_mode)
   local persistence = dofile(app.params.persistence)
   local sprite = nil
+  local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
   local ok = pcall(function()
     sprite = Sprite(1, 1, ColorMode.RGB)
     sprite.cels[1].image:drawPixel(0, 0, app.pixelColor.rgba(255, 0, 0, 255))
@@ -34,11 +35,41 @@ local function observes_change_color_mode()
       target = { color_mode = "grayscale", to_gray = "luma" },
     })
     assert(result.changed and result.after.images[1].bytes_per_pixel == 2)
+    result = color_mode.change(sprite, {
+      source_color_mode = "grayscale",
+      target = {
+        color_mode = "indexed",
+        rgb_map_algorithm = "default",
+        color_best_fit_criteria = "default",
+      },
+    })
+    assert(result.changed and result.after.images[1].bytes_per_pixel == 1)
+    result =
+      color_mode.change(sprite, { source_color_mode = "indexed", target = { color_mode = "rgb" } })
+    assert(result.changed and result.after.images[1].bytes_per_pixel == 4)
+    result = color_mode.change(
+      sprite,
+      {
+        source_color_mode = "rgb",
+        target = {
+          color_mode = "indexed",
+          rgb_map_algorithm = "octree",
+          color_best_fit_criteria = "rgb",
+          dithering = { algorithm = "ordered" },
+        },
+      }
+    )
+    assert(result.changed and result.dithering.matrix.identity == "bayer8x8")
     sprite = persistence.save_verified(sprite, app.params.capability_sprite, {}, "Color Mode probe")
     persistence.assert_equal(result.after, color_mode.observe(sprite), "Color Mode probe")
   end)
   if sprite ~= nil then pcall(function() sprite:close() end) end
   os.remove(app.params.capability_sprite)
+  if previous.sprite and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
   return ok
 end
 

@@ -83,12 +83,130 @@ function module.observe(sprite)
   }
 end
 
-function module.change(sprite, conversion)
+local function rejection(code, message, details)
+  return { rejection = { code = code, message = message, details = details } }
+end
+
+local function object(value) return type(value) == "table" or type(value) == "userdata" end
+
+local function installed_matrices(id)
+  -- Invocation isolates the user configuration. Installed IDs address the selected
+  -- installation's data/extensions; conversion uses the uniquely resolved file.
+  local root = app.fs.joinPath(assert(app.params.aseprite_data), "extensions")
+  local matches = {}
+  if not app.fs.isDirectory(root) then return matches end
+  for _, name in ipairs(app.fs.listFiles(root)) do
+    local directory = app.fs.joinPath(root, name)
+    local file = io.open(app.fs.joinPath(directory, "package.json"), "rb")
+    if file then
+      local bytes = file:read("*a")
+      file:close()
+      local ok, package = pcall(json.decode, bytes)
+      if
+        ok
+        and object(package)
+        and object(package.contributes)
+        and object(package.contributes.ditheringMatrices)
+      then
+        for _, entry in ipairs(package.contributes.ditheringMatrices) do
+          if
+            object(entry)
+            and entry.id == id
+            and type(entry.path) == "string"
+            and entry.path ~= ""
+          then
+            matches[#matches + 1] = app.fs.joinPath(directory, entry.path)
+          end
+        end
+      end
+    end
+  end
+  table.sort(matches)
+  return matches
+end
+
+local function resolve_matrix(requested)
+  if not requested then
+    return {
+      provenance = "native-default",
+      requested = null,
+      resolved_path = null,
+      identity = "bayer8x8",
+      width = 8,
+      height = 8,
+    },
+      nil
+  end
+  requested = requested.kind == "installed" and { kind = "installed", id = requested.id }
+    or { kind = "file", path = requested.path }
+  local matches = requested.kind == "installed" and installed_matrices(requested.id)
+    or { requested.path }
+  local function fail(reason)
+    return nil,
+      nil,
+      rejection(
+        "dithering_matrix_invalid",
+        "Dithering Matrix " .. reason,
+        { matrix = requested, reason = reason, matches = matches }
+      )
+  end
+  if #matches == 0 then return fail("missing") end
+  if #matches > 1 then return fail("ambiguous") end
+  local path = matches[1]
+  if path:sub(1, 1) ~= "/" then path = app.fs.joinPath(app.fs.currentPath, path) end
+  path = app.fs.normalizePath(path)
+  if not app.fs.isFile(path) then return fail("missing") end
+  local file = io.open(path, "rb")
+  if not file then return fail("unreadable") end
+  local bytes = file:read("*a")
+  file:close()
+  if not bytes then return fail("unreadable") end
+  -- Snapshot the requested bytes. Validation and conversion read this one private
+  -- file, so a changing external file cannot turn native loading into a fallback.
+  local staged =
+    app.fs.joinPath(assert(app.params.workspace), "dithering-matrix." .. app.fs.fileExtension(path))
+  local copy = assert(io.open(staged, "wb"), "could not stage Dithering Matrix")
+  assert(copy:write(bytes), "could not stage Dithering Matrix bytes")
+  copy:close()
+  local matrix = nil
+  local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
+  local ok, dimensions = pcall(function()
+    matrix = assert(app.open(staged), "native Matrix load failed")
+    local first = assert(matrix.layers[1], "Matrix has no first Layer")
+    local cel = assert(first:cel(1), "Matrix has no first Frame Cel")
+    assert(
+      cel.image.width == matrix.width and cel.image.height == matrix.height,
+      "Matrix Image does not cover its native dimensions"
+    )
+    return { width = matrix.width, height = matrix.height }
+  end)
+  if matrix then pcall(function() matrix:close() end) end
+  if previous.sprite and previous.sprite.isValid then
+    app.activeSprite = previous.sprite
+    app.activeLayer = previous.layer
+    app.activeFrame = previous.frame
+  end
+  if not ok then return fail("invalid") end
+  return {
+    provenance = requested.kind,
+    requested = requested,
+    resolved_path = path,
+    identity = requested.kind == "installed" and requested.id or digest.fnv1a64(bytes),
+    width = dimensions.width,
+    height = dimensions.height,
+  },
+    staged
+end
+
+local function change(sprite, conversion)
   local before = module.observe(sprite)
-  assert(
-    before.color_mode == conversion.source_color_mode,
-    "Source Color Mode differs from requested branch"
-  )
+  if before.color_mode ~= conversion.source_color_mode then
+    return rejection(
+      "color_mode_mismatch",
+      "Source Color Mode differs from requested branch",
+      { expected = conversion.source_color_mode, actual = before.color_mode }
+    )
+  end
   local target = conversion.target
   local changed = before.color_mode ~= target.color_mode
   local mapping, dithering = null, null
@@ -106,11 +224,20 @@ function module.change(sprite, conversion)
     if target.dithering then
       command.dithering = target.dithering.algorithm
       command.ditheringFactor = target.dithering.dithering_factor
+      local matrix, path, failed = nil, nil, nil
+      if command.dithering == "ordered" or command.dithering == "old" then
+        matrix, path, failed = resolve_matrix(target.dithering.matrix)
+        if failed then return failed end
+        command.ditheringMatrix = path
+      end
       dithering = {
         requested_algorithm = target.dithering.algorithm,
         effective_algorithm = target.dithering.algorithm,
-        matrix = null,
+        matrix = matrix or null,
         dithering_factor = target.dithering.dithering_factor or null,
+        effective_factor_percent = target.dithering.dithering_factor and math.floor(
+          target.dithering.dithering_factor * 100
+        ) or null,
       }
     end
   end
@@ -132,6 +259,26 @@ function module.change(sprite, conversion)
     before = before,
     after = module.observe(sprite),
   }
+end
+
+function module.change(sprite, conversion)
+  local previous = {
+    sprite = app.activeSprite,
+    layer = app.activeLayer,
+    frame = app.activeFrame,
+    foreground = app.fgColor,
+    background = app.bgColor,
+  }
+  local ok, result = pcall(change, sprite, conversion)
+  if previous.sprite and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
+  pcall(function() app.fgColor = previous.foreground end)
+  pcall(function() app.bgColor = previous.background end)
+  if not ok then error(result, 0) end
+  return result
 end
 
 return module
