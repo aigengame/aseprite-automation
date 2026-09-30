@@ -241,6 +241,15 @@ def test_preview_publishes_verified_overlay_without_source_mutation(
     code, result = _run("preview", request)
     assert code == 0, result
     assert result["destination"] == request["destination"]
+    assert result["artifact"]["path"] == str(destination)
+    assert result["artifact"]["role"] == "preview"
+    assert result["artifact"]["format"] == "png"
+    assert result["artifact"]["media_type"] == "image/png"
+    assert result["artifact"]["byte_size"] == destination.stat().st_size
+    assert result["width"] == 3 and result["height"] == 2
+    assert result["color_mode"] == "rgb"
+    assert result["color_profile"] == "srgb"
+    assert result["alpha_channel"] == {"present": True, "minimum": 0, "maximum": 128}
     assert (
         result["artifact"]["sha256"]
         == hashlib.sha256(destination.read_bytes()).hexdigest()
@@ -257,6 +266,8 @@ def test_preview_publishes_verified_overlay_without_source_mutation(
         assert image.convert("RGBA").getpixel((1, 0)) == (17, 34, 51, 128)
         assert image.convert("RGBA").getpixel((2, 0)) == (0, 0, 0, 0)
     assert hashlib.sha256(source.read_bytes()).hexdigest() == original
+    assert not list(tmp_path.glob("*.staged.png"))
+    assert not list(tmp_path.glob("*.staged.rgba"))
 
 
 def test_preview_requires_explicit_replacement_intent(tmp_path: Path) -> None:

@@ -21,7 +21,6 @@ from spa.authoring.document.sprite import SPRITE_INSPECTION_RESOURCE
 from spa.contracts.mutation import validate_native_sprite_path
 from spa.contracts.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.contracts.ports import (
-    ArtifactVerificationEvidence,
     KernelInvocationResult,
     OperationIssue,
     OperationServices,
@@ -43,6 +42,7 @@ from spa.delivery.export import (
     AlphaChannelFacts,
     ExportDestination,
 )
+from spa.delivery.png_publication import staged_png
 
 MAX_AUDIT_OBSERVATIONS = 1024
 MAX_AUDIT_OVERLAP_PIXEL_CHECKS = 16_777_216
@@ -497,11 +497,13 @@ def preview_animation(
     verify_png = services.verify_png
     if files is None or verify_png is None:
         raise RuntimeError("Animation Preview requires Artifact files and PNG verifier")
-    destination = files.normalize_destination(request.destination.path)
-    files.ensure_source_separate(Path(request.source_sprite_file), destination)
-    staged = files.staged_path(destination, if_exists=request.destination.if_exists)
-    rendered = files.rendered_path(staged)
-    try:
+    with staged_png(
+        files,
+        verify_png,
+        source=Path(request.source_sprite_file),
+        destination=request.destination.path,
+        if_exists=request.destination.if_exists,
+    ) as staged:
         observation, invocation = _invoked(
             request,
             services,
@@ -510,8 +512,8 @@ def preview_animation(
                 "source_sprite_file": request.source_sprite_file,
                 "earlier_frame": request.earlier_frame,
                 "later_frame": request.later_frame,
-                "staged_png_file": str(staged),
-                "staged_rgba_file": str(rendered),
+                "staged_png_file": str(staged.png_file),
+                "staged_rgba_file": str(staged.rgba_file),
             },
         )
         try:
@@ -523,38 +525,17 @@ def preview_animation(
                 ResponseEvidence(invocation.response_path),
                 invocation.diagnostics,
             ) from exc
-        staged_artifact = files.read_staged(staged)
-        decoded = verify_png(staged_artifact.payload, staged)
-        rendered_bytes = files.read_staged(rendered).payload
-        if (
-            native.earlier_frame != request.earlier_frame
-            or native.later_frame != request.later_frame
-            or native.width != decoded.width
-            or native.height != decoded.height
-            or native.color_profile != decoded.color_profile
-            or native.alpha_min != decoded.alpha_min
-            or native.alpha_max != decoded.alpha_max
-            or native.alpha_min > native.alpha_max
-            or native.rendered_byte_size != native.width * native.height * 4
-            or len(rendered_bytes) != native.rendered_byte_size
-            or rendered_bytes != decoded.rgba_bytes
-            or (native.alpha_min < 255 and not decoded.alpha_channel_present)
-        ):
-            raise RuntimeIssue(
-                "artifact_verification_failed",
-                "Decoded Preview PNG differs from native rendered facts",
-                ArtifactVerificationEvidence(
-                    str(staged), "native and decoded facts differ"
-                ),
-                invocation.diagnostics,
-            )
-        files.ensure_source_separate(Path(request.source_sprite_file), destination)
-        published = files.publish(
-            staged,
-            destination,
-            if_exists=request.destination.if_exists,
-            sha256=staged_artifact.sha256,
+        decoded = staged.verify(
+            native,
+            invocation,
+            matches_expected=(
+                native.earlier_frame == request.earlier_frame
+                and native.later_frame == request.later_frame
+                and native.alpha_min <= native.alpha_max
+            ),
+            mismatch_message="Decoded Preview PNG differs from native rendered facts",
         )
+        published = staged.publish()
         return AnimationPreviewResult(
             destination=ExportDestination(
                 path=published.path, if_exists=request.destination.if_exists
@@ -585,9 +566,6 @@ def preview_animation(
                 sha256=published.sha256,
             ),
         )
-    finally:
-        files.discard(staged)
-        files.discard(rendered)
 
 
 ANIMATION_OPERATIONS = (
