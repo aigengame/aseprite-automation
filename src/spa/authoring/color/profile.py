@@ -1,11 +1,8 @@
 """Native Color Profile assignment and conversion, independent of Color Mode."""
 
-import hashlib
-from io import BytesIO
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from PIL import ImageCms
 from pydantic import Field, field_validator, model_validator
 
 from spa.application.mutation import prepare_mutation
@@ -21,6 +18,7 @@ from spa.contracts.mutation import (
 )
 from spa.contracts.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.contracts.ports import (
+    IccVerificationError,
     KernelInvocationResult,
     OperationIssue,
     OperationServices,
@@ -116,15 +114,17 @@ def profile_payload(
             "ICC file could not be read",
             ProfileFileDetails(path=path, reason="unreadable", step_number=step_number),
         ) from exc
+    verify = services.verify_icc
+    assert verify is not None, "ICC input requires the ICC verifier"
     try:
-        ImageCms.ImageCmsProfile(BytesIO(raw))
-    except (OSError, ValueError, TypeError) as exc:
+        facts = verify(raw)
+    except IccVerificationError as exc:
         raise OperationIssue(
             "color_profile_file_failed",
             "ICC file is invalid",
             ProfileFileDetails(path=path, reason="invalid", step_number=step_number),
         ) from exc
-    if raw[16:20] != b"RGB ":
+    if facts.color_space != "RGB":
         raise OperationIssue(
             "color_profile_file_failed",
             "Native Color Profile operations require an RGB ICC profile",
@@ -135,8 +135,8 @@ def profile_payload(
     result["icc_bytes"] = raw.hex()
     result["icc_file"] = {
         "path": path,
-        "byte_size": len(raw),
-        "sha256": hashlib.sha256(raw).hexdigest(),
+        "byte_size": facts.byte_size,
+        "sha256": facts.sha256,
     }
     return result
 

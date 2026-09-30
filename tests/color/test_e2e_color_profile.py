@@ -4,6 +4,7 @@ import json
 import os
 import struct
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -23,6 +24,13 @@ def runtime():
     return probe(
         RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
     )
+
+
+def _require_conversion(runtime) -> None:
+    if "aseprite_convert_color_profile" not in runtime.verified_capabilities:
+        # The selected macOS bundle must retain its proven native converter.
+        assert sys.platform == "linux", "expected native Color Profile conversion"
+        pytest.skip("selected Linux runtime has no native Color Profile converter")
 
 
 def _native(runtime, source: Path, **params: str) -> dict:
@@ -203,6 +211,7 @@ def test_assign_icc_reports_frozen_input_and_preserves_pixels(tmp_path: Path, ru
 def test_convert_icc_matches_independent_native_conversion_and_reports_changes(
     tmp_path: Path, runtime, mode: str
 ):
+    _require_conversion(runtime)
     source, target, oracle = (
         tmp_path / name
         for name in ["source.aseprite", "converted.aseprite", "oracle.aseprite"]
@@ -237,6 +246,7 @@ def test_convert_icc_matches_independent_native_conversion_and_reports_changes(
 def test_assign_and_convert_cover_noops_and_native_srgb_target(
     tmp_path: Path, runtime, mode: str
 ):
+    _require_conversion(runtime)
     source, assigned, converted = (
         tmp_path / name
         for name in ["source.aseprite", "assigned.aseprite", "converted.aseprite"]
@@ -267,6 +277,7 @@ def test_assign_and_convert_cover_noops_and_native_srgb_target(
 def test_convert_preserves_linked_cels_and_reports_all_palette_changes_and_tiles(
     tmp_path: Path, runtime
 ):
+    _require_conversion(runtime)
     from tests.support import inject_palette_change
 
     source, target, oracle = (
@@ -285,6 +296,15 @@ def test_convert_preserves_linked_cels_and_reports_all_palette_changes_and_tiles
         frame_number=2,
     )
     before = _native(runtime, source, action="observe")
+    # Assignment must preserve the same linked/Palette/Tileset fixture too.
+    code, assigned = _run("assign-color-profile", source, target, {"kind": "none"})
+    assert code == 0, assigned
+    assert not any(
+        item["changed"] for item in assigned["images"] + assigned["palettes"]
+    )
+    assert not any(
+        tile["changed"] for item in assigned["tilesets"] for tile in item["tiles"]
+    )
     icc = tmp_path / "linear.icc"
     _linear_icc(icc)
     code, result = _run(
@@ -325,6 +345,9 @@ def test_bad_icc_is_typed_and_never_publishes(
 ):
     from PIL import ImageCms
 
+    if command == "convert-color-profile":
+        _require_conversion(runtime)
+
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
     _native(runtime, source, action="create")
     original = source.read_bytes()
@@ -346,6 +369,7 @@ def test_bad_icc_is_typed_and_never_publishes(
 
 
 def test_convert_plan_matches_standalone_and_step_evidence(tmp_path: Path, runtime):
+    _require_conversion(runtime)
     source, target, standalone = (
         tmp_path / name
         for name in ["source.aseprite", "target.aseprite", "standalone.aseprite"]
@@ -389,3 +413,49 @@ def test_convert_plan_matches_standalone_and_step_evidence(tmp_path: Path, runti
     assert code != 0 and result["code"] == "color_profile_file_failed", result
     assert result["details"]["step_number"] == 2
     assert target.read_bytes() == original
+
+
+def test_conversion_discovery_matches_runtime_and_missing_converter_refuses_publication(
+    tmp_path: Path, runtime
+):
+    manifest_run = spa("schema", "--aseprite", os.environ["SPA_TEST_ASEPRITE"])
+    assert manifest_run.returncode == 0, manifest_run.stdout
+    manifest = json.loads(manifest_run.stdout)
+    available = "aseprite_convert_color_profile" in runtime.verified_capabilities
+    operations = {entry["operation"] for entry in manifest["operations"]}
+    assert "spa sprite assign-color-profile" in operations
+    assert ("spa sprite convert-color-profile" in operations) == available
+    if available:
+        return
+    assert sys.platform == "linux", "expected native Color Profile conversion"
+    gap = next(
+        item
+        for item in manifest["capability_gaps"]
+        if item["capability"] == "spa sprite convert-color-profile"
+    )
+    assert "aseprite_convert_color_profile" in gap["evidence"]
+    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
+    _native(runtime, source, action="create")
+    original = source.read_bytes()
+    target.write_bytes(b"existing Target")
+    code, result = _run("convert-color-profile", source, target, {"kind": "srgb"})
+    assert code != 0 and result["code"] == "runtime_incompatible", result
+    assert result["details"]["missing_capabilities"] == [
+        "aseprite_convert_color_profile"
+    ]
+    code, result = _plan(
+        source,
+        target,
+        [
+            {
+                "operation": "sprite convert-color-profile",
+                "input": {"profile": {"kind": "srgb"}},
+            }
+        ],
+    )
+    assert code != 0 and result["code"] == "runtime_incompatible", result
+    assert result["details"]["missing_capabilities"] == [
+        "aseprite_convert_color_profile"
+    ]
+    assert source.read_bytes() == original and target.read_bytes() == b"existing Target"
+    assert not list(tmp_path.glob(".*.staged.aseprite"))

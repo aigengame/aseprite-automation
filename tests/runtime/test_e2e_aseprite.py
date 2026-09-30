@@ -28,7 +28,12 @@ def test_info_reports_installed_runtime() -> None:
         "lua_file_io",
         "aseprite_json",
     ]
-    assert result["runtime"]["verified_capabilities"] == [
+    conversion_available = (
+        "aseprite_convert_color_profile" in result["runtime"]["verified_capabilities"]
+    )
+    # Current Linux LAF_BACKEND=none has no native color converter.
+    assert conversion_available or sys.platform == "linux"
+    expected_runtime = [
         "aseprite_runtime_introspection",
         "aseprite_paint_composite",
         "aseprite_paint_composite_indexed",
@@ -72,8 +77,10 @@ def test_info_reports_installed_runtime() -> None:
         "aseprite_tag_authoring",
         "aseprite_export_image",
     ]
-    assert result["supported_capabilities"]
-    assert result["supported_capabilities"] == [
+    if not conversion_available:
+        expected_runtime.remove("aseprite_convert_color_profile")
+    assert result["runtime"]["verified_capabilities"] == expected_runtime
+    expected_operations = [
         "spa info",
         "spa version",
         "spa schema",
@@ -153,7 +160,16 @@ def test_info_reports_installed_runtime() -> None:
         "spa plan check",
         "spa plan run",
     ]
-    assert [gap["capability"] for gap in result["capability_gaps"]] == [
+    expected_runtime_gaps = []
+    if not conversion_available:
+        # Plan discovery conservatively requires all eligible Step capabilities.
+        expected_runtime_gaps = ["spa sprite convert-color-profile", "spa plan run"]
+        for operation in expected_runtime_gaps:
+            expected_operations.remove(operation)
+    assert result["supported_capabilities"] == expected_operations
+    assert [
+        gap["capability"] for gap in result["capability_gaps"]
+    ] == expected_runtime_gaps + [
         f"spa paint composite: grayscale {mode}"
         for mode in ("hue", "saturation", "color", "luminosity", "addition")
     ] + [

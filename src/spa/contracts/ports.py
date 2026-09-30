@@ -171,12 +171,27 @@ PngVerifier = Callable[[bytes, Path], PngFacts]
 
 
 @dataclass(frozen=True)
+class IccFacts:
+    byte_size: int
+    sha256: str
+    color_space: str
+
+
+class IccVerificationError(ValueError):
+    """The input bytes are not a valid ICC profile."""
+
+
+IccVerifier = Callable[[bytes], IccFacts]
+
+
+@dataclass(frozen=True)
 class OperationServices:
     probe_runtime: RuntimeProbe
     invoke_kernel: KernelInvoker
     target_files: TargetFiles
     artifact_files: ArtifactFiles | None = None
     verify_png: PngVerifier | None = None
+    verify_icc: IccVerifier | None = None
     invoke_kernel_direct: DirectKernelInvoker | None = None
 
 
