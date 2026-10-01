@@ -1,5 +1,6 @@
 """Native Color Profile assignment and conversion, independent of Color Mode."""
 
+from importlib.resources import files as packaged_files
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
@@ -24,6 +25,7 @@ from spa.contracts.ports import (
     OperationServices,
     PackagedHandler,
     PackagedResource,
+    ResourceEvidence,
     ResponseEvidence,
     RuntimeIssue,
 )
@@ -151,6 +153,32 @@ def profile_payload(
                 path=path, reason="unsupported_color_space", step_number=step_number
             ),
         )
+    if isinstance(request, ConvertProfileInput):
+        # Preflight derives target membership from the same immutable files sent
+        # to Lua. Source identity and directed pairs still require live state.
+        package = packaged_files("spa.kernel")
+        references = [
+            package.joinpath(item.package_path) for item in PROFILE_ICC_RESOURCES
+        ]
+        try:
+            admitted = raw in tuple(reference.read_bytes() for reference in references)
+        except OSError as exc:
+            raise RuntimeIssue(
+                "resources_absent",
+                "Packaged Color Profile resources could not be read",
+                ResourceEvidence(
+                    canonical_path=str(package),
+                    searched=[str(item) for item in references],
+                ),
+            ) from exc
+        if not admitted:
+            raise OperationIssue(
+                "color_profile_file_failed",
+                "The requested ICC is outside the supported conversion set",
+                ProfileFileDetails(
+                    path=path, reason="unsupported_profile", step_number=step_number
+                ),
+            )
     result["icc_bytes"] = raw.hex()
     result["icc_file"] = {
         "path": path,

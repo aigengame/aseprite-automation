@@ -3,6 +3,7 @@
 import json
 import os
 import shlex
+from importlib.resources import files
 from pathlib import Path
 
 import pytest
@@ -63,9 +64,14 @@ def test_plan_check_admits_a_read_plan_without_launching_aseprite(
 
 
 @pytest.mark.parametrize("verb", ["check", "run"])
-@pytest.mark.parametrize("operation", ["assign-color-profile", "convert-color-profile"])
 @pytest.mark.parametrize(
-    "file_kind,reason", [("missing", "unreadable"), ("invalid", "invalid")]
+    "operation,file_kind,reason",
+    [
+        (operation, file_kind, reason)
+        for operation in ["assign-color-profile", "convert-color-profile"]
+        for file_kind, reason in [("missing", "unreadable"), ("invalid", "invalid")]
+    ]
+    + [("convert-color-profile", "unlisted", "unsupported_profile")],
 )
 def test_plan_rejects_bad_icc_before_runtime(
     tmp_path: Path, verb: str, operation: str, file_kind: str, reason: str
@@ -76,6 +82,12 @@ def test_plan_rejects_bad_icc_before_runtime(
     icc = tmp_path / "input.icc"
     if file_kind == "invalid":
         icc.write_bytes(b"not an ICC file")
+    elif file_kind == "unlisted":
+        from PIL import ImageCms
+
+        icc.write_bytes(
+            ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
+        )
     run = spa(
         "plan",
         verb,
@@ -117,16 +129,27 @@ def test_plan_rejects_bad_icc_before_runtime(
     assert not list(tmp_path.glob(".*.staged.aseprite"))
 
 
-@pytest.mark.parametrize("operation", ["assign-color-profile", "convert-color-profile"])
+@pytest.mark.parametrize(
+    "operation,icc_kind",
+    [
+        ("assign-color-profile", "unlisted"),
+        ("convert-color-profile", "linear_srgb"),
+        ("convert-color-profile", "display_p3"),
+    ],
+)
 def test_plan_check_accepts_valid_icc_without_runtime(
-    tmp_path: Path, operation: str
+    tmp_path: Path, operation: str, icc_kind: str
 ) -> None:
     from PIL import ImageCms
 
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
     source.write_bytes(b"Source bytes")
     icc = tmp_path / "srgb.icc"
-    icc.write_bytes(ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes())
+    icc.write_bytes(
+        ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
+        if icc_kind == "unlisted"
+        else files("spa.kernel").joinpath(f"color/profiles/{icc_kind}.icc").read_bytes()
+    )
     run = spa(
         "plan",
         "check",

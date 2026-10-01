@@ -131,6 +131,10 @@ with `unsupported_profile` and `unsupported_conversion`; non-RGB targets retain 
 static `unsupported_color_space` reason. Invalid and unreadable inputs remain typed
 file failures. Lua loads the frozen snapshot through the native constructor before
 mutation. The existing RGB validation is an early input check, not admission proof.
+Shared static preparation also compares Convert target bytes with the same packaged
+ICC files, so `plan check` and `plan run` reject unlisted targets without Aseprite.
+Assign remains valid for unlisted ICCs. Opened Source identity and directed pairs
+are checked by Lua against the live Sprite, including profiles set by earlier Steps.
 
 Adversarial review also reproduced native LAB-ICC Source to sRGB conversion that
 only relabeled the profile: both the midtone Image and Palette stayed unchanged.

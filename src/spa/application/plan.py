@@ -1070,7 +1070,7 @@ PLAN_OPERATIONS = (
         check_plan,
         lambda result: f"Plan accepted: {result.step_count} Steps",
         None,
-        ("invalid_request", "color_profile_file_failed"),
+        ("invalid_request", "color_profile_file_failed", "resource_incomplete"),
     ),
     OperationDescriptor(
         "plan run",

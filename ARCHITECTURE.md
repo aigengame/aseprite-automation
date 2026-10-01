@@ -565,8 +565,10 @@ standalone Sprite or a live Plan Sprite and observes all Cel Images, Palette Cha
 and Tileset Tiles. The same owner admits Convert through a finite directed matrix
 and exact packaged ICC bytes. It binds encoded Source bytes, or bytes from the last
 live Assign, to the native profile before admission. This policy does not constrain
-valid-ICC Assign or infer arbitrary native ICC compatibility.
-Python reads and freezes ICC bytes through the file adapter and
+valid-ICC Assign or infer arbitrary native ICC compatibility. Static Preflight rejects
+unlisted Convert target bytes by reading those same co-packaged resources; it does
+not reproduce the Lua source/direction rule.
+Python reads and freezes input ICC bytes through the file adapter and
 validates them through the ICC adapter;
 it does not transform colors. The profile-specific persistence check verifies native
 profile equality, encoded kind, all stored colors, and the complete Palette timeline.
