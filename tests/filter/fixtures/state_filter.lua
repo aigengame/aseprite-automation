@@ -1,4 +1,4 @@
-local filter = dofile(app.params.brightness_contrast)
+local filter = dofile(app.params.hue_saturation or app.params.brightness_contrast)
 local kind = app.params.kind
 local failing = app.params.fault == "true"
 local mode = kind == "palette" and ColorMode.INDEXED or ColorMode.RGB
@@ -85,11 +85,16 @@ else
     channels = { kind = "components", names = { "red" } },
   }
 end
-local ok, value = pcall(
-  function()
-    return filter.apply(target, { application = application, brightness = 50, contrast = 0 }, {})
+local ok, value = pcall(function()
+  local payload = { application = application, brightness = 50, contrast = 0 }
+  if app.params.hue_saturation then
+    payload = {
+      application = application,
+      adjustment = { mode = "hsl-multiply", hue = 0, saturation = 0, lightness = 50 },
+    }
   end
-)
+  return filter.apply(target, payload, {})
+end)
 local after = state()
 local error_message = nil
 if not ok then error_message = tostring(value) end

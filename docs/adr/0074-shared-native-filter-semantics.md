@@ -105,6 +105,12 @@ installed Capability Gaps.
   and RGB Map quantization. A component preserved during adjustment can change in the
   resolved Indexed output. Feature contracts and acceptance must distinguish these
   stages and must not promise stronger component preservation than Aseprite provides.
+- Native writeback is part of the Filter semantics: it may trim transparent borders
+  or delete fully transparent Cels and their linked occurrences. A feature that can
+  cause these effects reports surviving bounds or absence and observes the affected
+  Layer/Frame intersections after execution; a previously captured Cel object is not
+  proof that the Cel still exists. It verifies the resulting state after persistence
+  rather than recreating deleted Cels or preserving old bounds against native behavior.
 - Python may orchestrate the application use case and validate the public request, but
   it cannot implement a second Filter algorithm, create a generated operation script,
   or define a competing native mapping.

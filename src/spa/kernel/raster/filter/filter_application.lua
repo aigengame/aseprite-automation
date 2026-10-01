@@ -69,18 +69,25 @@ function module.apply(sprite, payload, uuids, title, adjust)
       end
     end
     anchor = nil
+    local needs_alpha_anchor = (palette_only or rgb_palette) and (flags & FilterChannels.ALPHA) ~= 0
     for _, cel in ipairs(sprite.cels) do
       if
         cel.frame.frameNumber == frame
         and not cel.layer.isReference
         and (palette_only or not cel.layer.isTilemap)
+        and not (needs_alpha_anchor and cel.layer.isBackground)
       then
         anchor = cel
         break
       end
     end
     if not anchor then
-      return support.reject("Palette basis Frame has no native-safe image anchor", true)
+      return support.reject(
+        needs_alpha_anchor
+            and "Palette Alpha requires a non-Background image anchor at the Palette basis Frame"
+          or "Palette basis Frame has no native-safe image anchor",
+        true
+      )
     end
   end
   local palette_before = palette.list(sprite)

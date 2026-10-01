@@ -300,3 +300,100 @@ def test_background_alpha_rejects_before_publication_including_zero(
     assert "Background" in result["message"]
     assert source.read_bytes() == before
     assert target.read_bytes() == b"existing target"
+
+
+@pytest.mark.parametrize("target_kind", ["selected", "all"])
+def test_tilemap_pixel_application_rejects_before_publication(
+    tmp_path, runtime, target_kind
+):
+    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
+    native_script(runtime, "tilemap.lua", source=source, mode="indexed", only="true")
+    before = source.read_bytes()
+    app = application("indexed", "pixels", ["alpha"])
+    if target_kind == "all":
+        app["cels_target"] = {"kind": "all"}
+    code, result = hue(source, target, app, alpha=50)
+    assert code != 0 and result["code"] == "filter_unsupported_document", result
+    assert "Tilemap" in result["message"]
+    assert not target.exists() and source.read_bytes() == before
+
+
+def test_tilemap_only_palette_alpha_preserves_tile_and_placement_images(
+    tmp_path, runtime
+):
+    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
+    native_script(runtime, "tilemap.lua", source=source, mode="indexed", only="true")
+    before = observe_images(runtime, source)
+    app = application("indexed", "indexed-palette-entries", ["alpha"])
+    app["entries"] = {"kind": "all"}
+    code, result = hue(source, target, app, alpha=50)
+    assert code == 0, result
+    after = observe_images(runtime, target)
+    assert after["cels"] == before["cels"] and after["tiles"] == before["tiles"]
+    assert [color[3] for color in after["palette"]] == [0, 150, 151]
+    assert result["images"] == result["cel_effects"] == []
+
+
+@pytest.mark.parametrize("kind", ["pixels", "rgb-palette-colors"])
+def test_empty_selection_protects_pixels_while_palette_application_remains_explicit(
+    tmp_path, runtime, kind
+):
+    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
+    native_script(runtime, "hue_source.lua", source=source, mode="rgb")
+    before = observe_images(runtime, source)
+    app = application("rgb", kind, ["alpha"])
+    app["selection"] = {"kind": "empty"}
+    code, result = hue(source, target, app, alpha=50)
+    assert code == 0, result
+    after = observe_images(runtime, target)
+    assert after["cels"] == before["cels"]
+    assert result["changed"] == (kind == "rgb-palette-colors")
+    assert after["palette"][1][3] == (192 if kind == "rgb-palette-colors" else 128)
+
+
+@pytest.mark.parametrize("alpha", [0, 50])
+def test_palette_only_alpha_needs_a_non_background_anchor(tmp_path, runtime, alpha):
+    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
+    native_script(
+        runtime, "hue_source.lua", source=source, mode="indexed", background="true"
+    )
+    before = source.read_bytes()
+    code, result = hue(
+        source,
+        target,
+        application("indexed", "indexed-palette-entries", ["alpha"]),
+        alpha=alpha,
+    )
+    assert code != 0 and result["code"] == "filter_unsupported_document", result
+    assert "non-Background" in result["message"]
+    assert not target.exists() and source.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    "mode,kind", [("indexed", "indexed-palette-entries"), ("rgb", "rgb-palette-colors")]
+)
+def test_palette_alpha_uses_alternate_anchor_instead_of_ignoring_channel(
+    tmp_path, runtime, mode, kind
+):
+    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
+    native_script(
+        runtime,
+        "hue_source.lua",
+        source=source,
+        mode=mode,
+        background="true",
+        alternate="true",
+    )
+    before = observe_images(runtime, source)
+    app = application(mode, kind, ["alpha"])
+    if kind == "rgb-palette-colors":
+        app["cels_target"]["layers"] = [{"layer_path": [2]}]
+    code, result = hue(source, target, app, alpha=50)
+    assert code == 0, result
+    after = observe_images(runtime, target)
+    assert after["palette"][1][3] == 192
+    if kind == "indexed-palette-entries":
+        assert after["cels"] == before["cels"]
+    else:
+        assert after["cels"][0] == before["cels"][0]
+        assert (after["cels"][1]["pixels"][0] >> 24) == 192

@@ -190,6 +190,18 @@ class HueSaturationEvidence(
             for effect in self.cel_effects
         ] != [cel.model_dump() for cel in self.affected_cels]:
             raise ValueError("Cel effects must cover every affected Cel")
+        if any(effect.image_number not in numbers for effect in self.cel_effects):
+            raise ValueError("Cel effect refers to an unobserved Image")
+        for image in self.images:
+            effects = [
+                effect
+                for effect in self.cel_effects
+                if effect.image_number == image.image_number
+            ]
+            if not effects or (image.after_content_digest is not None) != any(
+                effect.after is not None for effect in effects
+            ):
+                raise ValueError("Image survival disagrees with affected Cels")
         if self.changed != (
             any(image.changed for image in self.images)
             or self.palette_before != self.palette_after

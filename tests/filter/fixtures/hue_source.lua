@@ -30,5 +30,18 @@ for x = 0, 2 do
 end
 if app.params.transparent == "true" then image:drawPixel(0, 0, 0) end
 if app.params.background == "true" then assert(app.command.BackgroundFromLayer()) end
+if app.params.alternate == "true" then
+  local layer = sprite:newLayer()
+  layer.name = "Alternate"
+  local alternate = Image(3, 1, modes[app.params.mode])
+  for x = 0, 2 do
+    alternate:drawPixel(
+      x,
+      0,
+      app.params.mode == "indexed" and 1 or app.pixelColor.rgba(100, 60, 20, 128)
+    )
+  end
+  sprite:newCel(layer, 1, alternate)
+end
 assert(sprite:saveAs(app.params.source))
 sprite:close()

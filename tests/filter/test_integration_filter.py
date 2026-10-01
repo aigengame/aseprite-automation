@@ -177,6 +177,16 @@ def test_kernel_exception_discards_stage_and_preserves_both_files(tmp_path):
             "spa paint line",
         ),
         ("aseprite_paint_line", "spa paint line", "spa filter brightness-contrast"),
+        (
+            "aseprite_filter_hue_saturation",
+            "spa filter hue-saturation",
+            "spa filter brightness-contrast",
+        ),
+        (
+            "aseprite_filter_brightness_contrast",
+            "spa filter brightness-contrast",
+            "spa filter hue-saturation",
+        ),
     ],
 )
 def test_filter_and_paint_capability_gates_are_independent(
