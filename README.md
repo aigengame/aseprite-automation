@@ -676,7 +676,8 @@ uv run spa sprite convert-color-profile --input-json '{"aseprite":"/path/to/asep
 ```
 
 `spa plan check` validates a bounded Plan, including current Source and Target path
-conditions, without starting Aseprite. `spa plan run`
+conditions and ICC file readability and validity, without starting Aseprite. Native
+profile loading and document-dependent conversion checks occur during `spa plan run`, which
 executes up to 64 Sprite-bound `sprite create`, `sprite get`, `frame list`,
 `frame get`, `frame add`, `frame duplicate`, `cel add`, `cel set`, `motion apply`,
 `paint apply`, `sprite assign-color-profile`, and `sprite convert-color-profile` Steps

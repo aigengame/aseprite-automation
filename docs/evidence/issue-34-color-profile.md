@@ -63,8 +63,9 @@ unnamed ICC objects. Constructor success alone does not validate a profile.
 Python therefore validates ICC bytes with the existing Pillow/LittleCMS dependency
 and snapshots the exact bytes. Assign accepts valid ICC metadata, including tested
 LAB ICC; native assignment and save/reopen preserve its profile equality and all
-stored Image/Palette values. Convert currently requires an RGB ICC target;
-this conversion constraint does not narrow assignment. Unsupported conversion
+stored Image/Palette values. The current Convert guard requires an RGB ICC target;
+that condition is insufficient to establish conversion support, as the investigation
+below shows. This conversion constraint does not narrow assignment. Unsupported conversion
 targets, invalid files, and unreadable inputs produce typed `color_profile_file_failed` results.
 Lua loads the snapshot through the native constructor before mutation.
 
@@ -72,7 +73,8 @@ Adversarial review also reproduced native LAB-ICC Source to sRGB conversion that
 only relabeled the profile: both the midtone Image and Palette stayed unchanged.
 An independent LittleCMS check converted the sample `(48, 96, 144)` to `(0, 56, 20)`;
 this is test evidence only, not a production transform. SPA therefore refuses
-non-RGB ICC Sources with `color_profile_source_unsupported` before conversion.
+non-RGB ICC Sources with `color_profile_source_unsupported` before conversion. This
+closes the LAB case but does not close the general conversion admission defect.
 The encoded-profile reader retains the ICC header's data-color-space signature.
 The native profile owner binds it to the live ColorSpace and updates that private
 state from frozen ICC bytes after each Assign/Convert. This covers both opened
@@ -89,6 +91,65 @@ Plan Steps use the same native operation. Their receipts describe each Step's li
 state; only the enclosing Plan claims final persistence. Failed Steps do not publish.
 Runtime capability probes test assignment and real pixel/Palette conversion
 separately; constructor availability or a same-profile no-op is insufficient evidence.
+
+## Conversion admission investigation — PR #151
+
+Status: unresolved. The owner requested feasibility research before selecting a
+conservative ICC subset. No new subset or compatibility promise is approved.
+
+The reviewed head was `a3543118`. The independent preflight and receipt fixes at
+`f42ca0a` do not change native admission. On the local macOS runtime above, both
+standalone and Assign-then-Convert Plan execution reproduce false success for an
+RGB input LUT profile (`scnr`, RGB, Lab PCS, A2B0, no XYZ/TRC tags). Native Assign
+preserves the profile, but Convert to sRGB changes only its profile metadata.
+Independent LittleCMS conversion maps `(48, 96, 144)` to `(119, 165, 198)`.
+The input SHA-256 is
+`de7ad2cb5bd96fdde6ad9f75c32542092baeaf6b35c5de4757d96068490021a0`.
+
+The pinned LAF uses Skia `m124-08a5439a6b`.
+[`SkColorSpace::Make`](https://github.com/aseprite/skia/blob/m124-08a5439a6b/src/core/SkColorSpace.cpp#L193-L225)
+requires XYZ/TRC facts and a usable matrix; it cannot represent a LUT-only ICC.
+An absent native color space is not surfaced as a Lua error:
+[`SkColorSpaceXformSteps`](https://github.com/aseprite/skia/blob/m124-08a5439a6b/src/core/SkColorSpaceXformSteps.cpp#L23-L35)
+substitutes sRGB for a null source and the source for a null target.
+Lua `ColorSpace` exposes name and equality, not this native support state.
+
+RGB plus an XYZ matrix and shared numerical TRCs is also insufficient. A second
+experiment started from Pillow's generated sRGB ICC, retained its XYZ matrix, and
+replaced all three shared `para` type 3 curves with `(g,a,b,c,d)=(2,1,0,0.25,0.5)`.
+Pillow/LittleCMS accepts this encoding. The selected native runtime can use it as
+a source, but its discontinuous curve fails the native target inverse check.
+
+| Experiment, starting sample `(48, 96, 144)` | Native result | Independent LittleCMS result |
+| --- | --- | --- |
+| Generated ICC to sRGB | `(61, 86, 153)` | `(61, 86, 153)` |
+| sRGB to generated ICC | `(48, 96, 144)`, success and ICC assigned | `(30, 119, 135)` |
+| Continuous control, same curve with `c=0.5`, sRGB to ICC | `(15, 60, 135)` | `(15, 60, 135)` |
+
+The counterexample tests the proposed admission assumption; it does not establish
+a requirement to support this curve. Native
+[`computeLazyDstFields`](https://github.com/aseprite/skia/blob/m124-08a5439a6b/src/core/SkColorSpace.cpp#L95-L112)
+substitutes the sRGB inverse when
+[`skcms_TransferFunction_invert`](https://github.com/aseprite/skia/blob/m124-08a5439a6b/modules/skcms/skcms.cc#L1859-L1969)
+fails. Constructor success and source-direction success therefore do not prove
+target-direction support.
+
+A structural admission rule would also need evidence for full tag-table bounds,
+duplicate tags, optional tags that cause parser rejection, LUT/matrix hybrids,
+matrix inversion and finite arithmetic, and the actual native backend. These are
+conditions of the pinned implementation, not a stable public Aseprite support API.
+A release version string and one successful runtime fixture do not prove them
+for all ICC inputs or other builds. Counting changed pixels cannot replace admission
+because valid same-profile and content-dependent no-ops exist.
+
+The initial matrix/shared-TRC proposal is not ready to implement. A smaller positive
+set of exact tested profiles or explicitly bounded encodings could be investigated,
+but it would narrow the current issue contract and require an owner decision.
+Expanding rejection rules one counterexample at a time would retain the faulty
+assumption that SPA can infer complete native conversion support from partial ICC
+facts. Native support/failure reporting would address the missing signal directly;
+adding such an API or changing the runtime is separate scope. Assign keeps its
+independent valid-ICC storage contract throughout this investigation.
 
 ## Linux CI build limitation
 
