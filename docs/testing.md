@@ -8,7 +8,7 @@ verification tier. The layout does not mirror source packages or CLI Command Gro
 | Directory | Behavior owner |
 | --- | --- |
 | `tests/application/` | Application orchestration, including compatibility checks before Operation execution. |
-| `tests/ci/` | CI target selection, native test execution policy, and pre-merge evidence checks. |
+| `tests/ci/` | CI target selection, native test execution policy, and integration/PR evidence checks. |
 | `tests/cli/` | Access Projection through the installed CLI and its in-process projections. |
 | `tests/color_mode/` | Conditional Color Mode choices, native mapping/Dithering, complete Sprite and Plan conversion evidence. |
 | `tests/contracts/` | Shared Published Language rules, including Failure Code registration and Operation Descriptor constraints. |
@@ -273,10 +273,35 @@ A failure in any job fails routine CI. These three job names can be required che
 when branch protection is available. Their success does **not** establish Linux
 native execution. There is no maintenance selector or skipped native job in CI.
 
+### Native E2E after an integration batch
+
+Ordinary feature PRs into `dev` require review, routine CI, and affected local
+checks before merge. Merge an approved batch in dependency order, resolve conflicts,
+then run Linux Native E2E once after its final PR is integrated. Do not repeat the
+full Linux suite between each PR in that batch.
+
+```sh
+gh workflow run native-e2e.yml --ref dev
+```
+
+Leave the PR input empty. In the Actions UI, select **Native E2E → Run workflow**
+on `dev`. The run records the selected branch and its dispatch SHA, then checks out
+and verifies that exact commit. Later branch updates do not change the tested
+commit or gain coverage from its result. Confirm that the recorded SHA includes
+the complete batch before reporting integration verification as complete.
+
+Both the workflow and its native job must succeed, with nonempty executed tests.
+Link the run and tested SHA in the batch's PRs. A failed or cancelled run leaves
+the batch's Linux verification open; investigate and verify the corrected commit
+before promotion. The suite, binary-cache rules, and 40-minute timeout are unchanged.
+This is a manual integration check, not a schedule or push trigger for `dev`.
+
 ### Native E2E before merge
 
-`.github/workflows/native-e2e.yml` owns explicit pre-merge Linux verification and
-weekly main regression. It has one unconditional **Linux real Aseprite E2E** job.
+`.github/workflows/native-e2e.yml` also supports explicit pre-merge Linux
+verification for promotion and Release PRs, and weekly main regression. Ordinary
+feature PRs into `dev` use the batch policy above. The workflow has one
+unconditional **Linux real Aseprite E2E** job.
 The main entry below applies after the workflow reaches main. After review and
 local checks converge, run it once for the PR:
 
@@ -320,9 +345,10 @@ Leave the PR input empty for a manual main regression:
 gh workflow run native-e2e.yml --ref main
 ```
 
-This mode rejects any ref other than main and tests its event SHA. The weekly run
-uses the same mode, Sunday 19:23 UTC (Monday 03:23 Asia/Shanghai), on the default
-branch main. Schedules can be delayed. There is no daily native run or dev schedule;
+This main run tests its event SHA. An empty PR input also permits a manual `dev`
+batch check as described above; other branches are rejected. The weekly run is
+main-only, Sunday 19:23 UTC (Monday 03:23 Asia/Shanghai), on the default branch.
+Schedules can be delayed. There is no daily native run or dev schedule;
 a normal main push runs only routine CI. A main regression never replaces the PR
 merge-result check or exact-release-SHA gate.
 
@@ -342,6 +368,7 @@ This provisional entry is not stable-main rollout evidence.
 | Trigger | Real-runtime selection |
 | --- | --- |
 | Routine PR update, main push, or manual CI | None; source, fast-test and distribution checks only. |
+| Manual Native E2E after a dev integration batch | `e2e and not slow` at the final batch commit selected by dispatch. |
 | Explicit pre-merge Native E2E | `e2e and not slow` at the current PR merge result. |
 | Weekly or manual Native E2E on main | `e2e and not slow` at the event's main SHA. |
 | Release verification | `e2e and not slow` at the exact release SHA before publication. |
@@ -377,9 +404,10 @@ uv run --frozen --group test pytest tests/ci tests/release -q
 it to check embedded shell too. It does not validate composite actions, so also
 inspect changed composite YAML and run its shell/behavior checks. The regression
 suite executes the actual workflow/action shell with real Git and controlled GitHub
-responses. It covers stale PR targets, merge-parent mismatches, main-only routing,
-API failures, Release PR head convergence and metadata checks. These tests do not
-establish hosted cache visibility, token permissions or Linux native execution.
+responses. It covers stale PR targets, merge-parent mismatches, main-only schedules,
+manual dev verification, API failures, Release PR head convergence and metadata
+checks. These tests do not establish hosted cache visibility, token permissions
+or Linux native execution.
 
 Run affected native tests locally before requesting Linux verification. For CI
 infrastructure, resolve syntax, shell and branch/dispatch logic locally first.
