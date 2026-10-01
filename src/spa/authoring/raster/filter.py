@@ -198,10 +198,10 @@ class FilterCel(PublicModel):
     image_number: int | None = Field(ge=1)
 
 
-class FilterImage(PublicModel):
+class FilterImage[AfterDigest = ImageContentDigest](PublicModel):
     image_number: int = Field(ge=1)
     before_content_digest: ImageContentDigest
-    after_content_digest: ImageContentDigest
+    after_content_digest: AfterDigest
     changed: bool
 
 
@@ -216,7 +216,7 @@ class FilterPaletteBasis(PublicModel):
     palette_size: int = Field(ge=1)
 
 
-class FilterObservations[Image, Channel](PublicModel):
+class FilterObservations[Image: FilterImage[Any], Channel](PublicModel):
     application: Literal["pixels", "indexed-palette-entries", "rgb-palette-colors"]
     cels_target_kind: Literal["selected", "all"] | None
     selection: SelectionApplication | None
@@ -234,6 +234,20 @@ class FilterObservations[Image, Channel](PublicModel):
     affected_cels: list[FilterCel]
     changed: bool
     persisted_reopen_verified: Literal[True]
+
+    @model_validator(mode="after")
+    def consistent_images(self) -> "FilterObservations":
+        numbers = [image.image_number for image in self.images]
+        if numbers != list(range(1, len(self.images) + 1)):
+            raise ValueError("Filter Images must have consecutive unique numbers")
+        for image in self.images:
+            if image.changed != (
+                image.before_content_digest != image.after_content_digest
+            ):
+                raise ValueError(
+                    "Filter Image change disagrees with its content digests"
+                )
+        return self
 
     def matches_application(
         self,
@@ -291,15 +305,6 @@ class FilterEvidence(
     @model_validator(mode="after")
     def consistent_observations(self) -> "FilterEvidence":
         numbers = [image.image_number for image in self.images]
-        if numbers != list(range(1, len(self.images) + 1)):
-            raise ValueError("Filter Images must have consecutive unique numbers")
-        for image in self.images:
-            if image.changed != (
-                image.before_content_digest != image.after_content_digest
-            ):
-                raise ValueError(
-                    "Filter Image change disagrees with its content digests"
-                )
         if self.changed != (
             any(image.changed for image in self.images)
             or self.palette_before != self.palette_after

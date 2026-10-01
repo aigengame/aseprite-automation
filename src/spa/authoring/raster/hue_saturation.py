@@ -8,6 +8,7 @@ from spa.authoring.raster.filter import (
     FILTER_FAILURE_SPECS,
     FILTER_SHARED_RESOURCES,
     FilterCel,
+    FilterImage,
     FilterObservations,
     FilterRequest,
     GrayscalePixels,
@@ -153,11 +154,8 @@ def is_noop(adjustment: HueAdjustment | None, alpha: int | None) -> bool:
     )
 
 
-class HueFilterImage(PublicModel):
-    image_number: int = Field(ge=1)
-    before_content_digest: ImageContentDigest
-    after_content_digest: ImageContentDigest | None
-    changed: bool
+class HueFilterImage(FilterImage[ImageContentDigest | None]):
+    pass
 
 
 class FilterCelEffect(FilterCel):
@@ -176,15 +174,6 @@ class HueSaturationEvidence(
     @model_validator(mode="after")
     def consistent_observations(self) -> "HueSaturationEvidence":
         numbers = [image.image_number for image in self.images]
-        if numbers != list(range(1, len(numbers) + 1)):
-            raise ValueError("Filter Images must have consecutive unique numbers")
-        for image in self.images:
-            if image.changed != (
-                image.before_content_digest != image.after_content_digest
-            ):
-                raise ValueError(
-                    "Filter Image change disagrees with its content digests"
-                )
         if [
             effect.model_dump(include={"layer_path", "frame_number", "image_number"})
             for effect in self.cel_effects
