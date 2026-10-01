@@ -1,5 +1,6 @@
 """Explicit native Filter contracts and staged Brightness/Contrast publication."""
 
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Annotated, Literal
 
@@ -88,6 +89,7 @@ class RGBPixels(PublicModel):
     channels: ComponentChannels[Literal["red", "green", "blue"]]
     cels_target: FilterCelsTarget
     selection: SelectionApplication | None = None
+    tileset_mode: Literal["manual"] | None = None
 
 
 class GrayscalePixels(PublicModel):
@@ -96,6 +98,7 @@ class GrayscalePixels(PublicModel):
     channels: ComponentChannels[Literal["gray"]]
     cels_target: FilterCelsTarget
     selection: SelectionApplication | None = None
+    tileset_mode: Literal["manual"] | None = None
 
 
 class IndexedPixels(PublicModel):
@@ -104,6 +107,7 @@ class IndexedPixels(PublicModel):
     channels: ComponentChannels[Literal["red", "green", "blue"]]
     cels_target: FilterCelsTarget
     selection: SelectionApplication | None = None
+    tileset_mode: Literal["manual"] | None = None
     palette_frame_number: int = Field(ge=1)
 
 
@@ -147,6 +151,7 @@ class RGBPaletteColors(PaletteIndexes):
     channels: ComponentChannels[Literal["red", "green", "blue"]]
     cels_target: FilterCelsTarget
     selection: SelectionApplication | None = None
+    tileset_mode: Literal["manual"] | None = None
 
 
 BrightnessContrastApplication = Annotated[
@@ -158,9 +163,10 @@ BrightnessContrastApplication = Annotated[
 class BrightnessContrastRequest(RuntimeRequest):
     """Native Brightness/Contrast with explicit Channels and application.
 
-    Pixel applications support ordinary Image Layers. Any resolved Tilemap Cel
-    rejects the entire operation, including under all. Indexed Palette-only
-    application can use a Tilemap as a private non-mutating execution anchor.
+    Pixel applications require explicit tileset_mode=manual for Tilemap targets.
+    Selection limits direct Canvas application; shared Tiles can change outside
+    that Selection and target set. Distinct target Cel Images can filter a shared
+    Tile more than once. Indexed Palette-only application has no Tileset Mode.
     RGB/Gray pixel and Palette Entry Alpha are preserved; Indexed pixel RGB Map
     quantization may choose an Entry with different Alpha. Explicit 0/0 is a no-op.
     """
@@ -190,9 +196,29 @@ class FilterCel(PublicModel):
 
 class FilterImage(PublicModel):
     image_number: int = Field(ge=1)
+    image_kind: Literal["ordinary", "tilemap-placement"]
     before_content_digest: ImageContentDigest
     after_content_digest: ImageContentDigest
     changed: bool
+
+
+class FilterTileReference(FilterCel):
+    """A Cel references a changed Tile; this is not a rendered-change measurement."""
+
+    relationships: list[Literal["direct-target", "shared-cel-image", "shared-tile"]] = (
+        Field(min_length=1)
+    )
+
+
+class FilterTileChange(PublicModel):
+    """Current Tile address and bitmap change, without a once-per-Tile promise."""
+
+    tileset_index: int = Field(ge=1)
+    tile_index: int = Field(ge=1)
+    tile_key: str | None
+    before_content_digest: ImageContentDigest
+    after_content_digest: ImageContentDigest
+    referencing_cels: list[FilterTileReference] = Field(min_length=1)
 
 
 class FilterExclusion(PublicModel):
@@ -222,6 +248,9 @@ class FilterEvidence(PublicModel):
     existing_target_cels: list[FilterCel]
     excluded_layers: list[FilterExclusion]
     images: list[FilterImage]
+    requested_tileset_mode: Literal["manual"] | None
+    observed_tileset_mode: Literal["manual"] | None
+    changed_tiles: list[FilterTileChange]
     processed_image_numbers: list[Annotated[int, Field(ge=1)]]
     affected_cels: list[FilterCel]
     changed: bool
@@ -239,8 +268,30 @@ class FilterEvidence(PublicModel):
                 raise ValueError(
                     "Filter Image change disagrees with its content digests"
                 )
+            if image.image_kind == "tilemap-placement" and image.changed:
+                raise ValueError("Manual Filter must preserve Tilemap placement Images")
+        tilemaps = any(image.image_kind == "tilemap-placement" for image in self.images)
+        if (self.observed_tileset_mode == "manual") != tilemaps or (
+            tilemaps and self.requested_tileset_mode != "manual"
+        ):
+            raise ValueError(
+                "Tilemap Filter requires requested and observed Manual mode"
+            )
+        if self.changed_tiles and not tilemaps:
+            raise ValueError("Tile bitmap changes require Tilemap targets")
+        addresses = [
+            (tile.tileset_index, tile.tile_index) for tile in self.changed_tiles
+        ]
+        if len(set(addresses)) != len(addresses) or any(
+            tile.before_content_digest == tile.after_content_digest
+            for tile in self.changed_tiles
+        ):
+            raise ValueError(
+                "Changed Tiles must have unique addresses and different digests"
+            )
         if self.changed != (
             any(image.changed for image in self.images)
+            or bool(self.changed_tiles)
             or self.palette_before != self.palette_after
         ):
             raise ValueError(
@@ -281,6 +332,8 @@ class FilterEvidence(PublicModel):
             and self.color_mode == mode
             and self.brightness == request.brightness
             and self.contrast == request.contrast
+            and self.requested_tileset_mode
+            == getattr(application, "tileset_mode", None)
             and set(self.channels.names) == set(application.channels.names)
             and self.cels_target_kind
             == (None if palette_only else application.cels_target.kind)
@@ -324,6 +377,9 @@ FILTER_FAILURE_SPECS = (
     ),
 )
 FILTER_RESOURCE = PackagedResource("filter_support", "raster/filter/filter_support.lua")
+FILTER_TILES_RESOURCE = PackagedResource(
+    "filter_tiles", "raster/filter/filter_tiles.lua"
+)
 BRIGHTNESS_CONTRAST_RESOURCE = PackagedResource(
     "brightness_contrast", "raster/filter/brightness_contrast.lua"
 )
@@ -336,6 +392,7 @@ FILTER_RESOURCES = (
     SELECTION_MASK_RESOURCE,
     PALETTE_IMAGES_RESOURCE,
     FILTER_RESOURCE,
+    FILTER_TILES_RESOURCE,
     BRIGHTNESS_CONTRAST_RESOURCE,
 )
 BRIGHTNESS_CONTRAST_HANDLER = PackagedHandler(
@@ -353,17 +410,19 @@ FILTER_REQUIREMENTS = RuntimeRequirements(
 )
 
 
-def filter_capability_gaps(aseprite_version: str) -> list[CapabilityGap]:
+def filter_capability_gaps(
+    aseprite_version: str, verified_capabilities: Sequence[str]
+) -> list[CapabilityGap]:
+    if "aseprite_filter_brightness_contrast_tilemap_manual" in verified_capabilities:
+        return []
     return [
         CapabilityGap(
-            capability="spa filter brightness-contrast: Tilemap pixels",
+            capability="spa filter brightness-contrast: Manual Tilemap pixels",
             aseprite_version=aseprite_version,
             evidence=(
-                "SPA does not yet deliver Tilemap pixel filtering or its shared-Tile effects. "
-                "Any resolved Tilemap Cel rejects the whole pixel application, including all. "
-                "Indexed Palette-only application supports a private Tilemap anchor and "
-                "preserves ordinary Images, Tilemap Images, and Tile Images. "
-                "This delivery boundary does not imply that native Aseprite cannot filter Tiles."
+                "The selected runtime did not pass the Manual Tilemap Filter probe. "
+                "Requests with actual Tilemap pixel targets are refused before mutation. "
+                "Ordinary Image and Indexed Palette-only application remain independent."
             ),
         )
     ]
@@ -391,6 +450,10 @@ def brightness_contrast(
                 "application": request.application.model_dump(exclude_none=True),
                 "brightness": request.brightness,
                 "contrast": request.contrast,
+                "tilemap_manual_filter_available": (
+                    "aseprite_filter_brightness_contrast_tilemap_manual"
+                    in observation.verified_capabilities
+                ),
             },
             request.timeout_seconds,
         )

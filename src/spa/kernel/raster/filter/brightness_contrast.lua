@@ -6,6 +6,7 @@ local digest = dofile(app.params.digest)
 local palette = dofile(app.params.palette)
 local effective = dofile(app.params.effective_palette)
 local persistence = dofile(app.params.persistence)
+local tiles = dofile(app.params.filter_tiles)
 
 function module.apply(sprite, payload, uuids)
   local application = payload.application
@@ -58,11 +59,7 @@ function module.apply(sprite, payload, uuids)
     end
     anchor = nil
     for _, cel in ipairs(sprite.cels) do
-      if
-        cel.frame.frameNumber == frame
-        and not cel.layer.isReference
-        and (palette_only or not cel.layer.isTilemap)
-      then
+      if cel.frame.frameNumber == frame and not cel.layer.isReference then
         anchor = cel
         break
       end
@@ -76,7 +73,18 @@ function module.apply(sprite, payload, uuids)
   local before = palette_only and support.snapshot(sprite, uuids, true)
   return support.with_state(sprite, function()
     app.activeSprite = sprite
+    local tile_anchor = tiles.anchor(targets)
+    if tile_anchor then
+      app.activeCel = tile_anchor
+      local refused = tiles.admit(application, payload.tilemap_manual_filter_available)
+      if refused then return support.reject(refused, true) end
+    end
     app.activeCel = anchor
+    -- Verify the command's actual Site too, including an explicit Palette anchor.
+    if tile_anchor then
+      local refused = tiles.admit(application, payload.tilemap_manual_filter_available)
+      if refused then return support.reject(refused, true) end
+    end
     app.range:clear()
     if not palette_only then
       app.range.layers = targets.layers
@@ -92,6 +100,7 @@ function module.apply(sprite, payload, uuids)
       sprite.selection = mask
     end
     local result
+    local tile_before = tiles.snapshot(sprite, mode)
     app.transaction("Brightness/Contrast", function()
       local filtering = payload.brightness ~= 0 or payload.contrast ~= 0
       if filtering then
@@ -108,17 +117,20 @@ function module.apply(sprite, payload, uuids)
       local images, processed, changed = {}, {}, false
       for number, image in ipairs(targets.images) do
         if filtering then processed[#processed + 1] = number end
-        local after = digest.image_content(image.cel.image, mode)
+        local after = digest.image_content(image.cel.image, image.mode)
         local differs = image.before.value ~= after.value
         changed = changed or differs
         images[#images + 1] = {
           image_number = number,
+          image_kind = image.image_kind,
           before_content_digest = image.before,
           after_content_digest = after,
           changed = differs,
         }
       end
       local palette_after = palette.list(sprite)
+      local changed_tiles = tiles.changes(tile_before, tiles.snapshot(sprite, mode), targets)
+      changed = changed or #changed_tiles > 0
       if palette_only then
         persistence.assert_equal(
           before,
@@ -144,6 +156,9 @@ function module.apply(sprite, payload, uuids)
         palette_after = palette_after,
         channels = channels,
         images = images,
+        requested_tileset_mode = application.tileset_mode or json_null,
+        observed_tileset_mode = tile_anchor and "manual" or json_null,
+        changed_tiles = changed_tiles,
         changed = changed,
         requested_intersections = targets.requested_intersections,
         existing_target_cels = targets.existing_target_cels,

@@ -1069,6 +1069,70 @@ local function observes_native_paint(tool, algorithm, tiled)
   return ok
 end
 
+local function observes_manual_tilemap_filter()
+  if app.params.filter_tiles == nil then return false end
+  local tiles = dofile(app.params.filter_tiles)
+  local persistence = dofile(app.params.persistence)
+  local sprite
+  local path = app.params.capability_sprite
+  local ok = pcall(function()
+    for _, branch in ipairs({ "rgb", "grayscale", "indexed", "rgb-palette-colors" }) do
+      local mode = branch == "rgb-palette-colors" and "rgb" or branch
+      local modes = { rgb = ColorMode.RGB, grayscale = ColorMode.GRAY, indexed = ColorMode.INDEXED }
+      sprite = Sprite(1, 1, modes[mode])
+      local ordinary = sprite.layers[1]
+      local palette = sprite.palettes[1]
+      palette:resize(3)
+      palette:setColor(0, Color { r = 0, g = 0, b = 0, a = 0 })
+      palette:setColor(1, Color { r = 80, g = 40, b = 20, a = 100 })
+      palette:setColor(2, Color { r = 120, g = 40, b = 20, a = 101 })
+      sprite.gridBounds = Rectangle(0, 0, 1, 1)
+      assert(app.command.NewLayer { tilemap = true, ui = false })
+      local layer = app.activeLayer
+      local tile = sprite:newTile(layer.tileset)
+      local original = mode == "indexed" and 1
+        or (
+          mode == "grayscale" and app.pixelColor.graya(80, 100)
+          or app.pixelColor.rgba(80, 40, 20, 100)
+        )
+      tile.image:putPixel(0, 0, original)
+      local map = Image(1, 1, ColorMode.TILEMAP)
+      map:putPixel(0, 0, 1)
+      sprite:newCel(layer, 1, map, Point(0, 0))
+      sprite:deleteLayer(ordinary)
+      app.activeCel = layer:cel(1)
+      assert(app.site.tilesetMode == TilesetMode.MANUAL)
+      app.range:clear()
+      app.range.colors = branch == "rgb-palette-colors" and { 1 } or {}
+      sprite.selection = Selection(Rectangle(0, 0, 1, 1))
+      assert(app.command.BrightnessContrast {
+        ui = false,
+        brightness = 50,
+        contrast = 0,
+        channels = mode == "grayscale" and FilterChannels.GRAY or FilterChannels.RED,
+      })
+      local expected = mode == "indexed" and 2
+        or (
+          mode == "grayscale" and app.pixelColor.graya(120, 100)
+          or app.pixelColor.rgba(120, 40, 20, 100)
+        )
+      assert(tile.image:getPixel(0, 0) == expected)
+      assert(layer:cel(1).image:getPixel(0, 0) == 1 and #layer.tileset == 2)
+      assert(palette:getColor(1).red == (branch == "rgb-palette-colors" and 120 or 80))
+      local live = tiles.snapshot(sprite, mode)
+      assert(sprite:saveAs(path))
+      sprite:close()
+      sprite = assert(app.open(path))
+      persistence.assert_equal(live, tiles.snapshot(sprite, mode), "Manual Tilemap Filter probe")
+      sprite:close()
+      sprite = nil
+    end
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  os.remove(path)
+  return ok
+end
+
 function module.observe()
   local capabilities = { "aseprite_runtime_introspection" }
   if app.params.paint_composite ~= nil then
@@ -1192,6 +1256,9 @@ function module.observe()
       supported = supported and ok
     end
     if supported then capabilities[#capabilities + 1] = "aseprite_filter_brightness_contrast" end
+    if observes_manual_tilemap_filter() then
+      capabilities[#capabilities + 1] = "aseprite_filter_brightness_contrast_tilemap_manual"
+    end
   end
   if observes_change_color_mode() then
     capabilities[#capabilities + 1] = "aseprite_change_color_mode"

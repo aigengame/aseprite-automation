@@ -39,6 +39,7 @@ def test_info_reports_installed_runtime() -> None:
         "aseprite_paint_composite_indexed",
         "aseprite_selection",
         "aseprite_filter_brightness_contrast",
+        "aseprite_filter_brightness_contrast_tilemap_manual",
         "aseprite_change_color_mode",
         "aseprite_assign_color_profile",
         "aseprite_convert_color_profile",

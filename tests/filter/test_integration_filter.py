@@ -49,12 +49,16 @@ def evidence():
         "images": [
             {
                 "image_number": 1,
+                "image_kind": "ordinary",
                 "before_content_digest": {"value": "0000000000000001"},
                 "after_content_digest": {"value": "0000000000000002"},
                 "changed": True,
             }
         ],
         "processed_image_numbers": [1],
+        "requested_tileset_mode": None,
+        "observed_tileset_mode": None,
+        "changed_tiles": [],
         "affected_cels": [cel],
         "changed": True,
         "persisted_reopen_verified": True,
