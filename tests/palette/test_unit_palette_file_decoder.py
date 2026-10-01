@@ -8,21 +8,12 @@ import pytest
 
 from spa.adapters.palette_file import decode_palette_file
 from spa.contracts.ports import PaletteFileError
-from tests.palette.support import oversized_palette_png
+from tests.palette.support import oversized_palette_png, png_chunk
 
 
 def test_png_decoder_size_refusal_is_a_palette_file_error() -> None:
     with pytest.raises(PaletteFileError, match="decompression bomb"):
         decode_palette_file(oversized_palette_png(), "png")
-
-
-def _chunk(kind: bytes, data: bytes) -> bytes:
-    return (
-        struct.pack(">I", len(data))
-        + kind
-        + data
-        + struct.pack(">I", zlib.crc32(kind + data))
-    )
 
 
 def _png(
@@ -35,11 +26,11 @@ def _png(
 ) -> bytes:
     header = struct.pack(">IIBBBBB", len(pixels), 1, bit_depth, color_type, 0, 0, 0)
     palette = bytes(channel for color in colors for channel in color)
-    chunks = [_chunk(b"IHDR", header), _chunk(b"PLTE", palette)]
+    chunks = [png_chunk(b"IHDR", header), png_chunk(b"PLTE", palette)]
     if alpha is not None:
-        chunks.append(_chunk(b"tRNS", alpha))
+        chunks.append(png_chunk(b"tRNS", alpha))
     chunks.extend(
-        (_chunk(b"IDAT", zlib.compress(b"\x00" + pixels)), _chunk(b"IEND", b""))
+        (png_chunk(b"IDAT", zlib.compress(b"\x00" + pixels)), png_chunk(b"IEND", b""))
     )
     return b"\x89PNG\r\n\x1a\n" + b"".join(chunks)
 
@@ -103,8 +94,8 @@ def test_indexed_png_rejects_bad_crc_and_corrupt_pixel_stream() -> None:
     bad_crc[41] ^= 1  # Alter the PLTE data without updating its CRC.
     bad_stream = (
         valid[:48]  # Signature, IHDR, and PLTE.
-        + _chunk(b"IDAT", zlib.compress(b"\x00"))
-        + _chunk(b"IEND", b"")
+        + png_chunk(b"IDAT", zlib.compress(b"\x00"))
+        + png_chunk(b"IEND", b"")
     )
 
     for payload in (bytes(bad_crc), bad_stream):
