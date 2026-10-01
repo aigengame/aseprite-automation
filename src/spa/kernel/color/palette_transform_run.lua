@@ -34,14 +34,14 @@ local function execute()
     "Palette " .. payload.operation
   )
   local persisted = palettes.list(sprite)
-  if payload.operation == "import" or payload.operation == "color-quantization" then
-    local ok, reason = pcall(
-      persistence.assert_equal,
-      { frame_count = live.frame_count, palette_changes = live.palette_changes },
-      persisted,
-      "Persisted Palette timeline"
-    )
-    if not ok then
+  local palette_ok, reason = pcall(
+    persistence.assert_equal,
+    { frame_count = live.frame_count, palette_changes = live.palette_changes },
+    persisted,
+    "Persisted Palette timeline"
+  )
+  if not palette_ok then
+    if payload.operation == "import" or payload.operation == "color-quantization" then
       local expected_size, reopened_size = 0, 0
       local frame = tonumber(payload.palette_frame_number)
       for _, change in ipairs(live.palette_changes) do
@@ -63,16 +63,12 @@ local function execute()
         },
       }
     end
+    error(reason)
   end
   persistence.assert_equal(
     live_facts,
     transforms.snapshot(sprite, uuids),
     "Persisted Palette Images and metadata"
-  )
-  persistence.assert_equal(
-    { frame_count = live.frame_count, palette_changes = live.palette_changes },
-    persisted,
-    "Persisted Palette timeline"
   )
   if payload.operation == "resize" or payload.operation == "import" then
     live.palette = palettes.get(sprite, payload.palette_frame_number).palette
