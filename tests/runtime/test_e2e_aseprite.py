@@ -201,7 +201,6 @@ def test_info_reports_installed_runtime() -> None:
         "spa paint jumble",
         "spa palette add",
         "spa palette remove",
-        "spa filter brightness-contrast: Tilemap pixels",
     ]
     assert all(
         gap["aseprite_version"] == result["runtime"]["aseprite_version"]

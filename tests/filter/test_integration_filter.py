@@ -245,3 +245,19 @@ def test_filter_and_paint_capability_gates_are_independent(
     )
     assert available in result.supported_capabilities
     assert unavailable not in result.supported_capabilities
+
+
+@pytest.mark.parametrize("tilemap_available", [True, False])
+def test_tilemap_gap_does_not_hide_ordinary_filter(tilemap_available):
+    capabilities = ["aseprite_sprite_inspection", "aseprite_filter_brightness_contrast"]
+    if tilemap_available:
+        capabilities.append("aseprite_filter_brightness_contrast_tilemap_manual")
+    result = info_result(
+        RuntimeRequest(),
+        operation_services(lambda _: runtime_observation(*capabilities)),
+    )
+    assert "spa filter brightness-contrast" in result.supported_capabilities
+    assert (
+        any("Manual Tilemap" in gap.capability for gap in result.capability_gaps)
+        != tilemap_available
+    )
