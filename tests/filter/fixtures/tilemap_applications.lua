@@ -21,9 +21,13 @@ if app.params.action == "create" then
   local tile = sprite:newTile(layer.tileset)
   for x = 0, 2 do
     local value
-    if mode == "indexed" then value = x == 0 and 1 or (x == 1 and 0 or 4)
-    elseif mode == "grayscale" then value = app.pixelColor.graya(80 + x * 20, 100 + x)
-    else value = app.pixelColor.rgba(80, 40, 20, x == 2 and 101 or 100) end
+    if mode == "indexed" then
+      value = x == 0 and 1 or (x == 1 and 0 or 4)
+    elseif mode == "grayscale" then
+      value = app.pixelColor.graya(80 + x * 20, 100 + x)
+    else
+      value = app.pixelColor.rgba(80, 40, 20, x == 2 and 101 or 100)
+    end
     tile.image:putPixel(x, 0, value)
   end
   local map = Image(1, 1, ColorMode.TILEMAP)
@@ -51,18 +55,20 @@ if app.params.action == "native" then
       channels = channels | FilterChannels[name:upper()]
     end
   end
-  -- Alpha is ignored by this native Filter even when its flag is set.
-  channels = channels | FilterChannels.ALPHA
   assert(app.command.BrightnessContrast {
-    ui = false, channels = channels,
-    brightness = tonumber(app.params.brightness), contrast = 0,
+    ui = false,
+    channels = channels,
+    brightness = tonumber(app.params.brightness),
+    contrast = 0,
   })
   assert(sprite:saveAs(app.params.target))
 end
 if app.params.action == "observe" then
   local function pixels(image)
     local values = {}
-    for pixel in image:pixels() do values[#values + 1] = pixel() end
+    for pixel in image:pixels() do
+      values[#values + 1] = pixel()
+    end
     return values
   end
   local result = { maps = {}, tiles = {}, palettes = {}, resolved = {} }
@@ -87,12 +93,19 @@ if app.params.action == "observe" then
       local c = basis:getColor(value)
       result.resolved[#result.resolved + 1] = { c.red, c.green, c.blue, c.alpha }
     elseif mode == "grayscale" then
-      result.resolved[#result.resolved + 1] = { app.pixelColor.grayaV(value), app.pixelColor.grayaA(value) }
+      result.resolved[#result.resolved + 1] =
+        { app.pixelColor.grayaV(value), app.pixelColor.grayaA(value) }
     else
-      result.resolved[#result.resolved + 1] = { app.pixelColor.rgbaR(value), app.pixelColor.rgbaG(value), app.pixelColor.rgbaB(value), app.pixelColor.rgbaA(value) }
+      result.resolved[#result.resolved + 1] = {
+        app.pixelColor.rgbaR(value),
+        app.pixelColor.rgbaG(value),
+        app.pixelColor.rgbaB(value),
+        app.pixelColor.rgbaA(value),
+      }
     end
   end
   local file = assert(io.open(app.params.response, "wb"))
-  file:write(json.encode(result)); file:close()
+  file:write(json.encode(result))
+  file:close()
 end
 sprite:close()

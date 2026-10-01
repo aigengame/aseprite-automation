@@ -1,5 +1,6 @@
 """Explicit native Filter contracts and staged Brightness/Contrast publication."""
 
+from collections import Counter
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Annotated, Literal
@@ -297,15 +298,14 @@ class FilterEvidence(PublicModel):
             (tuple(cel.layer_path), cel.frame_number): cel.image_number
             for cel in self.affected_cels
         }
+        image_uses = Counter(affected.values())
         for tile in self.changed_tiles:
             seen = set()
             for cel in tile.referencing_cels:
                 key = (tuple(cel.layer_path), cel.frame_number)
                 reasons = set(cel.relationships)
                 shared_image = (
-                    cel.image_number is not None
-                    and sum(number == cel.image_number for number in affected.values())
-                    > 1
+                    cel.image_number is not None and image_uses[cel.image_number] > 1
                 )
                 if (
                     key in seen
