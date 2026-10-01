@@ -142,6 +142,13 @@ A release version string and one successful runtime fixture do not prove them
 for all ICC inputs or other builds. Counting changed pixels cannot replace admission
 because valid same-profile and content-dependent no-ops exist.
 
+The proposed numerical-TRC restriction also excludes working inputs. The local
+macOS system `sRGB Profile.icc` has three 1024-entry `curv` tables. Converting the
+linear ICC fixture to this file succeeds, changes pixels, and produces the same
+Image and Palette values as conversion to native built-in sRGB. This is an executed
+example of the native approximate-sRGB table path, not a hypothetical compatibility
+loss or a claim that every table profile works.
+
 The initial matrix/shared-TRC proposal is not ready to implement. A smaller positive
 set of exact tested profiles or explicitly bounded encodings could be investigated,
 but it would narrow the current issue contract and require an owner decision.
