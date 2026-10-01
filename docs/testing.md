@@ -69,7 +69,8 @@ Brightness/Contrast #35 covers RGB/Grayscale/Indexed pixels, Indexed Palette-onl
 and RGB Palette plus matching pixels. Native fixtures verify component Alpha
 preservation separately from Indexed RGB Map quantization, Cartesian targets,
 Linked Cel Image deduplication, Selection, Palette basis, and exact Palette Changes.
-Tilemap targets reject the whole pixel application; Palette-only Tilemap anchors
+Tilemap pixel targets require the explicit Manual extension delivered by #152;
+without it, the whole pixel application is refused. Palette-only Tilemap anchors
 preserve ordinary Images, placement bytes, and all Tile bitmaps including Empty
 Tile 0. Direct native calls supply boundary-value parity; injected post-command
 failures verify transaction rollback and active Sprite, range, Palette Picks, and
