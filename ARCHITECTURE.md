@@ -500,7 +500,7 @@ src/spa/
       image.py, image_snapshot.py, selection.py
       paint.py, paint_composite.py, paint_native.py
     color/
-      palette.py          # Palette Change reads, Entry edits, and Effective Palette binding
+      palette.py          # Palette reads, Entry edits, sizing, reorder, and remap contracts
       color_mode.py       # Conditional native conversion contract and evidence
       profile.py          # Native Color Profile contracts and ICC input policy
   delivery/
@@ -562,13 +562,23 @@ Operation registry.
 
 Add a module only with a complete functional slice. Preparation and Tile packages
 have no placeholder implementation. Color and Palette owns the shared Effective
-Palette resolver and standalone Palette list/get/set. Its native module resolves
+Palette resolver and standalone Palette list/get/set/resize/remap/reorder. Its native module resolves
 Frame-based change points, edits only exact existing changes, and checks the full
 Palette timeline after shared Sprite persistence completes. This Palette-specific
 postcondition includes RGB/Grayscale Entries, which generic document persistence
 can otherwise treat as unrelated metadata. Python validates native evidence and
 uses shared mutation completion before Target Commit. Unsupported Palette Change
 add/remove operations remain evidence-backed Capability Gaps without Descriptors.
+The private `palette_images` module resolves per-invocation Cel and Tile Image uses,
+including unused Tiles, and supplies Image digests and Tile metadata facts to Palette
+checks. It has no persistent registry or Tile authoring policy. Palette transforms
+delegate shared replacement to the native Cel/Tile Image setter, which preserves
+sharing and updates Tileset persistence caches; raw Image byte writes do not do that.
+Palette-change reorder rejects changed Images with uses outside its effective range.
+Whole-Sprite remap and reorder include all Indexed Images and the global Transparent
+Color Index. Palette resize remains a native capability that Preparation can consume
+without importing Preparation's policy into Color and Palette.
+
 Color and Palette also owns `sprite assign-color-profile` and
 `sprite convert-color-profile`. `profile.lua` applies the same native operation to a
 standalone Sprite or a live Plan Sprite and observes all Cel Images, Palette Changes,

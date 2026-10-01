@@ -178,6 +178,56 @@ local function observes_palette_entries()
   return ok
 end
 
+local function observes_palette_transform(operation)
+  if app.params.palette_transform == nil then return false end
+  local transform = dofile(app.params.palette_transform)
+  local palettes = dofile(app.params.palette)
+  local persistence = dofile(app.params.persistence)
+  local sprite = nil
+  local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
+  local path = assert(app.params.capability_sprite)
+  local ok = pcall(function()
+    sprite = Sprite(1, 1, ColorMode.INDEXED)
+    sprite.palettes[1]:resize(2)
+    local live
+    if operation == "resize" then
+      live = transform.resize(sprite, {
+        palette_frame_number = "1",
+        size = "3",
+        entries = { { index = "2", color = { red = 12, green = 34, blue = 56, alpha = 77 } } },
+      }, {})
+      assert(live.rejection == nil and #sprite.palettes[1] == 3)
+    else
+      sprite.cels[1].image:putPixel(0, 0, 1)
+      live = transform[operation](sprite, {
+        scope = "sprite",
+        mapping = { { old_index = "0", new_index = "1" }, { old_index = "1", new_index = "0" } },
+      }, {})
+      assert(
+        live.rejection == nil
+          and sprite.cels[1].image:getPixel(0, 0) == 0
+          and sprite.transparentColor == 1
+      )
+    end
+    sprite = persistence.save_verified(sprite, path, {}, "Palette resize probe")
+    persistence.assert_equal(
+      { frame_count = live.frame_count, palette_changes = live.palette_changes },
+      palettes.list(sprite),
+      "Palette transform probe"
+    )
+    sprite:close()
+    sprite = nil
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  pcall(function() os.remove(path) end)
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
+  return ok
+end
+
 local function observes_sprite_inspection()
   local open_sprite = nil
   local inspection_path = assert(app.params.inspection_fixture)
@@ -1035,6 +1085,15 @@ function module.observe()
   end
   if observes_palette_entries() then
     capabilities[#capabilities + 1] = "aseprite_palette_entries"
+  end
+  if observes_palette_transform("resize") then
+    capabilities[#capabilities + 1] = "aseprite_palette_resize"
+  end
+  if observes_palette_transform("remap") then
+    capabilities[#capabilities + 1] = "aseprite_palette_remap"
+  end
+  if observes_palette_transform("reorder") then
+    capabilities[#capabilities + 1] = "aseprite_palette_reorder"
   end
   if supports_inspection and observes_sprite_creation() then
     capabilities[#capabilities + 1] = "aseprite_sprite_create"

@@ -645,6 +645,41 @@ These gaps do not indicate executable discovery failure and do not register
 callable commands. A future public seam needs save/close/reopen evidence before
 admission; the current boundary does not prevent that extension.
 
+`spa palette resize` targets an exact existing `palette_frame_number` and a
+positive `size`. The required `entries` list supplies exactly the new indexed
+RGBA Entries for growth; use an empty list for shrink or an unchanged size.
+Shrink refuses indexes still used by applicable Cel or Tile Images, including
+Reference Cels and unused Tiles, and cannot remove the Transparent Color Index.
+Use an explicit remap first. Other Palette Changes and all Image content stay intact.
+
+`spa palette remap` applies an explicit `mapping` list of `{old_index, new_index}`
+to the whole Indexed Sprite. Each old index occurs once; unlisted indexes stay
+unchanged, and several old indexes may map to one destination. Mapped indexes
+must fit native Indexed storage (0–255), destinations must exist in every
+Effective Palette, and the resulting Transparent Color Index must exist in
+every Palette Change. Palette colors themselves do not change.
+
+`spa palette reorder` uses the same mapping shape but requires a complete
+bijective permutation, including unchanged indexes. With `scope: "sprite"`,
+the permutation must match every Palette's size and applies to all changes and
+Indexed Images. With `scope: "palette-change"`, supply an exact
+`palette_frame_number`; the Transparent Color Index stays fixed. A shared Image
+whose pixels would change outside that change's effective range causes the whole
+request to fail, with the conflicting Cel and Tile uses in the failure details.
+RGB and Grayscale reorder changes Palette Entries without rewriting Image pixels.
+
+Mapping resolves unique Images once, including Linked Cels, Reference Cels, and
+Tileset Images. It preserves Tilemap indexes and flags, sharing, and Tile metadata.
+Results report old/new mappings, transparency, every affected Image's uses, and
+before/after content digests. All three operations are standalone and verify their saved and reopened output
+before Target Commit. They do not add Palette Changes or choose nearest colors.
+
+```sh
+uv run spa palette resize --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"smaller.aseprite","in_place":false,"overwrite":false,"palette_frame_number":1,"size":4,"entries":[]}'
+uv run spa palette remap --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"remapped.aseprite","in_place":false,"overwrite":false,"mapping":[{"old_index":3,"new_index":0}]}'
+uv run spa palette reorder --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"reordered.aseprite","in_place":false,"overwrite":false,"scope":"sprite","mapping":[{"old_index":0,"new_index":0},{"old_index":1,"new_index":2},{"old_index":2,"new_index":1},{"old_index":3,"new_index":3}]}'
+```
+
 ### Change Color Mode
 
 `spa sprite change-color-mode` declares a `conversion.source_color_mode` expectation
