@@ -4,7 +4,7 @@ Aseprite Automation (SPA) provides agent-facing automation for Aseprite. `SPA` i
 short project name used in documentation; `spa` is the primary executable.
 
 > [!IMPORTANT]
-> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery, Sprite creation, inspection, copy, resize, crop, flatten, and validation, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Tag inspection and authoring, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, bounded Pixel Patch application, native Snapshot composition (`spa paint composite`), native Line, Rectangle, Ellipse, Contour, and Blur Paint operations, verified RGB PNG Image Export, animation audit, Frame comparison, and verified continuity Preview export. Feature issues own delivery contracts, evidence requirements, provenance links, curated evidence summaries, and status, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
+> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery, Sprite creation, inspection, copy, resize, crop, flatten, and validation, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Tag inspection and authoring, Palette Change inspection and Entry edits, native Color Profile assignment and conversion, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, bounded Pixel Patch application, native Snapshot composition (`spa paint composite`), native Line, Rectangle, Ellipse, Contour, and Blur Paint operations, verified RGB PNG Image Export, animation audit, Frame comparison, and verified continuity Preview export. Feature issues own delivery contracts, evidence requirements, provenance links, curated evidence summaries, and status, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
 
 For a complete authoring example, see [Moonlit Spell Practice](examples/wizard_cast/README.md):
 a reproducible SPA wizard animation, reusable pixel assets, and a Godot target-practice demo.
@@ -680,13 +680,67 @@ uv run spa palette remap --input-json '{"aseprite":"/path/to/aseprite","source_s
 uv run spa palette reorder --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"reordered.aseprite","in_place":false,"overwrite":false,"scope":"sprite","mapping":[{"old_index":0,"new_index":0},{"old_index":1,"new_index":2},{"old_index":2,"new_index":1},{"old_index":3,"new_index":3}]}'
 ```
 
+`spa sprite assign-color-profile` takes `profile: {kind: "none"}`, `{kind: "srgb"}`,
+or `{kind: "icc", icc_file: "/path/profile.icc"}`. It changes the Color Profile while
+preserving stored Image pixels, Palette Entries, and Tile pixels. `spa sprite
+convert-color-profile` invokes native conversion within the limited matrix below.
+Both use explicit `source_sprite_file`, `target_sprite_file`, `in_place`, and
+`overwrite` fields and verify save/close/reopen before Target Commit.
+
+ICC inputs must be readable, valid profiles. Assign also supports validated LAB ICC
+metadata and valid ICC files excluded from Convert, without transforming stored colors.
+
+| Source Profile | Admitted Convert targets |
+| --- | --- |
+| Encoded None | Built-in sRGB |
+| Built-in sRGB | Built-in sRGB; fixed linear-sRGB ICC |
+| Fixed linear-sRGB ICC | Built-in sRGB; the same fixed linear-sRGB ICC |
+| Fixed Display P3 ICC | Built-in sRGB; the same fixed Display P3 ICC |
+
+The fixed files are [linear_srgb.icc](src/spa/kernel/color/profiles/linear_srgb.icc)
+and [display_p3.icc](src/spa/kernel/color/profiles/display_p3.icc), also included in
+the installed package. Any path containing the exact file bytes works. Other encodings
+or metadata changes, even with the same profile name, are outside this Convert set.
+Display P3 is the exact file verified for #103's canonical sRGB preparation path.
+Built-in sRGB is not an arbitrary sRGB ICC file.
+
+An unlisted Source ICC returns `color_profile_source_unsupported`. An unlisted target
+ICC or conversion direction returns `color_profile_file_failed` with reason
+`unsupported_profile` or `unsupported_conversion`. Non-RGB targets retain the static
+`unsupported_color_space` refusal. These refusals preserve Source and any existing
+Target, including in-place execution and Plan Steps after Assign. Assign changes
+interpretation and cannot replace an unsupported requested transform.
+
+The result reports the input path,
+byte size, SHA-256, native name, and equality with the effective Sprite profile.
+Results distinguish `source_profile`, `requested_profile`, and `effective_profile`;
+`profile_changed` is independent of content changes. Each Cel Image, Palette Change,
+and Tileset Tile has before/after content digests and a `changed` flag. Palette
+observations also list changed Entry indexes. On the tested 1.3.18.5 runtime, native
+Convert leaves Tileset pixels unchanged; this is reported explicitly. See the
+[profile evidence](docs/evidence/issue-34-color-profile.md) for Color Mode behavior
+and the batch loader's treatment of encoded None. Supported same-profile requests
+and content-dependent no-ops are valid; changed-pixel counts do not determine success.
+These operations do not add profile conversion to PNG Export.
+Conversion requires a probed native converter. The current Linux CI build uses
+`LAF_BACKEND=none`; it is expected to report a conversion Capability Gap and reject
+Convert, while retaining Assign. Native conversion is verified on the macOS bundle.
+
+```sh
+uv run spa sprite assign-color-profile --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"untagged.aseprite","in_place":false,"overwrite":false,"profile":{"kind":"none"}}'
+uv run spa sprite convert-color-profile --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"converted.aseprite","in_place":false,"overwrite":false,"profile":{"kind":"icc","icc_file":"/path/profile.icc"}}'
+```
+
 `spa plan check` validates a bounded Plan, including current Source and Target path
-conditions, without starting Aseprite. `spa plan run`
+conditions, ICC file readability and validity, and fixed Convert target membership,
+without starting Aseprite. Native
+profile loading and document-dependent conversion checks occur during `spa plan run`, which
 executes up to 64 Sprite-bound `sprite create`, `sprite get`, `frame list`,
-`frame get`, `frame add`, `frame duplicate`, `cel add`, `cel set`, `motion apply`, and `paint apply` Steps
+`frame get`, `frame add`, `frame duplicate`, `cel add`, `cel set`, `motion apply`,
+`paint apply`, `sprite assign-color-profile`, and `sprite convert-color-profile` Steps
 on one live Sprite in one Aseprite process. A read Plan publishes no file. A mutating
 Plan declares one Target Sprite File; the staged file is reopened and verified before
-one Target Commit. A failed Step publishes no target. Typed Cel refusals identify the
+one Target Commit. A failed Step publishes no target. Typed Cel and Color Profile refusals identify the
 one-based Step in `details.step_number`; execution failures use
 `details.failed_step` when a Step was active. Each Paint Step retains its own
 256-pixel Operation Limit. A Plan with an

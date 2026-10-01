@@ -15,6 +15,7 @@ this view instead of treating it as another decision authority.
 > `spa schema`, Sprite creation, inspection, copy, resize, crop, flatten, and
 > validation, Layer addressing and mutation, Frame inspection, authoring, and
 > editing, Tag inspection and authoring, Palette Change inspection and Entry edits,
+> Color Profile assignment and conversion,
 > Cel inspection, lifecycle, placement,
 > bounded position/opacity motion,
 > and native relationships, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, bounded Pixel Patch
@@ -500,12 +501,14 @@ src/spa/
       paint.py, paint_composite.py, paint_native.py
     color/
       palette.py          # Palette reads, Entry edits, sizing, reorder, and remap contracts
+      profile.py          # Native Color Profile contracts and ICC input policy
   delivery/
     export.py             # Export Image contract, native invocation, and result
     png_publication.py    # staged PNG verification/publication for Export and Preview
   adapters/
     aseprite/             # process, resource discovery, and transport
     files.py, png.py       # filesystem mechanics and independent PNG decoding
+    icc.py                # ICC byte validation and digest, without color transforms
   kernel/                 # fixed native semantic handlers and shared owners
     __init__.py
     document/
@@ -513,7 +516,7 @@ src/spa/
     raster/
       image/, paint/, selection/
       raster_color.lua
-    color/                # Palette Change semantics and Effective Palette resolution
+    color/                # Palette Changes, Effective Palettes, and native Color Profiles
     delivery/             # native Image Export
     runtime/              # runtime and capability probes
       fixtures/           # real native probe inputs
@@ -565,6 +568,24 @@ Palette-change reorder rejects changed Images with uses outside its effective ra
 Whole-Sprite remap and reorder include all Indexed Images and the global Transparent
 Color Index. Palette resize remains a native capability that Preparation can consume
 without importing Preparation's policy into Color and Palette.
+
+Color and Palette also owns `sprite assign-color-profile` and
+`sprite convert-color-profile`. `profile.lua` applies the same native operation to a
+standalone Sprite or a live Plan Sprite and observes all Cel Images, Palette Changes,
+and Tileset Tiles. The same owner admits Convert through a finite directed matrix
+and exact packaged ICC bytes. It binds encoded Source bytes, or bytes from the last
+live Assign, to the native profile before admission. This policy does not constrain
+valid-ICC Assign or infer arbitrary native ICC compatibility. Static Preflight rejects
+unlisted Convert target bytes by reading those same co-packaged resources; it does
+not reproduce the Lua source/direction rule.
+Python reads and freezes input ICC bytes through the file adapter and
+validates them through the ICC adapter;
+it does not transform colors. The profile-specific persistence check verifies native
+profile equality, encoded kind, all stored colors, and the complete Palette timeline.
+The bounded encoded-profile reader is shared with Export, whose format policy remains
+separate. This preserves encoded None despite Aseprite's batch load default and adds
+no general profile or preference service. See the [native evidence](docs/evidence/issue-34-color-profile.md).
+
 Reuse the canonical
 Pixel Region Snapshot and Color Value contracts where applicable; do not promote the
 wizard's temporary PNG decoder, palette matcher, or batching adapter as a second pixel

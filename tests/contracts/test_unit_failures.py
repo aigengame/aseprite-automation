@@ -20,6 +20,7 @@ from spa.authoring.color.palette import (
     PaletteFrameDetails,
     PaletteTransformDetails,
 )
+from spa.authoring.color.profile import ProfileFileDetails, ProfileSourceDetails
 from spa.authoring.document.animation import AuditLimitDetails
 from spa.authoring.document.cel import CelAddress as LifecycleCelAddress
 from spa.authoring.document.cel import CelFrameRangeDetails, CelTargetDetails
@@ -184,6 +185,8 @@ def test_each_registered_code_has_a_constrained_public_schema() -> None:
         PaletteTransformDetails: PaletteTransformDetails(
             reason="growth_entries", palette_frame_number=1
         ),
+        ProfileFileDetails: ProfileFileDetails(path="profile.icc", reason="invalid"),
+        ProfileSourceDetails: ProfileSourceDetails(icc_color_space="Lab"),
         PaletteFrameDetails: PaletteFrameDetails(frame_number=6, frame_count=5),
         PaletteChangeDetails: PaletteChangeDetails(
             palette_frame_number=2, frame_count=5

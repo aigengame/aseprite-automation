@@ -21,6 +21,78 @@ local image_orientation_transform = app.params.image_orientation_transform
     and dofile(app.params.image_orientation_transform)
   or nil
 
+local function observes_color_profile(operation)
+  if app.params.color_profile == nil or app.params.profile_linear_srgb == nil then return false end
+  local profiles = dofile(app.params.color_profile)
+  local sprite = nil
+  local path = app.params.capability_sprite
+  local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
+  local ok = pcall(function()
+    sprite = Sprite(1, 1, ColorMode.RGB)
+    sprite:assignColorSpace(ColorSpace { sRGB = true })
+    sprite.cels[1].image:drawPixel(0, 0, app.pixelColor.rgba(48, 96, 144, 255))
+    sprite.palettes[1]:resize(2)
+    sprite.palettes[1]:setColor(0, Color { r = 32, g = 64, b = 96, a = 255 })
+    sprite.palettes[1]:setColor(1, Color { r = 48, g = 96, b = 144, a = 255 })
+    local function icc_input(icc_path)
+      local file = assert(io.open(icc_path, "rb"))
+      local bytes = assert(file:read("a"))
+      file:close()
+      return {
+        profile = { kind = "icc", icc_file = icc_path },
+        icc_bytes = bytes:gsub(".", function(value) return string.format("%02x", value:byte()) end),
+        icc_file = { path = icc_path, byte_size = #bytes, sha256 = string.rep("0", 64) },
+      }
+    end
+    local profile_state = {}
+    local function verify(input_profile)
+      local result = profiles.apply_live(sprite, operation, input_profile, {}, profile_state)
+      assert(result.rejection == nil and result.matches_requested_profile)
+      local live = profiles.snapshot(sprite, {})
+      assert(sprite:saveAs(path))
+      sprite:close()
+      sprite = assert(app.open(path))
+      profile_state = profiles.restore_file_profile(sprite, path)
+      profiles.verify_persisted(live, sprite, inspection.saved_layer_uuids(sprite, path))
+      return result
+    end
+    local changed = verify(icc_input(app.params.profile_linear_srgb))
+    assert(changed.images[1].changed == (operation == "convert"))
+    assert(changed.palettes[1].changed == (operation == "convert"))
+    local restored = verify { profile = { kind = "srgb" } }
+    assert(restored.images[1].changed == (operation == "convert"))
+    assert(restored.palettes[1].changed == (operation == "convert"))
+    if operation == "assign" then
+      verify { profile = { kind = "none" } }
+    else
+      -- This separate direction is required by Asset Preparation (#103).
+      local assigned = profiles.apply_live(
+        sprite,
+        "assign",
+        icc_input(app.params.profile_display_p3),
+        {},
+        profile_state
+      )
+      assert(assigned.rejection == nil)
+      local sample = app.pixelColor.rgba(180, 70, 30, 127)
+      sprite.cels[1].image:drawPixel(0, 0, sample)
+      sprite.palettes[1]:setColor(1, Color { r = 180, g = 70, b = 30, a = 127 })
+      verify { profile = { kind = "srgb" } }
+      local expected = app.pixelColor.rgba(195, 60, 2, 127)
+      assert(sprite.cels[1].image:getPixel(0, 0) == expected)
+      assert(sprite.palettes[1]:getColor(1).rgbaPixel == expected)
+    end
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  pcall(function() os.remove(path) end)
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
+  return ok
+end
+
 local function observes_palette_entries()
   if app.params.palette == nil or app.params.persistence == nil then return false end
   local palettes = dofile(app.params.palette)
@@ -953,6 +1025,12 @@ function module.observe()
     if ok then capabilities[#capabilities + 1] = "aseprite_selection" end
   end
   local supports_inspection = observes_sprite_inspection()
+  if observes_color_profile("assign") then
+    capabilities[#capabilities + 1] = "aseprite_assign_color_profile"
+  end
+  if observes_color_profile("convert") then
+    capabilities[#capabilities + 1] = "aseprite_convert_color_profile"
+  end
   if observes_palette_entries() then
     capabilities[#capabilities + 1] = "aseprite_palette_entries"
   end

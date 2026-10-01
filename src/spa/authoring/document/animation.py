@@ -42,7 +42,7 @@ from spa.contracts.public import (
 from spa.contracts.raster import Rectangle
 from spa.delivery.export import (
     EXPORT_FAILURE_CODE_SPECS,
-    EXPORT_SUPPORT,
+    EXPORT_PROBE_RESOURCES,
     AlphaChannelFacts,
     ExportDestination,
 )
@@ -283,7 +283,7 @@ ANIMATION_HANDLER = PackagedHandler(
         CEL_SUPPORT_RESOURCE,
         CEL_SELECT_RESOURCE,
         SPRITE_INSPECTION_RESOURCE,
-        EXPORT_SUPPORT,
+        *EXPORT_PROBE_RESOURCES,
     ),
 )
 AUDIT_REQUIREMENTS = RuntimeRequirements(
