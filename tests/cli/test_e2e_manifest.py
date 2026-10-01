@@ -2,6 +2,7 @@
 
 import json
 import os
+import sys
 
 import pytest
 from jsonschema import Draft202012Validator, validate
@@ -20,7 +21,11 @@ def test_manifest_is_projected_from_command_descriptors() -> None:
     validate(unknown, manifest["access_failure_schema"])
     invalid_argv = json.loads(spa("info", "--timeout-seconds", "nope").stdout)
     validate(invalid_argv, manifest["operations"][0]["failure_schema"])
-    assert [entry["operation"] for entry in manifest["operations"]] == [
+    conversion_available = (
+        "aseprite_convert_color_profile" in manifest["runtime"]["verified_capabilities"]
+    )
+    assert conversion_available or sys.platform == "linux"
+    expected_operations = [
         "spa info",
         "spa version",
         "spa schema",
@@ -91,6 +96,8 @@ def test_manifest_is_projected_from_command_descriptors() -> None:
         "spa palette list",
         "spa palette get",
         "spa palette set",
+        "spa sprite assign-color-profile",
+        "spa sprite convert-color-profile",
         "spa export image",
         "spa animation audit",
         "spa animation compare",
@@ -98,10 +105,16 @@ def test_manifest_is_projected_from_command_descriptors() -> None:
         "spa plan check",
         "spa plan run",
     ]
+    if not conversion_available:
+        expected_operations.remove("spa sprite convert-color-profile")
+        expected_operations.remove("spa plan run")
+    assert [
+        entry["operation"] for entry in manifest["operations"]
+    ] == expected_operations
     eligibility = {
         entry["operation"]: entry["plan_eligible"] for entry in manifest["operations"]
     }
-    assert {name for name, eligible in eligibility.items() if eligible} == {
+    expected_eligible = {
         "spa sprite create",
         "spa sprite get",
         "spa paint apply",
@@ -112,7 +125,14 @@ def test_manifest_is_projected_from_command_descriptors() -> None:
         "spa cel add",
         "spa cel set",
         "spa motion apply",
+        "spa sprite assign-color-profile",
+        "spa sprite convert-color-profile",
     }
+    if not conversion_available:
+        expected_eligible.remove("spa sprite convert-color-profile")
+    assert {
+        name for name, eligible in eligibility.items() if eligible
+    } == expected_eligible
     for entry in manifest["operations"]:
         command = entry["operation"].split()[1:]
         assert entry == json.loads(spa(*command, "--schema").stdout)

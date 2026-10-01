@@ -7,6 +7,18 @@ from typing import Annotated, Any, Literal, assert_never
 from pydantic import Field, ValidationError, model_validator
 
 from spa.authoring.color.palette import EFFECTIVE_PALETTE_RESOURCE
+from spa.authoring.color.profile import (
+    PROFILE_FILE_RESOURCE,
+    PROFILE_ICC_RESOURCES,
+    PROFILE_OPERATIONS,
+    PROFILE_RESOURCE,
+    AssignProfileInput,
+    ConvertProfileInput,
+    ProfileEvidence,
+    profile_payload,
+    reject_profile,
+    validate_profile_evidence,
+)
 from spa.authoring.document.cel import (
     CEL_OPERATIONS,
     CEL_SELECT_RESOURCE,
@@ -111,6 +123,7 @@ ELIGIBLE_OPERATIONS = {
     descriptor.name: descriptor
     for descriptor in (
         *SPRITE_OPERATIONS,
+        *PROFILE_OPERATIONS,
         *PAINT_OPERATIONS,
         *FRAME_OPERATIONS,
         *CEL_OPERATIONS,
@@ -125,6 +138,9 @@ PLAN_RUN_HANDLER = PackagedHandler(
     (
         SPRITE_INSPECTION_RESOURCE,
         SPRITE_PERSISTENCE_RESOURCE,
+        PROFILE_RESOURCE,
+        PROFILE_FILE_RESOURCE,
+        *PROFILE_ICC_RESOURCES,
         SPRITE_CREATION_RESOURCE,
         PAINT_SUPPORT_RESOURCE,
         RASTER_COLOR_RESOURCE,
@@ -201,6 +217,16 @@ class MotionStep(PublicModel):
     input: MotionInput
 
 
+class AssignProfileStep(PublicModel):
+    operation: Literal["sprite assign-color-profile"]
+    input: AssignProfileInput
+
+
+class ConvertProfileStep(PublicModel):
+    operation: Literal["sprite convert-color-profile"]
+    input: ConvertProfileInput
+
+
 PlanStep = Annotated[
     CreateStep
     | GetStep
@@ -211,7 +237,9 @@ PlanStep = Annotated[
     | FrameDuplicateStep
     | CelAddStep
     | CelSetStep
-    | MotionStep,
+    | MotionStep
+    | AssignProfileStep
+    | ConvertProfileStep,
     Field(discriminator="operation"),
 ]
 
@@ -271,6 +299,8 @@ class PlanDefinition(PublicModel):
                     CelAddStep,
                     CelSetStep,
                     MotionStep,
+                    AssignProfileStep,
+                    ConvertProfileStep,
                 ),
             )
             for step in self.steps
@@ -361,6 +391,20 @@ class MotionStepResult(MotionEvidence):
     persisted_reopen_verified: Literal[False]
 
 
+class ProfileStepResult(ProfileEvidence):
+    persisted_reopen_verified: Literal[False]
+
+
+class AssignProfileStepOutcome(PublicModel):
+    operation: Literal["sprite assign-color-profile"]
+    result: ProfileStepResult
+
+
+class ConvertProfileStepOutcome(PublicModel):
+    operation: Literal["sprite convert-color-profile"]
+    result: ProfileStepResult
+
+
 class CreateStepOutcome(PublicModel):
     operation: Literal["sprite create"]
     result: CreateStepResult
@@ -421,7 +465,9 @@ StepOutcome = Annotated[
     | FrameDuplicateStepOutcome
     | CelAddStepOutcome
     | CelSetStepOutcome
-    | MotionStepOutcome,
+    | MotionStepOutcome
+    | AssignProfileStepOutcome
+    | ConvertProfileStepOutcome,
     Field(discriminator="operation"),
 ]
 
@@ -439,9 +485,20 @@ def check_plan(
     request: PlanCheckRequest, services: OperationServices
 ) -> PlanCheckResult:
     _preflight_paths(request.plan, services)
+    _prepare_profile_inputs(request.plan, services)
     return PlanCheckResult(
         step_count=len(request.plan.steps), commit_required=request.plan.commit_required
     )
+
+
+def _prepare_profile_inputs(
+    plan: PlanDefinition, services: OperationServices
+) -> dict[int, dict[str, Any]]:
+    return {
+        index: profile_payload(step.input, services, index)
+        for index, step in enumerate(plan.steps, 1)
+        if isinstance(step, (AssignProfileStep, ConvertProfileStep))
+    }
 
 
 def _preflight_paths(plan: PlanDefinition, services: OperationServices) -> None:
@@ -568,7 +625,10 @@ PLAN_DISCOVERY_REQUIREMENTS = _combined_requirements(list(ELIGIBLE_OPERATIONS))
 
 
 def _validated_steps(
-    request: PlanRunRequest, invocation: KernelInvocationResult, canvas: SpriteMetadata
+    request: PlanRunRequest,
+    invocation: KernelInvocationResult,
+    canvas: SpriteMetadata,
+    profile_inputs: dict[int, dict[str, Any]],
 ) -> list[StepOutcome]:
     raw = invocation.payload.get("steps")
     if not isinstance(raw, list) or len(raw) != len(request.plan.steps):
@@ -648,6 +708,16 @@ def _validated_steps(
             elif isinstance(step, MotionStep):
                 outcome = MotionStepOutcome.model_validate(item)
                 validate_motion_evidence(step.input, outcome.result, invocation)
+            elif isinstance(step, ConvertProfileStep):
+                outcome = ConvertProfileStepOutcome.model_validate(item)
+                validate_profile_evidence(
+                    step.input, outcome.result, invocation, profile_inputs[index]
+                )
+            elif isinstance(step, AssignProfileStep):
+                outcome = AssignProfileStepOutcome.model_validate(item)
+                validate_profile_evidence(
+                    step.input, outcome.result, invocation, profile_inputs[index]
+                )
             elif isinstance(step, CelAddStep):
                 outcome = CelAddStepOutcome.model_validate(item)
                 target = step.input.target
@@ -707,7 +777,14 @@ def _validate_cel_count_sequence(
             # Both copied and linked Images add one Cel per inserted Layer/Frame.
             cel_count -= outcome.result.inserted_cel_count
         elif isinstance(
-            outcome, (PaintStepOutcome, FrameListStepOutcome, FrameGetStepOutcome)
+            outcome,
+            (
+                PaintStepOutcome,
+                FrameListStepOutcome,
+                FrameGetStepOutcome,
+                AssignProfileStepOutcome,
+                ConvertProfileStepOutcome,
+            ),
         ):
             pass
         else:
@@ -728,6 +805,7 @@ def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunRes
         raise TypeError("Plan run requires the direct Kernel invocation adapter")
     plan = request.plan
     _preflight_paths(plan, services)
+    profile_inputs = _prepare_profile_inputs(plan, services)
     staged = (
         services.target_files.staged_path(Path(plan.target_sprite_file))
         if plan.target_sprite_file is not None
@@ -744,10 +822,27 @@ def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunRes
         ),
         "runtime_requirements": _requirements(plan).model_dump(mode="json"),
     }
+    for index, prepared in profile_inputs.items():
+        payload["steps"][index - 1]["input"] = prepared
     try:
         invocation = services.invoke_kernel_direct(
             request, PLAN_RUN_HANDLER, payload, request.timeout_seconds
         )
+        profile_rejection = invocation.payload.get("profile_rejection")
+        if profile_rejection is not None:
+            index = (
+                profile_rejection.get("step_number")
+                if isinstance(profile_rejection, dict)
+                else None
+            )
+            if type(index) is not int or index not in profile_inputs:
+                raise _malformed(invocation, "Invalid Color Profile Step rejection")
+            reject_profile(
+                replace(
+                    invocation, payload={"rejection": profile_rejection["rejection"]}
+                ),
+                index,
+            )
         cel_rejection = invocation.payload.get("cel_rejection")
         if cel_rejection is not None:
             if not isinstance(cel_rejection, dict):
@@ -897,7 +992,9 @@ def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunRes
         validated_scope(final_scope_request, final_sprite, invocation)
         # Eligible Steps keep the Canvas size; Add receipts describe their own
         # initial state, even when a later Step paints or moves that Cel.
-        outcomes = _validated_steps(request, invocation, final_sprite.metadata)
+        outcomes = _validated_steps(
+            request, invocation, final_sprite.metadata, profile_inputs
+        )
         metadata = final_sprite.metadata
         for field, expected in plan.postconditions.model_dump(
             exclude_none=True
@@ -973,7 +1070,7 @@ PLAN_OPERATIONS = (
         check_plan,
         lambda result: f"Plan accepted: {result.step_count} Steps",
         None,
-        ("invalid_request",),
+        ("invalid_request", "color_profile_file_failed", "resource_incomplete"),
     ),
     OperationDescriptor(
         "plan run",
@@ -993,6 +1090,8 @@ PLAN_OPERATIONS = (
             "cel_not_found",
             "cel_unsupported_target",
             "cel_frame_out_of_bounds",
+            "color_profile_file_failed",
+            "color_profile_source_unsupported",
             "motion_linked_cel",
             "motion_position_out_of_bounds",
             "target_commit_failed",

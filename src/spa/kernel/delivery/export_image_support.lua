@@ -4,57 +4,7 @@ local module = {}
 local profile_disable = 0
 local profile_embedded = 1
 
--- Aseprite 1.3.18.5 saves None by omitting the Color Profile chunk, but
--- app.open() assigns sRGB to that old-file form. Read only this file fact.
-local function declared_profile(source_file)
-  local file = assert(io.open(source_file, "rb"), "could not read Source Sprite File")
-  local ok, result = pcall(function()
-    local header = assert(file:read(128), "incomplete Sprite header")
-    local file_size, magic, frames = string.unpack("<I4I2I2", header)
-    assert(magic == 0xa5e0 and frames > 0, "invalid Sprite header")
-    local actual_size = assert(file:seek("end"))
-    assert(file_size <= actual_size, "incomplete Source Sprite File")
-    local frame_at = 128
-    local observed = nil
-    for _ = 1, frames do
-      assert(frame_at + 16 <= file_size, "incomplete Sprite Frame")
-      assert(file:seek("set", frame_at))
-      local frame_header = assert(file:read(16))
-      local frame_size, frame_magic, old_chunks, _, new_chunks =
-        string.unpack("<I4I2I2I2xxI4", frame_header)
-      assert(frame_magic == 0xf1fa and frame_size >= 16, "invalid Sprite Frame")
-      local frame_end = frame_at + frame_size
-      assert(frame_end <= file_size, "incomplete Sprite Frame")
-      local chunks = old_chunks == 0xffff and new_chunks or old_chunks
-      local chunk_at = frame_at + 16
-      for _ = 1, chunks do
-        assert(chunk_at + 6 <= frame_end, "incomplete Sprite chunk")
-        assert(file:seek("set", chunk_at))
-        local chunk_header = assert(file:read(6))
-        local chunk_size, chunk_type = string.unpack("<I4I2", chunk_header)
-        assert(chunk_size >= 6 and chunk_at + chunk_size <= frame_end, "invalid Sprite chunk")
-        if chunk_type == 0x2007 then
-          assert(chunk_size >= 22, "incomplete Color Profile chunk")
-          local profile_type, flags = string.unpack("<I2I2", assert(file:read(4)))
-          -- A gamma flag changes both None and sRGB to a gamma Color Space.
-          assert(flags == 0, "unsupported Source Sprite Color Profile")
-          local kind = profile_type == 0 and "none"
-            or profile_type == 1 and "srgb"
-            or profile_type == 2 and "icc"
-            or "unsupported"
-          assert(observed == nil or observed == kind, "conflicting Color Profile chunks")
-          observed = kind
-        end
-        chunk_at = chunk_at + chunk_size
-      end
-      frame_at = frame_end
-    end
-    return observed or "none"
-  end)
-  file:close()
-  if not ok then error(result) end
-  return result
-end
+local profile_file = dofile(app.params.color_profile_file)
 
 local function source_profile(sprite)
   local color_space = sprite.colorSpace
@@ -81,7 +31,7 @@ function module.with_source(source_file, frame_numbers, run)
   local previous_compose_groups = app.preferences.experimental.compose_groups
   local source = nil
   local ok, result = pcall(function()
-    local declared = declared_profile(source_file)
+    local declared = profile_file.declared_profile(source_file)
     assert(declared == "none" or declared == "srgb", "unsupported Source Sprite Color Profile")
     app.preferences.color.manage = true
     app.preferences.color.files_with_profile = profile_embedded
