@@ -6,6 +6,7 @@ from spa.access.cli import build_app, run_cli
 from spa.adapters.aseprite.aseprite import invoke, invoke_direct, probe
 from spa.adapters.files import LocalArtifactFiles, LocalTargetFiles
 from spa.adapters.icc import verify_icc
+from spa.adapters.palette_file import decode_palette_file
 from spa.adapters.png import verify_png
 from spa.application.failure_registry import FAILURE_CODES
 from spa.application.surface import PROBE_RESOURCES
@@ -23,6 +24,7 @@ def main() -> None:
                 artifact_files=LocalArtifactFiles(),
                 verify_png=verify_png,
                 verify_icc=verify_icc,
+                decode_palette_file=decode_palette_file,
             ),
             FAILURE_CODES,
         ),

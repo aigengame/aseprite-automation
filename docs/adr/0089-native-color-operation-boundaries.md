@@ -43,6 +43,11 @@ without merging these operations or allowing hidden state to decide agent output
   consumes already established Effective Palettes and never hides Palette generation,
   import, or editing inside conversion. An export can explicitly compose Palette
   preparation before conversion on its disposable Sprite.
+- Native success does not establish Palette validity. Publication requires the actual
+  generated Palette to satisfy the declared color limit and applicable stored-index
+  constraints. Palette import and quantization also verify the complete Palette timeline
+  after Sprite save/reopen. Refuse a failing candidate without implicit color repair,
+  algorithm substitution, or binary-file patching; #32 owns the exact refusal cases.
 - Color Profile is independent of Color Mode. Assign Color Profile and Convert Color
   Profile remain separate native operations because assignment preserves stored values
   while conversion changes applicable Image pixels and Palette Entries.
@@ -59,6 +64,9 @@ without merging these operations or allowing hidden state to decide agent output
   validate or digest an ICC file. It does not interpret matrix pixels, quantize or map
   colors, transform profiles, or implement Dithering. Native color behavior and its
   effective observations remain in the fixed Lua Kernel.
+- Independent Palette-file decoding verifies ordered Entries and encoded transparency
+  against native observations. It does not generate or apply Palette colors; file
+  publication composes this verification with the shared Asset Delivery guarantees.
 - A standalone Sprite Mutation applies the applicable native operation to the complete
   Sprite and uses normal Target Commit semantics. Export applies the same packaged
   capabilities only to disposable export state and never mutates the Source Sprite.

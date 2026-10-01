@@ -2,7 +2,9 @@
 
 from spa.authoring.color.color_mode import COLOR_MODE_FAILURE_SPECS
 from spa.authoring.color.palette import PALETTE_FAILURE_CODE_SPECS
+from spa.authoring.color.palette_file import PALETTE_FILE_FAILURE_SPECS
 from spa.authoring.color.profile import PROFILE_FAILURE_SPECS
+from spa.authoring.color.quantization import QUANTIZATION_FAILURE_SPECS
 from spa.authoring.document.animation import ANIMATION_FAILURE_CODE_SPECS
 from spa.authoring.document.cel import CEL_FAILURE_CODE_SPECS
 from spa.authoring.document.layer import LAYER_FAILURE_CODE_SPECS
@@ -22,12 +24,15 @@ from spa.authoring.raster.selection import SELECTION_FAILURE_CODE_SPECS
 from spa.contracts.mutation import MUTATION_FAILURE_CODE_SPECS
 from spa.contracts.public import CORE_FAILURE_CODE_SPECS, register_failure_codes
 from spa.delivery.export import EXPORT_FAILURE_CODE_SPECS
+from spa.delivery.palette import PALETTE_EXPORT_FAILURE_SPECS
 
 FAILURE_CODES = register_failure_codes(
     (
         *CORE_FAILURE_CODE_SPECS,
         *FILTER_FAILURE_SPECS,
         *PALETTE_FAILURE_CODE_SPECS,
+        *PALETTE_FILE_FAILURE_SPECS,
+        *QUANTIZATION_FAILURE_SPECS,
         *COLOR_MODE_FAILURE_SPECS,
         *PROFILE_FAILURE_SPECS,
         *ANIMATION_FAILURE_CODE_SPECS,
@@ -38,6 +43,7 @@ FAILURE_CODES = register_failure_codes(
         *NATIVE_PAINT_FAILURE_CODE_SPECS,
         *SELECTION_FAILURE_CODE_SPECS,
         *EXPORT_FAILURE_CODE_SPECS,
+        *PALETTE_EXPORT_FAILURE_SPECS,
         *IMAGE_RESIZE_FAILURE_CODE_SPECS,
         *IMAGE_SNAPSHOT_FAILURE_CODE_SPECS,
         *IMAGE_CANVAS_FAILURE_CODE_SPECS,

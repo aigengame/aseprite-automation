@@ -2,12 +2,36 @@
 
 import json
 import os
+import struct
 import subprocess
 import tempfile
+import zlib
 from pathlib import Path
 
 from spa.adapters.aseprite.invocation import prepare_invocation
 from tests.support import inject_palette_change, process_diagnostics, spa
+
+
+def png_chunk(kind: bytes, data: bytes) -> bytes:
+    """Encode a PNG fixture chunk with its length and CRC."""
+    return (
+        struct.pack(">I", len(data))
+        + kind
+        + data
+        + struct.pack(">I", zlib.crc32(kind + data))
+    )
+
+
+def oversized_palette_png() -> bytes:
+    """Small malformed input with valid chunks and an oversized Indexed raster header."""
+
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + png_chunk(b"IHDR", struct.pack(">IIBBBBB", 14000, 14000, 8, 3, 0, 0, 0))
+        + png_chunk(b"PLTE", bytes([10, 20, 30]))
+        + png_chunk(b"IDAT", zlib.compress(b"\0\0"))
+        + png_chunk(b"IEND", b"")
+    )
 
 
 def run_palette(*command: str, **request: object) -> tuple[int, dict]:

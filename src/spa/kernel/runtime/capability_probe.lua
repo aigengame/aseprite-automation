@@ -21,6 +21,66 @@ local image_orientation_transform = app.params.image_orientation_transform
     and dofile(app.params.image_orientation_transform)
   or nil
 
+local function observes_palette_files()
+  local path = app.params.capability_sprite .. ".gpl"
+  local ok = pcall(function()
+    local file = assert(io.open(path, "wb"))
+    file:write(
+      "GIMP Palette\nChannels: RGBA\n#\n11 22 33 0 zero\n44 55 66 128 partial\n"
+        .. "44 55 66 128 duplicate\n77 88 99 255 opaque\n"
+    )
+    file:close()
+    local palette = Palette { fromFile = path }
+    assert(#palette == 4 and palette:getColor(1).alpha == 128)
+    assert(palette:getColor(1).rgbaPixel == palette:getColor(2).rgbaPixel)
+    for _, target in ipairs({ path, path .. ".png" }) do
+      palette:saveAs(target)
+      local reopened = Palette { fromFile = target }
+      assert(#reopened == #palette)
+      for index = 0, 3 do
+        assert(reopened:getColor(index).rgbaPixel == palette:getColor(index).rgbaPixel)
+      end
+    end
+  end)
+  os.remove(path)
+  os.remove(path .. ".png")
+  return ok
+end
+
+local function observes_palette_quantization()
+  if not app.params.palette_quantization then return false end
+  local quantization = dofile(app.params.palette_quantization)
+  local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
+  local sprite
+  local ok = pcall(function()
+    sprite = Sprite(3, 1, ColorMode.RGB)
+    sprite.cels[1].image:drawPixel(0, 0, app.pixelColor.rgba(255, 0, 0, 255))
+    sprite.cels[1].image:drawPixel(1, 0, app.pixelColor.rgba(0, 255, 0, 128))
+    for _, algorithm in ipairs({ "default", "rgb5a3", "octree" }) do
+      local alpha = algorithm ~= "rgb5a3"
+      local result = quantization.apply(sprite, {
+        palette_frame_number = "1",
+        max_colors = "8",
+        with_alpha = alpha,
+        rgb_map_algorithm = algorithm,
+        new_layer_blending_method = algorithm ~= "default",
+      }, {})
+      assert(not result.rejection and result.quantization.actual_colors == 3)
+      local has_partial = false
+      for _, entry in ipairs(result.palette.entries) do
+        has_partial = has_partial or (entry.color.alpha > 0 and entry.color.alpha < 255)
+      end
+      assert(has_partial == alpha)
+    end
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    app.activeSprite, app.activeLayer, app.activeFrame =
+      previous.sprite, previous.layer, previous.frame
+  end
+  return ok
+end
+
 local function observes_change_color_mode()
   if not app.params.color_mode then return false end
   local color_mode = dofile(app.params.color_mode)
@@ -1144,6 +1204,10 @@ function module.observe()
   end
   if observes_palette_entries() then
     capabilities[#capabilities + 1] = "aseprite_palette_entries"
+  end
+  if observes_palette_files() then capabilities[#capabilities + 1] = "aseprite_palette_files" end
+  if observes_palette_quantization() then
+    capabilities[#capabilities + 1] = "aseprite_palette_quantization"
   end
   if observes_palette_transform("resize") then
     capabilities[#capabilities + 1] = "aseprite_palette_resize"
