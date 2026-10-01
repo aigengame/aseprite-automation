@@ -14,6 +14,11 @@ from pydantic import ValidationError
 from spa.application.dispatch import _runtime_failure, dispatch
 from spa.application.failure_registry import FAILURE_CODES
 from spa.application.surface import ACCESS_FAILURE_CODES, OPERATIONS
+from spa.authoring.color.color_mode import (
+    ColorModeMismatchDetails,
+    InstalledMatrix,
+    MatrixFailureDetails,
+)
 from spa.authoring.color.palette import (
     PaletteChangeDetails,
     PaletteEntryDetails,
@@ -182,6 +187,14 @@ def test_failure_construction_derives_category_and_refuses_mismatch() -> None:
 
 def test_each_registered_code_has_a_constrained_public_schema() -> None:
     details_by_type = {
+        ColorModeMismatchDetails: ColorModeMismatchDetails(
+            expected="rgb", actual="indexed"
+        ),
+        MatrixFailureDetails: MatrixFailureDetails(
+            matrix=InstalledMatrix(kind="installed", id="missing"),
+            reason="missing",
+            matches=[],
+        ),
         PaletteTransformDetails: PaletteTransformDetails(
             reason="growth_entries", palette_frame_number=1
         ),

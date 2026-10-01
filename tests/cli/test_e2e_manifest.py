@@ -99,6 +99,7 @@ def test_manifest_is_projected_from_command_descriptors() -> None:
         "spa palette list",
         "spa palette get",
         "spa palette set",
+        "spa sprite change-color-mode",
         "spa sprite assign-color-profile",
         "spa sprite convert-color-profile",
         "spa export image",
@@ -128,6 +129,7 @@ def test_manifest_is_projected_from_command_descriptors() -> None:
         "spa cel add",
         "spa cel set",
         "spa motion apply",
+        "spa sprite change-color-mode",
         "spa sprite assign-color-profile",
         "spa sprite convert-color-profile",
     }

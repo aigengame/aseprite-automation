@@ -10,6 +10,8 @@ local motion = dofile(app.params.motion)
 local layer_select = dofile(app.params.layer_select)
 local digest = dofile(app.params.digest)
 local persistence = dofile(app.params.persistence)
+local color_mode = dofile(app.params.color_mode)
+local converted = false
 local profiles = dofile(app.params.color_profile)
 local profile_operations = {
   ["sprite assign-color-profile"] = "assign",
@@ -106,6 +108,14 @@ local function execute_step(step)
     }
   end
   assert(open_sprite ~= nil, "Plan has no active Sprite")
+  if step.operation == "sprite change-color-mode" then
+    local result = color_mode.change(open_sprite, input.conversion)
+    if not result.rejection then
+      result.persisted_reopen_verified = false
+      converted = true
+    end
+    return result
+  end
   if step.operation == "sprite get" then
     return { sprite = inspection.inspect(open_sprite, input.inspection_scope, verified_uuids) }
   end
@@ -183,6 +193,11 @@ local function execute()
     failed_operation = step.operation
     local result = execute_step(step)
     if result.rejection ~= nil then
+      if step.operation == "sprite change-color-mode" then
+        open_sprite:close()
+        open_sprite = nil
+        return { color_mode_rejection = { step_number = index, rejection = result.rejection } }
+      end
       open_sprite:close()
       open_sprite = nil
       if profile_operations[step.operation] then
@@ -210,6 +225,7 @@ local function execute()
   local conditions = assert(payload.postconditions)
   verify_postconditions(open_sprite, conditions)
   local before = persistence.snapshot(open_sprite, inspection, digest, all_sections, verified_uuids)
+  local converted_document = converted and color_mode.observe(open_sprite) or nil
   local profile_before = profile_steps and profiles.snapshot(open_sprite, verified_uuids) or nil
   local persisted = false
   if type(payload.staged_sprite_file) == "string" then
@@ -225,6 +241,13 @@ local function execute()
     local after =
       persistence.snapshot(open_sprite, inspection, digest, all_sections, verified_uuids)
     persistence.assert_same(before, after, "Plan")
+    if converted_document then
+      persistence.assert_equal(
+        converted_document,
+        color_mode.observe(open_sprite),
+        "Persisted Plan Color Mode"
+      )
+    end
     verify_postconditions(open_sprite, conditions)
     persisted = true
     before = after
