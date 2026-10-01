@@ -20,7 +20,8 @@ this view instead of treating it as another decision authority.
 > bounded position/opacity motion,
 > and native relationships, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, bounded Pixel Patch
 > application, native Snapshot composition (`spa paint composite`), native Line,
-> Rectangle, Ellipse, Contour, and Blur Paint operations, verified RGB
+> Rectangle, Ellipse, Contour, and Blur Paint operations, native Brightness/Contrast,
+> verified RGB
 > PNG Image Export, animation audit, Frame comparison, and continuity Preview
 > export. The module
 > ownership below includes both this delivered vertical slice and planned work. Feature
@@ -629,6 +630,18 @@ native set operations, isolated temporary Sprite work, and binary Image adaptati
 for native nearest-neighbor sampling. Python validates wire constraints and
 orchestrates existing Artifact staging, independent JSON/PNG verification, and
 publication. No persistent editor Selection or second Mask engine is introduced.
+
+The native Brightness/Contrast slice uses `authoring/raster/filter.py` for typed
+application variants and Target Commit orchestration. `filter_support.lua` owns
+Filter Cels Target resolution, native Channel mapping, temporary range/Selection
+state, and complete Image observations including Tiles. `brightness_contrast.lua`
+owns the operation-specific Palette application and native command invocation;
+Aseprite remains the sole adjustment and quantization authority. Existing Layer,
+Effective Palette, Selection, and persistence helpers retain their ownership.
+The packaged handler verifies live/save-close-reopen observations before publication.
+Its runtime gate checks all five delivered applications independently of Paint.
+Tilemap pixel filtering remains outside #35; Indexed Palette-only anchors are
+supported without changing ordinary, placement, or Tile Images (ADR-0074).
 
 The native Fill, Pencil, Eraser, Line, Rectangle, Ellipse, Contour, and Blur
 operations use `paint_native.py` for typed

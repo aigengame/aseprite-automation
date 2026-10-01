@@ -79,6 +79,7 @@ RuntimeCapability = Literal[
     "aseprite_palette_resize",
     "aseprite_palette_remap",
     "aseprite_palette_reorder",
+    "aseprite_filter_brightness_contrast",
     "aseprite_palette_files",
     "aseprite_palette_quantization",
     "aseprite_change_color_mode",

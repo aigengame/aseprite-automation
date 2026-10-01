@@ -11,6 +11,7 @@ from spa.authoring.document.layer import LAYER_FAILURE_CODE_SPECS
 from spa.authoring.document.motion import MOTION_FAILURE_CODE_SPECS
 from spa.authoring.document.sprite import SPRITE_FAILURE_CODE_SPECS
 from spa.authoring.document.tag import TAG_FAILURE_CODE_SPECS
+from spa.authoring.raster.filter import FILTER_FAILURE_SPECS
 from spa.authoring.raster.image import (
     IMAGE_CANVAS_FAILURE_CODE_SPECS,
     IMAGE_RESIZE_FAILURE_CODE_SPECS,
@@ -28,6 +29,7 @@ from spa.delivery.palette import PALETTE_EXPORT_FAILURE_SPECS
 FAILURE_CODES = register_failure_codes(
     (
         *CORE_FAILURE_CODE_SPECS,
+        *FILTER_FAILURE_SPECS,
         *PALETTE_FAILURE_CODE_SPECS,
         *PALETTE_FILE_FAILURE_SPECS,
         *QUANTIZATION_FAILURE_SPECS,

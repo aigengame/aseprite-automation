@@ -46,9 +46,17 @@ installed Capability Gaps.
   of being silently skipped.
 - `all` follows Aseprite's native pixel-editability rule and reports both its effective
   targets and exclusions. Every target form must resolve at least one existing Cel.
-- Native Linked Cel sharing remains authoritative. Each unique target Image is filtered
-  once, and the Result reports every affected Cel, including links outside an explicit
-  selected range.
+- Native editability does not establish SPA support for every target kind. The owning
+  feature issue declares that scope. A resolved unsupported target fails the whole
+  Operation before mutation; `all` cannot silently omit it and report success.
+- Native Linked Cel sharing remains authoritative. When filtering is performed, each
+  unique target Cel Image is processed once, and the Result reports every affected Cel,
+  including links outside an explicit selected range.
+- A Tilemap Cel Image stores Tile Placements; its referenced Tile Images store color
+  pixels. Different target Cel Images can cause the native Filter to modify the same
+  shared Tile more than once. Cel Image deduplication does not imply global
+  once-per-Tile-Image processing. Each feature that supports Tilemap pixel filtering
+  declares its Tileset Mode and shared-Tile effects without replacing native writeback.
 
 ### Filter Channels
 
@@ -71,14 +79,18 @@ installed Capability Gaps.
 ### Selection and palette-aware application
 
 - Filter Cels Target chooses participating Cels and Images. Pixel Selection Application
-  independently chooses pixels within them. Neither inherits ambient editor state.
+  independently limits direct pixel application through those targets. Shared Cel Image
+  or Tile references can expose effects outside the requested target set and Selection.
+  Neither target nor Selection inherits ambient editor state.
 - A native Filter that can target Palette state uses an explicit, operation-specific
   `Filter Application` value. The shared meanings distinguish pixel mutation,
   Indexed Palette-Entry-only mutation, and RGB Palette plus matching-pixel mutation.
   Filters with one fixed pixel destination do not receive an `application` field.
-- A branch that can mutate Cel Images requires Filter Cels Target. A proven
-  Palette-Entry-only branch omits it because no Cel Image is an intended mutation
-  target; any active image required by Aseprite is a private Kernel execution anchor.
+- A branch that can mutate Cel Images or referenced Tile Images requires Filter Cels
+  Target. A proven Palette-Entry-only branch omits it because no Image is an intended
+  mutation target; any active image required by Aseprite is a private Kernel execution
+  anchor. Its unchanged-Image proof includes ordinary Images, Tilemap placement Images,
+  and Tile Images present in the document.
 - Indexed component processing declares the Frame whose Effective Palette and RGB Map
   form the conversion basis. Palette-mutating branches identify an exact Palette
   Change and explicit Palette Entries. No branch inherits active Frame, Palette Picks,
@@ -89,13 +101,19 @@ installed Capability Gaps.
 - Aseprite owns each Filter's raster and color algorithm. The packaged Lua Kernel owns
   typed-to-native mapping, invocation, temporary editor-state installation and
   restoration, native observation, and the structured execution result.
+- Filter postconditions must follow the complete native path, including Palette lookup
+  and RGB Map quantization. A component preserved during adjustment can change in the
+  resolved Indexed output. Feature contracts and acceptance must distinguish these
+  stages and must not promise stronger component preservation than Aseprite provides.
 - Python may orchestrate the application use case and validate the public request, but
   it cannot implement a second Filter algorithm, create a generated operation script,
   or define a competing native mapping.
 - Existing all-or-nothing mutation, Target Commit, Background, Palette, persistence,
   and structured-result decisions apply. Results expose the effective target,
-  Selection, Channels, application and Palette basis where applicable, unique mutated
-  Images, all affected Linked Cels, and persisted observations.
+  Selection, Channels, application and Palette basis where applicable, unique processed
+  Cel Images, changed Images, affected Cel references, and persisted observations.
+  Features that support Tilemap pixel filtering distinguish shared-Cel-Image effects
+  from shared-Tile effects, including references outside the requested target set.
 - Exact planned parameters, allowed combinations, result fields, version constraints,
   evidence requirements, provenance links, curated evidence summaries, and candidate-gap
   handling belong to the owning feature issue. The installed Operation Descriptor owns
