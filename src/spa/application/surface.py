@@ -8,10 +8,15 @@ from spa.authoring.color.palette import (
     PALETTE_PROBE_RESOURCES,
     palette_lifecycle_gaps,
 )
+from spa.authoring.color.palette_file import PALETTE_FILE_OPERATIONS
 from spa.authoring.color.profile import (
     PROFILE_ICC_RESOURCES,
     PROFILE_OPERATIONS,
     PROFILE_RESOURCE,
+)
+from spa.authoring.color.quantization import (
+    PALETTE_QUANTIZATION_RESOURCE,
+    QUANTIZATION_OPERATIONS,
 )
 from spa.authoring.document.animation import ANIMATION_OPERATIONS
 from spa.authoring.document.cel import CEL_OPERATIONS, CEL_SUPPORT_RESOURCE
@@ -62,8 +67,13 @@ from spa.contracts.public import (
     failure_schema,
 )
 from spa.delivery.export import EXPORT_OPERATIONS, EXPORT_PROBE_RESOURCES
+from spa.delivery.palette import (
+    PALETTE_EXPORT_OPERATIONS,
+    palette_export_capability_gaps,
+)
 
 PROBE_RESOURCES = (
+    PALETTE_QUANTIZATION_RESOURCE,
     COLOR_MODE_RESOURCE,
     *PALETTE_PROBE_RESOURCES,
     PROFILE_RESOURCE,
@@ -134,6 +144,12 @@ def _surface(runtime: RuntimeFacts) -> tuple[list[str], list[CapabilityGap]]:
                 capability=command,
                 aseprite_version=runtime.aseprite_version,
                 evidence="; ".join(evidence),
+            )
+        )
+    if "spa palette export" in supported:
+        gaps.extend(
+            palette_export_capability_gaps(
+                runtime.aseprite_version, runtime.verified_capabilities
             )
         )
     if "spa paint composite" in supported:
@@ -257,9 +273,12 @@ OPERATIONS = (
     *IMAGE_OPERATIONS,
     *TAG_OPERATIONS,
     *PALETTE_OPERATIONS,
+    *PALETTE_FILE_OPERATIONS,
+    *QUANTIZATION_OPERATIONS,
     *COLOR_MODE_OPERATIONS,
     *PROFILE_OPERATIONS,
     *EXPORT_OPERATIONS,
+    *PALETTE_EXPORT_OPERATIONS,
     *ANIMATION_OPERATIONS,
     *PLAN_OPERATIONS,
 )

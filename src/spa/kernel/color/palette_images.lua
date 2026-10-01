@@ -115,4 +115,43 @@ function module.tile_metadata(sprite)
   return facts
 end
 
+-- A Palette replacement cannot make the Sprite-wide mask or stored indexes invalid.
+-- Check unused Tiles too: a later Tilemap Cel can expose their stored indexes.
+function module.invalid_palette_use(sprite, change)
+  if sprite.colorMode ~= ColorMode.INDEXED then return nil end
+  local mask = sprite.transparentColor
+  local palettes = dofile(app.params.palette).list(sprite).palette_changes
+  for _, candidate in ipairs(palettes) do
+    if mask >= #candidate.entries then
+      return {
+        reason = "transparent_index_out_of_bounds",
+        palette_frame_number = candidate.palette_frame_number,
+        index = mask,
+        cel_uses = {},
+        tile_uses = {},
+      }
+    end
+  end
+  local range = change.effective_frame_range
+  for _, group in ipairs(module.resolve(sprite)) do
+    if
+      group.image.colorMode == ColorMode.INDEXED
+      and module.in_range(group, range.from_frame, range.to_frame, true)
+    then
+      for pixel in group.image:pixels() do
+        if pixel() >= #change.entries then
+          return {
+            reason = "index_out_of_bounds",
+            palette_frame_number = change.palette_frame_number,
+            index = pixel(),
+            cel_uses = group.cel_uses,
+            tile_uses = group.tile_uses,
+          }
+        end
+      end
+    end
+  end
+  return nil
+end
+
 return module

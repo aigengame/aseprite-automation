@@ -99,7 +99,7 @@ EXPORT_FAILURE_CODE_SPECS = (
     ),
     FailureCodeSpec(
         "artifact_verification_failed",
-        "The staged Image Artifact did not match native observations",
+        "The staged Artifact did not match native observations",
         "execution",
         ArtifactVerificationDetails,
     ),

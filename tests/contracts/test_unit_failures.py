@@ -23,9 +23,12 @@ from spa.authoring.color.palette import (
     PaletteChangeDetails,
     PaletteEntryDetails,
     PaletteFrameDetails,
+    PalettePersistenceDetails,
     PaletteTransformDetails,
 )
+from spa.authoring.color.palette_file import PaletteFileDetails
 from spa.authoring.color.profile import ProfileFileDetails, ProfileSourceDetails
+from spa.authoring.color.quantization import QuantizationDetails
 from spa.authoring.document.animation import AuditLimitDetails
 from spa.authoring.document.cel import CelAddress as LifecycleCelAddress
 from spa.authoring.document.cel import CelFrameRangeDetails, CelTargetDetails
@@ -80,6 +83,7 @@ from spa.contracts.public import (
     register_failure_codes,
 )
 from spa.contracts.raster import Point, PositiveRectangle, Size
+from spa.delivery.palette import PaletteExportDetails
 from tests.support import operation_services
 
 registered_failure_envelope = partial(failure_envelope, failure_codes=FAILURE_CODES)
@@ -187,6 +191,25 @@ def test_failure_construction_derives_category_and_refuses_mismatch() -> None:
 
 def test_each_registered_code_has_a_constrained_public_schema() -> None:
     details_by_type = {
+        PalettePersistenceDetails: PalettePersistenceDetails(
+            palette_frame_number=1,
+            expected_palette_size=5,
+            reopened_palette_size=256,
+            reason="Native save/reopen changed Palette size",
+        ),
+        QuantizationDetails: QuantizationDetails(
+            palette_frame_number=1,
+            reason="index_out_of_bounds",
+            original_palette_size=8,
+            candidate_palette_size=2,
+            index=3,
+        ),
+        PaletteExportDetails: PaletteExportDetails(
+            reason="indexed_png_capacity", palette_size=257
+        ),
+        PaletteFileDetails: PaletteFileDetails(
+            path="colors.gpl", reason="invalid", message="bad header"
+        ),
         ColorModeMismatchDetails: ColorModeMismatchDetails(
             expected="rgb", actual="indexed"
         ),

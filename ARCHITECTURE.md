@@ -501,15 +501,19 @@ src/spa/
       paint.py, paint_composite.py, paint_native.py
     color/
       palette.py          # Palette reads, Entry edits, sizing, reorder, and remap contracts
+      palette_file.py     # native Palette import and ordered-file evidence
+      quantization.py     # explicit native Palette generation contract and evidence
       color_mode.py       # Conditional native conversion contract and evidence
       profile.py          # Native Color Profile contracts and ICC input policy
   delivery/
     export.py             # Export Image contract, native invocation, and result
+    palette.py            # verified Palette file export and explicit generation composition
     png_publication.py    # staged PNG verification/publication for Export and Preview
   adapters/
     aseprite/             # process, resource discovery, and transport
     files.py, png.py       # filesystem mechanics and independent PNG decoding
     icc.py                # ICC byte validation and digest, without color transforms
+    palette_file.py       # independent GPL/Indexed PNG observations, not a color engine
   kernel/                 # fixed native semantic handlers and shared owners
     __init__.py
     document/
@@ -578,6 +582,17 @@ Palette-change reorder rejects changed Images with uses outside its effective ra
 Whole-Sprite remap and reorder include all Indexed Images and the global Transparent
 Color Index. Palette resize remains a native capability that Preparation can consume
 without importing Preparation's policy into Color and Palette.
+
+`palette_file.lua` imports native Palette colors into an exact existing Change;
+Python freezes the input bytes and compares all persisted Entries with independent
+file observations. `palette_quantization.lua` owns the native all-Frame generation
+and temporary editor state. Its standalone mutation path also verifies unchanged
+non-Palette facts and refuses unsafe Indexed candidates. Delivery calls the same
+generator on a disposable Sprite and publishes only a Palette Artifact. It uses
+the existing Artifact File adapter for staging, identity checks, digest verification,
+and publication. GPL and Indexed PNG interpretation stay in the Palette file adapter;
+the existing RGB Image PNG verifier retains its separate format policy. No Python
+module generates, remaps, or quantizes Palette colors.
 
 Color and Palette also owns `sprite assign-color-profile` and
 `sprite convert-color-profile`. `profile.lua` applies the same native operation to a
