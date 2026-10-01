@@ -485,9 +485,20 @@ def check_plan(
     request: PlanCheckRequest, services: OperationServices
 ) -> PlanCheckResult:
     _preflight_paths(request.plan, services)
+    _prepare_profile_inputs(request.plan, services)
     return PlanCheckResult(
         step_count=len(request.plan.steps), commit_required=request.plan.commit_required
     )
+
+
+def _prepare_profile_inputs(
+    plan: PlanDefinition, services: OperationServices
+) -> dict[int, dict[str, Any]]:
+    return {
+        index: profile_payload(step.input, services, index)
+        for index, step in enumerate(plan.steps, 1)
+        if isinstance(step, (AssignProfileStep, ConvertProfileStep))
+    }
 
 
 def _preflight_paths(plan: PlanDefinition, services: OperationServices) -> None:
@@ -794,6 +805,7 @@ def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunRes
         raise TypeError("Plan run requires the direct Kernel invocation adapter")
     plan = request.plan
     _preflight_paths(plan, services)
+    profile_inputs = _prepare_profile_inputs(plan, services)
     staged = (
         services.target_files.staged_path(Path(plan.target_sprite_file))
         if plan.target_sprite_file is not None
@@ -809,11 +821,6 @@ def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunRes
             mode="json", exclude_none=True
         ),
         "runtime_requirements": _requirements(plan).model_dump(mode="json"),
-    }
-    profile_inputs = {
-        index: profile_payload(step.input, services, index)
-        for index, step in enumerate(plan.steps, 1)
-        if isinstance(step, (AssignProfileStep, ConvertProfileStep))
     }
     for index, prepared in profile_inputs.items():
         payload["steps"][index - 1]["input"] = prepared
@@ -1063,7 +1070,7 @@ PLAN_OPERATIONS = (
         check_plan,
         lambda result: f"Plan accepted: {result.step_count} Steps",
         None,
-        ("invalid_request",),
+        ("invalid_request", "color_profile_file_failed"),
     ),
     OperationDescriptor(
         "plan run",

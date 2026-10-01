@@ -62,6 +62,99 @@ def test_plan_check_admits_a_read_plan_without_launching_aseprite(
     assert result["commit_required"] is False
 
 
+@pytest.mark.parametrize("verb", ["check", "run"])
+@pytest.mark.parametrize("operation", ["assign-color-profile", "convert-color-profile"])
+@pytest.mark.parametrize(
+    "file_kind,reason", [("missing", "unreadable"), ("invalid", "invalid")]
+)
+def test_plan_rejects_bad_icc_before_runtime(
+    tmp_path: Path, verb: str, operation: str, file_kind: str, reason: str
+) -> None:
+    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
+    source.write_bytes(b"Source bytes")
+    target.write_bytes(b"Target bytes")
+    icc = tmp_path / "input.icc"
+    if file_kind == "invalid":
+        icc.write_bytes(b"not an ICC file")
+    run = spa(
+        "plan",
+        verb,
+        "--input-json",
+        json.dumps(
+            {
+                "plan": {
+                    "source_sprite_file": str(source),
+                    "target_sprite_file": str(target),
+                    "overwrite": True,
+                    "steps": [
+                        {
+                            "operation": "sprite get",
+                            "input": {"inspection_scope": ["frames"]},
+                        },
+                        {
+                            "operation": f"sprite {operation}",
+                            "input": {
+                                "profile": {"kind": "icc", "icc_file": str(icc)},
+                            },
+                        },
+                    ],
+                }
+            }
+        ),
+        env=os.environ | {"SPA_ASEPRITE_EXECUTABLE": "/missing/aseprite"},
+    )
+    assert run.returncode != 0, run.stdout + run.stderr
+    result = json.loads(run.stdout)
+    assert result["code"] == "color_profile_file_failed", result
+    assert result["details"] == {
+        "kind": "color_profile_file",
+        "path": str(icc),
+        "reason": reason,
+        "step_number": 2,
+    }
+    assert source.read_bytes() == b"Source bytes"
+    assert target.read_bytes() == b"Target bytes"
+    assert not list(tmp_path.glob(".*.staged.aseprite"))
+
+
+@pytest.mark.parametrize("operation", ["assign-color-profile", "convert-color-profile"])
+def test_plan_check_accepts_valid_icc_without_runtime(
+    tmp_path: Path, operation: str
+) -> None:
+    from PIL import ImageCms
+
+    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
+    source.write_bytes(b"Source bytes")
+    icc = tmp_path / "srgb.icc"
+    icc.write_bytes(ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes())
+    run = spa(
+        "plan",
+        "check",
+        "--input-json",
+        json.dumps(
+            {
+                "plan": {
+                    "source_sprite_file": str(source),
+                    "target_sprite_file": str(target),
+                    "steps": [
+                        {
+                            "operation": f"sprite {operation}",
+                            "input": {
+                                "profile": {"kind": "icc", "icc_file": str(icc)},
+                            },
+                        }
+                    ],
+                }
+            }
+        ),
+        env=os.environ | {"SPA_ASEPRITE_EXECUTABLE": "/missing/aseprite"},
+    )
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert json.loads(run.stdout)["commit_required"] is True
+    assert source.read_bytes() == b"Source bytes"
+    assert not target.exists()
+
+
 def test_plan_check_admits_existing_cel_properties_without_launching_aseprite(
     tmp_path: Path,
 ) -> None:
