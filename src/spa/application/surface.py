@@ -21,6 +21,7 @@ from spa.authoring.document.layer import LAYER_OPERATIONS, LAYER_SELECT_RESOURCE
 from spa.authoring.document.motion import MOTION_OPERATIONS
 from spa.authoring.document.sprite import SPRITE_OPERATIONS, SPRITE_PROBE_RESOURCES
 from spa.authoring.document.tag import TAG_OPERATIONS
+from spa.authoring.raster.filter import FILTER_OPERATIONS, FILTER_RESOURCES
 from spa.authoring.raster.image import (
     IMAGE_CANVAS_TRANSFORM_RESOURCE,
     IMAGE_OPERATIONS,
@@ -64,6 +65,7 @@ from spa.contracts.public import (
 from spa.delivery.export import EXPORT_OPERATIONS, EXPORT_PROBE_RESOURCES
 
 PROBE_RESOURCES = (
+    *FILTER_RESOURCES,
     COLOR_MODE_RESOURCE,
     *PALETTE_PROBE_RESOURCES,
     PROFILE_RESOURCE,
@@ -249,6 +251,7 @@ OPERATIONS = (
     *PAINT_OPERATIONS,
     *COMPOSITE_OPERATIONS,
     *NATIVE_PAINT_OPERATIONS,
+    *FILTER_OPERATIONS,
     *SELECTION_OPERATIONS,
     *FRAME_OPERATIONS,
     *CEL_OPERATIONS,

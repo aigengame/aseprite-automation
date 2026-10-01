@@ -1074,6 +1074,29 @@ function module.observe()
     if ok then capabilities[#capabilities + 1] = "aseprite_selection" end
   end
   local supports_inspection = observes_sprite_inspection()
+  if app.params.brightness_contrast then
+    local filter = dofile(app.params.brightness_contrast)
+    local sprite = Sprite(1, 1, ColorMode.RGB)
+    sprite.cels[1].image:drawPixel(0, 0, app.pixelColor.rgba(100, 60, 20, 255))
+    local ok = pcall(function()
+      local result = filter.apply(sprite, {
+        brightness = 50,
+        contrast = 0,
+        application = {
+          kind = "pixels",
+          color_mode = "rgb",
+          cels_target = { kind = "all" },
+          channels = { kind = "components", names = { "red" } },
+        },
+      })
+      assert(
+        result.changed
+          and sprite.cels[1].image:getPixel(0, 0) == app.pixelColor.rgba(150, 60, 20, 255)
+      )
+    end)
+    sprite:close()
+    if ok then capabilities[#capabilities + 1] = "aseprite_filter_brightness_contrast" end
+  end
   if observes_change_color_mode() then
     capabilities[#capabilities + 1] = "aseprite_change_color_mode"
   end
