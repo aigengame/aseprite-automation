@@ -3,7 +3,9 @@
 import json
 import os
 import subprocess
+import sys
 import tempfile
+from importlib.resources import files
 from pathlib import Path
 
 import pytest
@@ -228,6 +230,87 @@ def test_standalone_and_plan_share_the_conversion_owner(tmp_path, runtime):
         assert step[field] == one[field]
     assert result["persisted_reopen_verified"] is True
     assert result["final_sprite"]["metadata"]["color_mode"] == "indexed"
+
+
+@pytest.mark.parametrize("profile_first", [True, False])
+@pytest.mark.parametrize(
+    "profile_operation", ["assign-color-profile", "convert-color-profile"]
+)
+def test_plan_combines_color_mode_and_profile_steps(
+    tmp_path, runtime, profile_first, profile_operation
+):
+    if (
+        profile_operation == "convert-color-profile"
+        and "aseprite_convert_color_profile" not in runtime.verified_capabilities
+    ):
+        assert sys.platform == "linux", "expected native Color Profile conversion"
+        pytest.skip("selected Linux runtime has no native Color Profile converter")
+    source, planned = tmp_path / "source.aseprite", tmp_path / "plan.aseprite"
+    make_source(source, runtime)
+    original = source.read_bytes()
+    profile: dict = {"kind": "none"}
+    if profile_operation == "convert-color-profile":
+        icc = tmp_path / "linear.icc"
+        icc.write_bytes(
+            files("spa.kernel").joinpath("color/profiles/linear_srgb.icc").read_bytes()
+        )
+        profile = {"kind": "icc", "icc_file": str(icc)}
+    steps = [
+        {
+            "operation": f"sprite {profile_operation}",
+            "input": {"profile": profile},
+        },
+        {
+            "operation": "sprite change-color-mode",
+            "input": {"conversion": conversion_for("rgb", "indexed")},
+        },
+    ]
+    if not profile_first:
+        steps.reverse()
+    expected = []
+    current = source
+    for number, step in enumerate(steps):
+        target = tmp_path / f"standalone-{number}.aseprite"
+        code, result = run(
+            *step["operation"].split(),
+            source_sprite_file=str(current),
+            target_sprite_file=str(target),
+            in_place=False,
+            overwrite=False,
+            **step["input"],
+        )
+        assert code == 0, result
+        expected.append(result)
+        current = target
+    code, result = run(
+        "plan",
+        "run",
+        plan={
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(planned),
+            "steps": steps,
+            "postconditions": {"color_mode": "indexed"},
+        },
+    )
+    assert code == 0, result
+    assert [step["operation"] for step in result["steps"]] == [
+        step["operation"] for step in steps
+    ]
+    for actual, standalone in zip(result["steps"], expected, strict=True):
+        assert actual["result"]["persisted_reopen_verified"] is False
+        assert {
+            key: value
+            for key, value in actual["result"].items()
+            if key != "persisted_reopen_verified"
+        } == {
+            key: value
+            for key, value in standalone.items()
+            if key
+            not in {"status", "operation", "target_commit", "persisted_reopen_verified"}
+        }
+    assert result["persisted_reopen_verified"] is True
+    assert result["final_sprite"]["metadata"]["color_mode"] == "indexed"
+    assert source.read_bytes() == original
 
 
 @pytest.mark.parametrize(

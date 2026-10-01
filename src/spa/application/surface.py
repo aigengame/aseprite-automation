@@ -8,6 +8,11 @@ from spa.authoring.color.palette import (
     PALETTE_PROBE_RESOURCES,
     palette_lifecycle_gaps,
 )
+from spa.authoring.color.profile import (
+    PROFILE_ICC_RESOURCES,
+    PROFILE_OPERATIONS,
+    PROFILE_RESOURCE,
+)
 from spa.authoring.document.animation import ANIMATION_OPERATIONS
 from spa.authoring.document.cel import CEL_OPERATIONS, CEL_SUPPORT_RESOURCE
 from spa.authoring.document.cel_relationship import CEL_RELATIONSHIP_OPERATIONS
@@ -61,6 +66,8 @@ from spa.delivery.export import EXPORT_OPERATIONS, EXPORT_PROBE_RESOURCES
 PROBE_RESOURCES = (
     COLOR_MODE_RESOURCE,
     *PALETTE_PROBE_RESOURCES,
+    PROFILE_RESOURCE,
+    *PROFILE_ICC_RESOURCES,
     *NATIVE_PAINT_RESOURCES,
     *SPRITE_PROBE_RESOURCES,
     LAYER_SELECT_RESOURCE,
@@ -251,6 +258,7 @@ OPERATIONS = (
     *TAG_OPERATIONS,
     *PALETTE_OPERATIONS,
     *COLOR_MODE_OPERATIONS,
+    *PROFILE_OPERATIONS,
     *EXPORT_OPERATIONS,
     *ANIMATION_OPERATIONS,
     *PLAN_OPERATIONS,

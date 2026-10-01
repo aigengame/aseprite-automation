@@ -23,7 +23,7 @@ def main() -> None:
             path.read_bytes()
         ).hexdigest()
         for path in source_kernel.rglob("*")
-        if path.suffix in {".lua", ".aseprite"}
+        if path.suffix in {".lua", ".aseprite", ".icc"}
     }
     if not expected_resources:
         raise SystemExit("source Kernel resource inventory is empty")
@@ -66,7 +66,7 @@ def inventory(directory, prefix=""):
         name = prefix + resource.name
         if resource.is_dir():
             result.update(inventory(resource, name + "/"))
-        elif name.endswith((".lua", ".aseprite")):
+        elif name.endswith((".lua", ".aseprite", ".icc")):
             payload = resource.read_bytes()
             if not payload or payload.startswith(b"version https://git-lfs.github.com/spec/v1"):
                 raise SystemExit(f"empty resource or unresolved LFS pointer: {name}")

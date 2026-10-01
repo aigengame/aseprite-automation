@@ -5,6 +5,7 @@ from typing import Literal
 
 from pydantic import Field, ValidationError
 
+from spa.authoring.color.profile import PROFILE_FILE_RESOURCE
 from spa.contracts.artifact import ArtifactFileDetails, ArtifactVerificationDetails
 from spa.contracts.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.contracts.ports import (
@@ -112,7 +113,7 @@ EXPORT_REQUIREMENTS = RuntimeRequirements(
 EXPORT_SUPPORT = PackagedResource(
     "export_image_support", "delivery/export_image_support.lua"
 )
-EXPORT_PROBE_RESOURCES = (EXPORT_SUPPORT,)
+EXPORT_PROBE_RESOURCES = (EXPORT_SUPPORT, PROFILE_FILE_RESOURCE)
 EXPORT_HANDLER = PackagedHandler(
     "export_image", "delivery/export_image.lua", EXPORT_PROBE_RESOURCES
 )
