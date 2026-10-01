@@ -1,5 +1,6 @@
 """Palette operation contracts and publication gates around native evidence."""
 
+import json
 from dataclasses import replace
 from pathlib import Path
 
@@ -9,14 +10,21 @@ from pydantic import ValidationError
 
 from spa.adapters.files import LocalArtifactFiles, LocalTargetFiles
 from spa.adapters.palette_file import decode_palette_file
+from spa.application.dispatch import dispatch
+from spa.application.failure_registry import FAILURE_CODES
+from spa.application.surface import info_result
 from spa.authoring.color.palette_file import PaletteImportRequest, import_palette
 from spa.authoring.color.quantization import (
     PaletteQuantizationRequest,
     quantize_palette,
 )
 from spa.contracts.ports import KernelInvocationResult, RuntimeIssue
-from spa.contracts.public import Diagnostics
-from spa.delivery.palette import PaletteExportRequest, export_palette
+from spa.contracts.public import Diagnostics, FailureEnvelope, RuntimeRequest
+from spa.delivery.palette import (
+    PALETTE_EXPORT_OPERATIONS,
+    PaletteExportRequest,
+    export_palette,
+)
 from tests.support import operation_services, runtime_observation
 
 
@@ -339,3 +347,69 @@ def test_export_refuses_unverified_file_without_replacing_destination(
     assert source.read_bytes() == b"original source"
     assert target.read_bytes() == b"original target"
     assert destination.read_bytes() == b"original destination"
+
+
+@pytest.mark.parametrize("generate", [False, True])
+def test_effective_export_does_not_require_native_quantization(tmp_path, generate):
+    source, _, destination = _files(tmp_path)
+    raw = b"GIMP Palette\nChannels: RGBA\n4 5 6 128 named\n"
+    calls = []
+
+    def invoke(_runtime, _handler, payload, _timeout):
+        calls.append(payload)
+        Path(payload["staged_palette_file"]).write_bytes(raw)
+        return KernelInvocationResult(
+            _timeline(), "/response.json", Diagnostics(exit_status=0)
+        )
+
+    services = replace(
+        _services(invoke),
+        probe_runtime=lambda _: runtime_observation(
+            "aseprite_sprite_inspection", "aseprite_palette_files"
+        ),
+    )
+    request = _export_request() | {
+        "source_sprite_file": str(source),
+        "destination": {
+            "format": "gpl",
+            "path": str(destination),
+            "if_exists": "replace",
+        },
+    }
+    if generate:
+        request["palette_source"] = {
+            "kind": "color-quantization",
+            **{
+                key: value
+                for key, value in _quantization_request().items()
+                if key
+                in {
+                    "palette_frame_number",
+                    "max_colors",
+                    "with_alpha",
+                    "rgb_map_algorithm",
+                    "new_layer_blending_method",
+                }
+            },
+        }
+    result = dispatch(
+        PALETTE_EXPORT_OPERATIONS[0], json.dumps(request), {}, services, FAILURE_CODES
+    )
+    if generate:
+        assert isinstance(result, FailureEnvelope)
+        assert result.code == "runtime_incompatible"
+        assert result.details.model_dump()["missing_capabilities"] == [
+            "aseprite_palette_quantization"
+        ]
+        assert calls == [] and destination.read_bytes() == b"original destination"
+    else:
+        assert result.status == "success", result
+        assert len(calls) == 1 and destination.read_bytes() == raw
+    assert source.read_bytes() == b"original source"
+    info = info_result(RuntimeRequest(), services)
+    assert "spa palette export" in info.supported_capabilities
+    assert "spa palette color-quantization" not in info.supported_capabilities
+    assert any(
+        gap.capability == "spa palette export: color-quantization"
+        for gap in info.capability_gaps
+    )

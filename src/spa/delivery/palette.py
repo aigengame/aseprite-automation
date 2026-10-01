@@ -18,6 +18,7 @@ from spa.authoring.color.palette_file import (
 )
 from spa.authoring.color.quantization import (
     PALETTE_QUANTIZATION_RESOURCE,
+    QUANTIZATION_REQUIREMENTS,
     QuantizationEvidence,
     QuantizationFacts,
     QuantizationOptions,
@@ -33,11 +34,14 @@ from spa.contracts.ports import (
     PackagedHandler,
     PaletteFileError,
     ResponseEvidence,
+    RuntimeCompatibilityEvidence,
     RuntimeIssue,
 )
 from spa.contracts.public import (
+    CapabilityGap,
     FailureCodeSpec,
     PublicModel,
+    RuntimeCapability,
     RuntimeRequest,
     RuntimeRequirements,
 )
@@ -118,6 +122,20 @@ PALETTE_EXPORT_HANDLER = PackagedHandler(
 )
 
 
+def palette_export_capability_gaps(
+    aseprite_version: str, verified_capabilities: list[RuntimeCapability]
+) -> list[CapabilityGap]:
+    if "aseprite_palette_quantization" in verified_capabilities:
+        return []
+    return [
+        CapabilityGap(
+            capability="spa palette export: color-quantization",
+            aseprite_version=aseprite_version,
+            evidence="Native Palette quantization was not observed; Effective Palette export remains available",
+        )
+    ]
+
+
 def export_palette(
     request: PaletteExportRequest, services: OperationServices
 ) -> PaletteExportResult:
@@ -132,6 +150,26 @@ def export_palette(
     try:
         observation = services.probe_runtime(request)
         choice = request.palette_source
+        if isinstance(choice, QuantizedPaletteSource):
+            required = QUANTIZATION_REQUIREMENTS
+            missing: tuple[RuntimeCapability, ...] = tuple(
+                capability
+                for capability in required.required_capabilities
+                if capability not in observation.verified_capabilities
+            )
+            if missing:
+                raise RuntimeIssue(
+                    "runtime_incompatible",
+                    "The selected Palette export source requires native quantization",
+                    RuntimeCompatibilityEvidence(
+                        aseprite_version=observation.aseprite_version,
+                        lua_version=observation.lua_version,
+                        api_version=observation.api_version,
+                        required_lua_language=required.lua_language,
+                        minimum_api_version=required.minimum_api_version,
+                        missing_capabilities=missing,
+                    ),
+                )
         palette_source = choice.model_dump()
         # Addresses cross Lua as decimal text without imposing a new public bound.
         for key in ("frame_number", "palette_frame_number", "max_colors"):
@@ -255,7 +293,6 @@ PALETTE_EXPORT_OPERATIONS = (
             required_capabilities=[
                 "aseprite_sprite_inspection",
                 "aseprite_palette_files",
-                "aseprite_palette_quantization",
             ],
         ),
         (

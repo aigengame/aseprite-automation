@@ -710,7 +710,11 @@ Entries on save/reopen. These cases return `palette_quantization_rejected` or
 colors, or patch the native file to make them pass.
 
 `spa palette export` produces a verified **Palette Artifact**, from either an
-Effective Palette or an explicit quantization request on a disposable Sprite:
+Effective Palette or an explicit quantization request on a disposable Sprite.
+
+Effective Palette export requires the native Palette file capability. Only the
+`color-quantization` source branch also requires native quantization; the Surface
+Manifest reports a Capability Gap for that branch when it is unavailable.
 
 ```sh
 spa palette export --input-json '{

@@ -67,7 +67,10 @@ from spa.contracts.public import (
     failure_schema,
 )
 from spa.delivery.export import EXPORT_OPERATIONS, EXPORT_PROBE_RESOURCES
-from spa.delivery.palette import PALETTE_EXPORT_OPERATIONS
+from spa.delivery.palette import (
+    PALETTE_EXPORT_OPERATIONS,
+    palette_export_capability_gaps,
+)
 
 PROBE_RESOURCES = (
     PALETTE_QUANTIZATION_RESOURCE,
@@ -141,6 +144,12 @@ def _surface(runtime: RuntimeFacts) -> tuple[list[str], list[CapabilityGap]]:
                 capability=command,
                 aseprite_version=runtime.aseprite_version,
                 evidence="; ".join(evidence),
+            )
+        )
+    if "spa palette export" in supported:
+        gaps.extend(
+            palette_export_capability_gaps(
+                runtime.aseprite_version, runtime.verified_capabilities
             )
         )
     if "spa paint composite" in supported:
