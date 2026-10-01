@@ -18,6 +18,7 @@ from spa.authoring.color.palette import (
     PaletteChangeDetails,
     PaletteEntryDetails,
     PaletteFrameDetails,
+    PaletteTransformDetails,
 )
 from spa.authoring.color.profile import ProfileFileDetails, ProfileSourceDetails
 from spa.authoring.document.animation import AuditLimitDetails
@@ -181,6 +182,9 @@ def test_failure_construction_derives_category_and_refuses_mismatch() -> None:
 
 def test_each_registered_code_has_a_constrained_public_schema() -> None:
     details_by_type = {
+        PaletteTransformDetails: PaletteTransformDetails(
+            reason="growth_entries", palette_frame_number=1
+        ),
         ProfileFileDetails: ProfileFileDetails(path="profile.icc", reason="invalid"),
         ProfileSourceDetails: ProfileSourceDetails(icc_color_space="Lab"),
         PaletteFrameDetails: PaletteFrameDetails(frame_number=6, frame_count=5),
