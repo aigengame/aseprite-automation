@@ -96,7 +96,8 @@ function module.targets(sprite, target, uuids, color_mode)
         if not number then
           number = #images + 1
           image_numbers[cel.image.id] = number
-          images[number] = { cel = cel, before = digest.image_content(cel.image, color_mode) }
+          images[number] =
+            { layer = layer, frame = frame, before = digest.image_content(cel.image, color_mode) }
         end
       end
       local fact = {
@@ -109,10 +110,15 @@ function module.targets(sprite, target, uuids, color_mode)
     end
   end
   if #images == 0 then return nil, module.reject("Filter Cels Target contains no existing Cels") end
-  local affected = {}
+  local affected, cel_states = {}, {}
   for _, cel in ipairs(sprite.cels) do
     local number = image_numbers[cel.image.id]
     if number then
+      cel_states[#cel_states + 1] = {
+        layer = cel.layer,
+        frame = cel.frameNumber,
+        before = selection.rectangle(cel.bounds),
+      }
       affected[#affected + 1] = {
         layer_path = layers.current_path(sprite, cel.layer),
         frame_number = cel.frame.frameNumber,
@@ -128,6 +134,7 @@ function module.targets(sprite, target, uuids, color_mode)
     existing_target_cels = existing,
     excluded_layers = excluded,
     affected_cels = affected,
+    cel_states = cel_states,
   }
 end
 

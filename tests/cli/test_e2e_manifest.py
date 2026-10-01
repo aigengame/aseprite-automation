@@ -56,6 +56,7 @@ def test_manifest_is_projected_from_command_descriptors() -> None:
         "spa paint contour",
         "spa paint blur",
         "spa filter brightness-contrast",
+        "spa filter hue-saturation",
         "spa selection create",
         "spa selection combine",
         "spa selection invert",

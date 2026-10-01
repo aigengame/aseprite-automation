@@ -17,6 +17,7 @@ function module.apply(sprite, payload, uuids)
     return true
   end)
   if not result.rejection then
+    result.cel_effects = nil
     result.brightness = payload.brightness
     result.contrast = payload.contrast
   end
