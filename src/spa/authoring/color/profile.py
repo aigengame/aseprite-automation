@@ -296,7 +296,7 @@ def validate_profile_evidence(
     request: AssignProfileInput | ConvertProfileInput,
     evidence: ProfileEvidence,
     invocation: KernelInvocationResult,
-    prepared: dict[str, Any] | None = None,
+    prepared: dict[str, Any],
 ) -> None:
     if (
         evidence.requested_profile.kind != request.profile.kind
@@ -321,8 +321,7 @@ def validate_profile_evidence(
                 invocation.diagnostics,
             )
         if (
-            prepared is not None
-            and evidence.icc_file.model_dump(
+            evidence.icc_file.model_dump(
                 exclude={"native_name", "matches_effective_profile"}
             )
             != prepared["icc_file"]
