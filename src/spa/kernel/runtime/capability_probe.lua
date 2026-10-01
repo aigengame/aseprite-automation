@@ -1076,26 +1076,62 @@ function module.observe()
   local supports_inspection = observes_sprite_inspection()
   if app.params.brightness_contrast then
     local filter = dofile(app.params.brightness_contrast)
-    local sprite = Sprite(1, 1, ColorMode.RGB)
-    sprite.cels[1].image:drawPixel(0, 0, app.pixelColor.rgba(100, 60, 20, 255))
-    local ok = pcall(function()
-      local result = filter.apply(sprite, {
-        brightness = 50,
-        contrast = 0,
-        application = {
-          kind = "pixels",
-          color_mode = "rgb",
-          cels_target = { kind = "all" },
-          channels = { kind = "components", names = { "red" } },
-        },
-      })
-      assert(
-        result.changed
-          and sprite.cels[1].image:getPixel(0, 0) == app.pixelColor.rgba(150, 60, 20, 255)
-      )
-    end)
-    sprite:close()
-    if ok then capabilities[#capabilities + 1] = "aseprite_filter_brightness_contrast" end
+    local modes = { rgb = ColorMode.RGB, grayscale = ColorMode.GRAY, indexed = ColorMode.INDEXED }
+    local supported = true
+    for _, branch in ipairs({
+      { mode = "rgb", kind = "pixels" },
+      { mode = "grayscale", kind = "pixels" },
+      { mode = "indexed", kind = "pixels" },
+      { mode = "indexed", kind = "indexed-palette-entries" },
+      { mode = "rgb", kind = "rgb-palette-colors" },
+    }) do
+      local sprite = Sprite(1, 1, modes[branch.mode])
+      local ok = pcall(function()
+        local palette = Palette(3)
+        palette:setColor(0, Color { r = 0, g = 0, b = 0, a = 0 })
+        palette:setColor(1, Color { r = 80, g = 40, b = 20, a = 100 })
+        palette:setColor(2, Color { r = 120, g = 40, b = 20, a = 100 })
+        sprite:setPalette(palette)
+        local original = branch.mode == "indexed" and 1
+          or (
+            branch.mode == "grayscale" and app.pixelColor.graya(80, 100)
+            or app.pixelColor.rgba(80, 40, 20, 100)
+          )
+        sprite.cels[1].image:drawPixel(0, 0, original)
+        local application = {
+          kind = branch.kind,
+          channels = {
+            kind = "components",
+            names = { branch.mode == "grayscale" and "gray" or "red" },
+          },
+        }
+        if branch.kind == "indexed-palette-entries" then
+          application.entries = { kind = "selected", indexes = { 1 } }
+        else
+          application.cels_target = { kind = "all" }
+        end
+        if branch.kind == "pixels" then application.color_mode = branch.mode end
+        if branch.kind == "rgb-palette-colors" then application.indexes = { 1 } end
+        if branch.mode == "indexed" or branch.kind == "rgb-palette-colors" then
+          application.palette_frame_number = 1
+        end
+        local result =
+          filter.apply(sprite, { brightness = 50, contrast = 0, application = application })
+        local expected = branch.kind == "indexed-palette-entries" and original
+          or (
+            branch.mode == "indexed" and 2
+            or (
+              branch.mode == "grayscale" and app.pixelColor.graya(120, 100)
+              or app.pixelColor.rgba(120, 40, 20, 100)
+            )
+          )
+        assert(result.changed and sprite.cels[1].image:getPixel(0, 0) == expected)
+        assert(sprite.palettes[1]:getColor(1).red == (branch.kind == "pixels" and 80 or 120))
+      end)
+      sprite:close()
+      supported = supported and ok
+    end
+    if supported then capabilities[#capabilities + 1] = "aseprite_filter_brightness_contrast" end
   end
   if observes_change_color_mode() then
     capabilities[#capabilities + 1] = "aseprite_change_color_mode"

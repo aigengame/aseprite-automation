@@ -21,7 +21,11 @@ from spa.authoring.document.layer import LAYER_OPERATIONS, LAYER_SELECT_RESOURCE
 from spa.authoring.document.motion import MOTION_OPERATIONS
 from spa.authoring.document.sprite import SPRITE_OPERATIONS, SPRITE_PROBE_RESOURCES
 from spa.authoring.document.tag import TAG_OPERATIONS
-from spa.authoring.raster.filter import FILTER_OPERATIONS, FILTER_RESOURCES
+from spa.authoring.raster.filter import (
+    FILTER_OPERATIONS,
+    FILTER_RESOURCES,
+    filter_capability_gaps,
+)
 from spa.authoring.raster.image import (
     IMAGE_CANVAS_TRANSFORM_RESOURCE,
     IMAGE_OPERATIONS,
@@ -158,6 +162,8 @@ def _surface(runtime: RuntimeFacts) -> tuple[list[str], list[CapabilityGap]]:
         if gap.capability not in registered
     )
     gaps.extend(palette_lifecycle_gaps(runtime.aseprite_version))
+    if "spa filter brightness-contrast" in supported:
+        gaps.extend(filter_capability_gaps(runtime.aseprite_version))
     return supported, gaps
 
 

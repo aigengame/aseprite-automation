@@ -1,6 +1,7 @@
 local filter = dofile(app.params.brightness_contrast)
 local inspection = dofile(app.params.inspection)
 local persistence = dofile(app.params.persistence)
+local support = dofile(app.params.filter_support)
 local sprite = nil
 local function execute()
   local file = assert(io.open(app.params.request, "rb"))
@@ -12,8 +13,14 @@ local function execute()
   local uuids = inspection.saved_layer_uuids(sprite, payload.source_sprite_file)
   local result = filter.apply(sprite, payload, uuids)
   if result.rejection then return result end
-  sprite =
+  local live = support.snapshot(sprite, uuids)
+  sprite, uuids =
     persistence.save_verified(sprite, payload.staged_sprite_file, uuids, "Brightness/Contrast")
+  persistence.assert_equal(
+    live,
+    support.snapshot(sprite, uuids),
+    "Persisted Filter Images and Palettes"
+  )
   result.persisted_reopen_verified = true
   return result
 end

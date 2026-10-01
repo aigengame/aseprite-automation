@@ -1,8 +1,22 @@
 -- Shared Filter target resolution, typed Channels, and invocation-local state.
 local module = {}
+local json_null = json.decode("null")
 local layers = dofile(app.params.layer_select)
 local selection = dofile(app.params.selection_mask)
 local digest = dofile(app.params.digest)
+local inspection = dofile(app.params.inspection)
+local persistence = dofile(app.params.persistence)
+local image_uses = dofile(app.params.palette_images)
+
+function module.snapshot(sprite, uuids, omit_palettes)
+  local sections = { "frames", "tags", "layers", "cels", "slices", "tilesets" }
+  if not omit_palettes then sections[#sections + 1] = "palettes" end
+  return {
+    document = persistence.snapshot(sprite, inspection, digest, sections, uuids),
+    images = image_uses.facts(image_uses.resolve(sprite)),
+    tiles = image_uses.tile_metadata(sprite),
+  }
+end
 
 function module.reject(reason, unsupported)
   return {
@@ -69,6 +83,14 @@ function module.targets(sprite, target, uuids, color_mode)
       local cel = layer:cel(frame)
       local number = nil
       if cel then
+        if layer.isTilemap then
+          return nil,
+            module.reject(
+              "SPA does not yet support Tilemap pixel filtering; "
+                .. "select ordinary Image Layers or use Indexed Palette-only application",
+              true
+            )
+        end
         number = image_numbers[cel.image.id]
         if not number then
           number = #images + 1
@@ -79,7 +101,7 @@ function module.targets(sprite, target, uuids, color_mode)
       local fact = {
         layer_path = layers.current_path(sprite, layer),
         frame_number = frame,
-        image_number = number or json.null,
+        image_number = number or json_null,
       }
       intersections[#intersections + 1] = fact
       if cel then existing[#existing + 1] = fact end
@@ -130,16 +152,41 @@ function module.channels(channels)
   return flags, { kind = "components", names = names }
 end
 
+function module.pixel_selection(sprite, requested)
+  local canvas = Rectangle(0, 0, sprite.width, sprite.height)
+  if not requested then
+    return Selection(canvas), { kind = "all", rectangle = selection.rectangle(canvas) }
+  end
+  local mask = selection.materialize(requested)
+  mask:intersect(canvas)
+  local value = selection.encode(mask).selection
+  if mask.isEmpty then
+    -- A native empty Selection means no mask. Keep its bitmap active with two
+    -- off-canvas pixels: bounds intersect the Canvas, but no Canvas pixel is set.
+    -- A wholly off-canvas rectangle instead makes Filter initialization fail.
+    mask = Selection(Rectangle(-1, 0, 1, 1))
+    mask:add(Rectangle(sprite.width, 0, 1, 1))
+  end
+  return mask, value
+end
+
 function module.with_state(sprite, operation)
   local previous = {
     sprite = app.activeSprite,
     layer = app.activeLayer,
     frame = app.activeFrame,
-    layers = app.range.layers,
-    frames = app.range.frames,
+    layers = {},
+    frames = {},
     colors = app.range.colors,
     empty = app.range.isEmpty,
   }
+  -- Range getters return userdata collections; setters accept plain Lua arrays.
+  for _, layer in ipairs(app.range.layers) do
+    previous.layers[#previous.layers + 1] = layer
+  end
+  for _, frame in ipairs(app.range.frames) do
+    previous.frames[#previous.frames + 1] = frame
+  end
   local mask = selection.copy(sprite.selection)
   local ok, result = pcall(operation)
   local restored, problem = pcall(function()

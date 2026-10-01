@@ -8,7 +8,9 @@ from pydantic import Field, field_validator, model_validator
 from spa.application.mutation import prepare_mutation
 from spa.authoring.color.palette import (
     EFFECTIVE_PALETTE_RESOURCE,
+    PALETTE_IMAGES_RESOURCE,
     PALETTE_SUPPORT_RESOURCE,
+    PaletteTimeline,
 )
 from spa.authoring.document.layer import LayerAddress
 from spa.authoring.document.sprite import (
@@ -31,6 +33,7 @@ from spa.contracts.ports import (
     RuntimeIssue,
 )
 from spa.contracts.public import (
+    CapabilityGap,
     FailureCodeSpec,
     PublicModel,
     RuntimeRequest,
@@ -44,6 +47,8 @@ from spa.contracts.raster import (
 
 
 class SelectedFilterCels(PublicModel):
+    """Exact Layer/Frame Cartesian product; non-editable Layers reject the whole operation."""
+
     kind: Literal["selected"]
     layers: list[LayerAddress] = Field(min_length=1)
     frame_numbers: list[Annotated[int, Field(ge=1)]] = Field(min_length=1)
@@ -93,16 +98,80 @@ class GrayscalePixels(PublicModel):
     selection: SelectionApplication | None = None
 
 
+class IndexedPixels(PublicModel):
+    kind: Literal["pixels"]
+    color_mode: Literal["indexed"]
+    channels: ComponentChannels[Literal["red", "green", "blue"]]
+    cels_target: FilterCelsTarget
+    selection: SelectionApplication | None = None
+    palette_frame_number: int = Field(ge=1)
+
+
+PixelsApplication = Annotated[
+    RGBPixels | GrayscalePixels | IndexedPixels, Field(discriminator="color_mode")
+]
+
+
+class PaletteIndexes(PublicModel):
+    indexes: list[Annotated[int, Field(ge=0)]] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def unique_indexes(self) -> "PaletteIndexes":
+        if len(set(self.indexes)) != len(self.indexes):
+            raise ValueError("Palette Indexes must be unique")
+        return self
+
+
+class SelectedPaletteEntries(PaletteIndexes):
+    kind: Literal["selected"]
+
+
+class AllPaletteEntries(PublicModel):
+    kind: Literal["all"]
+
+
+class IndexedPaletteEntries(PublicModel):
+    """Edit an exact Palette Change without changing ordinary, Tilemap, or Tile Images."""
+
+    kind: Literal["indexed-palette-entries"]
+    palette_frame_number: int = Field(ge=1)
+    entries: Annotated[
+        AllPaletteEntries | SelectedPaletteEntries, Field(discriminator="kind")
+    ]
+    channels: ComponentChannels[Literal["red", "green", "blue"]]
+
+
+class RGBPaletteColors(PaletteIndexes):
+    kind: Literal["rgb-palette-colors"]
+    palette_frame_number: int = Field(ge=1)
+    channels: ComponentChannels[Literal["red", "green", "blue"]]
+    cels_target: FilterCelsTarget
+    selection: SelectionApplication | None = None
+
+
+BrightnessContrastApplication = Annotated[
+    PixelsApplication | IndexedPaletteEntries | RGBPaletteColors,
+    Field(discriminator="kind"),
+]
+
+
 class BrightnessContrastRequest(RuntimeRequest):
+    """Native Brightness/Contrast with explicit Channels and application.
+
+    Pixel applications support ordinary Image Layers. Any resolved Tilemap Cel
+    rejects the entire operation, including under all. Indexed Palette-only
+    application can use a Tilemap as a private non-mutating execution anchor.
+    RGB/Gray pixel and Palette Entry Alpha are preserved; Indexed pixel RGB Map
+    quantization may choose an Entry with different Alpha. Explicit 0/0 is a no-op.
+    """
+
     source_sprite_file: str = Field(min_length=1)
     target_sprite_file: str = Field(min_length=1)
     in_place: bool
     overwrite: bool
     brightness: int = Field(ge=-100, le=100)
     contrast: int = Field(ge=-100, le=100)
-    application: Annotated[
-        RGBPixels | GrayscalePixels, Field(discriminator="color_mode")
-    ]
+    application: BrightnessContrastApplication
 
     _source = field_validator("source_sprite_file")(validate_native_sprite_path)
     _target = field_validator("target_sprite_file")(validate_native_sprite_path)
@@ -131,16 +200,100 @@ class FilterExclusion(PublicModel):
     reason: str
 
 
+class FilterPaletteBasis(PublicModel):
+    frame_number: int = Field(ge=1)
+    palette_frame_number: int = Field(ge=1)
+    palette_size: int = Field(ge=1)
+
+
 class FilterEvidence(PublicModel):
+    brightness: int = Field(ge=-100, le=100)
+    contrast: int = Field(ge=-100, le=100)
+    application: Literal["pixels", "indexed-palette-entries", "rgb-palette-colors"]
+    cels_target_kind: Literal["selected", "all"] | None
+    selection: SelectionApplication | None
     color_mode: Literal["rgb", "grayscale", "indexed"]
+    palette_basis: FilterPaletteBasis | None
+    palette_indexes: list[Annotated[int, Field(ge=0)]]
+    palette_before: PaletteTimeline
+    palette_after: PaletteTimeline
     channels: ComponentChannels[Literal["red", "green", "blue", "gray"]]
     requested_intersections: list[FilterCel]
     existing_target_cels: list[FilterCel]
     excluded_layers: list[FilterExclusion]
     images: list[FilterImage]
+    processed_image_numbers: list[Annotated[int, Field(ge=1)]]
     affected_cels: list[FilterCel]
     changed: bool
     persisted_reopen_verified: Literal[True]
+
+    @model_validator(mode="after")
+    def consistent_observations(self) -> "FilterEvidence":
+        numbers = [image.image_number for image in self.images]
+        if numbers != list(range(1, len(self.images) + 1)):
+            raise ValueError("Filter Images must have consecutive unique numbers")
+        for image in self.images:
+            if image.changed != (
+                image.before_content_digest != image.after_content_digest
+            ):
+                raise ValueError(
+                    "Filter Image change disagrees with its content digests"
+                )
+        if self.changed != (
+            any(image.changed for image in self.images)
+            or self.palette_before != self.palette_after
+        ):
+            raise ValueError(
+                "Filter change disagrees with observed Images and Palettes"
+            )
+        noop = self.brightness == self.contrast == 0
+        if self.processed_image_numbers != ([] if noop else numbers) or (
+            noop and self.changed
+        ):
+            raise ValueError("Filter processing disagrees with the declared adjustment")
+        return self
+
+    def matches(self, request: BrightnessContrastRequest) -> bool:
+        application = request.application
+        palette_only = isinstance(application, IndexedPaletteEntries)
+        mode = (
+            "indexed"
+            if palette_only
+            else (
+                "rgb"
+                if isinstance(application, RGBPaletteColors)
+                else application.color_mode
+            )
+        )
+        frame = getattr(application, "palette_frame_number", None)
+        if palette_only:
+            indexes = (
+                list(range(self.palette_basis.palette_size))
+                if application.entries.kind == "all" and self.palette_basis
+                else getattr(application.entries, "indexes", [])
+            )
+        else:
+            indexes = (
+                application.indexes if isinstance(application, RGBPaletteColors) else []
+            )
+        return (
+            self.application == application.kind
+            and self.color_mode == mode
+            and self.brightness == request.brightness
+            and self.contrast == request.contrast
+            and set(self.channels.names) == set(application.channels.names)
+            and self.cels_target_kind
+            == (None if palette_only else application.cels_target.kind)
+            and (self.selection is None) == palette_only
+            and (self.palette_basis.frame_number if self.palette_basis else None)
+            == frame
+            and self.palette_indexes == sorted(indexes)
+            and (not palette_only or not (self.images or self.existing_target_cels))
+            and (
+                self.application != "pixels"
+                or self.palette_before == self.palette_after
+            )
+        )
 
 
 class BrightnessContrastResult(FilterEvidence):
@@ -181,6 +334,7 @@ FILTER_RESOURCES = (
     EFFECTIVE_PALETTE_RESOURCE,
     PALETTE_SUPPORT_RESOURCE,
     SELECTION_MASK_RESOURCE,
+    PALETTE_IMAGES_RESOURCE,
     FILTER_RESOURCE,
     BRIGHTNESS_CONTRAST_RESOURCE,
 )
@@ -197,6 +351,22 @@ FILTER_REQUIREMENTS = RuntimeRequirements(
         "aseprite_filter_brightness_contrast",
     ],
 )
+
+
+def filter_capability_gaps(aseprite_version: str) -> list[CapabilityGap]:
+    return [
+        CapabilityGap(
+            capability="spa filter brightness-contrast: Tilemap pixels",
+            aseprite_version=aseprite_version,
+            evidence=(
+                "SPA does not yet deliver Tilemap pixel filtering or its shared-Tile effects. "
+                "Any resolved Tilemap Cel rejects the whole pixel application, including all. "
+                "Indexed Palette-only application supports a private Tilemap anchor and "
+                "preserves ordinary Images, Tilemap Images, and Tile Images. "
+                "This delivery boundary does not imply that native Aseprite cannot filter Tiles."
+            ),
+        )
+    ]
 
 
 def brightness_contrast(
@@ -224,18 +394,27 @@ def brightness_contrast(
             },
             request.timeout_seconds,
         )
-        rejected = invocation.payload.get("rejection")
-        if isinstance(rejected, dict):
-            code = rejected.get("code")
-            if code in {spec.code for spec in FILTER_FAILURE_SPECS}:
+        try:
+            rejected = invocation.payload.get("rejection")
+            if rejected is not None:
+                code = rejected["code"]
+                message = rejected["message"]
+                details = FilterRejection.model_validate(rejected["details"])
+                if code not in {
+                    spec.code for spec in FILTER_FAILURE_SPECS
+                } or not isinstance(message, str):
+                    raise ValueError("Invalid Filter rejection")
                 raise OperationIssue(
                     code,
-                    rejected["message"],
-                    FilterRejection.model_validate(rejected["details"]),
+                    message,
+                    details,
                 )
-        try:
             evidence = FilterEvidence.model_validate(invocation.payload)
-        except ValueError as exc:
+            if not evidence.matches(request):
+                raise ValueError(
+                    "Filter evidence disagrees with the requested application"
+                )
+        except (KeyError, TypeError, ValueError) as exc:
             raise RuntimeIssue(
                 "response_malformed",
                 "Invalid persisted Filter evidence",

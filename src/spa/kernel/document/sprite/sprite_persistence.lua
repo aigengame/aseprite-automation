@@ -56,6 +56,8 @@ function module.snapshot(sprite, inspection, digest, sections, verified_uuids)
   }
 end
 
+function module.equal(before, after) return difference(before, after, "document") == nil end
+
 function module.assert_equal(before, after, operation)
   local mismatch = difference(before, after, "document")
   assert(mismatch == nil, operation .. " differs at " .. tostring(mismatch))
