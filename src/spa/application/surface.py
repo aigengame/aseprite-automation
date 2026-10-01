@@ -180,7 +180,9 @@ def _surface(runtime: RuntimeFacts) -> tuple[list[str], list[CapabilityGap]]:
     gaps.extend(palette_lifecycle_gaps(runtime.aseprite_version))
     if "spa filter brightness-contrast" in supported:
         gaps.extend(
-            filter_capability_gaps(runtime.aseprite_version, runtime.verified_capabilities)
+            filter_capability_gaps(
+                runtime.aseprite_version, runtime.verified_capabilities
+            )
         )
     return supported, gaps
 

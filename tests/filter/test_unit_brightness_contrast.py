@@ -52,6 +52,34 @@ APPLICATIONS = [
 SCHEMA = Draft202012Validator(BrightnessContrastRequest.model_json_schema())
 
 
+@pytest.mark.parametrize(
+    "application",
+    [app for app in APPLICATIONS if app["kind"] != "indexed-palette-entries"],
+)
+def test_manual_tileset_mode_is_explicit_for_pixel_applications(application):
+    data = payload({**application, "tileset_mode": "manual"})
+    assert (
+        BrightnessContrastRequest.model_validate(data).application.tileset_mode
+        == "manual"
+    )
+    SCHEMA.validate(data)
+
+
+@pytest.mark.parametrize("value", ["auto", "stack", "Manual", 0, True])
+def test_other_tileset_modes_are_not_public_choices(value):
+    data = payload({**APPLICATIONS[0], "tileset_mode": value})
+    with pytest.raises(ValidationError):
+        BrightnessContrastRequest.model_validate(data)
+    assert not SCHEMA.is_valid(data)
+
+
+def test_palette_only_has_no_tileset_mode():
+    data = payload({**APPLICATIONS[3], "tileset_mode": "manual"})
+    with pytest.raises(ValidationError):
+        BrightnessContrastRequest.model_validate(data)
+    assert not SCHEMA.is_valid(data)
+
+
 def payload(application=None):
     return {
         "source_sprite_file": "source.aseprite",

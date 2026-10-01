@@ -639,9 +639,23 @@ owns the operation-specific Palette application and native command invocation;
 Aseprite remains the sole adjustment and quantization authority. Existing Layer,
 Effective Palette, Selection, and persistence helpers retain their ownership.
 The packaged handler verifies live/save-close-reopen observations before publication.
-Its runtime gate checks all five delivered applications independently of Paint.
-Tilemap pixel filtering remains outside #35; Indexed Palette-only anchors are
-supported without changing ordinary, placement, or Tile Images (ADR-0074).
+Its base runtime gate checks all five applications independently of Paint.
+`filter_tiles.lua` owns Manual Tilemap admission, preserved placement/binding/Grid
+postconditions, and changed Tile bitmap references. It consumes the existing low-level
+Image/reference observations in `palette_images.lua`, without Palette mutation policy.
+Native execution still visits target Cel Images; SPA does not run a per-Tile Filter loop.
+A separate runtime probe observes the four Manual Tilemap pixel applications. The
+application passes that private capability fact to the Kernel, which checks actual
+resolved targets and the live native Site mode before mutation. Ordinary Image and
+Palette-only applications do not require the Tilemap capability (ADR-0074, #152).
+
+Manual Tilemap verification compares canonical native User Data chunks, including their
+structural positions and extension mappings, through temporary `saveCopyAs` snapshots.
+This preserves observation of arbitrary plugin namespaces and native Property types
+that the Lua getters cannot fully enumerate. It does not decode or rewrite Properties.
+Before/live comparison runs inside the native transaction; save-close-reopen comparison
+runs before Target Commit. Existing full Image observations cover ordinary color Images,
+placement Images, Tile bitmaps, and sharing. No topology or metadata repair is performed.
 
 The native Fill, Pencil, Eraser, Line, Rectangle, Ellipse, Contour, and Blur
 operations use `paint_native.py` for typed

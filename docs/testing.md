@@ -537,6 +537,18 @@ remains separate developer evidence; it cannot replace the Linux release gate.
 Windowed Aseprite behavior has no CI coverage until a
 dedicated display-capable job is added with an execution-count gate.
 
+Manual Tilemap Brightness/Contrast tests live in `tests/filter/`. They compare the
+installed Operation with an independent native batch command using the same Manual
+mode, Channels, Palette basis, and Canvas Selection. They cover shared Tiles across
+linked and distinct Cel Images, hidden/locked references, placement flags and clipping,
+the four pixel application branches, and Indexed RGB Map Alpha quantization.
+Failure injection checks mixed-target rollback and editor-state restoration. Native
+User Data serialization checks retain plugin metadata without interpreting its values.
+These tests run in the required macOS/Linux batch scope; they do not claim windowed
+editor coverage or support for AUTO/STACK mode. Grid origin evidence starts with the
+reopened Source: native ASE serialization itself does not retain a live nonzero Tileset
+Grid origin, including in a no-Filter control.
+
 The [hybrid wizard example](../examples/wizard_cast_v2/README.md) uses frozen local
 imagegen inputs. Its routine `e2e` probe checks the prepared raster handoff through
 public Pixel Patches, native save/reopen, independent Frame placement, binary alpha,

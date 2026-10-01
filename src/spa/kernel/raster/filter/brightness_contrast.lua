@@ -76,13 +76,15 @@ function module.apply(sprite, payload, uuids)
     local tile_anchor = tiles.anchor(targets)
     if tile_anchor then
       app.activeCel = tile_anchor
-      local refused = tiles.admit(application, payload.tilemap_manual_filter_available)
+      local refused =
+        tiles.admit(application, payload.tilemap_manual_filter_available, app.site.tilesetMode)
       if refused then return support.reject(refused, true) end
     end
     app.activeCel = anchor
     -- Verify the command's actual Site too, including an explicit Palette anchor.
     if tile_anchor then
-      local refused = tiles.admit(application, payload.tilemap_manual_filter_available)
+      local refused =
+        tiles.admit(application, payload.tilemap_manual_filter_available, app.site.tilesetMode)
       if refused then return support.reject(refused, true) end
     end
     app.range:clear()
@@ -101,6 +103,7 @@ function module.apply(sprite, payload, uuids)
     end
     local result
     local tile_before = tiles.snapshot(sprite, mode)
+    local metadata_before = tile_anchor and tiles.serialized_metadata(sprite)
     app.transaction("Brightness/Contrast", function()
       local filtering = payload.brightness ~= 0 or payload.contrast ~= 0
       if filtering then
@@ -130,6 +133,12 @@ function module.apply(sprite, payload, uuids)
       end
       local palette_after = palette.list(sprite)
       local changed_tiles = tiles.changes(tile_before, tiles.snapshot(sprite, mode), targets)
+      if metadata_before then
+        assert(
+          persistence.equal(metadata_before, tiles.serialized_metadata(sprite)),
+          "Filter User Data changed"
+        )
+      end
       changed = changed or #changed_tiles > 0
       if palette_only then
         persistence.assert_equal(

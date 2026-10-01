@@ -289,6 +289,46 @@ class FilterEvidence(PublicModel):
             raise ValueError(
                 "Changed Tiles must have unique addresses and different digests"
             )
+        direct = {
+            (tuple(cel.layer_path), cel.frame_number)
+            for cel in self.existing_target_cels
+        }
+        affected = {
+            (tuple(cel.layer_path), cel.frame_number): cel.image_number
+            for cel in self.affected_cels
+        }
+        for tile in self.changed_tiles:
+            seen = set()
+            for cel in tile.referencing_cels:
+                key = (tuple(cel.layer_path), cel.frame_number)
+                reasons = set(cel.relationships)
+                shared_image = (
+                    cel.image_number is not None
+                    and sum(number == cel.image_number for number in affected.values())
+                    > 1
+                )
+                if (
+                    key in seen
+                    or len(reasons) != len(cel.relationships)
+                    or "shared-tile" not in reasons
+                    or ("direct-target" in reasons) != (key in direct)
+                    or ("shared-cel-image" in reasons) != shared_image
+                    or cel.image_number != affected.get(key)
+                    or (
+                        cel.image_number is not None
+                        and (
+                            cel.image_number not in numbers
+                            or self.images[cel.image_number - 1].image_kind
+                            != "tilemap-placement"
+                        )
+                    )
+                ):
+                    raise ValueError(
+                        "Tile references disagree with Filter Cel Image targets"
+                    )
+                seen.add(key)
+            if not seen & direct:
+                raise ValueError("Changed Tile has no direct target reference")
         if self.changed != (
             any(image.changed for image in self.images)
             or bool(self.changed_tiles)

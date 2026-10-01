@@ -12,6 +12,18 @@ if kind == "palette" then
 else
   target_image:putPixel(0, 0, app.pixelColor.rgba(80, 40, 20, 255))
 end
+local tile
+if kind == "tilemap" then
+  target.gridBounds = Rectangle(0, 0, 1, 1)
+  app.command.NewLayer { tilemap = true, ui = false }
+  local tilemap = app.activeLayer
+  tile = target:newTile(tilemap.tileset)
+  tile.image:putPixel(0, 0, app.pixelColor.rgba(80, 40, 20, 255))
+  tile.properties("other.plugin").retained = "original"
+  local map = Image(1, 1, ColorMode.TILEMAP)
+  map:putPixel(0, 0, 1)
+  target:newCel(tilemap, 1, map)
+end
 local target_selection = Selection(Rectangle(0, 0, 3, 1))
 target_selection:subtract(Rectangle(1, 0, 1, 1))
 target.selection = target_selection
@@ -63,6 +75,8 @@ local function state()
     prior_selection = prior_selected,
     target_image_bytes = image_bytes,
     palette_red = target.palettes[1]:getColor(1).red,
+    tile_pixel = tile and tile.image:getPixel(0, 0) or nil,
+    tile_property = tile and tile.properties("other.plugin").retained or nil,
   }
 end
 
@@ -85,9 +99,18 @@ else
     channels = { kind = "components", names = { "red" } },
   }
 end
+if kind == "tilemap" then
+  application.cels_target = { kind = "all" }
+  application.tileset_mode = "manual"
+end
 local ok, value = pcall(
   function()
-    return filter.apply(target, { application = application, brightness = 50, contrast = 0 }, {})
+    return filter.apply(target, {
+      application = application,
+      brightness = 50,
+      contrast = 0,
+      tilemap_manual_filter_available = true,
+    }, {})
   end
 )
 local after = state()
