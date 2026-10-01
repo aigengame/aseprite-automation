@@ -327,7 +327,7 @@ FILTER_RESOURCE = PackagedResource("filter_support", "raster/filter/filter_suppo
 BRIGHTNESS_CONTRAST_RESOURCE = PackagedResource(
     "brightness_contrast", "raster/filter/brightness_contrast.lua"
 )
-FILTER_RESOURCES = (
+FILTER_SHARED_RESOURCES = (
     *SPRITE_INSPECTION_RESOURCES,
     SPRITE_PERSISTENCE_RESOURCE,
     DIGEST_RESOURCE,
@@ -336,6 +336,11 @@ FILTER_RESOURCES = (
     SELECTION_MASK_RESOURCE,
     PALETTE_IMAGES_RESOURCE,
     FILTER_RESOURCE,
+    PackagedResource("filter_application", "raster/filter/filter_application.lua"),
+    PackagedResource("filter_run", "raster/filter/filter_run.lua"),
+)
+FILTER_RESOURCES = (
+    *FILTER_SHARED_RESOURCES,
     BRIGHTNESS_CONTRAST_RESOURCE,
 )
 BRIGHTNESS_CONTRAST_HANDLER = PackagedHandler(
