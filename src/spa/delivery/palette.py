@@ -13,7 +13,7 @@ from spa.authoring.color.palette import (
 from spa.authoring.color.palette_file import (
     PALETTE_FILE_RESOURCE,
     GplPaletteFile,
-    PaletteArtifact,
+    PaletteFileReceipt,
     PngPaletteFile,
 )
 from spa.authoring.color.quantization import (
@@ -94,7 +94,7 @@ class PaletteExportResult(PaletteExportEvidence):
     operation: Literal["spa palette export"] = "spa palette export"
     palette_source: PaletteSource
     destination: PaletteDestination
-    artifact: PaletteArtifact
+    artifact: PaletteFileReceipt
 
 
 class PaletteExportDetails(PublicModel):
@@ -266,7 +266,7 @@ def export_palette(
             **native.model_dump(),
             palette_source=choice,
             destination=request.destination.model_copy(update={"path": published.path}),
-            artifact=PaletteArtifact(
+            artifact=PaletteFileReceipt(
                 path=published.path,
                 format=request.destination.format,
                 media_type="text/plain"

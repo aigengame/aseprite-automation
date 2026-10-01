@@ -170,5 +170,11 @@ def decode_palette_file(
         return PaletteFileFacts(
             entries, len(payload), hashlib.sha256(payload).hexdigest()
         )
-    except (ValueError, UnicodeError, OSError, UnidentifiedImageError) as exc:
+    except (
+        ValueError,
+        UnicodeError,
+        OSError,
+        UnidentifiedImageError,
+        Image.DecompressionBombError,
+    ) as exc:
         raise PaletteFileError(str(exc)) from exc

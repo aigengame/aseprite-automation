@@ -56,7 +56,9 @@ class PaletteImportRequest(PaletteMutationRequest):
     palette_file: PaletteFileInput
 
 
-class PaletteArtifact(PublicModel):
+class PaletteFileReceipt(PublicModel):
+    """Verified file facts shared by consumed input and produced Palette Artifacts."""
+
     role: Literal["palette"] = "palette"
     format: Literal["gpl", "png"]
     media_type: Literal["text/plain", "image/png"]
@@ -68,7 +70,7 @@ class PaletteArtifact(PublicModel):
 class PaletteImportResult(PaletteSetEvidence):
     status: Literal["success"] = "success"
     operation: Literal["spa palette import"] = "spa palette import"
-    palette_file: PaletteArtifact
+    palette_file: PaletteFileReceipt
     target_commit: TargetCommit
 
 
@@ -192,7 +194,7 @@ def import_palette(
         return PaletteImportResult(
             **evidence.model_dump(),
             target_commit=mutation.commit(),
-            palette_file=PaletteArtifact(
+            palette_file=PaletteFileReceipt(
                 path=path,
                 format=request.palette_file.format,
                 media_type="text/plain"

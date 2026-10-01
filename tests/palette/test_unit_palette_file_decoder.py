@@ -8,6 +8,12 @@ import pytest
 
 from spa.adapters.palette_file import decode_palette_file
 from spa.contracts.ports import PaletteFileError
+from tests.palette.support import oversized_palette_png
+
+
+def test_png_decoder_size_refusal_is_a_palette_file_error() -> None:
+    with pytest.raises(PaletteFileError, match="decompression bomb"):
+        decode_palette_file(oversized_palette_png(), "png")
 
 
 def _chunk(kind: bytes, data: bytes) -> bytes:

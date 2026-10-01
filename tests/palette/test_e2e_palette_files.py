@@ -1,14 +1,49 @@
 """Palette files preserve ordered colors through the public SPA operations."""
 
+import json
 from pathlib import Path
 
 import pytest
+from jsonschema import validate
 from PIL import Image
 
 from spa.adapters.palette_file import decode_palette_file
-from tests.palette.support import palette_fixture, run_palette
+from tests.palette.support import oversized_palette_png, palette_fixture, run_palette
+from tests.support import spa
 
 pytestmark = pytest.mark.e2e
+
+
+def test_import_png_decoder_refusal_uses_failure_envelope(
+    tmp_path: Path, runtime
+) -> None:
+    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
+    palette_fixture(source, runtime, "rgb")
+    original = source.read_bytes()
+    target.write_bytes(b"keep target")
+    colors = tmp_path / "bad.png"
+    colors.write_bytes(oversized_palette_png())
+    files_before = set(tmp_path.iterdir())
+
+    code, result = run_palette(
+        "palette",
+        "import",
+        source_sprite_file=str(source),
+        target_sprite_file=str(target),
+        in_place=False,
+        overwrite=True,
+        palette_frame_number=1,
+        palette_file={"format": "png", "path": str(colors)},
+    )
+
+    assert code == 2 and result["code"] == "palette_file_failed", result
+    assert result["details"]["reason"] == "invalid"
+    assert "decompression bomb" in result["details"]["message"]
+    schema_run = spa("palette", "import", "--schema")
+    assert schema_run.returncode == 0, schema_run.stderr
+    validate(result, json.loads(schema_run.stdout)["failure_schema"])
+    assert source.read_bytes() == original and target.read_bytes() == b"keep target"
+    assert set(tmp_path.iterdir()) == files_before
 
 
 @pytest.mark.parametrize("file_format", ["gpl", "png"])
