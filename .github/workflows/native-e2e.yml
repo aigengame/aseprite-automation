@@ -1,11 +1,11 @@
 name: Native E2E
-run-name: "Native E2E for ${{ inputs.pr && format('PR #{0}', inputs.pr) || github.ref_name }} (${{ github.event_name }})"
+run-name: "Native E2E for ${{ inputs.pr && format('PR #{0}', inputs.pr) || 'main' }} (${{ github.event_name }})"
 
 on:
   workflow_dispatch:
     inputs:
       pr:
-        description: "PR merge result to test; leave empty for the selected main/dev commit"
+        description: "PR number to test its current merge result; leave empty to test main"
         type: string
         default: ""
   schedule:
@@ -17,7 +17,7 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: native-e2e-${{ github.event_name }}-${{ inputs.pr || github.ref_name }}
+  group: native-e2e-${{ github.event_name }}-${{ inputs.pr || 'main' }}
   cancel-in-progress: true
 
 jobs:
@@ -36,15 +36,11 @@ jobs:
         run: |
           SPA_NATIVE_TARGET="$RUNNER_TEMP/spa-native-target.json"
           if [ -z "$SPA_PR_NUMBER" ]; then
-            case "$GITHUB_EVENT_NAME:$GITHUB_REF" in
-              workflow_dispatch:refs/heads/main|schedule:refs/heads/main|workflow_dispatch:refs/heads/dev) ;;
-              *)
-                echo "Branch verification requires main, or a manual dev dispatch." >&2
-                exit 1
-                ;;
-            esac
-            jq -n --arg ref "$GITHUB_REF" --arg sha "$GITHUB_SHA" \
-              '{kind: "branch", ref: $ref, sha: $sha}' > "$SPA_NATIVE_TARGET"
+            if [ "$GITHUB_REF" != refs/heads/main ]; then
+              echo "Main verification must be dispatched from main." >&2
+              exit 1
+            fi
+            jq -n --arg sha "$GITHUB_SHA" '{kind: "main", sha: $sha}' > "$SPA_NATIVE_TARGET"
           else
             if [[ ! "$SPA_PR_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
               echo "Specify a positive PR number, or leave it empty for main." >&2
@@ -62,7 +58,7 @@ jobs:
           [[ "$sha" =~ ^[0-9a-f]{40}$ ]]
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
           {
-            echo '### Native E2E target'
+            echo '### Native E2E target (not the dispatch SHA)'
             echo '```json'
             cat "$SPA_NATIVE_TARGET"
             echo '```'

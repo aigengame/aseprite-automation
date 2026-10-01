@@ -77,7 +77,6 @@ def candidate(tmp_path: Path) -> tuple[Path, dict[str, str], dict]:
         "GITHUB_REPOSITORY": "example/spa",
         "GITHUB_SHA": base,
         "GITHUB_REF": "refs/heads/main",
-        "GITHUB_EVENT_NAME": "workflow_dispatch",
         "GITHUB_OUTPUT": str(tmp_path / "outputs"),
         "GITHUB_STEP_SUMMARY": str(tmp_path / "summary"),
     }
@@ -151,11 +150,9 @@ def test_stale_merge_parents_fail_before_native_setup(candidate) -> None:
     assert "Merge preview parents do not match" in result.stderr
 
 
-@pytest.mark.parametrize("event", ["workflow_dispatch", "schedule"])
-def test_main_verification_uses_the_exact_event_sha(candidate, event: str) -> None:
+def test_main_verification_uses_the_exact_event_sha(candidate) -> None:
     repository, env, response = candidate
     env["SPA_PR_NUMBER"] = ""
-    env["GITHUB_EVENT_NAME"] = event
     subprocess.run(
         ["git", "checkout", env["GITHUB_SHA"]],
         cwd=repository,
@@ -170,45 +167,18 @@ def test_main_verification_uses_the_exact_event_sha(candidate, event: str) -> No
         result = run_step(name, repository, env)
         assert result.returncode == 0, result.stderr
     assert json.loads(Path(env["SPA_NATIVE_TARGET"]).read_text()) == {
-        "kind": "branch",
-        "ref": "refs/heads/main",
+        "kind": "main",
         "sha": response["base"]["sha"],
     }
     assert "PR target is unchanged" not in Path(env["GITHUB_STEP_SUMMARY"]).read_text()
 
 
-def test_manual_dev_verification_checks_the_exact_integrated_event_sha(
-    candidate,
-) -> None:
-    repository, env, response = candidate
-    env.update(SPA_PR_NUMBER="", GITHUB_REF="refs/heads/dev")
-    env["GITHUB_SHA"] = response["merge_commit_sha"]
-    for name in (
-        "Resolve the native test target",
-        "Check the merge parents before testing",
-        "Reject a changed PR after testing",
-    ):
-        result = run_step(name, repository, env)
-        assert result.returncode == 0, result.stderr
-    assert json.loads(Path(env["SPA_NATIVE_TARGET"]).read_text()) == {
-        "kind": "branch",
-        "ref": "refs/heads/dev",
-        "sha": response["merge_commit_sha"],
-    }
-    assert "PR target is unchanged" not in Path(env["GITHUB_STEP_SUMMARY"]).read_text()
-
-
-@pytest.mark.parametrize(
-    ("event", "ref"),
-    [("schedule", "refs/heads/dev"), ("workflow_dispatch", "refs/heads/feature")],
-)
-def test_branch_verification_rejects_unsupported_routes(candidate, event, ref) -> None:
+def test_main_mode_rejects_a_dev_dispatch(candidate) -> None:
     repository, env, _ = candidate
-    env.update(SPA_PR_NUMBER="", GITHUB_EVENT_NAME=event, GITHUB_REF=ref)
+    env.update(SPA_PR_NUMBER="", GITHUB_REF="refs/heads/dev")
     result = run_step("Resolve the native test target", repository, env)
     assert result.returncode != 0
-    assert "requires main, or a manual dev dispatch" in result.stderr
-    assert not Path(env["GITHUB_OUTPUT"]).exists()
+    assert "must be dispatched from main" in result.stderr
 
 
 def test_api_failure_cannot_validate_previous_success(candidate) -> None:

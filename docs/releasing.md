@@ -65,10 +65,7 @@ commands and skip policy.
 
 ## Prepare and publish a release
 
-1. Merge approved ordinary PRs into `dev` after review, routine CI, and affected
-   local checks. Run [Native E2E once after the integration batch](testing.md#native-e2e-after-an-integration-batch)
-   and verify its final commit before promotion. Promotion PRs retain the explicit
-   current-merge Native E2E check.
+1. Merge ordinary changes after routine CI, review and current-merge Native E2E pass.
 2. Review the Release PR. Confirm that its version, changelog, manifest, project
    metadata, and lockfile agree, its routine CI passes, and pre-merge Native E2E
    passed for the current base/head/merge target.
