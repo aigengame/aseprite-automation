@@ -680,6 +680,53 @@ uv run spa palette remap --input-json '{"aseprite":"/path/to/aseprite","source_s
 uv run spa palette reorder --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"reordered.aseprite","in_place":false,"overwrite":false,"scope":"sprite","mapping":[{"old_index":0,"new_index":0},{"old_index":1,"new_index":2},{"old_index":2,"new_index":1},{"old_index":3,"new_index":3}]}'
 ```
 
+### Palette files and Color Quantization
+
+`spa palette import` replaces one exact existing `palette_frame_number` with a
+`palette_file: {"format":"gpl"|"png","path":"..."}`. GPL includes the Aseprite
+RGBA extension. PNG must be Indexed (Color Type 3); its full PLTE/tRNS tables,
+including duplicate and unused Entries, are retained. Missing tRNS alpha values
+mean 255. Import preserves Sprite Color Mode, stored pixels, and the Sprite's
+Transparent Color Index. Format choice does not request a Color Profile conversion.
+It refuses unsafe Indexed Palette uses,
+malformed input, and native data loss before Target Commit. Entry names and file
+layout are not part of the color-payload guarantee.
+
+`spa palette color-quantization` replaces an exact existing Palette Change with
+native colors generated from **all Frames and their visible Layer composition**.
+It requires `max_colors` (1–256), `with_alpha`, `rgb_map_algorithm` (`default`,
+`rgb5a3`, or `octree`), and `new_layer_blending_method`. Native `default` resolves
+to `octree` in the tested runtime. Palette Picks do not limit generation; the
+temporary Picks, active Frame, and blending preference are restored. Results
+report requested and actual size, complete Entries, render and affected Frames,
+and Indexed transparency facts. Indexed candidates that change the global mask
+or leave invalid stored indexes are refused; callers must explicitly remap first.
+
+`spa palette export` produces a verified **Palette Artifact**, from either an
+Effective Palette or an explicit quantization request on a disposable Sprite:
+
+```sh
+spa palette export --input-json '{
+  "source_sprite_file":"sprite.aseprite",
+  "palette_source":{"kind":"effective","frame_number":2},
+  "destination":{"format":"png","path":"colors.png","if_exists":"fail"}
+}'
+spa palette export --input-json '{
+  "source_sprite_file":"sprite.aseprite",
+  "palette_source":{"kind":"color-quantization","palette_frame_number":1,
+    "max_colors":16,"with_alpha":true,"rgb_map_algorithm":"octree",
+    "new_layer_blending_method":true},
+  "destination":{"format":"gpl","path":"generated.gpl","if_exists":"replace"}
+}'
+```
+
+Both file formats support RGB, Grayscale, and Indexed Source Sprites. Indexed PNG
+holds 1–256 ordered Entries; larger Palettes can use GPL. Export independently
+decodes the staged file and checks every Entry before publication. It leaves
+Source bytes unchanged, including when native generation would produce an unsafe
+Sprite candidate: only the Palette Artifact is published. These operations are
+standalone and do not participate in an Operation Plan.
+
 ### Change Color Mode
 
 `spa sprite change-color-mode` declares a `conversion.source_color_mode` expectation

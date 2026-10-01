@@ -187,6 +187,20 @@ IccVerifier = Callable[[bytes], IccFacts]
 
 
 @dataclass(frozen=True)
+class PaletteFileFacts:
+    entries: tuple[tuple[int, int, int, int], ...]
+    byte_size: int
+    sha256: str
+
+
+class PaletteFileError(ValueError):
+    """The bytes do not represent the requested Palette file format."""
+
+
+PaletteFileDecoder = Callable[[bytes, Literal["gpl", "png"]], PaletteFileFacts]
+
+
+@dataclass(frozen=True)
 class OperationServices:
     probe_runtime: RuntimeProbe
     invoke_kernel: KernelInvoker
@@ -195,6 +209,7 @@ class OperationServices:
     verify_png: PngVerifier | None = None
     verify_icc: IccVerifier | None = None
     invoke_kernel_direct: DirectKernelInvoker | None = None
+    decode_palette_file: PaletteFileDecoder | None = None
 
 
 @dataclass(frozen=True)

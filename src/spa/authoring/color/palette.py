@@ -331,6 +331,8 @@ class PaletteTransformDetails(PublicModel):
         "permutation_size",
         "transparent_index_moved",
         "shared_image_outside_range",
+        "index_out_of_bounds",
+        "transparent_index_out_of_bounds",
     ]
     palette_frame_number: int = Field(ge=1)
     index: int | None = Field(default=None, ge=0)
@@ -366,7 +368,7 @@ PALETTE_FAILURE_CODE_SPECS = (
 )
 
 
-def _reject(invocation: KernelInvocationResult) -> None:
+def reject_palette(invocation: KernelInvocationResult) -> None:
     rejected = invocation.payload.get("rejection")
     if rejected is None:
         return
@@ -411,7 +413,7 @@ def _read(
     invocation = services.invoke_kernel(
         observation, PALETTE_READ_HANDLER, payload, request.timeout_seconds
     )
-    _reject(invocation)
+    reject_palette(invocation)
     return invocation
 
 
@@ -479,7 +481,7 @@ def set_palette(
             },
             request.timeout_seconds,
         )
-        _reject(invocation)
+        reject_palette(invocation)
         try:
             evidence = PaletteSetEvidence.model_validate(invocation.payload)
             selected = next(
@@ -535,7 +537,7 @@ def resize_palette(
             },
             request.timeout_seconds,
         )
-        _reject(invocation)
+        reject_palette(invocation)
         try:
             evidence = PaletteSetEvidence.model_validate(invocation.payload)
             selected = next(
@@ -595,7 +597,7 @@ def _map_palette(
             },
             request.timeout_seconds,
         )
-        _reject(invocation)
+        reject_palette(invocation)
         try:
             evidence = PaletteMappingEvidence.model_validate(invocation.payload)
             if (
