@@ -33,12 +33,42 @@ local function execute()
     uuids,
     "Palette " .. payload.operation
   )
+  local persisted = palettes.list(sprite)
+  if payload.operation == "import" or payload.operation == "color-quantization" then
+    local ok, reason = pcall(
+      persistence.assert_equal,
+      { frame_count = live.frame_count, palette_changes = live.palette_changes },
+      persisted,
+      "Persisted Palette timeline"
+    )
+    if not ok then
+      local expected_size, reopened_size = 0, 0
+      local frame = tonumber(payload.palette_frame_number)
+      for _, change in ipairs(live.palette_changes) do
+        if change.palette_frame_number == frame then expected_size = #change.entries end
+      end
+      for _, change in ipairs(persisted.palette_changes) do
+        if change.palette_frame_number == frame then reopened_size = #change.entries end
+      end
+      return {
+        rejection = {
+          code = "palette_persistence_failed",
+          message = "Native save/reopen changed Palette Entries or size; no Target was published",
+          details = {
+            palette_frame_number = frame,
+            expected_palette_size = expected_size,
+            reopened_palette_size = reopened_size,
+            reason = tostring(reason),
+          },
+        },
+      }
+    end
+  end
   persistence.assert_equal(
     live_facts,
     transforms.snapshot(sprite, uuids),
     "Persisted Palette Images and metadata"
   )
-  local persisted = palettes.list(sprite)
   persistence.assert_equal(
     { frame_count = live.frame_count, palette_changes = live.palette_changes },
     persisted,

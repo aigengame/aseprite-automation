@@ -23,6 +23,7 @@ from spa.authoring.color.palette import (
     PaletteChangeDetails,
     PaletteEntryDetails,
     PaletteFrameDetails,
+    PalettePersistenceDetails,
     PaletteTransformDetails,
 )
 from spa.authoring.color.palette_file import PaletteFileDetails
@@ -190,6 +191,12 @@ def test_failure_construction_derives_category_and_refuses_mismatch() -> None:
 
 def test_each_registered_code_has_a_constrained_public_schema() -> None:
     details_by_type = {
+        PalettePersistenceDetails: PalettePersistenceDetails(
+            palette_frame_number=1,
+            expected_palette_size=5,
+            reopened_palette_size=256,
+            reason="Native save/reopen changed Palette size",
+        ),
         QuantizationDetails: QuantizationDetails(
             palette_frame_number=1,
             reason="index_out_of_bounds",

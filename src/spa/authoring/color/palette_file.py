@@ -225,6 +225,7 @@ PALETTE_FILE_OPERATIONS = (
             *RUNTIME_FAILURE_CODES,
             "palette_file_failed",
             "palette_change_missing",
+            "palette_persistence_failed",
             "palette_transform_rejected",
             "palette_index_out_of_bounds",
             "artifact_verification_failed",

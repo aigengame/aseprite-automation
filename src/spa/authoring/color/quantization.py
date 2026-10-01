@@ -77,9 +77,11 @@ class QuantizationDetails(PublicModel):
         "transparent_index_changed",
         "transparent_index_out_of_bounds",
         "index_out_of_bounds",
+        "color_limit_exceeded",
     ]
     original_palette_size: int = Field(ge=1)
-    candidate_palette_size: int = Field(ge=1, le=256)
+    candidate_palette_size: int = Field(ge=1)
+    requested_max_colors: int | None = Field(default=None, ge=1, le=256)
     original_transparent_color: int | None = Field(default=None, ge=0, le=255)
     candidate_transparent_color: int | None = Field(default=None, ge=0, le=255)
     index: int | None = Field(default=None, ge=0)
@@ -90,7 +92,7 @@ class QuantizationDetails(PublicModel):
 QUANTIZATION_FAILURE_SPECS = (
     FailureCodeSpec(
         "palette_quantization_rejected",
-        "Generated Palette would invalidate Indexed Sprite data",
+        "Generated Palette violates the requested color limit or Indexed data constraints",
         "input",
         QuantizationDetails,
     ),
@@ -236,6 +238,7 @@ QUANTIZATION_OPERATIONS = (
             *RUNTIME_FAILURE_CODES,
             "palette_change_missing",
             "palette_quantization_rejected",
+            "palette_persistence_failed",
             "target_commit_failed",
         ),
         execution_kind="mutation",

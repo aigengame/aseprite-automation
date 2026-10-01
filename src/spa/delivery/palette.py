@@ -9,7 +9,6 @@ from spa.authoring.color.palette import (
     PALETTE_TRANSFORM_HANDLER,
     PaletteChange,
     PaletteTimeline,
-    reject_palette,
 )
 from spa.authoring.color.palette_file import (
     PALETTE_FILE_RESOURCE,
@@ -22,6 +21,7 @@ from spa.authoring.color.quantization import (
     QuantizationEvidence,
     QuantizationFacts,
     QuantizationOptions,
+    reject_quantization,
     validate_quantization,
 )
 from spa.contracts.mutation import validate_native_sprite_path
@@ -164,7 +164,7 @@ def export_palette(
                 "Palette exceeds Indexed PNG capacity",
                 details,
             )
-        reject_palette(invocation)
+        reject_quantization(invocation)
         try:
             native = PaletteExportEvidence.model_validate(invocation.payload)
             if isinstance(choice, EffectivePaletteSource):
@@ -263,6 +263,7 @@ PALETTE_EXPORT_OPERATIONS = (
             "palette_frame_out_of_bounds",
             "palette_change_missing",
             "palette_export_rejected",
+            "palette_quantization_rejected",
             "artifact_file_failed",
             "artifact_verification_failed",
         ),

@@ -340,7 +340,21 @@ class PaletteTransformDetails(PublicModel):
     tile_uses: list[PaletteTileUse] = Field(default_factory=list)
 
 
+class PalettePersistenceDetails(PublicModel):
+    kind: Literal["palette_persistence"] = "palette_persistence"
+    palette_frame_number: int = Field(ge=1)
+    expected_palette_size: int = Field(ge=1)
+    reopened_palette_size: int = Field(ge=0)
+    reason: str
+
+
 PALETTE_FAILURE_CODE_SPECS = (
+    FailureCodeSpec(
+        "palette_persistence_failed",
+        "Native save/reopen changed the complete Palette timeline",
+        "execution",
+        PalettePersistenceDetails,
+    ),
     FailureCodeSpec(
         "palette_transform_rejected",
         "Palette organization cannot preserve the declared document scope",

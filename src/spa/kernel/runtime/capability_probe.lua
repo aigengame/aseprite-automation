@@ -53,17 +53,25 @@ local function observes_palette_quantization()
   local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
   local sprite
   local ok = pcall(function()
-    sprite = Sprite(2, 1, ColorMode.RGB)
+    sprite = Sprite(3, 1, ColorMode.RGB)
     sprite.cels[1].image:drawPixel(0, 0, app.pixelColor.rgba(255, 0, 0, 255))
-    local result = quantization.apply(sprite, {
-      palette_frame_number = "1",
-      max_colors = "8",
-      with_alpha = true,
-      rgb_map_algorithm = "default",
-      new_layer_blending_method = true,
-    }, {})
-    assert(not result.rejection and result.quantization.actual_colors == 2)
-    assert(result.palette.entries[2].color.red == 255)
+    sprite.cels[1].image:drawPixel(1, 0, app.pixelColor.rgba(0, 255, 0, 128))
+    for _, algorithm in ipairs({ "default", "rgb5a3", "octree" }) do
+      local alpha = algorithm ~= "rgb5a3"
+      local result = quantization.apply(sprite, {
+        palette_frame_number = "1",
+        max_colors = "8",
+        with_alpha = alpha,
+        rgb_map_algorithm = algorithm,
+        new_layer_blending_method = algorithm ~= "default",
+      }, {})
+      assert(not result.rejection and result.quantization.actual_colors == 3)
+      local has_partial = false
+      for _, entry in ipairs(result.palette.entries) do
+        has_partial = has_partial or (entry.color.alpha > 0 and entry.color.alpha < 255)
+      end
+      assert(has_partial == alpha)
+    end
   end)
   if sprite ~= nil then pcall(function() sprite:close() end) end
   if previous.sprite ~= nil and previous.sprite.isValid then

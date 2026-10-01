@@ -60,7 +60,7 @@ local function selected_change(sprite, payload)
   return selected, frame
 end
 
-function module.generate(sprite, payload)
+function module.generate(sprite, payload, native_command)
   local selected, frame = selected_change(sprite, payload)
   if selected == nil then return missing_change(payload, #sprite.frames) end
   local max_colors = tonumber(payload.max_colors)
@@ -87,7 +87,8 @@ function module.generate(sprite, payload)
     app.activeFrame = sprite.frames[frame]
     app.range.colors = {}
     app.preferences.experimental.new_blend = payload.new_layer_blending_method
-    app.command.ColorQuantization {
+    local invoke = native_command or app.command.ColorQuantization
+    invoke {
       ui = false,
       withAlpha = payload.with_alpha,
       maxColors = max_colors,
@@ -119,6 +120,19 @@ function module.generate(sprite, payload)
   local current = palettes.get(sprite, frame)
   assert(current.rejection == nil, "Color Quantization removed its Palette Change")
   local change = current.palette
+  if #change.entries > max_colors then
+    local refused = reject(
+      "color_limit_exceeded",
+      frame,
+      original_size,
+      #change.entries,
+      old_mask,
+      sprite.colorMode == ColorMode.INDEXED and sprite.transparentColor or nil
+    )
+    refused.rejection.message = "Native Color Quantization exceeded the requested color limit"
+    refused.rejection.details.requested_max_colors = max_colors
+    return refused
+  end
   local rendered, affected = {}, {}
   for number = 1, #sprite.frames do
     rendered[#rendered + 1] = number

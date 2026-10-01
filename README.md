@@ -701,6 +701,13 @@ temporary Picks, active Frame, and blending preference are restored. Results
 report requested and actual size, complete Entries, render and affected Frames,
 and Indexed transparency facts. Indexed candidates that change the global mask
 or leave invalid stored indexes are refused; callers must explicitly remap first.
+Any native candidate above `max_colors` is also refused. Import and quantization
+publish a Sprite only if save/reopen retains the complete Palette timeline.
+On the tested Aseprite 1.3.18.5-dev runtime, Octree can return three Entries for a
+one-color request, and small fully opaque Grayscale Palettes can expand to 256
+Entries on save/reopen. These cases return `palette_quantization_rejected` or
+`palette_persistence_failed`; SPA does not change the requested algorithm, add
+colors, or patch the native file to make them pass.
 
 `spa palette export` produces a verified **Palette Artifact**, from either an
 Effective Palette or an explicit quantization request on a disposable Sprite:

@@ -62,7 +62,11 @@ end
 sprite.transparentColor = 3
 assert(ordinary:cel(1).image.id == ordinary:cel(2).image.id)
 assert(#tileset == 4)
-if app.params.mode == "unused-only" or app.params.mode == "reference-only" then
+if
+  app.params.mode == "unused-only"
+  or app.params.mode == "reference-only"
+  or app.params.mode == "linked-only"
+then
   for _, cel in ipairs(sprite.cels) do
     if not cel.layer.isTilemap then cel.image.bytes = string.char(1, 1, 1) end
   end
@@ -72,8 +76,12 @@ if app.params.mode == "unused-only" or app.params.mode == "reference-only" then
   sprite.transparentColor = 0
   if app.params.mode == "unused-only" then
     tileset:tile(3).image:putPixel(0, 0, 2)
-  else
+  elseif app.params.mode == "reference-only" then
     reference:cel(1).image:putPixel(0, 0, 2)
+  else
+    for _, cel in ipairs(reference.cels) do
+      cel.image:clear(0)
+    end
   end
 end
 assert(sprite:saveAs(app.params.source))
