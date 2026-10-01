@@ -10,9 +10,71 @@ These observations do not establish Linux coverage or a cross-version certificat
 Lua fixture invokes native assignment/conversion directly, then saves and reopens
 the result. The assertions compare stored Image pixels, Palette Entries, links,
 Tilesets, encoded profile kind, input digests, and Source/Target preservation.
-The tests generate a linear-light RGB ICC from LittleCMS's sRGB profile by changing
-the shared RGB parametric tone-response curve to gamma 1.0. Production uses no Python
-color transforms. The packaged probe has a fixed copy of this generated profile.
+The tests and probe use the fixed ICC files identified below. Production uses no
+Python color transforms. Profile file validity, native admission, and persisted
+observations are separate checks.
+
+## Selected limited conversion set
+
+The [owner decision](https://github.com/aigengame/aseprite-automation/pull/151#issuecomment-5922836235)
+accepts limited support and refusal outside it, and reclassifies the former P1 as P2.
+[#34](https://github.com/aigengame/aseprite-automation/issues/34) owns the selected
+source/target matrix. The implementation uses full ICC byte equality against two
+packaged files, then checks the directed pair. It does not classify arbitrary ICCs
+by header, matrix, TRC, profile name, or successful native construction.
+
+| Source Profile | Admitted Convert targets |
+| --- | --- |
+| Encoded None | Built-in sRGB |
+| Built-in sRGB | Built-in sRGB; fixed linear-sRGB ICC |
+| Fixed linear-sRGB ICC | Built-in sRGB; the same fixed linear-sRGB ICC |
+| Fixed Display P3 ICC | Built-in sRGB; the same fixed Display P3 ICC |
+
+Profile identities relative to `spa.kernel`:
+
+| File | Bytes | SHA-256 |
+| --- | --- | --- |
+| `color/profiles/linear_srgb.icc` | 588 | `e8e39a911fbcba693d493fe2c7e33f68f76d360a3b38b3b6f7ea37dc43462e06` |
+| `color/profiles/display_p3.icc` | 536 | `0ff6958f98684c61f6bbdce1368ddeaf3873baf84545baba482e920d92a914c0` |
+
+The linear-sRGB file is the prior probe fixture, generated from LittleCMS sRGB by
+replacing the shared parametric RGB TRC with gamma 1.0. Its fixed metadata is part
+of the selected bytes. Display P3 is an unchanged copy of
+`/System/Library/ColorSync/Profiles/Display P3.icc`, including its Apple copyright
+metadata, and matches [#103's prior feasibility evidence](https://github.com/aigengame/aseprite-automation/issues/103#issuecomment-5846418098).
+Tests pin that SHA-256 independently. The wheel inventory checks every packaged
+ICC byte alongside the existing Lua and Sprite assets.
+
+A different path with the same bytes is accepted. A metadata-only edit, another
+sRGB/P3 encoding, or an unlisted pair is excluded even if that native transform
+might work. This is the explicit cost of the finite set; expanding it requires
+consumer evidence and a support decision. It does not narrow valid-ICC Assign.
+
+The selected macOS runtime executes the three changing directions with Image and
+Palette midtones. Standalone and live Plan outputs are compared with a separate
+Lua fixture's direct native conversion and saved/reopened observations. The P3
+sample `(180,70,30,127)` becomes `(195,60,2,127)` in sRGB, preserving alpha. Tests
+cover an opened P3 Source and an earlier live Assign. Same-profile requests and
+all-black content-dependent no-ops remain successful in both execution forms.
+The runtime probe separately checks sRGB ↔ fixed linear-sRGB and fixed P3 → sRGB
+Image/Palette transformations and persistence; version strings alone do not admit
+conversion. See the Linux limitation below.
+
+Refusal tests cover unlisted generated sRGB, a metadata-only P3 edit, an RGB LUT,
+and the discontinuous curve from the investigation below. Each remains valid for
+Assign but is refused as a Convert Source and Target. Tests cover opened Sources,
+live Assign→Convert Plans, in-place execution, Step attribution, Source/Target byte
+preservation, and cleanup. Five unlisted pairs between otherwise known profiles
+are also refused. These tests establish the selected refusal boundary, not support
+for converting every encoding in those families.
+
+The compact test-only `tests/color/fixtures/rgb_lut.icc` is 584 bytes, SHA-256
+`cbb97b160359f429be6a72208f0777c574920b8e88069d738714b648db1475c1`.
+It was generated with LittleCMS: build linear-RGB→Lab16, use
+`cmsTransform2DeviceLink(..., 4.3, cmsFLAGS_GRIDPOINTS(2))`, copy its A2B0 pipeline
+into an sRGB profile, set class `scnr` and PCS `Lab `, and remove XYZ/TRC/chrm tags.
+The smaller grid keeps this a compact refusal fixture; it is not the original LUT
+file or the numeric oracle from the investigation.
 
 ## Assignment and conversion
 
@@ -63,22 +125,24 @@ unnamed ICC objects. Constructor success alone does not validate a profile.
 Python therefore validates ICC bytes with the existing Pillow/LittleCMS dependency
 and snapshots the exact bytes. Assign accepts valid ICC metadata, including tested
 LAB ICC; native assignment and save/reopen preserve its profile equality and all
-stored Image/Palette values. The current Convert guard requires an RGB ICC target;
-that condition is insufficient to establish conversion support, as the investigation
-below shows. This conversion constraint does not narrow assignment. Unsupported conversion
-targets, invalid files, and unreadable inputs produce typed `color_profile_file_failed` results.
-Lua loads the snapshot through the native constructor before mutation.
+stored Image/Palette values. Convert additionally requires the selected identity
+and direction. Unlisted target files and pairs produce `color_profile_file_failed`
+with `unsupported_profile` and `unsupported_conversion`; non-RGB targets retain the
+static `unsupported_color_space` reason. Invalid and unreadable inputs remain typed
+file failures. Lua loads the frozen snapshot through the native constructor before
+mutation. The existing RGB validation is an early input check, not admission proof.
 
 Adversarial review also reproduced native LAB-ICC Source to sRGB conversion that
 only relabeled the profile: both the midtone Image and Palette stayed unchanged.
 An independent LittleCMS check converted the sample `(48, 96, 144)` to `(0, 56, 20)`;
-this is test evidence only, not a production transform. SPA therefore refuses
-non-RGB ICC Sources with `color_profile_source_unsupported` before conversion. This
-closes the LAB case but does not close the general conversion admission defect.
-The encoded-profile reader retains the ICC header's data-color-space signature.
-The native profile owner binds it to the live ColorSpace and updates that private
-state from frozen ICC bytes after each Assign/Convert. This covers both opened
-Sources and Assign-then-Convert Plan Steps without a second color engine or registry.
+this is test evidence only, not a production transform. The initial non-RGB refusal
+closed this case but did not establish admission for every RGB ICC. The selected
+policy now refuses every unlisted Source ICC with `color_profile_source_unsupported`
+before conversion. The encoded-profile reader retains the complete ICC bytes.
+The native profile owner verifies their native equality with the loaded ColorSpace,
+stores their identity, and updates that private state from frozen bytes after each
+Assign/Convert. The header signature remains a failure detail, not an admission rule.
+This covers opened Sources and Assign-then-Convert Plan Steps without a second color engine.
 Tests verify the refusal preserves Source and Target, and that a later explicit
 Assign of a supported RGB profile replaces the live source interpretation.
 
@@ -94,8 +158,10 @@ separately; constructor availability or a same-profile no-op is insufficient evi
 
 ## Conversion admission investigation — PR #151
 
-Status: unresolved. The owner requested feasibility research before selecting a
-conservative ICC subset. No new subset or compatibility promise is approved.
+This section retains the technical investigation that preceded the owner decision.
+It disproves the initial general admission rules. The selected finite set above
+supersedes the earlier unresolved support decision; the following counterexamples
+do not establish additional conversion requirements.
 
 The reviewed head was `a3543118`. The independent preflight and receipt fixes at
 `f42ca0a` do not change native admission. On the local macOS runtime above, both
@@ -149,9 +215,8 @@ Image and Palette values as conversion to native built-in sRGB. This is an execu
 example of the native approximate-sRGB table path, not a hypothetical compatibility
 loss or a claim that every table profile works.
 
-The initial matrix/shared-TRC proposal is not ready to implement. A smaller positive
-set of exact tested profiles or explicitly bounded encodings could be investigated,
-but it would narrow the current issue contract and require an owner decision.
+The initial matrix/shared-TRC proposal was rejected. The later owner decision accepts
+limited support, now implemented by the positive set and directed pairs above.
 Expanding rejection rules one counterexample at a time would retain the faulty
 assumption that SPA can infer complete native conversion support from partial ICC
 facts. Native support/failure reporting would address the missing signal directly;

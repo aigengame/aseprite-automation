@@ -648,14 +648,34 @@ admission; the current boundary does not prevent that extension.
 `spa sprite assign-color-profile` takes `profile: {kind: "none"}`, `{kind: "srgb"}`,
 or `{kind: "icc", icc_file: "/path/profile.icc"}`. It changes the Color Profile while
 preserving stored Image pixels, Palette Entries, and Tile pixels. `spa sprite
-convert-color-profile` accepts the sRGB and ICC targets and invokes native conversion.
+convert-color-profile` invokes native conversion within the limited matrix below.
 Both use explicit `source_sprite_file`, `target_sprite_file`, `in_place`, and
 `overwrite` fields and verify save/close/reopen before Target Commit.
 
-ICC inputs must be readable, valid profiles; Convert currently accepts RGB ICC targets.
-Assign also supports validated LAB ICC metadata without transforming stored colors.
-Convert refuses a non-RGB ICC Source with `color_profile_source_unsupported`;
-an explicit Assign can establish a supported interpretation before conversion.
+ICC inputs must be readable, valid profiles. Assign also supports validated LAB ICC
+metadata and valid ICC files excluded from Convert, without transforming stored colors.
+
+| Source Profile | Admitted Convert targets |
+| --- | --- |
+| Encoded None | Built-in sRGB |
+| Built-in sRGB | Built-in sRGB; fixed linear-sRGB ICC |
+| Fixed linear-sRGB ICC | Built-in sRGB; the same fixed linear-sRGB ICC |
+| Fixed Display P3 ICC | Built-in sRGB; the same fixed Display P3 ICC |
+
+The fixed files are [linear_srgb.icc](src/spa/kernel/color/profiles/linear_srgb.icc)
+and [display_p3.icc](src/spa/kernel/color/profiles/display_p3.icc), also included in
+the installed package. Any path containing the exact file bytes works. Other encodings
+or metadata changes, even with the same profile name, are outside this Convert set.
+Display P3 is the exact file verified for #103's canonical sRGB preparation path.
+Built-in sRGB is not an arbitrary sRGB ICC file.
+
+An unlisted Source ICC returns `color_profile_source_unsupported`. An unlisted target
+ICC or conversion direction returns `color_profile_file_failed` with reason
+`unsupported_profile` or `unsupported_conversion`. Non-RGB targets retain the static
+`unsupported_color_space` refusal. These refusals preserve Source and any existing
+Target, including in-place execution and Plan Steps after Assign. Assign changes
+interpretation and cannot replace an unsupported requested transform.
+
 The result reports the input path,
 byte size, SHA-256, native name, and equality with the effective Sprite profile.
 Results distinguish `source_profile`, `requested_profile`, and `effective_profile`;
@@ -664,7 +684,8 @@ and Tileset Tile has before/after content digests and a `changed` flag. Palette
 observations also list changed Entry indexes. On the tested 1.3.18.5 runtime, native
 Convert leaves Tileset pixels unchanged; this is reported explicitly. See the
 [profile evidence](docs/evidence/issue-34-color-profile.md) for Color Mode behavior
-and the batch loader's treatment of encoded None. Same-profile requests are valid.
+and the batch loader's treatment of encoded None. Supported same-profile requests
+and content-dependent no-ops are valid; changed-pixel counts do not determine success.
 These operations do not add profile conversion to PNG Export.
 Conversion requires a probed native converter. The current Linux CI build uses
 `LAF_BACKEND=none`; it is expected to report a conversion Capability Gap and reject

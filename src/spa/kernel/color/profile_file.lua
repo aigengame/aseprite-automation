@@ -4,7 +4,7 @@ local module = {}
 -- app.open() assigns sRGB to that old-file form. Read only this file fact.
 function module.declared_profile(source_file)
   local file = assert(io.open(source_file, "rb"), "could not read Source Sprite File")
-  local ok, result, icc_color_space = pcall(function()
+  local ok, result, icc_bytes = pcall(function()
     local header = assert(file:read(128), "incomplete Sprite header")
     local file_size, magic, frames = string.unpack("<I4I2I2", header)
     assert(magic == 0xa5e0 and frames > 0, "invalid Sprite header")
@@ -12,7 +12,7 @@ function module.declared_profile(source_file)
     assert(file_size <= actual_size, "incomplete Source Sprite File")
     local frame_at = 128
     local observed = nil
-    local observed_icc_space = nil
+    local observed_icc = nil
     for _ = 1, frames do
       assert(frame_at + 16 <= file_size, "incomplete Sprite Frame")
       assert(file:seek("set", frame_at))
@@ -45,13 +45,10 @@ function module.declared_profile(source_file)
             assert(file:seek("set", chunk_at + 22))
             local icc_size = string.unpack("<I4", assert(file:read(4)))
             assert(icc_size >= 20 and icc_size <= chunk_size - 26, "incomplete ICC profile")
-            assert(file:seek("cur", 16))
-            local space = assert(file:read(4))
-            assert(
-              observed_icc_space == nil or observed_icc_space == space,
-              "conflicting ICC color spaces"
-            )
-            observed_icc_space = space
+            local bytes = assert(file:read(icc_size))
+            assert(#bytes == icc_size, "incomplete ICC profile")
+            assert(observed_icc == nil or observed_icc == bytes, "conflicting ICC profiles")
+            observed_icc = bytes
           end
           observed = kind
         end
@@ -59,11 +56,11 @@ function module.declared_profile(source_file)
       end
       frame_at = frame_end
     end
-    return observed or "none", observed_icc_space
+    return observed or "none", observed_icc
   end)
   file:close()
   if not ok then error(result) end
-  return result, icc_color_space
+  return result, icc_bytes
 end
 
 return module

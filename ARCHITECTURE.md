@@ -562,7 +562,11 @@ add/remove operations remain evidence-backed Capability Gaps without Descriptors
 Color and Palette also owns `sprite assign-color-profile` and
 `sprite convert-color-profile`. `profile.lua` applies the same native operation to a
 standalone Sprite or a live Plan Sprite and observes all Cel Images, Palette Changes,
-and Tileset Tiles. Python reads and freezes ICC bytes through the file adapter and
+and Tileset Tiles. The same owner admits Convert through a finite directed matrix
+and exact packaged ICC bytes. It binds encoded Source bytes, or bytes from the last
+live Assign, to the native profile before admission. This policy does not constrain
+valid-ICC Assign or infer arbitrary native ICC compatibility.
+Python reads and freezes ICC bytes through the file adapter and
 validates them through the ICC adapter;
 it does not transform colors. The profile-specific persistence check verifies native
 profile equality, encoded kind, all stored colors, and the complete Palette timeline.

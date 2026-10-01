@@ -6,6 +6,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+from importlib.resources import files
 from pathlib import Path
 
 import pytest
@@ -164,19 +165,10 @@ def test_assign_plan_uses_step_start_profile_and_final_none_persistence(
 
 
 def _linear_icc(path: Path) -> bytes:
-    # Test-only linear-light RGB profile: retain LittleCMS primaries/white point,
-    # replace the shared RGB tone-response tag with ICC parametric gamma 1.0.
-    from PIL import ImageCms
-
-    data = bytearray(ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes())
-    for index in range(struct.unpack_from(">I", data, 128)[0]):
-        record = 132 + 12 * index
-        tag, offset, _ = struct.unpack_from(">4sII", data, record)
-        if tag in {b"rTRC", b"gTRC", b"bTRC"}:
-            data[offset : offset + 16] = struct.pack(">4sIHHI", b"para", 0, 0, 0, 65536)
-            struct.pack_into(">I", data, record + 8, 16)
+    # The supported file is fixed. Native calls independently establish its result.
+    data = files("spa.kernel").joinpath("color/profiles/linear_srgb.icc").read_bytes()
     path.write_bytes(data)
-    return bytes(data)
+    return data
 
 
 @pytest.mark.parametrize("profile_kind", ["linear_rgb", "lab"])
@@ -293,6 +285,24 @@ def test_assign_and_convert_cover_noops_and_native_srgb_target(
     assert code == 0 and result["source_profile"]["kind"] == "icc", result
     assert result["effective_profile"]["kind"] == _encoded_profile(converted) == "srgb"
     assert result["icc_file"] is None
+    actual = _native(runtime, converted, action="observe")
+    assert actual == _native(
+        runtime, assigned, action="convert", output=str(tmp_path / "oracle.aseprite")
+    )
+    assert result["images"][0]["changed"] == (mode != "indexed")
+    assert result["palettes"][0]["changed"] == (mode != "grayscale")
+    code, planned = _plan(
+        assigned,
+        tmp_path / "plan.aseprite",
+        [
+            {
+                "operation": "sprite convert-color-profile",
+                "input": {"profile": {"kind": "srgb"}},
+            }
+        ],
+    )
+    assert code == 0, planned
+    assert _native(runtime, tmp_path / "plan.aseprite", action="observe") == actual
     code, _ = _run("assign-color-profile", assigned, assigned, {"kind": "none"})
     assert code == 0
     code, result = _run("convert-color-profile", assigned, assigned, {"kind": "srgb"})
@@ -490,6 +500,251 @@ def test_convert_refuses_lab_source_and_live_plan_profile_before_publication(
     code, result = _plan(lab_source, target, [assign, convert])
     assert code == 0, result
     assert result["steps"][1]["result"]["images"][0]["changed"] is True
+
+
+@pytest.mark.parametrize("case", ["srgb", "metadata", "lut", "curve"])
+@pytest.mark.parametrize("in_place", [False, True])
+def test_convert_refuses_unlisted_icc_file_but_assign_preserves_it(
+    tmp_path: Path, runtime, case: str, in_place: bool
+):
+    from PIL import ImageCms
+
+    _require_conversion(runtime)
+    source, assigned, target = (
+        tmp_path / name
+        for name in ["source.aseprite", "assigned.aseprite", "target.aseprite"]
+    )
+    _native(runtime, source, action="create")
+    icc = tmp_path / "unlisted.icc"
+    raw = bytearray(ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes())
+    if case == "metadata":
+        raw = bytearray(
+            files("spa.kernel").joinpath("color/profiles/display_p3.icc").read_bytes()
+        )
+        raw[35] = (
+            1  # Only the creation second changes; this is a different file identity.
+        )
+    elif case == "lut":
+        raw = bytearray((Path(__file__).parent / "fixtures/rgb_lut.icc").read_bytes())
+    elif case == "curve":
+        for index in range(struct.unpack_from(">I", raw, 128)[0]):
+            tag, offset, size = struct.unpack_from(">4sII", raw, 132 + 12 * index)
+            if tag in {b"rTRC", b"gTRC", b"bTRC"}:
+                assert size == 32
+                raw[offset : offset + size] = struct.pack(
+                    ">4sIHH5i", b"para", 0, 3, 0, 131072, 65536, 0, 16384, 32768
+                )
+    icc.write_bytes(raw)
+    ImageCms.ImageCmsProfile(str(icc))  # All are valid file inputs for Assign.
+    profile = {"kind": "icc", "icc_file": str(icc)}
+    target.write_bytes(b"existing Target")
+    original = source.read_bytes()
+    conversion_target = source if in_place else target
+    code, result = _run("convert-color-profile", source, conversion_target, profile)
+    assert code != 0 and result["code"] == "color_profile_file_failed", result
+    assert result["details"]["reason"] == "unsupported_profile"
+    assert target.read_bytes() == b"existing Target" and source.read_bytes() == original
+    code, result = _plan(
+        source,
+        conversion_target,
+        [{"operation": "sprite convert-color-profile", "input": {"profile": profile}}],
+    )
+    assert code != 0 and result["code"] == "color_profile_file_failed", result
+    assert result["details"]["reason"] == "unsupported_profile"
+    assert result["details"]["step_number"] == 1
+
+    code, result = _run("assign-color-profile", source, assigned, profile)
+    assert code == 0, result
+    assert not any(item["changed"] for item in result["images"] + result["palettes"])
+    assigned_bytes = assigned.read_bytes()
+    code, result = _run(
+        "convert-color-profile",
+        assigned,
+        assigned if in_place else target,
+        {"kind": "srgb"},
+    )
+    assert code != 0 and result["code"] == "color_profile_source_unsupported", result
+    assert (
+        target.read_bytes() == b"existing Target"
+        and assigned.read_bytes() == assigned_bytes
+    )
+    convert = {
+        "operation": "sprite convert-color-profile",
+        "input": {"profile": {"kind": "srgb"}},
+    }
+    assign = {"operation": "sprite assign-color-profile", "input": {"profile": profile}}
+    for plan_source, steps in [(assigned, [convert]), (source, [assign, convert])]:
+        code, result = _plan(plan_source, plan_source if in_place else target, steps)
+        assert code != 0 and result["code"] == "color_profile_source_unsupported", (
+            result
+        )
+        assert result["details"]["step_number"] == len(steps)
+        assert (
+            source.read_bytes() == original and assigned.read_bytes() == assigned_bytes
+        )
+        assert target.read_bytes() == b"existing Target"
+        assert not list(tmp_path.glob(".*.staged.aseprite"))
+
+
+def test_display_p3_to_srgb_preserves_required_preparation_path_and_plan_parity(
+    tmp_path: Path, runtime
+):
+    import hashlib
+
+    _require_conversion(runtime)
+    source, assigned, target, planned, oracle = (
+        tmp_path / name
+        for name in [
+            "source.aseprite",
+            "p3.aseprite",
+            "target.aseprite",
+            "plan.aseprite",
+            "oracle.aseprite",
+        ]
+    )
+    before = _native(runtime, source, action="create", p3_sample="true")
+    original = source.read_bytes()
+    icc = tmp_path / "display-p3.icc"
+    contents = (
+        files("spa.kernel").joinpath("color/profiles/display_p3.icc").read_bytes()
+    )
+    assert (
+        hashlib.sha256(contents).hexdigest()
+        == "0ff6958f98684c61f6bbdce1368ddeaf3873baf84545baba482e920d92a914c0"
+    )
+    icc.write_bytes(contents)
+    p3 = {"kind": "icc", "icc_file": str(icc)}
+    assert _run("assign-color-profile", source, assigned, p3)[0] == 0
+    assigned_bytes = assigned.read_bytes()
+    assert contents in assigned_bytes
+    code, result = _run("convert-color-profile", assigned, target, {"kind": "srgb"})
+    assert code == 0 and result["persisted_reopen_verified"], result
+    actual = _native(runtime, target, action="observe")
+    expected = _native(runtime, assigned, action="convert", output=str(oracle))
+    assert actual == expected
+    assert actual["pixels"][0] == 195 | (60 << 8) | (2 << 16) | (127 << 24)
+    assert [value >> 24 for value in actual["pixels"]] == [
+        value >> 24 for value in before["pixels"]
+    ]
+    assert all(item["changed"] for item in result["images"] + result["palettes"])
+    assign = {"operation": "sprite assign-color-profile", "input": {"profile": p3}}
+    convert = {
+        "operation": "sprite convert-color-profile",
+        "input": {"profile": {"kind": "srgb"}},
+    }
+    for plan_source, steps in [(source, [assign, convert]), (assigned, [convert])]:
+        code, plan_result = _plan(plan_source, planned, steps)
+        assert code == 0 and plan_result["persisted_reopen_verified"], plan_result
+        assert _native(runtime, planned, action="observe") == actual
+    assert source.read_bytes() == original and assigned.read_bytes() == assigned_bytes
+
+
+@pytest.mark.parametrize(
+    "source_kind,target_kind",
+    [
+        ("srgb", "display_p3"),
+        ("linear_srgb", "display_p3"),
+        ("display_p3", "linear_srgb"),
+        ("none", "linear_srgb"),
+        ("none", "display_p3"),
+    ],
+)
+def test_known_icc_membership_does_not_admit_untested_directions(
+    tmp_path: Path, runtime, source_kind: str, target_kind: str
+):
+    _require_conversion(runtime)
+    source, assigned, target = (
+        tmp_path / name
+        for name in ["source.aseprite", "assigned.aseprite", "target.aseprite"]
+    )
+    _native(runtime, source, action="create")
+    profiles = {}
+    for kind in ["linear_srgb", "display_p3"]:
+        path = tmp_path / f"{kind}.icc"
+        path.write_bytes(
+            files("spa.kernel").joinpath(f"color/profiles/{kind}.icc").read_bytes()
+        )
+        profiles[kind] = {"kind": "icc", "icc_file": str(path)}
+    source_profile = profiles.get(source_kind, {"kind": source_kind})
+    assert _run("assign-color-profile", source, assigned, source_profile)[0] == 0
+    original = assigned.read_bytes()
+    target.write_bytes(b"existing Target")
+    code, result = _run(
+        "convert-color-profile", assigned, target, profiles[target_kind]
+    )
+    assert code != 0 and result["code"] == "color_profile_file_failed", result
+    assert result["details"]["reason"] == "unsupported_conversion"
+    code, result = _plan(
+        assigned,
+        target,
+        [
+            {
+                "operation": "sprite convert-color-profile",
+                "input": {"profile": profiles[target_kind]},
+            }
+        ],
+    )
+    assert code != 0 and result["code"] == "color_profile_file_failed", result
+    assert result["details"]["reason"] == "unsupported_conversion"
+    assert result["details"]["step_number"] == 1
+    assert (
+        assigned.read_bytes() == original and target.read_bytes() == b"existing Target"
+    )
+
+
+@pytest.mark.parametrize("profile_kind", ["linear_srgb", "display_p3"])
+def test_admitted_same_profile_and_content_noops_remain_successful(
+    tmp_path: Path, runtime, profile_kind: str
+):
+    _require_conversion(runtime)
+    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
+    _native(runtime, source, action="create", black="true")
+    icc = tmp_path / "known.icc"
+    icc.write_bytes(
+        files("spa.kernel").joinpath(f"color/profiles/{profile_kind}.icc").read_bytes()
+    )
+    profile = {"kind": "icc", "icc_file": str(icc)}
+    assert _run("assign-color-profile", source, source, profile)[0] == 0
+    for command in ["standalone", "plan"]:
+        if command == "standalone":
+            code, result = _run("convert-color-profile", source, target, profile)
+            evidence = result
+        else:
+            code, result = _plan(
+                source,
+                target,
+                [
+                    {
+                        "operation": "sprite convert-color-profile",
+                        "input": {"profile": profile},
+                    }
+                ],
+            )
+            evidence = result["steps"][0]["result"] if code == 0 else result
+        assert code == 0, result
+        assert not evidence["profile_changed"]
+        assert not any(
+            item["changed"] for item in evidence["images"] + evidence["palettes"]
+        )
+    code, result = _run("convert-color-profile", source, target, {"kind": "srgb"})
+    assert code == 0 and result["profile_changed"], result
+    assert not any(item["changed"] for item in result["images"] + result["palettes"])
+    code, planned = _plan(
+        source,
+        target,
+        [
+            {
+                "operation": "sprite convert-color-profile",
+                "input": {"profile": {"kind": "srgb"}},
+            }
+        ],
+    )
+    assert code == 0, planned
+    evidence = planned["steps"][0]["result"]
+    assert evidence["profile_changed"]
+    assert not any(
+        item["changed"] for item in evidence["images"] + evidence["palettes"]
+    )
 
 
 def test_conversion_discovery_matches_runtime_and_missing_converter_refuses_publication(

@@ -77,7 +77,8 @@ def test_probe_resources_are_packaged() -> None:
         "color/profile.lua",
         "color/profile_file.lua",
         "color/profile_mutation.lua",
-        "runtime/fixtures/color_profile_fixture.lua",
+        "color/profiles/linear_srgb.icc",
+        "color/profiles/display_p3.icc",
         "raster/image/image_orientation.lua",
         "raster/image/image_orientation_transform.lua",
     ):

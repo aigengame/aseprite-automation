@@ -17,6 +17,15 @@ if app.params.action == "create" then
     if mode == ColorMode.INDEXED then pixel = x + 1 end
     image:drawPixel(x, 0, pixel)
   end
+  if app.params.p3_sample == "true" then
+    image:drawPixel(0, 0, app.pixelColor.rgba(180, 70, 30, 127))
+  end
+  if app.params.black == "true" then
+    image:clear(app.pixelColor.rgba(0, 0, 0, 255))
+    for i = 0, #palette - 1 do
+      palette:setColor(i, Color { r = 0, g = 0, b = 0, a = 255 })
+    end
+  end
   if app.params.timeline == "true" then
     app.activeSprite = sprite
     app.activeLayer = sprite.layers[1]
@@ -45,7 +54,9 @@ else
   sprite = assert(app.open(app.params.source))
 end
 if app.params.action == "convert" then
-  sprite:convertColorSpace(ColorSpace { fromFile = app.params.icc })
+  sprite:convertColorSpace(
+    app.params.icc and ColorSpace { fromFile = app.params.icc } or ColorSpace { sRGB = true }
+  )
   assert(sprite:saveAs(app.params.output))
   sprite:close()
   sprite = assert(app.open(app.params.output))

@@ -9,8 +9,8 @@ from pydantic import Field, ValidationError, model_validator
 from spa.authoring.color.palette import EFFECTIVE_PALETTE_RESOURCE
 from spa.authoring.color.profile import (
     PROFILE_FILE_RESOURCE,
+    PROFILE_ICC_RESOURCES,
     PROFILE_OPERATIONS,
-    PROFILE_PROBE_FIXTURE,
     PROFILE_RESOURCE,
     AssignProfileInput,
     ConvertProfileInput,
@@ -140,7 +140,7 @@ PLAN_RUN_HANDLER = PackagedHandler(
         SPRITE_PERSISTENCE_RESOURCE,
         PROFILE_RESOURCE,
         PROFILE_FILE_RESOURCE,
-        PROFILE_PROBE_FIXTURE,
+        *PROFILE_ICC_RESOURCES,
         SPRITE_CREATION_RESOURCE,
         PAINT_SUPPORT_RESOURCE,
         RASTER_COLOR_RESOURCE,

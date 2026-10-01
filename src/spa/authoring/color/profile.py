@@ -35,8 +35,9 @@ from spa.contracts.public import (
 )
 
 PROFILE_FILE_RESOURCE = PackagedResource("color_profile_file", "color/profile_file.lua")
-PROFILE_PROBE_FIXTURE = PackagedResource(
-    "profile_fixture", "runtime/fixtures/color_profile_fixture.lua"
+PROFILE_ICC_RESOURCES = (
+    PackagedResource("profile_linear_srgb", "color/profiles/linear_srgb.icc"),
+    PackagedResource("profile_display_p3", "color/profiles/display_p3.icc"),
 )
 PROFILE_RESOURCE = PackagedResource("color_profile", "color/profile.lua")
 PROFILE_HANDLER = PackagedHandler(
@@ -48,6 +49,7 @@ PROFILE_HANDLER = PackagedHandler(
         DIGEST_RESOURCE,
         PROFILE_RESOURCE,
         PROFILE_FILE_RESOURCE,
+        *PROFILE_ICC_RESOURCES,
     ),
 )
 
@@ -79,7 +81,12 @@ class ProfileFileDetails(PublicModel):
     kind: Literal["color_profile_file"] = "color_profile_file"
     path: str
     reason: Literal[
-        "unreadable", "invalid", "unsupported_color_space", "native_load_failed"
+        "unreadable",
+        "invalid",
+        "unsupported_color_space",
+        "unsupported_profile",
+        "unsupported_conversion",
+        "native_load_failed",
     ]
     step_number: int | None = Field(default=None, ge=1)
 
@@ -99,7 +106,7 @@ PROFILE_FAILURE_SPECS = (
     ),
     FailureCodeSpec(
         "color_profile_source_unsupported",
-        "Native conversion does not support the current Sprite's ICC color space",
+        "The current Sprite's ICC is outside the supported conversion set",
         "input",
         ProfileSourceDetails,
     ),
@@ -163,10 +170,14 @@ def reject_profile(
         code = rejected["code"]
         if code == "color_profile_file_failed":
             details = ProfileFileDetails.model_validate(rejected["details"])
-            message = "Native Aseprite could not load the ICC file"
+            message = (
+                "Requested ICC or conversion direction is outside the supported set"
+                if details.reason in {"unsupported_profile", "unsupported_conversion"}
+                else "Native Aseprite could not load the ICC file"
+            )
         elif code == "color_profile_source_unsupported":
             details = ProfileSourceDetails.model_validate(rejected["details"])
-            message = "Native conversion requires an RGB ICC source profile"
+            message = "The Source ICC is outside the supported conversion set"
         else:
             raise ValueError("Unknown Color Profile rejection")
     except (KeyError, TypeError, ValueError) as exc:
