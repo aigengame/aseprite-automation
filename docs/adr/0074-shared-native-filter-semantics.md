@@ -101,6 +101,10 @@ installed Capability Gaps.
 - Aseprite owns each Filter's raster and color algorithm. The packaged Lua Kernel owns
   typed-to-native mapping, invocation, temporary editor-state installation and
   restoration, native observation, and the structured execution result.
+- Filter postconditions must follow the complete native path, including Palette lookup
+  and RGB Map quantization. A component preserved during adjustment can change in the
+  resolved Indexed output. Feature contracts and acceptance must distinguish these
+  stages and must not promise stronger component preservation than Aseprite provides.
 - Python may orchestrate the application use case and validate the public request, but
   it cannot implement a second Filter algorithm, create a generated operation script,
   or define a competing native mapping.
