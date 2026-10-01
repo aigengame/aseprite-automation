@@ -384,7 +384,13 @@ contracts. Applications are:
 | --- | --- | --- |
 | `pixels` | `rgb`, `grayscale`, `indexed` | `cels_target`; Indexed also requires `palette_frame_number` as the Effective Palette/RGB Map basis. |
 | `indexed-palette-entries` | Indexed | Exact Palette Change at `palette_frame_number`; `entries: {"kind":"all"}` or `{"kind":"selected","indexes":[1]}`. No Cel target or Selection. |
-| `rgb-palette-colors` | RGB | Exact Palette Change, `indexes`, and `cels_target`; changes selected Entries and exact old-RGBA matches in participating pixels. |
+| `rgb-palette-colors` | RGB | Exact Palette Change, `indexes`, and `cels_target`; adjusts selected Entries and applies native exact-color lookup to participating pixels. |
+
+For `rgb-palette-colors`, Aseprite finds the first Palette Entry (lowest Palette
+Index) whose old RGBA exactly matches each participating pixel, then reads the
+color at that Index from the adjusted Palette. If Entries have duplicate RGBA values,
+selecting only a later Entry can change that Entry while leaving matching pixels
+unchanged.
 
 Channels are a non-empty unique subset of `red`, `green`, `blue`, or only `gray`
 for Grayscale. Alpha and stored Index adjustment are unsupported. RGB/Grayscale
