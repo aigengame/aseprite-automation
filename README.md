@@ -359,6 +359,62 @@ both endpoints. These current policies follow [issue #27](https://github.com/aig
 future requirements can add explicit alternatives. See the
 [native validation evidence](docs/evidence/issue-27-native-paint.md).
 
+`spa filter brightness-contrast` runs Aseprite's native Filter with required integer
+`brightness` and `contrast` in `-100..100`. Explicit `0`/`0` reports a no-op.
+For example, adjust Red on an RGB Image Layer:
+
+```sh
+spa filter brightness-contrast --input-json '{
+  "source_sprite_file":"source.aseprite",
+  "target_sprite_file":"adjusted.aseprite",
+  "in_place":false,"overwrite":false,
+  "brightness":20,"contrast":0,
+  "application":{
+    "kind":"pixels","color_mode":"rgb",
+    "channels":{"kind":"components","names":["red"]},
+    "cels_target":{"kind":"selected","layers":[{"layer_path":[1]}],"frame_numbers":[1]}
+  }
+}'
+```
+
+Use `spa filter brightness-contrast --schema` for the installed request and result
+contracts. Applications are:
+
+| Application | Color Mode | Palette and target inputs |
+| --- | --- | --- |
+| `pixels` | `rgb`, `grayscale`, `indexed` | `cels_target`; Indexed also requires `palette_frame_number` as the Effective Palette/RGB Map basis. |
+| `indexed-palette-entries` | Indexed | Exact Palette Change at `palette_frame_number`; `entries: {"kind":"all"}` or `{"kind":"selected","indexes":[1]}`. No Cel target or Selection. |
+| `rgb-palette-colors` | RGB | Exact Palette Change, `indexes`, and `cels_target`; changes selected Entries and exact old-RGBA matches in participating pixels. |
+
+Channels are a non-empty unique subset of `red`, `green`, `blue`, or only `gray`
+for Grayscale. Alpha and stored Index adjustment are unsupported. RGB/Grayscale
+pixel Alpha and Palette Entry Alpha are preserved; Indexed pixel RGB Map
+quantization may choose an Entry with different Alpha.
+
+`cels_target` is either the explicit Layer/Frame Cartesian product above or
+`{"kind":"all"}` for every editable existing Cel. Missing intersections are
+reported without creating Cels. Explicit non-editable Layers reject the operation;
+`all` reports exclusions. Shared Linked Cel Images are filtered once, and results
+include affected Cels outside the selected range. Pixel applications optionally take
+an explicit Canvas Pixel `selection`; omission selects the whole Canvas, while
+`{"kind":"empty"}` selects no pixels. Empty Selection still allows the Palette
+part of `rgb-palette-colors` to change.
+
+SPA currently rejects the whole pixel application if any resolved target is a
+Tilemap Cel, including under `all`. Explicit ordinary targets in mixed documents
+remain supported. Indexed Palette-only application can use a private Tilemap-only
+anchor and verifies that ordinary Images, Tilemap placement Images, and all Tile
+Images remain unchanged. A Palette basis Frame without a usable anchor produces
+`filter_unsupported_document`. These are the delivery boundaries of
+[issue #35](https://github.com/aigengame/aseprite-automation/issues/35);
+[issue #152](https://github.com/aigengame/aseprite-automation/issues/152) owns future
+Tilemap pixel filtering. Installed discovery reports the corresponding Capability Gap.
+
+Results include effective Selection, Channels, Palette basis and indexes,
+requested intersections, existing targets, exclusions, unique Image observations,
+processed Image numbers, affected Cels, and the verified Target Commit. Filter
+capability checks are independent of native Paint checks.
+
 `spa selection create/combine/invert/grow/shrink/transform` return explicit
 Canvas Pixel values. Requests declare `coordinate_space: "canvas-pixel"`; values
 can be inline (`empty`, rectangular `all`, or canonical `mask`) or read from a

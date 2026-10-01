@@ -7,9 +7,10 @@ from pathlib import Path
 import pytest
 
 from spa.adapters.files import LocalTargetFiles
+from spa.application.surface import info_result
 from spa.authoring.raster.filter import BrightnessContrastRequest, brightness_contrast
 from spa.contracts.ports import KernelInvocationResult, RuntimeIssue
-from spa.contracts.public import Diagnostics
+from spa.contracts.public import Diagnostics, RuntimeRequest
 from tests.support import operation_services, runtime_observation
 
 
@@ -165,3 +166,27 @@ def test_kernel_exception_discards_stage_and_preserves_both_files(tmp_path):
     with pytest.raises(RuntimeError, match="kernel interrupted after staging"):
         brightness_contrast(request, services)
     assert_unpublished(source, target, staged)
+
+
+@pytest.mark.parametrize(
+    "capability,available,unavailable",
+    [
+        (
+            "aseprite_filter_brightness_contrast",
+            "spa filter brightness-contrast",
+            "spa paint line",
+        ),
+        ("aseprite_paint_line", "spa paint line", "spa filter brightness-contrast"),
+    ],
+)
+def test_filter_and_paint_capability_gates_are_independent(
+    capability, available, unavailable
+):
+    result = info_result(
+        RuntimeRequest(),
+        operation_services(
+            lambda _: runtime_observation("aseprite_sprite_inspection", capability)
+        ),
+    )
+    assert available in result.supported_capabilities
+    assert unavailable not in result.supported_capabilities

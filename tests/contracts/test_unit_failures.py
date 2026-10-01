@@ -37,6 +37,7 @@ from spa.authoring.document.sprite import (
     SpriteUnsupportedContentDetails,
 )
 from spa.authoring.document.tag import TagAddress, TagRangeDetails, TagTargetDetails
+from spa.authoring.raster.filter import FilterRejection
 from spa.authoring.raster.image import ImageRotatePositionDetails
 from spa.authoring.raster.image_snapshot import SnapshotDetails
 from spa.authoring.raster.paint_composite import (
@@ -187,6 +188,7 @@ def test_failure_construction_derives_category_and_refuses_mismatch() -> None:
 
 def test_each_registered_code_has_a_constrained_public_schema() -> None:
     details_by_type = {
+        FilterRejection: FilterRejection(reason="selected Layer cannot edit pixels"),
         ColorModeMismatchDetails: ColorModeMismatchDetails(
             expected="rgb", actual="indexed"
         ),

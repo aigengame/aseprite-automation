@@ -45,10 +45,11 @@ function module.targets(sprite, target, uuids, color_mode)
       local resolved, _, message = layers.resolve(sprite, address, uuids)
       if not resolved then return nil, module.reject(message) end
       local layer = resolved.layer
-      if seen[layer] then
+      local path = table.concat(resolved.path, "/")
+      if seen[path] then
         return nil, module.reject("Filter Layer addresses resolve to the same Layer")
       end
-      seen[layer] = true
+      seen[path] = true
       if not editable(sprite, layer) then
         return nil, module.reject("Selected Layer cannot edit pixels")
       end
