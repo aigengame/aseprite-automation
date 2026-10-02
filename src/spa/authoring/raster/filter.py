@@ -562,11 +562,14 @@ FILTER_REQUIREMENTS = RuntimeRequirements(
 
 
 def filter_capability_gaps(
-    aseprite_version: str, verified_capabilities: Sequence[str]
+    aseprite_version: str,
+    verified_capabilities: Sequence[str],
+    supported_operations: Sequence[str],
 ) -> list[CapabilityGap]:
     gaps = []
     if (
-        "aseprite_filter_brightness_contrast_tilemap_manual"
+        "spa filter brightness-contrast" in supported_operations
+        and "aseprite_filter_brightness_contrast_tilemap_manual"
         not in verified_capabilities
     ):
         gaps.append(
@@ -580,17 +583,20 @@ def filter_capability_gaps(
                 ),
             )
         )
-    gaps.append(
-        CapabilityGap(
-            capability="spa filter hue-saturation: Tilemap pixels",
-            aseprite_version=aseprite_version,
-            evidence=(
-                "Hue/Saturation currently rejects resolved Tilemap pixel targets. "
-                "Ordinary Image and Indexed Palette-only applications remain supported."
+    if "spa filter hue-saturation" in supported_operations:
+        gaps.append(
+            CapabilityGap(
+                capability="spa filter hue-saturation: Tilemap pixels",
+                aseprite_version=aseprite_version,
+                evidence=(
+                    "Hue/Saturation currently rejects resolved Tilemap pixel targets. "
+                    "Ordinary Image and Indexed Palette-only applications remain supported."
+                ),
             ),
         )
-    )
     for name in ("color-curve", "replace-color"):
+        if f"spa filter {name}" not in supported_operations:
+            continue
         gaps.append(
             CapabilityGap(
                 capability=f"spa filter {name}: Tilemap pixels",

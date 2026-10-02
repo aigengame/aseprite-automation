@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from spa.adapters.files import LocalTargetFiles
-from spa.application.surface import info_result
+from spa.application.surface import info_result, schema_result
 from spa.authoring.raster.filter import BrightnessContrastRequest, brightness_contrast
 from spa.contracts.ports import KernelInvocationResult, RuntimeIssue
 from spa.contracts.public import Diagnostics, RuntimeRequest
@@ -257,9 +257,43 @@ def test_filter_and_paint_capability_gates_are_independent(
     assert unavailable not in result.supported_capabilities
 
 
+@pytest.mark.parametrize("name", ["color-curve", "replace-color", "hue-saturation"])
+@pytest.mark.parametrize("brightness_available", [False, True])
+@pytest.mark.parametrize("operation_available", [False, True])
+def test_pixel_filter_manifest_gap_is_independent_of_brightness(
+    name, brightness_available, operation_available
+):
+    capabilities = [
+        "aseprite_runtime_introspection",
+        "aseprite_sprite_inspection",
+    ]
+    if operation_available:
+        capabilities.append(f"aseprite_filter_{name.replace('-', '_')}")
+    if brightness_available:
+        capabilities.append("aseprite_filter_brightness_contrast")
+    result = schema_result(
+        RuntimeRequest(),
+        operation_services(lambda _: runtime_observation(*capabilities)),
+    )
+    operations = {item.operation for item in result.operations}
+    gaps = {item.capability for item in result.capability_gaps}
+
+    assert (f"spa filter {name}" in operations) == operation_available
+    assert (f"spa filter {name}: Tilemap pixels" in gaps) == operation_available
+    assert (f"spa filter {name}" in gaps) != operation_available
+    assert ("spa filter brightness-contrast" in operations) == brightness_available
+    assert (
+        "spa filter brightness-contrast: Manual Tilemap pixels" in gaps
+    ) == brightness_available
+
+
 @pytest.mark.parametrize("tilemap_available", [True, False])
 def test_tilemap_gap_does_not_hide_ordinary_filter(tilemap_available):
-    capabilities = ["aseprite_sprite_inspection", "aseprite_filter_brightness_contrast"]
+    capabilities = [
+        "aseprite_sprite_inspection",
+        "aseprite_filter_brightness_contrast",
+        "aseprite_filter_hue_saturation",
+    ]
     if tilemap_available:
         capabilities.append("aseprite_filter_brightness_contrast_tilemap_manual")
     result = info_result(
