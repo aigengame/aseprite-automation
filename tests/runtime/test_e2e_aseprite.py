@@ -43,6 +43,8 @@ def test_info_reports_installed_runtime() -> None:
         "aseprite_filter_color_curve",
         "aseprite_filter_replace_color",
         "aseprite_filter_hue_saturation",
+        "aseprite_filter_invert_color",
+        "aseprite_filter_outline",
         "aseprite_change_color_mode",
         "aseprite_assign_color_profile",
         "aseprite_convert_color_profile",
@@ -125,6 +127,8 @@ def test_info_reports_installed_runtime() -> None:
         "spa filter color-curve",
         "spa filter replace-color",
         "spa filter hue-saturation",
+        "spa filter invert-color",
+        "spa filter outline",
         "spa selection create",
         "spa selection combine",
         "spa selection invert",
@@ -210,6 +214,9 @@ def test_info_reports_installed_runtime() -> None:
         "spa filter hue-saturation: Tilemap pixels",
         "spa filter color-curve: Tilemap pixels",
         "spa filter replace-color: Tilemap pixels",
+        "spa filter invert-color: Tilemap pixels",
+        "spa filter outline: Tilemap pixels",
+        "spa filter outline: Indexed component Channels",
     ]
     assert all(
         gap["aseprite_version"] == result["runtime"]["aseprite_version"]

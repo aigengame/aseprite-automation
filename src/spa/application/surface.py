@@ -46,6 +46,12 @@ from spa.authoring.raster.image import (
     IMAGE_RESIZE_TRANSFORM_RESOURCE,
 )
 from spa.authoring.raster.image_snapshot import COMPOSITION_RESOURCE, SNAPSHOT_RESOURCE
+from spa.authoring.raster.invert_outline import (
+    INVERT_COLOR_RESOURCE,
+    INVERT_OUTLINE_OPERATIONS,
+    OUTLINE_RESOURCE,
+    invert_outline_capability_gaps,
+)
 from spa.authoring.raster.paint import PAINT_OPERATIONS, PAINT_PROBE_RESOURCES
 from spa.authoring.raster.paint_composite import (
     COMPOSITE_OPERATIONS,
@@ -94,6 +100,8 @@ PROBE_RESOURCES = (
     COLOR_CURVE_RESOURCE,
     REPLACE_COLOR_RESOURCE,
     HUE_SATURATION_RESOURCE,
+    INVERT_COLOR_RESOURCE,
+    OUTLINE_RESOURCE,
     PALETTE_QUANTIZATION_RESOURCE,
     COLOR_MODE_RESOURCE,
     *PALETTE_PROBE_RESOURCES,
@@ -198,6 +206,11 @@ def _surface(runtime: RuntimeFacts) -> tuple[list[str], list[CapabilityGap]]:
             runtime.aseprite_version, runtime.verified_capabilities, supported
         )
     )
+    gaps.extend(
+        gap
+        for gap in invert_outline_capability_gaps(runtime.aseprite_version)
+        if gap.capability.split(":")[0] in supported
+    )
     return supported, gaps
 
 
@@ -295,6 +308,7 @@ OPERATIONS = (
     *COLOR_CURVE_OPERATIONS,
     *REPLACE_COLOR_OPERATIONS,
     *HUE_SATURATION_OPERATIONS,
+    *INVERT_OUTLINE_OPERATIONS,
     *SELECTION_OPERATIONS,
     *FRAME_OPERATIONS,
     *CEL_OPERATIONS,

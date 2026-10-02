@@ -43,6 +43,7 @@ from spa.authoring.document.tag import TagAddress, TagRangeDetails, TagTargetDet
 from spa.authoring.raster.filter import FilterRejection
 from spa.authoring.raster.image import ImageRotatePositionDetails
 from spa.authoring.raster.image_snapshot import SnapshotDetails
+from spa.authoring.raster.invert_outline import FilterIndexRejection
 from spa.authoring.raster.paint_composite import (
     CompositeCapabilityDetails,
     CompositeDetails,
@@ -192,6 +193,25 @@ def test_failure_construction_derives_category_and_refuses_mismatch() -> None:
 
 def test_each_registered_code_has_a_constrained_public_schema() -> None:
     details_by_type = {
+        FilterIndexRejection: FilterIndexRejection.model_validate(
+            {
+                "reason": "Index outside Palette",
+                "palette_basis": {
+                    "frame_number": 2,
+                    "palette_frame_number": 1,
+                    "palette_size": 129,
+                },
+                "index_violations": [
+                    {
+                        "layer_path": [1],
+                        "frame_number": 1,
+                        "canvas_position": {"x": 0, "y": 0},
+                        "source_index": 0,
+                        "result_index": 255,
+                    }
+                ],
+            }
+        ),
         FilterRejection: FilterRejection(reason="selected Layer cannot edit pixels"),
         PalettePersistenceDetails: PalettePersistenceDetails(
             palette_frame_number=1,

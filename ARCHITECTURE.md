@@ -647,6 +647,17 @@ algorithm is duplicated. `filter_run.lua` verifies live/save-close-reopen observ
 before Python publishes a Target. Existing Layer, Effective Palette, Selection, and
 Sprite persistence modules retain their ownership.
 
+`invert_outline.py` owns the two standalone pixel-only contracts. They reuse
+Filter target observations and publication without inheriting the Palette
+application request. Their fixed Kernel modules invoke native Invert Color and
+Outline. The shared executor accepts a pre-invocation validation callback after
+target, Palette, and Selection resolution; Invert uses it to validate stored
+Indexes across the selected Canvas (including native zero padding). Outline maps
+named neighbors to native Matrix bits and retains its own color-anchor policy.
+No generic effect model or Operation Plan eligibility is introduced. Runtime
+probes gate the two commands independently, and the Surface Manifest reports
+their target and Indexed component limitations.
+
 Native writeback can trim or delete Cels. Hue/Saturation observes the surviving
 Layer/Frame intersections and reports bounds or absence, including affected links
 outside the selected range, without retaining deleted Cel userdata. Its independent

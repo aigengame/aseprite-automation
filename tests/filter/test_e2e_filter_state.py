@@ -8,7 +8,9 @@ import pytest
 from spa.authoring.raster.color_curve import COLOR_CURVE_RESOURCE
 from spa.authoring.raster.filter import FILTER_RESOURCES
 from spa.authoring.raster.hue_saturation import HUE_SATURATION_RESOURCE
+from spa.authoring.raster.invert_outline import INVERT_COLOR_RESOURCE, OUTLINE_RESOURCE
 from spa.authoring.raster.replace_color import REPLACE_COLOR_RESOURCE
+from spa.contracts.raster import RASTER_COLOR_RESOURCE
 from tests.filter.support import apply, native_script, observe_images, pixels
 
 pytestmark = pytest.mark.e2e
@@ -30,9 +32,14 @@ def _exercise_state(
     for name, resource in (
         ("color-curve", COLOR_CURVE_RESOURCE),
         ("replace-color", REPLACE_COLOR_RESOURCE),
+        ("invert-color", INVERT_COLOR_RESOURCE),
+        ("outline", OUTLINE_RESOURCE),
     ):
         if operation == name:
             resources[resource.parameter_name] = kernel / resource.package_path
+    resources[RASTER_COLOR_RESOURCE.parameter_name] = (
+        kernel / RASTER_COLOR_RESOURCE.package_path
+    )
     if fault:
         key = {"palette": "palette", "tilemap": "filter_tiles"}.get(kind, "digest")
         resources[f"{key}_real"] = resources[key]
@@ -59,6 +66,8 @@ def _exercise_state(
         ("hue-saturation", "palette"),
         ("color-curve", "pixels"),
         ("replace-color", "pixels"),
+        ("invert-color", "pixels"),
+        ("outline", "pixels"),
     ],
 )
 def test_filter_restores_editor_state_after_success(
@@ -103,6 +112,8 @@ def test_filter_restores_editor_state_after_success(
         ("hue-saturation", "palette"),
         ("color-curve", "pixels"),
         ("replace-color", "pixels"),
+        ("invert-color", "pixels"),
+        ("outline", "pixels"),
     ],
 )
 def test_filter_rolls_back_native_effect_and_restores_state_after_failure(

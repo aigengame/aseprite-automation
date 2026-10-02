@@ -1,6 +1,8 @@
 local filter = dofile(
   app.params.color_curve
     or app.params.replace_color
+    or app.params.invert_color
+    or app.params.outline
     or app.params.hue_saturation
     or app.params.brightness_contrast
 )
@@ -131,6 +133,17 @@ local ok, value = pcall(function()
       to = { kind = "rgba", red = 120, green = 40, blue = 20, alpha = 255 },
       tolerance = 0,
     }
+  end
+  if app.params.invert_color or app.params.outline then
+    payload = application
+    payload.kind = nil
+    if app.params.outline then
+      payload.place = "inside"
+      payload.matrix = { kind = "preset", name = "circle" }
+      payload.tiled_mode = "none"
+      payload.outline_color = { kind = "rgba", red = 210, green = 0, blue = 0, alpha = 255 }
+      payload.background_color = { kind = "rgba", red = 0, green = 0, blue = 0, alpha = 0 }
+    end
   end
   return filter.apply(target, payload, {})
 end)

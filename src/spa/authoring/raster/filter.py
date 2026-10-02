@@ -617,6 +617,7 @@ def publish_filter[Evidence: PublicModel](
     parameters: Callable[[RuntimeObservation], dict[str, Any]],
     evidence_type: type[Evidence],
     matches: Callable[[Evidence], bool],
+    failure_specs: tuple[FailureCodeSpec, ...] = FILTER_FAILURE_SPECS,
 ) -> tuple[Evidence, TargetCommit]:
     """Publish only after native persistence and request-matched evidence succeed."""
     completion = prepare_mutation(
@@ -644,11 +645,10 @@ def publish_filter[Evidence: PublicModel](
             if rejected is not None:
                 code = rejected["code"]
                 message = rejected["message"]
-                details = FilterRejection.model_validate(rejected["details"])
-                if code not in {
-                    spec.code for spec in FILTER_FAILURE_SPECS
-                } or not isinstance(message, str):
+                spec = next((spec for spec in failure_specs if spec.code == code), None)
+                if spec is None or not isinstance(message, str):
                     raise ValueError("Invalid Filter rejection")
+                details = spec.details_type.model_validate(rejected["details"])
                 raise OperationIssue(
                     code,
                     message,

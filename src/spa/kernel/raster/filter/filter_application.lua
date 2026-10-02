@@ -7,8 +7,9 @@ local palette = dofile(app.params.palette)
 local effective = dofile(app.params.effective_palette)
 local persistence = dofile(app.params.persistence)
 
-function module.apply(sprite, payload, uuids, title, adjust, tiles)
-  local application = payload.application
+function module.apply(sprite, payload, uuids, title, adjust, tiles, preflight)
+  local application = payload.application or payload
+  local application_kind = application.kind or "pixels"
   local palette_only = application.kind == "indexed-palette-entries"
   local rgb_palette = application.kind == "rgb-palette-colors"
   local mode = palette_only and "indexed" or (rgb_palette and "rgb" or application.color_mode)
@@ -123,6 +124,10 @@ function module.apply(sprite, payload, uuids, title, adjust, tiles)
       mask, effective_selection = support.pixel_selection(sprite, application.selection)
       sprite.selection = mask
     end
+    if preflight then
+      local refused = preflight(targets, basis, sprite.selection, anchor)
+      if refused then return refused end
+    end
     local result
     local tile_before = tiles and tiles.snapshot(sprite, mode)
     local metadata_before = tile_anchor and tiles.serialized_metadata(sprite)
@@ -189,7 +194,7 @@ function module.apply(sprite, payload, uuids, title, adjust, tiles)
       end
       changed = changed or not persistence.equal(palette_before, palette_after)
       result = {
-        application = application.kind,
+        application = application_kind,
         cels_target_kind = application.cels_target and application.cels_target.kind or json_null,
         selection = effective_selection,
         palette_indexes = picks,
