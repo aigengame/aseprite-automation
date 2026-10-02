@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import subprocess
 import sys
 import textwrap
@@ -13,10 +14,12 @@ WORKFLOW = Path(__file__).resolve().parents[2] / ".github/workflows/native-e2e.y
 
 
 def run_step(
-    name: str, repository: Path, env: dict[str, str]
+    name: str, repository: Path, env: dict[str, str], workflow: Path = WORKFLOW
 ) -> subprocess.CompletedProcess[str]:
-    step = WORKFLOW.read_text().split(f"      - name: {name}\n", 1)[1]
-    body = step.split("        run: |\n", 1)[1].split("\n      - ", 1)[0]
+    step = workflow.read_text().split(f"      - name: {name}\n", 1)[1]
+    body = re.split(
+        r"\n(?=\S| {1,8}\S)", step.split("        run: |\n", 1)[1], maxsplit=1
+    )[0]
     return subprocess.run(
         ["bash", "-e", "-o", "pipefail", "-c", textwrap.dedent(body)],
         cwd=repository,
@@ -101,10 +104,12 @@ def test_pr_gate_verifies_the_merge_instead_of_the_dispatch_sha(candidate) -> No
         "head": response["head"]["sha"],
         "sha": response["merge_commit_sha"],
     }
-    assert (
-        Path(env["GITHUB_OUTPUT"]).read_text()
-        == f"sha={response['merge_commit_sha']}\n"
+    outputs = dict(
+        line.split("=", 1)
+        for line in Path(env["GITHUB_OUTPUT"]).read_text().splitlines()
     )
+    assert outputs["sha"] == response["merge_commit_sha"]
+    assert json.loads(outputs["target"]) == target
     summary = Path(env["GITHUB_STEP_SUMMARY"]).read_text()
     assert "PR target is unchanged after testing" in summary
     assert response["merge_commit_sha"] in summary
@@ -138,6 +143,58 @@ def test_pr_changes_invalidate_native_evidence(candidate, change: str) -> None:
     assert result.returncode != 0
     assert "this run cannot admit merge" in result.stderr
     assert "unchanged after testing" not in Path(env["GITHUB_STEP_SUMMARY"]).read_text()
+
+
+@pytest.mark.parametrize("change", ["head", "base"])
+def test_repeating_preparation_resolves_a_changed_pr_target(candidate, change) -> None:
+    repository, env, response = candidate
+
+    def git(*args: str) -> str:
+        return subprocess.check_output(
+            ["git", "-C", str(repository), *args], text=True, stderr=subprocess.PIPE
+        ).strip()
+
+    assert run_step("Resolve the native test target", repository, env).returncode == 0
+    previous = json.loads(Path(env["SPA_NATIVE_TARGET"]).read_text())
+    git("checkout", "-b", "updated", response[change]["sha"])
+    (repository / "README.md").write_text("Documentation-only change.\n")
+    git("add", "README.md")
+    git("commit", "-m", "docs: update candidate")
+    response[change]["sha"] = git("rev-parse", "HEAD")
+    git("checkout", "-b", "new-preview", response["base"]["sha"])
+    git("merge", "--no-ff", response["head"]["sha"], "-m", "new merge preview")
+    response["merge_commit_sha"] = git("rev-parse", "HEAD")
+    Path(env["SPA_TEST_PR_RESPONSE"]).write_text(json.dumps(response))
+
+    # A retained successful preparation cannot admit this new Git target.
+    result = run_step("Reject a changed PR after testing", repository, env)
+    assert result.returncode != 0
+    assert json.loads(Path(env["SPA_NATIVE_TARGET"]).read_text()) == previous
+
+    for name in (
+        "Resolve the native test target",
+        "Check the merge parents before testing",
+        "Reject a changed PR after testing",
+    ):
+        result = run_step(name, repository, env)
+        assert result.returncode == 0, result.stderr
+    current = json.loads(Path(env["SPA_NATIVE_TARGET"]).read_text())
+    assert current[change] != previous[change]
+    assert current["sha"] == response["merge_commit_sha"] != previous["sha"]
+    outputs = dict(
+        line.split("=", 1)
+        for line in Path(env["GITHUB_OUTPUT"]).read_text().splitlines()
+    )
+    assert json.loads(outputs["target"]) == current
+
+
+def test_pr_metadata_edits_do_not_invalidate_the_tested_source(candidate) -> None:
+    repository, env, response = candidate
+    assert run_step("Resolve the native test target", repository, env).returncode == 0
+    response.update(title="New title", body="New description", labels=[])
+    Path(env["SPA_TEST_PR_RESPONSE"]).write_text(json.dumps(response))
+    result = run_step("Reject a changed PR after testing", repository, env)
+    assert result.returncode == 0, result.stderr
 
 
 def test_stale_merge_parents_fail_before_native_setup(candidate) -> None:
@@ -188,3 +245,60 @@ def test_api_failure_cannot_validate_previous_success(candidate) -> None:
     result = run_step("Reject a changed PR after testing", repository, env)
     assert result.returncode != 0
     assert "this run cannot admit merge" in result.stderr
+
+
+@pytest.mark.parametrize("state", ["success", "failure", "cancelled", "skipped"])
+def test_native_aggregate_requires_every_shard_to_succeed(
+    candidate, state: str
+) -> None:
+    repository, env, _ = candidate
+    env.update(SPA_PREPARE_RESULT="success", SPA_SHARDS_RESULT=state)
+    result = run_step("Require successful preparation and every shard", repository, env)
+    assert (result.returncode == 0) == (state == "success")
+
+
+@pytest.mark.parametrize("job", ["PREPARE", "QUALITY", "SHARDS"])
+@pytest.mark.parametrize("state", ["success", "failure", "cancelled", "skipped"])
+def test_release_aggregate_requires_quality_and_every_shard(
+    candidate, job: str, state: str
+) -> None:
+    repository, env, _ = candidate
+    env.update(
+        SPA_PREPARE_RESULT="success",
+        SPA_QUALITY_RESULT="success",
+        SPA_SHARDS_RESULT="success",
+    )
+    env[f"SPA_{job}_RESULT"] = state
+    result = run_step(
+        "Require all release verification jobs",
+        repository,
+        env,
+        WORKFLOW.with_name("release.yml"),
+    )
+    assert (result.returncode == 0) == (state == "success")
+
+
+@pytest.mark.parametrize(
+    "shards,workers,success", [("3", "1", True), ("0", "1", False)]
+)
+@pytest.mark.parametrize("workflow", [WORKFLOW, WORKFLOW.with_name("release.yml")])
+def test_workflow_configuration_uses_shared_parameters(
+    candidate, shards, workers, success, workflow
+):
+    repository, env, _ = candidate
+    script_dir = repository / "scripts"
+    script_dir.mkdir()
+    for name in ("native_e2e.py", "verify_pytest_execution.py"):
+        (script_dir / name).write_text(
+            (WORKFLOW.parents[2] / "scripts" / name).read_text()
+        )
+    env.update(SPA_E2E_SHARDS=shards, SPA_E2E_WORKERS=workers)
+    result = run_step("Configure native shards", repository, env, workflow)
+    assert (result.returncode == 0) == success, result.stderr
+    if success:
+        value = Path(env["GITHUB_OUTPUT"]).read_text().removeprefix("matrix=")
+        assert json.loads(value)["include"] == [
+            {"shard_index": 0, "shards": 3, "workers": 1},
+            {"shard_index": 1, "shards": 3, "workers": 1},
+            {"shard_index": 2, "shards": 3, "workers": 1},
+        ]

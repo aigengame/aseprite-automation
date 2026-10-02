@@ -46,14 +46,18 @@ Release verification selects `e2e and not slow` at the exact release SHA. It ret
 the real native suite and small wizard probes; complete example rebuilds are local
 opt-in checks. A routine CI or weekly result cannot replace release verification.
 
-The verification job uses GitHub's native **40-minute timeout**, including runtime
-setup, all tests, quality/package checks, and uploads. It does not compile Aseprite
+Verification uses the shared native shard runner and one final aggregate gate at
+the exact release SHA. Source quality, fast tests, metadata, and distribution checks
+run alongside the native shards; the aggregate requires all of them to succeed.
+Native E2E and Release share resource configuration and the **40-minute allocation**
+documented in [verification time limits](testing.md#verification-time-limits), including
+preparation, setup, tests, uploads, and aggregation. They do not compile Aseprite
 or subtract time. A missing or invalid binary fails the gate and prevents publication.
 Run the separate **Build Aseprite** workflow as described in
 [manual Aseprite recovery](testing.md#restore-the-aseprite-runtime), then
 re-run the original failed Release run to preserve its exact SHA and release tail.
-A maintenance success does not authorize publication. The 40-minute limit applies
-to the verification job; draft creation and publication are separate jobs.
+A maintenance success does not authorize publication. Draft creation and publication
+remain separate from the verification allocation.
 
 The [issue #107 capacity measurements](evidence/issue-107-ci-capacity.md) retain
 historical experiments separately from the current cache-only verification policy.
@@ -74,8 +78,10 @@ commands and skip policy.
    checks, fast tests, the Linux real Aseprite E2E gate, package build, metadata checks,
    and the installed-wheel smoke test without creating a draft, tag, or release.
 4. Merge the Release PR. The resulting `main` push creates the draft and reports its
-   exact commit. The read-only verification job checks out that commit, repeats every
-   gate, validates the reviewed release metadata, and builds the wheel and sdist once.
+   exact commit. All read-only verification jobs check out that commit. The quality
+   job validates the reviewed release metadata and builds the wheel and sdist once;
+   each native shard also prepares an isolated wheel installation for its CLI tests.
+   The final aggregate requires every quality gate and every selected native case.
    The publisher then attaches those artifacts and publishes the GitHub Release.
 
 The publisher depends on successful verification of the draft's reported SHA. A
@@ -84,9 +90,10 @@ release evidence.
 
 ## Permissions and artifacts
 
-The verification job has read-only repository permission. It runs project code,
-native Aseprite, tests, and the build backend, then stores the exact-SHA distributions
-as a run-scoped artifact. The draft-cutting job has only repository release and pull
+The verification jobs have read-only repository permission. They run project code,
+native Aseprite, tests, and the build backend. The quality job stores the exact-SHA
+distributions as a run-scoped artifact, and the aggregate audits the native reports.
+The draft-cutting job has only repository release and pull
 request permissions and runs no checked-out project code. The final publisher has
 repository contents permission for the existing draft and read access to the verified
 run artifact. It downloads that artifact, attaches exactly one wheel and one sdist,
@@ -106,8 +113,9 @@ metadata validation, package checks, or the installed CLI smoke test fail.
   dispatches exact-head CI even when release-please has no new PR update to report.
 - When verification fails after a draft was cut, use **Re-run failed jobs** after the
   cause is corrected without changing the reviewed release commit. The publisher is
-  deliberately marked failed too, so both jobs resume while the successful draft job
-  remains fixed.
+  deliberately marked failed too, so failed shards/quality checks, aggregation, and
+  publication resume while the successful draft job remains fixed. The aggregate
+  still requires a complete set of reports for the same target and configuration.
 - When draft creation fails before a release exists, use **Re-run failed jobs** after a
   transient GitHub failure.
 - When asset upload or draft publication fails, use **Re-run failed jobs**. The
