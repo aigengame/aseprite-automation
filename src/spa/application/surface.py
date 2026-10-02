@@ -26,6 +26,10 @@ from spa.authoring.document.layer import LAYER_OPERATIONS, LAYER_SELECT_RESOURCE
 from spa.authoring.document.motion import MOTION_OPERATIONS
 from spa.authoring.document.sprite import SPRITE_OPERATIONS, SPRITE_PROBE_RESOURCES
 from spa.authoring.document.tag import TAG_OPERATIONS
+from spa.authoring.raster.color_curve import (
+    COLOR_CURVE_OPERATIONS,
+    COLOR_CURVE_RESOURCE,
+)
 from spa.authoring.raster.filter import (
     FILTER_OPERATIONS,
     FILTER_RESOURCES,
@@ -83,6 +87,7 @@ from spa.delivery.palette import (
 
 PROBE_RESOURCES = (
     *FILTER_RESOURCES,
+    COLOR_CURVE_RESOURCE,
     HUE_SATURATION_RESOURCE,
     PALETTE_QUANTIZATION_RESOURCE,
     COLOR_MODE_RESOURCE,
@@ -283,6 +288,7 @@ OPERATIONS = (
     *COMPOSITE_OPERATIONS,
     *NATIVE_PAINT_OPERATIONS,
     *FILTER_OPERATIONS,
+    *COLOR_CURVE_OPERATIONS,
     *HUE_SATURATION_OPERATIONS,
     *SELECTION_OPERATIONS,
     *FRAME_OPERATIONS,

@@ -1260,6 +1260,19 @@ function module.observe()
       capabilities[#capabilities + 1] = "aseprite_filter_brightness_contrast_tilemap_manual"
     end
   end
+  if app.params.color_curve then
+    local sprite = Sprite(1, 1, ColorMode.RGB)
+    local ok = pcall(function()
+      sprite.cels[1].image:drawPixel(0, 0, app.pixelColor.rgba(100, 60, 20, 255))
+      local result = dofile(app.params.color_curve).apply(sprite, {
+        color_mode = "rgb", channels = { kind = "components", names = { "red" } },
+        cels_target = { kind = "all" }, points = { { input = 100, output = 42 } },
+      })
+      assert(result.changed and sprite.cels[1].image:getPixel(0, 0) == app.pixelColor.rgba(42, 60, 20, 255))
+    end)
+    sprite:close()
+    if ok then capabilities[#capabilities + 1] = "aseprite_filter_color_curve" end
+  end
   if app.params.hue_saturation then
     local filter = dofile(app.params.hue_saturation)
     local supported = true

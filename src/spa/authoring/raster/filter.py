@@ -183,20 +183,23 @@ BrightnessContrastApplication = Annotated[
 ]
 
 
-class FilterRequest[Application](RuntimeRequest):
+class FilterMutationRequest(RuntimeRequest):
     source_sprite_file: str = Field(min_length=1)
     target_sprite_file: str = Field(min_length=1)
     in_place: bool
     overwrite: bool
-    application: Application
 
     _source = field_validator("source_sprite_file")(validate_native_sprite_path)
     _target = field_validator("target_sprite_file")(validate_native_sprite_path)
 
     @model_validator(mode="after")
-    def validate_intent(self) -> "FilterRequest":
+    def validate_intent(self) -> "FilterMutationRequest":
         require_overwrite_for_in_place(self.in_place, self.overwrite)
         return self
+
+
+class FilterRequest[Application](FilterMutationRequest):
+    application: Application
 
 
 class BrightnessContrastRequest(FilterRequest[BrightnessContrastApplication]):
@@ -274,16 +277,14 @@ class FilterPaletteBasis(PublicModel):
     palette_size: int = Field(ge=1)
 
 
-class FilterObservations[Image: FilterImage[Any], Channel](PublicModel):
-    application: Literal["pixels", "indexed-palette-entries", "rgb-palette-colors"]
+class FilterTargetObservations[Image: FilterImage[Any], Channels](PublicModel):
     cels_target_kind: Literal["selected", "all"] | None
     selection: SelectionApplication | None
     color_mode: Literal["rgb", "grayscale", "indexed"]
     palette_basis: FilterPaletteBasis | None
-    palette_indexes: list[Annotated[int, Field(ge=0)]]
     palette_before: PaletteTimeline
     palette_after: PaletteTimeline
-    channels: ComponentChannels[Channel]
+    channels: Channels
     requested_intersections: list[FilterCel]
     existing_target_cels: list[FilterCel]
     excluded_layers: list[FilterExclusion]
@@ -294,7 +295,7 @@ class FilterObservations[Image: FilterImage[Any], Channel](PublicModel):
     persisted_reopen_verified: Literal[True]
 
     @model_validator(mode="after")
-    def consistent_images(self) -> "FilterObservations":
+    def consistent_images(self) -> "FilterTargetObservations":
         numbers = [image.image_number for image in self.images]
         if numbers != list(range(1, len(self.images) + 1)):
             raise ValueError("Filter Images must have consecutive unique numbers")
@@ -306,6 +307,13 @@ class FilterObservations[Image: FilterImage[Any], Channel](PublicModel):
                     "Filter Image change disagrees with its content digests"
                 )
         return self
+
+
+class FilterObservations[Image: FilterImage[Any], Channel](
+    FilterTargetObservations[Image, ComponentChannels[Channel]]
+):
+    application: Literal["pixels", "indexed-palette-entries", "rgb-palette-colors"]
+    palette_indexes: list[Annotated[int, Field(ge=0)]]
 
     def matches_application(
         self,
@@ -551,7 +559,7 @@ def filter_capability_gaps(
 
 
 def publish_filter[Evidence: PublicModel](
-    request: FilterRequest,
+    request: FilterMutationRequest,
     services: OperationServices,
     handler: PackagedHandler,
     parameters: Callable[[RuntimeObservation], dict[str, Any]],
@@ -575,7 +583,6 @@ def publish_filter[Evidence: PublicModel](
             {
                 "source_sprite_file": request.source_sprite_file,
                 "staged_sprite_file": str(mutation.staged_sprite_file),
-                "application": request.application.model_dump(exclude_none=True),
                 **parameters(observation),
             },
             request.timeout_seconds,
@@ -618,6 +625,7 @@ def brightness_contrast(
         services,
         BRIGHTNESS_CONTRAST_HANDLER,
         lambda observation: {
+            "application": request.application.model_dump(exclude_none=True),
             "brightness": request.brightness,
             "contrast": request.contrast,
             "tilemap_manual_filter_available": (
