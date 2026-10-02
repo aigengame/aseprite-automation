@@ -327,19 +327,22 @@ def test_explicit_selection_and_linked_target(tmp_path, runtime, selection):
 
 
 @pytest.mark.parametrize(
-    "selection, expected",
+    "selection, expected, values",
     [
         (
             None,
             {"kind": "all", "rectangle": {"x": 0, "y": 0, "width": 3, "height": 1}},
+            [100, 100, 40],
         ),
         (
             {"kind": "all", "rectangle": {"x": -1, "y": 0, "width": 3, "height": 1}},
             {"kind": "all", "rectangle": {"x": 0, "y": 0, "width": 2, "height": 1}},
+            [100, 100, 40],
         ),
         (
             {"kind": "all", "rectangle": {"x": -3, "y": 0, "width": 1, "height": 1}},
             {"kind": "empty"},
+            [100, 200, 40],
         ),
         (
             {
@@ -350,12 +353,42 @@ def test_explicit_selection_and_linked_target(tmp_path, runtime, selection):
                 ],
             },
             {"kind": "all", "rectangle": {"x": 1, "y": 0, "width": 1, "height": 1}},
+            [100, 100, 40],
+        ),
+        (
+            {"kind": "all", "rectangle": {"x": 0, "y": 0, "width": 1, "height": 1}},
+            {"kind": "all", "rectangle": {"x": 0, "y": 0, "width": 1, "height": 1}},
+            [100, 200, 40],
+        ),
+        (
+            {
+                "kind": "mask",
+                "bounds": {"x": 0, "y": 0, "width": 3, "height": 1},
+                "rows": [
+                    {"y": 0, "runs": [{"x": 0, "length": 1}, {"x": 2, "length": 1}]}
+                ],
+            },
+            {
+                "kind": "mask",
+                "bounds": {"x": 0, "y": 0, "width": 3, "height": 1},
+                "rows": [
+                    {"y": 0, "runs": [{"x": 0, "length": 1}, {"x": 2, "length": 1}]}
+                ],
+            },
+            [100, 200, 40],
         ),
     ],
-    ids=["omitted", "clipped-rectangle", "outside-canvas", "mask-normalized-to-all"],
+    ids=[
+        "omitted",
+        "clipped-rectangle",
+        "outside-canvas",
+        "mask-normalized-to-all",
+        "origin-retained",
+        "mask-hole-retained",
+    ],
 )
 def test_native_selection_normalization_and_named_target_remain_valid(
-    tmp_path, runtime, selection, expected
+    tmp_path, runtime, selection, expected, values
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
     native_script(runtime, "source.lua", source=source, mode="grayscale")
@@ -377,7 +410,6 @@ def test_native_selection_normalization_and_named_target_remain_valid(
         == [{"layer_path": [1], "frame_number": 1, "image_number": 1}]
     )
     after = observe_images(runtime, target)
-    values = [100, 200, 40] if expected["kind"] == "empty" else [100, 100, 40]
     assert [value & 255 for value in after["cels"][0]["pixels"]] == values
     assert result["persisted_reopen_verified"] is True
 

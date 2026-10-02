@@ -14,16 +14,12 @@ from spa.authoring.raster.filter import (
     IndexChannels,
     publish_filter,
 )
+from spa.authoring.raster.selection_evidence import matches_clipped_selection
 from spa.contracts.mutation import TargetCommit
 from spa.contracts.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.contracts.ports import OperationServices, PackagedHandler, PackagedResource
 from spa.contracts.public import CapabilityGap, PublicModel, RuntimeRequirements
-from spa.contracts.raster import (
-    AllSelection,
-    EmptySelection,
-    Point,
-    SelectionApplication,
-)
+from spa.contracts.raster import Point, SelectionApplication
 
 RGBChannel = Literal["red", "green", "blue", "alpha"]
 GrayChannel = Literal["gray", "alpha"]
@@ -148,42 +144,6 @@ class DespeckleEvidence(
             )
         )
 
-    def _matches_selection(self, requested: SelectionApplication | None) -> bool:
-        observed = self.selection
-        if requested is None:
-            return (
-                isinstance(observed, AllSelection)
-                and observed.rectangle.x == 0
-                and observed.rectangle.y == 0
-            )
-        if isinstance(requested, EmptySelection):
-            return isinstance(observed, EmptySelection)
-        if observed is None:
-            return False
-        if isinstance(observed, EmptySelection):
-            return True
-        if isinstance(requested, AllSelection):
-            if not isinstance(observed, AllSelection):
-                return False
-            requested_bounds = requested.rectangle
-        else:
-            requested_bounds = requested.bounds
-        bounds = (
-            observed.rectangle
-            if isinstance(observed, AllSelection)
-            else observed.bounds
-        )
-        # Canvas clipping cannot expand the request or retain negative coordinates.
-        # Exact clipping and Mask-to-All normalization remain Kernel responsibilities.
-        return (
-            bounds.x >= 0
-            and bounds.y >= 0
-            and bounds.x >= requested_bounds.x
-            and bounds.y >= requested_bounds.y
-            and bounds.x + bounds.width <= requested_bounds.x + requested_bounds.width
-            and bounds.y + bounds.height <= requested_bounds.y + requested_bounds.height
-        )
-
     def matches(self, request: DespeckleRequest) -> bool:
         pixels = request.pixels
         channels_match = self.channels.kind == pixels.channels.kind
@@ -197,7 +157,7 @@ class DespeckleEvidence(
             channels_match
             and self.color_mode == pixels.color_mode
             and self._matches_targets(pixels.cels_target)
-            and self._matches_selection(pixels.selection)
+            and matches_clipped_selection(pixels.selection, self.selection)
             and (self.palette_basis.frame_number if self.palette_basis else None)
             == getattr(pixels, "palette_frame_number", None)
             and (self.width, self.height, self.tiled_mode)

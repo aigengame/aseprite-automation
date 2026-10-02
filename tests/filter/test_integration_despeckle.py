@@ -142,6 +142,20 @@ def test_empty_selection_cannot_publish_nonempty_selection_evidence(tmp_path):
     "requested, observed",
     [
         (
+            {"kind": "all", "rectangle": {"x": 0, "y": 0, "width": 1, "height": 1}},
+            {"kind": "empty"},
+        ),
+        (
+            {
+                "kind": "mask",
+                "bounds": {"x": 0, "y": 0, "width": 3, "height": 1},
+                "rows": [
+                    {"y": 0, "runs": [{"x": 0, "length": 1}, {"x": 2, "length": 1}]}
+                ],
+            },
+            {"kind": "all", "rectangle": {"x": 0, "y": 0, "width": 3, "height": 1}},
+        ),
+        (
             {"kind": "all", "rectangle": {"x": 0, "y": 0, "width": 3, "height": 1}},
             {
                 "kind": "mask",
@@ -168,7 +182,14 @@ def test_empty_selection_cannot_publish_nonempty_selection_evidence(tmp_path):
             {"kind": "all", "rectangle": {"x": 0, "y": 0, "width": 2, "height": 1}},
         ),
     ],
-    ids=["rectangle-became-mask", "off-canvas", "expanded-rectangle", "expanded-mask"],
+    ids=[
+        "lost-origin",
+        "filled-mask-hole",
+        "rectangle-became-mask",
+        "off-canvas",
+        "expanded-rectangle",
+        "expanded-mask",
+    ],
 )
 def test_impossible_selection_observations_cannot_publish(
     tmp_path, requested, observed
