@@ -39,6 +39,7 @@ def test_info_reports_installed_runtime() -> None:
         "aseprite_paint_composite_indexed",
         "aseprite_selection",
         "aseprite_filter_brightness_contrast",
+        "aseprite_filter_hue_saturation",
         "aseprite_change_color_mode",
         "aseprite_assign_color_profile",
         "aseprite_convert_color_profile",
@@ -118,6 +119,7 @@ def test_info_reports_installed_runtime() -> None:
         "spa paint contour",
         "spa paint blur",
         "spa filter brightness-contrast",
+        "spa filter hue-saturation",
         "spa selection create",
         "spa selection combine",
         "spa selection invert",
@@ -201,6 +203,7 @@ def test_info_reports_installed_runtime() -> None:
         "spa palette add",
         "spa palette remove",
         "spa filter brightness-contrast: Tilemap pixels",
+        "spa filter hue-saturation: Tilemap pixels",
     ]
     assert all(
         gap["aseprite_version"] == result["runtime"]["aseprite_version"]

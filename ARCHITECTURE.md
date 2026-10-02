@@ -631,17 +631,25 @@ for native nearest-neighbor sampling. Python validates wire constraints and
 orchestrates existing Artifact staging, independent JSON/PNG verification, and
 publication. No persistent editor Selection or second Mask engine is introduced.
 
-The native Brightness/Contrast slice uses `authoring/raster/filter.py` for typed
-application variants and Target Commit orchestration. `filter_support.lua` owns
-Filter Cels Target resolution, native Channel mapping, temporary range/Selection
-state, and complete Image observations including Tiles. `brightness_contrast.lua`
-owns the operation-specific Palette application and native command invocation;
-Aseprite remains the sole adjustment and quantization authority. Existing Layer,
-Effective Palette, Selection, and persistence helpers retain their ownership.
-The packaged handler verifies live/save-close-reopen observations before publication.
-Its runtime gate checks all five delivered applications independently of Paint.
-Tilemap pixel filtering remains outside #35; Indexed Palette-only anchors are
-supported without changing ordinary, placement, or Tile Images (ADR-0074).
+The native Brightness/Contrast and Hue/Saturation slices share typed application
+variants, native evidence types, and staged Target publication in
+`authoring/raster/filter.py`. Each operation retains its Channel set and adjustment
+schema; `hue_saturation.py` owns the conditional HSL/HSV, Grayscale, and Alpha forms.
+`filter_support.lua` owns Filter Cels Target resolution, Channel flags, editor-state
+restoration, and stable Layer/Frame observations. `filter_application.lua` owns
+Palette application and native transaction setup. The two small adjustment modules
+map explicit parameters and invoke their respective Aseprite commands; no color
+algorithm is duplicated. `filter_run.lua` verifies live/save-close-reopen observations
+before Python publishes a Target. Existing Layer, Effective Palette, Selection, and
+Sprite persistence modules retain their ownership.
+
+Native writeback can trim or delete Cels. Hue/Saturation observes the surviving
+Layer/Frame intersections and reports bounds or absence, including affected links
+outside the selected range, without retaining deleted Cel userdata. Its independent
+runtime gate discriminates all four HSL/HSV modes across the five applications.
+Tilemap pixel filtering remains outside #35/#36; Indexed Palette-only anchors
+preserve ordinary, placement, and Tile Images (ADR-0074). This is a delivery boundary
+at shared target resolution, not a permanent restriction on future Filter features.
 
 The native Fill, Pencil, Eraser, Line, Rectangle, Ellipse, Contour, and Blur
 operations use `paint_native.py` for typed

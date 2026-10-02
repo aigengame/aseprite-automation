@@ -1193,6 +1193,84 @@ function module.observe()
     end
     if supported then capabilities[#capabilities + 1] = "aseprite_filter_brightness_contrast" end
   end
+  if app.params.hue_saturation then
+    local filter = dofile(app.params.hue_saturation)
+    local supported = true
+    -- Discriminating native observations: add and multiply must not collapse to
+    -- the command's HSL fallback. Every delivered application uses this seam.
+    for _, sample in ipairs {
+      { mode = "hsl-multiply", rgb = { 134, 72, 10 } },
+      { mode = "hsv-multiply", rgb = { 120, 60, 0 } },
+      { mode = "hsl-add", rgb = { 218, 111, 4 } },
+      { mode = "hsv-add", rgb = { 151, 76, 0 } },
+    } do
+      for _, branch in ipairs {
+        { mode = "rgb", kind = "pixels" },
+        { mode = "grayscale", kind = "pixels" },
+        { mode = "indexed", kind = "pixels" },
+        { mode = "indexed", kind = "indexed-palette-entries" },
+        { mode = "rgb", kind = "rgb-palette-colors" },
+      } do
+        local modes =
+          { rgb = ColorMode.RGB, grayscale = ColorMode.GRAY, indexed = ColorMode.INDEXED }
+        local sprite = Sprite(1, 1, modes[branch.mode])
+        local ok = pcall(function()
+          local expected_rgb = app.pixelColor.rgba(sample.rgb[1], sample.rgb[2], sample.rgb[3], 128)
+          local original_rgb = app.pixelColor.rgba(100, 60, 20, 128)
+          local palette = Palette(3)
+          palette:setColor(0, Color { r = 0, g = 0, b = 0, a = 0 })
+          palette:setColor(1, Color { r = 100, g = 60, b = 20, a = 128 })
+          palette:setColor(
+            2,
+            Color { r = sample.rgb[1], g = sample.rgb[2], b = sample.rgb[3], a = 128 }
+          )
+          sprite:setPalette(palette)
+          local original = branch.mode == "indexed" and 1
+            or (branch.mode == "grayscale" and app.pixelColor.graya(80, 128) or original_rgb)
+          sprite.cels[1].image:drawPixel(0, 0, original)
+          local application = {
+            kind = branch.kind,
+            channels = {
+              kind = "components",
+              names = branch.mode == "grayscale" and { "gray" } or { "red", "green", "blue" },
+            },
+          }
+          if branch.kind == "indexed-palette-entries" then
+            application.entries = { kind = "selected", indexes = { 1 } }
+          else
+            application.cels_target = { kind = "all" }
+          end
+          if branch.kind == "pixels" then application.color_mode = branch.mode end
+          if branch.kind == "rgb-palette-colors" then application.indexes = { 1 } end
+          if branch.mode == "indexed" or branch.kind == "rgb-palette-colors" then
+            application.palette_frame_number = 1
+          end
+          local adjustment = { mode = sample.mode, hue = 0, saturation = 30 }
+          if sample.mode:sub(1, 3) == "hsv" then
+            adjustment.value = 20
+          else
+            adjustment.lightness = 20
+          end
+          if branch.mode == "grayscale" then adjustment = { mode = "grayscale", lightness = 20 } end
+          local result =
+            filter.apply(sprite, { application = application, adjustment = adjustment })
+          local expected = branch.kind == "indexed-palette-entries" and original
+            or (
+              branch.mode == "indexed" and 2
+              or (branch.mode == "grayscale" and app.pixelColor.graya(96, 128) or expected_rgb)
+            )
+          assert(result.changed and sprite.cels[1].image:getPixel(0, 0) == expected)
+          assert(
+            sprite.palettes[1]:getColor(1).rgbaPixel
+              == (branch.kind == "pixels" and original_rgb or expected_rgb)
+          )
+        end)
+        sprite:close()
+        supported = supported and ok
+      end
+    end
+    if supported then capabilities[#capabilities + 1] = "aseprite_filter_hue_saturation" end
+  end
   if observes_change_color_mode() then
     capabilities[#capabilities + 1] = "aseprite_change_color_mode"
   end
