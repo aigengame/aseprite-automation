@@ -357,8 +357,10 @@ gh api repos/aigengame/aseprite-automation/pulls/125 \
 
 Require an open PR and an exact match of base ref, base SHA, head SHA and merge
 SHA to the successful run, plus the normal review and routine CI checks. Link the
-run in the PR. A later head/base update invalidates this evidence; dispatch a new
-run. Do not enable delayed auto-merge with stale native evidence. An unrun,
+run in the PR. A later head/base update invalidates this evidence; repeat target
+preparation and all shards as described in
+[recovery](#restore-the-aseprite-runtime), or dispatch a new run. Do not enable
+delayed auto-merge with stale native evidence. An unrun,
 cancelled, failed or skipped native job cannot admit merge.
 
 This is an explicit merge-process gate. GitHub associates a manual workflow with
@@ -440,7 +442,8 @@ Run affected native tests locally before requesting Linux verification. For CI
 infrastructure, resolve syntax, shell and branch/dispatch logic locally first.
 Use a small hosted probe only for a remaining platform-specific hypothesis, then
 one final native run when the change has converged. Do not run the whole suite on
-every diagnostic push or rerun all jobs when only one failed. macOS results remain
+every diagnostic push. For an unchanged target, rerun only failed jobs; a changed
+PR target requires fresh preparation and all shards. macOS results remain
 macOS evidence. `act` can help with shell/container checks, but does not reproduce
 all GitHub permissions, concurrency or timeout behavior; see its
 [unsupported features](https://nektosact.com/not_supported.html).
@@ -481,19 +484,49 @@ To recover:
    timeout. It validates the pinned source checksum, builds if the exact cache is
    missing, checks the real batch/script path, and saves the verified tree.
 2. Confirm that the job succeeded for the key reported by the failed verification.
-3. Open the **original failed run** and choose **Re-run failed jobs**. Main and
-   Release verification retain their original event/release SHA. PR-mode Native
-   E2E resolves the current PR again; inspect its new base/head/merge record.
-   A successful maintenance job does not substitute for SPA tests or for
-   exact-release-SHA verification.
+3. Open the **original failed run** and choose the recovery action for its target:
+
+   | Target | Recovery action |
+   | --- | --- |
+   | Target preparation itself failed | **Re-run failed jobs** includes preparation, so it resolves the target before running its dependents. |
+   | Main or Release | **Re-run failed jobs**. Retain the original event/release SHA. |
+   | PR with the same recorded base ref, base SHA, head SHA, and merge SHA | **Re-run failed jobs**. Reuse successful shards only for that same target and configuration. |
+   | PR with a changed target, or no confirmed match | Re-run the **Resolve native target and configuration** job, including when it previously succeeded. GitHub also reruns its dependent jobs: all shards and the final aggregate. Inspect the new target record. |
+
+A PR must remain open and mergeable. Any commit, including a documentation-only
+commit, changes the head SHA; an updated base or a different target branch also
+invalidates the earlier target. Changes to the PR title, body, comments, or labels
+do not change the tested source identity.
+
+Failed-only recovery does not rerun successful preparation. It cannot refresh a
+changed PR target. Re-running preparation keeps one target for the complete shard
+set; do not combine reports from different targets. GitHub retains the original
+workflow revision, dispatch ref, and inputs on this job retry. Use a new dispatch
+when those need to change. See GitHub's
+[job retry semantics](https://docs.github.com/en/rest/actions/workflow-runs#re-run-a-job-from-a-workflow-run).
+
+A successful maintenance job does not substitute for SPA tests or for
+exact-release-SHA verification.
 
 CLI equivalent for the stable runtime:
 
 ```sh
 gh workflow run aseprite-build.yml --ref main
-# After the build succeeds:
+# After the build succeeds, for Main/Release or an unchanged PR target:
 gh run rerun <failed-run-id> --failed
 ```
+
+For a changed PR target, find the preparation job's database ID and rerun it:
+
+```sh
+gh run view <failed-run-id> --json jobs \
+  --jq '.jobs[] | select(.name == "Resolve native target and configuration") | .databaseId'
+gh run rerun <failed-run-id> --job <prepare-job-id>
+```
+
+In the Actions UI, use the re-run control for that preparation job, rather than
+the run-level **Re-run failed jobs** control. This restarts the full dependent
+shard set without a separate scheduling mechanism.
 
 A stable cache is prepared on `main`, which is readable from the other branches.
 Cache visibility follows the workflow event/ref, not a later checkout of a PR
@@ -503,9 +536,11 @@ then run:
 
 ```sh
 gh workflow run aseprite-build.yml --ref dev
-# After the build succeeds for the missing key:
+# After the build succeeds for the missing key, if the PR target is unchanged:
 gh run rerun <failed-run-id> --failed
 ```
+
+If the PR target changed during the build, rerun preparation as described above.
 
 Dispatch provisional Native E2E from that same integration ref with the PR number.
 Switch the consumer only after the matching cache is ready. After normal promotion,

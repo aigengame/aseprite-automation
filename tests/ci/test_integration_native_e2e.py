@@ -145,6 +145,58 @@ def test_pr_changes_invalidate_native_evidence(candidate, change: str) -> None:
     assert "unchanged after testing" not in Path(env["GITHUB_STEP_SUMMARY"]).read_text()
 
 
+@pytest.mark.parametrize("change", ["head", "base"])
+def test_repeating_preparation_resolves_a_changed_pr_target(candidate, change) -> None:
+    repository, env, response = candidate
+
+    def git(*args: str) -> str:
+        return subprocess.check_output(
+            ["git", "-C", str(repository), *args], text=True, stderr=subprocess.PIPE
+        ).strip()
+
+    assert run_step("Resolve the native test target", repository, env).returncode == 0
+    previous = json.loads(Path(env["SPA_NATIVE_TARGET"]).read_text())
+    git("checkout", "-b", "updated", response[change]["sha"])
+    (repository / "README.md").write_text("Documentation-only change.\n")
+    git("add", "README.md")
+    git("commit", "-m", "docs: update candidate")
+    response[change]["sha"] = git("rev-parse", "HEAD")
+    git("checkout", "-b", "new-preview", response["base"]["sha"])
+    git("merge", "--no-ff", response["head"]["sha"], "-m", "new merge preview")
+    response["merge_commit_sha"] = git("rev-parse", "HEAD")
+    Path(env["SPA_TEST_PR_RESPONSE"]).write_text(json.dumps(response))
+
+    # A retained successful preparation cannot admit this new Git target.
+    result = run_step("Reject a changed PR after testing", repository, env)
+    assert result.returncode != 0
+    assert json.loads(Path(env["SPA_NATIVE_TARGET"]).read_text()) == previous
+
+    for name in (
+        "Resolve the native test target",
+        "Check the merge parents before testing",
+        "Reject a changed PR after testing",
+    ):
+        result = run_step(name, repository, env)
+        assert result.returncode == 0, result.stderr
+    current = json.loads(Path(env["SPA_NATIVE_TARGET"]).read_text())
+    assert current[change] != previous[change]
+    assert current["sha"] == response["merge_commit_sha"] != previous["sha"]
+    outputs = dict(
+        line.split("=", 1)
+        for line in Path(env["GITHUB_OUTPUT"]).read_text().splitlines()
+    )
+    assert json.loads(outputs["target"]) == current
+
+
+def test_pr_metadata_edits_do_not_invalidate_the_tested_source(candidate) -> None:
+    repository, env, response = candidate
+    assert run_step("Resolve the native test target", repository, env).returncode == 0
+    response.update(title="New title", body="New description", labels=[])
+    Path(env["SPA_TEST_PR_RESPONSE"]).write_text(json.dumps(response))
+    result = run_step("Reject a changed PR after testing", repository, env)
+    assert result.returncode == 0, result.stderr
+
+
 def test_stale_merge_parents_fail_before_native_setup(candidate) -> None:
     repository, env, response = candidate
     response["head"]["sha"] = "f" * 40

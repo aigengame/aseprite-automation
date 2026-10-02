@@ -76,6 +76,10 @@ jobs:
             cat "$SPA_NATIVE_TARGET"
             echo '```'
             echo "Workflow dispatch/schedule SHA: $GITHUB_SHA"
+            if [ -n "$SPA_PR_NUMBER" ]; then
+              echo 'Recovery: use Re-run failed jobs only for an unchanged PR target.'
+              echo 'For a changed or unconfirmed target, re-run Resolve native target and configuration to refresh the target and all shards.'
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Check out the exact test target
@@ -156,7 +160,7 @@ jobs:
                 .number == $target[0].number and .base.ref == $target[0].base_ref and
                 .base.sha == $target[0].base and .head.sha == $target[0].head and
                 .merge_commit_sha == $target[0].sha' > /dev/null; then
-              echo "PR changed or is not mergeable; this run cannot admit merge. Dispatch a new run." >&2
+              echo "PR changed or is not mergeable; this run cannot admit merge. Once it is open and mergeable, re-run Resolve native target and configuration, or dispatch a new run." >&2
               exit 1
             fi
             echo "PR target is unchanged after testing. Recheck the recorded base/head/merge immediately before merge." >> "$GITHUB_STEP_SUMMARY"

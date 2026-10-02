@@ -80,6 +80,48 @@ def test_shared_runner_covers_the_selected_suite_once(suite: Path) -> None:
     assert "selected=6 passed=6 skipped=0" in result.stdout
 
 
+@pytest.mark.parametrize("changed_target", [False, True])
+def test_retry_reuses_completed_shards_only_for_the_same_target(
+    suite: Path, changed_target: bool
+) -> None:
+    output = suite / "results"
+    args = ("run", "--workers", "1", "--output-dir", str(output))
+    result = run(suite, *args, "--shard-index", "0")
+    assert result.returncode == 0, result.stdout + result.stderr
+    if changed_target:
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=Test",
+                "-c",
+                "user.email=test@example.invalid",
+                "-c",
+                "commit.gpgsign=false",
+                "commit",
+                "--allow-empty",
+                "-m",
+                "next candidate",
+            ],
+            cwd=suite,
+            check=True,
+            capture_output=True,
+        )
+    result = run(suite, *args, "--shard-index", "1")
+    assert result.returncode == 0, result.stdout + result.stderr
+    verify_args = ("verify", "--workers", "1", "--output-dir", str(output))
+    result = run(suite, *verify_args)
+    assert (result.returncode != 0) == changed_target, result.stdout + result.stderr
+    if changed_target:
+        assert "failed or mismatched native report" in result.stderr
+        shutil.rmtree(output / "shard-0")
+        result = run(suite, *args, "--shard-index", "0")
+        assert result.returncode == 0, result.stdout + result.stderr
+        result = run(suite, *verify_args)
+        assert result.returncode == 0, result.stdout + result.stderr
+    assert "selected=6 passed=6 skipped=0" in result.stdout
+
+
 def test_aggregate_action_checks_reports_and_preserves_failure_through_tee(
     suite: Path,
 ) -> None:
