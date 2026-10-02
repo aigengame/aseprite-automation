@@ -26,6 +26,10 @@ from spa.authoring.document.layer import LAYER_OPERATIONS, LAYER_SELECT_RESOURCE
 from spa.authoring.document.motion import MOTION_OPERATIONS
 from spa.authoring.document.sprite import SPRITE_OPERATIONS, SPRITE_PROBE_RESOURCES
 from spa.authoring.document.tag import TAG_OPERATIONS
+from spa.authoring.raster.color_curve import (
+    COLOR_CURVE_OPERATIONS,
+    COLOR_CURVE_RESOURCE,
+)
 from spa.authoring.raster.convolution import (
     CONVOLUTION_PROBE_RESOURCE,
     convolution_capability_gap,
@@ -51,6 +55,12 @@ from spa.authoring.raster.image import (
     IMAGE_RESIZE_TRANSFORM_RESOURCE,
 )
 from spa.authoring.raster.image_snapshot import COMPOSITION_RESOURCE, SNAPSHOT_RESOURCE
+from spa.authoring.raster.invert_outline import (
+    INVERT_COLOR_RESOURCE,
+    INVERT_OUTLINE_OPERATIONS,
+    OUTLINE_RESOURCE,
+    invert_outline_capability_gaps,
+)
 from spa.authoring.raster.paint import PAINT_OPERATIONS, PAINT_PROBE_RESOURCES
 from spa.authoring.raster.paint_composite import (
     COMPOSITE_OPERATIONS,
@@ -62,6 +72,10 @@ from spa.authoring.raster.paint_native import (
     NATIVE_PAINT_RESOURCES,
     native_paint_candidate_gaps,
     native_paint_capability_gaps,
+)
+from spa.authoring.raster.replace_color import (
+    REPLACE_COLOR_OPERATIONS,
+    REPLACE_COLOR_RESOURCE,
 )
 from spa.authoring.raster.selection import (
     SELECTION_OPERATIONS,
@@ -94,7 +108,11 @@ PROBE_RESOURCES = (
     CONVOLUTION_PROBE_RESOURCE,
     DESPECKLE_RESOURCE,
     *FILTER_RESOURCES,
+    COLOR_CURVE_RESOURCE,
+    REPLACE_COLOR_RESOURCE,
     HUE_SATURATION_RESOURCE,
+    INVERT_COLOR_RESOURCE,
+    OUTLINE_RESOURCE,
     PALETTE_QUANTIZATION_RESOURCE,
     COLOR_MODE_RESOURCE,
     *PALETTE_PROBE_RESOURCES,
@@ -197,12 +215,16 @@ def _surface(runtime: RuntimeFacts) -> tuple[list[str], list[CapabilityGap]]:
     gaps.append(
         convolution_capability_gap(runtime.aseprite_version, runtime.convolution)
     )
-    if "spa filter brightness-contrast" in supported:
-        gaps.extend(
-            filter_capability_gaps(
-                runtime.aseprite_version, runtime.verified_capabilities
-            )
+    gaps.extend(
+        filter_capability_gaps(
+            runtime.aseprite_version, runtime.verified_capabilities, supported
         )
+    )
+    gaps.extend(
+        gap
+        for gap in invert_outline_capability_gaps(runtime.aseprite_version)
+        if gap.capability.split(":")[0] in supported
+    )
     if "spa filter despeckle" in supported:
         gaps.extend(despeckle_capability_gaps(runtime.aseprite_version))
     return supported, gaps
@@ -300,7 +322,10 @@ OPERATIONS = (
     *COMPOSITE_OPERATIONS,
     *NATIVE_PAINT_OPERATIONS,
     *FILTER_OPERATIONS,
+    *COLOR_CURVE_OPERATIONS,
+    *REPLACE_COLOR_OPERATIONS,
     *HUE_SATURATION_OPERATIONS,
+    *INVERT_OUTLINE_OPERATIONS,
     *DESPECKLE_OPERATIONS,
     *SELECTION_OPERATIONS,
     *FRAME_OPERATIONS,

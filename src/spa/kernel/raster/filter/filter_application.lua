@@ -7,8 +7,9 @@ local palette = dofile(app.params.palette)
 local effective = dofile(app.params.effective_palette)
 local persistence = dofile(app.params.persistence)
 
-function module.apply(sprite, payload, uuids, title, adjust, tiles)
-  local application = payload.application
+function module.apply(sprite, payload, uuids, title, adjust, tiles, preflight)
+  local application = payload.application or payload
+  local application_kind = application.kind or "pixels"
   local palette_only = application.kind == "indexed-palette-entries"
   local rgb_palette = application.kind == "rgb-palette-colors"
   local mode = palette_only and "indexed" or (rgb_palette and "rgb" or application.color_mode)
@@ -123,11 +124,15 @@ function module.apply(sprite, payload, uuids, title, adjust, tiles)
       mask, effective_selection = support.pixel_selection(sprite, application.selection)
       sprite.selection = mask
     end
+    if preflight then
+      local refused = preflight(targets, basis, sprite.selection, anchor)
+      if refused then return refused end
+    end
     local result
     local tile_before = tiles and tiles.snapshot(sprite, mode)
     local metadata_before = tile_anchor and tiles.serialized_metadata(sprite)
     app.transaction(title, function()
-      local filtering = adjust(flags)
+      local filtering = adjust(flags, targets)
       local images, processed, changed = {}, {}, false
       for number, image in ipairs(targets.images) do
         if filtering then processed[#processed + 1] = number end
@@ -189,7 +194,7 @@ function module.apply(sprite, payload, uuids, title, adjust, tiles)
       end
       changed = changed or not persistence.equal(palette_before, palette_after)
       result = {
-        application = application.kind,
+        application = application_kind,
         cels_target_kind = application.cels_target and application.cels_target.kind or json_null,
         selection = effective_selection,
         palette_indexes = picks,
@@ -215,6 +220,24 @@ function module.apply(sprite, payload, uuids, title, adjust, tiles)
     end)
     return result
   end)
+end
+
+-- Fixed-pixel Operations share execution mechanics without exposing Palette
+-- mutation application modes in their public requests or results.
+function module.apply_pixels(sprite, payload, uuids, title, adjust)
+  local result = module.apply(sprite, {
+    application = {
+      kind = "pixels",
+      color_mode = payload.color_mode,
+      channels = payload.channels,
+      cels_target = payload.cels_target,
+      selection = payload.selection,
+      palette_frame_number = payload.palette_frame_number,
+    },
+  }, uuids, title, adjust)
+  result.application = nil
+  result.palette_indexes = nil
+  return result
 end
 
 return module

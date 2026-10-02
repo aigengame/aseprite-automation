@@ -282,17 +282,11 @@ class FilterPaletteBasis(PublicModel):
     palette_size: int = Field(ge=1)
 
 
-class FilterObservations[
-    Image: FilterImage[Any],
-    Channel,
-    Channels = ComponentChannels[Channel],
-](PublicModel):
-    application: Literal["pixels", "indexed-palette-entries", "rgb-palette-colors"]
+class FilterTargetObservations[Image: FilterImage[Any], Channels](PublicModel):
     cels_target_kind: Literal["selected", "all"] | None
     selection: SelectionApplication | None
     color_mode: Literal["rgb", "grayscale", "indexed"]
     palette_basis: FilterPaletteBasis | None
-    palette_indexes: list[Annotated[int, Field(ge=0)]]
     palette_before: PaletteTimeline
     palette_after: PaletteTimeline
     channels: Channels
@@ -318,6 +312,49 @@ class FilterObservations[
                     "Filter Image change disagrees with its content digests"
                 )
         return self
+
+
+class FilterCelEffect(FilterCel):
+    image_number: int = Field(ge=1)
+    before: PositiveRectangle
+    after: PositiveRectangle | None
+
+
+def validate_cel_effects(
+    observation: FilterTargetObservations[Any, Any], effects: list[FilterCelEffect]
+) -> None:
+    """Validate surviving and deleted Cels using stable Layer/Frame identities."""
+    if [
+        effect.model_dump(include={"layer_path", "frame_number", "image_number"})
+        for effect in effects
+    ] != [cel.model_dump() for cel in observation.affected_cels]:
+        raise ValueError("Cel effects must cover every affected Cel")
+    numbers = {image.image_number for image in observation.images}
+    if any(effect.image_number not in numbers for effect in effects):
+        raise ValueError("Cel effect refers to an unobserved Image")
+    for image in observation.images:
+        consumers = [
+            effect for effect in effects if effect.image_number == image.image_number
+        ]
+        if not consumers or (image.after_content_digest is not None) != any(
+            effect.after is not None for effect in consumers
+        ):
+            raise ValueError("Image survival disagrees with affected Cels")
+    if observation.changed != (
+        any(image.changed for image in observation.images)
+        or observation.palette_before != observation.palette_after
+        or any(effect.before != effect.after for effect in effects)
+    ):
+        raise ValueError("Filter change disagrees with observed Images and Palettes")
+
+
+class FilterObservations[
+    Image: FilterImage[Any],
+    Channel,
+    Channels = ComponentChannels[Channel],
+](FilterTargetObservations[Image, Channels]):
+    application: Literal["pixels", "indexed-palette-entries", "rgb-palette-colors"]
+    palette_indexes: list[Annotated[int, Field(ge=0)]]
 
     def matches_application(
         self,
@@ -367,12 +404,6 @@ class FilterObservations[
         )
 
 
-class FilterCelEffect(FilterCel):
-    image_number: int = Field(ge=1)
-    before: PositiveRectangle
-    after: PositiveRectangle | None
-
-
 class FilterCelObservations[Channel, Channels = ComponentChannels[Channel]](
     FilterObservations[FilterImage[ImageContentDigest | None], Channel, Channels]
 ):
@@ -382,32 +413,7 @@ class FilterCelObservations[Channel, Channels = ComponentChannels[Channel]](
 
     @model_validator(mode="after")
     def consistent_cel_effects(self) -> Self:
-        numbers = [image.image_number for image in self.images]
-        if [
-            effect.model_dump(include={"layer_path", "frame_number", "image_number"})
-            for effect in self.cel_effects
-        ] != [cel.model_dump() for cel in self.affected_cels]:
-            raise ValueError("Cel effects must cover every affected Cel")
-        if any(effect.image_number not in numbers for effect in self.cel_effects):
-            raise ValueError("Cel effect refers to an unobserved Image")
-        for image in self.images:
-            effects = [
-                effect
-                for effect in self.cel_effects
-                if effect.image_number == image.image_number
-            ]
-            if not effects or (image.after_content_digest is not None) != any(
-                effect.after is not None for effect in effects
-            ):
-                raise ValueError("Image survival disagrees with affected Cels")
-        if self.changed != (
-            any(image.changed for image in self.images)
-            or self.palette_before != self.palette_after
-            or any(effect.before != effect.after for effect in self.cel_effects)
-        ):
-            raise ValueError(
-                "Filter change disagrees with observed Images and Palettes"
-            )
+        validate_cel_effects(self, self.cel_effects)
         return self
 
 
@@ -576,11 +582,14 @@ FILTER_REQUIREMENTS = RuntimeRequirements(
 
 
 def filter_capability_gaps(
-    aseprite_version: str, verified_capabilities: Sequence[str]
+    aseprite_version: str,
+    verified_capabilities: Sequence[str],
+    supported_operations: Sequence[str],
 ) -> list[CapabilityGap]:
     gaps = []
     if (
-        "aseprite_filter_brightness_contrast_tilemap_manual"
+        "spa filter brightness-contrast" in supported_operations
+        and "aseprite_filter_brightness_contrast_tilemap_manual"
         not in verified_capabilities
     ):
         gaps.append(
@@ -594,16 +603,30 @@ def filter_capability_gaps(
                 ),
             )
         )
-    gaps.append(
-        CapabilityGap(
-            capability="spa filter hue-saturation: Tilemap pixels",
-            aseprite_version=aseprite_version,
-            evidence=(
-                "Hue/Saturation currently rejects resolved Tilemap pixel targets. "
-                "Ordinary Image and Indexed Palette-only applications remain supported."
+    if "spa filter hue-saturation" in supported_operations:
+        gaps.append(
+            CapabilityGap(
+                capability="spa filter hue-saturation: Tilemap pixels",
+                aseprite_version=aseprite_version,
+                evidence=(
+                    "Hue/Saturation currently rejects resolved Tilemap pixel targets. "
+                    "Ordinary Image and Indexed Palette-only applications remain supported."
+                ),
             ),
         )
-    )
+    for name in ("color-curve", "replace-color"):
+        if f"spa filter {name}" not in supported_operations:
+            continue
+        gaps.append(
+            CapabilityGap(
+                capability=f"spa filter {name}: Tilemap pixels",
+                aseprite_version=aseprite_version,
+                evidence=(
+                    "This Filter currently rejects resolved Tilemap pixel targets before mutation. "
+                    "Ordinary Image Layers in documents with unrelated Tilemaps remain supported."
+                ),
+            )
+        )
     return gaps
 
 
@@ -614,6 +637,7 @@ def publish_filter[Evidence: PublicModel](
     parameters: Callable[[RuntimeObservation], dict[str, Any]],
     evidence_type: type[Evidence],
     matches: Callable[[Evidence], bool],
+    failure_specs: tuple[FailureCodeSpec, ...] = FILTER_FAILURE_SPECS,
 ) -> tuple[Evidence, TargetCommit]:
     """Publish only after native persistence and request-matched evidence succeed."""
     completion = prepare_mutation(
@@ -641,11 +665,10 @@ def publish_filter[Evidence: PublicModel](
             if rejected is not None:
                 code = rejected["code"]
                 message = rejected["message"]
-                details = FilterRejection.model_validate(rejected["details"])
-                if code not in {
-                    spec.code for spec in FILTER_FAILURE_SPECS
-                } or not isinstance(message, str):
+                spec = next((spec for spec in failure_specs if spec.code == code), None)
+                if spec is None or not isinstance(message, str):
                     raise ValueError("Invalid Filter rejection")
+                details = spec.details_type.model_validate(rejected["details"])
                 raise OperationIssue(
                     code,
                     message,
