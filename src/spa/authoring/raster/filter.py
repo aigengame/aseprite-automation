@@ -19,6 +19,7 @@ from spa.authoring.document.sprite import (
     SPRITE_INSPECTION_RESOURCES,
     SPRITE_PERSISTENCE_RESOURCE,
 )
+from spa.authoring.raster.selection_evidence import matches_clipped_selection
 from spa.contracts.digest import DIGEST_RESOURCE
 from spa.contracts.mutation import (
     TargetCommit,
@@ -313,6 +314,63 @@ class FilterTargetObservations[Image: FilterImage[Any], Channels](PublicModel):
                 )
         return self
 
+    @model_validator(mode="after")
+    def consistent_target_intersections(self) -> Self:
+        requested = {
+            (tuple(cel.layer_path), cel.frame_number): cel.image_number
+            for cel in self.requested_intersections
+        }
+        existing = {
+            (tuple(cel.layer_path), cel.frame_number): cel.image_number
+            for cel in self.existing_target_cels
+        }
+        if (
+            len(requested) != len(self.requested_intersections)
+            or len(existing) != len(self.existing_target_cels)
+            or existing
+            != {
+                address: image
+                for address, image in requested.items()
+                if image is not None
+            }
+            or (self.cels_target_kind is not None and not existing)
+        ):
+            raise ValueError("Filter target intersections disagree with existing Cels")
+        return self
+
+    def matches_target_selection(
+        self,
+        target: FilterCelsTarget | None,
+        selection: SelectionApplication | None,
+    ) -> bool:
+        """Match wire facts without resolving live Layers or Canvas dimensions."""
+        if target is None:
+            return self.cels_target_kind is None and self.selection is None
+        if self.cels_target_kind != target.kind or not matches_clipped_selection(
+            selection, self.selection
+        ):
+            return False
+        if target.kind == "all":
+            return True
+        intersections = [
+            (tuple(cel.layer_path), cel.frame_number)
+            for cel in self.requested_intersections
+        ]
+        paths = {path for path, _ in intersections}
+        # Names and UUIDs resolve in the Kernel. Paths and Frames are direct facts.
+        return (
+            not self.excluded_layers
+            and len(paths) == len(target.layers)
+            and len(intersections) == len(paths) * len(target.frame_numbers)
+            and set(intersections)
+            == {(path, frame) for path in paths for frame in target.frame_numbers}
+            and all(
+                tuple(layer.layer_path) in paths
+                for layer in target.layers
+                if layer.layer_path is not None
+            )
+        )
+
 
 class FilterCelEffect(FilterCel):
     image_number: int = Field(ge=1)
@@ -390,9 +448,10 @@ class FilterObservations[
             and self.color_mode == mode
             and isinstance(self.channels, ComponentChannels)
             and set(self.channels.names) == set(application.channels.names)
-            and self.cels_target_kind
-            == (None if palette_only else application.cels_target.kind)
-            and (self.selection is None) == palette_only
+            and self.matches_target_selection(
+                None if palette_only else application.cels_target,
+                None if palette_only else application.selection,
+            )
             and (self.palette_basis.frame_number if self.palette_basis else None)
             == frame
             and self.palette_indexes == sorted(indexes)
