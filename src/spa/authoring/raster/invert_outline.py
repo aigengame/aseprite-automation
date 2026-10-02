@@ -10,11 +10,12 @@ from spa.authoring.raster.filter import (
     ComponentChannels,
     FilterCelEffect,
     FilterCelsTarget,
-    FilterFileRequest,
     FilterImage,
+    FilterMutationRequest,
     FilterPaletteBasis,
     FilterTargetObservations,
     publish_filter,
+    validate_cel_effects,
 )
 from spa.contracts.mutation import TargetCommit
 from spa.contracts.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
@@ -73,7 +74,7 @@ def _mode_constraints(*, colors: bool = False) -> list[JsonValue]:
     return constraints
 
 
-class PixelFilterRequest(FilterFileRequest):
+class PixelFilterRequest(FilterMutationRequest):
     model_config = ConfigDict(json_schema_extra={"allOf": _mode_constraints()})
     color_mode: Literal["rgb", "grayscale", "indexed"]
     channels: PixelFilterChannels
@@ -192,7 +193,7 @@ class PixelFilterEvidence(
 
     @model_validator(mode="after")
     def consistent_observations(self) -> "PixelFilterEvidence":
-        self.validate_cel_effects(self.cel_effects)
+        validate_cel_effects(self, self.cel_effects)
         if self.palette_before != self.palette_after:
             raise ValueError("Pixel-only Filters must preserve the Palette")
         if self.processed_image_numbers != [

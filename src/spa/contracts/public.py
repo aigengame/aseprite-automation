@@ -82,6 +82,8 @@ RuntimeCapability = Literal[
     "aseprite_filter_brightness_contrast",
     "aseprite_filter_brightness_contrast_tilemap_manual",
     "aseprite_filter_hue_saturation",
+    "aseprite_filter_color_curve",
+    "aseprite_filter_replace_color",
     "aseprite_filter_invert_color",
     "aseprite_filter_outline",
     "aseprite_palette_files",

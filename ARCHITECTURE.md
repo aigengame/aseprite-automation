@@ -631,14 +631,17 @@ for native nearest-neighbor sampling. Python validates wire constraints and
 orchestrates existing Artifact staging, independent JSON/PNG verification, and
 publication. No persistent editor Selection or second Mask engine is introduced.
 
-The native Brightness/Contrast and Hue/Saturation slices share typed application
-variants, native evidence types, and staged Target publication in
-`authoring/raster/filter.py`. Each operation retains its Channel set and adjustment
-schema; `hue_saturation.py` owns the conditional HSL/HSV, Grayscale, and Alpha forms.
+Native Filters share target observations, Cel writeback checks, and staged Target
+publication in `authoring/raster/filter.py`. Brightness/Contrast and Hue/Saturation
+also share their palette-aware application variants. `pixel_filter.py` owns the
+fixed-pixel request/evidence subset for Color Curve and Replace Color, without a
+public application selector. Each operation keeps its adjustment schema and native
+mapping; `hue_saturation.py` owns conditional HSL/HSV, Grayscale, and Alpha forms.
 Brightness/Contrast alone adds Manual Tileset Mode and changed-Tile evidence.
 `filter_support.lua` owns Filter Cels Target resolution, Channel flags, editor-state
 restoration, and stable Layer/Frame observations. `filter_application.lua` owns
-Palette application and native transaction setup. The two small adjustment modules
+Palette application and native transaction setup. Fixed-pixel operations adapt to
+that executor internally and omit Palette-mutation fields from public results. Small adjustment modules
 map explicit parameters and invoke their respective Aseprite commands; no color
 algorithm is duplicated. `filter_run.lua` verifies live/save-close-reopen observations
 before Python publishes a Target. Existing Layer, Effective Palette, Selection, and
@@ -659,7 +662,12 @@ Native writeback can trim or delete Cels. Hue/Saturation observes the surviving
 Layer/Frame intersections and reports bounds or absence, including affected links
 outside the selected range, without retaining deleted Cel userdata. Its independent
 runtime gate discriminates all four HSL/HSV modes across the five applications.
-Hue/Saturation rejects resolved Tilemap pixel targets; Indexed Palette-only anchors
+Color Curve and Replace Color use the same stable Cel observations. Replace Color
+counts actual stored-pixel differences per distinct target Image, using Canvas
+alignment across native expansion, trimming, or deletion; it does not recreate native matching.
+Their independent runtime gates observe RGB, Grayscale, Indexed component, and Index
+paths. Hue/Saturation, Color Curve, and Replace Color reject resolved Tilemap pixel
+targets; Hue Indexed Palette-only anchors
 preserve ordinary, placement, and Tile Images (ADR-0074). This is its current delivery
 boundary, not a permanent restriction on future Filter features.
 

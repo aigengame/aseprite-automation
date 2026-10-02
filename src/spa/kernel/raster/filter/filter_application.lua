@@ -132,7 +132,7 @@ function module.apply(sprite, payload, uuids, title, adjust, tiles, preflight)
     local tile_before = tiles and tiles.snapshot(sprite, mode)
     local metadata_before = tile_anchor and tiles.serialized_metadata(sprite)
     app.transaction(title, function()
-      local filtering = adjust(flags)
+      local filtering = adjust(flags, targets)
       local images, processed, changed = {}, {}, false
       for number, image in ipairs(targets.images) do
         if filtering then processed[#processed + 1] = number end
@@ -220,6 +220,24 @@ function module.apply(sprite, payload, uuids, title, adjust, tiles, preflight)
     end)
     return result
   end)
+end
+
+-- Fixed-pixel Operations share execution mechanics without exposing Palette
+-- mutation application modes in their public requests or results.
+function module.apply_pixels(sprite, payload, uuids, title, adjust)
+  local result = module.apply(sprite, {
+    application = {
+      kind = "pixels",
+      color_mode = payload.color_mode,
+      channels = payload.channels,
+      cels_target = payload.cels_target,
+      selection = payload.selection,
+      palette_frame_number = payload.palette_frame_number,
+    },
+  }, uuids, title, adjust)
+  result.application = nil
+  result.palette_indexes = nil
+  return result
 end
 
 return module

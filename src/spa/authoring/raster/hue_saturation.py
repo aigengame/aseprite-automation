@@ -17,6 +17,7 @@ from spa.authoring.raster.filter import (
     RGBPaletteColors,
     RGBPixels,
     publish_filter,
+    validate_cel_effects,
 )
 from spa.contracts.mutation import TargetCommit
 from spa.contracts.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
@@ -168,7 +169,7 @@ class HueSaturationEvidence(
     @model_validator(mode="after")
     def consistent_observations(self) -> "HueSaturationEvidence":
         numbers = [image.image_number for image in self.images]
-        self.validate_cel_effects(self.cel_effects)
+        validate_cel_effects(self, self.cel_effects)
         noop = is_noop(self.adjustment, self.alpha)
         if self.processed_image_numbers != ([] if noop else numbers) or (
             noop and self.changed

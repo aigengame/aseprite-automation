@@ -26,6 +26,10 @@ from spa.authoring.document.layer import LAYER_OPERATIONS, LAYER_SELECT_RESOURCE
 from spa.authoring.document.motion import MOTION_OPERATIONS
 from spa.authoring.document.sprite import SPRITE_OPERATIONS, SPRITE_PROBE_RESOURCES
 from spa.authoring.document.tag import TAG_OPERATIONS
+from spa.authoring.raster.color_curve import (
+    COLOR_CURVE_OPERATIONS,
+    COLOR_CURVE_RESOURCE,
+)
 from spa.authoring.raster.filter import (
     FILTER_OPERATIONS,
     FILTER_RESOURCES,
@@ -60,6 +64,10 @@ from spa.authoring.raster.paint_native import (
     native_paint_candidate_gaps,
     native_paint_capability_gaps,
 )
+from spa.authoring.raster.replace_color import (
+    REPLACE_COLOR_OPERATIONS,
+    REPLACE_COLOR_RESOURCE,
+)
 from spa.authoring.raster.selection import (
     SELECTION_OPERATIONS,
     SELECTION_SUPPORT_RESOURCE,
@@ -89,6 +97,8 @@ from spa.delivery.palette import (
 
 PROBE_RESOURCES = (
     *FILTER_RESOURCES,
+    COLOR_CURVE_RESOURCE,
+    REPLACE_COLOR_RESOURCE,
     HUE_SATURATION_RESOURCE,
     INVERT_COLOR_RESOURCE,
     OUTLINE_RESOURCE,
@@ -191,12 +201,11 @@ def _surface(runtime: RuntimeFacts) -> tuple[list[str], list[CapabilityGap]]:
         if gap.capability not in registered
     )
     gaps.extend(palette_lifecycle_gaps(runtime.aseprite_version))
-    if "spa filter brightness-contrast" in supported:
-        gaps.extend(
-            filter_capability_gaps(
-                runtime.aseprite_version, runtime.verified_capabilities
-            )
+    gaps.extend(
+        filter_capability_gaps(
+            runtime.aseprite_version, runtime.verified_capabilities, supported
         )
+    )
     gaps.extend(
         gap
         for gap in invert_outline_capability_gaps(runtime.aseprite_version)
@@ -296,6 +305,8 @@ OPERATIONS = (
     *COMPOSITE_OPERATIONS,
     *NATIVE_PAINT_OPERATIONS,
     *FILTER_OPERATIONS,
+    *COLOR_CURVE_OPERATIONS,
+    *REPLACE_COLOR_OPERATIONS,
     *HUE_SATURATION_OPERATIONS,
     *INVERT_OUTLINE_OPERATIONS,
     *SELECTION_OPERATIONS,
