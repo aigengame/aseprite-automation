@@ -3,7 +3,7 @@
 from collections import Counter
 from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, Self
 
 from pydantic import Field, field_validator, model_validator
 
@@ -45,6 +45,7 @@ from spa.contracts.public import (
 from spa.contracts.raster import (
     SELECTION_MASK_RESOURCE,
     ImageContentDigest,
+    PositiveRectangle,
     SelectionApplication,
 )
 
@@ -87,6 +88,10 @@ class ComponentChannels[Channel](PublicModel):
         if len(set(self.names)) != len(self.names):
             raise ValueError("Filter Channels must be unique")
         return self
+
+
+class IndexChannels(PublicModel):
+    kind: Literal["index"]
 
 
 class RGBPixels[Channel = Literal["red", "green", "blue"]](PublicModel):
@@ -183,20 +188,23 @@ BrightnessContrastApplication = Annotated[
 ]
 
 
-class FilterRequest[Application](RuntimeRequest):
+class FilterMutationRequest(RuntimeRequest):
     source_sprite_file: str = Field(min_length=1)
     target_sprite_file: str = Field(min_length=1)
     in_place: bool
     overwrite: bool
-    application: Application
 
     _source = field_validator("source_sprite_file")(validate_native_sprite_path)
     _target = field_validator("target_sprite_file")(validate_native_sprite_path)
 
     @model_validator(mode="after")
-    def validate_intent(self) -> "FilterRequest":
+    def validate_intent(self) -> "FilterMutationRequest":
         require_overwrite_for_in_place(self.in_place, self.overwrite)
         return self
+
+
+class FilterRequest[Application](FilterMutationRequest):
+    application: Application
 
 
 class BrightnessContrastRequest(FilterRequest[BrightnessContrastApplication]):
@@ -274,7 +282,11 @@ class FilterPaletteBasis(PublicModel):
     palette_size: int = Field(ge=1)
 
 
-class FilterObservations[Image: FilterImage[Any], Channel](PublicModel):
+class FilterObservations[
+    Image: FilterImage[Any],
+    Channel,
+    Channels = ComponentChannels[Channel],
+](PublicModel):
     application: Literal["pixels", "indexed-palette-entries", "rgb-palette-colors"]
     cels_target_kind: Literal["selected", "all"] | None
     selection: SelectionApplication | None
@@ -283,7 +295,7 @@ class FilterObservations[Image: FilterImage[Any], Channel](PublicModel):
     palette_indexes: list[Annotated[int, Field(ge=0)]]
     palette_before: PaletteTimeline
     palette_after: PaletteTimeline
-    channels: ComponentChannels[Channel]
+    channels: Channels
     requested_intersections: list[FilterCel]
     existing_target_cels: list[FilterCel]
     excluded_layers: list[FilterExclusion]
@@ -294,7 +306,7 @@ class FilterObservations[Image: FilterImage[Any], Channel](PublicModel):
     persisted_reopen_verified: Literal[True]
 
     @model_validator(mode="after")
-    def consistent_images(self) -> "FilterObservations":
+    def consistent_images(self) -> Self:
         numbers = [image.image_number for image in self.images]
         if numbers != list(range(1, len(self.images) + 1)):
             raise ValueError("Filter Images must have consecutive unique numbers")
@@ -339,6 +351,7 @@ class FilterObservations[Image: FilterImage[Any], Channel](PublicModel):
         return (
             self.application == application.kind
             and self.color_mode == mode
+            and isinstance(self.channels, ComponentChannels)
             and set(self.channels.names) == set(application.channels.names)
             and self.cels_target_kind
             == (None if palette_only else application.cels_target.kind)
@@ -352,6 +365,50 @@ class FilterObservations[Image: FilterImage[Any], Channel](PublicModel):
                 or self.palette_before == self.palette_after
             )
         )
+
+
+class FilterCelEffect(FilterCel):
+    image_number: int = Field(ge=1)
+    before: PositiveRectangle
+    after: PositiveRectangle | None
+
+
+class FilterCelObservations[Channel, Channels = ComponentChannels[Channel]](
+    FilterObservations[FilterImage[ImageContentDigest | None], Channel, Channels]
+):
+    """Native writeback can resize or remove a Cel; report its current state."""
+
+    cel_effects: list[FilterCelEffect]
+
+    @model_validator(mode="after")
+    def consistent_cel_effects(self) -> Self:
+        numbers = [image.image_number for image in self.images]
+        if [
+            effect.model_dump(include={"layer_path", "frame_number", "image_number"})
+            for effect in self.cel_effects
+        ] != [cel.model_dump() for cel in self.affected_cels]:
+            raise ValueError("Cel effects must cover every affected Cel")
+        if any(effect.image_number not in numbers for effect in self.cel_effects):
+            raise ValueError("Cel effect refers to an unobserved Image")
+        for image in self.images:
+            effects = [
+                effect
+                for effect in self.cel_effects
+                if effect.image_number == image.image_number
+            ]
+            if not effects or (image.after_content_digest is not None) != any(
+                effect.after is not None for effect in effects
+            ):
+                raise ValueError("Image survival disagrees with affected Cels")
+        if self.changed != (
+            any(image.changed for image in self.images)
+            or self.palette_before != self.palette_after
+            or any(effect.before != effect.after for effect in self.cel_effects)
+        ):
+            raise ValueError(
+                "Filter change disagrees with observed Images and Palettes"
+            )
+        return self
 
 
 class FilterEvidence(
@@ -551,7 +608,7 @@ def filter_capability_gaps(
 
 
 def publish_filter[Evidence: PublicModel](
-    request: FilterRequest,
+    request: FilterMutationRequest,
     services: OperationServices,
     handler: PackagedHandler,
     parameters: Callable[[RuntimeObservation], dict[str, Any]],
@@ -575,7 +632,6 @@ def publish_filter[Evidence: PublicModel](
             {
                 "source_sprite_file": request.source_sprite_file,
                 "staged_sprite_file": str(mutation.staged_sprite_file),
-                "application": request.application.model_dump(exclude_none=True),
                 **parameters(observation),
             },
             request.timeout_seconds,
@@ -618,6 +674,7 @@ def brightness_contrast(
         services,
         BRIGHTNESS_CONTRAST_HANDLER,
         lambda observation: {
+            "application": request.application.model_dump(exclude_none=True),
             "brightness": request.brightness,
             "contrast": request.contrast,
             "tilemap_manual_filter_available": (

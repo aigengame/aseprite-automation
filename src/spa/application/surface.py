@@ -26,6 +26,11 @@ from spa.authoring.document.layer import LAYER_OPERATIONS, LAYER_SELECT_RESOURCE
 from spa.authoring.document.motion import MOTION_OPERATIONS
 from spa.authoring.document.sprite import SPRITE_OPERATIONS, SPRITE_PROBE_RESOURCES
 from spa.authoring.document.tag import TAG_OPERATIONS
+from spa.authoring.raster.despeckle import (
+    DESPECKLE_OPERATIONS,
+    DESPECKLE_RESOURCE,
+    despeckle_capability_gaps,
+)
 from spa.authoring.raster.filter import (
     FILTER_OPERATIONS,
     FILTER_RESOURCES,
@@ -82,6 +87,7 @@ from spa.delivery.palette import (
 )
 
 PROBE_RESOURCES = (
+    DESPECKLE_RESOURCE,
     *FILTER_RESOURCES,
     HUE_SATURATION_RESOURCE,
     PALETTE_QUANTIZATION_RESOURCE,
@@ -189,6 +195,12 @@ def _surface(runtime: RuntimeFacts) -> tuple[list[str], list[CapabilityGap]]:
                 runtime.aseprite_version, runtime.verified_capabilities
             )
         )
+    if "spa filter despeckle" in supported:
+        gaps.extend(
+            despeckle_capability_gaps(
+                runtime.aseprite_version, runtime.verified_capabilities
+            )
+        )
     return supported, gaps
 
 
@@ -284,6 +296,7 @@ OPERATIONS = (
     *NATIVE_PAINT_OPERATIONS,
     *FILTER_OPERATIONS,
     *HUE_SATURATION_OPERATIONS,
+    *DESPECKLE_OPERATIONS,
     *SELECTION_OPERATIONS,
     *FRAME_OPERATIONS,
     *CEL_OPERATIONS,
