@@ -1,4 +1,9 @@
-local filter = dofile(app.params.hue_saturation or app.params.brightness_contrast)
+local filter = dofile(
+  app.params.color_curve
+    or app.params.replace_color
+    or app.params.hue_saturation
+    or app.params.brightness_contrast
+)
 local kind = app.params.kind
 local failing = app.params.fault == "true"
 local mode = kind == "palette" and ColorMode.INDEXED or ColorMode.RGB
@@ -114,6 +119,17 @@ local ok, value = pcall(function()
     payload = {
       application = application,
       adjustment = { mode = "hsl-multiply", hue = 0, saturation = 0, lightness = 50 },
+    }
+  end
+  if app.params.color_curve or app.params.replace_color then
+    payload = {
+      color_mode = "rgb",
+      cels_target = application.cels_target,
+      channels = application.channels,
+      points = { { input = 0, output = 120 } },
+      from = { kind = "rgba", red = 80, green = 40, blue = 20, alpha = 255 },
+      to = { kind = "rgba", red = 120, green = 40, blue = 20, alpha = 255 },
+      tolerance = 0,
     }
   end
   return filter.apply(target, payload, {})

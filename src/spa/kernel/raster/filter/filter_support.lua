@@ -141,6 +141,7 @@ function module.targets(sprite, target, uuids, color_mode, allow_tilemaps)
 end
 
 function module.channels(channels)
+  if channels.kind == "index" then return FilterChannels.INDEX, { kind = "index" } end
   local flags, names = 0, {}
   local mapping = {
     red = FilterChannels.RED,

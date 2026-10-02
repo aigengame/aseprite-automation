@@ -105,8 +105,9 @@ installed Capability Gaps.
   and RGB Map quantization. A component preserved during adjustment can change in the
   resolved Indexed output. Feature contracts and acceptance must distinguish these
   stages and must not promise stronger component preservation than Aseprite provides.
-- Native writeback is part of the Filter semantics: it may trim transparent borders
-  or delete fully transparent Cels and their linked occurrences. Observe the affected
+- Native writeback is part of the Filter semantics: it may expand a Cel when
+  transparent Canvas Pixels become visible, trim transparent borders, or delete
+  fully transparent Cels and their linked occurrences. Observe the affected
   Layer/Frame intersections after execution; a previously captured Cel object is not
   proof that the Cel still exists. Verify the resulting state after persistence
   rather than recreating deleted Cels or preserving old bounds against native behavior.
