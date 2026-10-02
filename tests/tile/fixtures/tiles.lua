@@ -1,4 +1,5 @@
-local mode = ({ rgb = ColorMode.RGB, grayscale = ColorMode.GRAY, indexed = ColorMode.INDEXED })[app.params.mode or "rgb"]
+local modes = { rgb = ColorMode.RGB, grayscale = ColorMode.GRAY, indexed = ColorMode.INDEXED }
+local mode = modes[app.params.mode or "rgb"]
 local s = Sprite(16, 16, mode)
 s.gridBounds = Rectangle(0, 0, 2, 3)
 app.activeSprite = s
@@ -11,14 +12,19 @@ ts.baseIndex = tonumber(app.params.base_index or "1")
 for index = 1, 4 do
   local tile = s:newTile(ts)
   tile.image:clear(mode == ColorMode.RGB and app.pixelColor.rgba(index * 40, 30, 20, 255) or index)
-  if index ~= 3 then tile.properties("aigengame.spa").tile_key = index == 4 and "red" or ({"red", "green"})[index] end
+  if index ~= 3 then
+    tile.properties("aigengame.spa").tile_key = index == 4 and "red" or ({ "red", "green" })[index]
+  end
 end
-local m = Image(3, 2, ColorMode.TILEMAP)
+local mw, mh = tonumber(app.params.map_width or "3"), tonumber(app.params.map_height or "2")
+local m = Image(mw, mh, ColorMode.TILEMAP)
 m:clear(0)
 m:putPixel(0, 0, 1)
 m:putPixel(2, 0, 2 | 0x80000000)
 m:putPixel(0, 1, 3 | 0x60000000)
 m:putPixel(2, 1, 4 | 0xe0000000)
+if mw > 3 then m:putPixel(mw - 1, mh - 1, 2) end
+if app.params.invalid_index == "true" then m:putPixel(1, 0, 99 | 0x80000000) end
 s:newCel(first, 1, m, Point(-5, 7))
 s:newEmptyFrame()
 app.activeLayer = first

@@ -16,7 +16,12 @@ local response
 if ok then
   response = { kernel_protocol_version = 1, status = "ok", result = result }
 else
-  response = { kernel_protocol_version = 1, status = "error", cause = "operation_rejected", message = tostring(result) }
+  response = {
+    kernel_protocol_version = 1,
+    status = "error",
+    cause = "operation_rejected",
+    message = tostring(result),
+  }
 end
 local file = assert(io.open(app.params.response, "wb"))
 file:write(json.encode(response))

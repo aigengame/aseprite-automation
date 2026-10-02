@@ -5,7 +5,8 @@ function module.observes()
   local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
   local sprite, path
   local ok = pcall(function()
-    local candidate = app.fs.joinPath(app.fs.tempPath, "spa-tile-probe-" .. tostring(Uuid()) .. ".aseprite")
+    local candidate =
+      app.fs.joinPath(app.fs.tempPath, "spa-tile-probe-" .. tostring(Uuid()) .. ".aseprite")
     assert(not app.fs.isFile(candidate), "Tile probe path already exists")
     path = candidate
     sprite = Sprite(8, 8, ColorMode.RGB)
@@ -19,9 +20,7 @@ function module.observes()
     local tile = sprite:newTile(tileset)
     tile.properties("aigengame.spa").tile_key = "probe"
     tile.properties.observed = Point(1, 2)
-    local flags = app.pixelColor.TILE_XFLIP
-      | app.pixelColor.TILE_YFLIP
-      | app.pixelColor.TILE_DFLIP
+    local flags = app.pixelColor.TILE_XFLIP | app.pixelColor.TILE_YFLIP | app.pixelColor.TILE_DFLIP
     local packed = app.pixelColor.tile(tile.index, flags)
     local image = Image(2, 1, ColorMode.TILEMAP)
     image:clear(0)

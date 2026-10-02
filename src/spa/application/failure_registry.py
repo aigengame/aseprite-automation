@@ -22,6 +22,7 @@ from spa.authoring.raster.invert_outline import INVERT_FAILURE_SPECS
 from spa.authoring.raster.paint_composite import COMPOSITE_FAILURE_CODE_SPECS
 from spa.authoring.raster.paint_native import NATIVE_PAINT_FAILURE_CODE_SPECS
 from spa.authoring.raster.selection import SELECTION_FAILURE_CODE_SPECS
+from spa.authoring.tile.inspection import TILE_FAILURE_SPECS
 from spa.contracts.mutation import MUTATION_FAILURE_CODE_SPECS
 from spa.contracts.public import CORE_FAILURE_CODE_SPECS, register_failure_codes
 from spa.delivery.export import EXPORT_FAILURE_CODE_SPECS
@@ -30,6 +31,7 @@ from spa.delivery.palette import PALETTE_EXPORT_FAILURE_SPECS
 FAILURE_CODES = register_failure_codes(
     (
         *CORE_FAILURE_CODE_SPECS,
+        *TILE_FAILURE_SPECS,
         *FILTER_FAILURE_SPECS,
         *INVERT_FAILURE_SPECS,
         *PALETTE_FAILURE_CODE_SPECS,

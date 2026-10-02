@@ -219,6 +219,7 @@ does not add other motion modes or recipe-owned pose and particle behavior.
 | `spa tileset tile remove` | Remove a Tile and explicitly rewrite affected placements. |
 | `spa tileset tile reorder` | Reorder every keyed non-empty Tile through a complete permutation. |
 | `spa tileset validate` | Validate Grid, references, indexes, keys, and Tile rules. |
+| `spa tilemap list` | List complete Tilemap Layer bindings and existing Cel topology. |
 | `spa tilemap get` | Inspect topology or one bounded Tile Region Snapshot. |
 | `spa tilemap set` | Replace a complete Tile Cell Rectangle. |
 | `spa tilemap patch` | Change listed Tile Cells and preserve the rest. |

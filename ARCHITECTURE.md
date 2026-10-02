@@ -491,6 +491,7 @@ src/spa/
     public.py, operation.py, ports.py
     mutation.py           # Source/Target identity and Target Commit contracts
     artifact.py           # shared publication/verification failure details
+    snapshot.py           # explicit destination for complete JSON Snapshot transport
     digest.py             # one shared native evidence digest binding
     raster.py, rounding.py # shared values and their native bindings
   authoring/
@@ -506,6 +507,8 @@ src/spa/
       quantization.py     # explicit native Palette generation contract and evidence
       color_mode.py       # Conditional native conversion contract and evidence
       profile.py          # Native Color Profile contracts and ICC input policy
+    tile/
+      inspection.py, values.py # exact native Tile observations and bounded Snapshot values
   delivery/
     export.py             # Export Image contract, native invocation, and result
     palette.py            # verified Palette file export and explicit generation composition
@@ -522,6 +525,7 @@ src/spa/
     raster/
       image/, paint/, selection/
       raster_color.lua
+    tile/                 # Tileset identity, topology, validation, complete Tile Regions
     color/                # Palette semantics, native Color Mode and Color Profile operations
     delivery/             # native Image Export
     runtime/              # runtime and capability probes
@@ -565,8 +569,14 @@ compares all nested Kernel files with source bytes outside the checkout, includi
 real LFS fixture content. This inventory verifies the distribution and is not an
 Operation registry.
 
-Add a module only with a complete functional slice. Preparation and Tile packages
-have no placeholder implementation. Color and Palette owns the shared Effective
+Add a module only with a complete functional slice. Preparation has no placeholder
+implementation. Tile Authoring now owns `authoring/tile` and `kernel/tile`: Python
+publishes typed inspection contracts and verifies complete Snapshot transport before
+Artifact publication; Lua resolves native Tilesets, Tile Keys, Layer bindings, and
+Tile Cell placements. It depends on Document's exact Layer addressing and Raster's
+Pixel Region Snapshot encoding for Tile bitmaps. It does not assign Keys, mutate
+Cels, or own Source persistence. Shared JSON Snapshot destination mechanics live in
+`contracts/snapshot.py`; Tile Region values stay in their feature owner. Color and Palette owns the shared Effective
 Palette resolver and standalone Palette list/get/set/resize/remap/reorder. Its native module resolves
 Frame-based change points, edits only exact existing changes, and checks the full
 Palette timeline after shared Sprite persistence completes. This Palette-specific
