@@ -1,5 +1,5 @@
 local modes = { rgb = ColorMode.RGB, grayscale = ColorMode.GRAY, indexed = ColorMode.INDEXED }
-local sprite = Sprite(5, 5, modes[app.params.mode])
+local sprite = Sprite(tonumber(app.params.width) or 5, 5, modes[app.params.mode])
 local palette = Palette(tonumber(app.params.palette_size) or 256)
 for i = 0, #palette - 1 do
   palette:setColor(i, Color { r = i, g = 255 - i, b = (i * 37) % 256, a = i == 0 and 0 or 255 })
