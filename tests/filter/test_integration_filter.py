@@ -49,12 +49,16 @@ def evidence():
         "images": [
             {
                 "image_number": 1,
+                "image_kind": "ordinary",
                 "before_content_digest": {"value": "0000000000000001"},
                 "after_content_digest": {"value": "0000000000000002"},
                 "changed": True,
             }
         ],
         "processed_image_numbers": [1],
+        "requested_tileset_mode": None,
+        "observed_tileset_mode": None,
+        "changed_tiles": [],
         "affected_cels": [cel],
         "changed": True,
         "persisted_reopen_verified": True,
@@ -169,6 +173,57 @@ def test_kernel_exception_discards_stage_and_preserves_both_files(tmp_path):
 
 
 @pytest.mark.parametrize(
+    "corruption", ["none", "missing_direct", "image_number", "duplicate", "empty_tile"]
+)
+def test_tile_reference_evidence_controls_publication(tmp_path, corruption):
+    response = evidence()
+    response["requested_tileset_mode"] = response["observed_tileset_mode"] = "manual"
+    image = response["images"][0]
+    image.update(image_kind="tilemap-placement", changed=False)
+    image["after_content_digest"] = image["before_content_digest"]
+    reference = {
+        **response["existing_target_cels"][0],
+        "relationships": ["shared-tile", "direct-target"],
+    }
+    response["changed_tiles"] = [
+        {
+            "tileset_index": 1,
+            "tile_index": 1,
+            "tile_key": None,
+            "before_content_digest": {"value": "0000000000000001"},
+            "after_content_digest": {"value": "0000000000000002"},
+            "referencing_cels": [reference],
+        }
+    ]
+    if corruption == "missing_direct":
+        reference["relationships"] = ["shared-tile"]
+    elif corruption == "image_number":
+        reference["image_number"] = 99
+    elif corruption == "duplicate":
+        response["changed_tiles"][0]["referencing_cels"].append(reference.copy())
+    elif corruption == "empty_tile":
+        response["changed_tiles"][0]["tile_index"] = 0
+    request, services, source, target, staged = setup_operation(tmp_path, response)
+    request = BrightnessContrastRequest.model_validate(
+        {
+            **request.model_dump(),
+            "application": {
+                **request.application.model_dump(),
+                "tileset_mode": "manual",
+            },
+        }
+    )
+    if corruption == "none":
+        assert brightness_contrast(request, services).changed
+        assert target.read_bytes() == b"native staged output"
+    else:
+        with pytest.raises(RuntimeIssue) as caught:
+            brightness_contrast(request, services)
+        assert caught.value.kind == "response_malformed"
+        assert_unpublished(source, target, staged)
+
+
+@pytest.mark.parametrize(
     "capability,available,unavailable",
     [
         (
@@ -200,3 +255,23 @@ def test_filter_and_paint_capability_gates_are_independent(
     )
     assert available in result.supported_capabilities
     assert unavailable not in result.supported_capabilities
+
+
+@pytest.mark.parametrize("tilemap_available", [True, False])
+def test_tilemap_gap_does_not_hide_ordinary_filter(tilemap_available):
+    capabilities = ["aseprite_sprite_inspection", "aseprite_filter_brightness_contrast"]
+    if tilemap_available:
+        capabilities.append("aseprite_filter_brightness_contrast_tilemap_manual")
+    result = info_result(
+        RuntimeRequest(),
+        operation_services(lambda _: runtime_observation(*capabilities)),
+    )
+    assert "spa filter brightness-contrast" in result.supported_capabilities
+    assert any(
+        gap.capability == "spa filter hue-saturation: Tilemap pixels"
+        for gap in result.capability_gaps
+    )
+    assert (
+        any("Manual Tilemap" in gap.capability for gap in result.capability_gaps)
+        != tilemap_available
+    )

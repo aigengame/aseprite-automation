@@ -39,6 +39,7 @@ def test_info_reports_installed_runtime() -> None:
         "aseprite_paint_composite_indexed",
         "aseprite_selection",
         "aseprite_filter_brightness_contrast",
+        "aseprite_filter_brightness_contrast_tilemap_manual",
         "aseprite_filter_hue_saturation",
         "aseprite_change_color_mode",
         "aseprite_assign_color_profile",
@@ -202,7 +203,6 @@ def test_info_reports_installed_runtime() -> None:
         "spa paint jumble",
         "spa palette add",
         "spa palette remove",
-        "spa filter brightness-contrast: Tilemap pixels",
         "spa filter hue-saturation: Tilemap pixels",
     ]
     assert all(

@@ -406,15 +406,24 @@ an explicit Canvas Pixel `selection`; omission selects the whole Canvas, while
 `{"kind":"empty"}` selects no pixels. Empty Selection still allows the Palette
 part of `rgb-palette-colors` to change.
 
-SPA currently rejects the whole pixel application if any resolved target is a
-Tilemap Cel, including under `all`. Explicit ordinary targets in mixed documents
-remain supported. Indexed Palette-only application can use a private Tilemap-only
-anchor and verifies that ordinary Images, Tilemap placement Images, and all Tile
-Images remain unchanged. A Palette basis Frame without a usable anchor produces
-`filter_unsupported_document`. These are the delivery boundaries of
-[issue #35](https://github.com/aigengame/aseprite-automation/issues/35);
-[issue #152](https://github.com/aigengame/aseprite-automation/issues/152) owns future
-Tilemap pixel filtering. Installed discovery reports the corresponding Capability Gap.
+Brightness/Contrast accepts resolved Tilemap pixel targets with explicit
+`tileset_mode: "manual"` on the pixel application and a verified runtime capability.
+It checks the native Site mode before mutation; omitted Manual intent or a different
+observed mode rejects the whole request. Ordinary Image targets and Indexed
+Palette-only applications do not require that Tilemap capability. Tilemap placement
+Images, flags, Tileset bindings, Grid, topology, and metadata stay unchanged.
+`changed_tiles` reports changed Tile bitmaps and referencing Cels, including references
+outside the requested range or Selection. Native shared-Tile effects can occur more
+than once across distinct target Cel Images; this is not a once-per-Tile contract.
+
+Indexed Palette-only application can use a private Tilemap-only anchor and verifies
+that ordinary Images, Tilemap placement Images, and all Tile Images remain unchanged.
+A Palette basis Frame without a usable anchor produces `filter_unsupported_document`.
+These are the delivery boundaries of
+[issue #35](https://github.com/aigengame/aseprite-automation/issues/35) and
+[issue #152](https://github.com/aigengame/aseprite-automation/issues/152).
+Installed discovery reports the selected runtime's Manual Tilemap Capability Gap
+when that native probe does not pass. Hue/Saturation retains its separate boundary below.
 
 Results include effective Selection, Channels, Palette basis and indexes,
 requested intersections, existing targets, exclusions, unique Image observations,

@@ -635,6 +635,7 @@ The native Brightness/Contrast and Hue/Saturation slices share typed application
 variants, native evidence types, and staged Target publication in
 `authoring/raster/filter.py`. Each operation retains its Channel set and adjustment
 schema; `hue_saturation.py` owns the conditional HSL/HSV, Grayscale, and Alpha forms.
+Brightness/Contrast alone adds Manual Tileset Mode and changed-Tile evidence.
 `filter_support.lua` owns Filter Cels Target resolution, Channel flags, editor-state
 restoration, and stable Layer/Frame observations. `filter_application.lua` owns
 Palette application and native transaction setup. The two small adjustment modules
@@ -647,9 +648,27 @@ Native writeback can trim or delete Cels. Hue/Saturation observes the surviving
 Layer/Frame intersections and reports bounds or absence, including affected links
 outside the selected range, without retaining deleted Cel userdata. Its independent
 runtime gate discriminates all four HSL/HSV modes across the five applications.
-Tilemap pixel filtering remains outside #35/#36; Indexed Palette-only anchors
-preserve ordinary, placement, and Tile Images (ADR-0074). This is a delivery boundary
-at shared target resolution, not a permanent restriction on future Filter features.
+Hue/Saturation rejects resolved Tilemap pixel targets; Indexed Palette-only anchors
+preserve ordinary, placement, and Tile Images (ADR-0074). This is its current delivery
+boundary, not a permanent restriction on future Filter features.
+
+Brightness/Contrast passes the concrete `filter_tiles.lua` module into the shared
+execution path. It owns Manual Tilemap admission, preserved placement/binding/Grid
+postconditions, and changed Tile bitmap references. It consumes the existing low-level
+Image/reference observations in `palette_images.lua`, without Palette mutation policy.
+The shared target resolver admits Tilemaps only when that operation supplies Tile support.
+A separate runtime probe observes the four Manual Tilemap pixel applications. The
+application passes that private capability fact to the Kernel, which checks actual
+resolved targets and the live native Site mode before mutation. Ordinary Image and
+Palette-only applications do not require the Tilemap capability (ADR-0074, #152).
+
+Manual Tilemap verification compares canonical native User Data chunks, including their
+structural positions and extension mappings, through temporary `saveCopyAs` snapshots.
+This preserves observation of arbitrary plugin namespaces and native Property types
+that the Lua getters cannot fully enumerate. It does not decode or rewrite Properties.
+Before/live comparison runs inside the native transaction; save-close-reopen comparison
+runs before Target Commit. Existing full Image observations cover ordinary color Images,
+placement Images, Tile bitmaps, and sharing. No topology or metadata repair is performed.
 
 The native Fill, Pencil, Eraser, Line, Rectangle, Ellipse, Contour, and Blur
 operations use `paint_native.py` for typed

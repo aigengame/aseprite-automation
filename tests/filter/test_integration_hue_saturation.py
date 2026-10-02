@@ -16,6 +16,10 @@ from tests.filter.test_integration_filter import (
 def hue_evidence():
     result = evidence()
     del result["brightness"], result["contrast"]
+    del result["requested_tileset_mode"], result["observed_tileset_mode"]
+    del result["changed_tiles"]
+    for image in result["images"]:
+        del image["image_kind"]
     result["adjustment"] = {
         "mode": "hsl-multiply",
         "hue": 0,
@@ -33,7 +37,13 @@ def hue_evidence():
 def hue_request(brightness_request):
     return HueSaturationRequest.model_validate(
         {
-            **brightness_request.model_dump(exclude={"brightness", "contrast"}),
+            **brightness_request.model_dump(
+                exclude={
+                    "brightness": True,
+                    "contrast": True,
+                    "application": {"tileset_mode"},
+                }
+            ),
             "adjustment": {
                 "mode": "hsl-multiply",
                 "hue": 0,

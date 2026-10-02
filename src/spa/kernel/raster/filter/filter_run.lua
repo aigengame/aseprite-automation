@@ -3,7 +3,7 @@ local persistence = dofile(app.params.persistence)
 local support = dofile(app.params.filter_support)
 local module = {}
 
-function module.execute(filter, title)
+function module.execute(filter, title, tiles)
   local sprite = nil
   local function execute()
     local file = assert(io.open(app.params.request, "rb"))
@@ -16,12 +16,21 @@ function module.execute(filter, title)
     local result = filter.apply(sprite, payload, uuids)
     if result.rejection then return result end
     local live = support.snapshot(sprite, uuids)
+    local metadata = tiles
+      and result.observed_tileset_mode == "manual"
+      and tiles.serialized_metadata(sprite)
     sprite, uuids = persistence.save_verified(sprite, payload.staged_sprite_file, uuids, title)
     persistence.assert_equal(
       live,
       support.snapshot(sprite, uuids),
       "Persisted Filter Images and Palettes"
     )
+    if metadata then
+      assert(
+        persistence.equal(metadata, tiles.serialized_metadata(sprite)),
+        "Persisted Filter User Data changed"
+      )
+    end
     result.persisted_reopen_verified = true
     return result
   end

@@ -15,6 +15,7 @@ function module.snapshot(sprite, uuids, omit_palettes)
     document = persistence.snapshot(sprite, inspection, digest, sections, uuids),
     images = image_uses.facts(image_uses.resolve(sprite)),
     tiles = image_uses.tile_metadata(sprite),
+    tilemaps = dofile(app.params.filter_tiles).snapshot(sprite, "persisted"),
   }
 end
 
@@ -37,7 +38,7 @@ local function editable(sprite, layer)
   return true
 end
 
-function module.targets(sprite, target, uuids, color_mode)
+function module.targets(sprite, target, uuids, color_mode, allow_tilemaps)
   local chosen, frames, excluded = {}, {}, {}
   if target.kind == "selected" then
     local seen = {}
@@ -84,20 +85,21 @@ function module.targets(sprite, target, uuids, color_mode)
       local cel = layer:cel(frame)
       local number = nil
       if cel then
-        if layer.isTilemap then
-          return nil,
-            module.reject(
-              "SPA does not yet support Tilemap pixel filtering; "
-                .. "select ordinary Image Layers or use Indexed Palette-only application",
-              true
-            )
+        if layer.isTilemap and not allow_tilemaps then
+          return nil, module.reject("Tilemap pixel filtering is not supported by this Filter", true)
         end
         number = image_numbers[cel.image.id]
         if not number then
           number = #images + 1
           image_numbers[cel.image.id] = number
-          images[number] =
-            { layer = layer, frame = frame, before = digest.image_content(cel.image, color_mode) }
+          local mode = layer.isTilemap and "tilemap" or color_mode
+          images[number] = {
+            layer = layer,
+            frame = frame,
+            image_kind = layer.isTilemap and "tilemap-placement" or "ordinary",
+            mode = mode,
+            before = digest.image_content(cel.image, mode),
+          }
         end
       end
       local fact = {

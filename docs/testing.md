@@ -69,7 +69,8 @@ Brightness/Contrast #35 covers RGB/Grayscale/Indexed pixels, Indexed Palette-onl
 and RGB Palette plus matching pixels. Native fixtures verify component Alpha
 preservation separately from Indexed RGB Map quantization, Cartesian targets,
 Linked Cel Image deduplication, Selection, Palette basis, and exact Palette Changes.
-Tilemap targets reject the whole pixel application; Palette-only Tilemap anchors
+Tilemap pixel targets require the explicit Manual extension delivered by #152;
+without it, the whole pixel application is refused. Palette-only Tilemap anchors
 preserve ordinary Images, placement bytes, and all Tile bitmaps including Empty
 Tile 0. Direct native calls supply boundary-value parity; injected post-command
 failures verify transaction rollback and active Sprite, range, Palette Picks, and
@@ -486,8 +487,8 @@ macOS evidence; it is not Linux evidence. The macOS bundle and restricted-agent 
 remain macOS-specific. Issue #69 owns Linux CI and Linux real-Aseprite evidence.
 
 Aseprite `--batch` does not start the UI. A test that produces or inspects image files
-through that path is not windowed unless it actually needs a display. When a future
-test does require a window, declare that precondition at the test boundary and add a
+through that path is not windowed unless it actually needs a display. When a
+test requires a window, declare that precondition at the test boundary and add a
 shared display gate only when more than one test needs it. An optional run on a host
 without display capability can skip with a visible reason. Display permission denial
 must fail. A job that claims graphical coverage must fail when its required windowed
@@ -537,6 +538,18 @@ remains separate developer evidence; it cannot replace the Linux release gate.
 Windowed Aseprite behavior has no CI coverage until a
 dedicated display-capable job is added with an execution-count gate.
 
+Manual Tilemap Brightness/Contrast tests live in `tests/filter/`. They compare the
+installed Operation with an independent native batch command using the same Manual
+mode, Channels, Palette basis, and Canvas Selection. They cover shared Tiles across
+linked and distinct Cel Images, hidden/locked references, placement flags and clipping,
+the four pixel application branches, and Indexed RGB Map Alpha quantization.
+Failure injection checks mixed-target rollback and editor-state restoration. Native
+User Data serialization checks retain plugin metadata without interpreting its values.
+These tests run in the required macOS/Linux batch scope; they do not claim windowed
+editor coverage or support for AUTO/STACK mode. Grid origin evidence starts with the
+reopened Source: native ASE serialization itself does not retain a live nonzero Tileset
+Grid origin, including in a no-Filter control.
+
 The [hybrid wizard example](../examples/wizard_cast_v2/README.md) uses frozen local
 imagegen inputs. Its routine `e2e` probe checks the prepared raster handoff through
 public Pixel Patches, native save/reopen, independent Frame placement, binary alpha,
@@ -548,3 +561,69 @@ independence. This complete rebuild runs locally on demand. Automated tests need
 imagegen service or generation credentials. macOS build
 cost and Godot evidence are recorded separately in the v2 example's dogfooding
 report; Linux asset CI does not establish graphical or gameplay acceptance.
+
+## Local windowed Tilemap Filter comparison
+
+`python -m tests.filter.windowed` prepares and verifies seven operator-assisted
+cases for #152. It is explicit local acceptance evidence, outside pytest collection
+and headless CI. A running windowed Aseprite with scripting and a usable display is
+required. Missing output, rejected access, failed assertions, or differing reopened
+pixels fail this requested comparison; none count as a skip or pass.
+
+Use the same installed Aseprite binary for preparation, the window, and verification:
+
+```sh
+export SPA_TEST_ASEPRITE=/absolute/path/to/aseprite
+uv run --frozen --group test python -m tests.filter.windowed prepare /absolute/new/evidence-dir
+```
+
+The output directory must not exist. Preparation reuses the native batch fixtures,
+records Source hashes, and produces independent SPA expected outputs. Cases cover
+RGB, Grayscale, Indexed, RGB Palette colors, shared Tiles across linked/distinct Cel
+Images, and a partial Canvas Selection over offset rectangular Tiles with diagonal
+placement flags. The last case also retains Empty and unused Tiles. Comparisons
+observe all fixture placement pixels, Tile pixels/data, Palette Changes, and
+resolved colors after reopening. They do not replace the batch metadata,
+rollback, state-restoration, or broader parameter matrix tests.
+
+In Aseprite:
+
+1. Select **Tileset Mode: Manual**. Open **View → Run Command → Developer Console**.
+2. For each case directory, execute `dofile("/absolute/new/evidence-dir/CASE/run.lua")`.
+   Allow the generated Source/output/receipt file accesses when prompted. Full trust
+   or changes to script security settings are unnecessary.
+3. The script opens only the generated Source, sets the Canvas Selection and target
+   state, and checks observed Layers, Cels, Frames, Palette Picks, and Manual mode.
+   Timeline must be visible for a selected range. The helper opens it explicitly.
+   JSON arrays must be copied into Lua tables before assigning `app.range.frames`.
+4. In the real **Brightness/Contrast** dialog, enter **Brightness 50**, leave
+   **Contrast 0**, verify **Cels: Selected**, and enable **Preview**. Only **R** is
+   enabled for RGB/Indexed and **Gray** for Grayscale; Alpha is disabled. Retain a
+   screenshot of these settings and the visible target state. Click **OK** once;
+   do not click Apply. The script saves, closes, and reopens its output.
+5. Confirm that the script finishes without an error. Repeat for all seven cases.
+   Close any generated document left by a failed run before starting a fresh run.
+
+Windowed Color Bar Palette Picks and an enabled Timeline range are alternative native
+sites. Therefore the Palette-color case targets the active Cel at Frame 2 in both
+SPA and UI. The RGB, Grayscale, and Indexed cases use the Frame 2 Palette basis and
+target Frame 1. The sharing and spatial cases use the Frame 1 basis. The batch suite
+separately covers Palette-color application with a distinct target Frame; this local
+windowed comparison makes no claim about simultaneously selecting both sites.
+
+```sh
+uv run --frozen --group test python -m tests.filter.windowed verify /absolute/new/evidence-dir
+```
+
+Verification removes the previous `comparison.json` before reading the manifest and
+checking cases. It writes a new report only after all seven comparisons pass, so a
+failed comparison cannot leave a previous aggregate success report in place.
+
+Retain `manifest.json`, `comparison.json`, case receipts, screenshots/operator
+observations, Source and both outputs with the PR evidence. A receipt records the
+script's observed preconditions and reopen; it alone cannot prove that an operator
+inspected the dialog or pressed OK. Equality plus unchanged Source hashes is the
+persisted-data check. Cancel/no-op and repeated Apply are detected by the nonzero
+fixtures. Record the actual GUI Aseprite version and host; do not report these local
+results as Linux or automated CI coverage. Restore the prior Timeline visibility
+and Tileset mode after completing the local session if they were changed.

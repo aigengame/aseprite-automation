@@ -1,6 +1,7 @@
 -- Aseprite owns Brightness/Contrast arithmetic and quantization.
 local module = {}
 local application = dofile(app.params.filter_application)
+local tiles = dofile(app.params.filter_tiles)
 
 function module.apply(sprite, payload, uuids)
   local result = application.apply(sprite, payload, uuids, "Brightness/Contrast", function(flags)
@@ -15,7 +16,7 @@ function module.apply(sprite, payload, uuids)
       "Native Brightness/Contrast failed"
     )
     return true
-  end)
+  end, tiles)
   if not result.rejection then
     result.cel_effects = nil
     result.brightness = payload.brightness

@@ -245,7 +245,7 @@ def hue_saturation(
         request,
         services,
         HUE_SATURATION_HANDLER,
-        {
+        lambda _observation: {
             "adjustment": request.adjustment.model_dump()
             if request.adjustment
             else None,

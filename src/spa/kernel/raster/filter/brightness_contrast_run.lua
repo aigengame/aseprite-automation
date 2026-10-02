@@ -1,2 +1,3 @@
-local runner = dofile(app.params.filter_run)
-runner.execute(dofile(app.params.brightness_contrast), "Brightness/Contrast")
+local filter = dofile(app.params.brightness_contrast)
+local tiles = dofile(app.params.filter_tiles)
+dofile(app.params.filter_run).execute(filter, "Brightness/Contrast", tiles)

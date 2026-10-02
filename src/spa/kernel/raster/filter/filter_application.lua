@@ -7,7 +7,7 @@ local palette = dofile(app.params.palette)
 local effective = dofile(app.params.effective_palette)
 local persistence = dofile(app.params.persistence)
 
-function module.apply(sprite, payload, uuids, title, adjust)
+function module.apply(sprite, payload, uuids, title, adjust, tiles)
   local application = payload.application
   local palette_only = application.kind == "indexed-palette-entries"
   local rgb_palette = application.kind == "rgb-palette-colors"
@@ -27,7 +27,7 @@ function module.apply(sprite, payload, uuids, title, adjust)
       cel_states = {},
     }
   else
-    targets, rejection = support.targets(sprite, application.cels_target, uuids, mode)
+    targets, rejection = support.targets(sprite, application.cels_target, uuids, mode, tiles ~= nil)
     if rejection then return rejection end
   end
   local flags, channels = support.channels(application.channels)
@@ -74,7 +74,7 @@ function module.apply(sprite, payload, uuids, title, adjust)
       if
         cel.frame.frameNumber == frame
         and not cel.layer.isReference
-        and (palette_only or not cel.layer.isTilemap)
+        and (palette_only or tiles ~= nil or not cel.layer.isTilemap)
         and not (needs_alpha_anchor and cel.layer.isBackground)
       then
         anchor = cel
@@ -95,7 +95,20 @@ function module.apply(sprite, payload, uuids, title, adjust)
   local before = palette_only and support.snapshot(sprite, uuids, true)
   return support.with_state(sprite, function()
     app.activeSprite = sprite
+    local tile_anchor = tiles and tiles.anchor(targets)
+    if tile_anchor then
+      app.activeCel = tile_anchor
+      local refused =
+        tiles.admit(application, payload.tilemap_manual_filter_available, app.site.tilesetMode)
+      if refused then return support.reject(refused, true) end
+    end
     app.activeCel = anchor
+    -- Verify the command's actual Site too, including an explicit Palette anchor.
+    if tile_anchor then
+      local refused =
+        tiles.admit(application, payload.tilemap_manual_filter_available, app.site.tilesetMode)
+      if refused then return support.reject(refused, true) end
+    end
     app.range:clear()
     if not palette_only then
       app.range.layers = targets.layers
@@ -111,13 +124,15 @@ function module.apply(sprite, payload, uuids, title, adjust)
       sprite.selection = mask
     end
     local result
+    local tile_before = tiles and tiles.snapshot(sprite, mode)
+    local metadata_before = tile_anchor and tiles.serialized_metadata(sprite)
     app.transaction(title, function()
       local filtering = adjust(flags)
       local images, processed, changed = {}, {}, false
       for number, image in ipairs(targets.images) do
         if filtering then processed[#processed + 1] = number end
         local cel = image.layer:cel(image.frame)
-        local after = cel and digest.image_content(cel.image, mode) or json_null
+        local after = cel and digest.image_content(cel.image, image.mode) or json_null
         local differs = not cel or image.before.value ~= after.value
         changed = changed or differs
         images[#images + 1] = {
@@ -126,17 +141,19 @@ function module.apply(sprite, payload, uuids, title, adjust)
           after_content_digest = after,
           changed = differs,
         }
+        if tiles then images[#images].image_kind = image.image_kind end
       end
       local cel_effects = {}
       for index, state in ipairs(targets.cel_states) do
         local fact = targets.affected_cels[index]
         local cel = state.layer:cel(state.frame)
+        local bounds = cel and cel.bounds
         local after = cel
             and {
-              x = cel.position.x,
-              y = cel.position.y,
-              width = cel.image.width,
-              height = cel.image.height,
+              x = bounds.x,
+              y = bounds.y,
+              width = bounds.width,
+              height = bounds.height,
             }
           or json_null
         changed = changed or not persistence.equal(state.before, after)
@@ -149,6 +166,17 @@ function module.apply(sprite, payload, uuids, title, adjust)
         }
       end
       local palette_after = palette.list(sprite)
+      local changed_tiles
+      if tiles then
+        changed_tiles = tiles.changes(tile_before, tiles.snapshot(sprite, mode), targets)
+        if metadata_before then
+          assert(
+            persistence.equal(metadata_before, tiles.serialized_metadata(sprite)),
+            "Filter User Data changed"
+          )
+        end
+        changed = changed or #changed_tiles > 0
+      end
       if palette_only then
         persistence.assert_equal(
           before,
@@ -179,6 +207,11 @@ function module.apply(sprite, payload, uuids, title, adjust)
         affected_cels = targets.affected_cels,
         cel_effects = cel_effects,
       }
+      if tiles then
+        result.requested_tileset_mode = application.tileset_mode or json_null
+        result.observed_tileset_mode = tile_anchor and "manual" or json_null
+        result.changed_tiles = changed_tiles
+      end
     end)
     return result
   end)

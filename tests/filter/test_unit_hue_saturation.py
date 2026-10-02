@@ -75,6 +75,13 @@ def assert_rejected(data):
 
 
 @pytest.mark.parametrize("branch", range(5))
+def test_manual_tilemap_support_is_not_part_of_hue_contract(branch):
+    data = payload(branch)
+    data["application"]["tileset_mode"] = "manual"
+    assert_rejected(data)
+
+
+@pytest.mark.parametrize("branch", range(5))
 @pytest.mark.parametrize("mode", MODES)
 def test_all_applications_accept_applicable_zero_adjustment(branch, mode):
     data = payload(branch, mode)
