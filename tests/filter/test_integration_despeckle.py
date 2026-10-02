@@ -48,6 +48,142 @@ def test_matched_native_observations_publish(tmp_path):
     assert not staged[0].exists()
 
 
+def test_omitted_selection_cannot_publish_empty_selection_evidence(tmp_path):
+    response = response_for()
+    response["selection"] = {"kind": "empty"}
+    services, source, target, staged = setup_filter_staging(tmp_path, response)
+    with pytest.raises(RuntimeIssue) as caught:
+        despeckle(request_for(source, target), services)
+    assert caught.value.kind == "response_malformed"
+    assert_unpublished(source, target, staged)
+
+
+@pytest.mark.parametrize(
+    "layers, frames",
+    [
+        ([{"layer_path": [1]}], [2]),
+        ([{"layer_path": [2]}], [1]),
+        ([{"layer_path": [1]}], [1, 2]),
+        ([{"layer_path": [1]}, {"layer_path": [2]}], [1]),
+        ([{"layer_name": "Ink"}], [2]),
+        ([{"layer_uuid": "persisted-layer"}], [2]),
+    ],
+    ids=["frame", "path", "missing-frame", "missing-layer", "name-frame", "uuid-frame"],
+)
+def test_selected_targets_cannot_publish_different_intersections(
+    tmp_path, layers, frames
+):
+    response = response_for()
+    response["cels_target_kind"] = "selected"
+    services, source, target, staged = setup_filter_staging(tmp_path, response)
+    data = request_for(source, target).model_dump()
+    data["pixels"]["cels_target"] = {
+        "kind": "selected",
+        "layers": layers,
+        "frame_numbers": frames,
+    }
+    with pytest.raises(RuntimeIssue) as caught:
+        despeckle(DespeckleRequest.model_validate(data), services)
+    assert caught.value.kind == "response_malformed"
+    assert_unpublished(source, target, staged)
+
+
+@pytest.mark.parametrize(
+    "layer",
+    [{"layer_path": [1]}, {"layer_name": "Ink"}, {"layer_uuid": "persisted-layer"}],
+)
+def test_resolved_layer_addresses_can_publish_matching_frames(tmp_path, layer):
+    response = response_for()
+    response["cels_target_kind"] = "selected"
+    services, source, target, staged = setup_filter_staging(tmp_path, response)
+    data = request_for(source, target).model_dump()
+    data["pixels"]["cels_target"] = {
+        "kind": "selected",
+        "layers": [layer],
+        "frame_numbers": [1],
+    }
+    result = despeckle(DespeckleRequest.model_validate(data), services)
+    assert result.requested_intersections[0].layer_path == [1]
+    assert target.read_bytes() == b"native staged output"
+    assert source.read_bytes() == b"original source"
+    assert not staged[0].exists()
+
+
+def test_existing_targets_must_agree_with_reported_intersections(tmp_path):
+    response = response_for()
+    response["cels_target_kind"] = "selected"
+    response["requested_intersections"] = [
+        {"layer_path": [1], "frame_number": 2, "image_number": 1}
+    ]
+    services, source, target, staged = setup_filter_staging(tmp_path, response)
+    data = request_for(source, target).model_dump()
+    data["pixels"]["cels_target"] = {
+        "kind": "selected",
+        "layers": [{"layer_path": [1]}],
+        "frame_numbers": [2],
+    }
+    with pytest.raises(RuntimeIssue) as caught:
+        despeckle(DespeckleRequest.model_validate(data), services)
+    assert caught.value.kind == "response_malformed"
+    assert_unpublished(source, target, staged)
+
+
+def test_empty_selection_cannot_publish_nonempty_selection_evidence(tmp_path):
+    services, source, target, staged = setup_filter_staging(tmp_path, response_for())
+    data = request_for(source, target).model_dump()
+    data["pixels"]["selection"] = {"kind": "empty"}
+    with pytest.raises(RuntimeIssue) as caught:
+        despeckle(DespeckleRequest.model_validate(data), services)
+    assert caught.value.kind == "response_malformed"
+    assert_unpublished(source, target, staged)
+
+
+@pytest.mark.parametrize(
+    "requested, observed",
+    [
+        (
+            {"kind": "all", "rectangle": {"x": 0, "y": 0, "width": 3, "height": 1}},
+            {
+                "kind": "mask",
+                "bounds": {"x": 0, "y": 0, "width": 3, "height": 1},
+                "rows": [
+                    {"y": 0, "runs": [{"x": 0, "length": 1}, {"x": 2, "length": 1}]}
+                ],
+            },
+        ),
+        (
+            {"kind": "all", "rectangle": {"x": -1, "y": 0, "width": 3, "height": 1}},
+            {"kind": "all", "rectangle": {"x": -1, "y": 0, "width": 1, "height": 1}},
+        ),
+        (
+            {"kind": "all", "rectangle": {"x": 1, "y": 0, "width": 1, "height": 1}},
+            {"kind": "all", "rectangle": {"x": 0, "y": 0, "width": 2, "height": 1}},
+        ),
+        (
+            {
+                "kind": "mask",
+                "bounds": {"x": 1, "y": 0, "width": 1, "height": 1},
+                "rows": [{"y": 0, "runs": [{"x": 1, "length": 1}]}],
+            },
+            {"kind": "all", "rectangle": {"x": 0, "y": 0, "width": 2, "height": 1}},
+        ),
+    ],
+    ids=["rectangle-became-mask", "off-canvas", "expanded-rectangle", "expanded-mask"],
+)
+def test_impossible_selection_observations_cannot_publish(
+    tmp_path, requested, observed
+):
+    response = response_for()
+    response["selection"] = observed
+    services, source, target, staged = setup_filter_staging(tmp_path, response)
+    data = request_for(source, target).model_dump()
+    data["pixels"]["selection"] = requested
+    with pytest.raises(RuntimeIssue) as caught:
+        despeckle(DespeckleRequest.model_validate(data), services)
+    assert caught.value.kind == "response_malformed"
+    assert_unpublished(source, target, staged)
+
+
 @pytest.mark.parametrize(
     "corruption",
     [
