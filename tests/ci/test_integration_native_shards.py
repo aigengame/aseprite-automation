@@ -237,6 +237,30 @@ def test_aggregate_rejects_incomplete_or_mismatched_evidence(
     assert "Native E2E failed" in result.stderr
 
 
+@pytest.mark.parametrize("shards", [1, 2])
+def test_platform_skips_preserve_success_across_partitions(
+    suite: Path, shards: int
+) -> None:
+    path = suite / "test_cases.py"
+    path.write_text(
+        path.read_text().replace(
+            "assert value >= 0", "pytest.skip('platform') if value % 2 else None"
+        )
+    )
+    result = run(
+        suite,
+        "run",
+        "--shards",
+        str(shards),
+        "--workers",
+        "1",
+        "--output-dir",
+        str(suite / "results"),
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "selected=6 passed=3 skipped=3" in result.stdout
+
+
 def test_all_skipped_suite_and_reused_output_cannot_pass(suite: Path) -> None:
     path = suite / "test_cases.py"
     path.write_text(

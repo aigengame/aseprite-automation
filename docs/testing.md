@@ -216,8 +216,9 @@ The runner isolates shard workspaces and retains the existing per-invocation nat
 user folders. It records original IDs and outcomes, JUnit, target identity, resource
 configuration, and elapsed shard time. Every worker must collect the same suite and
 assigned shard. Success requires every shard, one outcome per selected ID, identical
-full collections and targets, successful pytest exits, and nonempty executed JUnit
-results. Missing, duplicate, cancelled, or mismatched evidence fails the aggregate.
+full collections and targets, successful pytest exits, and nonempty JUnit reports.
+A shard may contain only documented platform skips; the complete selection must
+execute tests. Missing, duplicate, cancelled, or mismatched evidence fails the aggregate.
 Ambient `PYTEST_ADDOPTS` is cleared so it cannot silently reduce required coverage.
 The entry point is for macOS and Linux; extra diagnostic pytest options belong in
 an explicit direct pytest run.

@@ -44,8 +44,8 @@ def check_report(path: Path, config: Configuration, target: dict) -> dict:
         f"JUnit execution: total={total} skipped={skipped} executed={executed}",
         flush=True,
     )
-    if executed == 0:
-        raise ValueError("real Aseprite E2E gate executed no tests")
+    if total == 0:
+        raise ValueError("native shard reported no tests")
     if report["target"] != target or any(
         report[key] != value
         for key, value in (
@@ -90,6 +90,8 @@ def verify(output: Path, config: Configuration, target: dict) -> None:
     if Counter(o["nodeid"] for o in outcomes) != Counter(collection):
         raise ValueError("native shard union is incomplete or duplicated")
     counts = Counter(o["outcome"] for o in outcomes)
+    if counts["passed"] == 0:
+        raise ValueError("real Aseprite E2E gate executed no tests")
     print(
         f"Native E2E: selected={len(collection)} passed={counts['passed']} "
         f"skipped={counts['skipped']} sha={target['sha']}",

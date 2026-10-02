@@ -254,9 +254,27 @@ def test_all_skipped_native_run_still_fails_execution_audit(controlled_suite):
         """,
     )
     result = run_step(directory, env)
-    assert result.returncode != 0
+    assert result.returncode == 0, result.stdout + result.stderr
     assert Path(env["SPA_E2E_JUNIT_PATH"]).is_file()
     assert "executed=0" in result.stdout
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/native_e2e.py",
+            "verify",
+            "--output-dir",
+            str(directory / "spa-native-e2e"),
+            "--target-file",
+            str(directory / "spa-native-target.json"),
+        ],
+        cwd=directory,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert result.returncode != 0
     assert "executed no tests" in result.stderr
 
 
