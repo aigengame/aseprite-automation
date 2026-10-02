@@ -81,7 +81,17 @@ class ReplaceColorEvidence(PixelFilterEvidence):
         # One original Image is counted once, even when several Cels share it.
         areas = {}
         for effect in self.cel_effects:
-            areas[effect.image_number] = effect.before.width * effect.before.height
+            before, after = effect.before, effect.after
+            area = before.width * before.height
+            if after is not None:
+                width = max(before.x + before.width, after.x + after.width) - min(
+                    before.x, after.x
+                )
+                height = max(before.y + before.height, after.y + after.height) - min(
+                    before.y, after.y
+                )
+                area = width * height
+            areas[effect.image_number] = max(areas.get(effect.image_number, 0), area)
         if self.changed_pixel_count > sum(areas.values()) or (
             self.changed_pixel_count > 0 and not self.changed
         ):

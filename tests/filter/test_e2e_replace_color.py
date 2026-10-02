@@ -114,3 +114,47 @@ def test_replace_matches_native_in_each_mode(
     assert result["changed_pixel_count"] == sum(
         a != b for a, b in zip(before["cels"][0]["pixels"], after["cels"][0]["pixels"])
     )
+
+
+@pytest.mark.parametrize("linked", [False, True])
+def test_transparent_replacement_counts_native_expansion_once(
+    tmp_path, runtime, linked
+):
+    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
+    native_script(
+        runtime, "replace_expansion.lua", source=source, linked=str(linked).lower()
+    )
+    before = source.read_bytes()
+    options = pixels(
+        channels={"kind": "components", "names": ["red", "green", "blue", "alpha"]}
+    )
+    options.pop("kind")
+    code, result = run(
+        "filter",
+        "replace-color",
+        source_sprite_file=str(source),
+        target_sprite_file=str(target),
+        in_place=False,
+        overwrite=False,
+        tolerance=0,
+        **{
+            "from": {"kind": "rgba", "red": 0, "green": 0, "blue": 0, "alpha": 0},
+            "to": {"kind": "rgba", "red": 255, "green": 0, "blue": 0, "alpha": 255},
+        },
+        **options,
+    )
+    assert code == 0, result
+    assert result["changed_pixel_count"] == 3
+    assert result["processed_image_numbers"] == [1]
+    expected = [0xFF0000FF, 0xFFFF0000, 0xFF0000FF, 0xFF0000FF]
+    cels = observe_images(runtime, target)["cels"]
+    assert len(cels) == (2 if linked else 1)
+    assert all(
+        cel["pixels"] == expected and cel["x"] == 0 and cel["width"] == 4
+        for cel in cels
+    )
+    assert all(
+        effect["before"]["width"] == 1 and effect["after"]["width"] == 4
+        for effect in result["cel_effects"]
+    )
+    assert source.read_bytes() == before

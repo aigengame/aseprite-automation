@@ -21,19 +21,35 @@ local function native_color(value)
   return Color { index = value.index }, { kind = "palette-index", index = value.index }
 end
 
+local function pixel_at(image, left, top, x, y, transparent)
+  x, y = x - left, y - top
+  if image and x >= 0 and y >= 0 and x < image.width and y < image.height then
+    return image:getPixel(x, y)
+  end
+  return transparent
+end
+
 local function changed_pixels(originals, transparent)
   local count = 0
   for _, original in ipairs(originals) do
     local cel = original.layer:cel(original.frame)
     local image = cel and cel.image
-    for pixel in original.image:pixels() do
-      local x = pixel.x + original.x - (cel and cel.position.x or 0)
-      local y = pixel.y + original.y - (cel and cel.position.y or 0)
-      local after = transparent
-      if image and x >= 0 and y >= 0 and x < image.width and y < image.height then
-        after = image:getPixel(x, y)
+    local left, top = original.x, original.y
+    local right, bottom = left + original.image.width, top + original.image.height
+    local after_x, after_y = cel and cel.position.x or left, cel and cel.position.y or top
+    if image then
+      left, top = math.min(left, after_x), math.min(top, after_y)
+      right, bottom =
+        math.max(right, after_x + image.width), math.max(bottom, after_y + image.height)
+    end
+    -- Native transparent replacement can expand the Cel beyond its old Image.
+    -- Compare both footprints in Canvas coordinates; do not recreate matching.
+    for y = top, bottom - 1 do
+      for x = left, right - 1 do
+        local before = pixel_at(original.image, original.x, original.y, x, y, transparent)
+        local after = pixel_at(image, after_x, after_y, x, y, transparent)
+        if before ~= after then count = count + 1 end
       end
-      if pixel() ~= after then count = count + 1 end
     end
   end
   return count

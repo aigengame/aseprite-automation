@@ -653,7 +653,7 @@ outside the selected range, without retaining deleted Cel userdata. Its independ
 runtime gate discriminates all four HSL/HSV modes across the five applications.
 Color Curve and Replace Color use the same stable Cel observations. Replace Color
 counts actual stored-pixel differences per distinct target Image, using Canvas
-alignment across native trimming or deletion; it does not recreate native matching.
+alignment across native expansion, trimming, or deletion; it does not recreate native matching.
 Their independent runtime gates observe RGB, Grayscale, Indexed component, and Index
 paths. Hue/Saturation, Color Curve, and Replace Color reject resolved Tilemap pixel
 targets; Hue Indexed Palette-only anchors

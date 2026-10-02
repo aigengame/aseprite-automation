@@ -105,20 +105,14 @@ installed Capability Gaps.
   and RGB Map quantization. A component preserved during adjustment can change in the
   resolved Indexed output. Feature contracts and acceptance must distinguish these
   stages and must not promise stronger component preservation than Aseprite provides.
-- Native writeback is part of the Filter semantics: it may trim transparent borders
-  or delete fully transparent Cels and their linked occurrences. Observe the affected
+- Native writeback is part of the Filter semantics: it may expand a Cel when
+  transparent Canvas Pixels become visible, trim transparent borders, or delete
+  fully transparent Cels and their linked occurrences. Observe the affected
   Layer/Frame intersections after execution; a previously captured Cel object is not
   proof that the Cel still exists. Verify the resulting state after persistence
   rather than recreating deleted Cels or preserving old bounds against native behavior.
   The owning feature contract defines which bounds, absence, and Image-survival
   observations its public Operation Result must report.
-- Replace Color currently reports `changed_pixel_count`, not a match count. It
-  compares stored pixels before and after native execution per distinct target
-  Image. Surviving pixels align by Canvas position; a removed pixel reads as the
-  native transparent value. Linked consumers do not multiply the count. A count
-  of zero does not by itself prove unchanged Cel bounds or Image structure.
-  A future match count requires an accepted need and trustworthy native evidence;
-  it must not introduce a parallel SPA matching algorithm merely for reporting.
 - Python may orchestrate the application use case and validate the public request, but
   it cannot implement a second Filter algorithm, create a generated operation script,
   or define a competing native mapping.

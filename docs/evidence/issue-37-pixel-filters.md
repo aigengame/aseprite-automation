@@ -73,9 +73,14 @@ unselected resolved components. Index mode compares stored index distance.
   source Reds `[100,200,40]` to `[100,200,100]`. `changed_pixel_count` is 1, despite
   the two matching pixels. No match count is claimed.
 - Replace Color count compares stored pixel values per distinct original target
-  Image. It aligns old/new pixels by Canvas coordinates across trimming, and reads
-  a removed pixel as the native transparent value. Linked consumers count once.
+  Image. It aligns old/new pixels by Canvas coordinates over the union of old and new bounds, and reads
+  an absent pixel as the native transparent value. Linked consumers count once.
   Digest/bounds/survival facts separately establish the complete `changed` result.
+- Transparent-to-visible replacement expands a 1x1 Cel at Canvas x=1 to a 4x1
+  Cel at x=0. The original opaque pixel stays unchanged; three added visible
+  pixels produce `changed_pixel_count=3`. The same count applies when another
+  Frame links the Image. This regression catches old-area-only counting and its
+  corresponding validation cap.
 - Alpha can trim transparent edges or delete a Cel and its linked occurrences.
   Results report nullable Image digests and Cel bounds. Source bytes are preserved.
 - Background Alpha is rejected before mutation because native execution masks it.
