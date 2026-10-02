@@ -483,6 +483,56 @@ Target Commit. Use `spa filter hue-saturation --schema` for the full contract;
 its independent runtime gate verifies all four HSL/HSV modes through the packaged
 native command path. See [#36 native evidence](docs/evidence/issue-36-hue-saturation.md).
 
+`spa filter invert-color` and `spa filter outline` operate on ordinary Image Layer
+Cels. They require explicit `color_mode`, `channels`, and `cels_target`, accept
+optional pixel `selection`, and have no `application` field. Each call publishes
+its own Target Commit; neither is an Operation Plan Step.
+
+```bash
+spa filter invert-color --input-json '{
+  "source_sprite_file": "input.aseprite",
+  "target_sprite_file": "inverted.aseprite",
+  "in_place": false, "overwrite": false,
+  "color_mode": "rgb",
+  "channels": {"kind": "components", "names": ["red", "green", "blue"]},
+  "cels_target": {"kind": "all"}
+}'
+```
+
+RGB Channels are `red`, `green`, `blue`, and `alpha`; Grayscale Channels are
+`gray` and `alpha`. Indexed Invert Color requires `palette_frame_number` and
+either RGBA `components` or exclusive `{"kind":"index"}`. Index execution uses
+native `255 - index`. Before invocation, every selected Canvas input and result
+Index must exist in the declared Effective Palette, including index-zero padding
+outside Cel bounds. `filter_index_out_of_bounds` reports the Palette basis,
+source/result Indexes, Layer paths, Frame numbers, and Canvas Pixel positions.
+SPA does not expand the Palette or switch interpretation. Indexed component
+quantization does not promise exact two-pass restoration.
+
+Outline additionally requires `place` (`inside`/`outside`), compatible
+`outline_color` and `background_color` Color Values, `tiled_mode`
+(`none`/`x`/`y`/`both`), and `matrix`. Matrix is either
+`{"kind":"preset","name":"circle"}` (`none`, `square`, `horizontal`, and
+`vertical` are also valid), or `{"kind":"custom","neighbors":["top-left","left"]}`.
+Custom neighbors name the sampled pixels relative to a candidate; a top-left
+neighbor can create an outline pixel below and right of the source. The eight
+neighbors exclude the center; empty or repeated custom entries are invalid.
+`none` requests the native empty neighborhood.
+
+Selection limits Outline writes; neighborhood reads can cross its boundary.
+Non-tiled edges use native clamping; tiled axes wrap at Canvas edges. RGB/Gray
+mixed targets use a selected non-Background color anchor; Background-only targets
+retain native opaque color projection. Indexed Outline requires valid Palette
+Index Color Values and exclusive Index Channels. Indexed component Outline is
+reported as a Capability Gap based on Aseprite 1.3.18.5 evidence.
+
+Both operations refuse any resolved Tilemap target and Background Alpha before
+mutation, including `all` and mixed requests. Ordinary targets in documents with
+unrelated Tilemaps remain usable. Results preserve Palette facts and report native
+Image changes, linked Cel effects, bounds or deletion, and verified save/reopen
+observations. Use each command's `--schema` for its installed contract. See
+[#38 native evidence](docs/evidence/issue-38-invert-outline.md).
+
 `spa selection create/combine/invert/grow/shrink/transform` return explicit
 Canvas Pixel values. Requests declare `coordinate_space: "canvas-pixel"`; values
 can be inline (`empty`, rectangular `all`, or canonical `mask`) or read from a

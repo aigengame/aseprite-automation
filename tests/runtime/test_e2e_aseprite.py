@@ -41,6 +41,8 @@ def test_info_reports_installed_runtime() -> None:
         "aseprite_filter_brightness_contrast",
         "aseprite_filter_brightness_contrast_tilemap_manual",
         "aseprite_filter_hue_saturation",
+        "aseprite_filter_invert_color",
+        "aseprite_filter_outline",
         "aseprite_change_color_mode",
         "aseprite_assign_color_profile",
         "aseprite_convert_color_profile",

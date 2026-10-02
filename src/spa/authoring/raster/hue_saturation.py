@@ -7,7 +7,7 @@ from pydantic import ConfigDict, Field, model_validator
 from spa.authoring.raster.filter import (
     FILTER_FAILURE_SPECS,
     FILTER_SHARED_RESOURCES,
-    FilterCel,
+    FilterCelEffect,
     FilterImage,
     FilterObservations,
     FilterRequest,
@@ -26,7 +26,7 @@ from spa.contracts.ports import (
     PackagedResource,
 )
 from spa.contracts.public import PublicModel, RuntimeRequirements
-from spa.contracts.raster import ImageContentDigest, PositiveRectangle
+from spa.contracts.raster import ImageContentDigest
 
 RGBChannel = Literal["red", "green", "blue", "alpha"]
 GrayChannel = Literal["gray", "alpha"]
@@ -158,12 +158,6 @@ class HueFilterImage(FilterImage[ImageContentDigest | None]):
     pass
 
 
-class FilterCelEffect(FilterCel):
-    image_number: int = Field(ge=1)
-    before: PositiveRectangle
-    after: PositiveRectangle | None
-
-
 class HueSaturationEvidence(
     FilterObservations[HueFilterImage, Literal["red", "green", "blue", "gray", "alpha"]]
 ):
@@ -174,31 +168,7 @@ class HueSaturationEvidence(
     @model_validator(mode="after")
     def consistent_observations(self) -> "HueSaturationEvidence":
         numbers = [image.image_number for image in self.images]
-        if [
-            effect.model_dump(include={"layer_path", "frame_number", "image_number"})
-            for effect in self.cel_effects
-        ] != [cel.model_dump() for cel in self.affected_cels]:
-            raise ValueError("Cel effects must cover every affected Cel")
-        if any(effect.image_number not in numbers for effect in self.cel_effects):
-            raise ValueError("Cel effect refers to an unobserved Image")
-        for image in self.images:
-            effects = [
-                effect
-                for effect in self.cel_effects
-                if effect.image_number == image.image_number
-            ]
-            if not effects or (image.after_content_digest is not None) != any(
-                effect.after is not None for effect in effects
-            ):
-                raise ValueError("Image survival disagrees with affected Cels")
-        if self.changed != (
-            any(image.changed for image in self.images)
-            or self.palette_before != self.palette_after
-            or any(effect.before != effect.after for effect in self.cel_effects)
-        ):
-            raise ValueError(
-                "Filter change disagrees with observed Images and Palettes"
-            )
+        self.validate_cel_effects(self.cel_effects)
         noop = is_noop(self.adjustment, self.alpha)
         if self.processed_image_numbers != ([] if noop else numbers) or (
             noop and self.changed
@@ -246,6 +216,7 @@ def hue_saturation(
         services,
         HUE_SATURATION_HANDLER,
         lambda _observation: {
+            "application": request.application.model_dump(exclude_none=True),
             "adjustment": request.adjustment.model_dump()
             if request.adjustment
             else None,

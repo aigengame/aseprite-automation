@@ -100,6 +100,10 @@ function module.targets(sprite, target, uuids, color_mode, allow_tilemaps)
             mode = mode,
             before = digest.image_content(cel.image, mode),
           }
+        elseif images[number].layer == layer and frame < images[number].frame then
+          -- Native selected Frames are ordered, even when the request is not.
+          -- A linked Image is filtered at its earliest selected Cel position.
+          images[number].frame = frame
         end
       end
       local fact = {
@@ -141,6 +145,7 @@ function module.targets(sprite, target, uuids, color_mode, allow_tilemaps)
 end
 
 function module.channels(channels)
+  if channels.kind == "index" then return FilterChannels.INDEX, { kind = "index" } end
   local flags, names = 0, {}
   local mapping = {
     red = FilterChannels.RED,
