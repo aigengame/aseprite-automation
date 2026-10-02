@@ -12,6 +12,7 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Any, Literal, cast, get_args
 
+from spa.adapters.aseprite.convolution import discover_convolution_resources
 from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.contracts.ports import (
     DiscoveryEvidence,
@@ -28,6 +29,7 @@ from spa.contracts.ports import (
     RuntimeObservation,
 )
 from spa.contracts.public import (
+    ConvolutionDiscovery,
     Diagnostics,
     ProbePrerequisite,
     RuntimeCapability,
@@ -346,6 +348,14 @@ def probe(
                 for capability in verified_capabilities
             ):
                 raise ValueError("Kernel probe returned an unknown runtime capability")
+            convolution = ConvolutionDiscovery.model_validate(
+                {
+                    **discover_convolution_resources(
+                        prepared.executable, prepared.environment
+                    ),
+                    "probes": response.get("convolution_probes", []),
+                }
+            )
         except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
             if status != 0:
                 raise _process_failure(status, canonical, diagnostics) from exc
@@ -370,6 +380,7 @@ def probe(
         verified_capabilities=cast(
             tuple[RuntimeCapability, ...], tuple(verified_capabilities)
         ),
+        convolution=convolution,
     )
 
 

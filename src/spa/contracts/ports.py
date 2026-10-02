@@ -11,6 +11,7 @@ from spa.contracts.mutation import (
     TargetCommitFailureReason,
 )
 from spa.contracts.public import (
+    ConvolutionDiscovery,
     Diagnostics,
     ProbePrerequisite,
     PublicModel,
@@ -32,6 +33,7 @@ class RuntimeObservation:
     lua_version: str
     verified_prerequisites: tuple[ProbePrerequisite, ...]
     verified_capabilities: tuple[RuntimeCapability, ...]
+    convolution: ConvolutionDiscovery | None = None
 
 
 RuntimeProbe = Callable[[RuntimeRequest], RuntimeObservation]

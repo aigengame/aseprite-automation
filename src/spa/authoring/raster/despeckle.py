@@ -1,6 +1,5 @@
 """Bounded native Despeckle with explicit pixel targets and Channels."""
 
-from collections.abc import Sequence
 from typing import Annotated, Literal
 
 from pydantic import Field, model_validator
@@ -156,10 +155,6 @@ def despeckle(
             "width": request.width,
             "height": request.height,
             "tiled_mode": request.tiled_mode,
-            "indexed_components_without_green_available": (
-                "aseprite_filter_despeckle_indexed_without_green"
-                in observation.verified_capabilities
-            ),
         },
         DespeckleEvidence,
         lambda evidence: evidence.matches(request),
@@ -167,25 +162,19 @@ def despeckle(
     return DespeckleResult(**evidence.model_dump(), target_commit=commit)
 
 
-def despeckle_capability_gaps(
-    version: str, capabilities: Sequence[str]
-) -> list[CapabilityGap]:
-    gaps = [
+def despeckle_capability_gaps(version: str) -> list[CapabilityGap]:
+    return [
         CapabilityGap(
             capability="spa filter despeckle: Tilemap pixels",
             aseprite_version=version,
             evidence="Despeckle rejects resolved Tilemap pixel targets before mutation; ordinary Image targets remain independent.",
-        )
+        ),
+        CapabilityGap(
+            capability="spa filter despeckle: Indexed components without Green",
+            aseprite_version=version,
+            evidence="This slice requires Green in Indexed component sets. Native 1.3.18.5 corrupts preserved Green in the excluded sets (issue #39); SPA does not add Channels or substitute Index processing. A later native fix needs focused acceptance before this boundary is extended.",
+        ),
     ]
-    if "aseprite_filter_despeckle_indexed_without_green" not in capabilities:
-        gaps.append(
-            CapabilityGap(
-                capability="spa filter despeckle: Indexed components without Green",
-                aseprite_version=version,
-                evidence="The selected runtime did not pass the Indexed component preservation probe without Green. Those component sets are refused; SPA does not add Channels or substitute Index processing.",
-            )
-        )
-    return gaps
 
 
 DESPECKLE_OPERATIONS = (

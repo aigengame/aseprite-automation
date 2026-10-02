@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from spa.authoring.raster.despeckle import DESPECKLE_RESOURCE
 from spa.authoring.raster.filter import FILTER_RESOURCES
 from spa.authoring.raster.hue_saturation import HUE_SATURATION_RESOURCE
 from tests.filter.support import apply, native_script, observe_images, pixels
@@ -24,6 +25,10 @@ def _exercise_state(
     if operation == "hue-saturation":
         resources[HUE_SATURATION_RESOURCE.parameter_name] = (
             kernel / HUE_SATURATION_RESOURCE.package_path
+        )
+    if operation == "despeckle":
+        resources[DESPECKLE_RESOURCE.parameter_name] = (
+            kernel / DESPECKLE_RESOURCE.package_path
         )
     if fault:
         key = {"palette": "palette", "tilemap": "filter_tiles"}.get(kind, "digest")
@@ -49,6 +54,7 @@ def _exercise_state(
         ("brightness-contrast", "tilemap"),
         ("hue-saturation", "pixels"),
         ("hue-saturation", "palette"),
+        ("despeckle", "pixels"),
     ],
 )
 def test_filter_restores_editor_state_after_success(
@@ -91,6 +97,7 @@ def test_filter_restores_editor_state_after_success(
         ("brightness-contrast", "tilemap"),
         ("hue-saturation", "pixels"),
         ("hue-saturation", "palette"),
+        ("despeckle", "pixels"),
     ],
 )
 def test_filter_rolls_back_native_effect_and_restores_state_after_failure(

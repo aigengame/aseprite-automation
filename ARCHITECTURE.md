@@ -631,26 +631,40 @@ for native nearest-neighbor sampling. Python validates wire constraints and
 orchestrates existing Artifact staging, independent JSON/PNG verification, and
 publication. No persistent editor Selection or second Mask engine is introduced.
 
-The native Brightness/Contrast and Hue/Saturation slices share typed application
-variants, native evidence types, and staged Target publication in
+The native Brightness/Contrast, Hue/Saturation, and Despeckle slices share target
+and Channel types, native evidence, and staged Target publication in
 `authoring/raster/filter.py`. Each operation retains its Channel set and adjustment
 schema; `hue_saturation.py` owns the conditional HSL/HSV, Grayscale, and Alpha forms.
 Brightness/Contrast alone adds Manual Tileset Mode and changed-Tile evidence.
 `filter_support.lua` owns Filter Cels Target resolution, Channel flags, editor-state
 restoration, and stable Layer/Frame observations. `filter_application.lua` owns
-Palette application and native transaction setup. The two small adjustment modules
+Palette application and native transaction setup. The operation modules
 map explicit parameters and invoke their respective Aseprite commands; no color
 algorithm is duplicated. `filter_run.lua` verifies live/save-close-reopen observations
 before Python publishes a Target. Existing Layer, Effective Palette, Selection, and
 Sprite persistence modules retain their ownership.
 
-Native writeback can trim or delete Cels. Hue/Saturation observes the surviving
+Native writeback can trim or delete Cels. Hue/Saturation and Despeckle observe surviving
 Layer/Frame intersections and reports bounds or absence, including affected links
-outside the selected range, without retaining deleted Cel userdata. Its independent
+outside the selected range, without retaining deleted Cel userdata. Hue/Saturation's independent
 runtime gate discriminates all four HSL/HSV modes across the five applications.
 Hue/Saturation rejects resolved Tilemap pixel targets; Indexed Palette-only anchors
 preserve ordinary, placement, and Tile Images (ADR-0074). This is its current delivery
 boundary, not a permanent restriction on future Filter features.
+
+`despeckle.py` owns required window dimensions, edge mode, the pixel-only request,
+and its Indexed Channel boundary. It adapts pixel intent to the shared private
+application path without importing Palette mutation policy. Native Despeckle owns
+neighborhood sampling, median selection, component preservation and RGB Map
+quantization, including 1×1 writeback. No SPA median algorithm or no-op shortcut
+is introduced.
+
+Convolution is discovery-only in this slice. The Runtime Integration adapter scans
+bounded declaration metadata at the prepared invocation's native resource paths.
+It never computes coefficients or decides that a declaration is callable. The
+Kernel records direct requested/observed Channel probes, and `RuntimeFacts`
+transports both observations. Raster Authoring owns the installed Capability Gap;
+no descriptor, custom convolution engine, or general resource registry is added.
 
 Brightness/Contrast passes the concrete `filter_tiles.lua` module into the shared
 execution path. It owns Manual Tilemap admission, preserved placement/binding/Grid

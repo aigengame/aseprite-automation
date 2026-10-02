@@ -10,9 +10,9 @@ function module.apply(sprite, payload, uuids)
     for _, name in ipairs(pixels.channels.names) do
       green = green or name == "green"
     end
-    if not green and not payload.indexed_components_without_green_available then
+    if not green then
       return support.reject(
-        "Selected runtime cannot preserve Indexed components without Green",
+        "This Despeckle slice requires Green in Indexed component Channels",
         true
       )
     end
@@ -53,10 +53,31 @@ end
 function module.observe_support()
   local sprite = nil
   local ok = pcall(function()
-    for _, mode in ipairs { "rgb", "grayscale", "indexed" } do
+    for _, branch in ipairs { "rgb", "grayscale", "indexed", "indexed-components" } do
+      local mode = branch == "indexed-components" and "indexed" or branch
       local modes = { rgb = ColorMode.RGB, grayscale = ColorMode.GRAY, indexed = ColorMode.INDEXED }
       sprite = Sprite(3, 1, modes[mode])
       local values = mode == "indexed" and { 3, 1, 2 } or { 100, 200, 40 }
+      if branch == "indexed-components" then
+        values = { 1, 2, 3 }
+        local palette = Palette(7)
+        local colors = {
+          { 0, 0, 0, 0 },
+          { 10, 100, 200, 255 },
+          { 200, 50, 10, 255 },
+          { 100, 200, 100, 255 },
+          { 100, 50, 10, 255 },
+          { 100, 0, 10, 255 },
+          { 200, 100, 10, 255 },
+        }
+        for index, color in ipairs(colors) do
+          palette:setColor(
+            index - 1,
+            Color { r = color[1], g = color[2], b = color[3], a = color[4] }
+          )
+        end
+        sprite:setPalette(palette)
+      end
       for x = 0, 2 do
         sprite.cels[1].image:drawPixel(
           x,
@@ -68,20 +89,32 @@ function module.observe_support()
             )
         )
       end
-      local pixels = {
-        color_mode = mode,
-        channels = mode == "indexed" and { kind = "index" }
-          or { kind = "components", names = { mode == "grayscale" and "gray" or "red" } },
-        cels_target = { kind = "all" },
-        palette_frame_number = mode == "indexed" and 1 or nil,
-      }
-      local result =
-        module.apply(sprite, { pixels = pixels, width = 3, height = 1, tiled_mode = "none" })
+      local channels = branch == "indexed" and { kind = "index" }
+        or {
+          kind = "components",
+          names = {
+            branch == "indexed-components" and "green" or (mode == "grayscale" and "gray" or "red"),
+          },
+        }
+      local result = module.apply(sprite, {
+        pixels = {
+          color_mode = mode,
+          channels = channels,
+          cels_target = { kind = "all" },
+          palette_frame_number = mode == "indexed" and 1 or nil,
+        },
+        width = 3,
+        height = 1,
+        tiled_mode = "none",
+      })
       assert(not result.rejection)
-      local expected = mode == "indexed" and 2
+      local expected = branch == "indexed-components" and 6
         or (
-          mode == "grayscale" and app.pixelColor.graya(100, 255)
-          or app.pixelColor.rgba(100, 20, 30, 255)
+          mode == "indexed" and 2
+          or (
+            mode == "grayscale" and app.pixelColor.graya(100, 255)
+            or app.pixelColor.rgba(100, 20, 30, 255)
+          )
         )
       assert(sprite.cels[1].image:getPixel(1, 0) == expected)
       local path = app.fs.joinPath(app.params.workspace, "despeckle-probe.aseprite")

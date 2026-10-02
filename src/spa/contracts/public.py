@@ -83,7 +83,6 @@ RuntimeCapability = Literal[
     "aseprite_filter_brightness_contrast_tilemap_manual",
     "aseprite_filter_hue_saturation",
     "aseprite_filter_despeckle",
-    "aseprite_filter_despeckle_indexed_without_green",
     "aseprite_palette_files",
     "aseprite_palette_quantization",
     "aseprite_change_color_mode",
@@ -100,6 +99,32 @@ class RuntimeRequirements(PublicModel):
     required_capabilities: list[RuntimeCapability]
 
 
+class ConvolutionResource(PublicModel):
+    name: str
+    source_path: str
+    declared_default_channels: list[Literal["red", "green", "blue", "gray", "alpha"]]
+
+
+class ConvolutionProbe(PublicModel):
+    resource_name: str
+    requested_channel: Literal["red", "alpha"]
+    command_completed: bool
+    before_rgba: list[int] = Field(min_length=4, max_length=4)
+    after_rgba: list[int] = Field(min_length=4, max_length=4)
+    reopened_rgba: list[int] = Field(min_length=4, max_length=4)
+
+
+class ConvolutionDiscovery(PublicModel):
+    """Bounded source declarations and native observations, not callable support."""
+
+    resources: list[ConvolutionResource]
+    duplicate_names: list[str]
+    source_paths: list[str]
+    complete: bool
+    notes: list[str]
+    probes: list[ConvolutionProbe] = Field(default_factory=list)
+
+
 class RuntimeFacts(PublicModel):
     selection_source: Literal["explicit", "environment", "path"]
     requested_path: str | None
@@ -112,6 +137,7 @@ class RuntimeFacts(PublicModel):
     lua_version: str
     verified_prerequisites: list[ProbePrerequisite]
     verified_capabilities: list[RuntimeCapability]
+    convolution: ConvolutionDiscovery | None = None
 
 
 class CapabilityGap(PublicModel):

@@ -627,3 +627,21 @@ persisted-data check. Cancel/no-op and repeated Apply are detected by the nonzer
 fixtures. Record the actual GUI Aseprite version and host; do not report these local
 results as Linux or automated CI coverage. Restore the prior Timeline visibility
 and Tileset mode after completing the local session if they were changed.
+
+## Despeckle and Convolution discovery
+
+The #39 slice uses `tests/filter/test_unit_despeckle.py` for strict request/schema
+parity and `test_integration_despeckle.py` for evidence validation before Target
+Commit. `test_e2e_despeckle.py` exercises native RGB and Grayscale Channel subsets,
+Indexed stored-index and supported component paths, window boundaries, tiled
+edges, 1×1 RGB Map behavior, Selection, linked Cels, Background and Tilemap refusal,
+and reopened output. `test_e2e_filter_state.py` injects a post-command failure to
+prove rollback after native mutation and restoration of the previous editor site.
+
+`tests/runtime/test_unit_convolution.py` checks bounded declaration scanning,
+lookup paths, duplicates, defaults and incomplete input reporting.
+`tests/runtime/test_e2e_convolution.py` checks discovery and retained native probes
+through the installed info/schema surface. No Convolution callable capability is
+inferred from a resource name or a small successful probe. The evidence record is
+[issue-39-native-filters.md](evidence/issue-39-native-filters.md). Batch/native-command
+parity and any local windowed comparison are reported separately there.

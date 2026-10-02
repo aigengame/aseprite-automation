@@ -26,6 +26,10 @@ from spa.authoring.document.layer import LAYER_OPERATIONS, LAYER_SELECT_RESOURCE
 from spa.authoring.document.motion import MOTION_OPERATIONS
 from spa.authoring.document.sprite import SPRITE_OPERATIONS, SPRITE_PROBE_RESOURCES
 from spa.authoring.document.tag import TAG_OPERATIONS
+from spa.authoring.raster.convolution import (
+    CONVOLUTION_PROBE_RESOURCE,
+    convolution_capability_gap,
+)
 from spa.authoring.raster.despeckle import (
     DESPECKLE_OPERATIONS,
     DESPECKLE_RESOURCE,
@@ -87,6 +91,7 @@ from spa.delivery.palette import (
 )
 
 PROBE_RESOURCES = (
+    CONVOLUTION_PROBE_RESOURCE,
     DESPECKLE_RESOURCE,
     *FILTER_RESOURCES,
     HUE_SATURATION_RESOURCE,
@@ -189,6 +194,9 @@ def _surface(runtime: RuntimeFacts) -> tuple[list[str], list[CapabilityGap]]:
         if gap.capability not in registered
     )
     gaps.extend(palette_lifecycle_gaps(runtime.aseprite_version))
+    gaps.append(
+        convolution_capability_gap(runtime.aseprite_version, runtime.convolution)
+    )
     if "spa filter brightness-contrast" in supported:
         gaps.extend(
             filter_capability_gaps(
@@ -196,11 +204,7 @@ def _surface(runtime: RuntimeFacts) -> tuple[list[str], list[CapabilityGap]]:
             )
         )
     if "spa filter despeckle" in supported:
-        gaps.extend(
-            despeckle_capability_gaps(
-                runtime.aseprite_version, runtime.verified_capabilities
-            )
-        )
+        gaps.extend(despeckle_capability_gaps(runtime.aseprite_version))
     return supported, gaps
 
 
@@ -226,6 +230,7 @@ def info_result(request: RuntimeRequest, services: OperationServices) -> InfoRes
         lua_version=observation.lua_version,
         verified_prerequisites=list(observation.verified_prerequisites),
         verified_capabilities=list(observation.verified_capabilities),
+        convolution=observation.convolution,
     )
     supported, gaps = _surface(facts)
     return InfoResult(

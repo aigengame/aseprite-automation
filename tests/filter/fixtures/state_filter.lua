@@ -1,4 +1,5 @@
-local filter = dofile(app.params.hue_saturation or app.params.brightness_contrast)
+local filter =
+  dofile(app.params.despeckle or app.params.hue_saturation or app.params.brightness_contrast)
 local kind = app.params.kind
 local failing = app.params.fault == "true"
 local mode = kind == "palette" and ColorMode.INDEXED or ColorMode.RGB
@@ -11,6 +12,11 @@ if kind == "palette" then
   target_image:putPixel(0, 0, 1)
 else
   target_image:putPixel(0, 0, app.pixelColor.rgba(80, 40, 20, 255))
+end
+if app.params.despeckle then
+  for x, red in ipairs { 100, 200, 40 } do
+    target_image:putPixel(x - 1, 0, app.pixelColor.rgba(red, 40, 20, 255))
+  end
 end
 local tile
 if kind == "tilemap" then
@@ -115,6 +121,10 @@ local ok, value = pcall(function()
       application = application,
       adjustment = { mode = "hsl-multiply", hue = 0, saturation = 0, lightness = 50 },
     }
+  end
+  if app.params.despeckle then
+    application.kind = nil
+    payload = { pixels = application, width = 3, height = 1, tiled_mode = "none" }
   end
   return filter.apply(target, payload, {})
 end)
