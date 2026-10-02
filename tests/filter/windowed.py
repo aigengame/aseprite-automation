@@ -153,6 +153,8 @@ def prepare(root, runtime):
 
 
 def verify(root, runtime):
+    report_path = root / "comparison.json"
+    report_path.unlink(missing_ok=True)
     manifest = json.loads((root / "manifest.json").read_text())
     assert tuple(case["name"] for case in manifest["cases"]) == CASES
     report = {"source_head": manifest["source_head"], "cases": []}
@@ -179,7 +181,7 @@ def verify(root, runtime):
             {"name": case["name"], "version": receipt["version"], "matches_spa": True}
         )
         print(f"PASS {case['name']}: UI save/reopen matches SPA")
-    write_json(root / "comparison.json", report)
+    write_json(report_path, report)
     print(
         "Retain dialog screenshots/operator observations with this report; receipts alone do not prove UI actions."
     )

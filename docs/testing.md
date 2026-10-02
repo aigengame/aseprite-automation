@@ -615,6 +615,10 @@ windowed comparison makes no claim about simultaneously selecting both sites.
 uv run --frozen --group test python -m tests.filter.windowed verify /absolute/new/evidence-dir
 ```
 
+Verification removes the previous `comparison.json` before reading the manifest and
+checking cases. It writes a new report only after all seven comparisons pass, so a
+failed comparison cannot leave a previous aggregate success report in place.
+
 Retain `manifest.json`, `comparison.json`, case receipts, screenshots/operator
 observations, Source and both outputs with the PR evidence. A receipt records the
 script's observed preconditions and reopen; it alone cannot prove that an operator
