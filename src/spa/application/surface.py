@@ -31,6 +31,10 @@ from spa.authoring.raster.filter import (
     FILTER_RESOURCES,
     filter_capability_gaps,
 )
+from spa.authoring.raster.hue_saturation import (
+    HUE_SATURATION_OPERATIONS,
+    HUE_SATURATION_RESOURCE,
+)
 from spa.authoring.raster.image import (
     IMAGE_CANVAS_TRANSFORM_RESOURCE,
     IMAGE_OPERATIONS,
@@ -79,6 +83,7 @@ from spa.delivery.palette import (
 
 PROBE_RESOURCES = (
     *FILTER_RESOURCES,
+    HUE_SATURATION_RESOURCE,
     PALETTE_QUANTIZATION_RESOURCE,
     COLOR_MODE_RESOURCE,
     *PALETTE_PROBE_RESOURCES,
@@ -278,6 +283,7 @@ OPERATIONS = (
     *COMPOSITE_OPERATIONS,
     *NATIVE_PAINT_OPERATIONS,
     *FILTER_OPERATIONS,
+    *HUE_SATURATION_OPERATIONS,
     *SELECTION_OPERATIONS,
     *FRAME_OPERATIONS,
     *CEL_OPERATIONS,

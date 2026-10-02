@@ -232,6 +232,16 @@ def test_tile_reference_evidence_controls_publication(tmp_path, corruption):
             "spa paint line",
         ),
         ("aseprite_paint_line", "spa paint line", "spa filter brightness-contrast"),
+        (
+            "aseprite_filter_hue_saturation",
+            "spa filter hue-saturation",
+            "spa filter brightness-contrast",
+        ),
+        (
+            "aseprite_filter_brightness_contrast",
+            "spa filter brightness-contrast",
+            "spa filter hue-saturation",
+        ),
     ],
 )
 def test_filter_and_paint_capability_gates_are_independent(
@@ -257,6 +267,10 @@ def test_tilemap_gap_does_not_hide_ordinary_filter(tilemap_available):
         operation_services(lambda _: runtime_observation(*capabilities)),
     )
     assert "spa filter brightness-contrast" in result.supported_capabilities
+    assert any(
+        gap.capability == "spa filter hue-saturation: Tilemap pixels"
+        for gap in result.capability_gaps
+    )
     assert (
         any("Manual Tilemap" in gap.capability for gap in result.capability_gaps)
         != tilemap_available

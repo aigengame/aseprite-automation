@@ -11,7 +11,7 @@ local function address(cel) return table.concat(cel.layer_path, "/") .. ":" .. c
 
 function module.anchor(targets)
   for _, item in ipairs(targets.images) do
-    if item.cel.layer.isTilemap then return item.cel end
+    if item.layer.isTilemap then return item.layer:cel(item.frame) end
   end
 end
 

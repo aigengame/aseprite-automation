@@ -1,9 +1,9 @@
 """Explicit native Filter contracts and staged Brightness/Contrast publication."""
 
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import Field, field_validator, model_validator
 
@@ -33,6 +33,7 @@ from spa.contracts.ports import (
     PackagedResource,
     ResponseEvidence,
     RuntimeIssue,
+    RuntimeObservation,
 )
 from spa.contracts.public import (
     CapabilityGap,
@@ -52,8 +53,12 @@ class SelectedFilterCels(PublicModel):
     """Exact Layer/Frame Cartesian product; non-editable Layers reject the whole operation."""
 
     kind: Literal["selected"]
-    layers: list[LayerAddress] = Field(min_length=1)
-    frame_numbers: list[Annotated[int, Field(ge=1)]] = Field(min_length=1)
+    layers: list[LayerAddress] = Field(
+        min_length=1, json_schema_extra={"uniqueItems": True}
+    )
+    frame_numbers: list[Annotated[int, Field(ge=1)]] = Field(
+        min_length=1, json_schema_extra={"uniqueItems": True}
+    )
 
     @model_validator(mode="after")
     def unique_choices(self) -> "SelectedFilterCels":
@@ -75,7 +80,7 @@ FilterCelsTarget = Annotated[
 
 class ComponentChannels[Channel](PublicModel):
     kind: Literal["components"]
-    names: list[Channel] = Field(min_length=1)
+    names: list[Channel] = Field(min_length=1, json_schema_extra={"uniqueItems": True})
 
     @model_validator(mode="after")
     def unique_names(self) -> "ComponentChannels":
@@ -84,41 +89,55 @@ class ComponentChannels[Channel](PublicModel):
         return self
 
 
-class RGBPixels(PublicModel):
+class RGBPixels[Channel = Literal["red", "green", "blue"]](PublicModel):
     kind: Literal["pixels"]
     color_mode: Literal["rgb"]
-    channels: ComponentChannels[Literal["red", "green", "blue"]]
+    channels: ComponentChannels[Channel]
     cels_target: FilterCelsTarget
     selection: SelectionApplication | None = None
-    tileset_mode: Literal["manual"] | None = None
 
 
-class GrayscalePixels(PublicModel):
+class GrayscalePixels[Channel = Literal["gray"]](PublicModel):
     kind: Literal["pixels"]
     color_mode: Literal["grayscale"]
-    channels: ComponentChannels[Literal["gray"]]
+    channels: ComponentChannels[Channel]
     cels_target: FilterCelsTarget
     selection: SelectionApplication | None = None
-    tileset_mode: Literal["manual"] | None = None
 
 
-class IndexedPixels(PublicModel):
+class IndexedPixels[Channel = Literal["red", "green", "blue"]](PublicModel):
     kind: Literal["pixels"]
     color_mode: Literal["indexed"]
-    channels: ComponentChannels[Literal["red", "green", "blue"]]
+    channels: ComponentChannels[Channel]
     cels_target: FilterCelsTarget
     selection: SelectionApplication | None = None
-    tileset_mode: Literal["manual"] | None = None
     palette_frame_number: int = Field(ge=1)
 
 
+class BrightnessContrastRGBPixels(RGBPixels):
+    tileset_mode: Literal["manual"] | None = None
+
+
+class BrightnessContrastGrayscalePixels(GrayscalePixels):
+    tileset_mode: Literal["manual"] | None = None
+
+
+class BrightnessContrastIndexedPixels(IndexedPixels):
+    tileset_mode: Literal["manual"] | None = None
+
+
 PixelsApplication = Annotated[
-    RGBPixels | GrayscalePixels | IndexedPixels, Field(discriminator="color_mode")
+    BrightnessContrastRGBPixels
+    | BrightnessContrastGrayscalePixels
+    | BrightnessContrastIndexedPixels,
+    Field(discriminator="color_mode"),
 ]
 
 
 class PaletteIndexes(PublicModel):
-    indexes: list[Annotated[int, Field(ge=0)]] = Field(min_length=1)
+    indexes: list[Annotated[int, Field(ge=0)]] = Field(
+        min_length=1, json_schema_extra={"uniqueItems": True}
+    )
 
     @model_validator(mode="after")
     def unique_indexes(self) -> "PaletteIndexes":
@@ -135,7 +154,7 @@ class AllPaletteEntries(PublicModel):
     kind: Literal["all"]
 
 
-class IndexedPaletteEntries(PublicModel):
+class IndexedPaletteEntries[Channel = Literal["red", "green", "blue"]](PublicModel):
     """Edit an exact Palette Change without changing ordinary, Tilemap, or Tile Images."""
 
     kind: Literal["indexed-palette-entries"]
@@ -143,25 +162,44 @@ class IndexedPaletteEntries(PublicModel):
     entries: Annotated[
         AllPaletteEntries | SelectedPaletteEntries, Field(discriminator="kind")
     ]
-    channels: ComponentChannels[Literal["red", "green", "blue"]]
+    channels: ComponentChannels[Channel]
 
 
-class RGBPaletteColors(PaletteIndexes):
+class RGBPaletteColors[Channel = Literal["red", "green", "blue"]](PaletteIndexes):
     kind: Literal["rgb-palette-colors"]
     palette_frame_number: int = Field(ge=1)
-    channels: ComponentChannels[Literal["red", "green", "blue"]]
+    channels: ComponentChannels[Channel]
     cels_target: FilterCelsTarget
     selection: SelectionApplication | None = None
+
+
+class BrightnessContrastRGBPaletteColors(RGBPaletteColors):
     tileset_mode: Literal["manual"] | None = None
 
 
 BrightnessContrastApplication = Annotated[
-    PixelsApplication | IndexedPaletteEntries | RGBPaletteColors,
+    PixelsApplication | IndexedPaletteEntries | BrightnessContrastRGBPaletteColors,
     Field(discriminator="kind"),
 ]
 
 
-class BrightnessContrastRequest(RuntimeRequest):
+class FilterRequest[Application](RuntimeRequest):
+    source_sprite_file: str = Field(min_length=1)
+    target_sprite_file: str = Field(min_length=1)
+    in_place: bool
+    overwrite: bool
+    application: Application
+
+    _source = field_validator("source_sprite_file")(validate_native_sprite_path)
+    _target = field_validator("target_sprite_file")(validate_native_sprite_path)
+
+    @model_validator(mode="after")
+    def validate_intent(self) -> "FilterRequest":
+        require_overwrite_for_in_place(self.in_place, self.overwrite)
+        return self
+
+
+class BrightnessContrastRequest(FilterRequest[BrightnessContrastApplication]):
     """Native Brightness/Contrast with explicit Channels and application.
 
     Pixel applications require explicit tileset_mode=manual for Tilemap targets.
@@ -195,12 +233,15 @@ class FilterCel(PublicModel):
     image_number: int | None = Field(ge=1)
 
 
-class FilterImage(PublicModel):
+class FilterImage[AfterDigest = ImageContentDigest](PublicModel):
     image_number: int = Field(ge=1)
-    image_kind: Literal["ordinary", "tilemap-placement"]
     before_content_digest: ImageContentDigest
-    after_content_digest: ImageContentDigest
+    after_content_digest: AfterDigest
     changed: bool
+
+
+class BrightnessContrastImage(FilterImage):
+    image_kind: Literal["ordinary", "tilemap-placement"]
 
 
 class FilterTileReference(FilterCel):
@@ -233,9 +274,7 @@ class FilterPaletteBasis(PublicModel):
     palette_size: int = Field(ge=1)
 
 
-class FilterEvidence(PublicModel):
-    brightness: int = Field(ge=-100, le=100)
-    contrast: int = Field(ge=-100, le=100)
+class FilterObservations[Image: FilterImage[Any], Channel](PublicModel):
     application: Literal["pixels", "indexed-palette-entries", "rgb-palette-colors"]
     cels_target_kind: Literal["selected", "all"] | None
     selection: SelectionApplication | None
@@ -244,21 +283,18 @@ class FilterEvidence(PublicModel):
     palette_indexes: list[Annotated[int, Field(ge=0)]]
     palette_before: PaletteTimeline
     palette_after: PaletteTimeline
-    channels: ComponentChannels[Literal["red", "green", "blue", "gray"]]
+    channels: ComponentChannels[Channel]
     requested_intersections: list[FilterCel]
     existing_target_cels: list[FilterCel]
     excluded_layers: list[FilterExclusion]
-    images: list[FilterImage]
-    requested_tileset_mode: Literal["manual"] | None
-    observed_tileset_mode: Literal["manual"] | None
-    changed_tiles: list[FilterTileChange]
+    images: list[Image]
     processed_image_numbers: list[Annotated[int, Field(ge=1)]]
     affected_cels: list[FilterCel]
     changed: bool
     persisted_reopen_verified: Literal[True]
 
     @model_validator(mode="after")
-    def consistent_observations(self) -> "FilterEvidence":
+    def consistent_images(self) -> "FilterObservations":
         numbers = [image.image_number for image in self.images]
         if numbers != list(range(1, len(self.images) + 1)):
             raise ValueError("Filter Images must have consecutive unique numbers")
@@ -269,6 +305,68 @@ class FilterEvidence(PublicModel):
                 raise ValueError(
                     "Filter Image change disagrees with its content digests"
                 )
+        return self
+
+    def matches_application(
+        self,
+        application: RGBPixels[Any]
+        | GrayscalePixels[Any]
+        | IndexedPixels[Any]
+        | IndexedPaletteEntries[Any]
+        | RGBPaletteColors[Any],
+    ) -> bool:
+        palette_only = isinstance(application, IndexedPaletteEntries)
+        mode = (
+            "indexed"
+            if palette_only
+            else (
+                "rgb"
+                if isinstance(application, RGBPaletteColors)
+                else application.color_mode
+            )
+        )
+        frame = getattr(application, "palette_frame_number", None)
+        if palette_only:
+            indexes = (
+                list(range(self.palette_basis.palette_size))
+                if application.entries.kind == "all" and self.palette_basis
+                else getattr(application.entries, "indexes", [])
+            )
+        else:
+            indexes = (
+                application.indexes if isinstance(application, RGBPaletteColors) else []
+            )
+        return (
+            self.application == application.kind
+            and self.color_mode == mode
+            and set(self.channels.names) == set(application.channels.names)
+            and self.cels_target_kind
+            == (None if palette_only else application.cels_target.kind)
+            and (self.selection is None) == palette_only
+            and (self.palette_basis.frame_number if self.palette_basis else None)
+            == frame
+            and self.palette_indexes == sorted(indexes)
+            and (not palette_only or not (self.images or self.existing_target_cels))
+            and (
+                self.application != "pixels"
+                or self.palette_before == self.palette_after
+            )
+        )
+
+
+class FilterEvidence(
+    FilterObservations[BrightnessContrastImage, Literal["red", "green", "blue", "gray"]]
+):
+    brightness: int = Field(ge=-100, le=100)
+    contrast: int = Field(ge=-100, le=100)
+    requested_tileset_mode: Literal["manual"] | None
+    observed_tileset_mode: Literal["manual"] | None
+    changed_tiles: list[FilterTileChange]
+
+    @model_validator(mode="after")
+    def consistent_observations(self) -> "FilterEvidence":
+        numbers = [image.image_number for image in self.images]
+        for image in self.images:
             if image.image_kind == "tilemap-placement" and image.changed:
                 raise ValueError("Manual Filter must preserve Tilemap placement Images")
         tilemaps = any(image.image_kind == "tilemap-placement" for image in self.images)
@@ -345,47 +443,12 @@ class FilterEvidence(PublicModel):
         return self
 
     def matches(self, request: BrightnessContrastRequest) -> bool:
-        application = request.application
-        palette_only = isinstance(application, IndexedPaletteEntries)
-        mode = (
-            "indexed"
-            if palette_only
-            else (
-                "rgb"
-                if isinstance(application, RGBPaletteColors)
-                else application.color_mode
-            )
-        )
-        frame = getattr(application, "palette_frame_number", None)
-        if palette_only:
-            indexes = (
-                list(range(self.palette_basis.palette_size))
-                if application.entries.kind == "all" and self.palette_basis
-                else getattr(application.entries, "indexes", [])
-            )
-        else:
-            indexes = (
-                application.indexes if isinstance(application, RGBPaletteColors) else []
-            )
         return (
-            self.application == application.kind
-            and self.color_mode == mode
+            self.matches_application(request.application)
             and self.brightness == request.brightness
             and self.contrast == request.contrast
             and self.requested_tileset_mode
-            == getattr(application, "tileset_mode", None)
-            and set(self.channels.names) == set(application.channels.names)
-            and self.cels_target_kind
-            == (None if palette_only else application.cels_target.kind)
-            and (self.selection is None) == palette_only
-            and (self.palette_basis.frame_number if self.palette_basis else None)
-            == frame
-            and self.palette_indexes == sorted(indexes)
-            and (not palette_only or not (self.images or self.existing_target_cels))
-            and (
-                self.application != "pixels"
-                or self.palette_before == self.palette_after
-            )
+            == getattr(request.application, "tileset_mode", None)
         )
 
 
@@ -423,7 +486,7 @@ FILTER_TILES_RESOURCE = PackagedResource(
 BRIGHTNESS_CONTRAST_RESOURCE = PackagedResource(
     "brightness_contrast", "raster/filter/brightness_contrast.lua"
 )
-FILTER_RESOURCES = (
+FILTER_SHARED_RESOURCES = (
     *SPRITE_INSPECTION_RESOURCES,
     SPRITE_PERSISTENCE_RESOURCE,
     DIGEST_RESOURCE,
@@ -433,6 +496,11 @@ FILTER_RESOURCES = (
     PALETTE_IMAGES_RESOURCE,
     FILTER_RESOURCE,
     FILTER_TILES_RESOURCE,
+    PackagedResource("filter_application", "raster/filter/filter_application.lua"),
+    PackagedResource("filter_run", "raster/filter/filter_run.lua"),
+)
+FILTER_RESOURCES = (
+    *FILTER_SHARED_RESOURCES,
     BRIGHTNESS_CONTRAST_RESOURCE,
 )
 BRIGHTNESS_CONTRAST_HANDLER = PackagedHandler(
@@ -453,24 +521,44 @@ FILTER_REQUIREMENTS = RuntimeRequirements(
 def filter_capability_gaps(
     aseprite_version: str, verified_capabilities: Sequence[str]
 ) -> list[CapabilityGap]:
-    if "aseprite_filter_brightness_contrast_tilemap_manual" in verified_capabilities:
-        return []
-    return [
+    gaps = []
+    if (
+        "aseprite_filter_brightness_contrast_tilemap_manual"
+        not in verified_capabilities
+    ):
+        gaps.append(
+            CapabilityGap(
+                capability="spa filter brightness-contrast: Manual Tilemap pixels",
+                aseprite_version=aseprite_version,
+                evidence=(
+                    "The selected runtime did not pass the Manual Tilemap Filter probe. "
+                    "Requests with actual Tilemap pixel targets are refused before mutation. "
+                    "Ordinary Image and Indexed Palette-only application remain independent."
+                ),
+            )
+        )
+    gaps.append(
         CapabilityGap(
-            capability="spa filter brightness-contrast: Manual Tilemap pixels",
+            capability="spa filter hue-saturation: Tilemap pixels",
             aseprite_version=aseprite_version,
             evidence=(
-                "The selected runtime did not pass the Manual Tilemap Filter probe. "
-                "Requests with actual Tilemap pixel targets are refused before mutation. "
-                "Ordinary Image and Indexed Palette-only application remain independent."
+                "Hue/Saturation currently rejects resolved Tilemap pixel targets. "
+                "Ordinary Image and Indexed Palette-only applications remain supported."
             ),
         )
-    ]
+    )
+    return gaps
 
 
-def brightness_contrast(
-    request: BrightnessContrastRequest, services: OperationServices
-) -> BrightnessContrastResult:
+def publish_filter[Evidence: PublicModel](
+    request: FilterRequest,
+    services: OperationServices,
+    handler: PackagedHandler,
+    parameters: Callable[[RuntimeObservation], dict[str, Any]],
+    evidence_type: type[Evidence],
+    matches: Callable[[Evidence], bool],
+) -> tuple[Evidence, TargetCommit]:
+    """Publish only after native persistence and request-matched evidence succeed."""
     completion = prepare_mutation(
         services.target_files,
         Path(request.source_sprite_file),
@@ -483,17 +571,12 @@ def brightness_contrast(
     with completion as mutation:
         invocation = services.invoke_kernel(
             observation,
-            BRIGHTNESS_CONTRAST_HANDLER,
+            handler,
             {
                 "source_sprite_file": request.source_sprite_file,
                 "staged_sprite_file": str(mutation.staged_sprite_file),
                 "application": request.application.model_dump(exclude_none=True),
-                "brightness": request.brightness,
-                "contrast": request.contrast,
-                "tilemap_manual_filter_available": (
-                    "aseprite_filter_brightness_contrast_tilemap_manual"
-                    in observation.verified_capabilities
-                ),
+                **parameters(observation),
             },
             request.timeout_seconds,
         )
@@ -512,8 +595,8 @@ def brightness_contrast(
                     message,
                     details,
                 )
-            evidence = FilterEvidence.model_validate(invocation.payload)
-            if not evidence.matches(request):
+            evidence = evidence_type.model_validate(invocation.payload)
+            if not matches(evidence):
                 raise ValueError(
                     "Filter evidence disagrees with the requested application"
                 )
@@ -524,9 +607,28 @@ def brightness_contrast(
                 ResponseEvidence(response_path=invocation.response_path),
                 invocation.diagnostics,
             ) from exc
-        return BrightnessContrastResult(
-            **evidence.model_dump(), target_commit=mutation.commit()
-        )
+        return evidence, mutation.commit()
+
+
+def brightness_contrast(
+    request: BrightnessContrastRequest, services: OperationServices
+) -> BrightnessContrastResult:
+    evidence, commit = publish_filter(
+        request,
+        services,
+        BRIGHTNESS_CONTRAST_HANDLER,
+        lambda observation: {
+            "brightness": request.brightness,
+            "contrast": request.contrast,
+            "tilemap_manual_filter_available": (
+                "aseprite_filter_brightness_contrast_tilemap_manual"
+                in observation.verified_capabilities
+            ),
+        },
+        FilterEvidence,
+        lambda evidence: evidence.matches(request),
+    )
+    return BrightnessContrastResult(**evidence.model_dump(), target_commit=commit)
 
 
 FILTER_OPERATIONS = (

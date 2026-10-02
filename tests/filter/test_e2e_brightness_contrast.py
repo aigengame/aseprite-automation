@@ -23,7 +23,12 @@ def test_surface_reports_observed_manual_tilemap_filter(runtime):
         in manifest["runtime"]["verified_capabilities"]
     )
     assert not any(
-        "Tilemap" in gap["capability"] for gap in manifest["capability_gaps"]
+        gap["capability"] == "spa filter brightness-contrast: Manual Tilemap pixels"
+        for gap in manifest["capability_gaps"]
+    )
+    assert any(
+        gap["capability"] == "spa filter hue-saturation: Tilemap pixels"
+        for gap in manifest["capability_gaps"]
     )
 
 

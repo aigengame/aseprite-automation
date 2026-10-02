@@ -38,7 +38,7 @@ local function editable(sprite, layer)
   return true
 end
 
-function module.targets(sprite, target, uuids, color_mode)
+function module.targets(sprite, target, uuids, color_mode, allow_tilemaps)
   local chosen, frames, excluded = {}, {}, {}
   if target.kind == "selected" then
     local seen = {}
@@ -85,13 +85,17 @@ function module.targets(sprite, target, uuids, color_mode)
       local cel = layer:cel(frame)
       local number = nil
       if cel then
+        if layer.isTilemap and not allow_tilemaps then
+          return nil, module.reject("Tilemap pixel filtering is not supported by this Filter", true)
+        end
         number = image_numbers[cel.image.id]
         if not number then
           number = #images + 1
           image_numbers[cel.image.id] = number
           local mode = layer.isTilemap and "tilemap" or color_mode
           images[number] = {
-            cel = cel,
+            layer = layer,
+            frame = frame,
             image_kind = layer.isTilemap and "tilemap-placement" or "ordinary",
             mode = mode,
             before = digest.image_content(cel.image, mode),
@@ -108,10 +112,15 @@ function module.targets(sprite, target, uuids, color_mode)
     end
   end
   if #images == 0 then return nil, module.reject("Filter Cels Target contains no existing Cels") end
-  local affected = {}
+  local affected, cel_states = {}, {}
   for _, cel in ipairs(sprite.cels) do
     local number = image_numbers[cel.image.id]
     if number then
+      cel_states[#cel_states + 1] = {
+        layer = cel.layer,
+        frame = cel.frameNumber,
+        before = selection.rectangle(cel.bounds),
+      }
       affected[#affected + 1] = {
         layer_path = layers.current_path(sprite, cel.layer),
         frame_number = cel.frame.frameNumber,
@@ -127,6 +136,7 @@ function module.targets(sprite, target, uuids, color_mode)
     existing_target_cels = existing,
     excluded_layers = excluded,
     affected_cels = affected,
+    cel_states = cel_states,
   }
 end
 

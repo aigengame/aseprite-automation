@@ -6,18 +6,25 @@ from pathlib import Path
 import pytest
 
 from spa.authoring.raster.filter import FILTER_RESOURCES
+from spa.authoring.raster.hue_saturation import HUE_SATURATION_RESOURCE
 from tests.filter.support import apply, native_script, observe_images, pixels
 
 pytestmark = pytest.mark.e2e
 
 
-def _exercise_state(tmp_path: Path, runtime, kind: str, fault: bool) -> dict:
+def _exercise_state(
+    tmp_path: Path, runtime, kind: str, fault: bool, operation: str
+) -> dict:
     response = tmp_path / f"{kind}-{'fault' if fault else 'success'}.json"
     kernel = Path(__file__).resolve().parents[2] / "src" / "spa" / "kernel"
     resources = {
         resource.parameter_name: kernel / resource.package_path
         for resource in FILTER_RESOURCES
     }
+    if operation == "hue-saturation":
+        resources[HUE_SATURATION_RESOURCE.parameter_name] = (
+            kernel / HUE_SATURATION_RESOURCE.package_path
+        )
     if fault:
         key = {"palette": "palette", "tilemap": "filter_tiles"}.get(kind, "digest")
         resources[f"{key}_real"] = resources[key]
@@ -34,11 +41,22 @@ def _exercise_state(tmp_path: Path, runtime, kind: str, fault: bool) -> dict:
     return json.loads(response.read_text())
 
 
-@pytest.mark.parametrize("kind", ["pixels", "palette", "tilemap"])
+@pytest.mark.parametrize(
+    "operation,kind",
+    [
+        ("brightness-contrast", "pixels"),
+        ("brightness-contrast", "palette"),
+        ("brightness-contrast", "tilemap"),
+        ("hue-saturation", "pixels"),
+        ("hue-saturation", "palette"),
+    ],
+)
 def test_filter_restores_editor_state_after_success(
-    tmp_path: Path, runtime, kind: str
+    tmp_path: Path, runtime, kind: str, operation: str
 ) -> None:
-    observed = _exercise_state(tmp_path, runtime, kind, fault=False)
+    observed = _exercise_state(
+        tmp_path, runtime, kind, fault=False, operation=operation
+    )
     before, after = observed["before"], observed["after"]
     assert observed["success"] is True, observed
     assert before["target_selection"] == [True, False, True]
@@ -65,11 +83,20 @@ def test_filter_restores_editor_state_after_success(
         assert after["palette_red"] == 120
 
 
-@pytest.mark.parametrize("kind", ["pixels", "palette", "tilemap"])
+@pytest.mark.parametrize(
+    "operation,kind",
+    [
+        ("brightness-contrast", "pixels"),
+        ("brightness-contrast", "palette"),
+        ("brightness-contrast", "tilemap"),
+        ("hue-saturation", "pixels"),
+        ("hue-saturation", "palette"),
+    ],
+)
 def test_filter_rolls_back_native_effect_and_restores_state_after_failure(
-    tmp_path: Path, runtime, kind: str
+    tmp_path: Path, runtime, kind: str, operation: str
 ) -> None:
-    observed = _exercise_state(tmp_path, runtime, kind, fault=True)
+    observed = _exercise_state(tmp_path, runtime, kind, fault=True, operation=operation)
     assert observed["success"] is False, observed
     assert observed["native_effect_observed"] is True, observed
     expected = "Filter User Data" if kind == "tilemap" else "injected post-filter"

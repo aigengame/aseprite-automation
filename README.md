@@ -406,20 +406,82 @@ an explicit Canvas Pixel `selection`; omission selects the whole Canvas, while
 `{"kind":"empty"}` selects no pixels. Empty Selection still allows the Palette
 part of `rgb-palette-colors` to change.
 
-SPA currently rejects the whole pixel application if any resolved target is a
-Tilemap Cel, including under `all`. Explicit ordinary targets in mixed documents
-remain supported. Indexed Palette-only application can use a private Tilemap-only
-anchor and verifies that ordinary Images, Tilemap placement Images, and all Tile
-Images remain unchanged. A Palette basis Frame without a usable anchor produces
-`filter_unsupported_document`. These are the delivery boundaries of
-[issue #35](https://github.com/aigengame/aseprite-automation/issues/35);
-[issue #152](https://github.com/aigengame/aseprite-automation/issues/152) owns future
-Tilemap pixel filtering. Installed discovery reports the corresponding Capability Gap.
+Brightness/Contrast accepts resolved Tilemap pixel targets with explicit
+`tileset_mode: "manual"` on the pixel application and a verified runtime capability.
+It checks the native Site mode before mutation; omitted Manual intent or a different
+observed mode rejects the whole request. Ordinary Image targets and Indexed
+Palette-only applications do not require that Tilemap capability. Tilemap placement
+Images, flags, Tileset bindings, Grid, topology, and metadata stay unchanged.
+`changed_tiles` reports changed Tile bitmaps and referencing Cels, including references
+outside the requested range or Selection. Native shared-Tile effects can occur more
+than once across distinct target Cel Images; this is not a once-per-Tile contract.
+
+Indexed Palette-only application can use a private Tilemap-only anchor and verifies
+that ordinary Images, Tilemap placement Images, and all Tile Images remain unchanged.
+A Palette basis Frame without a usable anchor produces `filter_unsupported_document`.
+These are the delivery boundaries of
+[issue #35](https://github.com/aigengame/aseprite-automation/issues/35) and
+[issue #152](https://github.com/aigengame/aseprite-automation/issues/152).
+Installed discovery reports the selected runtime's Manual Tilemap Capability Gap
+when that native probe does not pass. Hue/Saturation retains its separate boundary below.
 
 Results include effective Selection, Channels, Palette basis and indexes,
 requested intersections, existing targets, exclusions, unique Image observations,
 processed Image numbers, affected Cels, and the verified Target Commit. Filter
 capability checks are independent of native Paint checks.
+
+`spa filter hue-saturation` uses the same five Filter Applications, targets,
+Selection, and Palette basis rules. Its Channels add `alpha` to RGB/Indexed or
+Grayscale components; stored `index` is invalid. Each selected Channel requires
+exactly its applicable parameters:
+
+| Selected Channels | Required parameters |
+| --- | --- |
+| Any of `red`, `green`, `blue` | `adjustment` with `mode: hsl-multiply` or `hsl-add`, integer `hue: -180..180`, `saturation: -100..100`, `lightness: -100..100`; alternatively `hsv-multiply` or `hsv-add` with `value` instead of `lightness`. |
+| `gray` | `adjustment: {"mode":"grayscale","lightness":-100..100}`; no Hue/Saturation choice. |
+| `alpha` | Independent integer `alpha: -100..100`. |
+
+Omit `adjustment` for Alpha-only requests and omit `alpha` when that Channel is
+not selected. All governed values may be zero: an all-zero request skips native
+writeback and reports a no-op, preserving existing bounds and duplicate Indexed
+Entries. For example, rotate Hue and fade selected RGB Cels:
+
+```sh
+spa filter hue-saturation --input-json '{
+  "source_sprite_file":"source.aseprite",
+  "target_sprite_file":"adjusted.aseprite",
+  "in_place":false,"overwrite":false,
+  "adjustment":{"mode":"hsl-add","hue":30,"saturation":0,"lightness":0},
+  "alpha":-25,
+  "application":{
+    "kind":"pixels","color_mode":"rgb",
+    "channels":{"kind":"components","names":["red","green","blue","alpha"]},
+    "cels_target":{"kind":"selected","layers":[{"layer_path":[1]}],"frame_numbers":[1]}
+  }
+}'
+```
+
+Aseprite owns adjustment, clamping, and quantization; zero Alpha stays transparent
+at the adjustment stage. Indexed pixels still resolve through the declared RGB Map,
+so their final RGBA belongs to the selected Palette Entry. Background pixel targets
+reject Alpha requests, including zero, instead of silently ignoring the Channel.
+Palette-mutating Alpha also needs a non-Background execution anchor at the
+Palette basis Frame, including for zero Alpha. SPA chooses an available suitable
+anchor; otherwise it reports `filter_unsupported_document`. This current boundary
+avoids Aseprite silently removing the Alpha flag and can be extended when a future
+requirement and native evidence justify another execution path.
+Tilemap pixel targets are outside the current #36 delivery and reject the whole
+operation; Palette-only can use a non-mutating Tilemap anchor. These current
+boundaries can be extended by later feature requirements.
+
+Native writeback may trim transparent borders or delete fully transparent Cels,
+including linked Cels outside the requested range. Hue/Saturation results add
+`cel_effects` with each affected Cel's before/after Canvas bounds (`after: null`
+means native deletion); an Image deleted with its Cels has
+`after_content_digest: null`. Live and saved/reopened state must agree before
+Target Commit. Use `spa filter hue-saturation --schema` for the full contract;
+its independent runtime gate verifies all four HSL/HSV modes through the packaged
+native command path. See [#36 native evidence](docs/evidence/issue-36-hue-saturation.md).
 
 `spa selection create/combine/invert/grow/shrink/transform` return explicit
 Canvas Pixel values. Requests declare `coordinate_space: "canvas-pixel"`; values

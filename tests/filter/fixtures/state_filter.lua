@@ -1,4 +1,4 @@
-local filter = dofile(app.params.brightness_contrast)
+local filter = dofile(app.params.hue_saturation or app.params.brightness_contrast)
 local kind = app.params.kind
 local failing = app.params.fault == "true"
 local mode = kind == "palette" and ColorMode.INDEXED or ColorMode.RGB
@@ -103,16 +103,21 @@ if kind == "tilemap" then
   application.cels_target = { kind = "all" }
   application.tileset_mode = "manual"
 end
-local ok, value = pcall(
-  function()
-    return filter.apply(target, {
+local ok, value = pcall(function()
+  local payload = {
+    application = application,
+    brightness = 50,
+    contrast = 0,
+    tilemap_manual_filter_available = true,
+  }
+  if app.params.hue_saturation then
+    payload = {
       application = application,
-      brightness = 50,
-      contrast = 0,
-      tilemap_manual_filter_available = true,
-    }, {})
+      adjustment = { mode = "hsl-multiply", hue = 0, saturation = 0, lightness = 50 },
+    }
   end
-)
+  return filter.apply(target, payload, {})
+end)
 local after = state()
 local error_message = nil
 if not ok then error_message = tostring(value) end
