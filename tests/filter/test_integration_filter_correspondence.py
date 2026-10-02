@@ -1,5 +1,7 @@
 """Filter publication requires evidence for the requested targets and Selection."""
 
+from copy import deepcopy
+
 import pytest
 
 from spa.authoring.raster.despeckle import DespeckleRequest, despeckle
@@ -129,6 +131,167 @@ def test_contradictory_targets_or_selection_cannot_publish(
     else:
         assert not target.exists()
     assert len(staged) == 1
+    assert not staged[0].exists()
+
+
+@pytest.mark.parametrize(
+    "layer",
+    [{"layer_path": [1]}, {"layer_name": "Ink"}, {"layer_uuid": "persisted-layer"}],
+)
+def test_resolved_targets_preserve_empty_intersections_and_linked_effects(
+    tmp_path, filter_case, layer
+):
+    response, request_for, execute = filter_case
+    response["cels_target_kind"] = "selected"
+    response["requested_intersections"].append(
+        {"layer_path": [1], "frame_number": 2, "image_number": None}
+    )
+    linked = {"layer_path": [1], "frame_number": 3, "image_number": 1}
+    response["affected_cels"].append(linked)
+    if "cel_effects" in response:
+        response["cel_effects"].append({**response["cel_effects"][0], **linked})
+    for key in ("palette_before", "palette_after"):
+        response[key]["frame_count"] = 3
+        response[key]["palette_changes"][0]["effective_frame_range"]["to_frame"] = 3
+    services, source, target, staged = setup_filter_staging(tmp_path, response)
+
+    result = execute(
+        request_for(
+            source,
+            target,
+            cels_target={
+                "kind": "selected",
+                "layers": [layer],
+                "frame_numbers": [2, 1],
+            },
+        ),
+        services,
+    )
+
+    assert result.requested_intersections[1].image_number is None
+    assert result.affected_cels[-1].frame_number == 3
+    assert target.read_bytes() == b"native staged output"
+    assert source.read_bytes() == b"original source"
+    assert not staged[0].exists()
+
+
+@pytest.mark.parametrize(
+    "requested, observed",
+    [
+        (None, {"kind": "all", "rectangle": {"x": 0, "y": 0, "width": 1, "height": 1}}),
+        ({"kind": "empty"}, {"kind": "empty"}),
+        (
+            {"kind": "all", "rectangle": {"x": -1, "y": -1, "width": 3, "height": 3}},
+            {"kind": "all", "rectangle": {"x": 0, "y": 0, "width": 1, "height": 1}},
+        ),
+        (
+            {
+                "kind": "mask",
+                "bounds": {"x": -1, "y": 0, "width": 3, "height": 2},
+                "rows": [
+                    {"y": 0, "runs": [{"x": -1, "length": 3}]},
+                    {"y": 1, "runs": [{"x": 0, "length": 1}]},
+                ],
+            },
+            {"kind": "all", "rectangle": {"x": 0, "y": 0, "width": 1, "height": 1}},
+        ),
+    ],
+    ids=["unrestricted", "empty", "clipped-rectangle", "clipped-mask-normalized"],
+)
+def test_feasible_native_selection_can_publish(
+    tmp_path, filter_case, requested, observed
+):
+    response, request_for, execute = filter_case
+    response["selection"] = observed
+    if observed["kind"] == "empty":
+        response["changed"] = False
+        for image in response["images"]:
+            image["after_content_digest"] = deepcopy(image["before_content_digest"])
+            image["changed"] = False
+        if "changed_pixel_count" in response:
+            response["changed_pixel_count"] = 0
+    services, source, target, staged = setup_filter_staging(tmp_path, response)
+
+    result = execute(request_for(source, target, selection=requested), services)
+
+    assert result.selection.model_dump() == observed
+    assert target.read_bytes() == b"native staged output"
+    assert source.read_bytes() == b"original source"
+    assert not staged[0].exists()
+
+
+@pytest.mark.parametrize(
+    "request_type, execute, response_factory, parameters",
+    [
+        (
+            BrightnessContrastRequest,
+            brightness_contrast,
+            evidence,
+            {"brightness": 10, "contrast": 0},
+        ),
+        (
+            HueSaturationRequest,
+            hue_saturation,
+            hue_evidence,
+            {
+                "adjustment": {
+                    "mode": "hsl-multiply",
+                    "hue": 0,
+                    "saturation": 0,
+                    "lightness": 10,
+                }
+            },
+        ),
+    ],
+    ids=["brightness-contrast", "hue-saturation"],
+)
+def test_palette_only_can_publish_without_pixel_target_evidence(
+    tmp_path, request_type, execute, response_factory, parameters
+):
+    response = response_factory()
+    response.update(
+        application="indexed-palette-entries",
+        color_mode="indexed",
+        cels_target_kind=None,
+        selection=None,
+        palette_indexes=[0],
+        palette_basis={"frame_number": 1, "palette_frame_number": 1, "palette_size": 1},
+    )
+    for key in (
+        "requested_intersections",
+        "existing_target_cels",
+        "images",
+        "processed_image_numbers",
+        "affected_cels",
+        "cel_effects",
+    ):
+        if key in response:
+            response[key] = []
+    response["palette_after"]["palette_changes"][0]["entries"][0]["color"]["red"] = 80
+    services, source, target, staged = setup_filter_staging(tmp_path, response)
+    request = request_type.model_validate(
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": False,
+            "overwrite": True,
+            **parameters,
+            "application": {
+                "kind": "indexed-palette-entries",
+                "palette_frame_number": 1,
+                "entries": {"kind": "all"},
+                "channels": {"kind": "components", "names": ["red"]},
+            },
+        }
+    )
+
+    result = execute(request, services)
+
+    assert result.cels_target_kind is None
+    assert result.selection is None
+    assert result.images == []
+    assert target.read_bytes() == b"native staged output"
+    assert source.read_bytes() == b"original source"
     assert not staged[0].exists()
 
 
