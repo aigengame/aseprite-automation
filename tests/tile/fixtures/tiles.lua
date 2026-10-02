@@ -1,0 +1,33 @@
+local mode = ({ rgb = ColorMode.RGB, grayscale = ColorMode.GRAY, indexed = ColorMode.INDEXED })[app.params.mode or "rgb"]
+local s = Sprite(16, 16, mode)
+s.gridBounds = Rectangle(0, 0, 2, 3)
+app.activeSprite = s
+app.command.NewLayer { tilemap = true, ui = false }
+local first = app.activeLayer
+first.name = "map"
+local ts = first.tileset
+ts.name = "terrain"
+ts.baseIndex = tonumber(app.params.base_index or "1")
+for index = 1, 4 do
+  local tile = s:newTile(ts)
+  tile.image:clear(mode == ColorMode.RGB and app.pixelColor.rgba(index * 40, 30, 20, 255) or index)
+  if index ~= 3 then tile.properties("aigengame.spa").tile_key = index == 4 and "red" or ({"red", "green"})[index] end
+end
+local m = Image(3, 2, ColorMode.TILEMAP)
+m:clear(0)
+m:putPixel(0, 0, 1)
+m:putPixel(2, 0, 2 | 0x80000000)
+m:putPixel(0, 1, 3 | 0x60000000)
+m:putPixel(2, 1, 4 | 0xe0000000)
+s:newCel(first, 1, m, Point(-5, 7))
+s:newEmptyFrame()
+app.activeLayer = first
+app.command.NewLayer { tilemap = true, ui = false }
+local shared = app.activeLayer
+shared.name = "shared"
+shared.tileset = ts
+s:newCel(shared, 2, Image(m), Point(3, -2))
+local extra = s:newTileset(Grid { x = 0, y = 0, width = 4, height = 4 })
+extra.name = app.params.duplicate_name == "true" and "terrain" or "orphan"
+assert(s:saveAs(app.params.source))
+s:close()

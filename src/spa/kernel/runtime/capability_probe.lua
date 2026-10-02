@@ -1526,6 +1526,9 @@ function module.observe()
     capabilities[#capabilities + 1] = "aseprite_sprite_create"
   end
   if supports_inspection then capabilities[#capabilities + 1] = "aseprite_sprite_inspection" end
+  if app.params.tile_probe and dofile(app.params.tile_probe).observes() then
+    capabilities[#capabilities + 1] = "aseprite_tile_inspection"
+  end
   if observes_sprite_flatten() then capabilities[#capabilities + 1] = "aseprite_sprite_flatten" end
   if observes_sprite_resize() then capabilities[#capabilities + 1] = "aseprite_sprite_resize" end
   if observes_image_canvas_transform() then
