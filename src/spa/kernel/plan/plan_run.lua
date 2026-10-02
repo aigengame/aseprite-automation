@@ -10,6 +10,13 @@ local motion = dofile(app.params.motion)
 local layer_select = dofile(app.params.layer_select)
 local digest = dofile(app.params.digest)
 local persistence = dofile(app.params.persistence)
+local color_mode = dofile(app.params.color_mode)
+local converted = false
+local profiles = dofile(app.params.color_profile)
+local profile_operations = {
+  ["sprite assign-color-profile"] = "assign",
+  ["sprite convert-color-profile"] = "convert",
+}
 local capability_probe = dofile(app.params.capability_probe)
 local all_sections = {
   "frames",
@@ -22,6 +29,7 @@ local all_sections = {
 }
 local open_sprite = nil
 local verified_uuids = {}
+local profile_state = {}
 local failed_step = nil
 local failed_operation = nil
 local runtime_incompatibility = nil
@@ -100,6 +108,14 @@ local function execute_step(step)
     }
   end
   assert(open_sprite ~= nil, "Plan has no active Sprite")
+  if step.operation == "sprite change-color-mode" then
+    local result = color_mode.change(open_sprite, input.conversion)
+    if not result.rejection then
+      result.persisted_reopen_verified = false
+      converted = true
+    end
+    return result
+  end
   if step.operation == "sprite get" then
     return { sprite = inspection.inspect(open_sprite, input.inspection_scope, verified_uuids) }
   end
@@ -136,6 +152,10 @@ local function execute_step(step)
     if result.rejection == nil then result.persisted_reopen_verified = false end
     return result
   end
+  local profile_operation = profile_operations[step.operation]
+  if profile_operation then
+    return profiles.apply_live(open_sprite, profile_operation, input, verified_uuids, profile_state)
+  end
   if step.operation == "motion apply" then
     local result = motion.apply_live(open_sprite, input, verified_uuids)
     if result.rejection == nil then result.persisted_reopen_verified = false end
@@ -156,8 +176,15 @@ local function execute()
   local requirements = assert(payload.runtime_requirements)
   verify_runtime(requirements)
   assert(payload.steps ~= nil and #payload.steps > 0, "Plan has no Steps")
+  local profile_steps = false
+  for _, step in ipairs(payload.steps) do
+    if profile_operations[step.operation] then profile_steps = true end
+  end
   if type(payload.source_sprite_file) == "string" then
     open_sprite = assert(app.open(payload.source_sprite_file), "could not open Source Sprite File")
+    if profile_steps then
+      profile_state = profiles.restore_file_profile(open_sprite, payload.source_sprite_file)
+    end
     verified_uuids = inspection.saved_layer_uuids(open_sprite, payload.source_sprite_file)
   end
   local outcomes = {}
@@ -166,8 +193,16 @@ local function execute()
     failed_operation = step.operation
     local result = execute_step(step)
     if result.rejection ~= nil then
+      if step.operation == "sprite change-color-mode" then
+        open_sprite:close()
+        open_sprite = nil
+        return { color_mode_rejection = { step_number = index, rejection = result.rejection } }
+      end
       open_sprite:close()
       open_sprite = nil
+      if profile_operations[step.operation] then
+        return { profile_rejection = { step_number = index, rejection = result.rejection } }
+      end
       return {
         cel_rejection = {
           step_number = index,
@@ -190,6 +225,8 @@ local function execute()
   local conditions = assert(payload.postconditions)
   verify_postconditions(open_sprite, conditions)
   local before = persistence.snapshot(open_sprite, inspection, digest, all_sections, verified_uuids)
+  local converted_document = converted and color_mode.observe(open_sprite) or nil
+  local profile_before = profile_steps and profiles.snapshot(open_sprite, verified_uuids) or nil
   local persisted = false
   if type(payload.staged_sprite_file) == "string" then
     assert(open_sprite:saveAs(payload.staged_sprite_file), "could not save staged Sprite")
@@ -197,9 +234,20 @@ local function execute()
     open_sprite = nil
     open_sprite = assert(app.open(payload.staged_sprite_file), "could not reopen staged Sprite")
     verified_uuids = inspection.saved_layer_uuids(open_sprite, payload.staged_sprite_file)
+    if profile_before then
+      profiles.restore_file_profile(open_sprite, payload.staged_sprite_file)
+      profiles.verify_persisted(profile_before, open_sprite, verified_uuids)
+    end
     local after =
       persistence.snapshot(open_sprite, inspection, digest, all_sections, verified_uuids)
     persistence.assert_same(before, after, "Plan")
+    if converted_document then
+      persistence.assert_equal(
+        converted_document,
+        color_mode.observe(open_sprite),
+        "Persisted Plan Color Mode"
+      )
+    end
     verify_postconditions(open_sprite, conditions)
     persisted = true
     before = after

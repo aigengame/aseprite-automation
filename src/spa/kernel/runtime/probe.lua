@@ -25,6 +25,9 @@ local function execute()
       "aseprite_json",
     },
     verified_capabilities = capability_probe.observe(),
+    convolution_probes = app.params.convolution_probe
+        and dofile(app.params.convolution_probe).observe()
+      or {},
   }
 end
 

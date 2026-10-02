@@ -4,7 +4,7 @@ Aseprite Automation (SPA) provides agent-facing automation for Aseprite. `SPA` i
 short project name used in documentation; `spa` is the primary executable.
 
 > [!IMPORTANT]
-> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery, Sprite creation, inspection, copy, resize, crop, flatten, and validation, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Tag inspection and authoring, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, bounded Pixel Patch application, native Snapshot composition (`spa paint composite`), native Line, Rectangle, Ellipse, Contour, and Blur Paint operations, verified RGB PNG Image Export, animation audit, Frame comparison, and verified continuity Preview export. Feature issues own delivery contracts, evidence requirements, provenance links, curated evidence summaries, and status, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
+> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery, Sprite creation, inspection, copy, resize, crop, flatten, and validation, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Tag inspection and authoring, Palette Change inspection and Entry edits, native Color Profile assignment and conversion, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, bounded Pixel Patch application, native Snapshot composition (`spa paint composite`), native Line, Rectangle, Ellipse, Contour, and Blur Paint operations, verified RGB PNG Image Export, animation audit, Frame comparison, and verified continuity Preview export. Feature issues own delivery contracts, evidence requirements, provenance links, curated evidence summaries, and status, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
 
 For a complete authoring example, see [Moonlit Spell Practice](examples/wizard_cast/README.md):
 a reproducible SPA wizard animation, reusable pixel assets, and a Godot target-practice demo.
@@ -359,6 +359,226 @@ both endpoints. These current policies follow [issue #27](https://github.com/aig
 future requirements can add explicit alternatives. See the
 [native validation evidence](docs/evidence/issue-27-native-paint.md).
 
+`spa filter brightness-contrast` runs Aseprite's native Filter with required integer
+`brightness` and `contrast` in `-100..100`. Explicit `0`/`0` reports a no-op.
+For example, adjust Red on an RGB Image Layer:
+
+```sh
+spa filter brightness-contrast --input-json '{
+  "source_sprite_file":"source.aseprite",
+  "target_sprite_file":"adjusted.aseprite",
+  "in_place":false,"overwrite":false,
+  "brightness":20,"contrast":0,
+  "application":{
+    "kind":"pixels","color_mode":"rgb",
+    "channels":{"kind":"components","names":["red"]},
+    "cels_target":{"kind":"selected","layers":[{"layer_path":[1]}],"frame_numbers":[1]}
+  }
+}'
+```
+
+Use `spa filter brightness-contrast --schema` for the installed request and result
+contracts. Applications are:
+
+| Application | Color Mode | Palette and target inputs |
+| --- | --- | --- |
+| `pixels` | `rgb`, `grayscale`, `indexed` | `cels_target`; Indexed also requires `palette_frame_number` as the Effective Palette/RGB Map basis. |
+| `indexed-palette-entries` | Indexed | Exact Palette Change at `palette_frame_number`; `entries: {"kind":"all"}` or `{"kind":"selected","indexes":[1]}`. No Cel target or Selection. |
+| `rgb-palette-colors` | RGB | Exact Palette Change, `indexes`, and `cels_target`; adjusts selected Entries and applies native exact-color lookup to participating pixels. |
+
+For `rgb-palette-colors`, Aseprite finds the first Palette Entry (lowest Palette
+Index) whose old RGBA exactly matches each participating pixel, then reads the
+color at that Index from the adjusted Palette. If Entries have duplicate RGBA values,
+selecting only a later Entry can change that Entry while leaving matching pixels
+unchanged.
+
+Channels are a non-empty unique subset of `red`, `green`, `blue`, or only `gray`
+for Grayscale. Alpha and stored Index adjustment are unsupported. RGB/Grayscale
+pixel Alpha and Palette Entry Alpha are preserved; Indexed pixel RGB Map
+quantization may choose an Entry with different Alpha.
+
+`cels_target` is either the explicit Layer/Frame Cartesian product above or
+`{"kind":"all"}` for every editable existing Cel. Missing intersections are
+reported without creating Cels. Explicit non-editable Layers reject the operation;
+`all` reports exclusions. Shared Linked Cel Images are filtered once, and results
+include affected Cels outside the selected range. Pixel applications optionally take
+an explicit Canvas Pixel `selection`; omission selects the whole Canvas, while
+`{"kind":"empty"}` selects no pixels. Empty Selection still allows the Palette
+part of `rgb-palette-colors` to change.
+
+Brightness/Contrast accepts resolved Tilemap pixel targets with explicit
+`tileset_mode: "manual"` on the pixel application and a verified runtime capability.
+It checks the native Site mode before mutation; omitted Manual intent or a different
+observed mode rejects the whole request. Ordinary Image targets and Indexed
+Palette-only applications do not require that Tilemap capability. Tilemap placement
+Images, flags, Tileset bindings, Grid, topology, and metadata stay unchanged.
+`changed_tiles` reports changed Tile bitmaps and referencing Cels, including references
+outside the requested range or Selection. Native shared-Tile effects can occur more
+than once across distinct target Cel Images; this is not a once-per-Tile contract.
+
+Indexed Palette-only application can use a private Tilemap-only anchor and verifies
+that ordinary Images, Tilemap placement Images, and all Tile Images remain unchanged.
+A Palette basis Frame without a usable anchor produces `filter_unsupported_document`.
+These are the delivery boundaries of
+[issue #35](https://github.com/aigengame/aseprite-automation/issues/35) and
+[issue #152](https://github.com/aigengame/aseprite-automation/issues/152).
+Installed discovery reports the selected runtime's Manual Tilemap Capability Gap
+when that native probe does not pass. Hue/Saturation retains its separate boundary below.
+
+Results include effective Selection, Channels, Palette basis and indexes,
+requested intersections, existing targets, exclusions, unique Image observations,
+processed Image numbers, affected Cels, and the verified Target Commit. Filter
+capability checks are independent of native Paint checks.
+
+`spa filter hue-saturation` uses the same five Filter Applications, targets,
+Selection, and Palette basis rules. Its Channels add `alpha` to RGB/Indexed or
+Grayscale components; stored `index` is invalid. Each selected Channel requires
+exactly its applicable parameters:
+
+| Selected Channels | Required parameters |
+| --- | --- |
+| Any of `red`, `green`, `blue` | `adjustment` with `mode: hsl-multiply` or `hsl-add`, integer `hue: -180..180`, `saturation: -100..100`, `lightness: -100..100`; alternatively `hsv-multiply` or `hsv-add` with `value` instead of `lightness`. |
+| `gray` | `adjustment: {"mode":"grayscale","lightness":-100..100}`; no Hue/Saturation choice. |
+| `alpha` | Independent integer `alpha: -100..100`. |
+
+Omit `adjustment` for Alpha-only requests and omit `alpha` when that Channel is
+not selected. All governed values may be zero: an all-zero request skips native
+writeback and reports a no-op, preserving existing bounds and duplicate Indexed
+Entries. For example, rotate Hue and fade selected RGB Cels:
+
+```sh
+spa filter hue-saturation --input-json '{
+  "source_sprite_file":"source.aseprite",
+  "target_sprite_file":"adjusted.aseprite",
+  "in_place":false,"overwrite":false,
+  "adjustment":{"mode":"hsl-add","hue":30,"saturation":0,"lightness":0},
+  "alpha":-25,
+  "application":{
+    "kind":"pixels","color_mode":"rgb",
+    "channels":{"kind":"components","names":["red","green","blue","alpha"]},
+    "cels_target":{"kind":"selected","layers":[{"layer_path":[1]}],"frame_numbers":[1]}
+  }
+}'
+```
+
+Aseprite owns adjustment, clamping, and quantization; zero Alpha stays transparent
+at the adjustment stage. Indexed pixels still resolve through the declared RGB Map,
+so their final RGBA belongs to the selected Palette Entry. Background pixel targets
+reject Alpha requests, including zero, instead of silently ignoring the Channel.
+Palette-mutating Alpha also needs a non-Background execution anchor at the
+Palette basis Frame, including for zero Alpha. SPA chooses an available suitable
+anchor; otherwise it reports `filter_unsupported_document`. This current boundary
+avoids Aseprite silently removing the Alpha flag and can be extended when a future
+requirement and native evidence justify another execution path.
+Tilemap pixel targets are outside the current #36 delivery and reject the whole
+operation; Palette-only can use a non-mutating Tilemap anchor. These current
+boundaries can be extended by later feature requirements.
+
+Native writeback may trim transparent borders or delete fully transparent Cels,
+including linked Cels outside the requested range. Hue/Saturation results add
+`cel_effects` with each affected Cel's before/after Canvas bounds (`after: null`
+means native deletion); an Image deleted with its Cels has
+`after_content_digest: null`. Live and saved/reopened state must agree before
+Target Commit. Use `spa filter hue-saturation --schema` for the full contract;
+its independent runtime gate verifies all four HSL/HSV modes through the packaged
+native command path. See [#36 native evidence](docs/evidence/issue-36-hue-saturation.md).
+
+`spa filter invert-color` and `spa filter outline` operate on ordinary Image Layer
+Cels. They require explicit `color_mode`, `channels`, and `cels_target`, accept
+optional pixel `selection`, and have no `application` field. Each call publishes
+its own Target Commit; neither is an Operation Plan Step.
+
+```bash
+spa filter invert-color --input-json '{
+  "source_sprite_file": "input.aseprite",
+  "target_sprite_file": "inverted.aseprite",
+  "in_place": false, "overwrite": false,
+  "color_mode": "rgb",
+  "channels": {"kind": "components", "names": ["red", "green", "blue"]},
+  "cels_target": {"kind": "all"}
+}'
+```
+
+RGB Channels are `red`, `green`, `blue`, and `alpha`; Grayscale Channels are
+`gray` and `alpha`. Indexed Invert Color requires `palette_frame_number` and
+either RGBA `components` or exclusive `{"kind":"index"}`. Index execution uses
+native `255 - index`. Before invocation, every selected Canvas input and result
+Index must exist in the declared Effective Palette, including index-zero padding
+outside Cel bounds. `filter_index_out_of_bounds` reports the Palette basis,
+source/result Indexes, Layer paths, Frame numbers, and Canvas Pixel positions.
+SPA does not expand the Palette or switch interpretation. Indexed component
+quantization does not promise exact two-pass restoration.
+
+Outline additionally requires `place` (`inside`/`outside`), compatible
+`outline_color` and `background_color` Color Values, `tiled_mode`
+(`none`/`x`/`y`/`both`), and `matrix`. Matrix is either
+`{"kind":"preset","name":"circle"}` (`none`, `square`, `horizontal`, and
+`vertical` are also valid), or `{"kind":"custom","neighbors":["top-left","left"]}`.
+Custom neighbors name the sampled pixels relative to a candidate; a top-left
+neighbor can create an outline pixel below and right of the source. The eight
+neighbors exclude the center; empty or repeated custom entries are invalid.
+`none` requests the native empty neighborhood.
+
+Selection limits Outline writes; neighborhood reads can cross its boundary.
+Non-tiled edges use native clamping; tiled axes wrap at Canvas edges. RGB/Gray
+mixed targets use a selected non-Background color anchor; Background-only targets
+retain native opaque color projection. Indexed Outline requires valid Palette
+Index Color Values and exclusive Index Channels. Indexed component Outline is
+reported as a Capability Gap based on Aseprite 1.3.18.5 evidence.
+
+Both operations refuse any resolved Tilemap target and Background Alpha before
+mutation, including `all` and mixed requests. Ordinary targets in documents with
+unrelated Tilemaps remain usable. Results preserve Palette facts and report native
+Image changes, linked Cel effects, bounds or deletion, and verified save/reopen
+observations. Use each command's `--schema` for its installed contract. See
+[#38 native evidence](docs/evidence/issue-38-invert-outline.md).
+
+`spa filter despeckle` applies the native Median Filter to ordinary Image Layers.
+Required `width` and `height` are integers in `1..100`, including even sizes;
+`tiled_mode` is `none`, `x`, `y`, or `both`. The request uses `pixels` with explicit
+Color Mode, Channels, Cel targets, and optional Selection. It has no `application`
+field and does not edit Palette Entries. For example:
+
+```sh
+spa filter despeckle --input-json '{
+  "source_sprite_file": "source.aseprite",
+  "target_sprite_file": "smoothed.aseprite",
+  "in_place": false,
+  "overwrite": false,
+  "width": 3,
+  "height": 3,
+  "tiled_mode": "none",
+  "pixels": {
+    "color_mode": "rgb",
+    "channels": {"kind": "components", "names": ["red", "green", "blue"]},
+    "cels_target": {"kind": "all"}
+  }
+}'
+```
+
+RGB accepts nonempty RGBA subsets; Grayscale accepts Gray/Alpha subsets. Indexed
+requires `palette_frame_number` and either `channels: {"kind":"index"}` or
+component Channels that include Green. Native 1.3.18.5 corrupts preserved Green
+in the other component sets; this slice refuses them instead of adding Channels.
+Resolved Tilemap pixels and Background Alpha also refuse before mutation. These
+current boundaries can be extended by accepted requirements and native evidence.
+Results report the native window anchor, sample count, actual changed Images and
+Cel bounds, and verified save/reopen. A 1×1 window still invokes Aseprite: Indexed
+component processing can remap duplicate Palette colors to a different stored
+Index. Edge sampling follows Aseprite: `none` disables wrapping, but native
+1.3.18.5 can deviate from ideal edge repetition for wide windows; SPA preserves
+that observed output instead of repairing the native algorithm. See [#39 native evidence](docs/evidence/issue-39-native-filters.md).
+
+Convolution Matrix has no callable Descriptor. `spa info` and `spa schema` expose
+`runtime.convolution`: bounded Resource declarations, source paths, duplicate
+names, declared default Channels, scan completeness/notes, and requested versus
+observed native probe pixels. These are discovery facts, not proof that each
+Resource is usable. Coefficients, divisor, and bias remain opaque. On the current
+native baseline, Red and Alpha requests change the same RGBA components and an
+unknown Resource succeeds as a no-op. The Surface Manifest reports this Capability
+Gap. A later runtime still needs the full #39 acceptance gate before a callable
+Convolution Operation can be delivered.
+
 `spa selection create/combine/invert/grow/shrink/transform` return explicit
 Canvas Pixel values. Requests declare `coordinate_space: "canvas-pixel"`; values
 can be inline (`empty`, rectangular `all`, or canonical `mask`) or read from a
@@ -616,13 +836,243 @@ repeats stays a stored value without an inferred playback sequence. Indexes
 are snapshot-relative and can change after range edits. Mutations use the same
 explicit Source/Target publication intent as Frame authoring.
 
+`spa palette list` reports the ordered Palette Changes, their RGBA Entries, and
+inclusive effective Frame Ranges. `spa palette get` takes a one-based
+`frame_number` and returns both that requested Frame and the supplying
+`palette.palette_frame_number`. Palette Indexes are zero-based.
+
+`spa palette set` takes an exact existing `palette_frame_number` and a nonempty
+`entries` list of `{index, color: {red, green, blue, alpha}}` edits. Each index
+occurs once and must already exist. It recolors Entries without resizing the
+Palette or rewriting Indexed pixels. The result reports the reopened Palette,
+its effective range, and all persisted change points. Source/Target publication
+intent is explicit, as for other mutations. These operations are standalone;
+their Descriptors do not declare Plan eligibility.
+
+```sh
+uv run spa palette get --input-json '{"aseprite":"/path/to/aseprite","sprite_file":"sprite.aseprite","frame_number":4}'
+uv run spa palette set --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"recolored.aseprite","in_place":false,"overwrite":false,"palette_frame_number":1,"entries":[{"index":1,"color":{"red":240,"green":80,"blue":40,"alpha":255}}]}'
+```
+
+Palette edits verify exact RGBA Entries and change points after save/close/reopen
+in RGB, Grayscale, and Indexed documents. They reject publication if native
+behavior changes the global Transparent Color Index, removes an adjacent equal
+Palette Change, or changes other document content. Same-value edits are allowed
+when those invariants hold. No hidden remap or Palette Change creation occurs.
+On the tested Aseprite 1.3.18.5 baseline, `spa info` reports add/remove as native
+lifecycle Capability Gaps: public Lua has no change-point creation/deletion seam.
+These gaps do not indicate executable discovery failure and do not register
+callable commands. A future public seam needs save/close/reopen evidence before
+admission; the current boundary does not prevent that extension.
+
+`spa palette resize` targets an exact existing `palette_frame_number` and a
+positive `size`. The required `entries` list supplies exactly the new indexed
+RGBA Entries for growth; use an empty list for shrink or an unchanged size.
+Shrink refuses indexes still used by applicable Cel or Tile Images, including
+Reference Cels and unused Tiles, and cannot remove the Transparent Color Index.
+Use an explicit remap first. Other Palette Changes and all Image content stay intact.
+
+`spa palette remap` applies an explicit `mapping` list of `{old_index, new_index}`
+to the whole Indexed Sprite. Each old index occurs once; unlisted indexes stay
+unchanged, and several old indexes may map to one destination. Mapped indexes
+must fit native Indexed storage (0–255), destinations must exist in every
+Effective Palette, and the resulting Transparent Color Index must exist in
+every Palette Change. Palette colors themselves do not change.
+
+`spa palette reorder` uses the same mapping shape but requires a complete
+bijective permutation, including unchanged indexes. With `scope: "sprite"`,
+the permutation must match every Palette's size and applies to all changes and
+Indexed Images. With `scope: "palette-change"`, supply an exact
+`palette_frame_number`; the Transparent Color Index stays fixed. A shared Image
+whose pixels would change outside that change's effective range causes the whole
+request to fail, with the conflicting Cel and Tile uses in the failure details.
+RGB and Grayscale reorder changes Palette Entries without rewriting Image pixels.
+
+Mapping resolves unique Images once, including Linked Cels, Reference Cels, and
+Tileset Images. It preserves Tilemap indexes and flags, sharing, and Tile metadata.
+Results report old/new mappings, transparency, every affected Image's uses, and
+before/after content digests. All three operations are standalone and verify their saved and reopened output
+before Target Commit. They do not add Palette Changes or choose nearest colors.
+
+```sh
+uv run spa palette resize --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"smaller.aseprite","in_place":false,"overwrite":false,"palette_frame_number":1,"size":4,"entries":[]}'
+uv run spa palette remap --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"remapped.aseprite","in_place":false,"overwrite":false,"mapping":[{"old_index":3,"new_index":0}]}'
+uv run spa palette reorder --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"reordered.aseprite","in_place":false,"overwrite":false,"scope":"sprite","mapping":[{"old_index":0,"new_index":0},{"old_index":1,"new_index":2},{"old_index":2,"new_index":1},{"old_index":3,"new_index":3}]}'
+```
+
+### Palette files and Color Quantization
+
+`spa palette import` replaces one exact existing `palette_frame_number` with a
+`palette_file: {"format":"gpl"|"png","path":"..."}`. GPL includes the Aseprite
+RGBA extension. PNG must be Indexed (Color Type 3); its full PLTE/tRNS tables,
+including duplicate and unused Entries, are retained. Missing tRNS alpha values
+mean 255. Import preserves Sprite Color Mode, stored pixels, and the Sprite's
+Transparent Color Index. Format choice does not request a Color Profile conversion.
+It refuses unsafe Indexed Palette uses,
+malformed input, and native data loss before Target Commit. Entry names and file
+layout are not part of the color-payload guarantee.
+
+`spa palette color-quantization` replaces an exact existing Palette Change with
+native colors generated from **all Frames and their visible Layer composition**.
+It requires `max_colors` (1–256), `with_alpha`, `rgb_map_algorithm` (`default`,
+`rgb5a3`, or `octree`), and `new_layer_blending_method`. Native `default` resolves
+to `octree` in the tested runtime. Palette Picks do not limit generation; the
+temporary Picks, active Frame, and blending preference are restored. Results
+report requested and actual size, complete Entries, render and affected Frames,
+and Indexed transparency facts. Indexed candidates that change the global mask
+or leave invalid stored indexes are refused; callers must explicitly remap first.
+Any native candidate above `max_colors` is also refused. Import and quantization
+publish a Sprite only if save/reopen retains the complete Palette timeline.
+On the tested Aseprite 1.3.18.5-dev runtime, Octree can return three Entries for a
+one-color request, and small fully opaque Grayscale Palettes can expand to 256
+Entries on save/reopen. These cases return `palette_quantization_rejected` or
+`palette_persistence_failed`; SPA does not change the requested algorithm, add
+colors, or patch the native file to make them pass.
+
+`spa palette export` produces a verified **Palette Artifact**, from either an
+Effective Palette or an explicit quantization request on a disposable Sprite.
+
+Effective Palette export requires the native Palette file capability. Only the
+`color-quantization` source branch also requires native quantization; the Surface
+Manifest reports a Capability Gap for that branch when it is unavailable.
+
+```sh
+spa palette export --input-json '{
+  "source_sprite_file":"sprite.aseprite",
+  "palette_source":{"kind":"effective","frame_number":2},
+  "destination":{"format":"png","path":"colors.png","if_exists":"fail"}
+}'
+spa palette export --input-json '{
+  "source_sprite_file":"sprite.aseprite",
+  "palette_source":{"kind":"color-quantization","palette_frame_number":1,
+    "max_colors":16,"with_alpha":true,"rgb_map_algorithm":"octree",
+    "new_layer_blending_method":true},
+  "destination":{"format":"gpl","path":"generated.gpl","if_exists":"replace"}
+}'
+```
+
+Both file formats support RGB, Grayscale, and Indexed Source Sprites. Indexed PNG
+holds 1–256 ordered Entries; larger Palettes can use GPL. Export independently
+decodes the staged file and checks every Entry before publication. It leaves
+Source bytes unchanged, including when native generation would produce an unsafe
+Sprite candidate: only the Palette Artifact is published. These operations are
+standalone and do not participate in an Operation Plan.
+
+### Change Color Mode
+
+`spa sprite change-color-mode` declares a `conversion.source_color_mode` expectation
+and a `conversion.target` branch. The live Sprite must match the source expectation.
+The same `conversion` input is available in a `sprite change-color-mode` Plan Step.
+
+| Source → Target | Required target fields besides `color_mode` |
+| --- | --- |
+| Same mode | None; reports `changed: false` and unchanged content |
+| RGB / Indexed → Grayscale | `to_gray`: `luma`, `hsv`, or `hsl` |
+| Grayscale / Indexed → RGB | None |
+| Grayscale → Indexed | `rgb_map_algorithm`, `color_best_fit_criteria` |
+| RGB → Indexed | `rgb_map_algorithm`, `color_best_fit_criteria`, `dithering` |
+
+RGB Map Algorithm accepts `default`, `rgb5a3`, or `octree`. Color Best Fit Criteria
+accepts `default`, `rgb`, `linearizedRGB`, `ciexyz`, or `cielab`. These are explicit
+native choices; omission and inapplicable fields are rejected. On the verified
+Aseprite baseline, native RGB Map `default` resolves to `octree`. Existing Effective
+Palettes supply conversion; this operation does not generate a Palette.
+
+Dithering is one of `{algorithm: "none"}`, `{algorithm: "ordered"}`, `{algorithm: "old"}`,
+or `{algorithm: "error-diffusion", dithering_factor: 0.5}`. Error Diffusion requires a
+finite factor from 0 through 1 and accepts no matrix. Its result includes the supplied
+factor and native effective integer percentage. Ordered/old optionally take
+`matrix: {kind: "installed", id: "bayer4x4"}` or
+`matrix: {kind: "file", path: "/absolute/matrix.bmp"}`; neither accepts a factor.
+An omitted matrix means native Bayer 8×8, reported with `native-default` provenance.
+Explicit `matrix: null` is rejected.
+Installed IDs resolve uniquely among the selected Aseprite installation's
+`data/extensions` manifests; SPA starts with isolated user configuration. A custom
+matrix outside that installation can be selected by file path. Requested files are
+snapshotted, loaded by Aseprite, and checked before conversion. Missing, ambiguous,
+unreadable, or invalid matrices fail without native fallback.
+
+```sh
+uv run spa sprite change-color-mode --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"indexed.aseprite","in_place":false,"overwrite":false,"conversion":{"source_color_mode":"rgb","target":{"color_mode":"indexed","rgb_map_algorithm":"default","color_best_fit_criteria":"default","dithering":{"algorithm":"none"}}}}'
+```
+
+Results report complete before/after Cel and Tile Image facts, shared Image numbers,
+Effective Palette change points, Transparent Color Index, Palette Index counts,
+and requested/effective mapping choices. Image content is a native-byte FNV-1a 64-bit
+digest. Image numbers address one observation and are not persistent identifiers.
+Linked Cels use their native representative Frame's Palette; Tiles use Frame 1.
+Tilemap cell indexes are preserved. Native conversion to Indexed makes Cel opacity
+255; conversion to Grayscale replaces Palette Changes with the native grayscale
+Palette. These effects are reported and verified after save/close/reopen. Plan
+Steps report live evidence with `persisted_reopen_verified: false`; their enclosing
+Plan verifies the final document, including Tile Images, before one Target Commit.
+
+### Color Profiles
+
+`spa sprite assign-color-profile` takes `profile: {kind: "none"}`, `{kind: "srgb"}`,
+or `{kind: "icc", icc_file: "/path/profile.icc"}`. It changes the Color Profile while
+preserving stored Image pixels, Palette Entries, and Tile pixels. `spa sprite
+convert-color-profile` invokes native conversion within the limited matrix below.
+Both use explicit `source_sprite_file`, `target_sprite_file`, `in_place`, and
+`overwrite` fields and verify save/close/reopen before Target Commit.
+
+ICC inputs must be readable, valid profiles. Assign also supports validated LAB ICC
+metadata and valid ICC files excluded from Convert, without transforming stored colors.
+
+| Source Profile | Admitted Convert targets |
+| --- | --- |
+| Encoded None | Built-in sRGB |
+| Built-in sRGB | Built-in sRGB; fixed linear-sRGB ICC |
+| Fixed linear-sRGB ICC | Built-in sRGB; the same fixed linear-sRGB ICC |
+| Fixed Display P3 ICC | Built-in sRGB; the same fixed Display P3 ICC |
+
+The fixed files are [linear_srgb.icc](src/spa/kernel/color/profiles/linear_srgb.icc)
+and [display_p3.icc](src/spa/kernel/color/profiles/display_p3.icc), also included in
+the installed package. Any path containing the exact file bytes works. Other encodings
+or metadata changes, even with the same profile name, are outside this Convert set.
+Display P3 is the exact file verified for #103's canonical sRGB preparation path.
+Built-in sRGB is not an arbitrary sRGB ICC file.
+
+An unlisted Source ICC returns `color_profile_source_unsupported`. An unlisted target
+ICC or conversion direction returns `color_profile_file_failed` with reason
+`unsupported_profile` or `unsupported_conversion`. Non-RGB targets retain the static
+`unsupported_color_space` refusal. These refusals preserve Source and any existing
+Target, including in-place execution and Plan Steps after Assign. Assign changes
+interpretation and cannot replace an unsupported requested transform.
+
+The result reports the input path,
+byte size, SHA-256, native name, and equality with the effective Sprite profile.
+Results distinguish `source_profile`, `requested_profile`, and `effective_profile`;
+`profile_changed` is independent of content changes. Each Cel Image, Palette Change,
+and Tileset Tile has before/after content digests and a `changed` flag. Palette
+observations also list changed Entry indexes. On the tested 1.3.18.5 runtime, native
+Convert leaves Tileset pixels unchanged; this is reported explicitly. See the
+[profile evidence](docs/evidence/issue-34-color-profile.md) for Color Mode behavior
+and the batch loader's treatment of encoded None. Supported same-profile requests
+and content-dependent no-ops are valid; changed-pixel counts do not determine success.
+These operations do not add profile conversion to PNG Export.
+Conversion requires a probed native converter. The current Linux CI build uses
+`LAF_BACKEND=none`; it is expected to report a conversion Capability Gap and reject
+Convert, while retaining Assign. Native conversion is verified on the macOS bundle.
+
+```sh
+uv run spa sprite assign-color-profile --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"untagged.aseprite","in_place":false,"overwrite":false,"profile":{"kind":"none"}}'
+uv run spa sprite convert-color-profile --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"converted.aseprite","in_place":false,"overwrite":false,"profile":{"kind":"icc","icc_file":"/path/profile.icc"}}'
+```
+
+### Operation Plans
+
 `spa plan check` validates a bounded Plan, including current Source and Target path
-conditions, without starting Aseprite. `spa plan run`
+conditions, ICC file readability and validity, and fixed Convert target membership,
+without starting Aseprite. Native
+profile loading and document-dependent conversion checks occur during `spa plan run`, which
 executes up to 64 Sprite-bound `sprite create`, `sprite get`, `frame list`,
-`frame get`, `frame add`, `frame duplicate`, `cel add`, `cel set`, `motion apply`, and `paint apply` Steps
+`frame get`, `frame add`, `frame duplicate`, `cel add`, `cel set`, `motion apply`,
+`paint apply`, `sprite change-color-mode`, `sprite assign-color-profile`,
+and `sprite convert-color-profile` Steps
 on one live Sprite in one Aseprite process. A read Plan publishes no file. A mutating
 Plan declares one Target Sprite File; the staged file is reopened and verified before
-one Target Commit. A failed Step publishes no target. Typed Cel refusals identify the
+one Target Commit. A failed Step publishes no target. Typed Cel, Color Mode, and Color Profile refusals identify the
 one-based Step in `details.step_number`; execution failures use
 `details.failed_step` when a Step was active. Each Paint Step retains its own
 256-pixel Operation Limit. A Plan with an

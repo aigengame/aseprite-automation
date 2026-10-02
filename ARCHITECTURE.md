@@ -14,11 +14,14 @@ this view instead of treating it as another decision authority.
 > SPA is at the bootstrap stage. The installed CLI exposes `spa info`, `spa version`,
 > `spa schema`, Sprite creation, inspection, copy, resize, crop, flatten, and
 > validation, Layer addressing and mutation, Frame inspection, authoring, and
-> editing, Tag inspection and authoring, Cel inspection, lifecycle, placement,
+> editing, Tag inspection and authoring, Palette Change inspection and Entry edits,
+> Color Profile assignment and conversion,
+> Cel inspection, lifecycle, placement,
 > bounded position/opacity motion,
 > and native relationships, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, bounded Pixel Patch
 > application, native Snapshot composition (`spa paint composite`), native Line,
-> Rectangle, Ellipse, Contour, and Blur Paint operations, verified RGB
+> Rectangle, Ellipse, Contour, and Blur Paint operations, native Brightness/Contrast,
+> verified RGB
 > PNG Image Export, animation audit, Frame comparison, and continuity Preview
 > export. The module
 > ownership below includes both this delivered vertical slice and planned work. Feature
@@ -498,13 +501,20 @@ src/spa/
       image.py, image_snapshot.py, selection.py
       paint.py, paint_composite.py, paint_native.py
     color/
-      palette.py          # Effective Palette binding
+      palette.py          # Palette reads, Entry edits, sizing, reorder, and remap contracts
+      palette_file.py     # native Palette import and ordered-file evidence
+      quantization.py     # explicit native Palette generation contract and evidence
+      color_mode.py       # Conditional native conversion contract and evidence
+      profile.py          # Native Color Profile contracts and ICC input policy
   delivery/
     export.py             # Export Image contract, native invocation, and result
+    palette.py            # verified Palette file export and explicit generation composition
     png_publication.py    # staged PNG verification/publication for Export and Preview
   adapters/
     aseprite/             # process, resource discovery, and transport
     files.py, png.py       # filesystem mechanics and independent PNG decoding
+    icc.py                # ICC byte validation and digest, without color transforms
+    palette_file.py       # independent GPL/Indexed PNG observations, not a color engine
   kernel/                 # fixed native semantic handlers and shared owners
     __init__.py
     document/
@@ -512,13 +522,22 @@ src/spa/
     raster/
       image/, paint/, selection/
       raster_color.lua
-    color/                # Effective Palette
+    color/                # Palette semantics, native Color Mode and Color Profile operations
     delivery/             # native Image Export
     runtime/              # runtime and capability probes
       fixtures/           # real native probe inputs
     plan/                 # single-Sprite Plan execution
     foundation/           # digest and rounding algorithms
 ```
+
+`authoring/color/color_mode.py` owns Change Color Mode's conditional request and
+result contracts. `kernel/color/color_mode.lua` owns complete-Sprite native
+conversion, Effective Palette observations, and Dithering Matrix preflight. It
+accepts an attached Sprite without owning its publication. The standalone wrapper
+and Plan call that same owner, then verify native persistence before Target Commit.
+The process adapter supplies the selected installation's data directory as private
+invocation context. Matrix pixels and native mapping remain inside Aseprite; later
+export composition can reuse this owner on a disposable Sprite.
 
 Package initialization does not register Operations or re-export implementations.
 Access calls Application; Application composes feature contracts and inner-owned
@@ -547,8 +566,52 @@ real LFS fixture content. This inventory verifies the distribution and is not an
 Operation registry.
 
 Add a module only with a complete functional slice. Preparation and Tile packages
-have no placeholder implementation. Color and Palette now owns the
-shared Effective Palette resolver; further structure follows delivered features.
+have no placeholder implementation. Color and Palette owns the shared Effective
+Palette resolver and standalone Palette list/get/set/resize/remap/reorder. Its native module resolves
+Frame-based change points, edits only exact existing changes, and checks the full
+Palette timeline after shared Sprite persistence completes. This Palette-specific
+postcondition includes RGB/Grayscale Entries, which generic document persistence
+can otherwise treat as unrelated metadata. Python validates native evidence and
+uses shared mutation completion before Target Commit. Unsupported Palette Change
+add/remove operations remain evidence-backed Capability Gaps without Descriptors.
+The private `palette_images` module resolves per-invocation Cel and Tile Image uses,
+including unused Tiles, and supplies Image digests and Tile metadata facts to Palette
+checks. It has no persistent registry or Tile authoring policy. Palette transforms
+delegate shared replacement to the native Cel/Tile Image setter, which preserves
+sharing and updates Tileset persistence caches; raw Image byte writes do not do that.
+Palette-change reorder rejects changed Images with uses outside its effective range.
+Whole-Sprite remap and reorder include all Indexed Images and the global Transparent
+Color Index. Palette resize remains a native capability that Preparation can consume
+without importing Preparation's policy into Color and Palette.
+
+`palette_file.lua` imports native Palette colors into an exact existing Change;
+Python freezes the input bytes and compares all persisted Entries with independent
+file observations. `palette_quantization.lua` owns the native all-Frame generation
+and temporary editor state. Its standalone mutation path also verifies unchanged
+non-Palette facts and refuses unsafe Indexed candidates. Delivery calls the same
+generator on a disposable Sprite and publishes only a Palette Artifact. It uses
+the existing Artifact File adapter for staging, identity checks, digest verification,
+and publication. GPL and Indexed PNG interpretation stay in the Palette file adapter;
+the existing RGB Image PNG verifier retains its separate format policy. No Python
+module generates, remaps, or quantizes Palette colors.
+
+Color and Palette also owns `sprite assign-color-profile` and
+`sprite convert-color-profile`. `profile.lua` applies the same native operation to a
+standalone Sprite or a live Plan Sprite and observes all Cel Images, Palette Changes,
+and Tileset Tiles. The same owner admits Convert through a finite directed matrix
+and exact packaged ICC bytes. It binds encoded Source bytes, or bytes from the last
+live Assign, to the native profile before admission. This policy does not constrain
+valid-ICC Assign or infer arbitrary native ICC compatibility. Static Preflight rejects
+unlisted Convert target bytes by reading those same co-packaged resources; it does
+not reproduce the Lua source/direction rule.
+Python reads and freezes input ICC bytes through the file adapter and
+validates them through the ICC adapter;
+it does not transform colors. The profile-specific persistence check verifies native
+profile equality, encoded kind, all stored colors, and the complete Palette timeline.
+The bounded encoded-profile reader is shared with Export, whose format policy remains
+separate. This preserves encoded None despite Aseprite's batch load default and adds
+no general profile or preference service. See the [native evidence](docs/evidence/issue-34-color-profile.md).
+
 Reuse the canonical
 Pixel Region Snapshot and Color Value contracts where applicable; do not promote the
 wizard's temporary PNG decoder, palette matcher, or batching adapter as a second pixel
@@ -567,6 +630,79 @@ native set operations, isolated temporary Sprite work, and binary Image adaptati
 for native nearest-neighbor sampling. Python validates wire constraints and
 orchestrates existing Artifact staging, independent JSON/PNG verification, and
 publication. No persistent editor Selection or second Mask engine is introduced.
+
+Native Filters share target observations, Cel writeback checks, and staged Target
+publication in `authoring/raster/filter.py`. Brightness/Contrast and Hue/Saturation
+also share their palette-aware application variants. `pixel_filter.py` owns the
+fixed-pixel request/evidence subset for Color Curve and Replace Color, without a
+public application selector. Each operation keeps its adjustment schema and native
+mapping; `hue_saturation.py` owns conditional HSL/HSV, Grayscale, and Alpha forms.
+Brightness/Contrast alone adds Manual Tileset Mode and changed-Tile evidence.
+`filter_support.lua` owns Filter Cels Target resolution, Channel flags, editor-state
+restoration, and stable Layer/Frame observations. `filter_application.lua` owns
+Palette application and native transaction setup. Fixed-pixel operations adapt to
+that executor internally and omit Palette-mutation fields from public results. Small adjustment modules
+map explicit parameters and invoke their respective Aseprite commands; no color
+algorithm is duplicated. `filter_run.lua` verifies live/save-close-reopen observations
+before Python publishes a Target. Existing Layer, Effective Palette, Selection, and
+Sprite persistence modules retain their ownership.
+
+`invert_outline.py` owns the two standalone pixel-only contracts. They reuse
+Filter target observations and publication without inheriting the Palette
+application request. Their fixed Kernel modules invoke native Invert Color and
+Outline. The shared executor accepts a pre-invocation validation callback after
+target, Palette, and Selection resolution; Invert uses it to validate stored
+Indexes across the selected Canvas (including native zero padding). Outline maps
+named neighbors to native Matrix bits and retains its own color-anchor policy.
+No generic effect model or Operation Plan eligibility is introduced. Runtime
+probes gate the two commands independently, and the Surface Manifest reports
+their target and Indexed component limitations.
+
+Native writeback can trim or delete Cels. Hue/Saturation and Despeckle observe surviving
+Layer/Frame intersections and reports bounds or absence, including affected links
+outside the selected range, without retaining deleted Cel userdata. Hue/Saturation's independent
+runtime gate discriminates all four HSL/HSV modes across the five applications.
+Color Curve and Replace Color use the same stable Cel observations. Replace Color
+counts actual stored-pixel differences per distinct target Image, using Canvas
+alignment across native expansion, trimming, or deletion; it does not recreate native matching.
+Their independent runtime gates observe RGB, Grayscale, Indexed component, and Index
+paths. Hue/Saturation, Color Curve, and Replace Color reject resolved Tilemap pixel
+targets; Hue Indexed Palette-only anchors
+preserve ordinary, placement, and Tile Images (ADR-0074). This is its current delivery
+boundary, not a permanent restriction on future Filter features.
+
+`despeckle.py` owns required window dimensions, edge mode, the pixel-only request,
+and its Indexed Channel boundary. It adapts pixel intent to the shared private
+application path without importing Palette mutation policy. Native Despeckle owns
+neighborhood sampling, median selection, component preservation and RGB Map
+quantization, including 1×1 writeback. No SPA median algorithm or no-op shortcut
+is introduced.
+
+Convolution is discovery-only in this slice. The Runtime Integration adapter scans
+bounded declaration metadata at the prepared invocation's native resource paths.
+It never computes coefficients or decides that a declaration is callable. The
+Kernel records direct requested/observed Channel probes, and `RuntimeFacts`
+transports both observations. Raster Authoring provides the Convolution gap evidence;
+the installed Surface Manifest reports the applicable Capability Gap. No descriptor,
+custom convolution engine, or general resource registry is added.
+
+Brightness/Contrast passes the concrete `filter_tiles.lua` module into the shared
+execution path. It owns Manual Tilemap admission, preserved placement/binding/Grid
+postconditions, and changed Tile bitmap references. It consumes the existing low-level
+Image/reference observations in `palette_images.lua`, without Palette mutation policy.
+The shared target resolver admits Tilemaps only when that operation supplies Tile support.
+A separate runtime probe observes the four Manual Tilemap pixel applications. The
+application passes that private capability fact to the Kernel, which checks actual
+resolved targets and the live native Site mode before mutation. Ordinary Image and
+Palette-only applications do not require the Tilemap capability (ADR-0074, #152).
+
+Manual Tilemap verification compares canonical native User Data chunks, including their
+structural positions and extension mappings, through temporary `saveCopyAs` snapshots.
+This preserves observation of arbitrary plugin namespaces and native Property types
+that the Lua getters cannot fully enumerate. It does not decode or rewrite Properties.
+Before/live comparison runs inside the native transaction; save-close-reopen comparison
+runs before Target Commit. Existing full Image observations cover ordinary color Images,
+placement Images, Tile bitmaps, and sharing. No topology or metadata repair is performed.
 
 The native Fill, Pencil, Eraser, Line, Rectangle, Ellipse, Contour, and Blur
 operations use `paint_native.py` for typed

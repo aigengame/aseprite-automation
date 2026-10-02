@@ -2,6 +2,22 @@
 
 from spa.application.failure_registry import FAILURE_CODES
 from spa.application.plan import PLAN_OPERATIONS
+from spa.authoring.color.color_mode import COLOR_MODE_OPERATIONS, COLOR_MODE_RESOURCE
+from spa.authoring.color.palette import (
+    PALETTE_OPERATIONS,
+    PALETTE_PROBE_RESOURCES,
+    palette_lifecycle_gaps,
+)
+from spa.authoring.color.palette_file import PALETTE_FILE_OPERATIONS
+from spa.authoring.color.profile import (
+    PROFILE_ICC_RESOURCES,
+    PROFILE_OPERATIONS,
+    PROFILE_RESOURCE,
+)
+from spa.authoring.color.quantization import (
+    PALETTE_QUANTIZATION_RESOURCE,
+    QUANTIZATION_OPERATIONS,
+)
 from spa.authoring.document.animation import ANIMATION_OPERATIONS
 from spa.authoring.document.cel import CEL_OPERATIONS, CEL_SUPPORT_RESOURCE
 from spa.authoring.document.cel_relationship import CEL_RELATIONSHIP_OPERATIONS
@@ -10,6 +26,28 @@ from spa.authoring.document.layer import LAYER_OPERATIONS, LAYER_SELECT_RESOURCE
 from spa.authoring.document.motion import MOTION_OPERATIONS
 from spa.authoring.document.sprite import SPRITE_OPERATIONS, SPRITE_PROBE_RESOURCES
 from spa.authoring.document.tag import TAG_OPERATIONS
+from spa.authoring.raster.color_curve import (
+    COLOR_CURVE_OPERATIONS,
+    COLOR_CURVE_RESOURCE,
+)
+from spa.authoring.raster.convolution import (
+    CONVOLUTION_PROBE_RESOURCE,
+    convolution_capability_gap,
+)
+from spa.authoring.raster.despeckle import (
+    DESPECKLE_OPERATIONS,
+    DESPECKLE_RESOURCE,
+    despeckle_capability_gaps,
+)
+from spa.authoring.raster.filter import (
+    FILTER_OPERATIONS,
+    FILTER_RESOURCES,
+    filter_capability_gaps,
+)
+from spa.authoring.raster.hue_saturation import (
+    HUE_SATURATION_OPERATIONS,
+    HUE_SATURATION_RESOURCE,
+)
 from spa.authoring.raster.image import (
     IMAGE_CANVAS_TRANSFORM_RESOURCE,
     IMAGE_OPERATIONS,
@@ -17,6 +55,12 @@ from spa.authoring.raster.image import (
     IMAGE_RESIZE_TRANSFORM_RESOURCE,
 )
 from spa.authoring.raster.image_snapshot import COMPOSITION_RESOURCE, SNAPSHOT_RESOURCE
+from spa.authoring.raster.invert_outline import (
+    INVERT_COLOR_RESOURCE,
+    INVERT_OUTLINE_OPERATIONS,
+    OUTLINE_RESOURCE,
+    invert_outline_capability_gaps,
+)
 from spa.authoring.raster.paint import PAINT_OPERATIONS, PAINT_PROBE_RESOURCES
 from spa.authoring.raster.paint_composite import (
     COMPOSITE_OPERATIONS,
@@ -28,6 +72,10 @@ from spa.authoring.raster.paint_native import (
     NATIVE_PAINT_RESOURCES,
     native_paint_candidate_gaps,
     native_paint_capability_gaps,
+)
+from spa.authoring.raster.replace_color import (
+    REPLACE_COLOR_OPERATIONS,
+    REPLACE_COLOR_RESOURCE,
 )
 from spa.authoring.raster.selection import (
     SELECTION_OPERATIONS,
@@ -51,8 +99,25 @@ from spa.contracts.public import (
     failure_schema,
 )
 from spa.delivery.export import EXPORT_OPERATIONS, EXPORT_PROBE_RESOURCES
+from spa.delivery.palette import (
+    PALETTE_EXPORT_OPERATIONS,
+    palette_export_capability_gaps,
+)
 
 PROBE_RESOURCES = (
+    CONVOLUTION_PROBE_RESOURCE,
+    DESPECKLE_RESOURCE,
+    *FILTER_RESOURCES,
+    COLOR_CURVE_RESOURCE,
+    REPLACE_COLOR_RESOURCE,
+    HUE_SATURATION_RESOURCE,
+    INVERT_COLOR_RESOURCE,
+    OUTLINE_RESOURCE,
+    PALETTE_QUANTIZATION_RESOURCE,
+    COLOR_MODE_RESOURCE,
+    *PALETTE_PROBE_RESOURCES,
+    PROFILE_RESOURCE,
+    *PROFILE_ICC_RESOURCES,
     *NATIVE_PAINT_RESOURCES,
     *SPRITE_PROBE_RESOURCES,
     LAYER_SELECT_RESOURCE,
@@ -121,6 +186,12 @@ def _surface(runtime: RuntimeFacts) -> tuple[list[str], list[CapabilityGap]]:
                 evidence="; ".join(evidence),
             )
         )
+    if "spa palette export" in supported:
+        gaps.extend(
+            palette_export_capability_gaps(
+                runtime.aseprite_version, runtime.verified_capabilities
+            )
+        )
     if "spa paint composite" in supported:
         gaps.extend(
             composite_capability_gaps(
@@ -140,6 +211,22 @@ def _surface(runtime: RuntimeFacts) -> tuple[list[str], list[CapabilityGap]]:
         for gap in native_paint_candidate_gaps(runtime.aseprite_version)
         if gap.capability not in registered
     )
+    gaps.extend(palette_lifecycle_gaps(runtime.aseprite_version))
+    gaps.append(
+        convolution_capability_gap(runtime.aseprite_version, runtime.convolution)
+    )
+    gaps.extend(
+        filter_capability_gaps(
+            runtime.aseprite_version, runtime.verified_capabilities, supported
+        )
+    )
+    gaps.extend(
+        gap
+        for gap in invert_outline_capability_gaps(runtime.aseprite_version)
+        if gap.capability.split(":")[0] in supported
+    )
+    if "spa filter despeckle" in supported:
+        gaps.extend(despeckle_capability_gaps(runtime.aseprite_version))
     return supported, gaps
 
 
@@ -165,6 +252,7 @@ def info_result(request: RuntimeRequest, services: OperationServices) -> InfoRes
         lua_version=observation.lua_version,
         verified_prerequisites=list(observation.verified_prerequisites),
         verified_capabilities=list(observation.verified_capabilities),
+        convolution=observation.convolution,
     )
     supported, gaps = _surface(facts)
     return InfoResult(
@@ -233,6 +321,12 @@ OPERATIONS = (
     *PAINT_OPERATIONS,
     *COMPOSITE_OPERATIONS,
     *NATIVE_PAINT_OPERATIONS,
+    *FILTER_OPERATIONS,
+    *COLOR_CURVE_OPERATIONS,
+    *REPLACE_COLOR_OPERATIONS,
+    *HUE_SATURATION_OPERATIONS,
+    *INVERT_OUTLINE_OPERATIONS,
+    *DESPECKLE_OPERATIONS,
     *SELECTION_OPERATIONS,
     *FRAME_OPERATIONS,
     *CEL_OPERATIONS,
@@ -240,7 +334,13 @@ OPERATIONS = (
     *MOTION_OPERATIONS,
     *IMAGE_OPERATIONS,
     *TAG_OPERATIONS,
+    *PALETTE_OPERATIONS,
+    *PALETTE_FILE_OPERATIONS,
+    *QUANTIZATION_OPERATIONS,
+    *COLOR_MODE_OPERATIONS,
+    *PROFILE_OPERATIONS,
     *EXPORT_OPERATIONS,
+    *PALETTE_EXPORT_OPERATIONS,
     *ANIMATION_OPERATIONS,
     *PLAN_OPERATIONS,
 )

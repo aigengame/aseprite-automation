@@ -3,6 +3,7 @@
 import json
 import os
 import shlex
+from importlib.resources import files
 from pathlib import Path
 
 import pytest
@@ -60,6 +61,121 @@ def test_plan_check_admits_a_read_plan_without_launching_aseprite(
     assert result["operation"] == "spa plan check"
     assert result["step_count"] == 1
     assert result["commit_required"] is False
+
+
+@pytest.mark.parametrize("verb", ["check", "run"])
+@pytest.mark.parametrize(
+    "operation,file_kind,reason",
+    [
+        (operation, file_kind, reason)
+        for operation in ["assign-color-profile", "convert-color-profile"]
+        for file_kind, reason in [("missing", "unreadable"), ("invalid", "invalid")]
+    ]
+    + [("convert-color-profile", "unlisted", "unsupported_profile")],
+)
+def test_plan_rejects_bad_icc_before_runtime(
+    tmp_path: Path, verb: str, operation: str, file_kind: str, reason: str
+) -> None:
+    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
+    source.write_bytes(b"Source bytes")
+    target.write_bytes(b"Target bytes")
+    icc = tmp_path / "input.icc"
+    if file_kind == "invalid":
+        icc.write_bytes(b"not an ICC file")
+    elif file_kind == "unlisted":
+        from PIL import ImageCms
+
+        icc.write_bytes(
+            ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
+        )
+    run = spa(
+        "plan",
+        verb,
+        "--input-json",
+        json.dumps(
+            {
+                "plan": {
+                    "source_sprite_file": str(source),
+                    "target_sprite_file": str(target),
+                    "overwrite": True,
+                    "steps": [
+                        {
+                            "operation": "sprite get",
+                            "input": {"inspection_scope": ["frames"]},
+                        },
+                        {
+                            "operation": f"sprite {operation}",
+                            "input": {
+                                "profile": {"kind": "icc", "icc_file": str(icc)},
+                            },
+                        },
+                    ],
+                }
+            }
+        ),
+        env=os.environ | {"SPA_ASEPRITE_EXECUTABLE": "/missing/aseprite"},
+    )
+    assert run.returncode != 0, run.stdout + run.stderr
+    result = json.loads(run.stdout)
+    assert result["code"] == "color_profile_file_failed", result
+    assert result["details"] == {
+        "kind": "color_profile_file",
+        "path": str(icc),
+        "reason": reason,
+        "step_number": 2,
+    }
+    assert source.read_bytes() == b"Source bytes"
+    assert target.read_bytes() == b"Target bytes"
+    assert not list(tmp_path.glob(".*.staged.aseprite"))
+
+
+@pytest.mark.parametrize(
+    "operation,icc_kind",
+    [
+        ("assign-color-profile", "unlisted"),
+        ("convert-color-profile", "linear_srgb"),
+        ("convert-color-profile", "display_p3"),
+    ],
+)
+def test_plan_check_accepts_valid_icc_without_runtime(
+    tmp_path: Path, operation: str, icc_kind: str
+) -> None:
+    from PIL import ImageCms
+
+    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
+    source.write_bytes(b"Source bytes")
+    icc = tmp_path / "srgb.icc"
+    icc.write_bytes(
+        ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
+        if icc_kind == "unlisted"
+        else files("spa.kernel").joinpath(f"color/profiles/{icc_kind}.icc").read_bytes()
+    )
+    run = spa(
+        "plan",
+        "check",
+        "--input-json",
+        json.dumps(
+            {
+                "plan": {
+                    "source_sprite_file": str(source),
+                    "target_sprite_file": str(target),
+                    "steps": [
+                        {
+                            "operation": f"sprite {operation}",
+                            "input": {
+                                "profile": {"kind": "icc", "icc_file": str(icc)},
+                            },
+                        }
+                    ],
+                }
+            }
+        ),
+        env=os.environ | {"SPA_ASEPRITE_EXECUTABLE": "/missing/aseprite"},
+    )
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert json.loads(run.stdout)["commit_required"] is True
+    assert source.read_bytes() == b"Source bytes"
+    assert not target.exists()
 
 
 def test_plan_check_admits_existing_cel_properties_without_launching_aseprite(
@@ -710,3 +826,55 @@ cp {shlex.quote(str(response_file))} "$response_file"
     failure = json.loads(run.stdout)
     assert failure["code"] == "runtime_incompatible"
     assert failure["details"]["missing_capabilities"] == ["aseprite_sprite_inspection"]
+
+
+@pytest.mark.parametrize("operation", ["cel add", "cel set"])
+@pytest.mark.parametrize("code", ["color_mode_mismatch", "dithering_matrix_invalid"])
+def test_color_mode_failure_cannot_travel_through_a_cel_rejection(
+    tmp_path, operation, code
+):
+    from dataclasses import replace
+
+    from spa.adapters.files import LocalTargetFiles
+    from spa.application.plan import PlanRunRequest, run_plan
+    from spa.contracts.ports import KernelInvocationResult, RuntimeIssue
+    from spa.contracts.public import Diagnostics
+    from tests.support import operation_services, runtime_observation
+
+    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
+    source.write_bytes(b"original source")
+    step_input = {"target": {"layer": {"layer_path": [1]}, "frame_number": 1}}
+    if operation == "cel set":
+        step_input["opacity"] = 128
+    request = PlanRunRequest.model_validate(
+        {
+            "plan": {
+                "source_sprite_file": str(source),
+                "target_sprite_file": str(target),
+                "steps": [{"operation": operation, "input": step_input}],
+            }
+        }
+    )
+
+    def invoke(_request, _handler, _payload, _timeout):
+        return KernelInvocationResult(
+            payload={
+                "cel_rejection": {
+                    "step_number": 1,
+                    "code": code,
+                    "message": "wrong owner",
+                }
+            },
+            response_path="/response.json",
+            diagnostics=Diagnostics(exit_status=0),
+        )
+
+    services = replace(
+        operation_services(lambda _: runtime_observation()),
+        invoke_kernel_direct=invoke,
+        target_files=LocalTargetFiles(),
+    )
+    with pytest.raises(RuntimeIssue, match="invalid Cel rejection"):
+        run_plan(request, services)
+    assert source.read_bytes() == b"original source"
+    assert not target.exists()

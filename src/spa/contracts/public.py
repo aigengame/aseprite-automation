@@ -75,6 +75,23 @@ RuntimeCapability = Literal[
     "aseprite_image_flip",
     "aseprite_image_rotate",
     "aseprite_tag_authoring",
+    "aseprite_palette_entries",
+    "aseprite_palette_resize",
+    "aseprite_palette_remap",
+    "aseprite_palette_reorder",
+    "aseprite_filter_brightness_contrast",
+    "aseprite_filter_brightness_contrast_tilemap_manual",
+    "aseprite_filter_hue_saturation",
+    "aseprite_filter_color_curve",
+    "aseprite_filter_replace_color",
+    "aseprite_filter_invert_color",
+    "aseprite_filter_outline",
+    "aseprite_filter_despeckle",
+    "aseprite_palette_files",
+    "aseprite_palette_quantization",
+    "aseprite_change_color_mode",
+    "aseprite_assign_color_profile",
+    "aseprite_convert_color_profile",
     "aseprite_export_image",
     "aseprite_selection",
 ]
@@ -84,6 +101,32 @@ class RuntimeRequirements(PublicModel):
     lua_language: str = Field(min_length=1)
     minimum_api_version: int = Field(ge=1)
     required_capabilities: list[RuntimeCapability]
+
+
+class ConvolutionResource(PublicModel):
+    name: str
+    source_path: str
+    declared_default_channels: list[Literal["red", "green", "blue", "gray", "alpha"]]
+
+
+class ConvolutionProbe(PublicModel):
+    resource_name: str
+    requested_channel: Literal["red", "alpha"]
+    command_completed: bool
+    before_rgba: list[int] = Field(min_length=4, max_length=4)
+    after_rgba: list[int] = Field(min_length=4, max_length=4)
+    reopened_rgba: list[int] = Field(min_length=4, max_length=4)
+
+
+class ConvolutionDiscovery(PublicModel):
+    """Bounded source declarations and native observations, not callable support."""
+
+    resources: list[ConvolutionResource]
+    duplicate_names: list[str]
+    source_paths: list[str]
+    complete: bool
+    notes: list[str]
+    probes: list[ConvolutionProbe] = Field(default_factory=list)
 
 
 class RuntimeFacts(PublicModel):
@@ -98,6 +141,7 @@ class RuntimeFacts(PublicModel):
     lua_version: str
     verified_prerequisites: list[ProbePrerequisite]
     verified_capabilities: list[RuntimeCapability]
+    convolution: ConvolutionDiscovery | None = None
 
 
 class CapabilityGap(PublicModel):

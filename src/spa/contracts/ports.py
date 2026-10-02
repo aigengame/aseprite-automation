@@ -11,6 +11,7 @@ from spa.contracts.mutation import (
     TargetCommitFailureReason,
 )
 from spa.contracts.public import (
+    ConvolutionDiscovery,
     Diagnostics,
     ProbePrerequisite,
     PublicModel,
@@ -32,6 +33,7 @@ class RuntimeObservation:
     lua_version: str
     verified_prerequisites: tuple[ProbePrerequisite, ...]
     verified_capabilities: tuple[RuntimeCapability, ...]
+    convolution: ConvolutionDiscovery | None = None
 
 
 RuntimeProbe = Callable[[RuntimeRequest], RuntimeObservation]
@@ -49,9 +51,11 @@ class PackagedResource:
     def __post_init__(self) -> None:
         if not re.fullmatch(r"[a-z][a-z0-9_]*", self.parameter_name):
             raise ValueError("Packaged resource parameter must be lower_snake_case")
-        if not re.fullmatch(_PACKAGE_STEM + r"\.(?:lua|aseprite)", self.package_path):
+        if not re.fullmatch(
+            _PACKAGE_STEM + r"\.(?:lua|aseprite|icc)", self.package_path
+        ):
             raise ValueError(
-                "Packaged resource must be a relative Lua or Aseprite path"
+                "Packaged resource must be a relative Lua, Aseprite, or ICC path"
             )
 
 
@@ -171,13 +175,43 @@ PngVerifier = Callable[[bytes, Path], PngFacts]
 
 
 @dataclass(frozen=True)
+class IccFacts:
+    byte_size: int
+    sha256: str
+    color_space: str
+
+
+class IccVerificationError(ValueError):
+    """The input bytes are not a valid ICC profile."""
+
+
+IccVerifier = Callable[[bytes], IccFacts]
+
+
+@dataclass(frozen=True)
+class PaletteFileFacts:
+    entries: tuple[tuple[int, int, int, int], ...]
+    byte_size: int
+    sha256: str
+
+
+class PaletteFileError(ValueError):
+    """The bytes do not represent the requested Palette file format."""
+
+
+PaletteFileDecoder = Callable[[bytes, Literal["gpl", "png"]], PaletteFileFacts]
+
+
+@dataclass(frozen=True)
 class OperationServices:
     probe_runtime: RuntimeProbe
     invoke_kernel: KernelInvoker
     target_files: TargetFiles
     artifact_files: ArtifactFiles | None = None
     verify_png: PngVerifier | None = None
+    verify_icc: IccVerifier | None = None
     invoke_kernel_direct: DirectKernelInvoker | None = None
+    decode_palette_file: PaletteFileDecoder | None = None
 
 
 @dataclass(frozen=True)

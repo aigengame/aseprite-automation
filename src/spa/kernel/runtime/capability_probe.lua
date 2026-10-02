@@ -21,6 +21,273 @@ local image_orientation_transform = app.params.image_orientation_transform
     and dofile(app.params.image_orientation_transform)
   or nil
 
+local function observes_palette_files()
+  local path = app.params.capability_sprite .. ".gpl"
+  local ok = pcall(function()
+    local file = assert(io.open(path, "wb"))
+    file:write(
+      "GIMP Palette\nChannels: RGBA\n#\n11 22 33 0 zero\n44 55 66 128 partial\n"
+        .. "44 55 66 128 duplicate\n77 88 99 255 opaque\n"
+    )
+    file:close()
+    local palette = Palette { fromFile = path }
+    assert(#palette == 4 and palette:getColor(1).alpha == 128)
+    assert(palette:getColor(1).rgbaPixel == palette:getColor(2).rgbaPixel)
+    for _, target in ipairs({ path, path .. ".png" }) do
+      palette:saveAs(target)
+      local reopened = Palette { fromFile = target }
+      assert(#reopened == #palette)
+      for index = 0, 3 do
+        assert(reopened:getColor(index).rgbaPixel == palette:getColor(index).rgbaPixel)
+      end
+    end
+  end)
+  os.remove(path)
+  os.remove(path .. ".png")
+  return ok
+end
+
+local function observes_palette_quantization()
+  if not app.params.palette_quantization then return false end
+  local quantization = dofile(app.params.palette_quantization)
+  local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
+  local sprite
+  local ok = pcall(function()
+    sprite = Sprite(3, 1, ColorMode.RGB)
+    sprite.cels[1].image:drawPixel(0, 0, app.pixelColor.rgba(255, 0, 0, 255))
+    sprite.cels[1].image:drawPixel(1, 0, app.pixelColor.rgba(0, 255, 0, 128))
+    for _, algorithm in ipairs({ "default", "rgb5a3", "octree" }) do
+      local alpha = algorithm ~= "rgb5a3"
+      local result = quantization.apply(sprite, {
+        palette_frame_number = "1",
+        max_colors = "8",
+        with_alpha = alpha,
+        rgb_map_algorithm = algorithm,
+        new_layer_blending_method = algorithm ~= "default",
+      }, {})
+      assert(not result.rejection and result.quantization.actual_colors == 3)
+      local has_partial = false
+      for _, entry in ipairs(result.palette.entries) do
+        has_partial = has_partial or (entry.color.alpha > 0 and entry.color.alpha < 255)
+      end
+      assert(has_partial == alpha)
+    end
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    app.activeSprite, app.activeLayer, app.activeFrame =
+      previous.sprite, previous.layer, previous.frame
+  end
+  return ok
+end
+
+local function observes_change_color_mode()
+  if not app.params.color_mode then return false end
+  local color_mode = dofile(app.params.color_mode)
+  local persistence = dofile(app.params.persistence)
+  local sprite = nil
+  local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
+  local ok = pcall(function()
+    sprite = Sprite(1, 1, ColorMode.RGB)
+    sprite.cels[1].image:drawPixel(0, 0, app.pixelColor.rgba(255, 0, 0, 255))
+    local result = color_mode.change(sprite, {
+      source_color_mode = "rgb",
+      target = { color_mode = "grayscale", to_gray = "luma" },
+    })
+    assert(result.changed and result.after.images[1].bytes_per_pixel == 2)
+    result = color_mode.change(sprite, {
+      source_color_mode = "grayscale",
+      target = {
+        color_mode = "indexed",
+        rgb_map_algorithm = "default",
+        color_best_fit_criteria = "default",
+      },
+    })
+    assert(result.changed and result.after.images[1].bytes_per_pixel == 1)
+    result =
+      color_mode.change(sprite, { source_color_mode = "indexed", target = { color_mode = "rgb" } })
+    assert(result.changed and result.after.images[1].bytes_per_pixel == 4)
+    result = color_mode.change(sprite, {
+      source_color_mode = "rgb",
+      target = {
+        color_mode = "indexed",
+        rgb_map_algorithm = "octree",
+        color_best_fit_criteria = "rgb",
+        dithering = { algorithm = "ordered" },
+      },
+    })
+    assert(result.changed and result.dithering.matrix.identity == "bayer8x8")
+    sprite = persistence.save_verified(sprite, app.params.capability_sprite, {}, "Color Mode probe")
+    persistence.assert_equal(result.after, color_mode.observe(sprite), "Color Mode probe")
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  os.remove(app.params.capability_sprite)
+  if previous.sprite and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
+  return ok
+end
+
+local function observes_color_profile(operation)
+  if app.params.color_profile == nil or app.params.profile_linear_srgb == nil then return false end
+  local profiles = dofile(app.params.color_profile)
+  local sprite = nil
+  local path = app.params.capability_sprite
+  local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
+  local ok = pcall(function()
+    sprite = Sprite(1, 1, ColorMode.RGB)
+    sprite:assignColorSpace(ColorSpace { sRGB = true })
+    sprite.cels[1].image:drawPixel(0, 0, app.pixelColor.rgba(48, 96, 144, 255))
+    sprite.palettes[1]:resize(2)
+    sprite.palettes[1]:setColor(0, Color { r = 32, g = 64, b = 96, a = 255 })
+    sprite.palettes[1]:setColor(1, Color { r = 48, g = 96, b = 144, a = 255 })
+    local function icc_input(icc_path)
+      local file = assert(io.open(icc_path, "rb"))
+      local bytes = assert(file:read("a"))
+      file:close()
+      return {
+        profile = { kind = "icc", icc_file = icc_path },
+        icc_bytes = bytes:gsub(".", function(value) return string.format("%02x", value:byte()) end),
+        icc_file = { path = icc_path, byte_size = #bytes, sha256 = string.rep("0", 64) },
+      }
+    end
+    local profile_state = {}
+    local function verify(input_profile)
+      local result = profiles.apply_live(sprite, operation, input_profile, {}, profile_state)
+      assert(result.rejection == nil and result.matches_requested_profile)
+      local live = profiles.snapshot(sprite, {})
+      assert(sprite:saveAs(path))
+      sprite:close()
+      sprite = assert(app.open(path))
+      profile_state = profiles.restore_file_profile(sprite, path)
+      profiles.verify_persisted(live, sprite, inspection.saved_layer_uuids(sprite, path))
+      return result
+    end
+    local changed = verify(icc_input(app.params.profile_linear_srgb))
+    assert(changed.images[1].changed == (operation == "convert"))
+    assert(changed.palettes[1].changed == (operation == "convert"))
+    local restored = verify { profile = { kind = "srgb" } }
+    assert(restored.images[1].changed == (operation == "convert"))
+    assert(restored.palettes[1].changed == (operation == "convert"))
+    if operation == "assign" then
+      verify { profile = { kind = "none" } }
+    else
+      -- This separate direction is required by Asset Preparation (#103).
+      local assigned = profiles.apply_live(
+        sprite,
+        "assign",
+        icc_input(app.params.profile_display_p3),
+        {},
+        profile_state
+      )
+      assert(assigned.rejection == nil)
+      local sample = app.pixelColor.rgba(180, 70, 30, 127)
+      sprite.cels[1].image:drawPixel(0, 0, sample)
+      sprite.palettes[1]:setColor(1, Color { r = 180, g = 70, b = 30, a = 127 })
+      verify { profile = { kind = "srgb" } }
+      local expected = app.pixelColor.rgba(195, 60, 2, 127)
+      assert(sprite.cels[1].image:getPixel(0, 0) == expected)
+      assert(sprite.palettes[1]:getColor(1).rgbaPixel == expected)
+    end
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  pcall(function() os.remove(path) end)
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
+  return ok
+end
+
+local function observes_palette_entries()
+  if app.params.palette == nil or app.params.persistence == nil then return false end
+  local palettes = dofile(app.params.palette)
+  local persistence = dofile(app.params.persistence)
+  local sprite = nil
+  local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
+  local path = assert(app.params.capability_sprite)
+  local ok = pcall(function()
+    for _, mode in ipairs { ColorMode.RGB, ColorMode.GRAY, ColorMode.INDEXED } do
+      sprite = Sprite(1, 1, mode)
+      sprite:newEmptyFrame()
+      local before_count = #sprite.palettes
+      local live = palettes.set(sprite, {
+        palette_frame_number = 1,
+        entries = { { index = 1, color = { red = 12, green = 34, blue = 56, alpha = 77 } } },
+      }, {})
+      assert(live.rejection == nil and #sprite.palettes == before_count)
+      local got = palettes.get(sprite, 2)
+      assert(got.palette.palette_frame_number == 1)
+      assert(got.palette.entries[2].color.alpha == 77)
+      sprite = persistence.save_verified(sprite, path, {}, "Palette entry probe")
+      persistence.assert_equal(live, palettes.list(sprite), "Palette entry probe")
+      sprite:close()
+      sprite = nil
+    end
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  pcall(function() os.remove(path) end)
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
+  return ok
+end
+
+local function observes_palette_transform(operation)
+  if app.params.palette_transform == nil then return false end
+  local transform = dofile(app.params.palette_transform)
+  local palettes = dofile(app.params.palette)
+  local persistence = dofile(app.params.persistence)
+  local sprite = nil
+  local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
+  local path = assert(app.params.capability_sprite)
+  local ok = pcall(function()
+    sprite = Sprite(1, 1, ColorMode.INDEXED)
+    sprite.palettes[1]:resize(2)
+    local live
+    if operation == "resize" then
+      live = transform.resize(sprite, {
+        palette_frame_number = "1",
+        size = "3",
+        entries = { { index = "2", color = { red = 12, green = 34, blue = 56, alpha = 77 } } },
+      }, {})
+      assert(live.rejection == nil and #sprite.palettes[1] == 3)
+    else
+      sprite.cels[1].image:putPixel(0, 0, 1)
+      live = transform[operation](sprite, {
+        scope = "sprite",
+        mapping = { { old_index = "0", new_index = "1" }, { old_index = "1", new_index = "0" } },
+      }, {})
+      assert(
+        live.rejection == nil
+          and sprite.cels[1].image:getPixel(0, 0) == 0
+          and sprite.transparentColor == 1
+      )
+    end
+    sprite = persistence.save_verified(sprite, path, {}, "Palette resize probe")
+    persistence.assert_equal(
+      { frame_count = live.frame_count, palette_changes = live.palette_changes },
+      palettes.list(sprite),
+      "Palette transform probe"
+    )
+    sprite:close()
+    sprite = nil
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  pcall(function() os.remove(path) end)
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
+  return ok
+end
+
 local function observes_sprite_inspection()
   local open_sprite = nil
   local inspection_path = assert(app.params.inspection_fixture)
@@ -802,6 +1069,70 @@ local function observes_native_paint(tool, algorithm, tiled)
   return ok
 end
 
+local function observes_manual_tilemap_filter()
+  if app.params.filter_tiles == nil then return false end
+  local tiles = dofile(app.params.filter_tiles)
+  local persistence = dofile(app.params.persistence)
+  local sprite
+  local path = app.params.capability_sprite
+  local ok = pcall(function()
+    for _, branch in ipairs({ "rgb", "grayscale", "indexed", "rgb-palette-colors" }) do
+      local mode = branch == "rgb-palette-colors" and "rgb" or branch
+      local modes = { rgb = ColorMode.RGB, grayscale = ColorMode.GRAY, indexed = ColorMode.INDEXED }
+      sprite = Sprite(1, 1, modes[mode])
+      local ordinary = sprite.layers[1]
+      local palette = sprite.palettes[1]
+      palette:resize(3)
+      palette:setColor(0, Color { r = 0, g = 0, b = 0, a = 0 })
+      palette:setColor(1, Color { r = 80, g = 40, b = 20, a = 100 })
+      palette:setColor(2, Color { r = 120, g = 40, b = 20, a = 101 })
+      sprite.gridBounds = Rectangle(0, 0, 1, 1)
+      assert(app.command.NewLayer { tilemap = true, ui = false })
+      local layer = app.activeLayer
+      local tile = sprite:newTile(layer.tileset)
+      local original = mode == "indexed" and 1
+        or (
+          mode == "grayscale" and app.pixelColor.graya(80, 100)
+          or app.pixelColor.rgba(80, 40, 20, 100)
+        )
+      tile.image:putPixel(0, 0, original)
+      local map = Image(1, 1, ColorMode.TILEMAP)
+      map:putPixel(0, 0, 1)
+      sprite:newCel(layer, 1, map, Point(0, 0))
+      sprite:deleteLayer(ordinary)
+      app.activeCel = layer:cel(1)
+      assert(app.site.tilesetMode == TilesetMode.MANUAL)
+      app.range:clear()
+      app.range.colors = branch == "rgb-palette-colors" and { 1 } or {}
+      sprite.selection = Selection(Rectangle(0, 0, 1, 1))
+      assert(app.command.BrightnessContrast {
+        ui = false,
+        brightness = 50,
+        contrast = 0,
+        channels = mode == "grayscale" and FilterChannels.GRAY or FilterChannels.RED,
+      })
+      local expected = mode == "indexed" and 2
+        or (
+          mode == "grayscale" and app.pixelColor.graya(120, 100)
+          or app.pixelColor.rgba(120, 40, 20, 100)
+        )
+      assert(tile.image:getPixel(0, 0) == expected)
+      assert(layer:cel(1).image:getPixel(0, 0) == 1 and #layer.tileset == 2)
+      assert(palette:getColor(1).red == (branch == "rgb-palette-colors" and 120 or 80))
+      local live = tiles.snapshot(sprite, mode)
+      assert(sprite:saveAs(path))
+      sprite:close()
+      sprite = assert(app.open(path))
+      persistence.assert_equal(live, tiles.snapshot(sprite, mode), "Manual Tilemap Filter probe")
+      sprite:close()
+      sprite = nil
+    end
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  os.remove(path)
+  return ok
+end
+
 function module.observe()
   local capabilities = { "aseprite_runtime_introspection" }
   if app.params.paint_composite ~= nil then
@@ -867,6 +1198,330 @@ function module.observe()
     if ok then capabilities[#capabilities + 1] = "aseprite_selection" end
   end
   local supports_inspection = observes_sprite_inspection()
+  if app.params.brightness_contrast then
+    local filter = dofile(app.params.brightness_contrast)
+    local modes = { rgb = ColorMode.RGB, grayscale = ColorMode.GRAY, indexed = ColorMode.INDEXED }
+    local supported = true
+    for _, branch in ipairs({
+      { mode = "rgb", kind = "pixels" },
+      { mode = "grayscale", kind = "pixels" },
+      { mode = "indexed", kind = "pixels" },
+      { mode = "indexed", kind = "indexed-palette-entries" },
+      { mode = "rgb", kind = "rgb-palette-colors" },
+    }) do
+      local sprite = Sprite(1, 1, modes[branch.mode])
+      local ok = pcall(function()
+        local palette = Palette(3)
+        palette:setColor(0, Color { r = 0, g = 0, b = 0, a = 0 })
+        palette:setColor(1, Color { r = 80, g = 40, b = 20, a = 100 })
+        palette:setColor(2, Color { r = 120, g = 40, b = 20, a = 100 })
+        sprite:setPalette(palette)
+        local original = branch.mode == "indexed" and 1
+          or (
+            branch.mode == "grayscale" and app.pixelColor.graya(80, 100)
+            or app.pixelColor.rgba(80, 40, 20, 100)
+          )
+        sprite.cels[1].image:drawPixel(0, 0, original)
+        local application = {
+          kind = branch.kind,
+          channels = {
+            kind = "components",
+            names = { branch.mode == "grayscale" and "gray" or "red" },
+          },
+        }
+        if branch.kind == "indexed-palette-entries" then
+          application.entries = { kind = "selected", indexes = { 1 } }
+        else
+          application.cels_target = { kind = "all" }
+        end
+        if branch.kind == "pixels" then application.color_mode = branch.mode end
+        if branch.kind == "rgb-palette-colors" then application.indexes = { 1 } end
+        if branch.mode == "indexed" or branch.kind == "rgb-palette-colors" then
+          application.palette_frame_number = 1
+        end
+        local result =
+          filter.apply(sprite, { brightness = 50, contrast = 0, application = application })
+        local expected = branch.kind == "indexed-palette-entries" and original
+          or (
+            branch.mode == "indexed" and 2
+            or (
+              branch.mode == "grayscale" and app.pixelColor.graya(120, 100)
+              or app.pixelColor.rgba(120, 40, 20, 100)
+            )
+          )
+        assert(result.changed and sprite.cels[1].image:getPixel(0, 0) == expected)
+        assert(sprite.palettes[1]:getColor(1).red == (branch.kind == "pixels" and 80 or 120))
+      end)
+      sprite:close()
+      supported = supported and ok
+    end
+    if supported then capabilities[#capabilities + 1] = "aseprite_filter_brightness_contrast" end
+    if observes_manual_tilemap_filter() then
+      capabilities[#capabilities + 1] = "aseprite_filter_brightness_contrast_tilemap_manual"
+    end
+  end
+  for _, operation in ipairs { "color_curve", "replace_color" } do
+    if app.params[operation] then
+      local filter = dofile(app.params[operation])
+      local supported = true
+      for _, branch in ipairs {
+        { mode = "rgb", native = ColorMode.RGB, channel = "red" },
+        { mode = "grayscale", native = ColorMode.GRAY, channel = "gray" },
+        { mode = "indexed", native = ColorMode.INDEXED, channel = "red" },
+        { mode = "indexed", native = ColorMode.INDEXED, channel = "index" },
+      } do
+        local sprite = Sprite(1, 1, branch.native)
+        local ok = pcall(function()
+          local palette = Palette(3)
+          palette:setColor(0, Color { r = 0, g = 0, b = 0, a = 0 })
+          palette:setColor(1, Color { r = 100, g = 60, b = 20, a = 255 })
+          palette:setColor(2, Color { r = 150, g = 60, b = 20, a = 255 })
+          sprite:setPalette(palette)
+          local original = branch.mode == "indexed" and 1
+            or (
+              branch.mode == "grayscale" and app.pixelColor.graya(100, 255)
+              or app.pixelColor.rgba(100, 60, 20, 255)
+            )
+          local expected = branch.mode == "indexed" and 2
+            or (
+              branch.mode == "grayscale" and app.pixelColor.graya(150, 255)
+              or app.pixelColor.rgba(150, 60, 20, 255)
+            )
+          sprite.cels[1].image:drawPixel(0, 0, original)
+          local payload = {
+            color_mode = branch.mode,
+            channels = branch.channel == "index" and { kind = "index" }
+              or { kind = "components", names = { branch.channel } },
+            cels_target = { kind = "all" },
+            palette_frame_number = branch.mode == "indexed" and 1 or nil,
+          }
+          if operation == "color_curve" then
+            payload.points = { { input = 100, output = branch.channel == "index" and 2 or 150 } }
+          else
+            if branch.mode == "indexed" then
+              payload.from, payload.to =
+                { kind = "palette-index", index = 1 }, { kind = "palette-index", index = 2 }
+            elseif branch.mode == "grayscale" then
+              payload.from, payload.to =
+                { kind = "grayscale", gray = 100, alpha = 255 },
+                { kind = "grayscale", gray = 150, alpha = 255 }
+            else
+              payload.from, payload.to =
+                { kind = "rgba", red = 100, green = 60, blue = 20, alpha = 255 },
+                { kind = "rgba", red = 150, green = 60, blue = 20, alpha = 255 }
+            end
+            payload.tolerance = 0
+          end
+          local result = filter.apply(sprite, payload)
+          assert(result.changed and sprite.cels[1].image:getPixel(0, 0) == expected)
+          if operation == "replace_color" then assert(result.changed_pixel_count == 1) end
+        end)
+        sprite:close()
+        supported = supported and ok
+      end
+      if supported then capabilities[#capabilities + 1] = "aseprite_filter_" .. operation end
+    end
+  end
+  if app.params.hue_saturation then
+    local filter = dofile(app.params.hue_saturation)
+    local supported = true
+    -- Discriminating native observations: add and multiply must not collapse to
+    -- the command's HSL fallback. Every delivered application uses this seam.
+    for _, sample in ipairs {
+      { mode = "hsl-multiply", rgb = { 134, 72, 10 } },
+      { mode = "hsv-multiply", rgb = { 120, 60, 0 } },
+      { mode = "hsl-add", rgb = { 218, 111, 4 } },
+      { mode = "hsv-add", rgb = { 151, 76, 0 } },
+    } do
+      for _, branch in ipairs {
+        { mode = "rgb", kind = "pixels" },
+        { mode = "grayscale", kind = "pixels" },
+        { mode = "indexed", kind = "pixels" },
+        { mode = "indexed", kind = "indexed-palette-entries" },
+        { mode = "rgb", kind = "rgb-palette-colors" },
+      } do
+        local modes =
+          { rgb = ColorMode.RGB, grayscale = ColorMode.GRAY, indexed = ColorMode.INDEXED }
+        local sprite = Sprite(1, 1, modes[branch.mode])
+        local ok = pcall(function()
+          local expected_rgb = app.pixelColor.rgba(sample.rgb[1], sample.rgb[2], sample.rgb[3], 128)
+          local original_rgb = app.pixelColor.rgba(100, 60, 20, 128)
+          local palette = Palette(3)
+          palette:setColor(0, Color { r = 0, g = 0, b = 0, a = 0 })
+          palette:setColor(1, Color { r = 100, g = 60, b = 20, a = 128 })
+          palette:setColor(
+            2,
+            Color { r = sample.rgb[1], g = sample.rgb[2], b = sample.rgb[3], a = 128 }
+          )
+          sprite:setPalette(palette)
+          local original = branch.mode == "indexed" and 1
+            or (branch.mode == "grayscale" and app.pixelColor.graya(80, 128) or original_rgb)
+          sprite.cels[1].image:drawPixel(0, 0, original)
+          local application = {
+            kind = branch.kind,
+            channels = {
+              kind = "components",
+              names = branch.mode == "grayscale" and { "gray" } or { "red", "green", "blue" },
+            },
+          }
+          if branch.kind == "indexed-palette-entries" then
+            application.entries = { kind = "selected", indexes = { 1 } }
+          else
+            application.cels_target = { kind = "all" }
+          end
+          if branch.kind == "pixels" then application.color_mode = branch.mode end
+          if branch.kind == "rgb-palette-colors" then application.indexes = { 1 } end
+          if branch.mode == "indexed" or branch.kind == "rgb-palette-colors" then
+            application.palette_frame_number = 1
+          end
+          local adjustment = { mode = sample.mode, hue = 0, saturation = 30 }
+          if sample.mode:sub(1, 3) == "hsv" then
+            adjustment.value = 20
+          else
+            adjustment.lightness = 20
+          end
+          if branch.mode == "grayscale" then adjustment = { mode = "grayscale", lightness = 20 } end
+          local result =
+            filter.apply(sprite, { application = application, adjustment = adjustment })
+          local expected = branch.kind == "indexed-palette-entries" and original
+            or (
+              branch.mode == "indexed" and 2
+              or (branch.mode == "grayscale" and app.pixelColor.graya(96, 128) or expected_rgb)
+            )
+          assert(result.changed and sprite.cels[1].image:getPixel(0, 0) == expected)
+          assert(
+            sprite.palettes[1]:getColor(1).rgbaPixel
+              == (branch.kind == "pixels" and original_rgb or expected_rgb)
+          )
+        end)
+        sprite:close()
+        supported = supported and ok
+      end
+    end
+    if supported then capabilities[#capabilities + 1] = "aseprite_filter_hue_saturation" end
+  end
+  if app.params.invert_color then
+    local filter = dofile(app.params.invert_color)
+    local supported = true
+    for _, branch in ipairs {
+      {
+        mode = "rgb",
+        channel = "red",
+        before = app.pixelColor.rgba(80, 40, 20, 255),
+        after = app.pixelColor.rgba(175, 40, 20, 255),
+      },
+      {
+        mode = "grayscale",
+        channel = "gray",
+        before = app.pixelColor.graya(80, 255),
+        after = app.pixelColor.graya(175, 255),
+      },
+      { mode = "indexed", channel = "index", before = 127, after = 128 },
+      { mode = "indexed", channel = "red", before = 127, after = 128 },
+    } do
+      local modes = { rgb = ColorMode.RGB, grayscale = ColorMode.GRAY, indexed = ColorMode.INDEXED }
+      local sprite = Sprite(1, 1, modes[branch.mode])
+      local ok = pcall(function()
+        local palette = Palette(256)
+        palette:setColor(127, Color { r = 80, g = 40, b = 20, a = 255 })
+        palette:setColor(128, Color { r = 175, g = 40, b = 20, a = 255 })
+        sprite:setPalette(palette)
+        sprite.cels[1].image:drawPixel(0, 0, branch.before)
+        local result = filter.apply(sprite, {
+          color_mode = branch.mode,
+          palette_frame_number = branch.mode == "indexed" and 1 or nil,
+          channels = branch.channel == "index" and { kind = "index" }
+            or { kind = "components", names = { branch.channel } },
+          cels_target = { kind = "all" },
+        })
+        assert(result.changed and sprite.cels[1].image:getPixel(0, 0) == branch.after)
+      end)
+      sprite:close()
+      supported = supported and ok
+    end
+    if supported then capabilities[#capabilities + 1] = "aseprite_filter_invert_color" end
+  end
+  if app.params.outline then
+    local filter = dofile(app.params.outline)
+    local supported = true
+    for _, mode in ipairs { "rgb", "grayscale", "indexed" } do
+      local modes = { rgb = ColorMode.RGB, grayscale = ColorMode.GRAY, indexed = ColorMode.INDEXED }
+      local sprite = Sprite(3, 3, modes[mode])
+      local ok = pcall(function()
+        local palette = Palette(3)
+        palette:setColor(0, Color { r = 0, g = 0, b = 0, a = 0 })
+        palette:setColor(1, Color { r = 80, g = 80, b = 80, a = 255 })
+        palette:setColor(2, Color { r = 200, g = 200, b = 200, a = 255 })
+        sprite:setPalette(palette)
+        local original = mode == "indexed" and 1
+          or (
+            mode == "rgb" and app.pixelColor.rgba(80, 80, 80, 255) or app.pixelColor.graya(80, 255)
+          )
+        local expected = mode == "indexed" and 2
+          or (
+            mode == "rgb" and app.pixelColor.rgba(200, 200, 200, 255)
+            or app.pixelColor.graya(200, 255)
+          )
+        sprite.cels[1].image:drawPixel(1, 1, original)
+        local result = filter.apply(sprite, {
+          color_mode = mode,
+          palette_frame_number = mode == "indexed" and 1 or nil,
+          channels = mode == "indexed" and { kind = "index" }
+            or {
+              kind = "components",
+              names = mode == "rgb" and { "red", "green", "blue", "alpha" } or { "gray", "alpha" },
+            },
+          cels_target = { kind = "all" },
+          place = "outside",
+          tiled_mode = "none",
+          matrix = { kind = "preset", name = "circle" },
+          outline_color = mode == "indexed" and { kind = "palette-index", index = 2 }
+            or (
+              mode == "rgb" and { kind = "rgba", red = 200, green = 200, blue = 200, alpha = 255 }
+              or { kind = "grayscale", gray = 200, alpha = 255 }
+            ),
+          background_color = mode == "indexed" and { kind = "palette-index", index = 0 }
+            or (
+              mode == "rgb" and { kind = "rgba", red = 0, green = 0, blue = 0, alpha = 0 }
+              or { kind = "grayscale", gray = 0, alpha = 0 }
+            ),
+        })
+        assert(result.changed and sprite.cels[1].image:getPixel(1, 0) == expected)
+        assert(sprite.cels[1].image:getPixel(0, 0) == 0)
+      end)
+      sprite:close()
+      supported = supported and ok
+    end
+    if supported then capabilities[#capabilities + 1] = "aseprite_filter_outline" end
+  end
+  if app.params.despeckle and dofile(app.params.despeckle).observe_support() then
+    capabilities[#capabilities + 1] = "aseprite_filter_despeckle"
+  end
+  if observes_change_color_mode() then
+    capabilities[#capabilities + 1] = "aseprite_change_color_mode"
+  end
+  if observes_color_profile("assign") then
+    capabilities[#capabilities + 1] = "aseprite_assign_color_profile"
+  end
+  if observes_color_profile("convert") then
+    capabilities[#capabilities + 1] = "aseprite_convert_color_profile"
+  end
+  if observes_palette_entries() then
+    capabilities[#capabilities + 1] = "aseprite_palette_entries"
+  end
+  if observes_palette_files() then capabilities[#capabilities + 1] = "aseprite_palette_files" end
+  if observes_palette_quantization() then
+    capabilities[#capabilities + 1] = "aseprite_palette_quantization"
+  end
+  if observes_palette_transform("resize") then
+    capabilities[#capabilities + 1] = "aseprite_palette_resize"
+  end
+  if observes_palette_transform("remap") then
+    capabilities[#capabilities + 1] = "aseprite_palette_remap"
+  end
+  if observes_palette_transform("reorder") then
+    capabilities[#capabilities + 1] = "aseprite_palette_reorder"
+  end
   if supports_inspection and observes_sprite_creation() then
     capabilities[#capabilities + 1] = "aseprite_sprite_create"
   end

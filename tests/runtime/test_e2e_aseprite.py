@@ -28,11 +28,33 @@ def test_info_reports_installed_runtime() -> None:
         "lua_file_io",
         "aseprite_json",
     ]
-    assert result["runtime"]["verified_capabilities"] == [
+    conversion_available = (
+        "aseprite_convert_color_profile" in result["runtime"]["verified_capabilities"]
+    )
+    # Current Linux LAF_BACKEND=none has no native color converter.
+    assert conversion_available or sys.platform == "linux"
+    expected_runtime = [
         "aseprite_runtime_introspection",
         "aseprite_paint_composite",
         "aseprite_paint_composite_indexed",
         "aseprite_selection",
+        "aseprite_filter_brightness_contrast",
+        "aseprite_filter_brightness_contrast_tilemap_manual",
+        "aseprite_filter_color_curve",
+        "aseprite_filter_replace_color",
+        "aseprite_filter_hue_saturation",
+        "aseprite_filter_invert_color",
+        "aseprite_filter_outline",
+        "aseprite_filter_despeckle",
+        "aseprite_change_color_mode",
+        "aseprite_assign_color_profile",
+        "aseprite_convert_color_profile",
+        "aseprite_palette_entries",
+        "aseprite_palette_files",
+        "aseprite_palette_quantization",
+        "aseprite_palette_resize",
+        "aseprite_palette_remap",
+        "aseprite_palette_reorder",
         "aseprite_sprite_create",
         "aseprite_sprite_inspection",
         "aseprite_sprite_flatten",
@@ -69,8 +91,10 @@ def test_info_reports_installed_runtime() -> None:
         "aseprite_tag_authoring",
         "aseprite_export_image",
     ]
-    assert result["supported_capabilities"]
-    assert result["supported_capabilities"] == [
+    if not conversion_available:
+        expected_runtime.remove("aseprite_convert_color_profile")
+    assert result["runtime"]["verified_capabilities"] == expected_runtime
+    expected_operations = [
         "spa info",
         "spa version",
         "spa schema",
@@ -100,6 +124,13 @@ def test_info_reports_installed_runtime() -> None:
         "spa paint ellipse",
         "spa paint contour",
         "spa paint blur",
+        "spa filter brightness-contrast",
+        "spa filter color-curve",
+        "spa filter replace-color",
+        "spa filter hue-saturation",
+        "spa filter invert-color",
+        "spa filter outline",
+        "spa filter despeckle",
         "spa selection create",
         "spa selection combine",
         "spa selection invert",
@@ -138,14 +169,35 @@ def test_info_reports_installed_runtime() -> None:
         "spa tag add",
         "spa tag set",
         "spa tag remove",
+        "spa palette reorder",
+        "spa palette remap",
+        "spa palette resize",
+        "spa palette list",
+        "spa palette get",
+        "spa palette set",
+        "spa palette import",
+        "spa palette color-quantization",
+        "spa sprite change-color-mode",
+        "spa sprite assign-color-profile",
+        "spa sprite convert-color-profile",
         "spa export image",
+        "spa palette export",
         "spa animation audit",
         "spa animation compare",
         "spa animation preview",
         "spa plan check",
         "spa plan run",
     ]
-    assert [gap["capability"] for gap in result["capability_gaps"]] == [
+    expected_runtime_gaps = []
+    if not conversion_available:
+        # Plan discovery conservatively requires all eligible Step capabilities.
+        expected_runtime_gaps = ["spa sprite convert-color-profile", "spa plan run"]
+        for operation in expected_runtime_gaps:
+            expected_operations.remove(operation)
+    assert result["supported_capabilities"] == expected_operations
+    assert [
+        gap["capability"] for gap in result["capability_gaps"]
+    ] == expected_runtime_gaps + [
         f"spa paint composite: grayscale {mode}"
         for mode in ("hue", "saturation", "color", "luminosity", "addition")
     ] + [
@@ -159,6 +211,17 @@ def test_info_reports_installed_runtime() -> None:
         "spa paint curve",
         "spa paint polygon",
         "spa paint jumble",
+        "spa palette add",
+        "spa palette remove",
+        "spa filter convolution-matrix",
+        "spa filter hue-saturation: Tilemap pixels",
+        "spa filter color-curve: Tilemap pixels",
+        "spa filter replace-color: Tilemap pixels",
+        "spa filter invert-color: Tilemap pixels",
+        "spa filter outline: Tilemap pixels",
+        "spa filter outline: Indexed component Channels",
+        "spa filter despeckle: Tilemap pixels",
+        "spa filter despeckle: Indexed components without Green",
     ]
     assert all(
         gap["aseprite_version"] == result["runtime"]["aseprite_version"]

@@ -14,6 +14,21 @@ from pydantic import ValidationError
 from spa.application.dispatch import _runtime_failure, dispatch
 from spa.application.failure_registry import FAILURE_CODES
 from spa.application.surface import ACCESS_FAILURE_CODES, OPERATIONS
+from spa.authoring.color.color_mode import (
+    ColorModeMismatchDetails,
+    InstalledMatrix,
+    MatrixFailureDetails,
+)
+from spa.authoring.color.palette import (
+    PaletteChangeDetails,
+    PaletteEntryDetails,
+    PaletteFrameDetails,
+    PalettePersistenceDetails,
+    PaletteTransformDetails,
+)
+from spa.authoring.color.palette_file import PaletteFileDetails
+from spa.authoring.color.profile import ProfileFileDetails, ProfileSourceDetails
+from spa.authoring.color.quantization import QuantizationDetails
 from spa.authoring.document.animation import AuditLimitDetails
 from spa.authoring.document.cel import CelAddress as LifecycleCelAddress
 from spa.authoring.document.cel import CelFrameRangeDetails, CelTargetDetails
@@ -25,8 +40,10 @@ from spa.authoring.document.sprite import (
     SpriteUnsupportedContentDetails,
 )
 from spa.authoring.document.tag import TagAddress, TagRangeDetails, TagTargetDetails
+from spa.authoring.raster.filter import FilterRejection
 from spa.authoring.raster.image import ImageRotatePositionDetails
 from spa.authoring.raster.image_snapshot import SnapshotDetails
+from spa.authoring.raster.invert_outline import FilterIndexRejection
 from spa.authoring.raster.paint_composite import (
     CompositeCapabilityDetails,
     CompositeDetails,
@@ -68,6 +85,7 @@ from spa.contracts.public import (
     register_failure_codes,
 )
 from spa.contracts.raster import Point, PositiveRectangle, Size
+from spa.delivery.palette import PaletteExportDetails
 from tests.support import operation_services
 
 registered_failure_envelope = partial(failure_envelope, failure_codes=FAILURE_CODES)
@@ -175,6 +193,65 @@ def test_failure_construction_derives_category_and_refuses_mismatch() -> None:
 
 def test_each_registered_code_has_a_constrained_public_schema() -> None:
     details_by_type = {
+        FilterIndexRejection: FilterIndexRejection.model_validate(
+            {
+                "reason": "Index outside Palette",
+                "palette_basis": {
+                    "frame_number": 2,
+                    "palette_frame_number": 1,
+                    "palette_size": 129,
+                },
+                "index_violations": [
+                    {
+                        "layer_path": [1],
+                        "frame_number": 1,
+                        "canvas_position": {"x": 0, "y": 0},
+                        "source_index": 0,
+                        "result_index": 255,
+                    }
+                ],
+            }
+        ),
+        FilterRejection: FilterRejection(reason="selected Layer cannot edit pixels"),
+        PalettePersistenceDetails: PalettePersistenceDetails(
+            palette_frame_number=1,
+            expected_palette_size=5,
+            reopened_palette_size=256,
+            reason="Native save/reopen changed Palette size",
+        ),
+        QuantizationDetails: QuantizationDetails(
+            palette_frame_number=1,
+            reason="index_out_of_bounds",
+            original_palette_size=8,
+            candidate_palette_size=2,
+            index=3,
+        ),
+        PaletteExportDetails: PaletteExportDetails(
+            reason="indexed_png_capacity", palette_size=257
+        ),
+        PaletteFileDetails: PaletteFileDetails(
+            path="colors.gpl", reason="invalid", message="bad header"
+        ),
+        ColorModeMismatchDetails: ColorModeMismatchDetails(
+            expected="rgb", actual="indexed"
+        ),
+        MatrixFailureDetails: MatrixFailureDetails(
+            matrix=InstalledMatrix(kind="installed", id="missing"),
+            reason="missing",
+            matches=[],
+        ),
+        PaletteTransformDetails: PaletteTransformDetails(
+            reason="growth_entries", palette_frame_number=1
+        ),
+        ProfileFileDetails: ProfileFileDetails(path="profile.icc", reason="invalid"),
+        ProfileSourceDetails: ProfileSourceDetails(icc_color_space="Lab"),
+        PaletteFrameDetails: PaletteFrameDetails(frame_number=6, frame_count=5),
+        PaletteChangeDetails: PaletteChangeDetails(
+            palette_frame_number=2, frame_count=5
+        ),
+        PaletteEntryDetails: PaletteEntryDetails(
+            palette_frame_number=1, index=4, palette_size=4
+        ),
         CompositeDetails: CompositeDetails(reason="Snapshot Color Mode differs"),
         CompositeCapabilityDetails: CompositeCapabilityDetails(
             gap=CapabilityGap(

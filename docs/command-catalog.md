@@ -155,7 +155,7 @@ does not add other motion modes or recipe-owned pose and particle behavior.
 
 | Candidate command | Intended meaning |
 | --- | --- |
-| `spa filter brightness-contrast` | Apply native Brightness/Contrast through explicit Channels and Filter Application. |
+| `spa filter brightness-contrast` | Apply native Brightness/Contrast through explicit Channels and Filter Application; Tilemap pixel targets require explicit Manual Tileset Mode and report shared Tile references. |
 | `spa filter hue-saturation` | Apply native HSL/HSV adjustment through explicit modes and Channels. |
 | `spa filter color-curve` | Apply native Color Curve Points to explicit component or Index Channels. |
 | `spa filter replace-color` | Apply native per-component or stored-Index matching. |
