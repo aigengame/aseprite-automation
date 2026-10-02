@@ -658,9 +658,9 @@ No generic effect model or Operation Plan eligibility is introduced. Runtime
 probes gate the two commands independently, and the Surface Manifest reports
 their target and Indexed component limitations.
 
-Native writeback can trim or delete Cels. Hue/Saturation observes the surviving
+Native writeback can trim or delete Cels. Hue/Saturation and Despeckle observe surviving
 Layer/Frame intersections and reports bounds or absence, including affected links
-outside the selected range, without retaining deleted Cel userdata. Its independent
+outside the selected range, without retaining deleted Cel userdata. Hue/Saturation's independent
 runtime gate discriminates all four HSL/HSV modes across the five applications.
 Color Curve and Replace Color use the same stable Cel observations. Replace Color
 counts actual stored-pixel differences per distinct target Image, using Canvas
@@ -670,6 +670,21 @@ paths. Hue/Saturation, Color Curve, and Replace Color reject resolved Tilemap pi
 targets; Hue Indexed Palette-only anchors
 preserve ordinary, placement, and Tile Images (ADR-0074). This is its current delivery
 boundary, not a permanent restriction on future Filter features.
+
+`despeckle.py` owns required window dimensions, edge mode, the pixel-only request,
+and its Indexed Channel boundary. It adapts pixel intent to the shared private
+application path without importing Palette mutation policy. Native Despeckle owns
+neighborhood sampling, median selection, component preservation and RGB Map
+quantization, including 1×1 writeback. No SPA median algorithm or no-op shortcut
+is introduced.
+
+Convolution is discovery-only in this slice. The Runtime Integration adapter scans
+bounded declaration metadata at the prepared invocation's native resource paths.
+It never computes coefficients or decides that a declaration is callable. The
+Kernel records direct requested/observed Channel probes, and `RuntimeFacts`
+transports both observations. Raster Authoring provides the Convolution gap evidence;
+the installed Surface Manifest reports the applicable Capability Gap. No descriptor,
+custom convolution engine, or general resource registry is added.
 
 Brightness/Contrast passes the concrete `filter_tiles.lua` module into the shared
 execution path. It owns Manual Tilemap admission, preserved placement/binding/Grid

@@ -61,6 +61,7 @@ def test_manifest_is_projected_from_command_descriptors() -> None:
         "spa filter hue-saturation",
         "spa filter invert-color",
         "spa filter outline",
+        "spa filter despeckle",
         "spa selection create",
         "spa selection combine",
         "spa selection invert",

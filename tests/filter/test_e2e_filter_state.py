@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from spa.authoring.raster.color_curve import COLOR_CURVE_RESOURCE
+from spa.authoring.raster.despeckle import DESPECKLE_RESOURCE
 from spa.authoring.raster.filter import FILTER_RESOURCES
 from spa.authoring.raster.hue_saturation import HUE_SATURATION_RESOURCE
 from spa.authoring.raster.invert_outline import INVERT_COLOR_RESOURCE, OUTLINE_RESOURCE
@@ -34,6 +35,7 @@ def _exercise_state(
         ("replace-color", REPLACE_COLOR_RESOURCE),
         ("invert-color", INVERT_COLOR_RESOURCE),
         ("outline", OUTLINE_RESOURCE),
+        ("despeckle", DESPECKLE_RESOURCE),
     ):
         if operation == name:
             resources[resource.parameter_name] = kernel / resource.package_path
@@ -68,6 +70,7 @@ def _exercise_state(
         ("replace-color", "pixels"),
         ("invert-color", "pixels"),
         ("outline", "pixels"),
+        ("despeckle", "pixels"),
     ],
 )
 def test_filter_restores_editor_state_after_success(
@@ -114,6 +117,7 @@ def test_filter_restores_editor_state_after_success(
         ("replace-color", "pixels"),
         ("invert-color", "pixels"),
         ("outline", "pixels"),
+        ("despeckle", "pixels"),
     ],
 )
 def test_filter_rolls_back_native_effect_and_restores_state_after_failure(

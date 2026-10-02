@@ -3,7 +3,7 @@
 from collections import Counter
 from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, Self
 
 from pydantic import Field, field_validator, model_validator
 
@@ -88,6 +88,10 @@ class ComponentChannels[Channel](PublicModel):
         if len(set(self.names)) != len(self.names):
             raise ValueError("Filter Channels must be unique")
         return self
+
+
+class IndexChannels(PublicModel):
+    kind: Literal["index"]
 
 
 class RGBPixels[Channel = Literal["red", "green", "blue"]](PublicModel):
@@ -296,7 +300,7 @@ class FilterTargetObservations[Image: FilterImage[Any], Channels](PublicModel):
     persisted_reopen_verified: Literal[True]
 
     @model_validator(mode="after")
-    def consistent_images(self) -> "FilterTargetObservations":
+    def consistent_images(self) -> Self:
         numbers = [image.image_number for image in self.images]
         if numbers != list(range(1, len(self.images) + 1)):
             raise ValueError("Filter Images must have consecutive unique numbers")
@@ -344,9 +348,11 @@ def validate_cel_effects(
         raise ValueError("Filter change disagrees with observed Images and Palettes")
 
 
-class FilterObservations[Image: FilterImage[Any], Channel](
-    FilterTargetObservations[Image, ComponentChannels[Channel]]
-):
+class FilterObservations[
+    Image: FilterImage[Any],
+    Channel,
+    Channels = ComponentChannels[Channel],
+](FilterTargetObservations[Image, Channels]):
     application: Literal["pixels", "indexed-palette-entries", "rgb-palette-colors"]
     palette_indexes: list[Annotated[int, Field(ge=0)]]
 
@@ -382,6 +388,7 @@ class FilterObservations[Image: FilterImage[Any], Channel](
         return (
             self.application == application.kind
             and self.color_mode == mode
+            and isinstance(self.channels, ComponentChannels)
             and set(self.channels.names) == set(application.channels.names)
             and self.cels_target_kind
             == (None if palette_only else application.cels_target.kind)
@@ -395,6 +402,19 @@ class FilterObservations[Image: FilterImage[Any], Channel](
                 or self.palette_before == self.palette_after
             )
         )
+
+
+class FilterCelObservations[Channel, Channels = ComponentChannels[Channel]](
+    FilterObservations[FilterImage[ImageContentDigest | None], Channel, Channels]
+):
+    """Native writeback can resize or remove a Cel; report its current state."""
+
+    cel_effects: list[FilterCelEffect]
+
+    @model_validator(mode="after")
+    def consistent_cel_effects(self) -> Self:
+        validate_cel_effects(self, self.cel_effects)
+        return self
 
 
 class FilterEvidence(

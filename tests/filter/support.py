@@ -1,13 +1,23 @@
-"""Real Aseprite fixtures and public Filter command helpers."""
+"""Filter staging evidence and real Aseprite command helpers."""
 
 import json
 import os
 import subprocess
 import tempfile
+from copy import deepcopy
+from dataclasses import replace
 from pathlib import Path
 
 from spa.adapters.aseprite.invocation import prepare_invocation
-from tests.support import process_diagnostics, spa
+from spa.adapters.files import LocalTargetFiles
+from spa.contracts.ports import KernelInvocationResult
+from spa.contracts.public import Diagnostics
+from tests.support import (
+    operation_services,
+    process_diagnostics,
+    runtime_observation,
+    spa,
+)
 
 
 def native_script(runtime, script, **params):
@@ -90,3 +100,90 @@ def rgb_palette_colors(**options):
         "channels": {"kind": "components", "names": ["red"]},
         **options,
     }
+
+
+def filter_evidence():
+    palette = {
+        "frame_count": 1,
+        "palette_changes": [
+            {
+                "palette_frame_number": 1,
+                "effective_frame_range": {"from_frame": 1, "to_frame": 1},
+                "entries": [
+                    {"index": 0, "color": {"red": 0, "green": 0, "blue": 0, "alpha": 0}}
+                ],
+            }
+        ],
+    }
+    cel = {"layer_path": [1], "frame_number": 1, "image_number": 1}
+    return {
+        "application": "pixels",
+        "cels_target_kind": "all",
+        "selection": {
+            "kind": "all",
+            "rectangle": {"x": 0, "y": 0, "width": 1, "height": 1},
+        },
+        "color_mode": "rgb",
+        "palette_basis": None,
+        "palette_indexes": [],
+        "palette_before": palette,
+        "palette_after": deepcopy(palette),
+        "channels": {"kind": "components", "names": ["red"]},
+        "requested_intersections": [cel],
+        "existing_target_cels": [cel],
+        "excluded_layers": [],
+        "images": [
+            {
+                "image_number": 1,
+                "before_content_digest": {"value": "0000000000000001"},
+                "after_content_digest": {"value": "0000000000000002"},
+                "changed": True,
+            }
+        ],
+        "processed_image_numbers": [1],
+        "affected_cels": [cel],
+        "changed": True,
+        "persisted_reopen_verified": True,
+    }
+
+
+def filter_cel_evidence():
+    result = filter_evidence()
+    bounds = {"x": 0, "y": 0, "width": 1, "height": 1}
+    result["cel_effects"] = [
+        {**result["affected_cels"][0], "before": bounds, "after": deepcopy(bounds)}
+    ]
+    return result
+
+
+def setup_filter_staging(tmp_path, response=None, crash=False):
+    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
+    source.write_bytes(b"original source")
+    target.write_bytes(b"preexisting target")
+    staged = []
+
+    def invoke(_observation, _handler, payload, _timeout):
+        stage = Path(payload["staged_sprite_file"])
+        stage.write_bytes(b"native staged output")
+        staged.append(stage)
+        if crash:
+            raise RuntimeError("kernel interrupted after staging")
+        return KernelInvocationResult(
+            payload=response,
+            response_path="/response.json",
+            diagnostics=Diagnostics(exit_status=0),
+        )
+
+    services = replace(
+        operation_services(lambda _: runtime_observation()),
+        invoke_kernel=invoke,
+        target_files=LocalTargetFiles(),
+    )
+    return services, source, target, staged
+
+
+def assert_unpublished(source, target, staged):
+    assert source.read_bytes() == b"original source"
+    assert target.read_bytes() == b"preexisting target"
+    assert len(staged) == 1
+    assert not staged[0].exists()

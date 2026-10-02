@@ -533,6 +533,52 @@ Image changes, linked Cel effects, bounds or deletion, and verified save/reopen
 observations. Use each command's `--schema` for its installed contract. See
 [#38 native evidence](docs/evidence/issue-38-invert-outline.md).
 
+`spa filter despeckle` applies the native Median Filter to ordinary Image Layers.
+Required `width` and `height` are integers in `1..100`, including even sizes;
+`tiled_mode` is `none`, `x`, `y`, or `both`. The request uses `pixels` with explicit
+Color Mode, Channels, Cel targets, and optional Selection. It has no `application`
+field and does not edit Palette Entries. For example:
+
+```sh
+spa filter despeckle --input-json '{
+  "source_sprite_file": "source.aseprite",
+  "target_sprite_file": "smoothed.aseprite",
+  "in_place": false,
+  "overwrite": false,
+  "width": 3,
+  "height": 3,
+  "tiled_mode": "none",
+  "pixels": {
+    "color_mode": "rgb",
+    "channels": {"kind": "components", "names": ["red", "green", "blue"]},
+    "cels_target": {"kind": "all"}
+  }
+}'
+```
+
+RGB accepts nonempty RGBA subsets; Grayscale accepts Gray/Alpha subsets. Indexed
+requires `palette_frame_number` and either `channels: {"kind":"index"}` or
+component Channels that include Green. Native 1.3.18.5 corrupts preserved Green
+in the other component sets; this slice refuses them instead of adding Channels.
+Resolved Tilemap pixels and Background Alpha also refuse before mutation. These
+current boundaries can be extended by accepted requirements and native evidence.
+Results report the native window anchor, sample count, actual changed Images and
+Cel bounds, and verified save/reopen. A 1×1 window still invokes Aseprite: Indexed
+component processing can remap duplicate Palette colors to a different stored
+Index. Edge sampling follows Aseprite: `none` disables wrapping, but native
+1.3.18.5 can deviate from ideal edge repetition for wide windows; SPA preserves
+that observed output instead of repairing the native algorithm. See [#39 native evidence](docs/evidence/issue-39-native-filters.md).
+
+Convolution Matrix has no callable Descriptor. `spa info` and `spa schema` expose
+`runtime.convolution`: bounded Resource declarations, source paths, duplicate
+names, declared default Channels, scan completeness/notes, and requested versus
+observed native probe pixels. These are discovery facts, not proof that each
+Resource is usable. Coefficients, divisor, and bias remain opaque. On the current
+native baseline, Red and Alpha requests change the same RGBA components and an
+unknown Resource succeeds as a no-op. The Surface Manifest reports this Capability
+Gap. A later runtime still needs the full #39 acceptance gate before a callable
+Convolution Operation can be delivered.
+
 `spa selection create/combine/invert/grow/shrink/transform` return explicit
 Canvas Pixel values. Requests declare `coordinate_space: "canvas-pixel"`; values
 can be inline (`empty`, rectangular `all`, or canonical `mask`) or read from a

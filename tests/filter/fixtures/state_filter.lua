@@ -4,6 +4,7 @@ local filter = dofile(
     or app.params.invert_color
     or app.params.outline
     or app.params.hue_saturation
+    or app.params.despeckle
     or app.params.brightness_contrast
 )
 local kind = app.params.kind
@@ -18,6 +19,11 @@ if kind == "palette" then
   target_image:putPixel(0, 0, 1)
 else
   target_image:putPixel(0, 0, app.pixelColor.rgba(80, 40, 20, 255))
+end
+if app.params.despeckle then
+  for x, red in ipairs { 100, 200, 40 } do
+    target_image:putPixel(x - 1, 0, app.pixelColor.rgba(red, 40, 20, 255))
+  end
 end
 local tile
 if kind == "tilemap" then
@@ -144,6 +150,10 @@ local ok, value = pcall(function()
       payload.outline_color = { kind = "rgba", red = 210, green = 0, blue = 0, alpha = 255 }
       payload.background_color = { kind = "rgba", red = 0, green = 0, blue = 0, alpha = 0 }
     end
+  end
+  if app.params.despeckle then
+    application.kind = nil
+    payload = { pixels = application, width = 3, height = 1, tiled_mode = "none" }
   end
   return filter.apply(target, payload, {})
 end)

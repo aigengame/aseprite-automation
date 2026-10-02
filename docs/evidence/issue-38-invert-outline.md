@@ -24,6 +24,7 @@ schemas. This record explains native evidence and how to reproduce it.
 | Outline colors | RGB/Gray candidates classify by zero Alpha or exact background color. Indexed candidates use exact background Index; native neighbor lookup also observes Palette Alpha. The command projects colors through its active Layer once. Mixed RGB/Gray targets use a selected non-Background anchor; Background-only calls retain native opaque projection. Tests compare both target orders and the Background-only case with a direct native oracle. |
 | Indexed component Outline | Remains unavailable under the owner-approved baseline gap. SPA refuses it before mutation rather than interpreting it as Index processing. |
 | Native writeback | Actual persisted Images and Cel bounds/absence are compared with independently invoked native commands. Pixel-only execution preserves Palette facts; unrelated Tilemaps are checked separately. |
+| Empty Selection | The native empty Mask means unrestricted pixels. SPA supplies two selected pixels outside the Canvas, at `(width, 0)` and `(0, height)`, so its bounds start at the Canvas origin and no Canvas pixel is selected. A prior negative-X sentinel made `FilterManagerImpl::applyStep()` lock fewer Mask pixels than the Filter row consumed. Linux exposed an unintended Invert change; macOS reproduced it at widths 8, 16, and 32. The origin-aligned Mask preserves native invocation and Palette application, without changing processed-Image reporting. |
 | Result transport | Aseprite's `json_class.cpp` decodes nested objects as userdata and encodes borrowed userdata as null. Results construct ordinary Lua values; Color Values reuse the existing Raster helper. |
 
 ## Automated evidence
@@ -33,7 +34,8 @@ schemas. This record explains native evidence and how to reproduce it.
 - `tests/filter/test_e2e_invert_outline.py`: public CLI versus independent native
   command calls, all supported modes and Channels, Matrix presets and asymmetric
   custom neighbors, tiled edges, Selection, Palette limits, two-pass witnesses,
-  Background and linked targets, Tilemap refusal and preservation.
+  Background and linked targets, Tilemap refusal and preservation. Empty Selection
+  uses both 5-pixel and 8-pixel widths to cover the native Mask byte boundary.
 - `tests/filter/test_e2e_pixel_filter_boundaries.py`: explicit Palette time,
   native linked Frame representative, and unchanged Source/Target on refusal.
 - `tests/filter/test_e2e_filter_state.py`: success restoration and injected failure

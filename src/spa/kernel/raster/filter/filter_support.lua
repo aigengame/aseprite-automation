@@ -176,11 +176,12 @@ function module.pixel_selection(sprite, requested)
   mask:intersect(canvas)
   local value = selection.encode(mask).selection
   if mask.isEmpty then
-    -- A native empty Selection means no mask. Keep its bitmap active with two
-    -- off-canvas pixels: bounds intersect the Canvas, but no Canvas pixel is set.
-    -- A wholly off-canvas rectangle instead makes Filter initialization fail.
-    mask = Selection(Rectangle(-1, 0, 1, 1))
-    mask:add(Rectangle(sprite.width, 0, 1, 1))
+    -- A native empty Selection means no mask. Keep two selected pixels outside
+    -- the Canvas, with bitmap bounds at its origin. A negative bitmap origin
+    -- makes FilterManager lock fewer mask pixels than the Filter row consumes.
+    -- These bounds also keep native Palette application available on row zero.
+    mask = Selection(Rectangle(sprite.width, 0, 1, 1))
+    mask:add(Rectangle(0, sprite.height, 1, 1))
   end
   return mask, value
 end

@@ -7,9 +7,7 @@ from pydantic import ConfigDict, Field, model_validator
 from spa.authoring.raster.filter import (
     FILTER_FAILURE_SPECS,
     FILTER_SHARED_RESOURCES,
-    FilterCelEffect,
-    FilterImage,
-    FilterObservations,
+    FilterCelObservations,
     FilterRequest,
     GrayscalePixels,
     IndexedPaletteEntries,
@@ -17,7 +15,6 @@ from spa.authoring.raster.filter import (
     RGBPaletteColors,
     RGBPixels,
     publish_filter,
-    validate_cel_effects,
 )
 from spa.contracts.mutation import TargetCommit
 from spa.contracts.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
@@ -27,7 +24,6 @@ from spa.contracts.ports import (
     PackagedResource,
 )
 from spa.contracts.public import PublicModel, RuntimeRequirements
-from spa.contracts.raster import ImageContentDigest
 
 RGBChannel = Literal["red", "green", "blue", "alpha"]
 GrayChannel = Literal["gray", "alpha"]
@@ -155,21 +151,15 @@ def is_noop(adjustment: HueAdjustment | None, alpha: int | None) -> bool:
     )
 
 
-class HueFilterImage(FilterImage[ImageContentDigest | None]):
-    pass
-
-
 class HueSaturationEvidence(
-    FilterObservations[HueFilterImage, Literal["red", "green", "blue", "gray", "alpha"]]
+    FilterCelObservations[Literal["red", "green", "blue", "gray", "alpha"]]
 ):
-    cel_effects: list[FilterCelEffect]
     adjustment: HueAdjustment | None
     alpha: int | None = Field(ge=-100, le=100)
 
     @model_validator(mode="after")
     def consistent_observations(self) -> "HueSaturationEvidence":
         numbers = [image.image_number for image in self.images]
-        validate_cel_effects(self, self.cel_effects)
         noop = is_noop(self.adjustment, self.alpha)
         if self.processed_image_numbers != ([] if noop else numbers) or (
             noop and self.changed

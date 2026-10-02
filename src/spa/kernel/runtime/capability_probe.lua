@@ -1494,6 +1494,9 @@ function module.observe()
     end
     if supported then capabilities[#capabilities + 1] = "aseprite_filter_outline" end
   end
+  if app.params.despeckle and dofile(app.params.despeckle).observe_support() then
+    capabilities[#capabilities + 1] = "aseprite_filter_despeckle"
+  end
   if observes_change_color_mode() then
     capabilities[#capabilities + 1] = "aseprite_change_color_mode"
   end

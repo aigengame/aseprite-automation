@@ -536,11 +536,14 @@ def test_outline_discriminating_point_witness(
 
 @pytest.mark.parametrize("operation", ["invert-color", "outline"])
 @pytest.mark.parametrize("mode", ["rgb", "grayscale", "indexed"])
+@pytest.mark.parametrize("width", [5, 8])
 def test_explicit_empty_selection_preserves_every_image(
-    tmp_path, runtime, operation, mode
+    tmp_path, runtime, operation, mode, width
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "invert_outline_source.lua", source=source, mode=mode)
+    native_script(
+        runtime, "invert_outline_source.lua", source=source, mode=mode, width=width
+    )
     before = observe_images(runtime, source)
     parameters = (
         outline_request(mode)
