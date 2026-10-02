@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import subprocess
 import sys
 import textwrap
@@ -13,10 +14,12 @@ WORKFLOW = Path(__file__).resolve().parents[2] / ".github/workflows/native-e2e.y
 
 
 def run_step(
-    name: str, repository: Path, env: dict[str, str]
+    name: str, repository: Path, env: dict[str, str], workflow: Path = WORKFLOW
 ) -> subprocess.CompletedProcess[str]:
-    step = WORKFLOW.read_text().split(f"      - name: {name}\n", 1)[1]
-    body = step.split("        run: |\n", 1)[1].split("\n      - ", 1)[0]
+    step = workflow.read_text().split(f"      - name: {name}\n", 1)[1]
+    body = re.split(
+        r"\n(?=\S| {1,8}\S)", step.split("        run: |\n", 1)[1], maxsplit=1
+    )[0]
     return subprocess.run(
         ["bash", "-e", "-o", "pipefail", "-c", textwrap.dedent(body)],
         cwd=repository,
@@ -101,10 +104,12 @@ def test_pr_gate_verifies_the_merge_instead_of_the_dispatch_sha(candidate) -> No
         "head": response["head"]["sha"],
         "sha": response["merge_commit_sha"],
     }
-    assert (
-        Path(env["GITHUB_OUTPUT"]).read_text()
-        == f"sha={response['merge_commit_sha']}\n"
+    outputs = dict(
+        line.split("=", 1)
+        for line in Path(env["GITHUB_OUTPUT"]).read_text().splitlines()
     )
+    assert outputs["sha"] == response["merge_commit_sha"]
+    assert json.loads(outputs["target"]) == target
     summary = Path(env["GITHUB_STEP_SUMMARY"]).read_text()
     assert "PR target is unchanged after testing" in summary
     assert response["merge_commit_sha"] in summary
@@ -188,3 +193,60 @@ def test_api_failure_cannot_validate_previous_success(candidate) -> None:
     result = run_step("Reject a changed PR after testing", repository, env)
     assert result.returncode != 0
     assert "this run cannot admit merge" in result.stderr
+
+
+@pytest.mark.parametrize("state", ["success", "failure", "cancelled", "skipped"])
+def test_native_aggregate_requires_every_shard_to_succeed(
+    candidate, state: str
+) -> None:
+    repository, env, _ = candidate
+    env.update(SPA_PREPARE_RESULT="success", SPA_SHARDS_RESULT=state)
+    result = run_step("Require successful preparation and every shard", repository, env)
+    assert (result.returncode == 0) == (state == "success")
+
+
+@pytest.mark.parametrize("job", ["PREPARE", "QUALITY", "SHARDS"])
+@pytest.mark.parametrize("state", ["success", "failure", "cancelled", "skipped"])
+def test_release_aggregate_requires_quality_and_every_shard(
+    candidate, job: str, state: str
+) -> None:
+    repository, env, _ = candidate
+    env.update(
+        SPA_PREPARE_RESULT="success",
+        SPA_QUALITY_RESULT="success",
+        SPA_SHARDS_RESULT="success",
+    )
+    env[f"SPA_{job}_RESULT"] = state
+    result = run_step(
+        "Require all release verification jobs",
+        repository,
+        env,
+        WORKFLOW.with_name("release.yml"),
+    )
+    assert (result.returncode == 0) == (state == "success")
+
+
+@pytest.mark.parametrize(
+    "shards,workers,success", [("3", "1", True), ("0", "1", False)]
+)
+@pytest.mark.parametrize("workflow", [WORKFLOW, WORKFLOW.with_name("release.yml")])
+def test_workflow_configuration_uses_shared_parameters(
+    candidate, shards, workers, success, workflow
+):
+    repository, env, _ = candidate
+    script_dir = repository / "scripts"
+    script_dir.mkdir()
+    for name in ("native_e2e.py", "verify_pytest_execution.py"):
+        (script_dir / name).write_text(
+            (WORKFLOW.parents[2] / "scripts" / name).read_text()
+        )
+    env.update(SPA_E2E_SHARDS=shards, SPA_E2E_WORKERS=workers)
+    result = run_step("Configure native shards", repository, env, workflow)
+    assert (result.returncode == 0) == success, result.stderr
+    if success:
+        value = Path(env["GITHUB_OUTPUT"]).read_text().removeprefix("matrix=")
+        assert json.loads(value)["include"] == [
+            {"shard_index": 0, "shards": 3, "workers": 1},
+            {"shard_index": 1, "shards": 3, "workers": 1},
+            {"shard_index": 2, "shards": 3, "workers": 1},
+        ]

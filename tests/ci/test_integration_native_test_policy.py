@@ -1,5 +1,6 @@
 """Execute the shared native test step with controlled subprocesses and real pytest."""
 
+import json
 import os
 import queue
 import shutil
@@ -30,19 +31,41 @@ def controlled_suite(tmp_path: Path) -> tuple[Path, dict[str, str]]:
         f"#!{sys.executable}\n"
         "import os, sys\n"
         "args = sys.argv[1:]\n"
-        "if args[:5] == ['run', '--frozen', '--group', 'test', 'pytest']:\n"
-        "    command = [sys.executable, '-m', 'pytest', *args[5:]]\n"
-        "else:\n"
-        "    assert args[:4] == ['run', '--frozen', 'python', 'scripts/verify_pytest_execution.py']\n"
-        "    command = [sys.executable, *args[3:]]\n"
+        "assert args[:5] == ['run', '--frozen', '--group', 'test', 'python']\n"
+        "command = [sys.executable, *args[5:]]\n"
         "os.execv(sys.executable, command)\n"
     )
     uv.chmod(0o755)
     (tmp_path / "scripts").mkdir()
-    shutil.copy2(
-        ROOT / "scripts/verify_pytest_execution.py",
-        tmp_path / "scripts/verify_pytest_execution.py",
+    for name in ("verify_pytest_execution.py", "native_e2e.py", "native_e2e_plugin.py"):
+        shutil.copy2(ROOT / "scripts" / name, tmp_path / "scripts" / name)
+    subprocess.run(
+        ["git", "init", "--initial-branch=main"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
     )
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.invalid",
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "--allow-empty",
+            "-m",
+            "fixture",
+        ],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+    )
+    sha = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=tmp_path, text=True
+    ).strip()
     (tmp_path / "pytest.ini").write_text(
         "[pytest]\nmarkers =\n    e2e: controlled native runner case\n    slow: excluded\n"
     )
@@ -79,9 +102,13 @@ def controlled_suite(tmp_path: Path) -> tuple[Path, dict[str, str]]:
         **os.environ,
         "PATH": f"{tools}{os.pathsep}{os.environ['PATH']}",
         "PYTHONPATH": str(ROOT),
-        "PYTEST_ADDOPTS": "--dist=loadfile",
         "SPA_TEST_POLICY_DIR": str(tmp_path),
-        "SPA_E2E_JUNIT_PATH": str(tmp_path / "native.xml"),
+        "SPA_E2E_JUNIT_PATH": str(tmp_path / "spa-native-e2e/shard-0/junit.xml"),
+        "SPA_E2E_SHARDS": "1",
+        "SPA_E2E_WORKERS": "2",
+        "SPA_E2E_SHARD_INDEX": "0",
+        "SPA_NATIVE_TARGET_JSON": json.dumps({"kind": "local", "sha": sha}),
+        "RUNNER_TEMP": str(tmp_path),
     }
     return tmp_path, env
 
@@ -145,9 +172,6 @@ def test_parallel_failure_is_visible_before_inflight_work_finishes(controlled_su
             wait_for(policy_dir / "in-flight")
             _run_fixture("controlled.lua")
 
-        @pytest.mark.parametrize("number", range(8))
-        def test_later_work(number):
-            pass
         """,
     )
     write_test(
@@ -205,7 +229,7 @@ def test_parallel_failure_is_visible_before_inflight_work_finishes(controlled_su
     assert status != 0, transcript
     assert (directory / "finished-in-flight").exists(), transcript
     cases = ET.parse(env["SPA_E2E_JUNIT_PATH"]).findall(".//testcase")
-    assert 1 < len(cases) < 10, transcript
+    assert len(cases) == 2, transcript
     failures = [case.find("failure") for case in cases]
     assert sum(failure is not None for failure in failures) == 1
     for evidence in (

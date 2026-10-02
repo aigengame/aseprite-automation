@@ -39,6 +39,13 @@ def source_target(path: Path | None) -> dict:
 
 def check_report(path: Path, config: Configuration, target: dict) -> dict:
     report = json.loads(path.read_text())
+    total, skipped, executed = execution_counts(path.with_name("junit.xml"))
+    print(
+        f"JUnit execution: total={total} skipped={skipped} executed={executed}",
+        flush=True,
+    )
+    if executed == 0:
+        raise ValueError("real Aseprite E2E gate executed no tests")
     if report["target"] != target or any(
         report[key] != value
         for key, value in (
@@ -62,13 +69,6 @@ def check_report(path: Path, config: Configuration, target: dict) -> dict:
         raise ValueError(f"missing or duplicate native outcomes: {path}")
     if any(o["outcome"] not in ("passed", "skipped") for o in outcomes):
         raise ValueError(f"unsuccessful native outcome: {path}")
-    total, skipped, executed = execution_counts(path.with_name("junit.xml"))
-    print(
-        f"JUnit execution: total={total} skipped={skipped} executed={executed}",
-        flush=True,
-    )
-    if executed == 0:
-        raise ValueError("real Aseprite E2E gate executed no tests")
     if total != len(outcomes) or skipped != sum(
         o["outcome"] == "skipped" for o in outcomes
     ):

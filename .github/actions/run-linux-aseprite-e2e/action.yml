@@ -2,8 +2,17 @@ name: Run Linux real Aseprite E2E
 description: Run the SPA batch scripting path without a graphical display.
 
 inputs:
-  junit-path:
-    description: Absolute output path for the pytest JUnit report.
+  shard-index:
+    description: Zero-based shard index from the shared runner matrix.
+    required: true
+  shards:
+    description: Resolved total shard count.
+    required: true
+  workers:
+    description: Resolved pytest workers per shard.
+    required: true
+  target:
+    description: Immutable source-target JSON resolved by the caller.
     required: true
 
 runs:
@@ -39,14 +48,16 @@ runs:
     - name: Run real Aseprite E2E tests
       shell: bash
       env:
-        SPA_E2E_JUNIT_PATH: ${{ inputs.junit-path }}
+        SPA_E2E_SHARD_INDEX: ${{ inputs.shard-index }}
+        SPA_E2E_SHARDS: ${{ inputs.shards }}
+        SPA_E2E_WORKERS: ${{ inputs.workers }}
+        SPA_NATIVE_TARGET_JSON: ${{ inputs.target }}
       run: |
-        pytest_status=0
-        uv run --frozen --group test pytest -n 2 -m "e2e and not slow" -x -vv --tb=short -rs \
-          --junitxml="$SPA_E2E_JUNIT_PATH" || pytest_status=$?
-        uv run --frozen python scripts/verify_pytest_execution.py \
-          "$SPA_E2E_JUNIT_PATH"
-        exit "$pytest_status"
+        printf '%s\n' "$SPA_NATIVE_TARGET_JSON" > "$RUNNER_TEMP/spa-native-target.json"
+        uv run --frozen --group test python scripts/native_e2e.py run \
+          --shard-index "$SPA_E2E_SHARD_INDEX" \
+          --target-file "$RUNNER_TEMP/spa-native-target.json" \
+          --output-dir "$RUNNER_TEMP/spa-native-e2e"
 
     - name: Record Linux real-runtime evidence
       shell: bash
@@ -57,7 +68,7 @@ runs:
           echo "- Commit: \`${tested_sha}\`"
           echo "- Trigger: \`${GITHUB_EVENT_NAME}\`"
           echo "- Selection: \`e2e and not slow\`; complete example rebuilds are local opt-in checks"
-          echo "- Workers: 2 isolated pytest processes"
+          echo "- Shard: ${{ inputs.shard-index }}; total shards: ${{ inputs.shards }}; workers per shard: ${{ inputs.workers }}"
           echo "- Executable: \`${{ steps.aseprite.outputs.executable }}\`"
           echo "- Aseprite: \`${{ steps.aseprite.outputs.version }}\`"
           echo "- Display: \`DISPLAY\` and \`WAYLAND_DISPLAY\` absent"

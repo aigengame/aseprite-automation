@@ -8,6 +8,14 @@ on:
         description: "PR number to test its current merge result; leave empty to test main"
         type: string
         default: ""
+      shards:
+        description: "Shard count override; empty uses SPA_E2E_SHARDS or the shared default"
+        type: string
+        default: ""
+      workers:
+        description: "Workers per shard override; empty uses SPA_E2E_WORKERS or the shared default"
+        type: string
+        default: ""
   schedule:
     # Default branch (main), Monday 03:23 Asia/Shanghai.
     - cron: "23 19 * * 0"
@@ -21,10 +29,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  aseprite-e2e:
-    name: Linux real Aseprite E2E
+  prepare:
+    name: Resolve native target and configuration
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 3
+    outputs:
+      target: ${{ steps.target.outputs.target }}
+      sha: ${{ steps.target.outputs.sha }}
+      matrix: ${{ steps.configuration.outputs.matrix }}
     env:
       SPA_PR_NUMBER: ${{ inputs.pr }}
     steps:
@@ -57,6 +69,7 @@ jobs:
           sha="$(jq -r .sha "$SPA_NATIVE_TARGET")"
           [[ "$sha" =~ ^[0-9a-f]{40}$ ]]
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "target=$(jq -c . "$SPA_NATIVE_TARGET")" >> "$GITHUB_OUTPUT"
           {
             echo '### Native E2E target (not the dispatch SHA)'
             echo '```json'
@@ -70,7 +83,6 @@ jobs:
         with:
           ref: ${{ steps.target.outputs.sha }}
           fetch-depth: 2
-          lfs: true
           persist-credentials: false
 
       - name: Check the merge parents before testing
@@ -86,10 +98,50 @@ jobs:
           fi
           echo "Tested tree: $(git rev-parse 'HEAD^{tree}')" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Run the headless real-runtime gate
-        uses: ./.github/actions/run-linux-aseprite-e2e
+      - name: Configure native shards
+        id: configuration
+        env:
+          SPA_E2E_SHARDS: ${{ inputs.shards || vars.SPA_E2E_SHARDS }}
+          SPA_E2E_WORKERS: ${{ inputs.workers || vars.SPA_E2E_WORKERS }}
+        run: |
+          matrix="$(python3 scripts/native_e2e.py matrix)"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  shards:
+    needs: prepare
+    uses: ./.github/workflows/native-e2e-shards.yml
+    with:
+      target: ${{ needs.prepare.outputs.target }}
+      matrix: ${{ needs.prepare.outputs.matrix }}
+
+  aseprite-e2e:
+    name: Linux real Aseprite E2E
+    if: always()
+    needs: [prepare, shards]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    env:
+      SPA_PR_NUMBER: ${{ inputs.pr }}
+    steps:
+      - name: Require successful preparation and every shard
+        env:
+          SPA_PREPARE_RESULT: ${{ needs.prepare.result }}
+          SPA_SHARDS_RESULT: ${{ needs.shards.result }}
+        run: |
+          test "$SPA_PREPARE_RESULT" = success
+          test "$SPA_SHARDS_RESULT" = success
+
+      - name: Check out the verified native target
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          junit-path: ${{ runner.temp }}/spa-real-aseprite-e2e.xml
+          ref: ${{ needs.prepare.outputs.sha }}
+          persist-credentials: false
+
+      - name: Verify the complete native result
+        uses: ./.github/actions/verify-native-e2e
+        with:
+          target: ${{ needs.prepare.outputs.target }}
+          matrix: ${{ needs.prepare.outputs.matrix }}
 
       - name: Reject a changed PR after testing
         env:
@@ -117,6 +169,6 @@ jobs:
           name: native-e2e-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             ${{ runner.temp }}/spa-native-target.json
-            ${{ runner.temp }}/spa-real-aseprite-e2e.xml
+            ${{ runner.temp }}/spa-native-e2e/
           if-no-files-found: warn
           retention-days: 14

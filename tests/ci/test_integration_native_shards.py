@@ -2,8 +2,10 @@
 
 import json
 import os
+import shutil
 import subprocess
 import sys
+import textwrap
 from pathlib import Path
 
 import pytest
@@ -76,6 +78,43 @@ def test_shared_runner_covers_the_selected_suite_once(suite: Path) -> None:
         [expected[1], expected[3], expected[5]],
     ]
     assert "selected=6 passed=6 skipped=0" in result.stdout
+
+
+def test_aggregate_action_checks_reports_and_preserves_failure_through_tee(
+    suite: Path,
+) -> None:
+    runner_temp = suite / "runner"
+    output = runner_temp / "spa-native-e2e"
+    result = run(suite, "run", "--output-dir", str(output))
+    assert result.returncode == 0, result.stdout + result.stderr
+    (suite / "scripts").mkdir()
+    for name in ("native_e2e.py", "verify_pytest_execution.py"):
+        shutil.copyfile(ROOT / "scripts" / name, suite / "scripts" / name)
+    action = ROOT / ".github/actions/verify-native-e2e/action.yml"
+    body = textwrap.dedent(action.read_text().split("      run: |\n", 1)[1])
+    env = {
+        **os.environ,
+        "PATH": str(Path(sys.executable).parent) + os.pathsep + os.environ["PATH"],
+        "RUNNER_TEMP": str(runner_temp),
+        "GITHUB_STEP_SUMMARY": str(runner_temp / "summary"),
+        "SPA_NATIVE_TARGET_JSON": (output / "target.json").read_text(),
+        "SPA_E2E_MATRIX": run(suite, "matrix").stdout,
+    }
+    for missing in (False, True):
+        if missing:
+            (output / "shard-1/result.json").unlink()
+        result = subprocess.run(
+            ["bash", "-e", "-o", "pipefail", "-c", body],
+            cwd=suite,
+            env=env,
+            text=True,
+            capture_output=True,
+            timeout=10,
+            check=False,
+        )
+        assert (result.returncode != 0) == missing, result.stdout + result.stderr
+    assert "selected=6 passed=6 skipped=0" in (runner_temp / "summary").read_text()
+    assert "missing or extra native shard reports" in result.stderr
 
 
 def test_configuration_drives_matrix_and_nondefault_execution(suite: Path) -> None:
