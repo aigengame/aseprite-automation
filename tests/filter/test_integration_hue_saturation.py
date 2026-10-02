@@ -1,25 +1,15 @@
 """Hue/Saturation publishes only request-matched native persistence evidence."""
 
-from copy import deepcopy
-
 import pytest
 
 from spa.authoring.raster.hue_saturation import HueSaturationRequest, hue_saturation
 from spa.contracts.ports import RuntimeIssue
-from tests.filter.test_integration_filter import (
-    assert_unpublished,
-    evidence,
-    setup_operation,
-)
+from tests.filter.support import assert_unpublished, filter_cel_evidence
+from tests.filter.test_integration_filter import setup_operation
 
 
 def hue_evidence():
-    result = evidence()
-    del result["brightness"], result["contrast"]
-    del result["requested_tileset_mode"], result["observed_tileset_mode"]
-    del result["changed_tiles"]
-    for image in result["images"]:
-        del image["image_kind"]
+    result = filter_cel_evidence()
     result["adjustment"] = {
         "mode": "hsl-multiply",
         "hue": 0,
@@ -27,10 +17,6 @@ def hue_evidence():
         "lightness": 10,
     }
     result["alpha"] = None
-    bounds = {"x": 0, "y": 0, "width": 1, "height": 1}
-    result["cel_effects"] = [
-        {**result["affected_cels"][0], "before": bounds, "after": deepcopy(bounds)}
-    ]
     return result
 
 
