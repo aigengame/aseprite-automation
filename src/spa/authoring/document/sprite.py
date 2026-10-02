@@ -267,14 +267,19 @@ class CelFacts(PublicModel):
 
 class SliceKeyFacts(PublicModel):
     frame_number: int = Field(ge=1)
-    bounds: Rectangle
-    center: Rectangle | None
-    pivot: Point | None
+    bounds: Rectangle = Field(description="Bounds in Canvas Pixel space")
+    center: Rectangle | None = Field(
+        description="Center relative to the bounds top-left corner"
+    )
+    pivot: Point | None = Field(
+        description="Pivot relative to the bounds top-left corner"
+    )
 
 
 class SliceFacts(PublicModel):
     name: str
     data: str
+    color: RgbaColor
     keys: list[SliceKeyFacts]
 
 
@@ -481,6 +486,7 @@ SPRITE_INSPECTION_RESOURCE = PackagedResource(
 SPRITE_INSPECTION_RESOURCES = (
     SPRITE_INSPECTION_RESOURCE,
     PackagedResource("layer_select", "document/layer/layer_select.lua"),
+    PackagedResource("slice_inspect", "document/slice/slice_inspect.lua"),
 )
 SPRITE_PERSISTENCE_RESOURCE = PackagedResource(
     "persistence", "document/sprite/sprite_persistence.lua"

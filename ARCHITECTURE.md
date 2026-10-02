@@ -322,6 +322,14 @@ inspection and authoring; `spa.authoring.document.cel` owns Cel existence, inspe
 while `spa.authoring.document.cel_relationship` owns Cel placement, opacity, z-index, and native
 copy/link/unlink mutations; `spa.authoring.document.animation` owns declared animation audit,
 full-Canvas Frame comparison, and the composed continuity Preview use case.
+`spa.authoring.document.slice` owns complete Slice snapshots, exact current
+index/unique-name addressing, and whole-Slice authoring. Its Lua `slice_inspect`
+module owns native sprite-sheet metadata decoding and is shared by aggregate
+Sprite inspection and Slice operations. `slice_support` owns Key coverage,
+static-geometry admission, native mutation, and save/reopen preservation checks.
+Python owns typed requests/results and staged Target Commit orchestration. Slice
+mutation results return the complete reopened address snapshot because native
+serialization can reorder Slices; they expose no persistent Slice identity.
 Cel Add accepts optional initial Image dimensions. Its `cel_support.lua` owner
 creates transparent native Images from the Sprite specification for both standalone
 mutations and Plan Steps. Add validates its initial state at the Step; the final
