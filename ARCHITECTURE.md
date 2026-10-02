@@ -663,8 +663,9 @@ Convolution is discovery-only in this slice. The Runtime Integration adapter sca
 bounded declaration metadata at the prepared invocation's native resource paths.
 It never computes coefficients or decides that a declaration is callable. The
 Kernel records direct requested/observed Channel probes, and `RuntimeFacts`
-transports both observations. Raster Authoring owns the installed Capability Gap;
-no descriptor, custom convolution engine, or general resource registry is added.
+transports both observations. Raster Authoring provides the Convolution gap evidence;
+the installed Surface Manifest reports the applicable Capability Gap. No descriptor,
+custom convolution engine, or general resource registry is added.
 
 Brightness/Contrast passes the concrete `filter_tiles.lua` module into the shared
 execution path. It owns Manual Tilemap admission, preserved placement/binding/Grid
