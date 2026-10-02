@@ -1,4 +1,4 @@
-"""Color Curve is executed by Aseprite and verified after reopening the Target."""
+"""Replace Color uses native matching and observes actual stored-pixel changes."""
 
 import pytest
 
@@ -7,30 +7,34 @@ from tests.filter.support import native_script, observe_images, pixels, run
 pytestmark = pytest.mark.e2e
 
 
-def test_constant_red_curve_preserves_other_components_and_source(tmp_path, runtime):
+def test_equal_colors_with_positive_tolerance_still_normalize_neighbors(
+    tmp_path, runtime
+):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
     native_script(runtime, "source.lua", source=source, mode="rgb")
     original = source.read_bytes()
     options = pixels(channels={"kind": "components", "names": ["red"]})
     options.pop("kind")
+    color = {"kind": "rgba", "red": 100, "green": 0, "blue": 0, "alpha": 255}
     code, result = run(
         "filter",
-        "color-curve",
+        "replace-color",
         source_sprite_file=str(source),
         target_sprite_file=str(target),
         in_place=False,
         overwrite=False,
-        points=[{"input": 100, "output": 42}],
+        tolerance=60,
+        **{"from": color, "to": color},
         **options,
     )
     assert code == 0, result
+    assert result["changed_pixel_count"] == 1
+    assert "matched_pixel_count" not in result
     assert result["changed"] is True
-    assert result["persisted_reopen_verified"] is True
-    after = observe_images(runtime, target)
-    assert after["cels"][0]["pixels"] == [
-        42 | (60 << 8) | (20 << 16) | (255 << 24),
-        42 | (100 << 8) | (40 << 16) | (128 << 24),
-        42 | (20 << 8) | (10 << 16) | (255 << 24),
+    assert observe_images(runtime, target)["cels"][0]["pixels"] == [
+        100 | (60 << 8) | (20 << 16) | (255 << 24),
+        200 | (100 << 8) | (40 << 16) | (128 << 24),
+        100 | (20 << 8) | (10 << 16) | (255 << 24),
     ]
     assert source.read_bytes() == original
 
@@ -49,12 +53,9 @@ def test_constant_red_curve_preserves_other_components_and_source(tmp_path, runt
         ("indexed", "alpha"),
     ],
 )
-@pytest.mark.parametrize(
-    "coordinates",
-    [[(0, 0), (255, 255)], [(0, 255), (255, 0)], [(50, 230), (128, 20), (200, 180)]],
-)
-def test_curves_match_direct_native_command(
-    tmp_path, runtime, mode, channel, coordinates
+@pytest.mark.parametrize("tolerance", [0, 60])
+def test_replace_matches_native_in_each_mode(
+    tmp_path, runtime, mode, channel, tolerance
 ):
     import json
 
@@ -72,26 +73,44 @@ def test_curves_match_direct_native_command(
     options.pop("kind")
     if mode == "indexed":
         options["palette_frame_number"] = 1
-    points = [{"input": x, "output": y} for x, y in coordinates]
+        colors = {
+            "from": {"kind": "palette-index", "index": 1},
+            "to": {"kind": "palette-index", "index": 2},
+        }
+    elif mode == "grayscale":
+        colors = {
+            "from": {"kind": "grayscale", "gray": 100, "alpha": 255},
+            "to": {"kind": "grayscale", "gray": 180, "alpha": 128},
+        }
+    else:
+        colors = {
+            "from": {"kind": "rgba", "red": 100, "green": 60, "blue": 20, "alpha": 255},
+            "to": {"kind": "rgba", "red": 150, "green": 90, "blue": 30, "alpha": 128},
+        }
+    before = observe_images(runtime, source)
     native_script(
         runtime,
-        "curve_native.lua",
+        "replace_native.lua",
         source=source,
         target=native,
-        points=json.dumps(points),
         channels=json.dumps([channel]),
+        tolerance=tolerance,
+        **{name: json.dumps(value) for name, value in colors.items()},
     )
     code, result = run(
         "filter",
-        "color-curve",
+        "replace-color",
         source_sprite_file=str(source),
         target_sprite_file=str(target),
         in_place=False,
         overwrite=False,
-        points=points,
+        tolerance=tolerance,
+        **colors,
         **options,
     )
     assert code == 0, result
-    assert observe_images(runtime, target) == observe_images(runtime, native)
-    assert result["points"] == points
-    assert result["palette_before"] == result["palette_after"]
+    after = observe_images(runtime, target)
+    assert after == observe_images(runtime, native)
+    assert result["changed_pixel_count"] == sum(
+        a != b for a, b in zip(before["cels"][0]["pixels"], after["cels"][0]["pixels"])
+    )

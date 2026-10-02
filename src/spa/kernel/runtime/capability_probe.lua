@@ -1260,18 +1260,67 @@ function module.observe()
       capabilities[#capabilities + 1] = "aseprite_filter_brightness_contrast_tilemap_manual"
     end
   end
-  if app.params.color_curve then
-    local sprite = Sprite(1, 1, ColorMode.RGB)
-    local ok = pcall(function()
-      sprite.cels[1].image:drawPixel(0, 0, app.pixelColor.rgba(100, 60, 20, 255))
-      local result = dofile(app.params.color_curve).apply(sprite, {
-        color_mode = "rgb", channels = { kind = "components", names = { "red" } },
-        cels_target = { kind = "all" }, points = { { input = 100, output = 42 } },
-      })
-      assert(result.changed and sprite.cels[1].image:getPixel(0, 0) == app.pixelColor.rgba(42, 60, 20, 255))
-    end)
-    sprite:close()
-    if ok then capabilities[#capabilities + 1] = "aseprite_filter_color_curve" end
+  for _, operation in ipairs { "color_curve", "replace_color" } do
+    if app.params[operation] then
+      local filter = dofile(app.params[operation])
+      local supported = true
+      for _, branch in ipairs {
+        { mode = "rgb", native = ColorMode.RGB, channel = "red" },
+        { mode = "grayscale", native = ColorMode.GRAY, channel = "gray" },
+        { mode = "indexed", native = ColorMode.INDEXED, channel = "red" },
+        { mode = "indexed", native = ColorMode.INDEXED, channel = "index" },
+      } do
+        local sprite = Sprite(1, 1, branch.native)
+        local ok = pcall(function()
+          local palette = Palette(3)
+          palette:setColor(0, Color { r = 0, g = 0, b = 0, a = 0 })
+          palette:setColor(1, Color { r = 100, g = 60, b = 20, a = 255 })
+          palette:setColor(2, Color { r = 150, g = 60, b = 20, a = 255 })
+          sprite:setPalette(palette)
+          local original = branch.mode == "indexed" and 1
+            or (
+              branch.mode == "grayscale" and app.pixelColor.graya(100, 255)
+              or app.pixelColor.rgba(100, 60, 20, 255)
+            )
+          local expected = branch.mode == "indexed" and 2
+            or (
+              branch.mode == "grayscale" and app.pixelColor.graya(150, 255)
+              or app.pixelColor.rgba(150, 60, 20, 255)
+            )
+          sprite.cels[1].image:drawPixel(0, 0, original)
+          local payload = {
+            color_mode = branch.mode,
+            channels = branch.channel == "index" and { kind = "index" }
+              or { kind = "components", names = { branch.channel } },
+            cels_target = { kind = "all" },
+            palette_frame_number = branch.mode == "indexed" and 1 or nil,
+          }
+          if operation == "color_curve" then
+            payload.points = { { input = 100, output = branch.channel == "index" and 2 or 150 } }
+          else
+            if branch.mode == "indexed" then
+              payload.from, payload.to =
+                { kind = "palette-index", index = 1 }, { kind = "palette-index", index = 2 }
+            elseif branch.mode == "grayscale" then
+              payload.from, payload.to =
+                { kind = "grayscale", gray = 100, alpha = 255 },
+                { kind = "grayscale", gray = 150, alpha = 255 }
+            else
+              payload.from, payload.to =
+                { kind = "rgba", red = 100, green = 60, blue = 20, alpha = 255 },
+                { kind = "rgba", red = 150, green = 60, blue = 20, alpha = 255 }
+            end
+            payload.tolerance = 0
+          end
+          local result = filter.apply(sprite, payload)
+          assert(result.changed and sprite.cels[1].image:getPixel(0, 0) == expected)
+          if operation == "replace_color" then assert(result.changed_pixel_count == 1) end
+        end)
+        sprite:close()
+        supported = supported and ok
+      end
+      if supported then capabilities[#capabilities + 1] = "aseprite_filter_" .. operation end
+    end
   end
   if app.params.hue_saturation then
     local filter = dofile(app.params.hue_saturation)

@@ -6,16 +6,16 @@ from pydantic import ConfigDict, Field, model_validator
 
 from spa.authoring.raster.filter import (
     ComponentChannels,
-    FilterCel,
+    FilterCelEffect,
     FilterCelsTarget,
     FilterImage,
     FilterMutationRequest,
     FilterTargetObservations,
+    validate_cel_effects,
 )
 from spa.contracts.public import PublicModel
 from spa.contracts.raster import (
     ImageContentDigest,
-    PositiveRectangle,
     SelectionApplication,
 )
 
@@ -107,38 +107,6 @@ class PixelFilterRequest(FilterMutationRequest):
             },
             exclude_none=True,
         )
-
-
-class FilterCelEffect(FilterCel):
-    image_number: int = Field(ge=1)
-    before: PositiveRectangle
-    after: PositiveRectangle | None
-
-
-def validate_cel_effects(observation, effects: list[FilterCelEffect]) -> None:
-    """Validate surviving and deleted Cels using stable Layer/Frame identities."""
-    if [
-        effect.model_dump(include={"layer_path", "frame_number", "image_number"})
-        for effect in effects
-    ] != [cel.model_dump() for cel in observation.affected_cels]:
-        raise ValueError("Cel effects must cover every affected Cel")
-    numbers = {image.image_number for image in observation.images}
-    if any(effect.image_number not in numbers for effect in effects):
-        raise ValueError("Cel effect refers to an unobserved Image")
-    for image in observation.images:
-        consumers = [
-            effect for effect in effects if effect.image_number == image.image_number
-        ]
-        if not consumers or (image.after_content_digest is not None) != any(
-            effect.after is not None for effect in consumers
-        ):
-            raise ValueError("Image survival disagrees with affected Cels")
-    if observation.changed != (
-        any(image.changed for image in observation.images)
-        or observation.palette_before != observation.palette_after
-        or any(effect.before != effect.after for effect in effects)
-    ):
-        raise ValueError("Filter change disagrees with observed Images and Palettes")
 
 
 class PixelFilterEvidence(

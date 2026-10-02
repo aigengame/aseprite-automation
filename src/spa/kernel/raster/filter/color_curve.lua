@@ -9,7 +9,10 @@ function module.apply(sprite, payload, uuids)
     facts[#facts + 1] = { input = point.input, output = point.output }
   end
   local result = application.apply_pixels(sprite, payload, uuids, "Color Curve", function(flags)
-    assert(app.command.ColorCurve { ui = false, channels = flags, curve = points }, "Native Color Curve failed")
+    assert(
+      app.command.ColorCurve { ui = false, channels = flags, curve = points },
+      "Native Color Curve failed"
+    )
     return true
   end)
   if not result.rejection then result.points = facts end

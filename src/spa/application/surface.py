@@ -58,6 +58,10 @@ from spa.authoring.raster.paint_native import (
     native_paint_candidate_gaps,
     native_paint_capability_gaps,
 )
+from spa.authoring.raster.replace_color import (
+    REPLACE_COLOR_OPERATIONS,
+    REPLACE_COLOR_RESOURCE,
+)
 from spa.authoring.raster.selection import (
     SELECTION_OPERATIONS,
     SELECTION_SUPPORT_RESOURCE,
@@ -88,6 +92,7 @@ from spa.delivery.palette import (
 PROBE_RESOURCES = (
     *FILTER_RESOURCES,
     COLOR_CURVE_RESOURCE,
+    REPLACE_COLOR_RESOURCE,
     HUE_SATURATION_RESOURCE,
     PALETTE_QUANTIZATION_RESOURCE,
     COLOR_MODE_RESOURCE,
@@ -289,6 +294,7 @@ OPERATIONS = (
     *NATIVE_PAINT_OPERATIONS,
     *FILTER_OPERATIONS,
     *COLOR_CURVE_OPERATIONS,
+    *REPLACE_COLOR_OPERATIONS,
     *HUE_SATURATION_OPERATIONS,
     *SELECTION_OPERATIONS,
     *FRAME_OPERATIONS,

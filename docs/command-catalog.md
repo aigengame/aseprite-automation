@@ -157,12 +157,20 @@ does not add other motion modes or recipe-owned pose and particle behavior.
 | --- | --- |
 | `spa filter brightness-contrast` | Apply native Brightness/Contrast through explicit Channels and Filter Application; Tilemap pixel targets require explicit Manual Tileset Mode and report shared Tile references. |
 | `spa filter hue-saturation` | Apply native HSL/HSV adjustment through explicit modes and Channels. |
-| `spa filter color-curve` | Apply native Color Curve Points to explicit component or Index Channels. |
-| `spa filter replace-color` | Apply native per-component or stored-Index matching. |
+| `spa filter color-curve` | Apply ordered byte-domain linear Curve Points to ordinary Image pixels through explicit component or Index Channels. |
+| `spa filter replace-color` | Apply native per-component or stored-Index matching and report observed `changed_pixel_count`. |
 | `spa filter invert-color` | Apply native component or stored-Index inversion. |
 | `spa filter outline` | Apply native Outline with explicit placement, matrix, colors, Channels, and Tiled Mode. |
 | `spa filter convolution-matrix` | Apply one native named Convolution Matrix Resource when the runtime honors its contract. |
 | `spa filter despeckle` | Apply native per-channel Median Filter behavior. |
+
+Color Curve and Replace Color have a fixed pixel destination and no `application`
+field. Both require explicit `color_mode`, `channels`, and `cels_target`. Indexed
+requests also require `palette_frame_number`. They reuse Filter Selection and
+Linked Cel semantics, and currently refuse resolved Tilemap targets and Background
+Alpha before mutation. These boundaries can extend with accepted requirements and
+focused native evidence. See [the #37 evidence](evidence/issue-37-pixel-filters.md)
+for concrete requests and the native writeback contract.
 
 ## `palette`
 
