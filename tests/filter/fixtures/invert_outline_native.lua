@@ -27,17 +27,15 @@ else
     outline, background =
       Color { r = 211, g = 157, b = 89, a = 203 }, Color { r = 19, g = 23, b = 29, a = 255 }
   end
-  assert(
-    app.command.Outline {
-      ui = false,
-      channels = flags,
-      place = tonumber(app.params.place),
-      matrix = tonumber(app.params.matrix),
-      tiledMode = tonumber(app.params.tiled),
-      color = outline,
-      bgColor = background,
-    }
-  )
+  assert(app.command.Outline {
+    ui = false,
+    channels = flags,
+    place = tonumber(app.params.place),
+    matrix = tonumber(app.params.matrix),
+    tiledMode = tonumber(app.params.tiled),
+    color = outline,
+    bgColor = background,
+  })
 end
 assert(sprite:saveAs(app.params.target))
 sprite:close()
