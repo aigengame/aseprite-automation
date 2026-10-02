@@ -13,7 +13,7 @@ from spa.authoring.document.layer import (
 )
 from spa.authoring.document.sprite import (
     INSPECTION_SECTIONS,
-    SPRITE_INSPECTION_RESOURCE,
+    SPRITE_INSPECTION_RESOURCES,
     SPRITE_PERSISTENCE_RESOURCE,
     SpriteGetRequest,
     SpriteInspection,
@@ -306,7 +306,7 @@ CEL_SELECT_RESOURCE = PackagedResource(
 CEL_GET_HANDLER = PackagedHandler(
     "cel_get",
     "document/cel/cel_get.lua",
-    (SPRITE_INSPECTION_RESOURCE, CEL_SELECT_RESOURCE, CEL_SUPPORT_RESOURCE),
+    (*SPRITE_INSPECTION_RESOURCES, CEL_SUPPORT_RESOURCE),
 )
 CEL_MUTATION_REQUIREMENTS = RuntimeRequirements(
     lua_language="Lua 5.4",
@@ -317,9 +317,8 @@ CEL_MUTATE_HANDLER = PackagedHandler(
     "cel_mutate",
     "document/cel/cel_mutate.lua",
     (
-        SPRITE_INSPECTION_RESOURCE,
+        *SPRITE_INSPECTION_RESOURCES,
         SPRITE_PERSISTENCE_RESOURCE,
-        CEL_SELECT_RESOURCE,
         CEL_SUPPORT_RESOURCE,
         PackagedResource("frame", "document/frame/frame_support.lua"),
         EFFECTIVE_PALETTE_RESOURCE,

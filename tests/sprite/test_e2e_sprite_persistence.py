@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+from spa.authoring.document.sprite import SPRITE_INSPECTION_RESOURCES
 from tests.frame.test_e2e_frame import _run_fixture
 from tests.motion.test_e2e_motion import curves, fixture
 
@@ -21,8 +22,10 @@ def run_verified_save(tmp_path: Path, case: str) -> None:
     _run_fixture(
         str(Path(__file__).parent / "fixtures" / "verified_save.lua"),
         persistence=str(kernel.joinpath("document/sprite/sprite_persistence.lua")),
-        inspection=str(kernel.joinpath("document/sprite/sprite_inspect.lua")),
-        layer_select=str(kernel.joinpath("document/layer/layer_select.lua")),
+        **{
+            resource.parameter_name: str(kernel.joinpath(resource.package_path))
+            for resource in SPRITE_INSPECTION_RESOURCES
+        },
         digest=str(kernel.joinpath("foundation/digest.lua")),
         staged=str(tmp_path / "staged.aseprite"),
         case=case,
