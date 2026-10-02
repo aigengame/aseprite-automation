@@ -35,6 +35,20 @@ local function point(value)
   return { x = value.x, y = value.y }
 end
 
+local function matches_rectangle(fact, native)
+  if native == nil then return fact == json_null end
+  return fact ~= json_null
+    and fact.x == native.x
+    and fact.y == native.y
+    and fact.width == native.width
+    and fact.height == native.height
+end
+
+local function matches_point(fact, native)
+  if native == nil then return fact == json_null end
+  return fact ~= json_null and fact.x == native.x and fact.y == native.y
+end
+
 local function rgba(color)
   return { red = color.red, green = color.green, blue = color.blue, alpha = color.alpha }
 end
@@ -170,7 +184,20 @@ function module.inspect(sprite)
         }
       end
     end
-    assert(#keys > 0 or native.bounds == nil, "Slice vendor entry has no explicit Keys")
+    if #keys == 0 then
+      assert(native.bounds == nil, "Slice vendor entry has no explicit Keys")
+    else
+      -- Public Lua exposes the first explicit Key even when another Frame is
+      -- active. Cross-check that available observation; later Keys still come
+      -- from the native export, with shape/order/range validation above.
+      local first = keys[1]
+      assert(
+        matches_rectangle(first.bounds, native.bounds)
+          and matches_rectangle(first.center, native.center)
+          and matches_point(first.pivot, native.pivot),
+        "Slice vendor first Key differs from the opened Sprite"
+      )
+    end
     slices[#slices + 1] = { name = value.name, data = data, color = color, keys = keys }
   end
   return slices

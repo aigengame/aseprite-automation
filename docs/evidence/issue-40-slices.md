@@ -32,6 +32,11 @@ texture output, uses explicit export options, and restores editor state. A nativ
 command that returns without writing cannot reuse a stale successful observation.
 Malformed or incomplete metadata fails the whole operation; there is no fallback
 to the first Key, JSON repair, or partial success.
+The first exported Key's bounds, center, and pivot must also agree with public
+Lua getters. This catches omitted first geometry as well as structural errors.
+Later Key values rely on native export; public Lua does not provide a second
+complete Key collection for independent equality checks. SPA validates their
+shape, ordering, and timeline coverage without adding private file parsing.
 
 On this native version, Slice text containing a line feed is written into vendor
 JSON without the required escape. The retained LF fixture proves that native

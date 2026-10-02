@@ -66,6 +66,14 @@ local wrapped = {
       vendor.meta.slices = object
     elseif mode == "missing_keys" then
       multi.keys = nil
+    elseif mode == "missing_first_key" then
+      table.remove(multi.keys, 1)
+    elseif mode == "missing_first_center" then
+      multi.keys[1].center = nil
+    elseif mode == "missing_first_pivot" then
+      multi.keys[1].pivot = nil
+    elseif mode == "different_first_bounds" then
+      multi.keys[1].bounds.w = multi.keys[1].bounds.w + 1
     elseif mode == "null_center" then
       multi.keys[1].center = json.decode("null")
     elseif mode == "bad_data_type" then
