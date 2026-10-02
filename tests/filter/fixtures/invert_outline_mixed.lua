@@ -30,17 +30,15 @@ else
   app.range.frames = { 1 }
   app.range.colors = {}
   sprite.selection = Selection(Rectangle(0, 0, 5, 5))
-  assert(
-    app.command.Outline {
-      ui = false,
-      channels = 7,
-      place = 1,
-      matrix = 170,
-      tiledMode = 0,
-      color = Color { r = 211, g = 157, b = 89, a = 203 },
-      bgColor = Color { r = 19, g = 23, b = 29, a = 0 },
-    }
-  )
+  assert(app.command.Outline {
+    ui = false,
+    channels = 7,
+    place = 1,
+    matrix = 170,
+    tiledMode = 0,
+    color = Color { r = 211, g = 157, b = 89, a = 203 },
+    bgColor = Color { r = 19, g = 23, b = 29, a = 0 },
+  })
   assert(sprite:saveAs(app.params.target))
   sprite:close()
 end
