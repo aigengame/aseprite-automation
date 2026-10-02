@@ -123,6 +123,8 @@ def test_info_reports_installed_runtime() -> None:
         "spa paint blur",
         "spa filter brightness-contrast",
         "spa filter hue-saturation",
+        "spa filter invert-color",
+        "spa filter outline",
         "spa selection create",
         "spa selection combine",
         "spa selection invert",
@@ -206,6 +208,9 @@ def test_info_reports_installed_runtime() -> None:
         "spa palette add",
         "spa palette remove",
         "spa filter hue-saturation: Tilemap pixels",
+        "spa filter invert-color: Tilemap pixels",
+        "spa filter outline: Tilemap pixels",
+        "spa filter outline: Indexed component Channels",
     ]
     assert all(
         gap["aseprite_version"] == result["runtime"]["aseprite_version"]
