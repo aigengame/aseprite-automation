@@ -150,7 +150,7 @@ def _command(
 
         command = pure_command
     command.__name__ = descriptor.name.rsplit(" ", 1)[-1]
-    command.__doc__ = f"Run spa {descriptor.name}."
+    command.__doc__ = descriptor.help_summary or f"Run spa {descriptor.name}."
     return command
 
 

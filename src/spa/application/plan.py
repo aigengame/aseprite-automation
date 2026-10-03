@@ -35,14 +35,16 @@ from spa.authoring.color.profile import (
 )
 from spa.authoring.document.cel import (
     CEL_OPERATIONS,
-    CEL_SUPPORT_RESOURCE,
     CelAddInput,
+    validate_added_cel,
+)
+from spa.authoring.document.cel_contracts import (
+    CEL_SUPPORT_RESOURCE,
     CelFrameRangeDetails,
     CelState,
     CelTargetDetails,
-    validate_added_cel,
 )
-from spa.authoring.document.cel import (
+from spa.authoring.document.cel_contracts import (
     CelAddress as LifecycleCelAddress,
 )
 from spa.authoring.document.cel_relationship import (
@@ -90,10 +92,10 @@ from spa.authoring.document.sprite import (
     SpriteGetInput,
     SpriteGetRequest,
     SpriteInspection,
-    SpriteMetadata,
     validate_created_sprite,
     validated_scope,
 )
+from spa.authoring.raster.image_snapshot import SNAPSHOT_RESOURCE
 from spa.authoring.raster.paint import (
     PAINT_OPERATIONS,
     PAINT_PROBE_FIXTURE,
@@ -103,6 +105,9 @@ from spa.authoring.raster.paint import (
     PaintApplyInput,
     validate_paint_evidence,
 )
+from spa.authoring.tile.cel_add import TILE_CEL_RESOURCE, TilemapCreationEvidence
+from spa.authoring.tile.inspection import TILE_INSPECTION_RESOURCE, TILE_PROBE_RESOURCE
+from spa.authoring.tile.targets import TILESET_RESOURCE
 from spa.contracts.digest import DIGEST_RESOURCE
 from spa.contracts.mutation import (
     TargetCommit,
@@ -115,6 +120,7 @@ from spa.contracts.ports import (
     OperationIssue,
     OperationServices,
     PackagedHandler,
+    PackagedResource,
     PostconditionEvidence,
     RequestIssue,
     ResponseEvidence,
@@ -170,6 +176,12 @@ PLAN_RUN_HANDLER = PackagedHandler(
         DIGEST_RESOURCE,
         SPRITE_INSPECTION_FIXTURE,
         PAINT_PROBE_FIXTURE,
+        TILE_CEL_RESOURCE,
+        TILE_PROBE_RESOURCE,
+        TILE_INSPECTION_RESOURCE,
+        TILESET_RESOURCE,
+        PackagedResource("tile_properties", "tile/properties.lua"),
+        SNAPSHOT_RESOURCE,
     ),
 )
 
@@ -411,6 +423,7 @@ class CelAddStepResult(PublicModel):
     before: CelState
     before_cel_count: int = Field(ge=0)
     cel: CelState
+    tilemap_creation: TilemapCreationEvidence | None = None
 
 
 class CelSetStepResult(CelRelationshipChangeEvidence):
@@ -656,9 +669,15 @@ def _combined_requirements(operations: list[str]) -> RuntimeRequirements:
 
 
 def _requirements(plan: PlanDefinition) -> RuntimeRequirements:
-    return _combined_requirements(
+    requirements = _combined_requirements(
         ["sprite get", *(step.operation for step in plan.steps)]
     )
+    if any(
+        isinstance(step, CelAddStep) and step.input.tilemap_size is not None
+        for step in plan.steps
+    ):
+        requirements.required_capabilities.append("aseprite_tile_cel_creation")
+    return requirements
 
 
 PLAN_DISCOVERY_REQUIREMENTS = _combined_requirements(list(ELIGIBLE_OPERATIONS))
@@ -667,9 +686,10 @@ PLAN_DISCOVERY_REQUIREMENTS = _combined_requirements(list(ELIGIBLE_OPERATIONS))
 def _validated_steps(
     request: PlanRunRequest,
     invocation: KernelInvocationResult,
-    canvas: SpriteMetadata,
+    final_sprite: SpriteInspection,
     profile_inputs: dict[int, dict[str, Any]],
 ) -> list[StepOutcome]:
+    canvas = final_sprite.metadata
     raw = invocation.payload.get("steps")
     if not isinstance(raw, list) or len(raw) != len(request.plan.steps):
         missing_index = (
@@ -779,8 +799,9 @@ def _validated_steps(
                 validate_added_cel(
                     step.input,
                     after,
-                    canvas.model_copy(update={"color_mode": mode}),
+                    final_sprite,
                     invocation,
+                    outcome.result.tilemap_creation,
                 )
                 if (
                     before.exists
@@ -1070,11 +1091,11 @@ def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunRes
             inspection_scope=list(INSPECTION_SECTIONS),
         )
         validated_scope(final_scope_request, final_sprite, invocation)
-        # Eligible Steps keep the Canvas size; Add receipts describe their own
-        # initial state, even when a later Step paints or moves that Cel.
-        outcomes = _validated_steps(
-            request, invocation, final_sprite.metadata, profile_inputs
-        )
+        # Current eligible Steps keep Canvas size and Tileset order, count, and
+        # structural facts (including Grid). Reconcile only these with final facts;
+        # Add receipts describe their own initial Cel state. A Tileset lifecycle
+        # Step would require Step-time facts instead of this invariant.
+        outcomes = _validated_steps(request, invocation, final_sprite, profile_inputs)
         metadata = final_sprite.metadata
         for field, expected in plan.postconditions.model_dump(
             exclude_none=True

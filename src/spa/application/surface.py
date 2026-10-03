@@ -19,7 +19,8 @@ from spa.authoring.color.quantization import (
     QUANTIZATION_OPERATIONS,
 )
 from spa.authoring.document.animation import ANIMATION_OPERATIONS
-from spa.authoring.document.cel import CEL_OPERATIONS, CEL_SUPPORT_RESOURCE
+from spa.authoring.document.cel import CEL_OPERATIONS
+from spa.authoring.document.cel_contracts import CEL_SUPPORT_RESOURCE
 from spa.authoring.document.cel_relationship import CEL_RELATIONSHIP_OPERATIONS
 from spa.authoring.document.frame import FRAME_OPERATIONS, FRAME_SUPPORT_RESOURCE
 from spa.authoring.document.layer import LAYER_OPERATIONS, LAYER_SELECT_RESOURCE
@@ -55,6 +56,7 @@ from spa.authoring.raster.image import (
     IMAGE_ORIENTATION_TRANSFORM_RESOURCE,
     IMAGE_RESIZE_TRANSFORM_RESOURCE,
 )
+from spa.authoring.raster.image_import import IMAGE_IMPORT_OPERATIONS
 from spa.authoring.raster.image_snapshot import COMPOSITION_RESOURCE, SNAPSHOT_RESOURCE
 from spa.authoring.raster.invert_outline import (
     INVERT_COLOR_RESOURCE,
@@ -82,6 +84,7 @@ from spa.authoring.raster.selection import (
     SELECTION_OPERATIONS,
     SELECTION_SUPPORT_RESOURCE,
 )
+from spa.authoring.tile.cel_add import tilemap_creation_gaps
 from spa.authoring.tile.inspection import TILE_OPERATIONS, TILE_PROBE_RESOURCE
 from spa.authoring.tile.layer_creation import TILE_LAYER_PROBE_RESOURCE
 from spa.contracts.operation import (
@@ -244,6 +247,12 @@ def _surface(runtime: RuntimeFacts) -> tuple[list[str], list[CapabilityGap]]:
                 evidence="The selected runtime did not verify native Tilemap Layer creation, shared Tileset binding, temporary Tileset removal, and save/reopen persistence.",
             )
         )
+    if "spa cel add" in supported:
+        gaps.extend(
+            tilemap_creation_gaps(
+                runtime.aseprite_version, runtime.verified_capabilities
+            )
+        )
     return supported, gaps
 
 
@@ -350,6 +359,7 @@ OPERATIONS = (
     *CEL_RELATIONSHIP_OPERATIONS,
     *MOTION_OPERATIONS,
     *IMAGE_OPERATIONS,
+    *IMAGE_IMPORT_OPERATIONS,
     *TAG_OPERATIONS,
     *SLICE_OPERATIONS,
     *PALETTE_OPERATIONS,

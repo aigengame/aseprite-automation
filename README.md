@@ -655,7 +655,33 @@ without resizing it. Creation uses the Sprite's Color Mode, Color Profile, and
 Transparent Color Index, with position `(0, 0)`, opacity 255, and z-index 0.
 The same option is available in a `cel add` Plan Step, including before a Paint
 Step; returned dimensions remain in `cel.image_bounds`.
-`cel clear` and `cel remove` do not accept `image_size`.
+
+For an existing Tilemap Layer and an absent Cel at an existing Frame, `cel add`
+instead requires `tilemap_size: {"width": 2, "height": 3}` in **Tile Cells**.
+Each side is an integer from 1 through 65535, with at most 1,048,576 Cells in total;
+Canvas coverage must fit native signed 32-bit Rectangle coordinates. Do not combine
+`tilemap_size` with raster `image_size`. The bound Tileset supplies the Grid; this
+operation creates neither a Layer nor a Frame. The independent native Tilemap Image
+starts with packed Empty Tile 0 in every Cell, without transform flags, even when
+the Sprite's Transparent Color Index is nonzero. Position `(0, 0)`, opacity 255,
+and z-index 0 match ordinary creation. The Tilemap may extend beyond the Canvas.
+
+`tilemap_creation` reports #41 Tilemap/Tileset facts (Cell size, binding, Grid,
+and Canvas coverage) and verified empty Cells; shared `cel.image_bounds` remains
+`null`. Use `tilemap get` to observe the persisted Cells. Standalone and Plan use
+the same construction path. Each add Step verifies its initial state; later valid
+Steps may change it, and final save/reopen verifies the resulting document before
+one Target Commit. A failed Step publishes nothing. The selected runtime must
+verify `aseprite_tile_cel_creation`; discovery reports a conditional Capability Gap
+when unavailable. Ordinary Cel creation retains its existing capability contract.
+
+```sh
+spa cel add --input-json '{"source_sprite_file":"map.aseprite","target_sprite_file":"with-cel.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[2]},"frame_number":3},"tilemap_size":{"width":2,"height":3}}'
+```
+
+The ordinary-only boundaries in #13 and #106 describe those earlier slices;
+#165 adds explicit Tilemap creation. `cel clear` and `cel remove` retain their
+existing target policies and accept neither `image_size` nor `tilemap_size`.
 `cel clear` preserves the Cel and its Image bounds; on a
 Background Layer it requires an explicit compatible `background_color` and fills
 the Cel with that color. Clearing a shared Image preserves native links and reports
@@ -912,6 +938,42 @@ uv run spa palette resize --input-json '{"aseprite":"/path/to/aseprite","source_
 uv run spa palette remap --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"remapped.aseprite","in_place":false,"overwrite":false,"mapping":[{"old_index":3,"new_index":0}]}'
 uv run spa palette reorder --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"reordered.aseprite","in_place":false,"overwrite":false,"scope":"sprite","mapping":[{"old_index":0,"new_index":0},{"old_index":1,"new_index":2},{"old_index":2,"new_index":1},{"old_index":3,"new_index":3}]}'
 ```
+
+### Import a compatible external PNG
+
+`image import` inserts one source-sized, independent Image into an empty Cel slot
+on an existing regular transparent Layer and Frame:
+
+```sh
+uv run spa image import --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"imported.aseprite","in_place":false,"overwrite":false,"raster_file":"prepared.png","target":{"layer":{"layer_path":[1]},"frame_number":1},"position":{"x":-2,"y":3}}'
+```
+
+The input must be a single-frame 8-bit RGB/RGBA or Indexed PNG. RGB requires an RGB
+Sprite; Indexed requires an Indexed Sprite and equal complete RGBA meaning at
+every used index in the selected Frame's Effective Palette. Unused entries and
+Palette lengths may differ. Palette alpha and the destination's Transparent Color
+Index both matter: native loss of transparent hidden RGB or partial alpha causes
+refusal. Numeric mask indexes need not be equal when the used pixels retain their
+meaning. The target Palette remains unchanged.
+
+Encoded None, sRGB, or an exact supported ICC (`linear_srgb`, `display_p3`) must
+match the destination Profile. Unsupported or conflicting metadata fails, including
+standalone gAMA/cHRM definitions. Input loading does not infer sRGB for an untagged
+PNG or convert its channels. See the [import evidence](docs/evidence/issue-46-raster-import.md)
+for the supported metadata combinations and native counterexamples.
+
+An occupied Cel, including a Linked Cel, is refused. Positions use the existing
+signed 16-bit Cel bounds; negative or off-Canvas placement preserves the entire
+stored Image. The Operation creates no Layer or Frame and performs no resizing,
+Palette remapping, or Color Mode/Profile conversion. These are the current delivery
+limits; future accepted requirements can extend them.
+
+The result reports the consumed PNG's SHA-256 and byte size, reopened Cel/Image
+facts, stored-content and RGBA digests, Profile and applicable Palette basis, and
+the Target Commit. The input is frozen before native loading. Save/reopen content
+loss, malformed evidence, or an output alias of the input prevents publication.
+The created native Image is not a file Artifact. This Operation is standalone and
+is not eligible for an Operation Plan.
 
 ### Palette files and Color Quantization
 

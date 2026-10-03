@@ -10,6 +10,89 @@ from tests.tile.support import fixture, run
 pytestmark = pytest.mark.e2e
 
 
+@pytest.mark.parametrize("plan", [False, True], ids=["standalone", "plan"])
+@pytest.mark.parametrize("intent", ["create", "share"])
+def test_new_tilemap_layer_accepts_explicit_cel_creation(
+    tmp_path: Path, runtime, intent: str, plan: bool
+) -> None:
+    source = tmp_path / "source.aseprite"
+    layered = tmp_path / "layered.aseprite"
+    target = tmp_path / "target.aseprite"
+    fixture(source, runtime, mode="indexed", transparent="7")
+    original = source.read_bytes()
+    tileset = (
+        {
+            "create": {
+                "name": "new terrain",
+                "grid": {
+                    "origin": {"x": 0, "y": 0},
+                    "tile_size": {"width": 2, "height": 3},
+                },
+                "base_index": 1,
+            }
+        }
+        if intent == "create"
+        else {"share": {"tileset_index": 1}}
+    )
+    code, added = run(
+        "layer",
+        "add",
+        source_sprite_file=str(source),
+        target_sprite_file=str(layered),
+        in_place=False,
+        overwrite=False,
+        kind="tilemap",
+        name="new map",
+        tileset=tileset,
+    )
+    assert code == 0, added
+    assert added["tilemap"]["initial_cel_count"] == 0
+    layered_bytes = layered.read_bytes()
+    address = {
+        "layer": {"layer_path": added["layer"]["path"]},
+        "frame_number": 1,
+    }
+    size = {"width": 2, "height": 3}
+    files = {
+        "source_sprite_file": str(layered),
+        "target_sprite_file": str(target),
+        "in_place": False,
+        "overwrite": False,
+    }
+    inputs = {"target": address, "tilemap_size": size}
+    code, result = (
+        run(
+            "plan",
+            "run",
+            plan=files | {"steps": [{"operation": "cel add", "input": inputs}]},
+        )
+        if plan
+        else run("cel", "add", **files, **inputs)
+    )
+    assert code == 0, result
+    assert result["persisted_reopen_verified"] is True
+    code, observed = run(
+        "tilemap",
+        "get",
+        sprite_file=str(target),
+        target=address,
+        rectangle={"x": 0, "y": 0, **size},
+    )
+    assert code == 0, observed
+    assert observed["tilemap"]["cell_size"] == size
+    assert (
+        observed["tilemap"]["tileset_index"]
+        == added["tilemap"]["tileset"]["tileset_index"]
+    )
+    assert observed["snapshot"]["complete"] is True
+    assert observed["snapshot"]["entries"] == []
+    code, final_tilesets = run("tileset", "list", sprite_file=str(target))
+    assert code == 0, final_tilesets
+    assert len(final_tilesets["tilesets"]) == added["tilemap"]["tileset_count"]
+    assert source.read_bytes() == original
+    assert layered.read_bytes() == layered_bytes
+
+
 @pytest.mark.parametrize(
     "mode,base_index", [("rgb", -32768), ("grayscale", -1), ("indexed", 32767)]
 )

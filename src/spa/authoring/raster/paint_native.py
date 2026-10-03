@@ -6,7 +6,7 @@ from typing import Annotated, Literal
 from pydantic import ConfigDict, Field, ValidationError, model_validator
 
 from spa.authoring.color.palette import EFFECTIVE_PALETTE_RESOURCE
-from spa.authoring.document.cel import (
+from spa.authoring.document.cel_contracts import (
     CEL_SUPPORT_RESOURCE,
     CelAddress,
     CelState,

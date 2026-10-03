@@ -7,7 +7,7 @@ from typing import Literal, Self
 from pydantic import Field, ValidationError, model_validator
 
 from spa.application.mutation import prepare_mutation
-from spa.authoring.document.cel import (
+from spa.authoring.document.cel_contracts import (
     CEL_SUPPORT_RESOURCE,
     CelAddress,
     CelState,

@@ -16,6 +16,7 @@ verification tier. The layout does not mirror source packages or CLI Command Gro
 | `tests/examples/` | Installed-CLI workflows, deterministic asset production, and checked-in downstream asset agreement. |
 | `tests/frame/` | Frame timing, insertion, Cel copy/link intent, Tag adjustment, and native persistence. |
 | `tests/filter/` | Native Filter application, Channels, Cel targets, Palette basis, state restoration, and verified publication. |
+| `tests/import/` | Encoded PNG facts, compatible native Cel insertion, frozen input identity, and publication refusal. |
 | `tests/layer/` | Layer hierarchy, exact addressing, and native addition evidence. |
 | `tests/motion/` | Bounded Cel curve sampling, complete preflight, and persisted pixel/property preservation. |
 | `tests/paint/` | Paint Domain Module contract, bounded mutation evidence, and native Pixel Patch behavior. |
@@ -26,7 +27,7 @@ verification tier. The layout does not mirror source packages or CLI Command Gro
 | `tests/slice/` | Complete Slice Keys and coverage, exact addressing, bounded native authoring, exporter validation, and save/reopen evidence. |
 | `tests/sprite/` | Sprite Domain Module contracts plus real creation, copy, flatten, bounded validation, persisted reopen, structural inspection, and Target Commit evidence. |
 | `tests/tag/` | Tag stored facts, exact current addressing, native mutation, and save/reopen evidence. |
-| `tests/tile/` | Tileset/Tile identity, exact Tilemap topology, complete Tile Region transport, native validation, and Tilemap Layer create/share persistence. |
+| `tests/tile/` | Tileset/Tile identity, exact Tilemap topology, complete Tile Region transport, native validation, Tilemap Layer create/share persistence, and explicit Tilemap Cel creation. |
 
 Add an ownership directory only when tests for that behavior exist. Keep a helper in
 the narrowest ownership directory that uses it. Move a helper to `tests/support.py`
@@ -77,6 +78,30 @@ preserve ordinary Images, placement bytes, and all Tile bitmaps including Empty
 Tile 0. Direct native calls supply boundary-value parity; injected post-command
 failures verify transaction rollback and active Sprite, range, Palette Picks, and
 Selection restoration. All cases use batch scripting without a graphical display.
+
+Explicit Tilemap Cel creation (#165) lives in `tests/tile/test_e2e_cel_creation.py`.
+The independent `cel_creation.lua` fixture creates a native Layer/Tileset without
+SPA Layer creation, then verifies saved Cells, native Image independence, existing
+links, Tile Images/Keys/properties, Palette, binding, and Grid. The matrix covers
+RGB/Grayscale/Indexed (Transparent Color Index 7), first/later Frames, and both
+standalone and Plan creation. Refusals and a later failing Step preserve Source
+and an existing Target; a later successful Step may change the initial links.
+Contract tests cover installed schemas, geometry bounds, conditional runtime
+capability, and contradictory creation evidence without launching Aseprite,
+including Tileset ordinals and Grid facts that disagree with complete Sprite
+inspection. Positive controls include a valid second Tileset.
+These are batch E2E tests: local macOS results do not establish Linux verification.
+
+External raster import #46 checks 8-bit PNG metadata independently of native
+loading, then compares full RGBA and stored indexes through real insertion and
+save/reopen. Fixtures cover used-index Palette equality at the selected Frame,
+mask collisions, partial alpha and transparent hidden RGB, None/sRGB/supported ICC,
+empty-slot eligibility, signed Cel positions, and independent Images beside linked
+Cels. Failure cases preserve inputs and any previous Target, discard staging, and
+refuse inconsistent native evidence or output aliases of the raster. These tests
+use the existing local macOS and Linux `--batch --script` lanes without a display;
+they do not exercise the editor UI. Run `pytest tests/import` with the same runtime
+configuration as other native owners.
 
 ## Verification tiers
 

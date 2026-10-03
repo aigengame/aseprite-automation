@@ -330,10 +330,21 @@ static-geometry admission, native mutation, and save/reopen preservation checks.
 Python owns typed requests/results and staged Target Commit orchestration. Slice
 mutation results return the complete reopened address snapshot because native
 serialization can reorder Slices; they expose no persistent Slice identity.
-Cel Add accepts optional initial Image dimensions. Its `cel_support.lua` owner
-creates transparent native Images from the Sprite specification for both standalone
-mutations and Plan Steps. Add validates its initial state at the Step; the final
-save/reopen gate validates the state after all later Steps.
+Cel Add accepts optional raster Image dimensions or explicit Tile Cell dimensions.
+`document/targets.py` owns shared Layer/Cel addresses and Layer target failures.
+`document/cel_contracts.py` consumes those addresses and owns shared mutation
+requests, Cel facts, and typed rejection translation; ordinary consumers do not
+import Tile creation contracts.
+`cel_support.lua` owns target selection, existence, and ordinary Image construction.
+Standalone and Plan inject the same Tile-owned `tile/cel_add.lua` construction
+function for explicit Tilemap requests. That function owns bounded Cell geometry,
+Tileset/Grid admission, native TILEMAP Image construction, and packed-zero checks.
+It reuses Tile inspection for creation facts. Add validates its initial state at
+the Step; the final save/reopen gate validates the state after all later Steps.
+Before Target Commit, creation receipts also reconcile the addressed Tileset and
+Grid with complete Sprite inspection. Current eligible Plan Steps preserve these
+Tileset structural facts, so this check uses final inspection without comparing
+initial Cel properties with their later state.
 The Layer-owned `layer_select.lua` Module supplies `current_path` for an already
 attached native Layer. Cel, Frame, Sprite inspection, Pixel Patch, and native Paint
 reuse this current stack-index fact. Exact name/path/verified-UUID selection remains
@@ -341,7 +352,7 @@ separate from that observation; tree traversal and composition keep their own ru
 The Cel-owned `is_regular_transparent` predicate is also used by Layer mutation and
 Animation audit where the same eligibility rule applies. Their Group, Background,
 Reference, and Tilemap policies remain with each Operation. Python consumers use
-`spa.authoring.document.cel.raise_cel_rejection` for shared failure translation and
+`spa.authoring.document.cel_contracts.raise_cel_rejection` for shared failure translation and
 supply their own address roles and Frame Ranges. Each handler binding explicitly
 includes the Lua resources these dependencies require, including standalone,
 capability-probe, and Plan paths.
@@ -382,6 +393,18 @@ whole-Image flip and exact pixel/pivot permutation. The Cel-targeted handlers ow
 eligibility, complete Linked Cel scope, coherent placement, unchanged document
 facts, and staged save/reopen verification. Python validates intent and Kernel
 evidence and coordinates the existing Source/Target commit boundary.
+`spa.authoring.raster.image_import` owns compatible external PNG insertion into an
+explicitly empty Cel slot. The PNG input adapter independently observes encoded
+format, Profile metadata, stored indexes, and complete RGBA; it uses Pillow for
+pixel decoding. The use case freezes those input bytes and checks the existing
+Color Profile identities. Its fixed native handler loads a private copy, reuses
+Cel eligibility, the Effective Palette resolver, and Color Profile assignment,
+then inserts through `Sprite:newCel`. It checks complete pixels before insertion
+and after save/reopen, and compares unrelated document facts through the existing
+Profile persistence observations. Python checks the returned evidence against the
+decoded input before the shared Target Commit. Preparation policy and conversion
+remain with their existing owners; this path introduces no importer registry or
+Plan Step. See [the bounded import evidence](docs/evidence/issue-46-raster-import.md).
 `spa.authoring.raster.image_snapshot` owns individual
 and native composite Image reads plus complete Image replacement. Its Lua helpers
 own canonical native pixel reads and Layer Composition over the original tree;
@@ -510,7 +533,7 @@ src/spa/
       sprite.py, layer.py, frame.py, cel.py, cel_relationship.py
       tag.py, animation.py, motion.py
     raster/
-      image.py, image_snapshot.py, selection.py
+      image.py, image_snapshot.py, image_import.py, selection.py
       paint.py, paint_composite.py, paint_native.py
     color/
       palette.py          # Palette reads, Entry edits, sizing, reorder, and remap contracts
@@ -527,7 +550,8 @@ src/spa/
     png_publication.py    # staged PNG verification/publication for Export and Preview
   adapters/
     aseprite/             # process, resource discovery, and transport
-    files.py, png.py       # filesystem mechanics and independent PNG decoding
+    files.py, png.py       # filesystem mechanics and export PNG verification
+    png_input.py           # independent encoded PNG input facts and pixels
     icc.py                # ICC byte validation and digest, without color transforms
     palette_file.py       # independent GPL/Indexed PNG observations, not a color engine
   kernel/                 # fixed native semantic handlers and shared owners
@@ -583,9 +607,10 @@ Operation registry.
 
 Add a module only with a complete functional slice. Preparation has no placeholder
 implementation. Tile Authoring owns `authoring/tile` and `kernel/tile`: Python
-publishes typed inspection and explicit Tileset creation/sharing contracts, and
+publishes typed inspection, explicit Tileset creation/sharing, and Tilemap Cel contracts, and
 checks evidence before Artifact or Target publication. Lua resolves native Tilesets,
-Tile Keys, Layer bindings, and Tile Cell placements. The `layer add` Descriptor
+Tile Keys, Layer bindings, and Tile Cell placements, and constructs explicitly
+sized empty Tilemap Cels. The `layer add` Descriptor
 remains in Document; its Tilemap variant delegates the cross-Layer/Tileset lifecycle
 to Tile Authoring, including exact removal of its own temporary implicit Tileset.
 Shared `document/targets.py` and `tile/targets.py` hold addresses and target failures;
@@ -593,8 +618,12 @@ reads and mutations consume these contracts without importing each other's use c
 The native `tile/tilesets.lua` owns exact Tileset resolution and binding facts for
 both paths. Tile Authoring reuses shared Sprite save/reopen verification, adds Tile
 Image preservation checks, and leaves Target Commit to the existing file adapter.
-It depends on Raster's Pixel Region Snapshot encoding for Tile bitmaps. It does not
-assign Keys or create Tilemap Cels. Shared JSON Snapshot destination mechanics live in
+It depends on Document's shared Layer/Cel contracts and Raster's Pixel Region
+Snapshot encoding for Tile bitmaps. It does not assign Keys or write nonempty Tile
+Cell content in this slice. Cel mutation and Plan retain staging and
+Target Commit ownership. The existing Tile probe observes empty-Cel save/reopen
+separately from inspection; only explicit Tilemap creation requests require that
+capability. Shared JSON Snapshot destination mechanics live in
 `contracts/snapshot.py`; Tile Region values stay in their feature owner. Color and Palette owns the shared Effective
 Palette resolver and standalone Palette list/get/set/resize/remap/reorder. Its native module resolves
 Frame-based change points, edits only exact existing changes, and checks the full
@@ -637,8 +666,9 @@ Python reads and freezes input ICC bytes through the file adapter and
 validates them through the ICC adapter;
 it does not transform colors. The profile-specific persistence check verifies native
 profile equality, encoded kind, all stored colors, and the complete Palette timeline.
-The bounded encoded-profile reader is shared with Export, whose format policy remains
-separate. This preserves encoded None despite Aseprite's batch load default and adds
+The bounded encoded-profile reader is shared with Export. Import supplies its own
+independently decoded PNG declaration to the same native assignment helper; each
+consumer retains its format policy. This preserves encoded None despite Aseprite's batch load default and adds
 no general profile or preference service. See the [native evidence](docs/evidence/issue-34-color-profile.md).
 
 Reuse the canonical

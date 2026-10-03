@@ -6,7 +6,7 @@ from typing import Literal
 from pydantic import Field, ValidationError, field_validator, model_validator
 
 from spa.application.mutation import prepare_mutation
-from spa.authoring.document.cel import (
+from spa.authoring.document.cel_contracts import (
     CEL_SUPPORT_RESOURCE,
     CelAddress,
     CelState,

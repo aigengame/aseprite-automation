@@ -6,7 +6,11 @@ from typing import Annotated, Literal
 
 from pydantic import Field, ValidationError, field_validator, model_validator
 
-from spa.authoring.document.cel import CelAddress, CelState, raise_cel_rejection
+from spa.authoring.document.cel_contracts import (
+    CelAddress,
+    CelState,
+    raise_cel_rejection,
+)
 from spa.authoring.document.layer import LAYER_ADDRESS_FAILURE_CODES
 from spa.authoring.document.sprite import (
     INSPECTION_SECTIONS,
