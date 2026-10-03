@@ -1,6 +1,8 @@
 """Reject malformed Kernel evidence before a JSON Snapshot becomes visible."""
 
 import json
+import os
+import shlex
 from pathlib import Path
 
 import pytest
@@ -9,7 +11,37 @@ from spa.adapters.files import LocalArtifactFiles, LocalTargetFiles
 from spa.authoring.tile.inspection import TilemapGetRequest, get_tilemap
 from spa.contracts.ports import KernelInvocationResult, OperationServices, RuntimeIssue
 from spa.contracts.public import Diagnostics
-from tests.support import runtime_observation
+from tests.support import fake_aseprite, runtime_observation, spa
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX shell fixture")
+@pytest.mark.parametrize("address", ["tileset_name", "tile_key"])
+def test_nul_address_is_an_input_failure_before_native_invocation(
+    tmp_path: Path, address: str
+) -> None:
+    marker = tmp_path / "native-invoked"
+    binary = fake_aseprite(tmp_path, f"touch {shlex.quote(str(marker))}\nexit 1")
+    source = tmp_path / "source.aseprite"
+    source.write_bytes(b"source must not be opened")
+    request = {"sprite_file": str(source), "aseprite": str(binary)}
+    if address == "tileset_name":
+        command = ("tileset", "get")
+        request["target"] = {"tileset_name": "terrain\x00suffix"}
+        location = ["target", "tileset_name"]
+    else:
+        command = ("tileset", "tile", "get")
+        request["target"] = {"tileset_index": 1}
+        request["tile"] = {"tile_key": "green\x00suffix"}
+        location = ["tile", "tile_key"]
+
+    response = spa(*command, "--input-json", json.dumps(request))
+    failure = json.loads(response.stdout)
+    assert response.returncode == 2, failure
+    assert failure["code"] == "invalid_request"
+    assert failure["category"] == "input"
+    assert failure["details"]["errors"][0]["location"] == location
+    assert not marker.exists()
+    assert source.read_bytes() == b"source must not be opened"
 
 
 def _evidence(source: Path) -> dict:

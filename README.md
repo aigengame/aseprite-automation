@@ -1204,6 +1204,8 @@ Grid, display-only `base_index`, Tile count, and all referencing Tilemap Layers.
 reports every current Tile index, including Empty Tile 0 and unkeyed Tiles.
 `spa tileset tile get` additionally selects one `tile.tile_index` or unique
 `tile.tile_key` and returns its complete Image as the existing Pixel Region Snapshot.
+Tileset name and Tile Key addresses reject embedded NUL as `invalid_request` before
+native execution.
 Base Index changes display numbering (`tile_index + base_index - 1`), never identity.
 
 Both Tile queries return `properties` for the default namespace (`""`),

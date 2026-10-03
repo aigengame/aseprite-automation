@@ -73,7 +73,7 @@ class TilesetTarget(PublicModel):
     """One current Tileset address or one Layer binding."""
 
     tileset_index: int | None = Field(default=None, ge=1, strict=True)
-    tileset_name: str | None = None
+    tileset_name: str | None = Field(default=None, pattern=r"^[^\x00]*$")
     layer: LayerAddress | None = None
 
     @model_validator(mode="after")
@@ -93,7 +93,7 @@ class TilesetTarget(PublicModel):
 
 class TileAddress(PublicModel):
     tile_index: int | None = Field(default=None, ge=0, strict=True)
-    tile_key: str | None = Field(default=None, min_length=1)
+    tile_key: str | None = Field(default=None, min_length=1, pattern=r"^[^\x00]*$")
 
     @model_validator(mode="after")
     def exactly_one(self) -> "TileAddress":

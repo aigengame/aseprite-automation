@@ -295,7 +295,7 @@ A Tile's current native position in a Tileset. It can change and is not persiste
 identity.
 
 **Base Index**
-Aseprite's display and export offset for non-empty Tile numbers. It is not a Tile Index
+Aseprite's display offset for non-empty Tile numbers. It is not a Tile Index
 or identity.
 
 **Tilemap**
