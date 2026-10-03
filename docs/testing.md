@@ -22,6 +22,7 @@ verification tier. The layout does not mirror source packages or CLI Command Gro
 | `tests/paint/` | Paint Domain Module contract, bounded mutation evidence, and native Pixel Patch behavior. |
 | `tests/palette/` | Shared Effective Palette resolution over native Frame-based Palette Changes. |
 | `tests/plan/` | Static Plan preflight, single-Sprite Step composition, and commit gates. |
+| `tests/preparation/` | Frozen input/specification checks, geometry and anchors, native preparation, exact PNG facts, reproduction, and publication gates. |
 | `tests/release/` | Release metadata and publication gates. |
 | `tests/runtime/` | Aseprite Runtime Integration, including discovery, launch, private Kernel transport, and real-runtime evidence. |
 | `tests/slice/` | Complete Slice Keys and coverage, exact addressing, bounded native authoring, exporter validation, and save/reopen evidence. |
@@ -104,6 +105,19 @@ they do not exercise the editor UI. Run `pytest tests/import` with the same runt
 configuration as other native owners.
 
 ## Verification tiers
+
+Frozen raster preparation #103 has fast public-dispatch tests for malformed input,
+geometry/Palette rules, reproduction mismatch, contradictory native/PNG evidence,
+alias safety, and publication failure cleanup. Installed-CLI native cases use an
+independent small raster and the existing frozen wizard input. They cover all four
+rounding policies, threshold boundaries, empty explicit crops, outside anchors,
+exact PLTE/tRNS with transparent indices 0/7/255, complete RGBA/Indexed parity,
+and reproduction. The wider-gamut ICC counterexample checks conversion before
+mapping; runtimes without native conversion must report `runtime_incompatible`.
+These are bounded `e2e` batch tests, not windowed UI or complete example rebuilds.
+Run `pytest tests/preparation` with the normal `SPA_TEST_ASEPRITE` configuration;
+local macOS evidence and unexecuted Linux coverage are distinguished in
+[the preparation report](evidence/issue-103-raster-preparation.md).
 
 Use the tier in the file name:
 

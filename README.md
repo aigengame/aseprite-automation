@@ -90,7 +90,7 @@ installed Surface Manifest reports callable facts for one installation. See
 The accepted domain strategy separates **Sprite Authoring** (Core), **Asset
 Preparation** (Supporting), and **Asset Delivery** (Supporting) within one context.
 Reusable motion belongs to authoring; native save remains part of mutation completion.
-Preparation contracts remain planned. Bounded Cel motion is available through
+Frozen PNG preparation is available through `raster prepare`. Bounded Cel motion is available through
 `motion apply`; Asset Delivery reuses existing exports. See [domain ownership](ARCHITECTURE.md#domain-ownership-view) and
 [ADR-0095](docs/adr/0095-asset-preparation-authoring-and-delivery.md); the installed
 Surface Manifest remains the source for callable capabilities.
@@ -940,6 +940,78 @@ uv run spa palette reorder --input-json '{"aseprite":"/path/to/aseprite","source
 ```
 
 ### Import a compatible external PNG
+
+### Prepare a frozen raster
+
+`raster prepare` prepares one selected 8-bit RGB/RGBA PNG before native insertion.
+It normalizes color to sRGB, applies binary alpha, crops, resizes with native nearest
+neighbor, maps to an explicit ordered Palette, aligns named anchors, and publishes
+one verified RGBA or Indexed PNG. It leaves the input unchanged.
+
+For a 32×32 input, save this request as `prepare.json` (replace the executable path):
+
+```json
+{
+  "aseprite": "/path/to/aseprite",
+  "raster_file": "selected.png",
+  "intent": {"kind": "initial"},
+  "specification": {
+    "alpha_threshold": 128,
+    "crop": {"kind": "rectangle", "rectangle": {"x": 0, "y": 0, "width": 32, "height": 32}},
+    "resize": {"kind": "size", "width": 16, "height": 16},
+    "rounding": "nearest-away-from-zero",
+    "palette": {
+      "entries": [
+        {"red": 0, "green": 0, "blue": 0, "alpha": 0},
+        {"red": 180, "green": 70, "blue": 30, "alpha": 255},
+        {"red": 255, "green": 255, "blue": 255, "alpha": 255}
+      ],
+      "transparent_index": 0
+    },
+    "mapping": {"rgb_map_algorithm": "octree", "color_best_fit_criteria": "rgb", "dithering": "none"},
+    "canvas": {"width": 32, "height": 32},
+    "anchors": [{"name": "foot", "x": 16, "y": 32}],
+    "alignment": {"primary_anchor": "foot", "position": {"x": 16, "y": 32}},
+    "output_mode": "indexed"
+  },
+  "destination": {"path": "prepared.png", "if_exists": "fail"}
+}
+```
+
+```sh
+uv run spa raster prepare --input-json - < prepare.json > prepared-result.json
+```
+
+Use `output_mode: "rgba"` for RGBA PNG. Both formats encode sRGB intent 0 and match
+in complete decoded pixels. The Palette has 2..256 entries: exactly one declared
+RGBA(0,0,0,0) entry, all others opaque. Indexed output preserves length, order,
+unused entries, and the transparent index. Native mapping chooses among duplicate
+or equally fitting opaque colors; SPA does not promise the first matching index.
+
+Anchors are signed integer Points in the original input's Image Pixel space.
+They may lie outside the image. Crop origin is subtracted before scaling by the
+actual integer resize ratios; the chosen rounding rule also applies to derived
+anchor coordinates. Alignment must keep the entire resized rectangle inside the
+output Canvas. `crop: {"kind":"automatic"}` uses nontransparent bounds after
+thresholding and rejects an empty result. `resize: {"kind":"scale","factor":0.5}`
+uses a finite positive scale. The other rounding choices are `toward-zero`, `floor`,
+and `ceil`; zero or oversized derived dimensions reject.
+
+Truly untagged input explicitly assumes sRGB. Encoded sRGB retains its meaning;
+the Color Profile owner's supported ICC identities are natively converted before
+thresholding and mapping. Ambiguous/unsupported metadata rejects. ICC input needs
+the observed `aseprite_convert_color_profile` capability; the current Linux build
+without a native converter refuses that path. Untagged/sRGB preparation does not
+require it.
+
+Retain the result's `reproduction` object. To reproduce, keep the specification and
+set `intent` to `{"kind":"reproduce","expected": <retained reproduction object>}`.
+SPA checks input bytes, runtime versions, effective choices, geometry, Palette, and
+complete decoded content before publishing. A new destination is allowed; replacing
+an existing file requires `if_exists: "replace"`. Input/output aliases reject.
+This is a standalone operation; native insertion remains a separate `image import`.
+
+### Import a prepared raster
 
 `image import` inserts one source-sized, independent Image into an empty Cel slot
 on an existing regular transparent Layer and Frame:
