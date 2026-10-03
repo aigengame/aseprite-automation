@@ -1,21 +1,58 @@
 """Explicit Tilemap Cel creation inputs and native evidence."""
 
+from collections.abc import Sequence
 from typing import Literal
 
 from pydantic import ConfigDict, Field, model_validator
 
 from spa.authoring.document.cel_contracts import CelState
 from spa.authoring.tile.values import TilemapFacts, TilesetFacts
-from spa.contracts.ports import PackagedResource
-from spa.contracts.public import PublicModel
+from spa.contracts.ports import (
+    PackagedResource,
+    RuntimeCompatibilityEvidence,
+    RuntimeIssue,
+    RuntimeObservation,
+)
+from spa.contracts.public import CapabilityGap, PublicModel
 from spa.contracts.raster import Point, Size
 
 MAX_TILEMAP_CELLS = 1_048_576
 TILE_CEL_RESOURCE = PackagedResource("tile_cel_add", "tile/cel_add.lua")
 
 
+def require_tilemap_creation(runtime: RuntimeObservation) -> None:
+    if "aseprite_tile_cel_creation" not in runtime.verified_capabilities:
+        raise RuntimeIssue(
+            "runtime_incompatible",
+            "The selected runtime did not verify empty Tilemap Cel creation",
+            RuntimeCompatibilityEvidence(
+                aseprite_version=runtime.aseprite_version,
+                lua_version=runtime.lua_version,
+                api_version=runtime.api_version,
+                required_lua_language="Lua 5.4",
+                minimum_api_version=41,
+                missing_capabilities=("aseprite_tile_cel_creation",),
+            ),
+        )
+
+
+def tilemap_creation_gaps(
+    version: str, capabilities: Sequence[str]
+) -> list[CapabilityGap]:
+    if "aseprite_tile_cel_creation" in capabilities:
+        return []
+    return [
+        CapabilityGap(
+            capability="spa cel add: Tilemap Cel creation",
+            aseprite_version=version,
+            evidence="The selected runtime did not pass empty Tilemap Cel save/reopen. "
+            "Requests with tilemap_size require this capability; ordinary Cel creation is independent.",
+        )
+    ]
+
+
 class TilemapSize(PublicModel):
-    """Initial Tilemap Image dimensions in Tile Cells, not Canvas Pixels."""
+    """Initial Tile Cell dimensions: sides 1..65535, at most 1,048,576 Cells total."""
 
     model_config = ConfigDict(
         json_schema_extra={"x-spa-max-tile-cells": MAX_TILEMAP_CELLS}

@@ -107,7 +107,7 @@ from spa.authoring.raster.paint import (
     validate_paint_evidence,
 )
 from spa.authoring.tile.cel_add import TILE_CEL_RESOURCE, TilemapCreationEvidence
-from spa.authoring.tile.inspection import TILE_INSPECTION_RESOURCE
+from spa.authoring.tile.inspection import TILE_INSPECTION_RESOURCE, TILE_PROBE_RESOURCE
 from spa.contracts.digest import DIGEST_RESOURCE
 from spa.contracts.mutation import (
     TargetCommit,
@@ -177,6 +177,7 @@ PLAN_RUN_HANDLER = PackagedHandler(
         SPRITE_INSPECTION_FIXTURE,
         PAINT_PROBE_FIXTURE,
         TILE_CEL_RESOURCE,
+        TILE_PROBE_RESOURCE,
         TILE_INSPECTION_RESOURCE,
         PackagedResource("tile_properties", "tile/properties.lua"),
         SNAPSHOT_RESOURCE,
@@ -667,9 +668,15 @@ def _combined_requirements(operations: list[str]) -> RuntimeRequirements:
 
 
 def _requirements(plan: PlanDefinition) -> RuntimeRequirements:
-    return _combined_requirements(
+    requirements = _combined_requirements(
         ["sprite get", *(step.operation for step in plan.steps)]
     )
+    if any(
+        isinstance(step, CelAddStep) and step.input.tilemap_size is not None
+        for step in plan.steps
+    ):
+        requirements.required_capabilities.append("aseprite_tile_cel_creation")
+    return requirements
 
 
 PLAN_DISCOVERY_REQUIREMENTS = _combined_requirements(list(ELIGIBLE_OPERATIONS))

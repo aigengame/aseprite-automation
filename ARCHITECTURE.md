@@ -330,10 +330,15 @@ static-geometry admission, native mutation, and save/reopen preservation checks.
 Python owns typed requests/results and staged Target Commit orchestration. Slice
 mutation results return the complete reopened address snapshot because native
 serialization can reorder Slices; they expose no persistent Slice identity.
-Cel Add accepts optional initial Image dimensions. Its `cel_support.lua` owner
-creates transparent native Images from the Sprite specification for both standalone
-mutations and Plan Steps. Add validates its initial state at the Step; the final
-save/reopen gate validates the state after all later Steps.
+Cel Add accepts optional raster Image dimensions or explicit Tile Cell dimensions.
+`document/cel_contracts.py` owns shared addressing, Cel facts, and typed rejection
+translation; ordinary consumers do not import Tile creation contracts.
+`cel_support.lua` owns target selection, existence, and ordinary Image construction.
+Standalone and Plan inject the same Tile-owned `tile/cel_add.lua` construction
+function for explicit Tilemap requests. That function owns bounded Cell geometry,
+Tileset/Grid admission, native TILEMAP Image construction, and packed-zero checks.
+It reuses Tile inspection for creation facts. Add validates its initial state at
+the Step; the final save/reopen gate validates the state after all later Steps.
 The Layer-owned `layer_select.lua` Module supplies `current_path` for an already
 attached native Layer. Cel, Frame, Sprite inspection, Pixel Patch, and native Paint
 reuse this current stack-index fact. Exact name/path/verified-UUID selection remains
@@ -341,7 +346,7 @@ separate from that observation; tree traversal and composition keep their own ru
 The Cel-owned `is_regular_transparent` predicate is also used by Layer mutation and
 Animation audit where the same eligibility rule applies. Their Group, Background,
 Reference, and Tilemap policies remain with each Operation. Python consumers use
-`spa.authoring.document.cel.raise_cel_rejection` for shared failure translation and
+`spa.authoring.document.cel_contracts.raise_cel_rejection` for shared failure translation and
 supply their own address roles and Frame Ranges. Each handler binding explicitly
 includes the Lua resources these dependencies require, including standalone,
 capability-probe, and Plan paths.
@@ -583,11 +588,15 @@ Operation registry.
 
 Add a module only with a complete functional slice. Preparation has no placeholder
 implementation. Tile Authoring now owns `authoring/tile` and `kernel/tile`: Python
-publishes typed inspection contracts and verifies complete Snapshot transport before
-Artifact publication; Lua resolves native Tilesets, Tile Keys, Layer bindings, and
-Tile Cell placements. It depends on Document's exact Layer addressing and Raster's
-Pixel Region Snapshot encoding for Tile bitmaps. It does not assign Keys, mutate
-Cels, or own Source persistence. Shared JSON Snapshot destination mechanics live in
+publishes typed inspection and Tilemap creation contracts and verifies complete
+Snapshot transport before Artifact publication; Lua resolves native Tilesets,
+Tile Keys, Layer bindings, and Tile Cell placements, and constructs explicitly
+sized empty Tilemap Cels. It depends on Document's shared Layer/Cel contracts and
+Raster's Pixel Region Snapshot encoding for Tile bitmaps. It does not assign Keys
+or write Tile Cell content in this slice. Cel mutation and Plan retain staging and
+Target Commit ownership. The existing Tile probe observes empty-Cel save/reopen
+separately from inspection; only explicit Tilemap creation requests require that
+capability. Shared JSON Snapshot destination mechanics live in
 `contracts/snapshot.py`; Tile Region values stay in their feature owner. Color and Palette owns the shared Effective
 Palette resolver and standalone Palette list/get/set/resize/remap/reorder. Its native module resolves
 Frame-based change points, edits only exact existing changes, and checks the full

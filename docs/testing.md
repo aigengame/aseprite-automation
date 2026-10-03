@@ -26,7 +26,7 @@ verification tier. The layout does not mirror source packages or CLI Command Gro
 | `tests/slice/` | Complete Slice Keys and coverage, exact addressing, bounded native authoring, exporter validation, and save/reopen evidence. |
 | `tests/sprite/` | Sprite Domain Module contracts plus real creation, copy, flatten, bounded validation, persisted reopen, structural inspection, and Target Commit evidence. |
 | `tests/tag/` | Tag stored facts, exact current addressing, native mutation, and save/reopen evidence. |
-| `tests/tile/` | Tileset/Tile identity, exact Tilemap topology, complete Tile Region transport, and native read-only validation. |
+| `tests/tile/` | Tileset/Tile identity, exact Tilemap topology, complete Tile Region transport, native validation, and explicit Tilemap Cel creation. |
 
 Add an ownership directory only when tests for that behavior exist. Keep a helper in
 the narrowest ownership directory that uses it. Move a helper to `tests/support.py`
@@ -77,6 +77,17 @@ preserve ordinary Images, placement bytes, and all Tile bitmaps including Empty
 Tile 0. Direct native calls supply boundary-value parity; injected post-command
 failures verify transaction rollback and active Sprite, range, Palette Picks, and
 Selection restoration. All cases use batch scripting without a graphical display.
+
+Explicit Tilemap Cel creation (#165) lives in `tests/tile/test_e2e_cel_creation.py`.
+The independent `cel_creation.lua` fixture creates a native Layer/Tileset without
+SPA Layer creation, then verifies saved Cells, native Image independence, existing
+links, Tile Images/Keys/properties, Palette, binding, and Grid. The matrix covers
+RGB/Grayscale/Indexed (Transparent Color Index 7), first/later Frames, and both
+standalone and Plan creation. Refusals and a later failing Step preserve Source
+and an existing Target; a later successful Step may change the initial links.
+Contract tests cover installed schemas, geometry bounds, conditional runtime
+capability, and contradictory creation evidence without launching Aseprite.
+These are batch E2E tests: local macOS results do not establish Linux verification.
 
 ## Verification tiers
 

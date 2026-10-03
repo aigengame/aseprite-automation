@@ -3,7 +3,13 @@
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, ValidationError, field_validator, model_validator
+from pydantic import (
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 from spa.authoring.color.palette import EFFECTIVE_PALETTE_RESOURCE
 from spa.authoring.document.cel_contracts import (
@@ -30,6 +36,7 @@ from spa.authoring.tile.cel_add import (
     TILE_CEL_RESOURCE,
     TilemapCreationEvidence,
     TilemapSize,
+    require_tilemap_creation,
 )
 from spa.authoring.tile.inspection import TILE_INSPECTION_RESOURCE
 from spa.contracts.digest import DIGEST_RESOURCE
@@ -105,8 +112,23 @@ class CelImageSize(PublicModel):
 
 
 class CelAddInput(CelTargetInput):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "not": {
+                "required": ["image_size", "tilemap_size"],
+                "properties": {
+                    "image_size": {"type": "object"},
+                    "tilemap_size": {"type": "object"},
+                },
+            },
+        }
+    )
     image_size: CelImageSize | None = None
-    tilemap_size: TilemapSize | None = None
+    tilemap_size: TilemapSize | None = Field(
+        default=None,
+        description="Required for Tilemap Layers: explicit width and height in Tile Cells. "
+        "Mutually exclusive with raster image_size; requires aseprite_tile_cel_creation.",
+    )
 
     @model_validator(mode="after")
     def one_geometry(self) -> "CelAddInput":
@@ -350,6 +372,8 @@ def _mutate(
     if identity_issue is not None:
         raise RequestIssue([identity_issue])
     observation = services.probe_runtime(request)
+    if isinstance(request, CelAddRequest) and request.tilemap_size is not None:
+        require_tilemap_creation(observation)
     staged = services.target_files.staged_path(target_file)
     payload: dict[str, object] = {
         "operation": operation,
