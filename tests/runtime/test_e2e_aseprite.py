@@ -65,6 +65,7 @@ def test_info_reports_installed_runtime() -> None:
         "aseprite_sprite_create",
         "aseprite_sprite_inspection",
         "aseprite_tile_inspection",
+        "aseprite_tilemap_layer_creation",
         "aseprite_sprite_flatten",
         "aseprite_sprite_resize",
         "aseprite_image_canvas_transform",
