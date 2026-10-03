@@ -27,9 +27,9 @@ local before_pixel, after_pixel = nil, nil
 
 -- Wrap only test-local instances of the existing profile resource. The native
 -- handler, transaction, save/reopen, evidence checks, and cleanup remain fixed.
-dofile = function(path)
-  local resource = native_dofile(path)
-  if path == app.params.color_profile then
+local function fixture_dofile(resource_path)
+  local resource = native_dofile(resource_path)
+  if resource_path == app.params.color_profile then
     if app.params.fault == "post_mutation" then
       local snapshot, calls = resource.snapshot, 0
       resource.snapshot = function(sprite, uuids)
@@ -63,8 +63,8 @@ dofile = function(path)
   end
   return resource
 end
-native_dofile(app.params.production_handler)
-dofile = native_dofile
+local fixture_environment = setmetatable({ dofile = fixture_dofile }, { __index = _G })
+assert(loadfile(app.params.production_handler, "t", fixture_environment))()
 local state = {
   active_sprite_restored = app.activeSprite == ambient,
   active_layer_restored = app.activeLayer == layer,
