@@ -27,7 +27,7 @@ verification tier. The layout does not mirror source packages or CLI Command Gro
 | `tests/slice/` | Complete Slice Keys and coverage, exact addressing, bounded native authoring, exporter validation, and save/reopen evidence. |
 | `tests/sprite/` | Sprite Domain Module contracts plus real creation, copy, flatten, bounded validation, persisted reopen, structural inspection, and Target Commit evidence. |
 | `tests/tag/` | Tag stored facts, exact current addressing, native mutation, and save/reopen evidence. |
-| `tests/tile/` | Tileset/Tile identity, exact Tilemap topology, complete Tile Region transport, native validation, Tilemap Layer create/share persistence, and explicit Tilemap Cel creation. |
+| `tests/tile/` | Tileset/Tile identity and lifecycle, exact Tilemap topology, complete Tile Region transport, native validation, Tilemap Layer create/share persistence, and explicit Tilemap Cel creation. |
 
 Add an ownership directory only when tests for that behavior exist. Keep a helper in
 the narrowest ownership directory that uses it. Move a helper to `tests/support.py`
@@ -91,6 +91,14 @@ capability, and contradictory creation evidence without launching Aseprite,
 including Tileset ordinals and Grid facts that disagree with complete Sprite
 inspection. Positive controls include a valid second Tileset.
 These are batch E2E tests: local macOS results do not establish Linux verification.
+
+Tile lifecycle #43 uses `test_e2e_lifecycle.py` with public CLI requests and an
+independent native oracle. It checks opaque plugin data, Linked Cels across shared
+and nested Layers, explicit removal replacements above/below the removed index,
+Empty versus flagged index 0, orphan reorder cleanup, all three Image Color Modes,
+Frame-varying Palettes, and Source/Target preservation on refusal. The same tests
+belong to `e2e and not slow` on macOS and Linux; no display is required. Fast tests
+check schema and preflight behavior. See [native mechanism evidence](evidence/issue-43-tiles.md).
 
 External raster import #46 checks 8-bit PNG metadata independently of native
 loading, then compares full RGBA and stored indexes through real insertion and

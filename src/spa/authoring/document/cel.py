@@ -40,7 +40,7 @@ from spa.authoring.tile.cel_add import (
     require_tilemap_creation,
 )
 from spa.authoring.tile.inspection import TILE_INSPECTION_RESOURCE
-from spa.authoring.tile.targets import TILESET_RESOURCE
+from spa.authoring.tile.targets import TILE_KEY_RESOURCE, TILESET_RESOURCE
 from spa.contracts.digest import DIGEST_RESOURCE
 from spa.contracts.mutation import (
     TargetCommit,
@@ -255,6 +255,7 @@ CEL_MUTATE_HANDLER = PackagedHandler(
         TILE_CEL_RESOURCE,
         TILE_INSPECTION_RESOURCE,
         TILESET_RESOURCE,
+        TILE_KEY_RESOURCE,
         PackagedResource("tile_properties", "tile/properties.lua"),
         SNAPSHOT_RESOURCE,
         RASTER_COLOR_RESOURCE,

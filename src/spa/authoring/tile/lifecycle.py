@@ -18,6 +18,7 @@ from spa.authoring.document.targets import (
 )
 from spa.authoring.raster.image_snapshot import SNAPSHOT_RESOURCE
 from spa.authoring.tile.targets import (
+    TILE_KEY_RESOURCE,
     TILESET_RESOURCE,
     TileAddress,
     TileInspectionDetails,
@@ -215,6 +216,7 @@ TILE_MUTATE_HANDLER = PackagedHandler(
         SPRITE_PERSISTENCE_RESOURCE,
         DIGEST_RESOURCE,
         TILESET_RESOURCE,
+        TILE_KEY_RESOURCE,
         PackagedResource("tile_lifecycle", "tile/lifecycle.lua"),
         PackagedResource("tile_properties", "tile/properties.lua"),
         SNAPSHOT_RESOURCE,
@@ -231,15 +233,18 @@ TILE_LIFECYCLE_REQUIREMENTS = RuntimeRequirements(
         "aseprite_tile_lifecycle",
     ],
 )
-TILE_MUTATION_FAILURE_CODES = (
-    *RUNTIME_FAILURE_CODES,
-    *LAYER_ADDRESS_FAILURE_CODES,
+_TILE_TARGET_FAILURE_CODES = (
     "tileset_missing",
     "tileset_ambiguous",
     "tilemap_layer_required",
     "tile_key_missing",
     "tile_key_ambiguous",
     "tile_index_out_of_bounds",
+)
+TILE_MUTATION_FAILURE_CODES = (
+    *RUNTIME_FAILURE_CODES,
+    *LAYER_ADDRESS_FAILURE_CODES,
+    *_TILE_TARGET_FAILURE_CODES,
     "tile_lifecycle_invalid",
     "target_commit_failed",
 )
@@ -266,12 +271,7 @@ def _reject(invocation: KernelInvocationResult, request: TileMutationRequest) ->
             rejected["message"],
             LayerTargetDetails(address_role="target", address=request.target.layer),
         )
-    if (
-        code
-        not in TILE_MUTATION_FAILURE_CODES[
-            len(RUNTIME_FAILURE_CODES) + len(LAYER_ADDRESS_FAILURE_CODES) : -2
-        ]
-    ):
+    if code not in _TILE_TARGET_FAILURE_CODES:
         raise ValueError("Unknown Tile lifecycle rejection")
     tile = (
         TileAddress(tile_index=request.tile_index)
@@ -309,6 +309,22 @@ def _validate_evidence(
     request: TileMutationRequest, evidence: TileLifecycleEvidence
 ) -> None:
     before, after = evidence.before_tileset, evidence.tileset
+    persisted = evidence.sprite.tilesets
+    if (
+        persisted is None
+        or after.tileset_index > len(persisted)
+        or len(persisted) != evidence.sprite.metadata.tileset_count
+    ):
+        raise ValueError("Incomplete persisted Tileset inspection")
+    selected = persisted[after.tileset_index - 1]
+    if (
+        selected.tile_count != after.tile_count
+        or selected.name != after.name
+        or selected.base_index != after.base_index
+        or selected.grid_origin != after.grid.origin
+        or selected.tile_size != after.grid.tile_size
+    ):
+        raise ValueError("Tileset facts disagree with persisted Sprite inspection")
     for facts, tiles in ((before, evidence.before_tiles), (after, evidence.tiles)):
         if [tile.tile_index for tile in tiles] != list(
             range(facts.tile_count)
@@ -384,6 +400,8 @@ def _validate_evidence(
             if (
                 palette is None
                 or evidence.transparent_index is None
+                or evidence.transparent_index
+                != evidence.sprite.metadata.transparent_color_index
                 or palette.frame_number != request.palette_frame_number
                 or palette.palette_frame_number > palette.frame_number
                 or evidence.transparent_index >= palette.palette_size
@@ -392,6 +410,28 @@ def _validate_evidence(
             ):
                 raise ValueError(
                     "Indexed add lacks its complete requested Palette basis"
+                )
+            changes = [
+                change
+                for change in evidence.sprite.palettes or []
+                if change.frame_number <= palette.frame_number
+            ]
+            if (
+                not changes
+                or palette.frame_number > evidence.sprite.metadata.frame_count
+            ):
+                raise ValueError("Palette basis is outside persisted Frame coverage")
+            resolved = max(changes, key=lambda change: change.frame_number)
+            if (
+                resolved.frame_number != palette.palette_frame_number
+                or len(resolved.entries) != palette.palette_size
+                or any(
+                    item.color != resolved.entries[item.index].color
+                    for item in palette.indexes
+                )
+            ):
+                raise ValueError(
+                    "Used index colors disagree with the persisted Effective Palette"
                 )
         elif palette is not None or evidence.transparent_index is not None:
             raise ValueError("Non-Indexed add has inapplicable Palette evidence")
@@ -629,21 +669,10 @@ def reorder_tiles(
 
 TILE_LIFECYCLE_OPERATIONS = (
     OperationDescriptor(
-        "tileset tile reorder",
-        TileReorderRequest,
-        TileReorderResult,
-        reorder_tiles,
-        lambda result: result.target_commit.target_sprite_file,
-        TILE_LIFECYCLE_REQUIREMENTS,
-        TILE_MUTATION_FAILURE_CODES,
-        execution_kind="mutation",
-        side_effects=("publishes the declared Target Sprite File",),
-    ),
-    OperationDescriptor(
-        "tileset tile remove",
-        TileRemoveRequest,
-        TileRemoveResult,
-        remove_tile,
+        "tileset tile add",
+        TileAddRequest,
+        TileAddResult,
+        add_tile,
         lambda result: result.target_commit.target_sprite_file,
         TILE_LIFECYCLE_REQUIREMENTS,
         TILE_MUTATION_FAILURE_CODES,
@@ -662,10 +691,21 @@ TILE_LIFECYCLE_OPERATIONS = (
         side_effects=("publishes the declared Target Sprite File",),
     ),
     OperationDescriptor(
-        "tileset tile add",
-        TileAddRequest,
-        TileAddResult,
-        add_tile,
+        "tileset tile remove",
+        TileRemoveRequest,
+        TileRemoveResult,
+        remove_tile,
+        lambda result: result.target_commit.target_sprite_file,
+        TILE_LIFECYCLE_REQUIREMENTS,
+        TILE_MUTATION_FAILURE_CODES,
+        execution_kind="mutation",
+        side_effects=("publishes the declared Target Sprite File",),
+    ),
+    OperationDescriptor(
+        "tileset tile reorder",
+        TileReorderRequest,
+        TileReorderResult,
+        reorder_tiles,
         lambda result: result.target_commit.target_sprite_file,
         TILE_LIFECYCLE_REQUIREMENTS,
         TILE_MUTATION_FAILURE_CODES,

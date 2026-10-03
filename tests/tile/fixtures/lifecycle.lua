@@ -1,6 +1,8 @@
 -- Shared, linked, and orphan Tile records with opaque native metadata.
-local mode = ({ rgb = ColorMode.RGB, grayscale = ColorMode.GRAY, indexed = ColorMode.INDEXED })[app.params.mode or "rgb"]
+local modes = { rgb = ColorMode.RGB, grayscale = ColorMode.GRAY, indexed = ColorMode.INDEXED }
+local mode = modes[app.params.mode or "rgb"]
 local sprite = Sprite(16, 16, mode)
+if app.params.uuids then sprite.useLayerUuids = app.params.uuids == "true" end
 sprite.transparentColor = mode == ColorMode.INDEXED and 7 or 0
 app.activeSprite = sprite
 app.command.NewLayer { tilemap = true, ask = false, gridBounds = Rectangle(0, 0, 2, 3) }

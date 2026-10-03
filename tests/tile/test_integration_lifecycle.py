@@ -8,7 +8,7 @@ import pytest
 from jsonschema import Draft202012Validator
 
 from tests.support import fake_aseprite, spa
-from tests.tile.test_e2e_lifecycle import snapshot
+from tests.tile.support import snapshot
 
 
 def test_add_schema_exposes_complete_snapshot_and_explicit_mutation() -> None:

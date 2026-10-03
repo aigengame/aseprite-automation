@@ -32,13 +32,8 @@ local resolve_layer = tilesets.resolve_layer
 local tileset_index = tilesets.tileset_index
 local resolve_tileset = tilesets.resolve_tileset
 
-local function tile_key(tile)
-  if tile == nil or tile.index == 0 then return null end
-  local value = properties.observe(tile.properties("aigengame.spa").tile_key)
-  if value.kind == "nil" then return null, "tile_key_missing" end
-  if value.kind ~= "string" or #value.value == 0 then return null, "tile_key_invalid" end
-  return value.value
-end
+local keys = dofile(app.params.tile_keys)
+local tile_key = keys.observe
 
 local function tile_facts(tileset, tile, namespaces)
   local color = tile.color
@@ -60,18 +55,9 @@ local function resolve_tile(tileset, address)
     if index then return tileset:tile(index) end
     return nil, reject("tile_index_out_of_bounds", "Tile index is outside the current Tileset")
   end
-  local found
-  for index = 1, #tileset - 1 do
-    local tile = tileset:tile(index)
-    if tile_key(tile) == address.tile_key then
-      if found then
-        return nil, reject("tile_key_ambiguous", "Tile Key is duplicated within the Tileset")
-      end
-      found = tile
-    end
-  end
-  if not found then return nil, reject("tile_key_missing", "No Tile has this Tile Key") end
-  return found
+  local index, failure = keys.resolve(tileset, address.tile_key)
+  if failure then return nil, failure end
+  return tileset:tile(index)
 end
 
 local function cel_facts(sprite, layer, frame, uuids)

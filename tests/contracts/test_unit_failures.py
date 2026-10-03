@@ -53,6 +53,7 @@ from spa.authoring.raster.paint_composite import (
 from spa.authoring.raster.paint_native import PaintCapabilityDetails
 from spa.authoring.raster.selection import SelectionDetails
 from spa.authoring.tile.inspection import TileInspectionDetails, TilesetTarget
+from spa.authoring.tile.lifecycle import TileLifecycleDetails
 from spa.contracts.artifact import ArtifactFileDetails, ArtifactVerificationDetails
 from spa.contracts.mutation import TargetCommitDetails
 from spa.contracts.ports import (
@@ -201,6 +202,11 @@ def test_each_registered_code_has_a_constrained_public_schema() -> None:
         ),
         TileInspectionDetails: TileInspectionDetails(
             target=TilesetTarget(tileset_index=1)
+        ),
+        TileLifecycleDetails: TileLifecycleDetails(
+            target=TilesetTarget(tileset_index=1),
+            reason="replacement_required",
+            message="Removing a used Tile requires an explicit replacement",
         ),
         FilterIndexRejection: FilterIndexRejection.model_validate(
             {

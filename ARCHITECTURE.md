@@ -544,6 +544,7 @@ src/spa/
     tile/
       inspection.py, values.py # exact native Tile observations and bounded Snapshot values
       properties.py       # typed projection of selected native Lua property values
+      lifecycle.py        # keyed Tile mutations and validated native remapping evidence
   delivery/
     export.py             # Export Image contract, native invocation, and result
     palette.py            # verified Palette file export and explicit generation composition
@@ -619,8 +620,16 @@ The native `tile/tilesets.lua` owns exact Tileset resolution and binding facts f
 both paths. Tile Authoring reuses shared Sprite save/reopen verification, adds Tile
 Image preservation checks, and leaves Target Commit to the existing file adapter.
 It depends on Document's shared Layer/Cel contracts and Raster's Pixel Region
-Snapshot encoding for Tile bitmaps. It does not assign Keys or write nonempty Tile
-Cell content in this slice. Cel mutation and Plan retain staging and
+Snapshot encoding for Tile bitmaps. `tile/keys.lua` owns one Key projection and exact
+lookup for reads and writes. `tile/lifecycle.lua` owns append, missing-Key assignment,
+remove, and reorder. It precomputes the complete native index mapping and all affected
+Cel Images, moves complete native Tile records, and updates each shared Image once.
+Opaque author/plugin Properties stay with native Tile records; the observation JSON
+is not a metadata transfer format. A nonzero Tile mapped to Empty becomes packed zero;
+other retained placements keep flags, including existing flagged index-0 observations.
+The native `MoveTiles` command requires a Tilemap Layer; orphan reorder creates and
+removes only its own temporary native context within the mutation transaction.
+Public Tile lifecycle Operations are standalone in this delivery. Cel mutation and Plan retain staging and
 Target Commit ownership. The existing Tile probe observes empty-Cel save/reopen
 separately from inspection; only explicit Tilemap creation requests require that
 capability. Shared JSON Snapshot destination mechanics live in

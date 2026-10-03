@@ -34,12 +34,9 @@ local function copy(value)
   return result
 end
 
-local function tile_key(tile)
-  if tile.index == 0 then return null end
-  local observed = properties.observe(tile.properties("aigengame.spa").tile_key)
-  if observed.kind == "string" and #observed.value > 0 then return observed.value end
-  return null
-end
+local tile_keys = dofile(app.params.tile_keys)
+local tile_key = tile_keys.observe
+local exact_key = tile_keys.resolve
 
 local function identities(tileset)
   local result = {}
@@ -78,28 +75,6 @@ local function all_records(sprite)
     result[index] = records
   end
   return result
-end
-
-local function exact_key(tileset, key)
-  local found
-  for index = 1, #tileset - 1 do
-    if tile_key(tileset:tile(index)) == key then
-      if found then
-        return nil,
-          {
-            rejection = {
-              code = "tile_key_ambiguous",
-              message = "Tile Key is duplicated within the Tileset",
-            },
-          }
-      end
-      found = index
-    end
-  end
-  if not found then
-    return nil, { rejection = { code = "tile_key_missing", message = "No Tile has this Tile Key" } }
-  end
-  return found
 end
 
 local function unique_new_key(tileset, payload)
@@ -491,6 +466,22 @@ end
 
 function module.observe(sprite, payload, context, uuids)
   local tileset = sprite.tilesets[context.tileset_index]
+  local facts = tilesets.facts(sprite, tileset, context.tileset_index, uuids)
+  local bindings = {}
+  for _, layer in ipairs(facts.layers) do
+    bindings[table.concat(layer.layer_path, "/")] = layer
+  end
+  local affected_layers, affected_cels = {}, {}
+  for _, layer in ipairs(context.affected_layers) do
+    affected_layers[#affected_layers + 1] = assert(bindings[table.concat(layer.layer_path, "/")])
+  end
+  for _, cel in ipairs(context.affected_cels) do
+    affected_cels[#affected_cels + 1] = {
+      layer = assert(bindings[table.concat(cel.layer.layer_path, "/")]),
+      frame_number = cel.frame_number,
+      changed_cells = cel.changed_cells,
+    }
+  end
   local mapping = {}
   for _, before in ipairs(context.before_tiles) do
     mapping[#mapping + 1] = {
@@ -501,7 +492,7 @@ function module.observe(sprite, payload, context, uuids)
   end
   return {
     before_tileset = context.before_tileset,
-    tileset = tilesets.facts(sprite, tileset, context.tileset_index, uuids),
+    tileset = facts,
     before_tiles = context.before_tiles,
     tiles = identities(tileset),
     index_mapping = mapping,
@@ -512,8 +503,8 @@ function module.observe(sprite, payload, context, uuids)
     effective_palette = context.effective_palette,
     transparent_index = context.transparent_index,
     image_content_digest = context.image_content_digest,
-    affected_layers = context.affected_layers,
-    affected_cels = context.affected_cels,
+    affected_layers = affected_layers,
+    affected_cels = affected_cels,
     sprite = inspection.inspect(sprite, sections, uuids),
     persisted_reopen_verified = true,
   }
