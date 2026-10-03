@@ -643,7 +643,11 @@ orchestrates existing Artifact staging, independent JSON/PNG verification, and
 publication. No persistent editor Selection or second Mask engine is introduced.
 
 Native Filters share target observations, Cel writeback checks, and staged Target
-publication in `authoring/raster/filter.py`. Brightness/Contrast and Hue/Saturation
+publication in `authoring/raster/filter.py`. Its `FilterTargetObservations` owns
+intersection consistency and request-to-evidence target/Selection correspondence for
+all seven Filter Operations before Target Commit. Selection checks establish feasible
+coverage from the declared facts; live Layer resolution and actual Canvas clipping
+remain in the Kernel. Brightness/Contrast and Hue/Saturation
 also share their palette-aware application variants. `pixel_filter.py` owns the
 fixed-pixel request/evidence subset for Color Curve and Replace Color, without a
 public application selector. Each operation keeps its adjustment schema and native
