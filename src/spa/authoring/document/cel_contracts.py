@@ -1,13 +1,17 @@
-"""Shared exact Cel addresses, observed state, and native failure translation."""
+"""Shared Cel requests, observed state, and native failure translation."""
 
 from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from spa.authoring.document.layer import (
     LAYER_ADDRESS_FAILURE_CODES,
     LayerAddress,
     LayerTargetDetails,
+)
+from spa.contracts.mutation import (
+    require_overwrite_for_in_place,
+    validate_native_sprite_path,
 )
 from spa.contracts.ports import (
     KernelInvocationResult,
@@ -16,13 +20,36 @@ from spa.contracts.ports import (
     ResponseEvidence,
     RuntimeIssue,
 )
-from spa.contracts.public import FailureCodeSpec, PublicModel
+from spa.contracts.public import FailureCodeSpec, PublicModel, RuntimeRequest
 from spa.contracts.raster import Point, Rectangle
 
 
 class CelAddress(PublicModel):
     layer: LayerAddress
     frame_number: int = Field(ge=1, strict=True)
+
+
+class CelTargetInput(PublicModel):
+    target: CelAddress
+
+
+class CelMutationRequest(RuntimeRequest, CelTargetInput):
+    source_sprite_file: str = Field(min_length=1)
+    target_sprite_file: str = Field(min_length=1)
+    in_place: bool
+    overwrite: bool
+
+    _validate_source = field_validator("source_sprite_file")(
+        validate_native_sprite_path
+    )
+    _validate_target = field_validator("target_sprite_file")(
+        validate_native_sprite_path
+    )
+
+    @model_validator(mode="after")
+    def validate_commit_intent(self) -> "CelMutationRequest":
+        require_overwrite_for_in_place(self.in_place, self.overwrite)
+        return self
 
 
 class CelLink(PublicModel):

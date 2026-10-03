@@ -18,6 +18,7 @@ from spa.authoring.raster.image import (
     IMAGE_RESIZE_FAILURE_CODE_SPECS,
     IMAGE_ROTATE_FAILURE_CODE_SPECS,
 )
+from spa.authoring.raster.image_import import IMAGE_IMPORT_FAILURE_SPECS
 from spa.authoring.raster.image_snapshot import IMAGE_SNAPSHOT_FAILURE_CODE_SPECS
 from spa.authoring.raster.invert_outline import INVERT_FAILURE_SPECS
 from spa.authoring.raster.paint_composite import COMPOSITE_FAILURE_CODE_SPECS
@@ -51,6 +52,7 @@ FAILURE_CODES = register_failure_codes(
         *PALETTE_EXPORT_FAILURE_SPECS,
         *IMAGE_RESIZE_FAILURE_CODE_SPECS,
         *IMAGE_SNAPSHOT_FAILURE_CODE_SPECS,
+        *IMAGE_IMPORT_FAILURE_SPECS,
         *IMAGE_CANVAS_FAILURE_CODE_SPECS,
         *IMAGE_ROTATE_FAILURE_CODE_SPECS,
         *LAYER_FAILURE_CODE_SPECS,

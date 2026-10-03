@@ -42,17 +42,18 @@ PROFILE_ICC_RESOURCES = (
     PackagedResource("profile_display_p3", "color/profiles/display_p3.icc"),
 )
 PROFILE_RESOURCE = PackagedResource("color_profile", "color/profile.lua")
+PROFILE_RESOURCES = (
+    *SPRITE_INSPECTION_RESOURCES,
+    SPRITE_PERSISTENCE_RESOURCE,
+    DIGEST_RESOURCE,
+    PROFILE_RESOURCE,
+    PROFILE_FILE_RESOURCE,
+    *PROFILE_ICC_RESOURCES,
+)
 PROFILE_HANDLER = PackagedHandler(
     "color_profile",
     "color/profile_mutation.lua",
-    (
-        *SPRITE_INSPECTION_RESOURCES,
-        SPRITE_PERSISTENCE_RESOURCE,
-        DIGEST_RESOURCE,
-        PROFILE_RESOURCE,
-        PROFILE_FILE_RESOURCE,
-        *PROFILE_ICC_RESOURCES,
-    ),
+    PROFILE_RESOURCES,
 )
 
 

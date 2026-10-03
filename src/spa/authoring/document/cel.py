@@ -15,7 +15,9 @@ from spa.authoring.color.palette import EFFECTIVE_PALETTE_RESOURCE
 from spa.authoring.document.cel_contracts import (
     CEL_SUPPORT_RESOURCE,
     CelAddress,
+    CelMutationRequest,
     CelState,
+    CelTargetInput,
     raise_cel_rejection,
 )
 from spa.authoring.document.layer import (
@@ -41,7 +43,6 @@ from spa.authoring.tile.inspection import TILE_INSPECTION_RESOURCE
 from spa.contracts.digest import DIGEST_RESOURCE
 from spa.contracts.mutation import (
     TargetCommit,
-    require_overwrite_for_in_place,
     source_target_identity_issue,
     validate_native_sprite_path,
 )
@@ -101,10 +102,6 @@ class CelGetResult(PublicModel):
     cel: CelState
 
 
-class CelTargetInput(PublicModel):
-    target: CelAddress
-
-
 class CelImageSize(PublicModel):
     width: int = Field(ge=1, le=65535, strict=True)
     height: int = Field(ge=1, le=65535, strict=True)
@@ -133,25 +130,6 @@ class CelAddInput(CelTargetInput):
     def one_geometry(self) -> "CelAddInput":
         if self.image_size is not None and self.tilemap_size is not None:
             raise ValueError("image_size and tilemap_size are mutually exclusive")
-        return self
-
-
-class CelMutationRequest(RuntimeRequest, CelTargetInput):
-    source_sprite_file: str = Field(min_length=1)
-    target_sprite_file: str = Field(min_length=1)
-    in_place: bool
-    overwrite: bool
-
-    _validate_source = field_validator("source_sprite_file")(
-        validate_native_sprite_path
-    )
-    _validate_target = field_validator("target_sprite_file")(
-        validate_native_sprite_path
-    )
-
-    @model_validator(mode="after")
-    def validate_commit_intent(self) -> "CelMutationRequest":
-        require_overwrite_for_in_place(self.in_place, self.overwrite)
         return self
 
 
