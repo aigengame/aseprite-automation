@@ -743,6 +743,41 @@ def test_source_anchors_follow_strict_integer_point_bounds(preparation, coordina
     assert not native.calls and not files.publications
 
 
+@pytest.mark.parametrize(
+    ("coordinate", "placement", "accepted"),
+    [(-(2**31), 1, True), (2**31 - 1, 1, True), (2**31 - 1, 2, False)],
+)
+def test_anchor_bounds_apply_after_crop_resize_and_placement(
+    preparation, coordinate, placement, accepted
+):
+    request, services, native, files, source, _destination = preparation
+    _png(source, pixels=[(44, 11, 66, 0)] * 6)
+    native.pixels = [(0, 0, 0, 0)] * 20
+    spec = request["specification"]
+    spec["crop"]["rectangle"] = {"x": 1, "y": 1, "width": 2, "height": 1}
+    spec["resize"] = {"kind": "size", "width": 2, "height": 1}
+    spec["anchors"] = [
+        {"name": "origin", "x": 1, "y": 1},
+        {"name": "outside", "x": coordinate, "y": coordinate},
+    ]
+    spec["alignment"] = {
+        "primary_anchor": "origin",
+        "position": {"x": placement, "y": placement},
+    }
+    result = _call(request, services)
+    if accepted:
+        assert result["status"] == "success", result
+        assert result["reproduction"]["geometry"]["offset"] == {"x": 1, "y": 1}
+        assert result["reproduction"]["geometry"]["anchors"] == [
+            {"name": "origin", "x": 1, "y": 1},
+            {"name": "outside", "x": coordinate, "y": coordinate},
+        ]
+    else:
+        assert result["code"] == "preparation_rejected"
+        assert result["details"]["reason"] == "geometry"
+        assert not native.calls and not files.publications
+
+
 def test_source_alias_is_checked_again_before_publication(preparation):
     request, services, native, files, source, destination = preparation
     original_path = source.with_name("retained-source.png")

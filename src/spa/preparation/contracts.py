@@ -213,28 +213,30 @@ def preparation_geometry(
             width=_round(crop.width * factor, specification.rounding),
             height=_round(crop.height * factor, specification.rounding),
         )
+    # Intermediate coordinates are arithmetic values, not published Points.
+    # Placement can bring an intermediate value back into the native Point range.
     anchors = [
-        PreparedAnchor(
-            name=anchor.name,
-            x=_round(
+        (
+            anchor.name,
+            _round(
                 (Fraction(str(anchor.x)) - crop.x) * size.width / crop.width,
                 specification.rounding,
             ),
-            y=_round(
+            _round(
                 (Fraction(str(anchor.y)) - crop.y) * size.height / crop.height,
                 specification.rounding,
             ),
         )
         for anchor in specification.anchors
     ]
-    primary = next(
-        anchor
-        for anchor in anchors
-        if anchor.name == specification.alignment.primary_anchor
+    primary_x, primary_y = next(
+        (x, y)
+        for name, x, y in anchors
+        if name == specification.alignment.primary_anchor
     )
     offset = ImageCanvasOffset(
-        x=specification.alignment.position.x - primary.x,
-        y=specification.alignment.position.y - primary.y,
+        x=specification.alignment.position.x - primary_x,
+        y=specification.alignment.position.y - primary_y,
     )
     if (
         offset.x < 0
@@ -249,7 +251,7 @@ def preparation_geometry(
         offset=offset,
         canvas=specification.canvas,
         anchors=[
-            PreparedAnchor(name=a.name, x=a.x + offset.x, y=a.y + offset.y)
-            for a in anchors
+            PreparedAnchor(name=name, x=x + offset.x, y=y + offset.y)
+            for name, x, y in anchors
         ],
     )

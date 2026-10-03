@@ -38,7 +38,7 @@ Lua 5.4, API 41. The installed CLI resolves to the current feature checkout.
 
 | Evidence | What it establishes |
 | --- | --- |
-| 73 fast public-dispatch cases | Strict input/Palette/Point admission, all rounding choices and actual resize ratios, outside anchors, changed or missing input, mismatched Specification/runtime/content, malformed native evidence, complete PNG/sidecar verification, overwrite/alias checks, rechecked source alias, and publication failure cleanup. |
+| 76 fast public-dispatch cases | Strict input/Palette/Point admission, all rounding choices and actual resize ratios, outside anchors, final Point bounds after placement, changed or missing input, mismatched Specification/runtime/content, malformed native evidence, complete PNG/sidecar verification, overwrite/alias checks, rechecked source alias, and publication failure cleanup. |
 | 19 installed-CLI native cases | RGB/RGBA input; threshold 1/128/255 and hidden RGB; empty explicit crop; automatic bounds; exact and scaled nearest resize; full pixel placement; transparent Palette indices 0/7/255 including 256 entries; unused/duplicate entries; exact PLTE/tRNS; RGBA/Indexed pixel parity; sRGB intent 3 normalization; native P3 conversion; wizard preparation and reproduction. |
 | 6 native preference cases | In one process, contrasting profile/working-space/quantization preferences yield identical requested/effective facts and complete output pixels. Active document/colors and preferences are restored after success and a refused native input. |
 
