@@ -376,6 +376,50 @@ def test_unrepresentable_lua_text_is_explicit_without_losing_other_namespaces(
     assert source.read_bytes() == original
 
 
+def test_unrepresentable_tile_key_keeps_index_reads_and_validation_available(
+    tmp_path: Path, runtime
+) -> None:
+    source = tmp_path / "byte-key.aseprite"
+    fixture(source, runtime, byte_property="tile-key")
+    original = source.read_bytes()
+    request = {"sprite_file": str(source), "target": {"tileset_index": 1}}
+    code, result = run("tileset", "tile", "get", **request, tile={"tile_index": 2})
+    assert code == 0, result
+    assert result["tile"]["tile_key"] is None
+    assert result["tile"]["properties"][1]["value"]["entries"] == [
+        {
+            "key": {"kind": "string", "value": "tile_key"},
+            "value": {"kind": "unavailable", "reason": "non_utf8_string"},
+        }
+    ]
+    code, tiles = run("tileset", "get", **request)
+    assert code == 0, tiles
+    assert tiles["tiles"][2] == result["tile"]
+    tilemap = {
+        "sprite_file": str(source),
+        "target": {"layer": {"layer_name": "map"}, "frame_number": 1},
+    }
+    code, region = run(
+        "tilemap", "get", **tilemap, rectangle={"x": 2, "y": 0, "width": 1, "height": 1}
+    )
+    assert code == 0, region
+    assert region["snapshot"]["entries"][0]["placement"] == {
+        "kind": "tile",
+        "tile_index": 2,
+        "tile_key": None,
+        "flip_x": True,
+        "flip_y": False,
+        "flip_diagonal": False,
+    }
+    for operation, query in [("tileset", request), ("tilemap", tilemap)]:
+        code, checked = run(operation, "validate", **query)
+        assert code == 0 and checked["valid"] is False, checked
+        finding = next(item for item in checked["findings"] if item["tile_index"] == 2)
+        assert finding["code"] == "tile_key_invalid"
+        assert finding["tile_key"] is None
+    assert source.read_bytes() == original
+
+
 def test_precise_addresses_missing_cels_and_region_bounds_fail_without_writes(
     tmp_path: Path, runtime
 ) -> None:

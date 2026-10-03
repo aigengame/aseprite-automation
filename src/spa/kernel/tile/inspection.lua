@@ -121,9 +121,10 @@ end
 
 local function tile_key(tile)
   if tile == nil or tile.index == 0 then return null end
-  local value = tile.properties("aigengame.spa").tile_key
-  if type(value) == "string" and #value > 0 then return value end
-  return null
+  local value = properties.observe(tile.properties("aigengame.spa").tile_key)
+  if value.kind == "nil" then return null, "tile_key_missing" end
+  if value.kind ~= "string" or #value.value == 0 then return null, "tile_key_invalid" end
+  return value.value
 end
 
 local function tile_facts(tileset, tile, namespaces)
@@ -238,18 +239,16 @@ local function key_findings(tileset, tsi)
   local result, seen = {}, {}
   for index = 0, #tileset - 1 do
     local tile = tileset:tile(index)
-    local key, code
+    local key, code = null, nil
     -- Tile 0 has no SPA identity; its native Properties view can alias Tileset data.
     if index > 0 then
-      key = tile.properties("aigengame.spa").tile_key
-      if key == nil then
-        code = "tile_key_missing"
-      elseif type(key) ~= "string" or #key == 0 then
-        code = "tile_key_invalid"
-      elseif seen[key] then
-        code = "tile_key_duplicate"
-      else
-        seen[key] = index
+      key, code = tile_key(tile)
+      if not code then
+        if seen[key] then
+          code = "tile_key_duplicate"
+        else
+          seen[key] = index
+        end
       end
     end
     if code then
@@ -257,7 +256,7 @@ local function key_findings(tileset, tsi)
         code = code,
         tileset_index = tsi,
         tile_index = index,
-        tile_key = type(key) == "string" and key or null,
+        tile_key = key,
       }
     end
     if

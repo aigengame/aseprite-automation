@@ -1220,6 +1220,8 @@ that the projection cannot represent is explicitly `unavailable` with a reason;
 non-finite numbers are reported this way instead of silently becoming JSON null.
 A non-UTF-8 string value is unavailable; an unrepresentable key makes its containing
 table or namespace unavailable. Other selected namespaces remain readable.
+A Tile Key that cannot be represented as text is reported as `tile_key: null`;
+its property observation explains the gap, and validation reports `tile_key_invalid`.
 Native file type tags, namespace enumeration, and metadata reconstruction are
 outside this inspection subset. It can expand when a later authoring need and
 native evidence establish the scope.

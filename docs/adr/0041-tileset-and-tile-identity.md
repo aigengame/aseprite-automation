@@ -51,7 +51,9 @@ index changes.
   Tile Key. Persistent Tile references and Tile Placements use Tile Key within an
   exactly resolved Tileset. Results return both the Key and current Tile Index.
 - A missing Key fails as not found and a duplicate Key fails as ambiguous. Validation
-  can report missing or duplicate Keys as Findings without making the Sprite unreadable.
+  reports missing, invalid, or duplicate Keys as Findings without making the Sprite
+  unreadable. Identity fields use the same property projection; an unrepresentable
+  Key remains observable through its property result and has a null identity field.
 - Fixed Tile Operations preserve generic Tile user data and unrelated author or
   plugin properties when writing the SPA namespace.
 - Property observation and native user-data preservation have separate responsibilities.

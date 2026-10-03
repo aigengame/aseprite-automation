@@ -41,6 +41,8 @@ elseif app.params.byte_property == "nested-key" then
   ts:tile(2).properties.binary = { [string.char(255, 254)] = "retained value" }
 elseif app.params.byte_property == "root-key" then
   ts:tile(2).properties[string.char(255, 254)] = "retained value"
+elseif app.params.byte_property == "tile-key" then
+  ts:tile(2).properties("aigengame.spa").tile_key = string.char(255, 254)
 end
 local mw, mh = tonumber(app.params.map_width or "3"), tonumber(app.params.map_height or "2")
 local m = Image(mw, mh, ColorMode.TILEMAP)

@@ -63,6 +63,8 @@ observe = function(value)
   return { kind = "unavailable", reason = "unsupported_native_value" }
 end
 
+module.observe = observe
+
 function module.read(tile, namespaces)
   local result = {}
   for _, namespace in ipairs(namespaces) do
