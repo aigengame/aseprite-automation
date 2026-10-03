@@ -16,6 +16,24 @@ for index = 1, 4 do
     tile.properties("aigengame.spa").tile_key = index == 4 and "red" or ({ "red", "green" })[index]
   end
 end
+if app.params.properties == "true" then
+  local props = ts:tile(2).properties
+  props.title = "stone"
+  props.visible = true
+  props.integer = 9007199254740993
+  props.ratio = 1.25
+  props.anchor = Point(2, -3)
+  props.extent = Size(4, 5)
+  props.bounds = Rectangle(1, 2, 3, 4)
+  props.uuid = Uuid("01234567-89ab-cdef-0123-456789abcdef")
+  props.nested = { label = "nested", offset = Point(4, 6) }
+  props.sequence = { "first", "second" }
+  props.empty = {}
+  props.infinity = math.huge
+  props("example.tiles").walkable = true
+  props("not.requested").private = "not selected"
+  ts.properties("aigengame.spa").tile_key = "tileset metadata"
+end
 local mw, mh = tonumber(app.params.map_width or "3"), tonumber(app.params.map_height or "2")
 local m = Image(mw, mh, ColorMode.TILEMAP)
 m:clear(0)

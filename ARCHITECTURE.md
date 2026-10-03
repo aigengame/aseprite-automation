@@ -509,6 +509,7 @@ src/spa/
       profile.py          # Native Color Profile contracts and ICC input policy
     tile/
       inspection.py, values.py # exact native Tile observations and bounded Snapshot values
+      properties.py       # typed projection of selected native Lua property values
   delivery/
     export.py             # Export Image contract, native invocation, and result
     palette.py            # verified Palette file export and explicit generation composition

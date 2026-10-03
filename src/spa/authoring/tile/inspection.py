@@ -14,6 +14,7 @@ from spa.authoring.document.layer import (
 )
 from spa.authoring.document.sprite import SPRITE_INSPECTION_RESOURCES
 from spa.authoring.raster.image_snapshot import SNAPSHOT_RESOURCE
+from spa.authoring.tile.properties import selected_namespaces
 from spa.authoring.tile.values import (
     TileFacts,
     TileFinding,
@@ -55,6 +56,7 @@ TILE_READ_HANDLER = PackagedHandler(
     (
         *SPRITE_INSPECTION_RESOURCES,
         TILE_INSPECTION_RESOURCE,
+        PackagedResource("tile_properties", "tile/properties.lua"),
         SNAPSHOT_RESOURCE,
         RASTER_COLOR_RESOURCE,
         EFFECTIVE_PALETTE_RESOURCE,
@@ -105,8 +107,19 @@ class TilesetListRequest(RuntimeRequest):
     _source = field_validator("sprite_file")(validate_native_sprite_path)
 
 
-class TilesetGetRequest(TilesetListRequest):
+class TilesetTargetRequest(TilesetListRequest):
     target: TilesetTarget
+
+
+class TilesetGetRequest(TilesetTargetRequest):
+    property_namespaces: list[str] = Field(default_factory=list)
+
+    @field_validator("property_namespaces")
+    @classmethod
+    def native_names(cls, value: list[str]) -> list[str]:
+        if any("\x00" in name for name in value):
+            raise ValueError("Property namespace names cannot contain NUL")
+        return value
 
 
 class TileGetRequest(TilesetGetRequest):
@@ -281,6 +294,8 @@ def _payload(request: TilesetListRequest, operation: str) -> dict:
         return item
 
     value = integers(value)
+    if isinstance(request, TilesetGetRequest):
+        value["property_namespaces"] = selected_namespaces(request.property_namespaces)
     value.update(
         operation=operation,
         inline_cells=INLINE_TILE_CELLS,
@@ -299,7 +314,7 @@ def _reject(invocation: KernelInvocationResult, request: TilesetListRequest) -> 
     target = (
         request.target
         if isinstance(
-            request, (TilesetGetRequest, TilemapGetRequest, TilemapValidateRequest)
+            request, (TilesetTargetRequest, TilemapGetRequest, TilemapValidateRequest)
         )
         else None
     )
@@ -339,8 +354,16 @@ type InspectionResult = (
 def _check_scope(request: TilesetListRequest, result: InspectionResult) -> None:
     if result.sprite_file != request.sprite_file:
         raise ValueError("Tile inspection Source differs from request")
+    if isinstance(request, TilesetGetRequest):
+        assert isinstance(result, (TilesetGetResult, TileGetResult))
+        tiles = result.tiles if isinstance(result, TilesetGetResult) else [result.tile]
+        expected = selected_namespaces(request.property_namespaces)
+        if any(
+            [value.namespace for value in tile.properties] != expected for tile in tiles
+        ):
+            raise ValueError("Tile property namespaces differ from the selected scope")
     if isinstance(
-        request, (TilesetGetRequest, TilemapGetRequest, TilemapValidateRequest)
+        request, (TilesetTargetRequest, TilemapGetRequest, TilemapValidateRequest)
     ):
         assert isinstance(
             result,
@@ -529,7 +552,7 @@ def get_tile(request: TileGetRequest, services: OperationServices) -> TileGetRes
 
 
 def validate_tileset(
-    request: TilesetGetRequest, services: OperationServices
+    request: TilesetTargetRequest, services: OperationServices
 ) -> TilesetValidateResult:
     return _read(request, services, "tileset validate", TilesetValidateResult)
 
@@ -589,7 +612,7 @@ TILE_OPERATIONS = (
     ),
     OperationDescriptor(
         "tileset validate",
-        TilesetGetRequest,
+        TilesetTargetRequest,
         TilesetValidateResult,
         validate_tileset,
         lambda result: f"{len(result.findings)} Findings",

@@ -54,6 +54,13 @@ index changes.
   can report missing or duplicate Keys as Findings without making the Sprite unreadable.
 - Fixed Tile Operations preserve generic Tile user data and unrelated author or
   plugin properties when writing the SPA namespace.
+- Property observation and native user-data preservation have separate responsibilities.
+  Tile Authoring owns one conversion from the public Lua Properties API to typed
+  observations within an explicit namespace scope. It reports what Lua retains,
+  without inferring file storage types or reconstructing information already lost
+  by the native API. Issue #41 defines the current reading subset for inspection
+  and authoring assistance. Later accepted needs can extend that subset within
+  native Aseprite capabilities; the boundary is not a permanent feature prohibition.
 - Any Operation that changes Tile Indexes must preserve or explicitly replace every
   affected Tile Placement. It cannot reinterpret unchanged numeric indexes as identity.
 

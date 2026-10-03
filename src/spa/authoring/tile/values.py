@@ -4,6 +4,7 @@ from typing import Literal
 
 from pydantic import Field, model_validator
 
+from spa.authoring.tile.properties import PropertyNamespace
 from spa.contracts.public import PublicModel
 from spa.contracts.raster import Point, PositiveRectangle, RgbaColor, Size
 
@@ -36,6 +37,7 @@ class TileFacts(PublicModel):
     color_mode: Literal["rgb", "grayscale", "indexed"]
     data: str
     color: RgbaColor
+    properties: list[PropertyNamespace]
 
 
 class TilemapFacts(PublicModel):
@@ -121,7 +123,6 @@ class TileFinding(PublicModel):
         "tile_key_missing",
         "tile_key_duplicate",
         "tile_key_invalid",
-        "empty_tile_key",
         "empty_tile_flags",
         "tile_index_out_of_bounds",
         "tile_image_grid_mismatch",

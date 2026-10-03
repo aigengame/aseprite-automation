@@ -9,6 +9,111 @@ from tests.tile.support import fixture, run
 pytestmark = pytest.mark.e2e
 
 
+def test_properties_are_lua_observations_in_declared_namespaces(
+    tmp_path: Path, runtime
+) -> None:
+    source = tmp_path / "properties.aseprite"
+    fixture(source, runtime, properties="true")
+    original = source.read_bytes()
+    request = {
+        "sprite_file": str(source),
+        "target": {"tileset_index": 1},
+        "tile": {"tile_key": "green"},
+    }
+    code, default = run("tileset", "tile", "get", **request)
+    assert code == 0, default
+    assert [item["namespace"] for item in default["tile"]["properties"]] == [
+        "",
+        "aigengame.spa",
+    ]
+    code, observed = run(
+        "tileset",
+        "tile",
+        "get",
+        **request,
+        property_namespaces=[
+            "example.tiles",
+            "aigengame.spa",
+            "example.tiles",
+            "absent",
+        ],
+    )
+    assert code == 0, observed
+    properties = {
+        item["namespace"]: {entry["name"]: entry["value"] for entry in item["entries"]}
+        for item in observed["tile"]["properties"]
+    }
+    assert list(properties) == ["", "aigengame.spa", "example.tiles", "absent"]
+    assert properties["example.tiles"] == {
+        "walkable": {"kind": "boolean", "value": True}
+    }
+    assert properties["aigengame.spa"] == {
+        "tile_key": {"kind": "string", "value": "green"}
+    }
+    assert properties["absent"] == {}
+    assert properties[""] == {
+        "title": {"kind": "string", "value": "stone"},
+        "visible": {"kind": "boolean", "value": True},
+        "integer": {"kind": "integer", "value": "9007199254740993"},
+        "ratio": {"kind": "number", "value": 1.25},
+        "anchor": {"kind": "point", "x": 2, "y": -3},
+        "extent": {"kind": "size", "width": 4, "height": 5},
+        "bounds": {"kind": "rectangle", "x": 1, "y": 2, "width": 3, "height": 4},
+        "uuid": {"kind": "uuid", "value": "01234567-89ab-cdef-0123-456789abcdef"},
+        "nested": {
+            "kind": "table",
+            "entries": [
+                {
+                    "key": {"kind": "string", "value": "label"},
+                    "value": {"kind": "string", "value": "nested"},
+                },
+                {
+                    "key": {"kind": "string", "value": "offset"},
+                    "value": {"kind": "point", "x": 4, "y": 6},
+                },
+            ],
+        },
+        "sequence": {
+            "kind": "table",
+            "entries": [
+                {
+                    "key": {"kind": "integer", "value": "1"},
+                    "value": {"kind": "string", "value": "first"},
+                },
+                {
+                    "key": {"kind": "integer", "value": "2"},
+                    "value": {"kind": "string", "value": "second"},
+                },
+            ],
+        },
+        "empty": {"kind": "table", "entries": []},
+        "infinity": {"kind": "unavailable", "reason": "non_finite_number"},
+    }
+    code, all_tiles = run(
+        "tileset",
+        "get",
+        sprite_file=str(source),
+        target={"tileset_index": 1},
+        property_namespaces=["example.tiles", "absent"],
+    )
+    assert code == 0, all_tiles
+    assert all_tiles["tiles"][2]["properties"] == observed["tile"]["properties"]
+    # Native Tile 0's Lua Properties getter exposes Tileset user data.
+    assert all_tiles["tiles"][0]["tile_key"] is None
+    assert all_tiles["tiles"][0]["properties"][1]["entries"] == [
+        {"name": "tile_key", "value": {"kind": "string", "value": "tileset metadata"}}
+    ]
+    code, checked = run(
+        "tileset", "validate", sprite_file=str(source), target={"tileset_index": 1}
+    )
+    assert code == 0, checked
+    assert {item["code"] for item in checked["findings"]} == {
+        "tile_key_missing",
+        "tile_key_duplicate",
+    }
+    assert source.read_bytes() == original
+
+
 def test_lists_multiple_tilesets_and_shared_layer_bindings_without_repair(
     tmp_path: Path, runtime
 ) -> None:

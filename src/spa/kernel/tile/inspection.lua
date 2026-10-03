@@ -3,6 +3,7 @@ local module = {}
 local layers = dofile(app.params.layer_select)
 local sprites = dofile(app.params.inspection)
 local pixels = dofile(app.params.image_snapshot)
+local properties = dofile(app.params.tile_properties)
 local null = json.decode("null")
 
 local function reject(code, message) return { rejection = { code = code, message = message } } end
@@ -116,7 +117,7 @@ local function tile_key(tile)
   return null
 end
 
-local function tile_facts(tileset, tile)
+local function tile_facts(tileset, tile, namespaces)
   local color = tile.color
   return {
     tile_index = tile.index,
@@ -126,6 +127,7 @@ local function tile_facts(tileset, tile)
     color_mode = pixels.mode(tile.image),
     data = tile.data,
     color = { red = color.red, green = color.green, blue = color.blue, alpha = color.alpha },
+    properties = properties.read(tile, namespaces),
   }
 end
 
@@ -227,18 +229,19 @@ local function key_findings(tileset, tsi)
   local result, seen = {}, {}
   for index = 0, #tileset - 1 do
     local tile = tileset:tile(index)
-    local key = tile.properties("aigengame.spa").tile_key
-    local code
-    if index == 0 then
-      if key ~= nil then code = "empty_tile_key" end
-    elseif key == nil then
-      code = "tile_key_missing"
-    elseif type(key) ~= "string" or #key == 0 then
-      code = "tile_key_invalid"
-    elseif seen[key] then
-      code = "tile_key_duplicate"
-    else
-      seen[key] = index
+    local key, code
+    -- Tile 0 has no SPA identity; its native Properties view can alias Tileset data.
+    if index > 0 then
+      key = tile.properties("aigengame.spa").tile_key
+      if key == nil then
+        code = "tile_key_missing"
+      elseif type(key) ~= "string" or #key == 0 then
+        code = "tile_key_invalid"
+      elseif seen[key] then
+        code = "tile_key_duplicate"
+      else
+        seen[key] = index
+      end
     end
     if code then
       result[#result + 1] = {
@@ -317,12 +320,13 @@ function module.read(sprite, payload)
   if operation == "tileset get" then
     result.tiles = {}
     for index = 0, #tileset - 1 do
-      result.tiles[#result.tiles + 1] = tile_facts(tileset, tileset:tile(index))
+      result.tiles[#result.tiles + 1] =
+        tile_facts(tileset, tileset:tile(index), payload.property_namespaces)
     end
   elseif operation == "tileset tile get" then
     local tile, rejected = resolve_tile(tileset, payload.tile)
     if rejected then return rejected end
-    result.tile = tile_facts(tileset, tile)
+    result.tile = tile_facts(tileset, tile, payload.property_namespaces)
     if
       tile.image.width * tile.image.height > payload.inline_pixels
       and not payload.staged_snapshot_file

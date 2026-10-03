@@ -1206,6 +1206,25 @@ reports every current Tile index, including Empty Tile 0 and unkeyed Tiles.
 `tile.tile_key` and returns its complete Image as the existing Pixel Region Snapshot.
 Base Index changes display numbering (`tile_index + base_index - 1`), never identity.
 
+Both Tile queries return `properties` for the default namespace (`""`),
+`aigengame.spa`, and the additional names in `property_namespaces`. Each namespace
+contains ordered `entries` with `name` and a typed `value`; an empty namespace has
+an empty entries list. Repeated namespace names are read once. Completeness covers
+the selected namespaces and the values observable through Aseprite's Lua API.
+
+Values distinguish nil, boolean, string, integer, number, Point, Size, Rectangle,
+UUID, and table. Lua integers use decimal strings to retain precision. Tables use
+typed keys and entries, so numeric keys and string keys remain distinct. A value
+that the projection cannot represent is explicitly `unavailable` with a reason;
+non-finite numbers are reported this way instead of silently becoming JSON null.
+Native file type tags, namespace enumeration, and metadata reconstruction are
+outside this inspection subset. It can expand when a later authoring need and
+native evidence establish the scope.
+
+The observation follows native getter behavior. On the verified Aseprite baseline,
+Tile 0's Properties getter exposes Tileset properties. Those values remain visible
+as returned by the API; Tile 0 still has no SPA Tile Key.
+
 `spa tilemap list` reports all Tilemap bindings, the complete Frame count, and every
 existing Tilemap Cel without expanding Cells. `spa tilemap get` selects one exact
 Layer and Frame; without `rectangle` it reports topology, including an absent Cel.
