@@ -15,7 +15,10 @@ for index, old in ipairs(expected) do
   assert(tile.properties("example").large == 9007199254740993 + old)
   assert(tile.properties("example").point.y == -old)
   assert(tile.properties("example").binary == string.char(255, 254, old))
-  assert(tile.image:getPixel(0, 0) == app.pixelColor.rgba(10 + old, 30, 40, 255))
+  assert(tile.image.width == 2 and tile.image.height == 3)
+  for pixel in tile.image:pixels() do
+    assert(pixel() == app.pixelColor.rgba(10 + old, 30, 40, 255))
+  end
 end
 local orphan = sprite.tilesets[2]
 local orphan_order = json.decode(app.params.orphan_order or "[1,2]")
@@ -27,6 +30,7 @@ for index, old in ipairs(orphan_order) do
   assert(tile.data == "orphan-data-" .. old)
   assert(tile.properties.note == "orphan-default-" .. old)
   assert(tile.properties("example").binary == string.char(255, 254, old))
+  assert(tile.image.width == 2 and tile.image.height == 3)
   for pixel in tile.image:pixels() do
     assert(pixel() == app.pixelColor.rgba(90 + old, 60, 30, 255))
   end
