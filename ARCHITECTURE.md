@@ -346,7 +346,10 @@ supply their own address roles and Frame Ranges. Each handler binding explicitly
 includes the Lua resources these dependencies require, including standalone,
 capability-probe, and Plan paths.
 The shared `sprite_persistence.lua` Module owns native snapshots and their
-persisted-fact comparison. Standalone Cel set/copy/link/unlink and Motion use its
+persisted-fact comparison. It compares Slice collections as complete fact
+multisets, including in nested snapshots, while preserving Slice Key order.
+Slice mutation reuses this comparison for live postconditions and save/reopen.
+Standalone Cel set/copy/link/unlink and Motion use its
 `save_verified` Interface to capture live facts, save, close, reopen, observe saved
 Layer UUIDs, and compare the captured native document snapshot. The Interface
 consumes the live Sprite and returns a reopened Sprite, fresh UUID facts, and

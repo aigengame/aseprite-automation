@@ -63,21 +63,6 @@ local function point_fact(value)
   return { x = value.x, y = value.y }
 end
 
-local function assert_same_slices(left, right, persistence)
-  assert(#left == #right, "Slice count differs")
-  local used = {}
-  for _, fact in ipairs(left) do
-    local matched = false
-    for index, other in ipairs(right) do
-      if not used[index] and persistence.equal(fact, other) then
-        used[index], matched = true, true
-        break
-      end
-    end
-    assert(matched, "Slice facts differ")
-  end
-end
-
 local function copy(value)
   if type(value) ~= "table" then return value end
   local result = {}
@@ -180,9 +165,8 @@ function module.execute(payload, inspection, digest, persistence)
       end
     end)
     local live = persistence.snapshot(sprite, inspection, digest, sections, uuids)
-    assert_same_slices(expected_slices, live.sprite.slices, persistence)
-    before.sprite.slices = live.sprite.slices
-    before.sprite.metadata.slice_count = live.sprite.metadata.slice_count
+    before.sprite.slices = expected_slices
+    before.sprite.metadata.slice_count = #expected_slices
     persistence.assert_same(before, live, "Slice mutation")
     assert(sprite:saveAs(payload.staged_sprite_file), "could not save staged Sprite")
     sprite:close()
@@ -190,8 +174,6 @@ function module.execute(payload, inspection, digest, persistence)
     sprite = assert(app.open(payload.staged_sprite_file), "could not reopen staged Sprite")
     uuids = inspection.saved_layer_uuids(sprite, payload.staged_sprite_file)
     local reopened = persistence.snapshot(sprite, inspection, digest, sections, uuids)
-    assert_same_slices(live.sprite.slices, reopened.sprite.slices, persistence)
-    live.sprite.slices = reopened.sprite.slices
     persistence.assert_same(live, reopened, "Slice mutation")
     return {
       operation = payload.operation,
