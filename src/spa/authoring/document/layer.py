@@ -7,6 +7,7 @@ from pydantic import Field, ValidationError, field_validator, model_validator
 
 from spa.authoring.color.palette import EFFECTIVE_PALETTE_RESOURCE
 from spa.authoring.document.sprite import (
+    SPRITE_INSPECTION_RESOURCES,
     CelFacts,
     LayerFacts,
     SpriteGetRequest,
@@ -376,28 +377,24 @@ LAYER_MOVE_FAILURE_CODES = (
     "layer_invalid_position",
     "target_commit_failed",
 )
-LAYER_INSPECTION_RESOURCE = PackagedResource(
-    "inspection", "document/sprite/sprite_inspect.lua"
-)
 LAYER_SELECT_RESOURCE = PackagedResource(
     "layer_select", "document/layer/layer_select.lua"
 )
 LAYER_GET_HANDLER = PackagedHandler(
     "layer_get",
     "document/layer/layer_get.lua",
-    (LAYER_INSPECTION_RESOURCE, LAYER_SELECT_RESOURCE),
+    SPRITE_INSPECTION_RESOURCES,
 )
 LAYER_ADD_HANDLER = PackagedHandler(
     "layer_add",
     "document/layer/layer_add.lua",
-    (LAYER_INSPECTION_RESOURCE, LAYER_SELECT_RESOURCE),
+    SPRITE_INSPECTION_RESOURCES,
 )
 LAYER_MUTATE_HANDLER = PackagedHandler(
     "layer_mutate",
     "document/layer/layer_mutate.lua",
     (
-        LAYER_INSPECTION_RESOURCE,
-        LAYER_SELECT_RESOURCE,
+        *SPRITE_INSPECTION_RESOURCES,
         PackagedResource("layer_mutation", "document/layer/layer_mutation_support.lua"),
         DIGEST_RESOURCE,
         PackagedResource("persistence", "document/sprite/sprite_persistence.lua"),

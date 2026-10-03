@@ -24,6 +24,7 @@ from spa.authoring.document.cel_relationship import CEL_RELATIONSHIP_OPERATIONS
 from spa.authoring.document.frame import FRAME_OPERATIONS, FRAME_SUPPORT_RESOURCE
 from spa.authoring.document.layer import LAYER_OPERATIONS, LAYER_SELECT_RESOURCE
 from spa.authoring.document.motion import MOTION_OPERATIONS
+from spa.authoring.document.slice import SLICE_OPERATIONS, slice_capability_gaps
 from spa.authoring.document.sprite import SPRITE_OPERATIONS, SPRITE_PROBE_RESOURCES
 from spa.authoring.document.tag import TAG_OPERATIONS
 from spa.authoring.raster.color_curve import (
@@ -229,6 +230,7 @@ def _surface(runtime: RuntimeFacts) -> tuple[list[str], list[CapabilityGap]]:
     )
     if "spa filter despeckle" in supported:
         gaps.extend(despeckle_capability_gaps(runtime.aseprite_version))
+    gaps.extend(slice_capability_gaps(runtime.aseprite_version))
     return supported, gaps
 
 
@@ -336,6 +338,7 @@ OPERATIONS = (
     *MOTION_OPERATIONS,
     *IMAGE_OPERATIONS,
     *TAG_OPERATIONS,
+    *SLICE_OPERATIONS,
     *PALETTE_OPERATIONS,
     *PALETTE_FILE_OPERATIONS,
     *QUANTIZATION_OPERATIONS,

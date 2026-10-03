@@ -23,6 +23,7 @@ verification tier. The layout does not mirror source packages or CLI Command Gro
 | `tests/plan/` | Static Plan preflight, single-Sprite Step composition, and commit gates. |
 | `tests/release/` | Release metadata and publication gates. |
 | `tests/runtime/` | Aseprite Runtime Integration, including discovery, launch, private Kernel transport, and real-runtime evidence. |
+| `tests/slice/` | Complete Slice Keys and coverage, exact addressing, bounded native authoring, exporter validation, and save/reopen evidence. |
 | `tests/sprite/` | Sprite Domain Module contracts plus real creation, copy, flatten, bounded validation, persisted reopen, structural inspection, and Target Commit evidence. |
 | `tests/tag/` | Tag stored facts, exact current addressing, native mutation, and save/reopen evidence. |
 | `tests/tile/` | Tileset/Tile identity, exact Tilemap topology, complete Tile Region transport, and native read-only validation. |
@@ -108,8 +109,17 @@ with literal expected Frame and color facts and unrelated active editor state. O
 E2E tests retain coverage of caller-specific validation, resource loading, and publication.
 Slice inspection uses Aseprite's native sprite-sheet metadata export to observe the
 complete ordered Key list, converts its zero-based Frames to the public one-based model,
-and combines it with public Slice user data. The private metadata and texture remain in
-the invocation workspace.
+and combines it with public Slice text and color data. The private metadata stays in
+the invocation workspace; the reader requests no texture output. The Slice suite
+uses native fixtures plus test-only file-format construction for multi-Key input
+that public Lua cannot create. Product handlers never patch the file format.
+`test_e2e_vendor.py` wraps the native export boundary to check malformed and stale
+metadata refusal. `test_e2e_slice.py` verifies CLI addressing, complete Frame
+coverage, static geometry, metadata-only edits on animated Slices, whole deletion,
+reopened addresses, custom property retention, and failure without Target publication.
+The runtime probe separately checks whole-Slice add/set/remove with real
+save/close/reopen. These are batch tests on local macOS and Linux CI; they make no
+windowed GUI claim. See [Slice evidence](evidence/issue-40-slices.md).
 The Export Image E2E fixtures cover native visible Layer composition, RGB Alpha
 values, no-profile and sRGB files, unsupported source modes, Tilemap Images on visible
 and hidden Layers, unsupported Color Profiles, and explicit replacement. A wheel-installed

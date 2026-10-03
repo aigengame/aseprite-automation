@@ -43,6 +43,10 @@ def test_probe_resources_are_packaged() -> None:
 
     for name in (
         "document/sprite/sprite_create_support.lua",
+        "document/slice/slice_inspect.lua",
+        "document/slice/slice_support.lua",
+        "document/slice/slice_read.lua",
+        "document/slice/slice_mutate.lua",
         "runtime/fixtures/sprite_inspection_fixture.aseprite",
         "raster/paint/paint_apply_support.lua",
         "raster/paint/native_tool.lua",

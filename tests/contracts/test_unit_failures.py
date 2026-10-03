@@ -33,6 +33,7 @@ from spa.authoring.document.animation import AuditLimitDetails
 from spa.authoring.document.cel import CelAddress as LifecycleCelAddress
 from spa.authoring.document.cel import CelFrameRangeDetails, CelTargetDetails
 from spa.authoring.document.layer import LayerAddress, LayerTargetDetails
+from spa.authoring.document.slice import SliceAddress, SliceTargetDetails
 from spa.authoring.document.sprite import (
     SpriteCopyStagingDetails,
     SpriteCropBoundsDetails,
@@ -323,6 +324,7 @@ def test_each_registered_code_has_a_constrained_public_schema() -> None:
             allowed_maximum=32767,
         ),
         TagTargetDetails: TagTargetDetails(address=TagAddress(tag_index=1)),
+        SliceTargetDetails: SliceTargetDetails(address=SliceAddress(slice_index=1)),
         TagRangeDetails: TagRangeDetails(from_frame=1, to_frame=2, frame_count=1),
         SpriteUnsupportedContentDetails: SpriteUnsupportedContentDetails(
             source_sprite_file="sprite.aseprite",

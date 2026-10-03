@@ -16,7 +16,7 @@ from spa.authoring.document.cel import (
 from spa.authoring.document.layer import LAYER_ADDRESS_FAILURE_CODES
 from spa.authoring.document.sprite import (
     INSPECTION_SECTIONS,
-    SPRITE_INSPECTION_RESOURCE,
+    SPRITE_INSPECTION_RESOURCES,
     SPRITE_PERSISTENCE_RESOURCE,
     SpriteGetRequest,
     SpriteInspection,
@@ -296,9 +296,8 @@ IMAGE_CEL_MUTATION_RESOURCE = PackagedResource(
     "image_cel_mutation", "raster/image/image_cel_mutation.lua"
 )
 IMAGE_MUTATION_RESOURCES = (
-    SPRITE_INSPECTION_RESOURCE,
+    *SPRITE_INSPECTION_RESOURCES,
     SPRITE_PERSISTENCE_RESOURCE,
-    PackagedResource("layer_select", "document/layer/layer_select.lua"),
     PackagedResource("cel", "document/cel/cel_support.lua"),
     DIGEST_RESOURCE,
     IMAGE_CEL_MUTATION_RESOURCE,
@@ -332,9 +331,8 @@ IMAGE_ORIENTATION_HANDLER = PackagedHandler(
     "image_orientation",
     "raster/image/image_orientation.lua",
     (
-        SPRITE_INSPECTION_RESOURCE,
+        *SPRITE_INSPECTION_RESOURCES,
         SPRITE_PERSISTENCE_RESOURCE,
-        PackagedResource("layer_select", "document/layer/layer_select.lua"),
         PackagedResource("cel", "document/cel/cel_support.lua"),
         DIGEST_RESOURCE,
         IMAGE_ORIENTATION_TRANSFORM_RESOURCE,
