@@ -3,6 +3,7 @@
 import json
 import os
 import shlex
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
@@ -219,6 +220,106 @@ def test_receipt_must_match_intent_before_target_commit(
             add_layer(request, services)
         assert failure.value.kind == "response_malformed"
         assert target.read_bytes() == b"target"
+    assert source.read_bytes() == b"source"
+    assert set(tmp_path.iterdir()) == {source, target}
+
+
+@pytest.mark.parametrize(
+    "defect",
+    [
+        None,
+        "verified-uuid-changed",
+        "verified-uuid-lost",
+        "path",
+        "name",
+        "order",
+        "count",
+    ],
+)
+def test_shared_binding_evidence_allows_only_unverified_uuid_assignment(
+    tmp_path: Path, defect: str | None
+) -> None:
+    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
+    source.write_bytes(b"source")
+    target.write_bytes(b"prior target")
+    request = LayerAddRequest.model_validate(
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": False,
+            "overwrite": True,
+            "kind": "tilemap",
+            "name": "map",
+            "tileset": {"share": {"tileset_index": 1}},
+        }
+    )
+    receipt = _receipt()
+    verified_uuid = "11111111-1111-1111-1111-111111111111"
+    assigned_uuid = "22222222-2222-2222-2222-222222222222"
+    added_uuid = "33333333-3333-3333-3333-333333333333"
+    before_bindings = [
+        {"layer_path": [1], "name": "unverified", "layer_uuid": None},
+        {"layer_path": [2], "name": "verified", "layer_uuid": verified_uuid},
+    ]
+    receipt["added_path"] = [3]
+    receipt["before_layer_count"] = 2
+    receipt["before_use_layer_uuids"] = True
+    receipt["sprite"]["metadata"].update(layer_count=3, use_layer_uuids=True)
+    added = receipt["sprite"]["layers"][0] | {"path": [3], "layer_uuid": added_uuid}
+    receipt["sprite"]["layers"] = [
+        added | {"path": [1], "name": "unverified", "layer_uuid": assigned_uuid},
+        added | {"path": [2], "name": "verified", "layer_uuid": verified_uuid},
+        added,
+    ]
+    evidence = receipt["tilemap"]
+    evidence.update(
+        intent="share", before_tileset_count=1, temporary_tilesets_removed=1
+    )
+    evidence["shared_tileset_before"] = deepcopy(evidence["tileset"]) | {
+        "layers": before_bindings
+    }
+    retained = [
+        before_bindings[0] | {"layer_uuid": assigned_uuid},
+        deepcopy(before_bindings[1]),
+    ]
+    if defect == "verified-uuid-changed":
+        retained[1]["layer_uuid"] = "44444444-4444-4444-4444-444444444444"
+    elif defect == "verified-uuid-lost":
+        retained[1]["layer_uuid"] = None
+    elif defect == "path":
+        retained[0]["layer_path"] = [4]
+    elif defect == "name":
+        retained[0]["name"] = "renamed"
+    elif defect == "order":
+        retained.reverse()
+    elif defect == "count":
+        retained.pop()
+    evidence["tileset"]["layers"] = [
+        *retained,
+        {"layer_path": [3], "name": "map", "layer_uuid": added_uuid},
+    ]
+
+    def invoke(_runtime, _handler, payload, _timeout):
+        Path(payload["staged_sprite_file"]).write_bytes(b"candidate")
+        return KernelInvocationResult(
+            receipt, "/response.json", Diagnostics(exit_status=0)
+        )
+
+    services = OperationServices(
+        probe_runtime=lambda _: runtime_observation("aseprite_tilemap_layer_creation"),
+        invoke_kernel=invoke,
+        target_files=LocalTargetFiles(),
+    )
+    if defect is None:
+        result = add_layer(request, services)
+        assert result.tilemap is not None
+        assert result.tilemap.tileset.layers[0].layer_uuid == assigned_uuid
+        assert target.read_bytes() == b"candidate"
+    else:
+        with pytest.raises(RuntimeIssue) as failure:
+            add_layer(request, services)
+        assert failure.value.kind == "response_malformed"
+        assert target.read_bytes() == b"prior target"
     assert source.read_bytes() == b"source"
     assert set(tmp_path.iterdir()) == {source, target}
 

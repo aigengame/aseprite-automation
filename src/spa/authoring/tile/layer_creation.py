@@ -119,6 +119,9 @@ def validate_creation(
     else:
         assert intent.share is not None
         before = evidence.shared_tileset_before
+        retained_bindings = [
+            item for item in evidence.tileset.layers if item.layer_path != layer.path
+        ]
         if (
             before is None
             or evidence.intent != "share"
@@ -134,11 +137,16 @@ def validate_creation(
             )
             or before.model_dump(exclude={"layers"})
             != evidence.tileset.model_dump(exclude={"layers"})
-            or [
-                item
-                for item in evidence.tileset.layers
-                if item.layer_path != layer.path
-            ]
-            != before.layers
+            or len(retained_bindings) != len(before.layers)
+            or any(
+                old.model_dump(exclude={"layer_uuid"})
+                != retained.model_dump(exclude={"layer_uuid"})
+                # Document persistence permits native UUID assignment on save.
+                # An already verified UUID must still match exactly.
+                or (
+                    old.layer_uuid is not None and retained.layer_uuid != old.layer_uuid
+                )
+                for old, retained in zip(before.layers, retained_bindings, strict=True)
+            )
         ):
             raise ValueError("Shared Tileset or existing bindings differ from intent")

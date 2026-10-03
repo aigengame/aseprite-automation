@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.support import clear_first_saved_layer_uuid
 from tests.tile.support import fixture, run
 
 pytestmark = pytest.mark.e2e
@@ -118,6 +119,52 @@ def test_share_removes_only_its_temporary_tileset(
             expected = observed
         else:
             assert observed == expected
+    assert source.read_bytes() == original
+
+
+def test_share_accepts_native_assignment_of_an_unverified_layer_uuid(
+    tmp_path: Path, runtime
+) -> None:
+    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
+    fixture(source, runtime, uuids="true")
+    clear_first_saved_layer_uuid(source, "map")
+    original = source.read_bytes()
+    code, before = run("tileset", "list", sprite_file=str(source))
+    assert code == 0, before
+    existing_bindings = before["tilesets"][0]["layers"]
+    assert [binding["name"] for binding in existing_bindings] == ["map", "shared"]
+    assert existing_bindings[0]["layer_uuid"] is None
+    assert isinstance(existing_bindings[1]["layer_uuid"], str)
+
+    code, added = run(
+        "layer",
+        "add",
+        source_sprite_file=str(source),
+        target_sprite_file=str(target),
+        in_place=False,
+        overwrite=False,
+        kind="tilemap",
+        name="added",
+        tileset={"share": {"tileset_index": 1}},
+    )
+    assert code == 0, added
+    assert added["persisted_reopen_verified"] is True
+    assert added["use_layer_uuids"] is True
+    assert added["tilemap"]["shared_tileset_before"] == before["tilesets"][0]
+    assert added["tilemap"]["tileset_count"] == len(before["tilesets"])
+    assert added["tilemap"]["temporary_tilesets_removed"] == 1
+
+    code, after = run("tileset", "list", sprite_file=str(target))
+    assert code == 0, after
+    assert after["tilesets"][0] == added["tilemap"]["tileset"]
+    retained = after["tilesets"][0]["layers"][:-1]
+    assigned_uuid = retained[0]["layer_uuid"]
+    assert isinstance(assigned_uuid, str) and assigned_uuid
+    assert retained == [
+        existing_bindings[0] | {"layer_uuid": assigned_uuid},
+        existing_bindings[1],
+    ]
+    assert after["tilesets"][1:] == before["tilesets"][1:]
     assert source.read_bytes() == original
 
 
