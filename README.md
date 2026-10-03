@@ -1231,6 +1231,11 @@ Image/Grid agreement, and Cell references across every bound Layer and Frame;
 Both return typed Findings and a `valid` verdict without making invalid Keys
 prevent inspection. A validation result is an observation, not a mutation.
 
+The empty default represents a native Cell with both index and flags zero. A Cell
+with index 0 and any flag is retained with `tile_key: null`; validation reports
+`empty_tile_flags`. It can render Tile 0's Image and is never silently discarded
+or repaired by inspection.
+
 The inline limits are 4096 Tile Cells per region and 4096 Image Pixels per Tile
 Image. For larger values provide `snapshot_destination` with a `.json` path and
 explicit `if_exists: "fail"` or `"replace"`. The JSON Artifact has exactly the same

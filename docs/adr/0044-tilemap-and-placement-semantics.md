@@ -47,6 +47,11 @@ data model.
 - Inspection additionally reports current Tile Index. If a native packed Tilemap value
   refers to an existing unkeyed Tile, it returns `tile_key: null` with the Index and flags;
   it never drops the cell or invents a Key.
+- Only a native packed Cell value of zero is the `empty` default. A Cell with
+  index 0 and any transform flag remains an observation entry with index 0,
+  `tile_key: null`, and its flags. Validation reports `empty_tile_flags`. Native
+  rendering can read Tile 0's Image for this value; dropping it can lose visible
+  content. This read rule neither adds a keyed Tile 0 nor a new mutation variant.
 - A Tile Region Snapshot represents one complete bounded Tile Cell Rectangle. Empty
   Tile is the declared default, and its canonical sparse entries contain every
   non-empty Tile Placement in ascending `tile_y`, then `tile_x` order. Duplicate or

@@ -67,11 +67,20 @@ class EmptyPlacement(PublicModel):
 
 class ObservedTilePlacement(PublicModel):
     kind: Literal["tile"] = "tile"
-    tile_index: int = Field(ge=1)
+    tile_index: int = Field(ge=0)
     tile_key: str | None
     flip_x: bool
     flip_y: bool
     flip_diagonal: bool
+
+    @model_validator(mode="after")
+    def empty_tile(self) -> "ObservedTilePlacement":
+        if self.tile_index == 0:
+            if self.tile_key is not None:
+                raise ValueError("Empty Tile 0 has no Tile Key")
+            if not (self.flip_x or self.flip_y or self.flip_diagonal):
+                raise ValueError("An unflagged index-0 Cell uses the empty default")
+        return self
 
 
 class TileRegionEntry(PublicModel):
@@ -113,6 +122,7 @@ class TileFinding(PublicModel):
         "tile_key_duplicate",
         "tile_key_invalid",
         "empty_tile_key",
+        "empty_tile_flags",
         "tile_index_out_of_bounds",
         "tile_image_grid_mismatch",
     ]

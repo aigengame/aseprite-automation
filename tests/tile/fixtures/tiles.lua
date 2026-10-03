@@ -25,6 +25,10 @@ m:putPixel(0, 1, 3 | 0x60000000)
 m:putPixel(2, 1, 4 | 0xe0000000)
 if mw > 3 then m:putPixel(mw - 1, mh - 1, 2) end
 if app.params.invalid_index == "true" then m:putPixel(1, 0, 99 | 0x80000000) end
+if app.params.flagged_zero == "true" then
+  ts:tile(0).image:clear(app.pixelColor.rgba(255, 0, 0, 255))
+  m:putPixel(1, 0, 0xe0000000)
+end
 s:newCel(first, 1, m, Point(-5, 7))
 s:newEmptyFrame()
 app.activeLayer = first

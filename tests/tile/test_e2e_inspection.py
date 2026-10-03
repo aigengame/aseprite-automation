@@ -304,3 +304,60 @@ def test_invalid_native_reference_is_observed_and_reported_without_dropping_cell
     )
     assert finding["tile_index"] == 99 and finding["frame_number"] == 1
     assert (finding["tile_x"], finding["tile_y"]) == (1, 0)
+
+
+def test_flagged_index_zero_is_observed_and_reported_without_repair(
+    tmp_path: Path, runtime
+) -> None:
+    import json
+
+    source, destination = tmp_path / "tiles.aseprite", tmp_path / "region.json"
+    fixture(source, runtime, flagged_zero="true")
+    original = source.read_bytes()
+    target = {"layer": {"layer_name": "map"}, "frame_number": 1}
+    request = {
+        "sprite_file": str(source),
+        "target": target,
+        "rectangle": {"x": 1, "y": 0, "width": 1, "height": 2},
+    }
+    code, result = run("tilemap", "get", **request)
+    assert code == 0, result
+    assert result["snapshot"]["entries"] == [
+        {
+            "tile_x": 1,
+            "tile_y": 0,
+            "placement": {
+                "kind": "tile",
+                "tile_index": 0,
+                "tile_key": None,
+                "flip_x": True,
+                "flip_y": True,
+                "flip_diagonal": True,
+            },
+        }
+    ]
+    code, exported = run(
+        "tilemap",
+        "get",
+        **request,
+        snapshot_destination={"path": str(destination), "if_exists": "fail"},
+    )
+    assert code == 0, exported
+    assert json.loads(destination.read_bytes()) == result["snapshot"]
+    for command, selected, expected_frames in [
+        ("tilemap", target, [1]),
+        ("tileset", {"tileset_index": 1}, [1, 2]),
+    ]:
+        code, checked = run(
+            command, "validate", sprite_file=str(source), target=selected
+        )
+        assert code == 0 and checked["valid"] is False, checked
+        findings = [
+            item for item in checked["findings"] if item["code"] == "empty_tile_flags"
+        ]
+        assert [item["frame_number"] for item in findings] == expected_frames
+        assert all(
+            (item["tile_index"], item["tile_x"], item["tile_y"]) == (0, 1, 0)
+            for item in findings
+        )
+    assert source.read_bytes() == original

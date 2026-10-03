@@ -39,7 +39,8 @@ index changes.
 - SPA publishes Aseprite's persisted `Tileset.baseIndex` as `base_index` and reports
   its display role. It is never accepted as an address or Tile Index.
 - `tile_index` is Aseprite's native zero-based Tile position. Index 0 is the Empty
-  Tile, cannot be removed, and has no Tile Key.
+  Tile, cannot be removed, and has no Tile Key. Empty Cell detection uses the full
+  packed value, as defined by ADR-0044; an index of zero alone is insufficient.
 - `tile_key` is a caller-supplied, non-empty string stored in the documented,
   versioned `aigengame.spa` Tile properties namespace. It must be unique among the
   non-empty Tiles of one Tileset; it is not globally unique.

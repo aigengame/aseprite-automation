@@ -71,6 +71,25 @@ def test_unkeyed_observation_and_nonzero_region_origin_are_not_lossy() -> None:
     assert TileRegionSnapshot.model_validate(snapshot()).model_dump() == snapshot()
 
 
+def test_flagged_index_zero_is_an_observed_cell() -> None:
+    value = snapshot()
+    value["entries"][0]["placement"]["tile_index"] = 0
+    assert TileRegionSnapshot.model_validate(value).model_dump() == value
+
+
+@pytest.mark.parametrize("defect", ["unflagged", "keyed"])
+def test_index_zero_observation_preserves_empty_cell_and_key_rules(defect: str) -> None:
+    value = snapshot()
+    placement = value["entries"][0]["placement"]
+    placement["tile_index"] = 0
+    if defect == "unflagged":
+        placement["flip_y"] = False
+    else:
+        placement["tile_key"] = "not-an-empty-tile-key"
+    with pytest.raises(ValidationError):
+        TileRegionSnapshot.model_validate(value)
+
+
 @pytest.mark.parametrize(
     "target",
     [

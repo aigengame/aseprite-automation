@@ -192,7 +192,7 @@ local function region(image, tileset, area)
     for x = area.x, area.x + area.width - 1 do
       local packed = image:getPixel(x, y)
       local index, flags = pc.tileI(packed), pc.tileF(packed)
-      if index ~= 0 then
+      if packed ~= 0 then
         result.entries[#result.entries + 1] = {
           tile_x = x,
           tile_y = y,
@@ -264,10 +264,17 @@ local function cell_findings(sprite, layer, frame, findings)
   if cel == nil then return end
   for y = 0, cel.image.height - 1 do
     for x = 0, cel.image.width - 1 do
-      local index = app.pixelColor.tileI(cel.image:getPixel(x, y))
+      local packed = cel.image:getPixel(x, y)
+      local index = app.pixelColor.tileI(packed)
+      local code
       if index >= #layer.tileset then
+        code = "tile_index_out_of_bounds"
+      elseif index == 0 and packed ~= 0 then
+        code = "empty_tile_flags"
+      end
+      if code then
         findings[#findings + 1] = {
-          code = "tile_index_out_of_bounds",
+          code = code,
           tileset_index = tileset_index(sprite, layer.tileset),
           tile_index = index,
           layer_path = layers.current_path(sprite, layer),

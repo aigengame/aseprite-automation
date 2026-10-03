@@ -286,7 +286,9 @@ Tilemap Layers.
 An entry in a Tileset with an Image and native properties.
 
 **Empty Tile**
-The native Tile at internal index 0 that represents an empty Tilemap grid cell.
+The native Tile at internal index 0, which has no Tile Key. A Tilemap Cell is empty
+only when both its index and flags are zero; a flagged index-0 Cell remains observable
+under ADR-0044.
 
 **Tile Index**
 A Tile's current native position in a Tileset. It can change and is not persistent
