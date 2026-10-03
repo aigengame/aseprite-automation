@@ -1208,15 +1208,18 @@ Base Index changes display numbering (`tile_index + base_index - 1`), never iden
 
 Both Tile queries return `properties` for the default namespace (`""`),
 `aigengame.spa`, and the additional names in `property_namespaces`. Each namespace
-contains ordered `entries` with `name` and a typed `value`; an empty namespace has
-an empty entries list. Repeated namespace names are read once. Completeness covers
-the selected namespaces and the values observable through Aseprite's Lua API.
+contains a typed `value`: a table of ordered key/value `entries`, or an explicit
+`unavailable` observation. An empty namespace is a table with no entries. Repeated
+namespace names are read once. Completeness accounts for the selected namespaces;
+representation gaps remain explicit in their values.
 
 Values distinguish nil, boolean, string, integer, number, Point, Size, Rectangle,
 UUID, and table. Lua integers use decimal strings to retain precision. Tables use
 typed keys and entries, so numeric keys and string keys remain distinct. A value
 that the projection cannot represent is explicitly `unavailable` with a reason;
 non-finite numbers are reported this way instead of silently becoming JSON null.
+A non-UTF-8 string value is unavailable; an unrepresentable key makes its containing
+table or namespace unavailable. Other selected namespaces remain readable.
 Native file type tags, namespace enumeration, and metadata reconstruction are
 outside this inspection subset. It can expand when a later authoring need and
 native evidence establish the scope.

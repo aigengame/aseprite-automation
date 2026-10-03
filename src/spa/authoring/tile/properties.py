@@ -64,7 +64,7 @@ class PropertyUuid(PublicModel):
 
 class PropertyUnavailable(PublicModel):
     kind: Literal["unavailable"]
-    reason: Literal["non_finite_number", "unsupported_native_value"]
+    reason: Literal["non_finite_number", "non_utf8_string", "unsupported_native_value"]
 
 
 type PropertyTableKey = Annotated[
@@ -105,18 +105,6 @@ type PropertyValue = Annotated[
 ]
 
 
-class PropertyEntry(PublicModel):
-    name: str
-    value: PropertyValue
-
-
 class PropertyNamespace(PublicModel):
     namespace: str
-    entries: list[PropertyEntry]
-
-    @model_validator(mode="after")
-    def ordered_names(self) -> PropertyNamespace:
-        names = [entry.name for entry in self.entries]
-        if names != sorted(set(names)):
-            raise ValueError("Property names must be unique and ordered")
-        return self
+    value: Annotated[PropertyTable | PropertyUnavailable, Field(discriminator="kind")]

@@ -145,11 +145,18 @@ class TilemapValidateRequest(TilesetListRequest):
     target: CelAddress
 
 
+class TileSnapshotLimit(PublicModel):
+    unit: Literal["pixels", "tile_cells"]
+    maximum_inline: int = Field(gt=0)
+    requested: int = Field(gt=0)
+
+
 class TileInspectionDetails(PublicModel):
     kind: Literal["tile_inspection"] = "tile_inspection"
     target: TilesetTarget | CelAddress | None = None
     tile: TileAddress | None = None
     rectangle: PositiveRectangle | None = None
+    snapshot_limit: TileSnapshotLimit | None = None
 
 
 TILE_FAILURE_SPECS = tuple(
@@ -335,6 +342,11 @@ def _reject(invocation: KernelInvocationResult, request: TilesetListRequest) -> 
             tile=request.tile if isinstance(request, TileGetRequest) else None,
             rectangle=request.rectangle
             if isinstance(request, TilemapGetRequest)
+            else None,
+            snapshot_limit=TileSnapshotLimit.model_validate(
+                rejected.get("snapshot_limit")
+            )
+            if code == "tile_snapshot_destination_required"
             else None,
         ),
     )

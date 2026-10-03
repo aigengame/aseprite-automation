@@ -40,7 +40,9 @@ def test_properties_are_lua_observations_in_declared_namespaces(
     )
     assert code == 0, observed
     properties = {
-        item["namespace"]: {entry["name"]: entry["value"] for entry in item["entries"]}
+        item["namespace"]: {
+            entry["key"]["value"]: entry["value"] for entry in item["value"]["entries"]
+        }
         for item in observed["tile"]["properties"]
     }
     assert list(properties) == ["", "aigengame.spa", "example.tiles", "absent"]
@@ -100,8 +102,11 @@ def test_properties_are_lua_observations_in_declared_namespaces(
     assert all_tiles["tiles"][2]["properties"] == observed["tile"]["properties"]
     # Native Tile 0's Lua Properties getter exposes Tileset user data.
     assert all_tiles["tiles"][0]["tile_key"] is None
-    assert all_tiles["tiles"][0]["properties"][1]["entries"] == [
-        {"name": "tile_key", "value": {"kind": "string", "value": "tileset metadata"}}
+    assert all_tiles["tiles"][0]["properties"][1]["value"]["entries"] == [
+        {
+            "key": {"kind": "string", "value": "tile_key"},
+            "value": {"kind": "string", "value": "tileset metadata"},
+        }
     ]
     code, checked = run(
         "tileset", "validate", sprite_file=str(source), target={"tileset_index": 1}
@@ -272,6 +277,11 @@ def test_large_region_artifact_is_same_schema_and_has_no_truncated_cells(
     assert code != 0 and refused["code"] == "tile_snapshot_destination_required", (
         refused
     )
+    assert refused["details"]["snapshot_limit"] == {
+        "unit": "tile_cells",
+        "maximum_inline": 4096,
+        "requested": 4225,
+    }
     code, result = run(
         "tilemap",
         "get",
@@ -303,6 +313,66 @@ def test_large_region_artifact_is_same_schema_and_has_no_truncated_cells(
     )
     assert code == 0, exported
     assert json.loads(destination.read_bytes()) == inline["snapshot"]
+    assert source.read_bytes() == original
+
+
+def test_large_tile_image_failure_reports_its_inline_pixel_limit(
+    tmp_path: Path, runtime
+) -> None:
+    source = tmp_path / "large-tile.aseprite"
+    fixture(source, runtime, tile_width=65, tile_height=65)
+    original = source.read_bytes()
+    code, refused = run(
+        "tileset",
+        "tile",
+        "get",
+        sprite_file=str(source),
+        target={"tileset_index": 1},
+        tile={"tile_key": "green"},
+    )
+    assert code != 0 and refused["code"] == "tile_snapshot_destination_required", (
+        refused
+    )
+    assert refused["details"]["snapshot_limit"] == {
+        "unit": "pixels",
+        "maximum_inline": 4096,
+        "requested": 4225,
+    }
+    assert source.read_bytes() == original
+
+
+@pytest.mark.parametrize("position", ["value", "nested-key", "root-key"])
+def test_unrepresentable_lua_text_is_explicit_without_losing_other_namespaces(
+    tmp_path: Path, runtime, position: str
+) -> None:
+    source = tmp_path / "bytes.aseprite"
+    fixture(source, runtime, byte_property=position)
+    original = source.read_bytes()
+    request = {"sprite_file": str(source), "target": {"tileset_index": 1}}
+    code, result = run("tileset", "tile", "get", **request, tile={"tile_key": "green"})
+    assert code == 0, result
+    namespaces = {
+        item["namespace"]: item["value"] for item in result["tile"]["properties"]
+    }
+    value = namespaces[""]
+    if position != "root-key":
+        entry = next(
+            item for item in value["entries"] if item["key"]["value"] == "binary"
+        )
+        value = entry["value"]
+    assert value == {"kind": "unavailable", "reason": "non_utf8_string"}
+    assert namespaces["aigengame.spa"] == {
+        "kind": "table",
+        "entries": [
+            {
+                "key": {"kind": "string", "value": "tile_key"},
+                "value": {"kind": "string", "value": "green"},
+            }
+        ],
+    }
+    code, all_tiles = run("tileset", "get", **request)
+    assert code == 0, all_tiles
+    assert all_tiles["tiles"][2]["properties"] == result["tile"]["properties"]
     assert source.read_bytes() == original
 
 

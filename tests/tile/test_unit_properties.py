@@ -30,10 +30,11 @@ def test_observation_cannot_silently_change_value_or_duplicate_keys(
         TypeAdapter(PropertyValue).validate_python(value)
 
 
-def test_namespace_does_not_drop_duplicate_named_values() -> None:
-    entry = {"name": "same", "value": {"kind": "nil"}}
+def test_namespace_cannot_claim_a_scalar_is_a_property_collection() -> None:
     with pytest.raises(ValidationError):
-        PropertyNamespace.model_validate({"namespace": "", "entries": [entry, entry]})
+        PropertyNamespace.model_validate(
+            {"namespace": "", "value": {"kind": "boolean", "value": True}}
+        )
 
 
 def test_namespace_cannot_be_truncated_at_native_string_boundary() -> None:

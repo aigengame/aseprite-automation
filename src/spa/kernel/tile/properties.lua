@@ -4,11 +4,34 @@ local point_mt, size_mt = getmetatable(Point(0, 0)), getmetatable(Size(0, 0))
 local rectangle_mt = getmetatable(Rectangle(0, 0, 0, 0))
 local uuid_mt = getmetatable(Uuid("00000000-0000-0000-0000-000000000000"))
 
-local function observe(value)
+local observe
+
+local function observe_table(value)
+  local entries = {}
+  for key, child in pairs(value) do
+    local observed_key = observe(key)
+    if observed_key.kind == "unavailable" then return observed_key end
+    if observed_key.kind ~= "string" and observed_key.kind ~= "integer" then
+      return { kind = "unavailable", reason = "unsupported_native_value" }
+    end
+    entries[#entries + 1] = { key = observed_key, value = observe(child) }
+  end
+  table.sort(entries, function(a, b)
+    if a.key.kind ~= b.key.kind then return a.key.kind < b.key.kind end
+    if a.key.kind == "integer" then return tonumber(a.key.value) < tonumber(b.key.value) end
+    return a.key.value < b.key.value
+  end)
+  return { kind = "table", entries = entries }
+end
+
+observe = function(value)
   local kind = type(value)
   if kind == "nil" then
     return { kind = "nil" }
-  elseif kind == "boolean" or kind == "string" then
+  elseif kind == "string" then
+    if not utf8.len(value) then return { kind = "unavailable", reason = "non_utf8_string" } end
+    return { kind = "string", value = value }
+  elseif kind == "boolean" then
     return { kind = kind, value = value }
   elseif kind == "number" then
     if math.type(value) == "integer" then
@@ -35,21 +58,7 @@ local function observe(value)
       return { kind = "uuid", value = tostring(value) }
     end
   elseif kind == "table" then
-    local keys, entries = {}, {}
-    for key in pairs(value) do
-      if type(key) ~= "string" and math.type(key) ~= "integer" then
-        return { kind = "unavailable", reason = "unsupported_native_value" }
-      end
-      keys[#keys + 1] = key
-    end
-    table.sort(keys, function(a, b)
-      if type(a) ~= type(b) then return type(a) < type(b) end
-      return a < b
-    end)
-    for _, key in ipairs(keys) do
-      entries[#entries + 1] = { key = observe(key), value = observe(value[key]) }
-    end
-    return { kind = "table", entries = entries }
+    return observe_table(value)
   end
   return { kind = "unavailable", reason = "unsupported_native_value" }
 end
@@ -57,13 +66,8 @@ end
 function module.read(tile, namespaces)
   local result = {}
   for _, namespace in ipairs(namespaces) do
-    local properties = tile.properties(namespace)
-    local entries = {}
-    for name, value in pairs(properties) do
-      entries[#entries + 1] = { name = name, value = observe(value) }
-    end
-    table.sort(entries, function(a, b) return a.name < b.name end)
-    result[#result + 1] = { namespace = namespace, entries = entries }
+    result[#result + 1] =
+      { namespace = namespace, value = observe_table(tile.properties(namespace)) }
   end
   return result
 end

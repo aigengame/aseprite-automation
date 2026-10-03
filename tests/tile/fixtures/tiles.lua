@@ -1,7 +1,8 @@
 local modes = { rgb = ColorMode.RGB, grayscale = ColorMode.GRAY, indexed = ColorMode.INDEXED }
 local mode = modes[app.params.mode or "rgb"]
 local s = Sprite(16, 16, mode)
-s.gridBounds = Rectangle(0, 0, 2, 3)
+s.gridBounds =
+  Rectangle(0, 0, tonumber(app.params.tile_width or "2"), tonumber(app.params.tile_height or "3"))
 app.activeSprite = s
 app.command.NewLayer { tilemap = true, ui = false }
 local first = app.activeLayer
@@ -33,6 +34,13 @@ if app.params.properties == "true" then
   props("example.tiles").walkable = true
   props("not.requested").private = "not selected"
   ts.properties("aigengame.spa").tile_key = "tileset metadata"
+end
+if app.params.byte_property == "value" then
+  ts:tile(2).properties.binary = string.char(255, 254)
+elseif app.params.byte_property == "nested-key" then
+  ts:tile(2).properties.binary = { [string.char(255, 254)] = "retained value" }
+elseif app.params.byte_property == "root-key" then
+  ts:tile(2).properties[string.char(255, 254)] = "retained value"
 end
 local mw, mh = tonumber(app.params.map_width or "3"), tonumber(app.params.map_height or "2")
 local m = Image(mw, mh, ColorMode.TILEMAP)

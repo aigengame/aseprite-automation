@@ -8,6 +8,15 @@ local null = json.decode("null")
 
 local function reject(code, message) return { rejection = { code = code, message = message } } end
 
+local function snapshot_limit(unit, requested, maximum)
+  local result = reject(
+    "tile_snapshot_destination_required",
+    "Snapshot exceeds the inline limit; provide snapshot_destination"
+  )
+  result.rejection.snapshot_limit = { unit = unit, requested = requested, maximum_inline = maximum }
+  return result
+end
+
 local function integer(value, minimum, maximum)
   local n = tonumber(value)
   if n == nil or n % 1 ~= 0 or n < minimum or n > maximum then return nil end
@@ -331,10 +340,7 @@ function module.read(sprite, payload)
       tile.image.width * tile.image.height > payload.inline_pixels
       and not payload.staged_snapshot_file
     then
-      return reject(
-        "tile_snapshot_destination_required",
-        "Tile Image exceeds the inline pixel limit; provide snapshot_destination"
-      )
+      return snapshot_limit("pixels", tile.image.width * tile.image.height, payload.inline_pixels)
     end
     return snapshot_output(
       result,
@@ -388,10 +394,7 @@ function module.read(sprite, payload)
           return reject("tile_region_out_of_bounds", "Tile Cell Rectangle is outside the Cel Image")
         end
         if width * height > payload.inline_cells and not payload.staged_snapshot_file then
-          return reject(
-            "tile_snapshot_destination_required",
-            "Tile Region exceeds the inline cell limit; provide snapshot_destination"
-          )
+          return snapshot_limit("tile_cells", width * height, payload.inline_cells)
         end
         return snapshot_output(
           result,
