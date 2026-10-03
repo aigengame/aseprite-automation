@@ -173,6 +173,7 @@ def test_info_reports_installed_runtime() -> None:
         "spa image canvas-resize",
         "spa image flip",
         "spa image rotate",
+        "spa image import",
         "spa tag list",
         "spa tag get",
         "spa tag add",
