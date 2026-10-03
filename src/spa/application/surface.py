@@ -19,7 +19,8 @@ from spa.authoring.color.quantization import (
     QUANTIZATION_OPERATIONS,
 )
 from spa.authoring.document.animation import ANIMATION_OPERATIONS
-from spa.authoring.document.cel import CEL_OPERATIONS, CEL_SUPPORT_RESOURCE
+from spa.authoring.document.cel import CEL_OPERATIONS
+from spa.authoring.document.cel_contracts import CEL_SUPPORT_RESOURCE
 from spa.authoring.document.cel_relationship import CEL_RELATIONSHIP_OPERATIONS
 from spa.authoring.document.frame import FRAME_OPERATIONS, FRAME_SUPPORT_RESOURCE
 from spa.authoring.document.layer import LAYER_OPERATIONS, LAYER_SELECT_RESOURCE

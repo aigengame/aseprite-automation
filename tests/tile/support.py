@@ -20,7 +20,9 @@ def run(*command: str, **request: object) -> tuple[int, dict]:
     return result.returncode, json.loads(result.stdout)
 
 
-def fixture(source: Path, runtime, **params: object) -> None:
+def fixture(
+    source: Path, runtime, *, script: str = "tiles.lua", **params: object
+) -> None:
     with tempfile.TemporaryDirectory(prefix="spa-tile-fixture-") as work:
         prepared = prepare_invocation(
             Path(runtime.canonical_path), Path(runtime.resource_path), Path(work)
@@ -35,7 +37,7 @@ def fixture(source: Path, runtime, **params: object) -> None:
                     for part in ("--script-param", f"{key}={value}")
                 ],
                 "--script",
-                str(Path(__file__).parent / "fixtures" / "tiles.lua"),
+                str(Path(__file__).parent / "fixtures" / script),
             ],
             check=False,
             text=True,
@@ -43,3 +45,4 @@ def fixture(source: Path, runtime, **params: object) -> None:
             env=prepared.environment,
         )
     assert result.returncode == 0, process_diagnostics(result)
+    assert "Error" not in result.stdout + result.stderr, process_diagnostics(result)

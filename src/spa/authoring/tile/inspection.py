@@ -6,7 +6,7 @@ from typing import Any, Literal
 from pydantic import Field, field_validator, model_validator
 
 from spa.authoring.color.palette import EFFECTIVE_PALETTE_RESOURCE
-from spa.authoring.document.cel import CelAddress
+from spa.authoring.document.cel_contracts import CelAddress
 from spa.authoring.document.layer import (
     LAYER_FAILURE_CODE_SPECS,
     LayerAddress,

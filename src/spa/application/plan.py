@@ -35,14 +35,16 @@ from spa.authoring.color.profile import (
 )
 from spa.authoring.document.cel import (
     CEL_OPERATIONS,
-    CEL_SUPPORT_RESOURCE,
     CelAddInput,
+    validate_added_cel,
+)
+from spa.authoring.document.cel_contracts import (
+    CEL_SUPPORT_RESOURCE,
     CelFrameRangeDetails,
     CelState,
     CelTargetDetails,
-    validate_added_cel,
 )
-from spa.authoring.document.cel import (
+from spa.authoring.document.cel_contracts import (
     CelAddress as LifecycleCelAddress,
 )
 from spa.authoring.document.cel_relationship import (
@@ -94,6 +96,7 @@ from spa.authoring.document.sprite import (
     validate_created_sprite,
     validated_scope,
 )
+from spa.authoring.raster.image_snapshot import SNAPSHOT_RESOURCE
 from spa.authoring.raster.paint import (
     PAINT_OPERATIONS,
     PAINT_PROBE_FIXTURE,
@@ -103,6 +106,8 @@ from spa.authoring.raster.paint import (
     PaintApplyInput,
     validate_paint_evidence,
 )
+from spa.authoring.tile.cel_add import TILE_CEL_RESOURCE, TilemapCreationEvidence
+from spa.authoring.tile.inspection import TILE_INSPECTION_RESOURCE
 from spa.contracts.digest import DIGEST_RESOURCE
 from spa.contracts.mutation import (
     TargetCommit,
@@ -115,6 +120,7 @@ from spa.contracts.ports import (
     OperationIssue,
     OperationServices,
     PackagedHandler,
+    PackagedResource,
     PostconditionEvidence,
     RequestIssue,
     ResponseEvidence,
@@ -170,6 +176,10 @@ PLAN_RUN_HANDLER = PackagedHandler(
         DIGEST_RESOURCE,
         SPRITE_INSPECTION_FIXTURE,
         PAINT_PROBE_FIXTURE,
+        TILE_CEL_RESOURCE,
+        TILE_INSPECTION_RESOURCE,
+        PackagedResource("tile_properties", "tile/properties.lua"),
+        SNAPSHOT_RESOURCE,
     ),
 )
 
@@ -411,6 +421,7 @@ class CelAddStepResult(PublicModel):
     before: CelState
     before_cel_count: int = Field(ge=0)
     cel: CelState
+    tilemap_creation: TilemapCreationEvidence | None = None
 
 
 class CelSetStepResult(CelRelationshipChangeEvidence):
@@ -781,6 +792,7 @@ def _validated_steps(
                     after,
                     canvas.model_copy(update={"color_mode": mode}),
                     invocation,
+                    outcome.result.tilemap_creation,
                 )
                 if (
                     before.exists

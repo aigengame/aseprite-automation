@@ -30,8 +30,8 @@ from spa.authoring.color.palette_file import PaletteFileDetails
 from spa.authoring.color.profile import ProfileFileDetails, ProfileSourceDetails
 from spa.authoring.color.quantization import QuantizationDetails
 from spa.authoring.document.animation import AuditLimitDetails
-from spa.authoring.document.cel import CelAddress as LifecycleCelAddress
-from spa.authoring.document.cel import CelFrameRangeDetails, CelTargetDetails
+from spa.authoring.document.cel_contracts import CelAddress as LifecycleCelAddress
+from spa.authoring.document.cel_contracts import CelFrameRangeDetails, CelTargetDetails
 from spa.authoring.document.layer import LayerAddress, LayerTargetDetails
 from spa.authoring.document.slice import SliceAddress, SliceTargetDetails
 from spa.authoring.document.sprite import (

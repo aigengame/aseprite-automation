@@ -6,10 +6,15 @@ from typing import Literal
 from pydantic import Field, ValidationError, field_validator, model_validator
 
 from spa.authoring.color.palette import EFFECTIVE_PALETTE_RESOURCE
+from spa.authoring.document.cel_contracts import (
+    CEL_SUPPORT_RESOURCE,
+    CelAddress,
+    CelState,
+    raise_cel_rejection,
+)
 from spa.authoring.document.layer import (
     LAYER_ADDRESS_FAILURE_CODES,
     LayerAddress,
-    LayerTargetDetails,
 )
 from spa.authoring.document.sprite import (
     INSPECTION_SECTIONS,
@@ -20,6 +25,13 @@ from spa.authoring.document.sprite import (
     SpriteMetadata,
     validated_scope,
 )
+from spa.authoring.raster.image_snapshot import SNAPSHOT_RESOURCE
+from spa.authoring.tile.cel_add import (
+    TILE_CEL_RESOURCE,
+    TilemapCreationEvidence,
+    TilemapSize,
+)
+from spa.authoring.tile.inspection import TILE_INSPECTION_RESOURCE
 from spa.contracts.digest import DIGEST_RESOURCE
 from spa.contracts.mutation import (
     TargetCommit,
@@ -30,7 +42,6 @@ from spa.contracts.mutation import (
 from spa.contracts.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.contracts.ports import (
     KernelInvocationResult,
-    OperationIssue,
     OperationServices,
     PackagedHandler,
     PackagedResource,
@@ -41,114 +52,11 @@ from spa.contracts.ports import (
     TargetCommitEvidence,
 )
 from spa.contracts.public import (
-    FailureCodeSpec,
     PublicModel,
     RuntimeRequest,
     RuntimeRequirements,
 )
-from spa.contracts.raster import ColorValue, Point, Rectangle
-
-
-class CelAddress(PublicModel):
-    layer: LayerAddress
-    frame_number: int = Field(ge=1, strict=True)
-
-
-class CelLink(PublicModel):
-    layer_path: list[int] = Field(min_length=1)
-    frame_number: int = Field(ge=1, strict=True)
-
-
-class CelState(PublicModel):
-    layer_path: list[int] = Field(min_length=1)
-    frame_number: int = Field(ge=1, strict=True)
-    exists: bool
-    content: Literal["absent", "transparent", "nonempty"]
-    is_background: bool
-    is_tilemap: bool
-    position: Point | None
-    image_bounds: Rectangle | None
-    opacity: int | None = Field(ge=0, le=255)
-    z_index: int | None
-    linked_cels: list[CelLink]
-
-    @model_validator(mode="after")
-    def validate_existence(self) -> "CelState":
-        facts = (self.position, self.opacity, self.z_index)
-        if (
-            self.exists != (self.content != "absent")
-            or (
-                self.exists
-                and (
-                    any(value is None for value in facts)
-                    or (self.image_bounds is None) != self.is_tilemap
-                )
-            )
-            or (
-                not self.exists
-                and (
-                    any(value is not None for value in facts)
-                    or self.image_bounds is not None
-                    or self.linked_cels
-                )
-            )
-        ):
-            raise ValueError("Cel existence contradicts Image or placement facts")
-        return self
-
-
-class CelTargetDetails(PublicModel):
-    kind: Literal["cel_target"] = "cel_target"
-    target: CelAddress
-    step_number: int | None = Field(default=None, ge=1)
-
-
-class CelFrameRangeDetails(PublicModel):
-    kind: Literal["cel_frame_range"] = "cel_frame_range"
-    from_frame: int = Field(ge=1)
-    to_frame: int = Field(ge=1)
-    step_number: int | None = Field(default=None, ge=1)
-
-
-CEL_FAILURE_CODE_SPECS = (
-    FailureCodeSpec(
-        "cel_already_exists",
-        "The addressed Cel already exists",
-        "input",
-        CelTargetDetails,
-    ),
-    FailureCodeSpec(
-        "cel_not_found",
-        "The addressed Cel or Image does not exist",
-        "input",
-        CelTargetDetails,
-    ),
-    FailureCodeSpec(
-        "cel_unsupported_target",
-        "The Layer kind does not support the Cel operation",
-        "input",
-        CelTargetDetails,
-    ),
-    FailureCodeSpec(
-        "cel_background_color_required",
-        "Background clear requires an explicit Background Color",
-        "input",
-        CelTargetDetails,
-    ),
-    FailureCodeSpec(
-        "cel_background_color_incompatible",
-        "Background Color is incompatible with this Sprite",
-        "input",
-        CelTargetDetails,
-    ),
-    FailureCodeSpec(
-        "cel_frame_out_of_bounds",
-        "The Frame target is outside the Sprite timeline",
-        "input",
-        CelFrameRangeDetails,
-    ),
-)
-CEL_FAILURE_CODES = tuple(spec.code for spec in CEL_FAILURE_CODE_SPECS)
+from spa.contracts.raster import RASTER_COLOR_RESOURCE, ColorValue, Point, Rectangle
 
 
 class CelListRequest(RuntimeRequest):
@@ -198,6 +106,13 @@ class CelImageSize(PublicModel):
 
 class CelAddInput(CelTargetInput):
     image_size: CelImageSize | None = None
+    tilemap_size: TilemapSize | None = None
+
+    @model_validator(mode="after")
+    def one_geometry(self) -> "CelAddInput":
+        if self.image_size is not None and self.tilemap_size is not None:
+            raise ValueError("image_size and tilemap_size are mutually exclusive")
+        return self
 
 
 class CelMutationRequest(RuntimeRequest, CelTargetInput):
@@ -236,6 +151,7 @@ def validate_added_cel(
     cel: CelState,
     canvas: SpriteMetadata,
     invocation: KernelInvocationResult,
+    tilemap_creation: TilemapCreationEvidence | None = None,
 ) -> None:
     """Check initial Image facts, before later Plan Steps can change the Cel."""
     size = request.image_size
@@ -245,12 +161,21 @@ def validate_added_cel(
         width=size.width if size is not None else canvas.width,
         height=size.height if size is not None else canvas.height,
     )
+    geometry_matches = (
+        cel.is_tilemap
+        and cel.image_bounds is None
+        and tilemap_creation is not None
+        and tilemap_creation.matches(request.tilemap_size, cel)
+        if request.tilemap_size is not None
+        else not cel.is_tilemap
+        and tilemap_creation is None
+        and cel.image_bounds == expected
+    )
     if (
         not cel.exists
         or cel.content != "transparent"
         or cel.is_background
-        or cel.is_tilemap
-        or cel.image_bounds != expected
+        or not geometry_matches
         or cel.position != Point(x=0, y=0)
         or cel.opacity != 255
         or cel.z_index != 0
@@ -275,7 +200,11 @@ class CelMutationEvidence(PublicModel):
     persisted_reopen_verified: Literal[True]
 
 
-class CelAddResult(CelMutationEvidence):
+class CelAddEvidence(CelMutationEvidence):
+    tilemap_creation: TilemapCreationEvidence | None = None
+
+
+class CelAddResult(CelAddEvidence):
     status: Literal["success"] = "success"
     operation: Literal["spa cel add"] = "spa cel add"
     target_commit: TargetCommit
@@ -299,7 +228,6 @@ CEL_READ_REQUIREMENTS = RuntimeRequirements(
     minimum_api_version=41,
     required_capabilities=["aseprite_cel_lifecycle"],
 )
-CEL_SUPPORT_RESOURCE = PackagedResource("cel", "document/cel/cel_support.lua")
 CEL_SELECT_RESOURCE = PackagedResource(
     "layer_select", "document/layer/layer_select.lua"
 )
@@ -323,51 +251,13 @@ CEL_MUTATE_HANDLER = PackagedHandler(
         PackagedResource("frame", "document/frame/frame_support.lua"),
         EFFECTIVE_PALETTE_RESOURCE,
         DIGEST_RESOURCE,
+        TILE_CEL_RESOURCE,
+        TILE_INSPECTION_RESOURCE,
+        PackagedResource("tile_properties", "tile/properties.lua"),
+        SNAPSHOT_RESOURCE,
+        RASTER_COLOR_RESOURCE,
     ),
 )
-
-
-def raise_cel_rejection(
-    invocation: KernelInvocationResult,
-    layer: LayerAddress,
-    target: CelAddress | None,
-    frame_range: tuple[int, int],
-    address_role: Literal["target", "source", "destination"] = "target",
-) -> None:
-    """Translate native Cel/Layer rejection facts for Document and raster callers.
-
-    The caller supplies the addressed Layer, Cel, Frame Range, and address role.
-    Unrecognized or malformed rejections remain Kernel response failures.
-    """
-    rejected = invocation.payload.get("rejection")
-    if rejected is None:
-        return
-    if isinstance(rejected, dict) and isinstance(rejected.get("message"), str):
-        code = rejected.get("code")
-        if code in LAYER_ADDRESS_FAILURE_CODES:
-            raise OperationIssue(
-                code,
-                rejected["message"],
-                LayerTargetDetails(address_role=address_role, address=layer),
-            )
-        if code == "cel_frame_out_of_bounds":
-            raise OperationIssue(
-                code,
-                rejected["message"],
-                CelFrameRangeDetails(
-                    from_frame=frame_range[0], to_frame=frame_range[1]
-                ),
-            )
-        if code in CEL_FAILURE_CODES and target is not None:
-            raise OperationIssue(
-                code, rejected["message"], CelTargetDetails(target=target)
-            )
-    raise RuntimeIssue(
-        "response_malformed",
-        "Packaged handler returned an invalid rejection",
-        ResponseEvidence(response_path=invocation.response_path),
-        invocation.diagnostics,
-    )
 
 
 def list_cels(request: CelListRequest, services: OperationServices) -> CelListResult:
@@ -469,6 +359,8 @@ def _mutate(
     }
     if isinstance(request, CelAddRequest) and request.image_size is not None:
         payload["image_size"] = request.image_size.model_dump(mode="json")
+    if isinstance(request, CelAddRequest) and request.tilemap_size is not None:
+        payload["tilemap_size"] = request.tilemap_size.model_dump(mode="json")
     if isinstance(request, CelClearRequest) and request.background_color is not None:
         payload["background_color"] = request.background_color.model_dump(mode="json")
     try:
@@ -482,7 +374,10 @@ def _mutate(
         try:
             mutation_payload = dict(invocation.payload)
             raw_affected = mutation_payload.pop("affected_cels", None)
-            evidence = CelMutationEvidence.model_validate(mutation_payload)
+            evidence_type = (
+                CelAddEvidence if operation == "add" else CelMutationEvidence
+            )
+            evidence = evidence_type.model_validate(mutation_payload)
             if operation == "clear" and not isinstance(raw_affected, list):
                 raise TypeError("Cel clear did not report affected Cels")
             affected_cels = (
@@ -522,6 +417,15 @@ def _mutate(
         observed_affected = [
             (tuple(cel.layer_path), cel.frame_number) for cel in affected_cels
         ]
+        expected_bounds = evidence.cel.image_bounds
+        if (
+            isinstance(evidence, CelAddEvidence)
+            and evidence.tilemap_creation is not None
+        ):
+            coverage = evidence.tilemap_creation.tilemap.canvas_coverage
+            expected_bounds = (
+                Rectangle.model_validate(coverage.model_dump()) if coverage else None
+            )
         if (
             evidence.cel.frame_number != number
             or evidence.before.frame_number != number
@@ -534,7 +438,7 @@ def _mutate(
             or evidence.before.exists != (operation != "add")
             or evidence.cel.exists != (operation != "remove")
             or len(matching) != (0 if operation == "remove" else 1)
-            or (matching and matching[0].bounds != evidence.cel.image_bounds)
+            or (matching and matching[0].bounds != expected_bounds)
             or (
                 operation == "clear"
                 and not evidence.cel.is_background
@@ -576,8 +480,13 @@ def _mutate(
                 invocation.diagnostics,
             )
         if isinstance(request, CelAddRequest):
+            assert isinstance(evidence, CelAddEvidence)
             validate_added_cel(
-                request, evidence.cel, evidence.sprite.metadata, invocation
+                request,
+                evidence.cel,
+                evidence.sprite.metadata,
+                invocation,
+                evidence.tilemap_creation,
             )
         identity_issue = source_target_identity_issue(
             services.target_files, source, target_file, request.in_place
