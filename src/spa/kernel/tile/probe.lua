@@ -1,10 +1,11 @@
--- Observe the native reads required by Tile inspection, without publishing an Operation.
+-- Observe Tile inspection and explicit empty Cel creation independently.
 local module = {}
 
 function module.observes()
   local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
   local sprite, path
-  local ok = pcall(function()
+  local inspected, created = false, false
+  pcall(function()
     local candidate =
       app.fs.joinPath(app.fs.tempPath, "spa-tile-probe-" .. tostring(Uuid()) .. ".aseprite")
     assert(not app.fs.isFile(candidate), "Tile probe path already exists")
@@ -26,6 +27,12 @@ function module.observes()
     image:clear(0)
     image:putPixel(1, 0, packed)
     sprite:newCel(layer, 1, image, Point(-2, 3))
+    local blank_created = pcall(function()
+      sprite:newEmptyFrame(2)
+      local blank = Image(2, 3, ColorMode.TILEMAP)
+      blank:clear(0)
+      sprite:newCel(layer, 2, blank, Point(0, 0))
+    end)
     assert(sprite:saveAs(path))
     sprite:close()
     sprite = nil
@@ -55,6 +62,18 @@ function module.observes()
     assert(app.pixelColor.tileI(packed) == 1 and app.pixelColor.tileF(packed) == flags)
     assert(cel.bounds.x == -2 and cel.bounds.y == 3)
     assert(cel.bounds.width == 4 and cel.bounds.height == 3)
+    inspected = true
+    if blank_created then
+      local blank = assert(layer:cel(2))
+      assert(blank.image.colorMode == ColorMode.TILEMAP)
+      assert(blank.image.width == 2 and blank.image.height == 3)
+      assert(blank.position == Point(0, 0) and blank.opacity == 255 and blank.zIndex == 0)
+      assert(blank.image ~= cel.image)
+      for value in blank.image:pixels() do
+        assert(value() == 0)
+      end
+      created = true
+    end
   end)
   if sprite ~= nil then pcall(function() sprite:close() end) end
   if path ~= nil then pcall(function() os.remove(path) end) end
@@ -63,7 +82,7 @@ function module.observes()
     pcall(function() app.activeLayer = previous.layer end)
     pcall(function() app.activeFrame = previous.frame end)
   end
-  return ok
+  return inspected, created
 end
 
 return module

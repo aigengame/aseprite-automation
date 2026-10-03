@@ -5,6 +5,7 @@ local creation = dofile(app.params.creation)
 local paint = dofile(app.params.paint)
 local frame = dofile(app.params.frame)
 local cel = dofile(app.params.cel)
+local tile_creation = dofile(app.params.tile_cel_add)
 local relationship = dofile(app.params.cel_relationship)
 local motion = dofile(app.params.motion)
 local layer_select = dofile(app.params.layer_select)
@@ -140,7 +141,7 @@ local function execute_step(step)
     return evidence
   end
   if step.operation == "cel add" then
-    return cel.add_live(open_sprite, input, layer_select, verified_uuids)
+    return cel.add_live(open_sprite, input, layer_select, verified_uuids, tile_creation.add)
   end
   if step.operation == "cel set" then
     local result = relationship.apply_live(

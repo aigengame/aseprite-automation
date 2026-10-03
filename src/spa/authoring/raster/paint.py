@@ -12,8 +12,8 @@ from pydantic import (
 )
 
 from spa.authoring.color.palette import EFFECTIVE_PALETTE_RESOURCE
-from spa.authoring.document.cel import CelAddress as LifecycleCelAddress
-from spa.authoring.document.cel import CelTargetDetails
+from spa.authoring.document.cel_contracts import CelAddress as LifecycleCelAddress
+from spa.authoring.document.cel_contracts import CelTargetDetails
 from spa.authoring.document.layer import LAYER_SELECT_RESOURCE, LayerAddress
 from spa.contracts.digest import DIGEST_RESOURCE
 from spa.contracts.mutation import (

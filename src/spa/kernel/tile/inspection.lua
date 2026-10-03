@@ -191,6 +191,10 @@ local function cel_facts(sprite, layer, frame, uuids)
   return result
 end
 
+module.cel_facts = cel_facts
+module.tileset_facts = facts
+module.tileset_index = tileset_index
+
 local function region(image, tileset, area)
   local result = {
     coordinate_space = "tile-cell",

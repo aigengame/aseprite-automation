@@ -96,6 +96,7 @@ RuntimeCapability = Literal[
     "aseprite_export_image",
     "aseprite_selection",
     "aseprite_tile_inspection",
+    "aseprite_tile_cel_creation",
 ]
 
 

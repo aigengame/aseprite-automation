@@ -11,7 +11,7 @@ from pydantic import (
     model_validator,
 )
 
-from spa.authoring.document.cel import (
+from spa.authoring.document.cel_contracts import (
     CEL_SUPPORT_RESOURCE,
     CelAddress,
 )

@@ -10,7 +10,7 @@ from pydantic import Field, model_validator
 from spa.application.mutation import prepare_mutation
 from spa.authoring.color.palette import EFFECTIVE_PALETTE_RESOURCE
 from spa.authoring.color.profile import PROFILE_ICC_RESOURCES, PROFILE_RESOURCES
-from spa.authoring.document.cel import (
+from spa.authoring.document.cel_contracts import (
     CEL_SUPPORT_RESOURCE,
     CelMutationRequest,
     CelState,

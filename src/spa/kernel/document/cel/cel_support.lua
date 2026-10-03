@@ -115,11 +115,22 @@ function module.list(sprite, layer, path, from_frame, to_frame)
   return { cels = cels, selected_path = path }
 end
 
-function module.prevalidate(sprite, layer, frame_number, operation, background_color, frame)
+function module.prevalidate(
+  sprite,
+  layer,
+  frame_number,
+  operation,
+  background_color,
+  frame,
+  tile_add
+)
   local cel = layer.isImage and layer:cel(frame_number) or nil
   if operation == "add" then
-    if not is_regular_transparent(layer) then
-      return rejection("cel_unsupported_target", "Cel add requires a regular Transparent Layer")
+    if not is_regular_transparent(layer) and not (tile_add and layer.isTilemap) then
+      return rejection(
+        "cel_unsupported_target",
+        "Cel add requires a regular Transparent Layer or explicit Tilemap dimensions"
+      )
     end
     if cel ~= nil then return rejection("cel_already_exists", "Cel already exists") end
   elseif operation == "remove" then
@@ -207,19 +218,49 @@ function module.apply(sprite, layer, frame_number, operation, background_color, 
   end)
 end
 
-function module.add_live(sprite, input, selection, verified_uuids)
+function module.add_live(sprite, input, selection, verified_uuids, tile_add)
   local layer, path, rejected = module.resolve(sprite, input.target, selection, verified_uuids)
   if rejected then return rejected end
   local number = input.target.frame_number
-  rejected = module.prevalidate(sprite, layer, number, "add", nil, nil)
+  rejected = module.prevalidate(
+    sprite,
+    layer,
+    number,
+    "add",
+    nil,
+    nil,
+    tile_add and input.tilemap_size ~= nil
+  )
   if rejected then return rejected end
+  if not layer.isTilemap and input.tilemap_size ~= nil then
+    return rejection("cel_unsupported_target", "tilemap_size requires a Tilemap Layer")
+  end
   local before = module.inspect(sprite, layer, path, number)
   local before_count = #sprite.cels
-  module.apply(sprite, layer, number, "add", nil, nil, input.image_size)
+  local tilemap_creation
+  if layer.isTilemap then
+    tilemap_creation = tile_add(sprite, layer, number, input, verified_uuids)
+    if tilemap_creation.rejection then return tilemap_creation end
+  else
+    module.apply(sprite, layer, number, "add", nil, nil, input.image_size)
+  end
   local after = module.inspect(sprite, layer, path, number)
   assert(after.exists and after.content == "transparent", "added Cel is not transparent")
+  assert(
+    after.position.x == 0
+      and after.position.y == 0
+      and after.opacity == 255
+      and after.z_index == 0
+      and #after.linked_cels == 0,
+    "added Cel initial properties or independence differ"
+  )
   assert(#sprite.cels == before_count + 1, "Cel add changed unexpected Cel count")
-  return { before = before, before_cel_count = before_count, cel = after }
+  return {
+    before = before,
+    before_cel_count = before_count,
+    cel = after,
+    tilemap_creation = tilemap_creation,
+  }
 end
 
 return module

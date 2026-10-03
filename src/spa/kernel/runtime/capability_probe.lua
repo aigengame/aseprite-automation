@@ -1586,8 +1586,10 @@ function module.observe()
     capabilities[#capabilities + 1] = "aseprite_sprite_create"
   end
   if supports_inspection then capabilities[#capabilities + 1] = "aseprite_sprite_inspection" end
-  if app.params.tile_probe and dofile(app.params.tile_probe).observes() then
-    capabilities[#capabilities + 1] = "aseprite_tile_inspection"
+  if app.params.tile_probe then
+    local inspected, created = dofile(app.params.tile_probe).observes()
+    if inspected then capabilities[#capabilities + 1] = "aseprite_tile_inspection" end
+    if created then capabilities[#capabilities + 1] = "aseprite_tile_cel_creation" end
   end
   if observes_sprite_flatten() then capabilities[#capabilities + 1] = "aseprite_sprite_flatten" end
   if observes_sprite_resize() then capabilities[#capabilities + 1] = "aseprite_sprite_resize" end

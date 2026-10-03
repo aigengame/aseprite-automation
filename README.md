@@ -642,7 +642,33 @@ without resizing it. Creation uses the Sprite's Color Mode, Color Profile, and
 Transparent Color Index, with position `(0, 0)`, opacity 255, and z-index 0.
 The same option is available in a `cel add` Plan Step, including before a Paint
 Step; returned dimensions remain in `cel.image_bounds`.
-`cel clear` and `cel remove` do not accept `image_size`.
+
+For an existing Tilemap Layer and an absent Cel at an existing Frame, `cel add`
+instead requires `tilemap_size: {"width": 2, "height": 3}` in **Tile Cells**.
+Each side is an integer from 1 through 65535, with at most 1,048,576 Cells in total;
+Canvas coverage must fit native signed 32-bit Rectangle coordinates. Do not combine
+`tilemap_size` with raster `image_size`. The bound Tileset supplies the Grid; this
+operation creates neither a Layer nor a Frame. The independent native Tilemap Image
+starts with packed Empty Tile 0 in every Cell, without transform flags, even when
+the Sprite's Transparent Color Index is nonzero. Position `(0, 0)`, opacity 255,
+and z-index 0 match ordinary creation. The Tilemap may extend beyond the Canvas.
+
+`tilemap_creation` reports #41 Tilemap/Tileset facts (Cell size, binding, Grid,
+and Canvas coverage) and verified empty Cells; shared `cel.image_bounds` remains
+`null`. Use `tilemap get` to observe the persisted Cells. Standalone and Plan use
+the same construction path. Each add Step verifies its initial state; later valid
+Steps may change it, and final save/reopen verifies the resulting document before
+one Target Commit. A failed Step publishes nothing. The selected runtime must
+verify `aseprite_tile_cel_creation`; discovery reports a conditional Capability Gap
+when unavailable. Ordinary Cel creation retains its existing capability contract.
+
+```sh
+spa cel add --input-json '{"source_sprite_file":"map.aseprite","target_sprite_file":"with-cel.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[2]},"frame_number":3},"tilemap_size":{"width":2,"height":3}}'
+```
+
+The ordinary-only boundaries in #13 and #106 describe those earlier slices;
+#165 adds explicit Tilemap creation. `cel clear` and `cel remove` retain their
+existing target policies and accept neither `image_size` nor `tilemap_size`.
 `cel clear` preserves the Cel and its Image bounds; on a
 Background Layer it requires an explicit compatible `background_color` and fills
 the Cel with that color. Clearing a shared Image preserves native links and reports

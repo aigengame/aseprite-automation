@@ -7,7 +7,7 @@ from typing import Annotated, Literal, Self, cast
 from pydantic import Field, ValidationError, field_validator, model_validator
 
 from spa.authoring.color.palette import EFFECTIVE_PALETTE_RESOURCE
-from spa.authoring.document.cel import (
+from spa.authoring.document.cel_contracts import (
     CelAddress,
     CelState,
     CelTargetDetails,
