@@ -322,6 +322,14 @@ inspection and authoring; `spa.authoring.document.cel` owns Cel existence, inspe
 while `spa.authoring.document.cel_relationship` owns Cel placement, opacity, z-index, and native
 copy/link/unlink mutations; `spa.authoring.document.animation` owns declared animation audit,
 full-Canvas Frame comparison, and the composed continuity Preview use case.
+`spa.authoring.document.slice` owns complete Slice snapshots, exact current
+index/unique-name addressing, and whole-Slice authoring. Its Lua `slice_inspect`
+module owns native sprite-sheet metadata decoding and is shared by aggregate
+Sprite inspection and Slice operations. `slice_support` owns Key coverage,
+static-geometry admission, native mutation, and save/reopen preservation checks.
+Python owns typed requests/results and staged Target Commit orchestration. Slice
+mutation results return the complete reopened address snapshot because native
+serialization can reorder Slices; they expose no persistent Slice identity.
 Cel Add accepts optional initial Image dimensions. Its `cel_support.lua` owner
 creates transparent native Images from the Sprite specification for both standalone
 mutations and Plan Steps. Add validates its initial state at the Step; the final
@@ -338,7 +346,10 @@ supply their own address roles and Frame Ranges. Each handler binding explicitly
 includes the Lua resources these dependencies require, including standalone,
 capability-probe, and Plan paths.
 The shared `sprite_persistence.lua` Module owns native snapshots and their
-persisted-fact comparison. Standalone Cel set/copy/link/unlink and Motion use its
+persisted-fact comparison. It compares Slice collections as complete fact
+multisets, including in nested snapshots, while preserving Slice Key order.
+Slice mutation reuses this comparison for live postconditions and save/reopen.
+Standalone Cel set/copy/link/unlink and Motion use its
 `save_verified` Interface to capture live facts, save, close, reopen, observe saved
 Layer UUIDs, and compare the captured native document snapshot. The Interface
 consumes the live Sprite and returns a reopened Sprite, fresh UUID facts, and

@@ -12,7 +12,6 @@ from pydantic import (
 )
 
 from spa.authoring.document.cel import (
-    CEL_SELECT_RESOURCE,
     CEL_SUPPORT_RESOURCE,
     CelAddress,
 )
@@ -21,7 +20,7 @@ from spa.authoring.document.layer import (
     LayerAddress,
     LayerTargetDetails,
 )
-from spa.authoring.document.sprite import SPRITE_INSPECTION_RESOURCE
+from spa.authoring.document.sprite import SPRITE_INSPECTION_RESOURCES
 from spa.contracts.mutation import validate_native_sprite_path
 from spa.contracts.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.contracts.ports import (
@@ -281,8 +280,7 @@ ANIMATION_HANDLER = PackagedHandler(
     (
         ANIMATION_SUPPORT,
         CEL_SUPPORT_RESOURCE,
-        CEL_SELECT_RESOURCE,
-        SPRITE_INSPECTION_RESOURCE,
+        *SPRITE_INSPECTION_RESOURCES,
         *EXPORT_PROBE_RESOURCES,
     ),
 )

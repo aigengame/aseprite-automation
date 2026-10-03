@@ -9,6 +9,7 @@ from spa.authoring.document.animation import ANIMATION_FAILURE_CODE_SPECS
 from spa.authoring.document.cel import CEL_FAILURE_CODE_SPECS
 from spa.authoring.document.layer import LAYER_FAILURE_CODE_SPECS
 from spa.authoring.document.motion import MOTION_FAILURE_CODE_SPECS
+from spa.authoring.document.slice import SLICE_FAILURE_SPECS
 from spa.authoring.document.sprite import SPRITE_FAILURE_CODE_SPECS
 from spa.authoring.document.tag import TAG_FAILURE_CODE_SPECS
 from spa.authoring.raster.filter import FILTER_FAILURE_SPECS
@@ -53,5 +54,6 @@ FAILURE_CODES = register_failure_codes(
         *LAYER_FAILURE_CODE_SPECS,
         *SPRITE_FAILURE_CODE_SPECS,
         *TAG_FAILURE_CODE_SPECS,
+        *SLICE_FAILURE_SPECS,
     )
 )

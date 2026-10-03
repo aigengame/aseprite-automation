@@ -15,12 +15,11 @@ from spa.authoring.document.cel import (
 )
 from spa.authoring.document.layer import (
     LAYER_ADDRESS_FAILURE_CODES,
-    LAYER_SELECT_RESOURCE,
     LayerAddress,
 )
 from spa.authoring.document.sprite import (
     INSPECTION_SECTIONS,
-    SPRITE_INSPECTION_RESOURCE,
+    SPRITE_INSPECTION_RESOURCES,
     SPRITE_PERSISTENCE_RESOURCE,
     SpriteGetRequest,
     SpriteInspection,
@@ -297,8 +296,7 @@ COMPOSITION_RESOURCE = PackagedResource(
     "layer_composition", "raster/image/layer_composition.lua"
 )
 SNAPSHOT_SUPPORT_RESOURCES = (
-    SPRITE_INSPECTION_RESOURCE,
-    LAYER_SELECT_RESOURCE,
+    *SPRITE_INSPECTION_RESOURCES,
     CEL_SUPPORT_RESOURCE,
     SNAPSHOT_RESOURCE,
     RASTER_COLOR_RESOURCE,

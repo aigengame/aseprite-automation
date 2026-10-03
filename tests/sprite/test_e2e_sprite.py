@@ -352,6 +352,7 @@ def test_get_reports_populated_native_structures_completely(tmp_path: Path) -> N
         {
             "name": "panel",
             "data": "panel-data",
+            "color": {"red": 0, "green": 0, "blue": 0, "alpha": 0},
             "keys": [
                 {
                     "frame_number": 1,

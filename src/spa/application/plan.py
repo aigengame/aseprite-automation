@@ -35,7 +35,6 @@ from spa.authoring.color.profile import (
 )
 from spa.authoring.document.cel import (
     CEL_OPERATIONS,
-    CEL_SELECT_RESOURCE,
     CEL_SUPPORT_RESOURCE,
     CelAddInput,
     CelFrameRangeDetails,
@@ -80,7 +79,7 @@ from spa.authoring.document.sprite import (
     INSPECTION_SECTIONS,
     SPRITE_CREATION_RESOURCE,
     SPRITE_INSPECTION_FIXTURE,
-    SPRITE_INSPECTION_RESOURCE,
+    SPRITE_INSPECTION_RESOURCES,
     SPRITE_OPERATIONS,
     SPRITE_PERSISTENCE_RESOURCE,
     FrameFacts,
@@ -151,7 +150,7 @@ PLAN_RUN_HANDLER = PackagedHandler(
     "plan_run",
     "plan/plan_run.lua",
     (
-        SPRITE_INSPECTION_RESOURCE,
+        *SPRITE_INSPECTION_RESOURCES,
         SPRITE_PERSISTENCE_RESOURCE,
         PROFILE_RESOURCE,
         PROFILE_FILE_RESOURCE,
@@ -165,7 +164,6 @@ PLAN_RUN_HANDLER = PackagedHandler(
         SELECTION_MASK_RESOURCE,
         FRAME_SUPPORT_RESOURCE,
         CEL_SUPPORT_RESOURCE,
-        CEL_SELECT_RESOURCE,
         CEL_RELATIONSHIP_RESOURCE,
         MOTION_RESOURCE,
         ROUNDING_RESOURCE,
