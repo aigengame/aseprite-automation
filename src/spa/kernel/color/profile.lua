@@ -54,8 +54,7 @@ local function profile_facts(profile)
   return { kind = kind, name = profile.name }
 end
 
-function module.restore_file_profile(sprite, path)
-  local declared, icc_bytes = profile_file.declared_profile(path)
+function module.restore_declared_profile(sprite, declared, icc_bytes)
   -- Headless app.open uses FileOpConfig defaults even after changing preferences.
   -- Restore only an encoded None, through native assignment; never transform stored colors.
   if declared == "none" then sprite:assignColorSpace(ColorSpace()) end
@@ -67,10 +66,16 @@ function module.restore_file_profile(sprite, path)
     assert(sprite.colorSpace == load_icc(icc_bytes), "Loaded ICC differs from encoded bytes")
   end
   return {
+    kind = declared,
     profile = sprite.colorSpace,
     icc_identity = icc_identity(icc_bytes),
     icc_color_space = icc_bytes and icc_bytes:sub(17, 20),
   }
+end
+
+function module.restore_file_profile(sprite, path)
+  local declared, icc_bytes = profile_file.declared_profile(path)
+  return module.restore_declared_profile(sprite, declared, icc_bytes)
 end
 
 function module.snapshot(sprite, uuids)

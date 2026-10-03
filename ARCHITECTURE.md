@@ -382,6 +382,18 @@ whole-Image flip and exact pixel/pivot permutation. The Cel-targeted handlers ow
 eligibility, complete Linked Cel scope, coherent placement, unchanged document
 facts, and staged save/reopen verification. Python validates intent and Kernel
 evidence and coordinates the existing Source/Target commit boundary.
+`spa.authoring.raster.image_import` owns compatible external PNG insertion into an
+explicitly empty Cel slot. The PNG input adapter independently observes encoded
+format, Profile metadata, stored indexes, and complete RGBA; it uses Pillow for
+pixel decoding. The use case freezes those input bytes and checks the existing
+Color Profile identities. Its fixed native handler loads a private copy, reuses
+Cel eligibility, the Effective Palette resolver, and Color Profile assignment,
+then inserts through `Sprite:newCel`. It checks complete pixels before insertion
+and after save/reopen, and compares unrelated document facts through the existing
+Profile persistence observations. Python checks the returned evidence against the
+decoded input before the shared Target Commit. Preparation policy and conversion
+remain with their existing owners; this path introduces no importer registry or
+Plan Step. See [the bounded import evidence](docs/evidence/issue-46-raster-import.md).
 `spa.authoring.raster.image_snapshot` owns individual
 and native composite Image reads plus complete Image replacement. Its Lua helpers
 own canonical native pixel reads and Layer Composition over the original tree;
@@ -510,7 +522,7 @@ src/spa/
       sprite.py, layer.py, frame.py, cel.py, cel_relationship.py
       tag.py, animation.py, motion.py
     raster/
-      image.py, image_snapshot.py, selection.py
+      image.py, image_snapshot.py, image_import.py, selection.py
       paint.py, paint_composite.py, paint_native.py
     color/
       palette.py          # Palette reads, Entry edits, sizing, reorder, and remap contracts
@@ -527,7 +539,8 @@ src/spa/
     png_publication.py    # staged PNG verification/publication for Export and Preview
   adapters/
     aseprite/             # process, resource discovery, and transport
-    files.py, png.py       # filesystem mechanics and independent PNG decoding
+    files.py, png.py       # filesystem mechanics and export PNG verification
+    png_input.py           # independent encoded PNG input facts and pixels
     icc.py                # ICC byte validation and digest, without color transforms
     palette_file.py       # independent GPL/Indexed PNG observations, not a color engine
   kernel/                 # fixed native semantic handlers and shared owners
@@ -630,8 +643,9 @@ Python reads and freezes input ICC bytes through the file adapter and
 validates them through the ICC adapter;
 it does not transform colors. The profile-specific persistence check verifies native
 profile equality, encoded kind, all stored colors, and the complete Palette timeline.
-The bounded encoded-profile reader is shared with Export, whose format policy remains
-separate. This preserves encoded None despite Aseprite's batch load default and adds
+The bounded encoded-profile reader is shared with Export. Import supplies its own
+independently decoded PNG declaration to the same native assignment helper; each
+consumer retains its format policy. This preserves encoded None despite Aseprite's batch load default and adds
 no general profile or preference service. See the [native evidence](docs/evidence/issue-34-color-profile.md).
 
 Reuse the canonical

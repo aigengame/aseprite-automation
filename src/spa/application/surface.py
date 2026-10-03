@@ -55,6 +55,7 @@ from spa.authoring.raster.image import (
     IMAGE_ORIENTATION_TRANSFORM_RESOURCE,
     IMAGE_RESIZE_TRANSFORM_RESOURCE,
 )
+from spa.authoring.raster.image_import import IMAGE_IMPORT_OPERATIONS
 from spa.authoring.raster.image_snapshot import COMPOSITION_RESOURCE, SNAPSHOT_RESOURCE
 from spa.authoring.raster.invert_outline import (
     INVERT_COLOR_RESOURCE,
@@ -337,6 +338,7 @@ OPERATIONS = (
     *CEL_RELATIONSHIP_OPERATIONS,
     *MOTION_OPERATIONS,
     *IMAGE_OPERATIONS,
+    *IMAGE_IMPORT_OPERATIONS,
     *TAG_OPERATIONS,
     *SLICE_OPERATIONS,
     *PALETTE_OPERATIONS,
