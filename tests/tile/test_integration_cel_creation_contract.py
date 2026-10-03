@@ -9,6 +9,13 @@ from jsonschema import Draft202012Validator
 from tests.support import spa
 
 
+def test_installed_help_explains_the_two_creation_variants() -> None:
+    result = spa("cel", "add", "--help")
+    assert result.returncode == 0, result.stdout + result.stderr
+    for term in ("image_size", "tilemap_size", "Tile Cells", "mutually exclusive"):
+        assert term in result.stdout
+
+
 def test_installed_cel_and_plan_share_tile_geometry_schema() -> None:
     schemas = []
     for command in [("cel", "add"), ("plan", "run")]:
