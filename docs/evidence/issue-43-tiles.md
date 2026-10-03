@@ -53,6 +53,13 @@ separate native oracle to inspect saved results. A Layer UUID first assigned dur
 save is reported from the reopened Sprite. The ordinary persistence verifier retains
 authority for document facts; Tile lifecycle adds content/order and Placement checks.
 
+Tile record postconditions inspect the selected Tileset. Public native lifecycle
+operations act on that exact Tileset; SPA does not hash every unrelated Tile Image
+on each invocation. The shared document verifier checks document structure, all Cel
+Images, and links. Independent native oracle assertions verify unrelated Tileset
+pixels, Keys, data, and opaque Properties, including the orphan reorder path. These
+tests do not claim runtime hashing of unrelated Tile content on every Operation.
+
 Run the same selection on local macOS and Linux:
 
 ```sh

@@ -17,6 +17,20 @@ for index, old in ipairs(expected) do
   assert(tile.properties("example").binary == string.char(255, 254, old))
   assert(tile.image:getPixel(0, 0) == app.pixelColor.rgba(10 + old, 30, 40, 255))
 end
+local orphan = sprite.tilesets[2]
+local orphan_order = json.decode(app.params.orphan_order or "[1,2]")
+assert(orphan.name == "orphan" and #orphan == #orphan_order + 1)
+for index, old in ipairs(orphan_order) do
+  old = math.tointeger(old)
+  local tile = orphan:tile(index)
+  assert(tile.properties("aigengame.spa").tile_key == ({ "x", "y" })[old])
+  assert(tile.data == "orphan-data-" .. old)
+  assert(tile.properties.note == "orphan-default-" .. old)
+  assert(tile.properties("example").binary == string.char(255, 254, old))
+  for pixel in tile.image:pixels() do
+    assert(pixel() == app.pixelColor.rgba(90 + old, 60, 30, 255))
+  end
+end
 local layer, peer
 for _, current in ipairs(sprite.layers) do
   if current.name == "map" then layer = current end

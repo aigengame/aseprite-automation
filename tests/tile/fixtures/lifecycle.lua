@@ -47,6 +47,13 @@ local orphan = sprite:newTileset(Grid { x = 0, y = 0, width = 2, height = 3 }, 1
 orphan.name = "orphan"
 for index, key in ipairs({ "x", "y" }) do
   local tile = sprite:newTile(orphan)
+  tile.image:clear(
+    mode == ColorMode.RGB and app.pixelColor.rgba(90 + index, 60, 30, 255)
+      or mode == ColorMode.GRAY and app.pixelColor.graya(90 + index, 255)
+      or index
+  )
+  tile.data = "orphan-data-" .. index
+  tile.properties.note = "orphan-default-" .. index
   tile.properties("aigengame.spa").tile_key = key
   tile.properties("example").binary = string.char(255, 254, index)
 end

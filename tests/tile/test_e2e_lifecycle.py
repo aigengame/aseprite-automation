@@ -359,6 +359,14 @@ def test_orphan_reorder_leaves_no_temporary_native_objects(
     assert code == 0, result
     assert result["affected_layers"] == result["affected_cels"] == []
     assert [tile["tile_key"] for tile in result["tiles"]] == [None, "y", "x"]
+    fixture(
+        target,
+        runtime,
+        script="verify_lifecycle.lua",
+        order=json.dumps([1, 2, 3, 4]),
+        orphan_order=json.dumps([2, 1]),
+        cells=json.dumps([index | 0xE0000000 for index in [1, 2, 3, 4, 0]]),
+    )
     code, after = run(
         "sprite",
         "get",

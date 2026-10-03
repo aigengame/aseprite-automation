@@ -65,14 +65,10 @@ local function record(tile)
   }
 end
 
-local function all_records(sprite)
+local function records(tileset)
   local result = {}
-  for index, tileset in ipairs(sprite.tilesets) do
-    local records = {}
-    for tile_index = 0, #tileset - 1 do
-      records[#records + 1] = record(tileset:tile(tile_index))
-    end
-    result[index] = records
+  for tile_index = 0, #tileset - 1 do
+    result[#result + 1] = record(tileset:tile(tile_index))
   end
   return result
 end
@@ -344,7 +340,7 @@ function module.prepare(sprite, payload, uuids)
     if failed then return nil, failed end
   end
   context.before = persistence.snapshot(sprite, inspection, digest, sections, uuids)
-  context.before_records = all_records(sprite)
+  context.before_records = records(tileset)
   context.expected_images = {}
   for cel_index, cel in ipairs(sprite.cels) do
     if context.image_contents and context.image_contents[cel.image.id] then
@@ -425,36 +421,37 @@ function module.verify_live(sprite, payload, context, uuids)
     persistence.snapshot(sprite, inspection, digest, sections, uuids),
     "Tile lifecycle invariant"
   )
-  local records = all_records(sprite)
+  local observed = records(context.tileset)
   local expected_records = copy(context.before_records)
-  local selected = expected_records[context.tileset_index]
   if payload.operation == "add" then
-    local added = records[context.tileset_index][context.new_index + 1]
+    local added = observed[context.new_index + 1]
     assert(added.image.content == digest.fnv1a64(context.image.bytes), "Added Tile Image differs")
     assert(
       tile_key(context.tileset:tile(context.new_index)) == payload.tile_key,
       "Added Tile Key differs"
     )
-    selected[#selected + 1] = copy(added)
+    expected_records[#expected_records + 1] = copy(added)
   elseif payload.operation == "assign-key" then
-    selected[context.new_index + 1].key = { kind = "string", value = payload.tile_key }
-    selected[context.new_index + 1].key_bytes = digest.fnv1a64(payload.tile_key)
+    expected_records[context.new_index + 1].key = { kind = "string", value = payload.tile_key }
+    expected_records[context.new_index + 1].key_bytes = digest.fnv1a64(payload.tile_key)
   elseif payload.operation == "remove" or payload.operation == "reorder" then
     local moved = {}
-    for old = 0, #selected - 1 do
-      if old ~= context.removed_index then moved[context.mapping[old] + 1] = selected[old + 1] end
+    for old = 0, #expected_records - 1 do
+      if old ~= context.removed_index then
+        moved[context.mapping[old] + 1] = expected_records[old + 1]
+      end
     end
-    expected_records[context.tileset_index] = moved
+    expected_records = moved
   end
-  persistence.assert_equal(expected_records, records, "Tile content and identity invariant")
-  context.live_records = records
+  persistence.assert_equal(expected_records, observed, "Tile content and identity invariant")
+  context.live_records = observed
   context.live_tiles = identities(context.tileset)
 end
 
 function module.verify_saved(sprite, context)
   persistence.assert_equal(
     context.live_records,
-    all_records(sprite),
+    records(sprite.tilesets[context.tileset_index]),
     "persisted Tile content and identity"
   )
   persistence.assert_equal(
