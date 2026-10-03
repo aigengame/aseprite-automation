@@ -269,3 +269,6 @@ contracts.
 
 Rasterized text remains candidate product territory. The catalog does not propose a
 `text` group until feature work establishes an Aseprite-aligned operation boundary.
+Issue #47 delivers an evidence-backed Capability Gap without a callable Descriptor;
+see the [bounded native investigation](evidence/issue-47-native-text.md). A later
+accepted contract and verified native path can extend that delivery.

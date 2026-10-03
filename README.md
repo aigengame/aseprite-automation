@@ -54,6 +54,12 @@ appears in the installed Surface Manifest.
 | Agent access | Publish version-locked Agent Skill guidance and project the installed operation surface through the Model Context Protocol (MCP). |
 | Asset workflow integration | Participate in external asset workflows through the public `spa` CLI JSON contract. |
 
+Native text rasterization currently has an evidence-backed Capability Gap in
+`spa info` and `spa schema`, with no callable text command. The
+[bounded investigation](docs/evidence/issue-47-native-text.md) records the tested
+macOS baseline, blank native output, and evidence limits. Text authoring remains
+candidate product territory under [issue #47](https://github.com/aigengame/aseprite-automation/issues/47).
+
 Command Groups are navigation, not module architecture. Domain Modules own cohesive vertical slices and can project several groups when native behavior shares a lifecycle. `image` represents Aseprite Image observation and structural transformation; `paint` represents authoring intent. Native batch Filters remain distinct from native Tools. The [command catalog](docs/command-catalog.md) lists candidate territory; feature issues own delivery contracts.
 
 ## Public Contract
