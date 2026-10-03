@@ -83,6 +83,7 @@ from spa.authoring.raster.selection import (
     SELECTION_SUPPORT_RESOURCE,
 )
 from spa.authoring.tile.inspection import TILE_OPERATIONS, TILE_PROBE_RESOURCE
+from spa.authoring.tile.layer_creation import TILE_LAYER_PROBE_RESOURCE
 from spa.contracts.operation import (
     ACCESS_FAILURE_CODES,
     RUNTIME_FAILURE_CODES,
@@ -107,6 +108,7 @@ from spa.delivery.palette import (
 )
 
 PROBE_RESOURCES = (
+    TILE_LAYER_PROBE_RESOURCE,
     TILE_PROBE_RESOURCE,
     CONVOLUTION_PROBE_RESOURCE,
     DESPECKLE_RESOURCE,
@@ -231,6 +233,17 @@ def _surface(runtime: RuntimeFacts) -> tuple[list[str], list[CapabilityGap]]:
     if "spa filter despeckle" in supported:
         gaps.extend(despeckle_capability_gaps(runtime.aseprite_version))
     gaps.extend(slice_capability_gaps(runtime.aseprite_version))
+    if (
+        "spa layer add" in supported
+        and "aseprite_tilemap_layer_creation" not in runtime.verified_capabilities
+    ):
+        gaps.append(
+            CapabilityGap(
+                capability="spa layer add: tilemap",
+                aseprite_version=runtime.aseprite_version,
+                evidence="The selected runtime did not verify native Tilemap Layer creation, shared Tileset binding, temporary Tileset removal, and save/reopen persistence.",
+            )
+        )
     return supported, gaps
 
 

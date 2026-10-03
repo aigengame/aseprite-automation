@@ -6,11 +6,6 @@ from typing import Literal
 from pydantic import Field, ValidationError, field_validator, model_validator
 
 from spa.authoring.color.palette import EFFECTIVE_PALETTE_RESOURCE
-from spa.authoring.document.layer import (
-    LAYER_ADDRESS_FAILURE_CODES,
-    LayerAddress,
-    LayerTargetDetails,
-)
 from spa.authoring.document.sprite import (
     INSPECTION_SECTIONS,
     SPRITE_INSPECTION_RESOURCES,
@@ -19,6 +14,12 @@ from spa.authoring.document.sprite import (
     SpriteInspection,
     SpriteMetadata,
     validated_scope,
+)
+from spa.authoring.document.targets import (
+    LAYER_ADDRESS_FAILURE_CODES,
+    CelAddress,
+    LayerAddress,
+    LayerTargetDetails,
 )
 from spa.contracts.digest import DIGEST_RESOURCE
 from spa.contracts.mutation import (
@@ -47,11 +48,6 @@ from spa.contracts.public import (
     RuntimeRequirements,
 )
 from spa.contracts.raster import ColorValue, Point, Rectangle
-
-
-class CelAddress(PublicModel):
-    layer: LayerAddress
-    frame_number: int = Field(ge=1, strict=True)
 
 
 class CelLink(PublicModel):

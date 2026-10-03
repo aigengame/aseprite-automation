@@ -204,9 +204,22 @@ positions. Names use exact case-sensitive matching and must be unique across the
 Sprite. UUIDs are returned only when verified across independent opens of the saved
 Sprite; a Layer with no verified saved UUID reports `null`. SPA preserves the
 Sprite's existing `useLayerUuids` value.
-`spa layer add` creates a regular Transparent or Group Layer at the root, or as
-the last child of the Group selected by `parent`. Its result reports the Layer's
-address after save and reopen. These Layer commands are not Plan Steps.
+`spa layer add` creates a regular Transparent, Group, or Tilemap Layer at the root,
+or as the last child of the Group selected by `parent`. Its result reports the
+Layer's address after save and reopen. For `kind: "tilemap"`, provide exactly one
+Tileset intent:
+
+- `"tileset":{"create":{"name":"terrain","grid":{"origin":{"x":0,"y":0},"tile_size":{"width":16,"height":16}},"base_index":1}}`
+- `"tileset":{"share":{"tileset_index":1}}`, or select a unique exact
+  `tileset_name` instead of an index.
+
+Tilemap creation requires Grid origin `(0,0)` and Base Index `-32768..32767`;
+the request schema rejects other values before starting Aseprite. These are current
+native persistence bounds and can change with accepted requirements and native
+evidence. Sharing removes only the temporary Tileset made by that invocation.
+Existing Layers and Tilesets, including unbound Tilesets, remain. The `tilemap`
+result reports the persisted binding, Grid, Tileset counts, and zero initial Cels;
+Cel creation is a separate operation. These Layer commands are not Plan Steps.
 `spa layer set` changes name, visibility, and editability on a regular Transparent
 Image or Group Layer; opacity and blend mode require a regular Transparent Image.
 `spa layer move` changes only the sibling stack position under the current parent.

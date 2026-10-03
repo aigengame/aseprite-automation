@@ -582,12 +582,19 @@ real LFS fixture content. This inventory verifies the distribution and is not an
 Operation registry.
 
 Add a module only with a complete functional slice. Preparation has no placeholder
-implementation. Tile Authoring now owns `authoring/tile` and `kernel/tile`: Python
-publishes typed inspection contracts and verifies complete Snapshot transport before
-Artifact publication; Lua resolves native Tilesets, Tile Keys, Layer bindings, and
-Tile Cell placements. It depends on Document's exact Layer addressing and Raster's
-Pixel Region Snapshot encoding for Tile bitmaps. It does not assign Keys, mutate
-Cels, or own Source persistence. Shared JSON Snapshot destination mechanics live in
+implementation. Tile Authoring owns `authoring/tile` and `kernel/tile`: Python
+publishes typed inspection and explicit Tileset creation/sharing contracts, and
+checks evidence before Artifact or Target publication. Lua resolves native Tilesets,
+Tile Keys, Layer bindings, and Tile Cell placements. The `layer add` Descriptor
+remains in Document; its Tilemap variant delegates the cross-Layer/Tileset lifecycle
+to Tile Authoring, including exact removal of its own temporary implicit Tileset.
+Shared `document/targets.py` and `tile/targets.py` hold addresses and target failures;
+reads and mutations consume these contracts without importing each other's use cases.
+The native `tile/tilesets.lua` owns exact Tileset resolution and binding facts for
+both paths. Tile Authoring reuses shared Sprite save/reopen verification, adds Tile
+Image preservation checks, and leaves Target Commit to the existing file adapter.
+It depends on Raster's Pixel Region Snapshot encoding for Tile bitmaps. It does not
+assign Keys or create Tilemap Cels. Shared JSON Snapshot destination mechanics live in
 `contracts/snapshot.py`; Tile Region values stay in their feature owner. Color and Palette owns the shared Effective
 Palette resolver and standalone Palette list/get/set/resize/remap/reorder. Its native module resolves
 Frame-based change points, edits only exact existing changes, and checks the full

@@ -55,7 +55,7 @@ better Aseprite-aligned evidence.
 | --- | --- |
 | `spa layer list` | List the native Layer hierarchy and current address facts. |
 | `spa layer get` | Inspect one exactly addressed Layer. |
-| `spa layer add` | Add a regular Transparent or Group Layer; Tilemap creation belongs to its own slice. |
+| `spa layer add` | Add a regular Transparent, Group, or Tilemap Layer; Tilemap uses explicit Tileset create/share intent (#42). |
 | `spa layer remove` | Remove one exactly addressed Layer and its subtree; reject Tilemap content in this slice. |
 | `spa layer set` | Set name, visibility, or editability on a regular Transparent Image or Group; set opacity or blend mode only on a regular Transparent Image. |
 | `spa layer move` | Reorder one regular Transparent Image or Group among its current parent's children. |

@@ -286,7 +286,7 @@ class SliceFacts(PublicModel):
 class TilesetFacts(PublicModel):
     name: str
     tile_count: int = Field(ge=0)
-    base_index: int = Field(ge=0)
+    base_index: int
     grid_origin: Point
     tile_size: Size
 
