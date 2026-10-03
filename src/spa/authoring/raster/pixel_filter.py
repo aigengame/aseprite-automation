@@ -134,8 +134,7 @@ class PixelFilterEvidence(
         return (
             channels_match
             and self.color_mode == request.color_mode
-            and self.cels_target_kind == request.cels_target.kind
-            and self.selection is not None
+            and self.matches_target_selection(request.cels_target, request.selection)
             and (self.palette_basis.frame_number if self.palette_basis else None)
             == request.palette_frame_number
         )

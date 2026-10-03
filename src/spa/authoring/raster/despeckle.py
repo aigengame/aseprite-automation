@@ -14,7 +14,6 @@ from spa.authoring.raster.filter import (
     IndexChannels,
     publish_filter,
 )
-from spa.authoring.raster.selection_evidence import matches_clipped_selection
 from spa.contracts.mutation import TargetCommit
 from spa.contracts.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.contracts.ports import OperationServices, PackagedHandler, PackagedResource
@@ -89,14 +88,6 @@ class DespeckleEvidence(
 
     @model_validator(mode="after")
     def consistent_despeckle(self) -> "DespeckleEvidence":
-        intersections = {
-            (tuple(cel.layer_path), cel.frame_number): cel.image_number
-            for cel in self.requested_intersections
-        }
-        existing = {
-            (tuple(cel.layer_path), cel.frame_number): cel.image_number
-            for cel in self.existing_target_cels
-        }
         if (
             self.application != "pixels"
             or self.palette_indexes
@@ -106,43 +97,11 @@ class DespeckleEvidence(
             or self.anchor.y != self.height // 2
             or self.processed_image_numbers
             != [image.image_number for image in self.images]
-            or len(intersections) != len(self.requested_intersections)
-            or len(existing) != len(self.existing_target_cels)
-            or existing
-            != {
-                address: image
-                for address, image in intersections.items()
-                if image is not None
-            }
         ):
             raise ValueError(
                 "Despeckle observations disagree with its native pixel path"
             )
         return self
-
-    def _matches_targets(self, target: FilterCelsTarget) -> bool:
-        if self.cels_target_kind != target.kind:
-            return False
-        if target.kind == "all":
-            return True
-        intersections = [
-            (tuple(cel.layer_path), cel.frame_number)
-            for cel in self.requested_intersections
-        ]
-        paths = {path for path, _ in intersections}
-        # Names and UUIDs resolve in the Kernel. Paths and Frames are direct facts.
-        return (
-            not self.excluded_layers
-            and len(paths) == len(target.layers)
-            and len(intersections) == len(paths) * len(target.frame_numbers)
-            and set(intersections)
-            == {(path, frame) for path in paths for frame in target.frame_numbers}
-            and all(
-                tuple(layer.layer_path) in paths
-                for layer in target.layers
-                if layer.layer_path is not None
-            )
-        )
 
     def matches(self, request: DespeckleRequest) -> bool:
         pixels = request.pixels
@@ -156,8 +115,7 @@ class DespeckleEvidence(
         return (
             channels_match
             and self.color_mode == pixels.color_mode
-            and self._matches_targets(pixels.cels_target)
-            and matches_clipped_selection(pixels.selection, self.selection)
+            and self.matches_target_selection(pixels.cels_target, pixels.selection)
             and (self.palette_basis.frame_number if self.palette_basis else None)
             == getattr(pixels, "palette_frame_number", None)
             and (self.width, self.height, self.tiled_mode)
