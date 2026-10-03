@@ -19,11 +19,13 @@ Linux results belong to the exact PR CI run and are not inferred from macOS.
 | Native transparent user-data Color canonicalizes to RGBA(0,0,0,0). | Results contain reopened native text/color facts. Metadata-only edits preserve all Keys; custom Slice properties remain native-owned and are checked by a retained native fixture. |
 | No public non-interactive API for arbitrary Key add/set/remove passed acceptance. | No arbitrary Key mutation descriptors are registered. The runtime capability probe verifies only whole-Slice add, static set, center clear, and remove after save/close/reopen. Future extension requires new evidence, not a permanent prohibition. |
 
-The packaged Slice owner checks the requested live mutation, all unrelated
-document facts and Image content, and persisted Slice facts before Target Commit.
-Slice persistence comparison uses complete fact multiplicities, not names or
-assumed collection order. File publication reuses the shared staging and
-Source/Target identity lifecycle.
+The packaged Slice owner checks the requested live mutation, unrelated shared
+snapshot facts, Cel Image content, and persisted Slice facts before Target Commit.
+The shared persistence equivalence excludes RGB/Grayscale Palette facts. Tileset
+snapshots contain structural facts, not Tile bitmap bytes. Shared persistence
+compares Slice collections by complete fact multiplicities, including ordered
+Keys, without assuming collection order. File publication reuses the shared
+staging and Source/Target identity lifecycle.
 
 ## Exporter failures remain failures
 
@@ -54,6 +56,9 @@ checks must not report this loss as successful preservation.
 - `tests/slice/test_e2e_vendor.py`: real exporter, fault injection, stale data,
   keyless observation, and malformed native LF output.
 - `tests/runtime/test_e2e_aseprite.py`: installed capability and gap discovery.
+- `tests/sprite/test_e2e_sprite_persistence.py`: shared Slice collection equality,
+  ordered Keys, duplicate multiplicities, and native Tag mutation across Slice
+  reordering.
 - `src/app/script/slice_class.cpp`, `sprite_class.cpp`, `userdata.h`: public native
   Slice properties, creation/deletion, and metadata.
 - `src/doc/slices.cpp`, `src/app/cmd/set_slice_key.cpp`: collection and Key changes.
