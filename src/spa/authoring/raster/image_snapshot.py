@@ -58,17 +58,9 @@ from spa.contracts.raster import (
     PositiveRectangle,
     Size,
 )
+from spa.contracts.snapshot import SnapshotDestination
 
 INLINE_SNAPSHOT_PIXELS = 4096
-
-
-class SnapshotDestination(PublicModel):
-    path: str = Field(
-        min_length=6,
-        pattern=r"^[^\x00\r\n]+\.json$",
-        json_schema_extra={"not": {"pattern": r"[\r\n]"}},
-    )
-    if_exists: Literal["fail", "replace"]
 
 
 class SnapshotArtifact(PublicModel):

@@ -64,6 +64,7 @@ def test_info_reports_installed_runtime() -> None:
         "aseprite_palette_reorder",
         "aseprite_sprite_create",
         "aseprite_sprite_inspection",
+        "aseprite_tile_inspection",
         "aseprite_sprite_flatten",
         "aseprite_sprite_resize",
         "aseprite_image_canvas_transform",
@@ -200,6 +201,13 @@ def test_info_reports_installed_runtime() -> None:
         "spa animation preview",
         "spa plan check",
         "spa plan run",
+        "spa tileset list",
+        "spa tileset get",
+        "spa tileset tile get",
+        "spa tileset validate",
+        "spa tilemap list",
+        "spa tilemap get",
+        "spa tilemap validate",
     ]
     expected_runtime_gaps = []
     if not conversion_available:

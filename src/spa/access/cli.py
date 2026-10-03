@@ -159,21 +159,16 @@ def build_app(
     failure_codes: Mapping[str, FailureCodeSpec],
 ) -> typer.Typer:
     app = typer.Typer(name="spa", no_args_is_help=False, add_completion=False)
-    groups: dict[str, typer.Typer] = {}
+    groups: dict[tuple[str, ...], typer.Typer] = {(): app}
     for operation in OPERATIONS:
-        path = operation.name.split()
-        if len(path) == 1:
-            app.command(name=path[0])(_command(operation, dependencies, failure_codes))
-            continue
-        if len(path) != 2:
-            raise ValueError(f"Unsupported CLI command depth: {operation.name}")
-        group_name, command_name = path
-        group = groups.get(group_name)
-        if group is None:
-            group = typer.Typer(no_args_is_help=False, add_completion=False)
-            groups[group_name] = group
-            app.add_typer(group, name=group_name)
-        group.command(name=command_name)(
+        path = tuple(operation.name.split())
+        for depth in range(1, len(path)):
+            prefix = path[:depth]
+            if prefix not in groups:
+                group = typer.Typer(no_args_is_help=False, add_completion=False)
+                groups[prefix[:-1]].add_typer(group, name=prefix[-1])
+                groups[prefix] = group
+        groups[path[:-1]].command(name=path[-1])(
             _command(operation, dependencies, failure_codes)
         )
     return app

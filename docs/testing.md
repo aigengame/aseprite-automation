@@ -23,9 +23,10 @@ verification tier. The layout does not mirror source packages or CLI Command Gro
 | `tests/plan/` | Static Plan preflight, single-Sprite Step composition, and commit gates. |
 | `tests/release/` | Release metadata and publication gates. |
 | `tests/runtime/` | Aseprite Runtime Integration, including discovery, launch, private Kernel transport, and real-runtime evidence. |
+| `tests/slice/` | Complete Slice Keys and coverage, exact addressing, bounded native authoring, exporter validation, and save/reopen evidence. |
 | `tests/sprite/` | Sprite Domain Module contracts plus real creation, copy, flatten, bounded validation, persisted reopen, structural inspection, and Target Commit evidence. |
 | `tests/tag/` | Tag stored facts, exact current addressing, native mutation, and save/reopen evidence. |
-| `tests/slice/` | Complete Slice Keys and coverage, exact addressing, bounded native authoring, exporter validation, and save/reopen evidence. |
+| `tests/tile/` | Tileset/Tile identity, exact Tilemap topology, complete Tile Region transport, and native read-only validation. |
 
 Add an ownership directory only when tests for that behavior exist. Keep a helper in
 the narrowest ownership directory that uses it. Move a helper to `tests/support.py`

@@ -82,6 +82,7 @@ from spa.authoring.raster.selection import (
     SELECTION_OPERATIONS,
     SELECTION_SUPPORT_RESOURCE,
 )
+from spa.authoring.tile.inspection import TILE_OPERATIONS, TILE_PROBE_RESOURCE
 from spa.contracts.operation import (
     ACCESS_FAILURE_CODES,
     RUNTIME_FAILURE_CODES,
@@ -106,6 +107,7 @@ from spa.delivery.palette import (
 )
 
 PROBE_RESOURCES = (
+    TILE_PROBE_RESOURCE,
     CONVOLUTION_PROBE_RESOURCE,
     DESPECKLE_RESOURCE,
     *FILTER_RESOURCES,
@@ -346,4 +348,5 @@ OPERATIONS = (
     *PALETTE_EXPORT_OPERATIONS,
     *ANIMATION_OPERATIONS,
     *PLAN_OPERATIONS,
+    *TILE_OPERATIONS,
 )

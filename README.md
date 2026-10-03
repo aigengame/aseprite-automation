@@ -1193,3 +1193,79 @@ that are absent from issue bodies.
 - [Incremental command catalog](docs/command-catalog.md)
 - [Aseprite CLI documentation](https://www.aseprite.org/docs/cli/)
 - [Aseprite scripting documentation](https://www.aseprite.org/docs/scripting/)
+
+
+## Tileset and Tilemap inspection
+
+`spa tileset list` reports every current Tileset, its one-based `tileset_index`,
+Grid, display-only `base_index`, Tile count, and all referencing Tilemap Layers.
+`spa tileset get` accepts exactly one `target.tileset_index`, exact unique
+`target.tileset_name`, or `target.layer` using the existing Layer address. It
+reports every current Tile index, including Empty Tile 0 and unkeyed Tiles.
+`spa tileset tile get` additionally selects one `tile.tile_index` or unique
+`tile.tile_key` and returns its complete Image as the existing Pixel Region Snapshot.
+Tileset name and Tile Key addresses reject embedded NUL as `invalid_request` before
+native execution.
+Base Index changes display numbering (`tile_index + base_index - 1`), never identity.
+
+Both Tile queries return `properties` for the default namespace (`""`),
+`aigengame.spa`, and the additional names in `property_namespaces`. Each namespace
+contains a typed `value`: a table of ordered key/value `entries`, or an explicit
+`unavailable` observation. An empty namespace is a table with no entries. Repeated
+namespace names are read once. Completeness accounts for the selected namespaces;
+representation gaps remain explicit in their values.
+
+Values distinguish nil, boolean, string, integer, number, Point, Size, Rectangle,
+UUID, and table. Lua integers use decimal strings to retain precision. Tables use
+typed keys and entries, so numeric keys and string keys remain distinct. A value
+that the projection cannot represent is explicitly `unavailable` with a reason;
+non-finite numbers are reported this way instead of silently becoming JSON null.
+A non-UTF-8 string value is unavailable; an unrepresentable key makes its containing
+table or namespace unavailable. Other selected namespaces remain readable.
+A Tile Key that cannot be represented as text is reported as `tile_key: null`;
+its property observation explains the gap, and validation reports `tile_key_invalid`.
+Native file type tags, namespace enumeration, and metadata reconstruction are
+outside this inspection subset. It can expand when a later authoring need and
+native evidence establish the scope.
+
+The observation follows native getter behavior. On the verified Aseprite baseline,
+Tile 0's Properties getter exposes Tileset properties. Those values remain visible
+as returned by the API; Tile 0 still has no SPA Tile Key.
+
+`spa tilemap list` reports all Tilemap bindings, the complete Frame count, and every
+existing Tilemap Cel without expanding Cells. `spa tilemap get` selects one exact
+Layer and Frame; without `rectangle` it reports topology, including an absent Cel.
+With a Rectangle it reads complete Cel-local Tile Cell coverage. Negative or
+out-of-bounds regions reject without clipping. A Tilemap Cel's Canvas position,
+Tileset Grid, effective Cel Grid, and full Canvas coverage are separate facts;
+coverage can extend outside the Sprite Canvas.
+
+```sh
+spa tilemap get --input-json '{
+  "sprite_file":"map.aseprite",
+  "target":{"layer":{"layer_name":"Ground"},"frame_number":1},
+  "rectangle":{"x":0,"y":0,"width":8,"height":6}
+}'
+```
+
+Tile Region Snapshots declare Empty Tile as their default and include every
+non-empty placement in row-major order. Each observation retains the current Tile
+index and X/Y/diagonal flags, with `tile_key: null` for unkeyed or invalid-index
+references. Reads never assign or repair Keys. `tileset validate` checks Tile Keys,
+Image/Grid agreement, and Cell references across every bound Layer and Frame;
+`tilemap validate` checks the bound Tileset and references in the selected Frame.
+Both return typed Findings and a `valid` verdict without making invalid Keys
+prevent inspection. A validation result is an observation, not a mutation.
+
+The empty default represents a native Cell with both index and flags zero. A Cell
+with index 0 and any flag is retained with `tile_key: null`; validation reports
+`empty_tile_flags`. It can render Tile 0's Image and is never silently discarded
+or repaired by inspection.
+
+The inline limits are 4096 Tile Cells per region and 4096 Image Pixels per Tile
+Image. For larger values provide `snapshot_destination` with a `.json` path and
+explicit `if_exists: "fail"` or `"replace"`. The JSON Artifact has exactly the same
+Snapshot schema as the inline value, with digest and byte size reported only after
+verified publication. Smaller Snapshots can also be sent to an Artifact explicitly.
+No region is silently truncated; no read writes the Source Sprite File. These are
+current delivery choices, open to extension when future requirements justify it.

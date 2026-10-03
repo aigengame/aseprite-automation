@@ -95,6 +95,7 @@ RuntimeCapability = Literal[
     "aseprite_convert_color_profile",
     "aseprite_export_image",
     "aseprite_selection",
+    "aseprite_tile_inspection",
 ]
 
 

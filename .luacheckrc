@@ -14,6 +14,7 @@ read_globals = {
   "ColorSpace",
   "FilterChannels",
   "FlipType",
+  "Grid",
   "Image",
   "ImageSpec",
   "Palette",
@@ -21,10 +22,12 @@ read_globals = {
   "Rectangle",
   "Selection",
   "SelectionMode",
+  "Size",
   "Sprite",
   "SpriteSheetDataFormat",
   "SpriteSheetType",
   "TilesetMode",
+  "Uuid",
   "json",
 }
 
