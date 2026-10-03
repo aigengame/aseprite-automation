@@ -2,7 +2,6 @@
 
 import hashlib
 from dataclasses import dataclass
-from importlib.resources import files as packaged_files
 from pathlib import Path
 from typing import Literal, NoReturn, cast
 
@@ -14,7 +13,7 @@ from spa.authoring.color.color_mode import (
     MappingEvidence,
 )
 from spa.authoring.color.palette import PALETTE_TRANSFORM_HANDLER
-from spa.authoring.color.profile import PROFILE_ICC_RESOURCES, PROFILE_RESOURCES
+from spa.authoring.color.profile import PROFILE_RESOURCES, supported_icc_identity
 from spa.authoring.raster.image import (
     IMAGE_CANVAS_TRANSFORM_RESOURCE,
     IMAGE_RESIZE_TRANSFORM_RESOURCE,
@@ -135,15 +134,10 @@ def _reject(reason: PreparationRefusal, message: str) -> NoReturn:
 def _source_profile(decoded: PngInputFacts) -> PreparationProfile:
     identity = None
     if decoded.color_profile == "icc":
-        package = packaged_files("spa.kernel")
-        identity = next(
-            (
-                resource.parameter_name.removeprefix("profile_")
-                for resource in PROFILE_ICC_RESOURCES
-                if package.joinpath(resource.package_path).read_bytes()
-                == decoded.icc_bytes
-            ),
-            None,
+        identity = (
+            supported_icc_identity(decoded.icc_bytes)
+            if decoded.icc_bytes is not None
+            else None
         )
         if identity is None:
             _reject(

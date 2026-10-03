@@ -469,6 +469,8 @@ verifies the output's representation, sRGB intent, complete Palette, and pixels.
 Reproduction compares frozen bytes, explicit choices, runtime versions, geometry,
 and decoded content before publication, without a registry or cross-runtime promise.
 ICC conversion remains conditional on the Color Profile owner's runtime capability.
+The Color Profile owner supplies one exact ICC identity resolver for its own
+conversion preflight, Image Import, and Preparation; callers keep their refusal policies.
 See [the preparation evidence](docs/evidence/issue-103-raster-preparation.md).
 
 Animation comparison and continuity inspection have a Document and Animation owner;
