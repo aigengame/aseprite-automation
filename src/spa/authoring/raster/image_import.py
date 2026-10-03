@@ -9,7 +9,7 @@ from pydantic import Field, model_validator
 
 from spa.application.mutation import prepare_mutation
 from spa.authoring.color.palette import EFFECTIVE_PALETTE_RESOURCE
-from spa.authoring.color.profile import PROFILE_HANDLER, PROFILE_ICC_RESOURCES
+from spa.authoring.color.profile import PROFILE_ICC_RESOURCES, PROFILE_RESOURCES
 from spa.authoring.document.cel import (
     CEL_SUPPORT_RESOURCE,
     CelMutationRequest,
@@ -27,6 +27,7 @@ from spa.contracts.ports import (
     OperationServices,
     PackagedHandler,
     PngInputError,
+    PngInputFacts,
     ResponseEvidence,
     RuntimeIssue,
 )
@@ -35,7 +36,11 @@ from spa.contracts.raster import EffectivePaletteFact, ImageContentDigest, Recta
 
 
 class ImageImportRequest(CelMutationRequest):
-    raster_file: str = Field(min_length=1)
+    raster_file: str = Field(
+        min_length=1,
+        pattern=r"^[^\x00\r\n]+$",
+        json_schema_extra={"not": {"pattern": r"[\r\n]"}},
+    )
     position: CelPosition
 
 
@@ -118,7 +123,7 @@ IMAGE_IMPORT_HANDLER = PackagedHandler(
     "image_import",
     "raster/image/image_import.lua",
     (
-        *PROFILE_HANDLER.support_resources,
+        *PROFILE_RESOURCES,
         CEL_SUPPORT_RESOURCE,
         EFFECTIVE_PALETTE_RESOURCE,
     ),
@@ -133,6 +138,117 @@ def _reject(path: str, reason: ImportRefusal, message: str) -> NoReturn:
     )
 
 
+def _validate_import_evidence(
+    request: ImageImportRequest,
+    decoded: PngInputFacts,
+    image: ImportedImage,
+    profile: ImportProfile,
+    evidence: ImageImportEvidence,
+) -> None:
+    expected_bounds = Rectangle(
+        x=request.position.x,
+        y=request.position.y,
+        width=decoded.width,
+        height=decoded.height,
+    )
+    selected = evidence.cel
+    if (
+        evidence.image != image
+        or evidence.color_profile != profile
+        or evidence.before.exists
+        or not selected.exists
+        or selected.layer_path != evidence.before.layer_path
+        or selected.frame_number != request.target.frame_number
+        or evidence.before.frame_number != request.target.frame_number
+        or selected.image_bounds != expected_bounds
+        or selected.position is None
+        or selected.position.model_dump() != request.position.model_dump()
+        or selected.is_background
+        or selected.is_tilemap
+        or selected.linked_cels
+        or selected.opacity != 255
+        or selected.z_index != 0
+        or evidence.sprite.metadata.cel_count != evidence.before_cel_count + 1
+        or evidence.sprite.metadata.color_mode != decoded.color_mode
+    ):
+        raise ValueError("Import evidence differs from decoded input or requested Cel")
+    if (
+        request.target.layer.layer_path is not None
+        and selected.layer_path != request.target.layer.layer_path
+    ):
+        raise ValueError("Import evidence selects another Layer")
+    persisted_cels = evidence.sprite.cels or []
+    addressed_cels = [
+        cel
+        for cel in persisted_cels
+        if cel.layer_path == selected.layer_path
+        and cel.frame_number == selected.frame_number
+    ]
+    if (
+        len(persisted_cels) != evidence.sprite.metadata.cel_count
+        or len(addressed_cels) != 1
+        or addressed_cels[0].bounds != expected_bounds
+        or addressed_cels[0].opacity != selected.opacity
+        or addressed_cels[0].z_index != selected.z_index
+    ):
+        raise ValueError("Imported Cel disagrees with the persisted Sprite")
+    if decoded.color_mode == "indexed":
+        palette = evidence.effective_palette
+        if (
+            palette is None
+            or evidence.transparent_index is None
+            or palette.frame_number != request.target.frame_number
+        ):
+            raise ValueError("Missing destination Indexed basis")
+        changes = evidence.sprite.palettes or []
+        selected_change = max(
+            (
+                change
+                for change in changes
+                if change.frame_number <= request.target.frame_number
+            ),
+            key=lambda change: change.frame_number,
+            default=None,
+        )
+        if (
+            selected_change is None
+            or palette.palette_frame_number != selected_change.frame_number
+            or palette.palette_size != len(selected_change.entries)
+            or evidence.transparent_index
+            != evidence.sprite.metadata.transparent_color_index
+        ):
+            raise ValueError("Indexed basis disagrees with the persisted Sprite")
+        used = sorted(set(decoded.stored_bytes))
+        if [entry.index for entry in palette.indexes] != used:
+            raise ValueError("Palette evidence omits used indexes")
+        for entry in palette.indexes:
+            actual_entry = next(
+                (item for item in selected_change.entries if item.index == entry.index),
+                None,
+            )
+            if actual_entry is None or actual_entry.color != entry.color:
+                raise ValueError(
+                    "Used-index evidence disagrees with the persisted Palette"
+                )
+            actual = (
+                entry.color.red,
+                entry.color.green,
+                entry.color.blue,
+                entry.color.alpha,
+            )
+            if entry.index == evidence.transparent_index:
+                actual = (0, 0, 0, 0)
+            if (
+                entry.index >= palette.palette_size
+                or actual != decoded.entries[entry.index]
+            ):
+                raise ValueError("Destination Palette changes decoded color meaning")
+    elif (
+        evidence.effective_palette is not None or evidence.transparent_index is not None
+    ):
+        raise ValueError("RGB import has Indexed evidence")
+
+
 def import_image(
     request: ImageImportRequest, services: OperationServices
 ) -> ImageImportResult:
@@ -144,9 +260,13 @@ def import_image(
     target = Path(request.target_sprite_file)
 
     def protect_input() -> None:
-        if services.target_files.same_publication_target(
-            Path(path).expanduser(), target
-        ):
+        try:
+            aliases_input = services.target_files.same_publication_target(
+                Path(path).expanduser(), target
+            )
+        except (OSError, ValueError, RuntimeError):
+            _reject(path, "unreadable", "Cannot verify raster/Target file identity")
+        if aliases_input:
             _reject(
                 path, "output_alias", "Target Commit would replace the raster input"
             )
@@ -254,72 +374,7 @@ def import_image(
         )
         try:
             evidence = ImageImportEvidence.model_validate(invocation.payload)
-            expected_bounds = Rectangle(
-                x=request.position.x,
-                y=request.position.y,
-                width=decoded.width,
-                height=decoded.height,
-            )
-            selected = evidence.cel
-            if (
-                evidence.image != image
-                or evidence.color_profile != profile
-                or evidence.before.exists
-                or not selected.exists
-                or selected.layer_path != evidence.before.layer_path
-                or selected.frame_number != request.target.frame_number
-                or evidence.before.frame_number != request.target.frame_number
-                or selected.image_bounds != expected_bounds
-                or selected.position is None
-                or selected.position.model_dump() != request.position.model_dump()
-                or selected.is_background
-                or selected.is_tilemap
-                or selected.linked_cels
-                or selected.opacity != 255
-                or selected.z_index != 0
-                or evidence.sprite.metadata.cel_count != evidence.before_cel_count + 1
-                or evidence.sprite.metadata.color_mode != decoded.color_mode
-            ):
-                raise ValueError(
-                    "Import evidence differs from decoded input or requested Cel"
-                )
-            if (
-                request.target.layer.layer_path is not None
-                and selected.layer_path != request.target.layer.layer_path
-            ):
-                raise ValueError("Import evidence selects another Layer")
-            if decoded.color_mode == "indexed":
-                palette = evidence.effective_palette
-                if (
-                    palette is None
-                    or evidence.transparent_index is None
-                    or palette.frame_number != request.target.frame_number
-                ):
-                    raise ValueError("Missing destination Indexed basis")
-                used = sorted(set(decoded.stored_bytes))
-                if [entry.index for entry in palette.indexes] != used:
-                    raise ValueError("Palette evidence omits used indexes")
-                for entry in palette.indexes:
-                    actual = (
-                        entry.color.red,
-                        entry.color.green,
-                        entry.color.blue,
-                        entry.color.alpha,
-                    )
-                    if entry.index == evidence.transparent_index:
-                        actual = (0, 0, 0, 0)
-                    if (
-                        entry.index >= palette.palette_size
-                        or actual != decoded.entries[entry.index]
-                    ):
-                        raise ValueError(
-                            "Destination Palette changes decoded color meaning"
-                        )
-            elif (
-                evidence.effective_palette is not None
-                or evidence.transparent_index is not None
-            ):
-                raise ValueError("RGB import has Indexed evidence")
+            _validate_import_evidence(request, decoded, image, profile, evidence)
         except ValueError as exc:
             raise RuntimeIssue(
                 "response_malformed",

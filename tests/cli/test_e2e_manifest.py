@@ -95,6 +95,7 @@ def test_manifest_is_projected_from_command_descriptors() -> None:
         "spa image canvas-resize",
         "spa image flip",
         "spa image rotate",
+        "spa image import",
         "spa tag list",
         "spa tag get",
         "spa tag add",

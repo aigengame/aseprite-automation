@@ -16,6 +16,7 @@ verification tier. The layout does not mirror source packages or CLI Command Gro
 | `tests/examples/` | Installed-CLI workflows, deterministic asset production, and checked-in downstream asset agreement. |
 | `tests/frame/` | Frame timing, insertion, Cel copy/link intent, Tag adjustment, and native persistence. |
 | `tests/filter/` | Native Filter application, Channels, Cel targets, Palette basis, state restoration, and verified publication. |
+| `tests/import/` | Encoded PNG facts, compatible native Cel insertion, frozen input identity, and publication refusal. |
 | `tests/layer/` | Layer hierarchy, exact addressing, and native addition evidence. |
 | `tests/motion/` | Bounded Cel curve sampling, complete preflight, and persisted pixel/property preservation. |
 | `tests/paint/` | Paint Domain Module contract, bounded mutation evidence, and native Pixel Patch behavior. |
@@ -77,6 +78,17 @@ preserve ordinary Images, placement bytes, and all Tile bitmaps including Empty
 Tile 0. Direct native calls supply boundary-value parity; injected post-command
 failures verify transaction rollback and active Sprite, range, Palette Picks, and
 Selection restoration. All cases use batch scripting without a graphical display.
+
+External raster import #46 checks 8-bit PNG metadata independently of native
+loading, then compares full RGBA and stored indexes through real insertion and
+save/reopen. Fixtures cover used-index Palette equality at the selected Frame,
+mask collisions, partial alpha and transparent hidden RGB, None/sRGB/supported ICC,
+empty-slot eligibility, signed Cel positions, and independent Images beside linked
+Cels. Failure cases preserve inputs and any previous Target, discard staging, and
+refuse inconsistent native evidence or output aliases of the raster. These tests
+use the existing local macOS and Linux `--batch --script` lanes without a display;
+they do not exercise the editor UI. Run `pytest tests/import` with the same runtime
+configuration as other native owners.
 
 ## Verification tiers
 
