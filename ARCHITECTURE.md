@@ -339,6 +339,10 @@ function for explicit Tilemap requests. That function owns bounded Cell geometry
 Tileset/Grid admission, native TILEMAP Image construction, and packed-zero checks.
 It reuses Tile inspection for creation facts. Add validates its initial state at
 the Step; the final save/reopen gate validates the state after all later Steps.
+Before Target Commit, creation receipts also reconcile the addressed Tileset and
+Grid with complete Sprite inspection. Current eligible Plan Steps preserve these
+Tileset structural facts, so this check uses final inspection without comparing
+initial Cel properties with their later state.
 The Layer-owned `layer_select.lua` Module supplies `current_path` for an already
 attached native Layer. Cel, Frame, Sprite inspection, Pixel Patch, and native Paint
 reuse this current stack-index fact. Exact name/path/verified-UUID selection remains

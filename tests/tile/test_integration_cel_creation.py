@@ -169,15 +169,33 @@ def _run_creation(source: Path, target: Path, response: dict, plan: bool):
 
 @pytest.mark.parametrize("plan", [False, True])
 @pytest.mark.parametrize("existing_target", [False, True])
+@pytest.mark.parametrize("second_tileset", [False, True])
 def test_verified_tilemap_creation_publishes_target(
-    tmp_path: Path, plan: bool, existing_target: bool
+    tmp_path: Path, plan: bool, existing_target: bool, second_tileset: bool
 ) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
     source.write_bytes(b"Source")
     if existing_target:
         target.write_bytes(b"prior Target")
 
-    result = _run_creation(source, target, _creation_response(plan), plan)
+    response = _creation_response(plan)
+    if second_tileset:
+        receipt = response["steps"][0]["result"] if plan else response
+        sprite = response["final_sprite"] if plan else response["sprite"]
+        sprite["metadata"]["tileset_count"] = 2
+        sprite["tilesets"].insert(
+            0,
+            {
+                "name": "unreferenced",
+                "tile_count": 3,
+                "base_index": 17,
+                "grid_origin": {"x": 0, "y": 0},
+                "tile_size": {"width": 4, "height": 5},
+            },
+        )
+        receipt["tilemap_creation"]["tileset"]["tileset_index"] = 2
+        receipt["tilemap_creation"]["tilemap"]["tileset_index"] = 2
+    result = _run_creation(source, target, response, plan)
 
     receipt = result.steps[0].result if plan else result
     assert receipt.cel.image_bounds is None
@@ -207,6 +225,12 @@ def test_verified_tilemap_creation_publishes_target(
         ("missing-tile-evidence", "postcondition_failed"),
         ("cell-size", "postcondition_failed"),
         ("grid-coverage", "postcondition_failed"),
+        ("tileset-range", "postcondition_failed"),
+        ("persisted-grid", "postcondition_failed"),
+        ("persisted-grid-origin", "postcondition_failed"),
+        ("persisted-tileset-name", "postcondition_failed"),
+        ("persisted-tileset-count", "postcondition_failed"),
+        ("persisted-tileset-base-index", "postcondition_failed"),
         ("empty-proof-false", "response_malformed"),
         ("empty-proof-missing", "response_malformed"),
         ("frame", "postcondition_failed"),
@@ -224,6 +248,7 @@ def test_invalid_tilemap_creation_never_publishes(
         target.write_bytes(b"prior Target")
     response = _creation_response(plan)
     receipt = response["steps"][0]["result"] if plan else response
+    sprite = response["final_sprite"] if plan else response["sprite"]
     if defect == "missing-tile-evidence":
         receipt.pop("tilemap_creation")
     elif defect == "cell-size":
@@ -231,6 +256,19 @@ def test_invalid_tilemap_creation_never_publishes(
     elif defect == "grid-coverage":
         # The receipt and final inspection agree, but both contradict the Grid.
         receipt["tilemap_creation"]["tilemap"]["canvas_coverage"]["height"] = 8
+    elif defect == "tileset-range":
+        receipt["tilemap_creation"]["tilemap"]["tileset_index"] = 2
+        receipt["tilemap_creation"]["tileset"]["tileset_index"] = 2
+    elif defect == "persisted-grid":
+        sprite["tilesets"][0]["tile_size"]["width"] = 1
+    elif defect == "persisted-grid-origin":
+        sprite["tilesets"][0]["grid_origin"]["x"] = 1
+    elif defect == "persisted-tileset-name":
+        sprite["tilesets"][0]["name"] = "different"
+    elif defect == "persisted-tileset-count":
+        sprite["tilesets"][0]["tile_count"] = 3
+    elif defect == "persisted-tileset-base-index":
+        sprite["tilesets"][0]["base_index"] = 2
     elif defect == "empty-proof-false":
         receipt["tilemap_creation"]["empty_tile_cells_verified"] = False
     elif defect == "empty-proof-missing":

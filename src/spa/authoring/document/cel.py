@@ -28,7 +28,6 @@ from spa.authoring.document.sprite import (
     SPRITE_PERSISTENCE_RESOURCE,
     SpriteGetRequest,
     SpriteInspection,
-    SpriteMetadata,
     validated_scope,
 )
 from spa.authoring.raster.image_snapshot import SNAPSHOT_RESOURCE
@@ -171,11 +170,12 @@ class CelRemoveRequest(CelMutationRequest):
 def validate_added_cel(
     request: CelAddInput,
     cel: CelState,
-    canvas: SpriteMetadata,
+    sprite: SpriteInspection,
     invocation: KernelInvocationResult,
     tilemap_creation: TilemapCreationEvidence | None = None,
 ) -> None:
     """Check initial Image facts, before later Plan Steps can change the Cel."""
+    canvas = sprite.metadata
     size = request.image_size
     expected = Rectangle(
         x=0,
@@ -187,7 +187,7 @@ def validate_added_cel(
         cel.is_tilemap
         and cel.image_bounds is None
         and tilemap_creation is not None
-        and tilemap_creation.matches(request.tilemap_size, cel)
+        and tilemap_creation.matches(request.tilemap_size, cel, sprite.tilesets)
         if request.tilemap_size is not None
         else not cel.is_tilemap
         and tilemap_creation is None
@@ -208,7 +208,7 @@ def validate_added_cel(
             "Added Cel Image differs from its requested initial state",
             PostconditionEvidence(
                 response_path=invocation.response_path,
-                reason="Cel Image size, placement, transparency, or independence disagrees",
+                reason="Cel Image geometry, Tileset, initial properties, or independence disagrees",
             ),
             invocation.diagnostics,
         )
@@ -508,7 +508,7 @@ def _mutate(
             validate_added_cel(
                 request,
                 evidence.cel,
-                evidence.sprite.metadata,
+                evidence.sprite,
                 invocation,
                 evidence.tilemap_creation,
             )

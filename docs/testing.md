@@ -86,7 +86,9 @@ RGB/Grayscale/Indexed (Transparent Color Index 7), first/later Frames, and both
 standalone and Plan creation. Refusals and a later failing Step preserve Source
 and an existing Target; a later successful Step may change the initial links.
 Contract tests cover installed schemas, geometry bounds, conditional runtime
-capability, and contradictory creation evidence without launching Aseprite.
+capability, and contradictory creation evidence without launching Aseprite,
+including Tileset ordinals and Grid facts that disagree with complete Sprite
+inspection. Positive controls include a valid second Tileset.
 These are batch E2E tests: local macOS results do not establish Linux verification.
 
 ## Verification tiers

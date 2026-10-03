@@ -6,6 +6,7 @@ from typing import Literal
 from pydantic import ConfigDict, Field, model_validator
 
 from spa.authoring.document.cel_contracts import CelState
+from spa.authoring.document.sprite import TilesetFacts as SpriteTilesetFacts
 from spa.authoring.tile.values import TilemapFacts, TilesetFacts
 from spa.contracts.ports import (
     PackagedResource,
@@ -74,8 +75,16 @@ class TilemapCreationEvidence(PublicModel):
     tileset: TilesetFacts
     empty_tile_cells_verified: Literal[True]
 
-    def matches(self, size: TilemapSize, cel: CelState) -> bool:
+    def matches(
+        self,
+        size: TilemapSize,
+        cel: CelState,
+        tilesets: Sequence[SpriteTilesetFacts] | None,
+    ) -> bool:
         facts, tileset = self.tilemap, self.tileset
+        if tilesets is None or not 1 <= tileset.tileset_index <= len(tilesets):
+            return False
+        observed = tilesets[tileset.tileset_index - 1]
         grid, coverage = facts.effective_grid, facts.canvas_coverage
         return (
             cel.is_tilemap
@@ -86,6 +95,11 @@ class TilemapCreationEvidence(PublicModel):
             and facts.cell_size == Size(width=size.width, height=size.height)
             and facts.tileset_index == tileset.tileset_index
             and facts.layer in tileset.layers
+            and tileset.name == observed.name
+            and tileset.tile_count == observed.tile_count
+            and tileset.base_index == observed.base_index
+            and tileset.grid.origin == observed.grid_origin
+            and tileset.grid.tile_size == observed.tile_size
             and grid is not None
             and grid.tile_size == tileset.grid.tile_size
             and grid.origin == tileset.grid.origin

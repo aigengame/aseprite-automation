@@ -92,7 +92,6 @@ from spa.authoring.document.sprite import (
     SpriteGetInput,
     SpriteGetRequest,
     SpriteInspection,
-    SpriteMetadata,
     validate_created_sprite,
     validated_scope,
 )
@@ -685,9 +684,10 @@ PLAN_DISCOVERY_REQUIREMENTS = _combined_requirements(list(ELIGIBLE_OPERATIONS))
 def _validated_steps(
     request: PlanRunRequest,
     invocation: KernelInvocationResult,
-    canvas: SpriteMetadata,
+    final_sprite: SpriteInspection,
     profile_inputs: dict[int, dict[str, Any]],
 ) -> list[StepOutcome]:
+    canvas = final_sprite.metadata
     raw = invocation.payload.get("steps")
     if not isinstance(raw, list) or len(raw) != len(request.plan.steps):
         missing_index = (
@@ -797,7 +797,7 @@ def _validated_steps(
                 validate_added_cel(
                     step.input,
                     after,
-                    canvas.model_copy(update={"color_mode": mode}),
+                    final_sprite,
                     invocation,
                     outcome.result.tilemap_creation,
                 )
@@ -1089,11 +1089,11 @@ def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunRes
             inspection_scope=list(INSPECTION_SECTIONS),
         )
         validated_scope(final_scope_request, final_sprite, invocation)
-        # Eligible Steps keep the Canvas size; Add receipts describe their own
-        # initial state, even when a later Step paints or moves that Cel.
-        outcomes = _validated_steps(
-            request, invocation, final_sprite.metadata, profile_inputs
-        )
+        # Current eligible Steps keep Canvas size and Tileset order, count, and
+        # structural facts (including Grid). Reconcile only these with final facts;
+        # Add receipts describe their own initial Cel state. A Tileset lifecycle
+        # Step would require Step-time facts instead of this invariant.
+        outcomes = _validated_steps(request, invocation, final_sprite, profile_inputs)
         metadata = final_sprite.metadata
         for field, expected in plan.postconditions.model_dump(
             exclude_none=True
