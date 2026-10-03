@@ -109,6 +109,7 @@ from spa.delivery.palette import (
     PALETTE_EXPORT_OPERATIONS,
     palette_export_capability_gaps,
 )
+from spa.preparation.raster import PREPARATION_OPERATIONS
 
 PROBE_RESOURCES = (
     TILE_LAYER_PROBE_RESOURCE,
@@ -360,6 +361,7 @@ OPERATIONS = (
     *MOTION_OPERATIONS,
     *IMAGE_OPERATIONS,
     *IMAGE_IMPORT_OPERATIONS,
+    *PREPARATION_OPERATIONS,
     *TAG_OPERATIONS,
     *SLICE_OPERATIONS,
     *PALETTE_OPERATIONS,
