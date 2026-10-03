@@ -7,11 +7,11 @@ from spa.authoring.color.profile import PROFILE_FAILURE_SPECS
 from spa.authoring.color.quantization import QUANTIZATION_FAILURE_SPECS
 from spa.authoring.document.animation import ANIMATION_FAILURE_CODE_SPECS
 from spa.authoring.document.cel_contracts import CEL_FAILURE_CODE_SPECS
-from spa.authoring.document.layer import LAYER_FAILURE_CODE_SPECS
 from spa.authoring.document.motion import MOTION_FAILURE_CODE_SPECS
 from spa.authoring.document.slice import SLICE_FAILURE_SPECS
 from spa.authoring.document.sprite import SPRITE_FAILURE_CODE_SPECS
 from spa.authoring.document.tag import TAG_FAILURE_CODE_SPECS
+from spa.authoring.document.targets import LAYER_FAILURE_CODE_SPECS
 from spa.authoring.raster.filter import FILTER_FAILURE_SPECS
 from spa.authoring.raster.image import (
     IMAGE_CANVAS_FAILURE_CODE_SPECS,

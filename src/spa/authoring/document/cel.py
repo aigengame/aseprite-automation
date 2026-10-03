@@ -20,10 +20,6 @@ from spa.authoring.document.cel_contracts import (
     CelTargetInput,
     raise_cel_rejection,
 )
-from spa.authoring.document.layer import (
-    LAYER_ADDRESS_FAILURE_CODES,
-    LayerAddress,
-)
 from spa.authoring.document.sprite import (
     INSPECTION_SECTIONS,
     SPRITE_INSPECTION_RESOURCES,
@@ -31,6 +27,10 @@ from spa.authoring.document.sprite import (
     SpriteGetRequest,
     SpriteInspection,
     validated_scope,
+)
+from spa.authoring.document.targets import (
+    LAYER_ADDRESS_FAILURE_CODES,
+    LayerAddress,
 )
 from spa.authoring.raster.image_snapshot import SNAPSHOT_RESOURCE
 from spa.authoring.tile.cel_add import (
@@ -40,6 +40,7 @@ from spa.authoring.tile.cel_add import (
     require_tilemap_creation,
 )
 from spa.authoring.tile.inspection import TILE_INSPECTION_RESOURCE
+from spa.authoring.tile.targets import TILESET_RESOURCE
 from spa.contracts.digest import DIGEST_RESOURCE
 from spa.contracts.mutation import (
     TargetCommit,
@@ -253,6 +254,7 @@ CEL_MUTATE_HANDLER = PackagedHandler(
         DIGEST_RESOURCE,
         TILE_CEL_RESOURCE,
         TILE_INSPECTION_RESOURCE,
+        TILESET_RESOURCE,
         PackagedResource("tile_properties", "tile/properties.lua"),
         SNAPSHOT_RESOURCE,
         RASTER_COLOR_RESOURCE,

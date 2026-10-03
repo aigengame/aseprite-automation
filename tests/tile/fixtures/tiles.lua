@@ -1,6 +1,10 @@
 local modes = { rgb = ColorMode.RGB, grayscale = ColorMode.GRAY, indexed = ColorMode.INDEXED }
 local mode = modes[app.params.mode or "rgb"]
 local s = Sprite(16, 16, mode)
+if app.params.uuids then s.useLayerUuids = app.params.uuids == "true" end
+if mode == ColorMode.INDEXED and app.params.transparent then
+  s.transparentColor = tonumber(app.params.transparent)
+end
 s.gridBounds =
   Rectangle(0, 0, tonumber(app.params.tile_width or "2"), tonumber(app.params.tile_height or "3"))
 app.activeSprite = s
@@ -67,5 +71,11 @@ shared.tileset = ts
 s:newCel(shared, 2, Image(m), Point(3, -2))
 local extra = s:newTileset(Grid { x = 0, y = 0, width = 4, height = 4 })
 extra.name = app.params.duplicate_name == "true" and "terrain" or "orphan"
+if app.params.group == "true" then
+  local group = s:newGroup()
+  group.name = "parent"
+  local child = s:newLayer()
+  child.name, child.parent = "existing child", group
+end
 assert(s:saveAs(app.params.source))
 s:close()

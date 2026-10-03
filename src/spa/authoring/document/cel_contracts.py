@@ -4,8 +4,9 @@ from typing import Literal
 
 from pydantic import Field, field_validator, model_validator
 
-from spa.authoring.document.layer import (
+from spa.authoring.document.targets import (
     LAYER_ADDRESS_FAILURE_CODES,
+    CelAddress,
     LayerAddress,
     LayerTargetDetails,
 )
@@ -22,11 +23,6 @@ from spa.contracts.ports import (
 )
 from spa.contracts.public import FailureCodeSpec, PublicModel, RuntimeRequest
 from spa.contracts.raster import Point, Rectangle
-
-
-class CelAddress(PublicModel):
-    layer: LayerAddress
-    frame_number: int = Field(ge=1, strict=True)
 
 
 class CelTargetInput(PublicModel):

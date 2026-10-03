@@ -1,13 +1,14 @@
 """Layer hierarchy, exact current addresses, and structural addition."""
 
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Literal
 
 from pydantic import Field, ValidationError, field_validator, model_validator
 
 from spa.authoring.color.palette import EFFECTIVE_PALETTE_RESOURCE
 from spa.authoring.document.sprite import (
     SPRITE_INSPECTION_RESOURCES,
+    SPRITE_PERSISTENCE_RESOURCE,
     CelFacts,
     LayerFacts,
     SpriteGetRequest,
@@ -16,6 +17,21 @@ from spa.authoring.document.sprite import (
     get_sprite,
     validated_scope,
 )
+from spa.authoring.document.targets import (
+    LAYER_ADDRESS_FAILURE_CODES,
+    LAYER_TARGET_FAILURE_CODES,
+    LayerAddress,
+    LayerTargetDetails,
+    OneBasedIndex,
+)
+from spa.authoring.tile.layer_creation import (
+    TILE_LAYER_RESOURCE,
+    TilemapLayerCreation,
+    TilesetIntent,
+    reject_tileset,
+    validate_creation,
+)
+from spa.authoring.tile.targets import TILESET_RESOURCE
 from spa.contracts.digest import DIGEST_RESOURCE
 from spa.contracts.mutation import (
     TargetCommit,
@@ -33,90 +49,16 @@ from spa.contracts.ports import (
     PostconditionEvidence,
     RequestIssue,
     ResponseEvidence,
+    RuntimeCompatibilityEvidence,
     RuntimeIssue,
     TargetCommitEvidence,
 )
 from spa.contracts.public import (
-    FailureCodeSpec,
     PublicModel,
     RuntimeRequest,
     RuntimeRequirements,
 )
 from spa.contracts.raster import ColorValue
-
-OneBasedIndex = Annotated[int, Field(ge=1)]
-
-
-class LayerAddress(PublicModel):
-    """One exact current path, persisted UUID, or unique Sprite-wide name."""
-
-    layer_path: list[OneBasedIndex] | None = Field(default=None, min_length=1)
-    layer_uuid: str | None = Field(default=None, min_length=1)
-    layer_name: str | None = Field(default=None, min_length=1)
-
-    @model_validator(mode="after")
-    def exactly_one(self) -> "LayerAddress":
-        if (
-            sum(
-                value is not None
-                for value in (self.layer_path, self.layer_uuid, self.layer_name)
-            )
-            != 1
-        ):
-            raise ValueError("Specify exactly one Layer address")
-        return self
-
-
-class LayerTargetDetails(PublicModel):
-    kind: Literal["layer_target"] = "layer_target"
-    address_role: Literal["target", "parent", "source", "destination"]
-    address: LayerAddress
-    step_number: int | None = Field(default=None, ge=1)
-
-
-LAYER_FAILURE_CODE_SPECS = (
-    FailureCodeSpec(
-        "layer_missing", "No Layer matches the address", "input", LayerTargetDetails
-    ),
-    FailureCodeSpec(
-        "layer_ambiguous",
-        "More than one Layer matches the name",
-        "input",
-        LayerTargetDetails,
-    ),
-    FailureCodeSpec(
-        "layer_invalid_path",
-        "The path does not locate a Layer in the current hierarchy",
-        "input",
-        LayerTargetDetails,
-    ),
-    FailureCodeSpec(
-        "layer_uuid_unpersisted",
-        "The Sprite does not persist the addressed Layer UUID",
-        "input",
-        LayerTargetDetails,
-    ),
-    FailureCodeSpec(
-        "layer_parent_not_group",
-        "The selected parent is not a Group Layer",
-        "input",
-        LayerTargetDetails,
-    ),
-    FailureCodeSpec(
-        "layer_unsupported_target",
-        "The selected Layer does not support the requested mutation",
-        "input",
-        LayerTargetDetails,
-    ),
-    FailureCodeSpec(
-        "layer_invalid_position",
-        "The requested position is invalid for the selected Layer's parent",
-        "input",
-        LayerTargetDetails,
-    ),
-)
-LAYER_TARGET_FAILURE_CODES = tuple(spec.code for spec in LAYER_FAILURE_CODE_SPECS)
-LAYER_ADDRESS_FAILURE_CODES = LAYER_TARGET_FAILURE_CODES[:4]
 
 
 class LayerListRequest(RuntimeRequest):
@@ -134,9 +76,10 @@ class LayerAddRequest(RuntimeRequest):
     target_sprite_file: str = Field(min_length=1)
     in_place: bool
     overwrite: bool
-    kind: Literal["transparent", "group"]
+    kind: Literal["transparent", "group", "tilemap"]
     name: str = Field(min_length=1)
     parent: LayerAddress | None = None
+    tileset: TilesetIntent | None = None
 
     _validate_source = field_validator("source_sprite_file")(
         validate_native_sprite_path
@@ -148,6 +91,8 @@ class LayerAddRequest(RuntimeRequest):
     @model_validator(mode="after")
     def validate_commit_intent(self) -> "LayerAddRequest":
         require_overwrite_for_in_place(self.in_place, self.overwrite)
+        if (self.kind == "tilemap") != (self.tileset is not None):
+            raise ValueError("Tileset intent is required only for kind tilemap")
         return self
 
 
@@ -257,6 +202,7 @@ class LayerAddResult(PublicModel):
     persisted_reopen_verified: Literal[True]
     use_layer_uuids: bool
     layer: LayerFacts
+    tilemap: TilemapLayerCreation | None = None
 
 
 class LayerAffectedCel(PublicModel):
@@ -363,6 +309,8 @@ LAYER_ADD_FAILURE_CODES = (
     *RUNTIME_FAILURE_CODES,
     *LAYER_ADDRESS_FAILURE_CODES,
     "layer_parent_not_group",
+    "tileset_missing",
+    "tileset_ambiguous",
     "target_commit_failed",
 )
 LAYER_MUTATION_FAILURE_CODES = (
@@ -388,7 +336,13 @@ LAYER_GET_HANDLER = PackagedHandler(
 LAYER_ADD_HANDLER = PackagedHandler(
     "layer_add",
     "document/layer/layer_add.lua",
-    SPRITE_INSPECTION_RESOURCES,
+    (
+        *SPRITE_INSPECTION_RESOURCES,
+        SPRITE_PERSISTENCE_RESOURCE,
+        DIGEST_RESOURCE,
+        TILESET_RESOURCE,
+        TILE_LAYER_RESOURCE,
+    ),
 )
 LAYER_MUTATE_HANDLER = PackagedHandler(
     "layer_mutate",
@@ -575,11 +529,47 @@ def add_layer(request: LayerAddRequest, services: OperationServices) -> LayerAdd
     }
     if request.parent is not None:
         payload["parent"] = request.parent.model_dump(exclude_none=True)
+    if request.tileset is not None:
+        payload["tileset"] = request.tileset.model_dump(exclude_none=True)
+        if (
+            request.tileset.share is not None
+            and request.tileset.share.tileset_index is not None
+        ):
+            payload["tileset"]["share"]["tileset_index"] = str(
+                request.tileset.share.tileset_index
+            )
     observation = services.probe_runtime(request)
     try:
+        if (
+            request.tileset is not None
+            and "aseprite_tilemap_layer_creation"
+            not in observation.verified_capabilities
+        ):
+            raise RuntimeIssue(
+                "runtime_incompatible",
+                "Runtime did not verify native Tilemap Layer creation and sharing",
+                RuntimeCompatibilityEvidence(
+                    aseprite_version=observation.aseprite_version,
+                    lua_version=observation.lua_version,
+                    api_version=observation.api_version,
+                    required_lua_language=LAYER_REQUIREMENTS.lua_language,
+                    minimum_api_version=LAYER_REQUIREMENTS.minimum_api_version,
+                    missing_capabilities=("aseprite_tilemap_layer_creation",),
+                ),
+            )
         invocation = services.invoke_kernel(
             observation, LAYER_ADD_HANDLER, payload, request.timeout_seconds
         )
+        if request.tileset is not None:
+            try:
+                reject_tileset(invocation, request.tileset)
+            except (TypeError, ValueError) as exc:
+                raise RuntimeIssue(
+                    "response_malformed",
+                    str(exc),
+                    ResponseEvidence(response_path=invocation.response_path),
+                    invocation.diagnostics,
+                ) from exc
         _reject_target(invocation, "parent", request.parent)
         reopened, added_path = _reopened(invocation)
         try:
@@ -615,7 +605,7 @@ def add_layer(request: LayerAddRequest, services: OperationServices) -> LayerAdd
                 request.kind == "group"
                 or (
                     added.is_image
-                    and not added.is_tilemap
+                    and added.is_tilemap == (request.kind == "tilemap")
                     and not added.is_reference
                     and not added.is_background
                 )
@@ -636,6 +626,20 @@ def add_layer(request: LayerAddRequest, services: OperationServices) -> LayerAdd
                 invocation.diagnostics,
             )
         assert added is not None
+        tilemap = None
+        if request.tileset is not None:
+            try:
+                tilemap = TilemapLayerCreation.model_validate(
+                    invocation.payload["tilemap"]
+                )
+                validate_creation(tilemap, request.tileset, added)
+            except (KeyError, TypeError, ValueError, ValidationError) as exc:
+                raise RuntimeIssue(
+                    "response_malformed",
+                    f"Invalid Tilemap Layer creation evidence: {exc}",
+                    ResponseEvidence(response_path=invocation.response_path),
+                    invocation.diagnostics,
+                ) from exc
         committed = services.target_files.commit(
             staged, target, overwrite=request.overwrite
         )
@@ -648,6 +652,7 @@ def add_layer(request: LayerAddRequest, services: OperationServices) -> LayerAdd
             persisted_reopen_verified=True,
             use_layer_uuids=reopened.metadata.use_layer_uuids,
             layer=added,
+            tilemap=tilemap,
         )
     finally:
         services.target_files.discard(staged)

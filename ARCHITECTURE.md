@@ -331,8 +331,10 @@ Python owns typed requests/results and staged Target Commit orchestration. Slice
 mutation results return the complete reopened address snapshot because native
 serialization can reorder Slices; they expose no persistent Slice identity.
 Cel Add accepts optional raster Image dimensions or explicit Tile Cell dimensions.
-`document/cel_contracts.py` owns shared addressing, mutation requests, Cel facts,
-and typed rejection translation; ordinary consumers do not import Tile creation contracts.
+`document/targets.py` owns shared Layer/Cel addresses and Layer target failures.
+`document/cel_contracts.py` consumes those addresses and owns shared mutation
+requests, Cel facts, and typed rejection translation; ordinary consumers do not
+import Tile creation contracts.
 `cel_support.lua` owns target selection, existence, and ordinary Image construction.
 Standalone and Plan inject the same Tile-owned `tile/cel_add.lua` construction
 function for explicit Tilemap requests. That function owns bounded Cell geometry,
@@ -604,13 +606,21 @@ real LFS fixture content. This inventory verifies the distribution and is not an
 Operation registry.
 
 Add a module only with a complete functional slice. Preparation has no placeholder
-implementation. Tile Authoring now owns `authoring/tile` and `kernel/tile`: Python
-publishes typed inspection and Tilemap creation contracts and verifies complete
-Snapshot transport before Artifact publication; Lua resolves native Tilesets,
+implementation. Tile Authoring owns `authoring/tile` and `kernel/tile`: Python
+publishes typed inspection, explicit Tileset creation/sharing, and Tilemap Cel contracts, and
+checks evidence before Artifact or Target publication. Lua resolves native Tilesets,
 Tile Keys, Layer bindings, and Tile Cell placements, and constructs explicitly
-sized empty Tilemap Cels. It depends on Document's shared Layer/Cel contracts and
-Raster's Pixel Region Snapshot encoding for Tile bitmaps. It does not assign Keys
-or write Tile Cell content in this slice. Cel mutation and Plan retain staging and
+sized empty Tilemap Cels. The `layer add` Descriptor
+remains in Document; its Tilemap variant delegates the cross-Layer/Tileset lifecycle
+to Tile Authoring, including exact removal of its own temporary implicit Tileset.
+Shared `document/targets.py` and `tile/targets.py` hold addresses and target failures;
+reads and mutations consume these contracts without importing each other's use cases.
+The native `tile/tilesets.lua` owns exact Tileset resolution and binding facts for
+both paths. Tile Authoring reuses shared Sprite save/reopen verification, adds Tile
+Image preservation checks, and leaves Target Commit to the existing file adapter.
+It depends on Document's shared Layer/Cel contracts and Raster's Pixel Region
+Snapshot encoding for Tile bitmaps. It does not assign Keys or write nonempty Tile
+Cell content in this slice. Cel mutation and Plan retain staging and
 Target Commit ownership. The existing Tile probe observes empty-Cel save/reopen
 separately from inspection; only explicit Tilemap creation requests require that
 capability. Shared JSON Snapshot destination mechanics live in
