@@ -16,6 +16,7 @@ from spa.authoring.raster.image_snapshot import SNAPSHOT_RESOURCE
 from spa.authoring.tile.properties import selected_namespaces
 from spa.authoring.tile.targets import (
     TILE_FAILURE_SPECS,
+    TILE_KEY_RESOURCE,
     TILESET_RESOURCE,
     TileAddress,
     TileInspectionDetails,
@@ -63,6 +64,7 @@ TILE_READ_HANDLER = PackagedHandler(
         *SPRITE_INSPECTION_RESOURCES,
         TILE_INSPECTION_RESOURCE,
         TILESET_RESOURCE,
+        TILE_KEY_RESOURCE,
         PackagedResource("tile_properties", "tile/properties.lua"),
         SNAPSHOT_RESOURCE,
         RASTER_COLOR_RESOURCE,

@@ -46,3 +46,27 @@ def fixture(
         )
     assert result.returncode == 0, process_diagnostics(result)
     assert "Error" not in result.stdout + result.stderr, process_diagnostics(result)
+
+
+def snapshot(mode: str = "rgb", *, transparent: bool = False) -> dict:
+    color = {
+        "rgb": {
+            "kind": "rgba",
+            "red": 0 if transparent else 17,
+            "green": 0 if transparent else 29,
+            "blue": 0 if transparent else 41,
+            "alpha": 0 if transparent else 255,
+        },
+        "grayscale": {
+            "kind": "grayscale",
+            "gray": 0 if transparent else 79,
+            "alpha": 0 if transparent else 255,
+        },
+        "indexed": {"kind": "palette-index", "index": 7 if transparent else 2},
+    }[mode]
+    return {
+        "coordinate_space": "image-pixel",
+        "color_mode": mode,
+        "rectangle": {"x": 0, "y": 0, "width": 2, "height": 3},
+        "rows": [[{"length": 2, "color": color}] for _ in range(3)],
+    }

@@ -88,6 +88,10 @@ from spa.authoring.raster.text import text_capability_gap
 from spa.authoring.tile.cel_add import tilemap_creation_gaps
 from spa.authoring.tile.inspection import TILE_OPERATIONS, TILE_PROBE_RESOURCE
 from spa.authoring.tile.layer_creation import TILE_LAYER_PROBE_RESOURCE
+from spa.authoring.tile.lifecycle import (
+    TILE_LIFECYCLE_OPERATIONS,
+    TILE_LIFECYCLE_PROBE_RESOURCE,
+)
 from spa.contracts.operation import (
     ACCESS_FAILURE_CODES,
     RUNTIME_FAILURE_CODES,
@@ -115,6 +119,7 @@ from spa.preparation.raster import PREPARATION_OPERATIONS
 PROBE_RESOURCES = (
     TILE_LAYER_PROBE_RESOURCE,
     TILE_PROBE_RESOURCE,
+    TILE_LIFECYCLE_PROBE_RESOURCE,
     CONVOLUTION_PROBE_RESOURCE,
     DESPECKLE_RESOURCE,
     *FILTER_RESOURCES,
@@ -376,4 +381,5 @@ OPERATIONS = (
     *ANIMATION_OPERATIONS,
     *PLAN_OPERATIONS,
     *TILE_OPERATIONS,
+    *TILE_LIFECYCLE_OPERATIONS,
 )

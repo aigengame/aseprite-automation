@@ -1346,6 +1346,50 @@ that are absent from issue bodies.
 - [Aseprite scripting documentation](https://www.aseprite.org/docs/scripting/)
 
 
+## Keyed Tile lifecycle
+
+`spa tileset tile add/assign-key/remove/reorder` edit one exact `target` Tileset.
+Each requires `source_sprite_file`, `target_sprite_file`, explicit `in_place` and
+`overwrite`. These standalone Operations use the same staged save/reopen and
+Target Commit rules as other mutations. Use each command's `--schema` for its
+complete installed contract.
+
+- `add` requires a unique `tile_key` and complete canonical `image` Pixel Region
+  Snapshot at `(0,0)`, matching the Tileset's tile dimensions and Sprite Color Mode.
+  The inline Image can contain at most 4096 pixels. RGB/Grayscale pixels with
+  Alpha 0 must have zero hidden color channels; otherwise the operation refuses
+  the input before mutation because native Tilesets would normalize those channels.
+  Transparent zero-channel pixels and supported Indexed transparent content remain valid.
+  It appends one Tile and accepts no insertion position. Indexed input also requires
+  an existing `palette_frame_number`; the result reports that Frame's Effective
+  Palette, used indexes, and Transparent Color Index. Other Frames can have different
+  Palettes. No palette conversion, resizing, or pixel synthesis is implicit.
+- `assign-key` requires a current nonzero `tile_index` with no existing Key and a
+  unique `tile_key`. It preserves the Tile's content and unrelated properties;
+  this is not an existing-Key rename or duplicate repair.
+- `remove` selects `tile_key`. A used Tile requires `replacement: {"kind":"empty"}`
+  or `{"kind":"tile","tile_key":"surviving-key"}` in the same Tileset. An unused
+  Tile needs no replacement. Empty Tile 0 cannot be removed.
+- `reorder` requires `tile_keys` containing every current nonzero Tile Key exactly
+  once. Missing, extra, duplicated, or unkeyed entries reject the entire request.
+
+Removal and reorder return complete `index_mapping` and resulting `tiles`, plus
+the actually changed Layers, Cels, and Cell counts. All referencing Layers and
+Frames are included; Linked Cels keep their relationships. Native Tile Images,
+text, colors, Keys, and unrelated plugin properties move together. Base Index stays
+a display offset. Empty replacements write packed zero; retained/replaced keyed
+placements keep their flags. Existing flagged index-0 observations remain intact.
+
+The selected Tileset must fit 4096 Tiles, including Empty Tile 0, both before and
+after the operation. Removal/reorder can inspect at most 1,048,576 referenced Tile
+Cells, summed over every logical Cel: Linked Cels count separately per Frame,
+including Empty and unchanged Cells. An exceeded limit returns
+`tile_lifecycle_invalid` with reason `operation_limit` and typed
+`limit: {unit, requested, maximum}` before mutation. The request schema exposes
+the current values as `x-spa-operation-limits`; these are not caller override fields.
+The current boundaries can expand with accepted requirements and verified native
+capabilities; they are not permanent restrictions.
+
 ## Tileset and Tilemap inspection
 
 `spa tileset list` reports every current Tileset, its one-based `tileset_index`,

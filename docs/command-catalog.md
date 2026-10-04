@@ -214,6 +214,7 @@ does not add other motion modes or recipe-owned pose and particle behavior.
 | `spa tileset resize` | Replace a Tileset under explicit image, Grid, Cel, and placement policies. |
 | `spa tileset tile get` | Inspect a Tile by key or current index. |
 | `spa tileset tile add` | Append a keyed non-empty Tile from typed Image input. |
+| `spa tileset tile assign-key` | Assign a unique missing Key to one current nonzero Tile Index. |
 | `spa tileset tile set-key` | Assign or change one Tile Key explicitly. |
 | `spa tileset tile set` | Set a keyed Tile's Image or native properties. |
 | `spa tileset tile remove` | Remove a Tile and explicitly rewrite affected placements. |

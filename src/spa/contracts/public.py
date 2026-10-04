@@ -98,6 +98,7 @@ RuntimeCapability = Literal[
     "aseprite_tile_inspection",
     "aseprite_tilemap_layer_creation",
     "aseprite_tile_cel_creation",
+    "aseprite_tile_lifecycle",
 ]
 
 

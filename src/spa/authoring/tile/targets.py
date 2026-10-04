@@ -10,6 +10,7 @@ from spa.contracts.public import FailureCodeSpec, PublicModel
 from spa.contracts.raster import PositiveRectangle
 
 TILESET_RESOURCE = PackagedResource("tilesets", "tile/tilesets.lua")
+TILE_KEY_RESOURCE = PackagedResource("tile_keys", "tile/keys.lua")
 
 
 class TilesetTarget(PublicModel):
