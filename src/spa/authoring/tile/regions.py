@@ -330,6 +330,47 @@ def _validate_evidence(request: TilemapRequest, result: TilemapRegionEvidence) -
         result.before_content_digest == result.after_content_digest
     ):
         raise ValueError("Changed Cell count contradicts content digests")
+    tilesets = result.sprite.tilesets or []
+    if facts.tileset_index > len(tilesets):
+        raise ValueError("Tilemap binding is outside the persisted Tileset collection")
+    tileset = tilesets[facts.tileset_index - 1]
+    size, position, grid, coverage = (
+        facts.cell_size,
+        facts.position,
+        facts.effective_grid,
+        facts.canvas_coverage,
+    )
+    if size is None or position is None or grid is None or coverage is None:
+        raise ValueError("Existing Tilemap Cel has incomplete geometry")
+    if (
+        size.width < 1
+        or size.height < 1
+        or size.width * size.height > TILE_REGION_LIMITS["tile_cells"]
+        or grid.tile_size != tileset.tile_size
+        or grid.origin.x != position.x + tileset.grid_origin.x
+        or grid.origin.y != position.y + tileset.grid_origin.y
+        or coverage.x != grid.origin.x
+        or coverage.y != grid.origin.y
+        or coverage.width != size.width * grid.tile_size.width
+        or coverage.height != size.height * grid.tile_size.height
+        or (
+            area is not None
+            and (
+                area.x < 0
+                or area.y < 0
+                or area.x + area.width > size.width
+                or area.y + area.height > size.height
+            )
+        )
+        or (
+            isinstance(request, TilemapPatchRequest)
+            and any(
+                entry.tile_x >= size.width or entry.tile_y >= size.height
+                for entry in request.patch.entries
+            )
+        )
+    ):
+        raise ValueError("Tile Cell coverage differs from persisted Tilemap geometry")
     addresses = {
         (tuple(cel.layer_path), cel.frame_number) for cel in result.affected_cels
     }
@@ -364,6 +405,13 @@ def _validate_evidence(request: TilemapRequest, result: TilemapRegionEvidence) -
             or actual[0].bounds.y != cel.position.y
             or actual[0].opacity != cel.opacity
             or actual[0].z_index != cel.z_index
+            or actual[0].bounds.width != coverage.width
+            or actual[0].bounds.height != coverage.height
+            or (
+                cel.layer_path == layer.layer_path
+                and cel.frame_number == facts.frame_number
+                and cel.position != position
+            )
         ):
             raise ValueError("Affected Cel differs from persisted Sprite inspection")
     placements = (
@@ -380,6 +428,7 @@ def _validate_evidence(request: TilemapRequest, result: TilemapRegionEvidence) -
         len(result.written_tiles) != len(keys)
         or {tile.tile_key for tile in result.written_tiles} != keys
         or len({tile.tile_index for tile in result.written_tiles}) != len(keys)
+        or any(tile.tile_index >= tileset.tile_count for tile in result.written_tiles)
     ):
         raise ValueError("Written Tile identities differ from requested Keys")
     used = {result.sprite.metadata.transparent_color_index}

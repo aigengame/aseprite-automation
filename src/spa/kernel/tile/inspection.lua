@@ -59,8 +59,6 @@ local function resolve_tile(tileset, address)
 end
 
 local cel_facts = dofile(app.params.tilemaps).cel_facts
-module.tileset_facts = facts
-module.tileset_index = tileset_index
 
 local function region(image, tileset, area)
   local result = {
