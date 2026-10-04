@@ -211,7 +211,7 @@ does not add other motion modes or recipe-owned pose and particle behavior.
 | `spa tileset add` | Add a named Tileset with explicit Grid and Base Index. |
 | `spa tileset set` | Set supported writable Tileset properties. |
 | `spa tileset remove` | Remove one unreferenced Tileset. |
-| `spa tileset resize` | Replace a Tileset under explicit image, Grid, Cel, and placement policies. |
+| `spa tileset resize` | Deferred in #175 pending verified scoped native preservation; planned explicit image, Grid, Cel, and placement policies. |
 | `spa tileset tile get` | Inspect a Tile by key or current index. |
 | `spa tileset tile add` | Append a keyed non-empty Tile from typed Image input. |
 | `spa tileset tile assign-key` | Assign a unique missing Key to one current nonzero Tile Index. |

@@ -1,0 +1,18 @@
+{
+  "zero-before.aseprite": {
+    "marker_count": 1,
+    "size": 1554
+  },
+  "zero-clone.aseprite": {
+    "marker_count": 2,
+    "size": 1207
+  },
+  "zero-after-restored.aseprite": {
+    "marker_count": 0,
+    "size": 1027
+  },
+  "zero-after-reopened.aseprite": {
+    "marker_count": 0,
+    "size": 1027
+  }
+}
