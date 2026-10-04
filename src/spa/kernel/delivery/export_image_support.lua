@@ -68,6 +68,17 @@ function module.render_frame(source, frame_number)
   return rendered
 end
 
+-- Encode the supplied native Image; callers own format/profile policy and verification.
+function module.encode_image(image, path, palette)
+  local saved
+  if palette ~= nil then
+    saved = image:saveAs { filename = path, palette = palette }
+  else
+    saved = image:saveAs(path)
+  end
+  assert(saved, "native PNG encoding failed")
+end
+
 function module.execute(payload)
   assert(type(payload.source_sprite_file) == "string", "missing Source Sprite File")
   assert(type(payload.staged_png_file) == "string", "missing staged PNG file")
@@ -102,7 +113,7 @@ function module.execute(payload)
       local rendered_file = assert(io.open(payload.staged_rgba_file, "wb"))
       assert(rendered_file:write(bytes))
       assert(rendered_file:close())
-      assert(rendered:saveAs(payload.staged_png_file), "native PNG encoding failed")
+      module.encode_image(rendered, payload.staged_png_file)
       return facts
     end
   )

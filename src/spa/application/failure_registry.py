@@ -30,10 +30,12 @@ from spa.contracts.mutation import MUTATION_FAILURE_CODE_SPECS
 from spa.contracts.public import CORE_FAILURE_CODE_SPECS, register_failure_codes
 from spa.delivery.export import EXPORT_FAILURE_CODE_SPECS
 from spa.delivery.palette import PALETTE_EXPORT_FAILURE_SPECS
+from spa.preparation.raster import PREPARATION_FAILURE_SPECS
 
 FAILURE_CODES = register_failure_codes(
     (
         *CORE_FAILURE_CODE_SPECS,
+        *PREPARATION_FAILURE_SPECS,
         *TILE_FAILURE_SPECS,
         *TILE_LIFECYCLE_FAILURE_SPECS,
         *FILTER_FAILURE_SPECS,

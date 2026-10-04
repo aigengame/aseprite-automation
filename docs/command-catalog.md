@@ -250,21 +250,21 @@ does not add other motion modes or recipe-owned pose and particle behavior.
 | --- | --- |
 | `spa script run` | Execute exact caller-owned Lua under the documented trust boundary. |
 
-## Unresolved candidate groups
-
-### Preparation
+## Preparation
 
 [ADR-0095](adr/0095-asset-preparation-authoring-and-delivery.md) assigns Asset
 Preparation to a Supporting Subdomain and Bounded Motion Authoring to Document and
-Animation. Candidate intents are preparing a selected raster under explicit geometry,
-color, transparency, and anchor rules, and verifying frozen input facts. Feature issue
-[#103](https://github.com/aigengame/aseprite-automation/issues/103) owns that accepted
-planned contract and the choice of command spellings during implementation. Its
-alignment does not establish installed support. Bounded Cel motion is listed above.
-This catalog adds no
+Animation. `spa raster prepare` prepares a frozen RGB/RGBA PNG under explicit
+geometry, color, transparency, and named-anchor rules, then verifies and publishes
+one RGBA or Indexed PNG with a reproduction record. Feature issue
+[#103](https://github.com/aigengame/aseprite-automation/issues/103) owns the bounded
+feature matrix; the installed Descriptor owns callable schemas and runtime requirements.
+Bounded Cel motion is listed above. This catalog adds no
 `preprocess`/`postprocess` command surface, provider API, or general workflow engine.
 Existing `export` candidates belong to Asset Delivery and retain their separate format
 contracts.
+
+## Unresolved candidate groups
 
 ### Rasterized text
 

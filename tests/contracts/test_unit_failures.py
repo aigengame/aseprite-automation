@@ -90,6 +90,7 @@ from spa.contracts.public import (
 )
 from spa.contracts.raster import Point, PositiveRectangle, Size
 from spa.delivery.palette import PaletteExportDetails
+from spa.preparation.raster import PreparationDetails
 from tests.support import operation_services
 
 registered_failure_envelope = partial(failure_envelope, failure_codes=FAILURE_CODES)
@@ -197,6 +198,7 @@ def test_failure_construction_derives_category_and_refuses_mismatch() -> None:
 
 def test_each_registered_code_has_a_constrained_public_schema() -> None:
     details_by_type = {
+        PreparationDetails: PreparationDetails(reason="input", message="Invalid PNG"),
         ImageImportDetails: ImageImportDetails(
             path="input.png", reason="palette", message="Changed used index"
         ),

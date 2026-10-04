@@ -21,7 +21,7 @@ this view instead of treating it as another decision authority.
 > and native relationships, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, bounded Pixel Patch
 > application, native Snapshot composition (`spa paint composite`), native Line,
 > Rectangle, Ellipse, Contour, and Blur Paint operations, native Brightness/Contrast,
-> verified RGB
+> frozen raster preparation with RGBA/Indexed PNG delivery, verified RGB
 > PNG Image Export, animation audit, Frame comparison, and continuity Preview
 > export. The module
 > ownership below includes both this delivered vertical slice and planned work. Feature
@@ -30,8 +30,8 @@ this view instead of treating it as another decision authority.
 
 Asset Preparation and reusable Bounded Motion Authoring are accepted ownership areas
 under ADR-0095. `spa.authoring.document.motion` implements bounded position/opacity authoring over
-existing independent Cels, both standalone and in a Plan (#104). Asset Preparation
-remains planned. Wizard examples retain their recipe-owned pose and artistic rules;
+existing independent Cels, both standalone and in a Plan (#104). `spa.preparation`
+implements one frozen raster preparation path (#103). Wizard examples retain their recipe-owned pose and artistic rules;
 Asset Delivery reuses the existing export implementations.
 
 The document evolves with the product. An accepted change to the Bounded Context,
@@ -457,16 +457,26 @@ applies position offsets and opacity keys to existing per-Frame Cels, preserving
 Frame's artwork. It owns explicit sampling, interpolation, rounding, and standalone/Plan
 semantics. Further motion modes need their own accepted scope and native evidence.
 
-The planned [#103](https://github.com/aigengame/aseprite-automation/issues/103) preparation
-slice normalizes inputs to sRGB before applying the caller's palette. It composes native
-Color Profile assignment/conversion from #34 with the shared Image and Color Mode
-capabilities. The issue owns the current input/output matrix, assumptions, and rejection
-rules; this view does not establish installed support.
+`spa.preparation` owns `raster prepare`: explicit initial/reproduce intent, a frozen
+input identity, geometry and named anchors, and a verified reproduction record.
+It admits single-frame 8-bit RGB/RGBA PNG, normalizes to sRGB before binary alpha
+and the caller's ordered Palette, and publishes one RGBA or Indexed PNG. Its fixed
+Kernel handler composes existing Color Profile, Image crop/resize/canvas, Palette,
+Color Mode, and PNG encoding owners. Only binary alpha normalization and opaque
+bounds are new native Raster helpers. Python derives geometry and checks complete
+native/decoded evidence; it does not resample or map pixels. The input decoder also
+verifies the output's representation, sRGB intent, complete Palette, and pixels.
+Reproduction compares frozen bytes, explicit choices, runtime versions, geometry,
+and decoded content before publication, without a registry or cross-runtime promise.
+ICC conversion remains conditional on the Color Profile owner's runtime capability.
+The Color Profile owner supplies one exact ICC identity resolver for its own
+conversion preflight, Image Import, and Preparation; callers keep their refusal policies.
+See [the preparation evidence](docs/evidence/issue-103-raster-preparation.md).
 
 Animation comparison and continuity inspection have a Document and Animation owner;
 the Preview Artifact has Asset Delivery export and publication guarantees. The current
 `spa.authoring.document.animation` use case composes these responsibilities with existing export support.
-Export Image and Animation Preview share `spa.delivery.png_publication`. Its
+Export Image, Animation Preview, and Raster Preparation share `spa.delivery.png_publication`. Its
 `staged_png` scope owns the PNG and native RGBA evidence paths, independent decoding,
 common native/decoded comparisons, verified digest, Source/destination checks,
 publication, and cleanup through inner-owned ports. The File Adapter implements the
@@ -545,10 +555,13 @@ src/spa/
       inspection.py, values.py # exact native Tile observations and bounded Snapshot values
       properties.py       # typed projection of selected native Lua property values
       lifecycle.py        # keyed Tile mutations and validated native remapping evidence
+  preparation/
+    contracts.py          # explicit Preparation Specification, geometry, and reproduction facts
+    raster.py             # frozen input admission, native composition, verified Artifact publication
   delivery/
     export.py             # Export Image contract, native invocation, and result
     palette.py            # verified Palette file export and explicit generation composition
-    png_publication.py    # staged PNG verification/publication for Export and Preview
+    png_publication.py    # staged PNG verification/publication for Export, Preview, Preparation
   adapters/
     aseprite/             # process, resource discovery, and transport
     files.py, png.py       # filesystem mechanics and export PNG verification
@@ -564,6 +577,7 @@ src/spa/
       raster_color.lua
     tile/                 # Tileset identity, topology, validation, complete Tile Regions
     color/                # Palette semantics, native Color Mode and Color Profile operations
+    preparation/          # fixed composition of existing Raster and Color owners
     delivery/             # native Image Export
     runtime/              # runtime and capability probes
       fixtures/           # real native probe inputs
@@ -606,8 +620,8 @@ compares all nested Kernel files with source bytes outside the checkout, includi
 real LFS fixture content. This inventory verifies the distribution and is not an
 Operation registry.
 
-Add a module only with a complete functional slice. Preparation has no placeholder
-implementation. Tile Authoring owns `authoring/tile` and `kernel/tile`: Python
+Add a module only with a complete functional slice. Tile Authoring owns
+`authoring/tile` and `kernel/tile`: Python
 publishes typed inspection, explicit Tileset creation/sharing, and Tilemap Cel contracts, and
 checks evidence before Artifact or Target publication. Lua resolves native Tilesets,
 Tile Keys, Layer bindings, and Tile Cell placements, and constructs explicitly
@@ -757,6 +771,13 @@ Kernel records direct requested/observed Channel probes, and `RuntimeFacts`
 transports both observations. Raster Authoring provides the Convolution gap evidence;
 the installed Surface Manifest reports the applicable Capability Gap. No descriptor,
 custom convolution engine, or general resource registry is added.
+
+Native text rasterization is also discovery-only under issue #47. Raster Authoring
+owns the retained Capability Gap evidence; `surface.py` projects it through
+`info` and `schema` without a text Descriptor or schema. The
+[bounded macOS investigation](docs/evidence/issue-47-native-text.md) is separate
+from selected-runtime identity. Text probes are manual evidence fixtures, not
+packaged discovery resources, so discovery never repeats the known crash.
 
 Brightness/Contrast passes the concrete `filter_tiles.lua` module into the shared
 execution path. It owns Manual Tilemap admission, preserved placement/binding/Grid
@@ -1204,7 +1225,7 @@ Milestones group phase outcomes, and explicit issue dependencies determine imple
 order.
 
 ADR-0095 adds preparation and reusable motion as bounded follow-up work and reclassifies
-existing Delivery. Issue #103 owns the planned preparation contract. The #104 motion
+existing Delivery. Issue #103 owns the delivered bounded preparation contract. The #104 motion
 slice verifies wizard and floating-emblem fixtures through standalone and Plan
 execution; its [performance evidence](docs/evidence/issue-104-motion-performance.md)
 reports a bounded local workload. Existing

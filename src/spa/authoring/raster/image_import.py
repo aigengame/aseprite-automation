@@ -1,7 +1,6 @@
 """Compatible external PNG insertion into an explicitly empty native Cel slot."""
 
 import hashlib
-from importlib.resources import files as packaged_files
 from pathlib import Path
 from typing import Literal, NoReturn
 
@@ -9,7 +8,7 @@ from pydantic import Field, model_validator
 
 from spa.application.mutation import prepare_mutation
 from spa.authoring.color.palette import EFFECTIVE_PALETTE_RESOURCE
-from spa.authoring.color.profile import PROFILE_ICC_RESOURCES, PROFILE_RESOURCES
+from spa.authoring.color.profile import PROFILE_RESOURCES, supported_icc_identity
 from spa.authoring.document.cel_contracts import (
     CEL_SUPPORT_RESOURCE,
     CelMutationRequest,
@@ -292,15 +291,7 @@ def import_image(
         _reject(path, "invalid_png", "PNG exceeds persisted Cel Image dimensions")
     identity = None
     if decoded.icc_bytes is not None:
-        for resource in PROFILE_ICC_RESOURCES:
-            if (
-                packaged_files("spa.kernel")
-                .joinpath(resource.package_path)
-                .read_bytes()
-                == decoded.icc_bytes
-            ):
-                identity = Path(resource.package_path).stem
-                break
+        identity = supported_icc_identity(decoded.icc_bytes)
         if identity is None:
             _reject(
                 path,
