@@ -749,6 +749,13 @@ transports both observations. Raster Authoring provides the Convolution gap evid
 the installed Surface Manifest reports the applicable Capability Gap. No descriptor,
 custom convolution engine, or general resource registry is added.
 
+Native text rasterization is also discovery-only under issue #47. Raster Authoring
+owns the retained Capability Gap evidence; `surface.py` projects it through
+`info` and `schema` without a text Descriptor or schema. The
+[bounded macOS investigation](docs/evidence/issue-47-native-text.md) is separate
+from selected-runtime identity. Text probes are manual evidence fixtures, not
+packaged discovery resources, so discovery never repeats the known crash.
+
 Brightness/Contrast passes the concrete `filter_tiles.lua` module into the shared
 execution path. It owns Manual Tilemap admission, preserved placement/binding/Grid
 postconditions, and changed Tile bitmap references. It consumes the existing low-level

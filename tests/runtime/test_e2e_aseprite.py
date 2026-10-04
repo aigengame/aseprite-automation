@@ -238,6 +238,7 @@ def test_info_reports_installed_runtime() -> None:
         "spa palette add",
         "spa palette remove",
         "spa filter convolution-matrix",
+        "native text rasterization",
         "spa filter hue-saturation: Tilemap pixels",
         "spa filter color-curve: Tilemap pixels",
         "spa filter replace-color: Tilemap pixels",
