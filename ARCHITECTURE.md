@@ -342,9 +342,10 @@ Tileset/Grid admission, native TILEMAP Image construction, and packed-zero check
 It reuses Tile inspection for creation facts. Add validates its initial state at
 the Step; the final save/reopen gate validates the state after all later Steps.
 Before Target Commit, creation receipts also reconcile the addressed Tileset and
-Grid with complete Sprite inspection. Current eligible Plan Steps preserve these
-Tileset structural facts, so this check uses final inspection without comparing
-initial Cel properties with their later state.
+Grid with the collection at that Step. Plan derives these collections from the
+ordered lifecycle receipts and final Sprite inspection; later rebinding or removal
+can change bindings and current indexes without invalidating earlier Cel facts.
+Initial Cel properties are not compared with their later state.
 The Layer-owned `layer_select.lua` Module supplies `current_path` for an already
 attached native Layer. Cel, Frame, Sprite inspection, Pixel Patch, and native Paint
 reuse this current stack-index fact. Exact name/path/verified-UUID selection remains
@@ -643,8 +644,15 @@ is not a metadata transfer format. A nonzero Tile mapped to Empty becomes packed
 other retained placements keep flags, including existing flagged index-0 observations.
 The native `MoveTiles` command requires a Tilemap Layer; orphan reorder creates and
 removes only its own temporary native context within the mutation transaction.
-Public Tile lifecycle Operations are standalone in this delivery. Cel mutation and Plan retain staging and
-Target Commit ownership. The existing Tile probe observes empty-Cel save/reopen
+Public Tile record lifecycle Operations are standalone in this delivery.
+`tile/tileset_lifecycle.lua` owns explicit Layer rebinding and unreferenced Tileset
+removal. Both standalone and Plan call its live semantics. It resolves used Keys,
+Grid intent, and usage-Frame Palette validity before mutation; it does not copy or
+reconstruct native Tile metadata. Shared document verification and exact Layer
+bindings guard the change and final save/reopen. Python validates typed receipts
+and request correspondence; Plan also reconciles the collection between Steps.
+Scoped Tileset resize remains deferred in #175 pending native preservation evidence.
+Cel mutation and Plan retain staging and Target Commit ownership. The existing Tile probe observes empty-Cel save/reopen
 separately from inspection; only explicit Tilemap creation requests require that
 capability. Shared JSON Snapshot destination mechanics live in
 `contracts/snapshot.py`; Tile Region values stay in their feature owner. Color and Palette owns the shared Effective

@@ -1390,6 +1390,51 @@ the current values as `x-spa-operation-limits`; these are not caller override fi
 The current boundaries can expand with accepted requirements and verified native
 capabilities; they are not permanent restrictions.
 
+## Tileset rebind and removal
+
+`spa layer set-tileset` binds one exact Tilemap `layer` to a `target` Tileset.
+It requires `mapping: {"kind":"by_key"}` or a complete explicit mapping of used
+source Keys, such as:
+
+```json
+{"kind":"explicit","entries":[
+  {"source_key":"grass","target":{"kind":"tile","tile_key":"meadow"}},
+  {"source_key":"water","target":{"kind":"empty"}}
+]}
+```
+
+Used source Keys and requested target Keys must resolve uniquely. Unused unkeyed
+Tiles do not need repair. Keyed destinations retain X/Y/diagonal flags; an explicit
+Empty destination writes packed zero. A flagged index-0 observation is not Empty
+and cannot be rebound without a valid source Key.
+
+`grid_policy: "require_equal"` requires matching Grids. `"use_target"` accepts the
+new Grid while preserving Tile Cell dimensions, coordinates, and Cel Canvas
+positions, without resampling. Results report each logical Cel, before/after
+Canvas coverage, changed Cell counts, and the resolved Key mapping. Linked Cels
+retain their relationship; other Layers that share the old Tileset remain bound
+to it. Indexed output validates Tile pixels and the Transparent Color Index in
+each affected usage Frame's Effective Palette. Different valid Frame Palettes are
+allowed; Palette mutation or index remapping is never implicit.
+
+`spa tileset remove` takes one exact `target` and refuses a referenced Tileset
+with `tileset_in_use`, including every referencing Layer. Successful removal reports
+the surviving collection and old-to-new index mapping. Indexes are snapshot addresses.
+
+Both Operations use `source_sprite_file`, `target_sprite_file`, `in_place`, and
+`overwrite`, verify staged save/reopen, and are eligible Plan Steps. Put one rebind
+per referencing Layer before removal in a Plan to publish one Target. Step receipts
+retain their execution-time facts after later reindexing; any failed Step prevents
+Target Commit and preserves Source and the previous Target.
+
+```sh
+spa layer set-tileset --input-json '{"source_sprite_file":"map.aseprite","target_sprite_file":"rebound.aseprite","in_place":false,"overwrite":false,"layer":{"layer_name":"terrain"},"target":{"tileset_name":"replacement"},"mapping":{"kind":"by_key"},"grid_policy":"require_equal"}'
+```
+
+Current boundaries can change with accepted needs and verified native capability.
+Scoped `tileset resize` remains deferred in #175; it is not a callable Operation.
+See [native lifecycle evidence](docs/evidence/issue-45-tileset-lifecycle.md).
+
 ## Tileset and Tilemap inspection
 
 `spa tileset list` reports every current Tileset, its one-based `tileset_index`,

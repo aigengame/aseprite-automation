@@ -53,6 +53,7 @@ class TileSnapshotLimit(PublicModel):
 
 
 class TileInspectionDetails(PublicModel):
+    step_number: int | None = Field(default=None, ge=1)
     kind: Literal["tile_inspection"] = "tile_inspection"
     target: TilesetTarget | CelAddress | None = None
     tile: TileAddress | None = None

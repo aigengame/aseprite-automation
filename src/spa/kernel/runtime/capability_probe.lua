@@ -1597,6 +1597,11 @@ function module.observe()
   if app.params.tile_lifecycle_probe and dofile(app.params.tile_lifecycle_probe).observes() then
     capabilities[#capabilities + 1] = "aseprite_tile_lifecycle"
   end
+  if
+    app.params.tileset_lifecycle_probe and dofile(app.params.tileset_lifecycle_probe).observes()
+  then
+    capabilities[#capabilities + 1] = "aseprite_tileset_lifecycle"
+  end
   if observes_sprite_flatten() then capabilities[#capabilities + 1] = "aseprite_sprite_flatten" end
   if observes_sprite_resize() then capabilities[#capabilities + 1] = "aseprite_sprite_resize" end
   if observes_image_canvas_transform() then

@@ -95,6 +95,9 @@ from spa.authoring.document.sprite import (
     validate_created_sprite,
     validated_scope,
 )
+from spa.authoring.document.sprite import (
+    TilesetFacts as SpriteTilesetFacts,
+)
 from spa.authoring.raster.image_snapshot import SNAPSHOT_RESOURCE
 from spa.authoring.raster.paint import (
     PAINT_OPERATIONS,
@@ -108,6 +111,19 @@ from spa.authoring.raster.paint import (
 from spa.authoring.tile.cel_add import TILE_CEL_RESOURCE, TilemapCreationEvidence
 from spa.authoring.tile.inspection import TILE_INSPECTION_RESOURCE, TILE_PROBE_RESOURCE
 from spa.authoring.tile.targets import TILE_KEY_RESOURCE, TILESET_RESOURCE
+from spa.authoring.tile.tileset_lifecycle import (
+    TILESET_FAILURE_CODES,
+    TILESET_LIFECYCLE_OPERATIONS,
+    TILESET_LIFECYCLE_PROBE_RESOURCE,
+    TILESET_LIFECYCLE_RESOURCES,
+    TilesetRebindEvidence,
+    TilesetRebindInput,
+    TilesetRemoveEvidence,
+    TilesetRemoveInput,
+    reject_tileset,
+    tileset_payload,
+    validate_tileset_evidence,
+)
 from spa.contracts.digest import DIGEST_RESOURCE
 from spa.contracts.mutation import (
     TargetCommit,
@@ -149,40 +165,47 @@ ELIGIBLE_OPERATIONS = {
         *CEL_RELATIONSHIP_OPERATIONS,
         *MOTION_OPERATIONS,
         *COLOR_MODE_OPERATIONS,
+        *TILESET_LIFECYCLE_OPERATIONS,
     )
     if descriptor.plan_eligible
 }
 PLAN_RUN_HANDLER = PackagedHandler(
     "plan_run",
     "plan/plan_run.lua",
-    (
-        *SPRITE_INSPECTION_RESOURCES,
-        SPRITE_PERSISTENCE_RESOURCE,
-        PROFILE_RESOURCE,
-        PROFILE_FILE_RESOURCE,
-        *PROFILE_ICC_RESOURCES,
-        SPRITE_CREATION_RESOURCE,
-        PAINT_SUPPORT_RESOURCE,
-        RASTER_COLOR_RESOURCE,
-        EFFECTIVE_PALETTE_RESOURCE,
-        PALETTE_SUPPORT_RESOURCE,
-        COLOR_MODE_RESOURCE,
-        SELECTION_MASK_RESOURCE,
-        FRAME_SUPPORT_RESOURCE,
-        CEL_SUPPORT_RESOURCE,
-        CEL_RELATIONSHIP_RESOURCE,
-        MOTION_RESOURCE,
-        ROUNDING_RESOURCE,
-        DIGEST_RESOURCE,
-        SPRITE_INSPECTION_FIXTURE,
-        PAINT_PROBE_FIXTURE,
-        TILE_CEL_RESOURCE,
-        TILE_PROBE_RESOURCE,
-        TILE_INSPECTION_RESOURCE,
-        TILESET_RESOURCE,
-        TILE_KEY_RESOURCE,
-        PackagedResource("tile_properties", "tile/properties.lua"),
-        SNAPSHOT_RESOURCE,
+    tuple(
+        dict.fromkeys(
+            (
+                *SPRITE_INSPECTION_RESOURCES,
+                SPRITE_PERSISTENCE_RESOURCE,
+                PROFILE_RESOURCE,
+                PROFILE_FILE_RESOURCE,
+                *PROFILE_ICC_RESOURCES,
+                SPRITE_CREATION_RESOURCE,
+                PAINT_SUPPORT_RESOURCE,
+                RASTER_COLOR_RESOURCE,
+                EFFECTIVE_PALETTE_RESOURCE,
+                PALETTE_SUPPORT_RESOURCE,
+                COLOR_MODE_RESOURCE,
+                SELECTION_MASK_RESOURCE,
+                FRAME_SUPPORT_RESOURCE,
+                CEL_SUPPORT_RESOURCE,
+                CEL_RELATIONSHIP_RESOURCE,
+                MOTION_RESOURCE,
+                ROUNDING_RESOURCE,
+                DIGEST_RESOURCE,
+                SPRITE_INSPECTION_FIXTURE,
+                PAINT_PROBE_FIXTURE,
+                TILE_CEL_RESOURCE,
+                TILE_PROBE_RESOURCE,
+                TILE_INSPECTION_RESOURCE,
+                TILESET_RESOURCE,
+                TILE_KEY_RESOURCE,
+                PackagedResource("tile_properties", "tile/properties.lua"),
+                SNAPSHOT_RESOURCE,
+                *TILESET_LIFECYCLE_RESOURCES,
+                TILESET_LIFECYCLE_PROBE_RESOURCE,
+            )
+        )
     ),
 )
 
@@ -260,6 +283,16 @@ class ConvertProfileStep(PublicModel):
     input: ConvertProfileInput
 
 
+class TilesetRebindStep(PublicModel):
+    operation: Literal["layer set-tileset"]
+    input: TilesetRebindInput
+
+
+class TilesetRemoveStep(PublicModel):
+    operation: Literal["tileset remove"]
+    input: TilesetRemoveInput
+
+
 PlanStep = Annotated[
     CreateStep
     | GetStep
@@ -273,7 +306,9 @@ PlanStep = Annotated[
     | MotionStep
     | ColorModeStep
     | AssignProfileStep
-    | ConvertProfileStep,
+    | ConvertProfileStep
+    | TilesetRebindStep
+    | TilesetRemoveStep,
     Field(discriminator="operation"),
 ]
 
@@ -344,6 +379,8 @@ class PlanDefinition(PublicModel):
                     ColorModeStep,
                     AssignProfileStep,
                     ConvertProfileStep,
+                    TilesetRebindStep,
+                    TilesetRemoveStep,
                 ),
             )
             for step in self.steps
@@ -448,6 +485,24 @@ class ProfileStepResult(ProfileEvidence):
     persisted_reopen_verified: Literal[False]
 
 
+class TilesetRebindStepResult(TilesetRebindEvidence):
+    persisted_reopen_verified: Literal[False]
+
+
+class TilesetRemoveStepResult(TilesetRemoveEvidence):
+    persisted_reopen_verified: Literal[False]
+
+
+class TilesetRebindStepOutcome(PublicModel):
+    operation: Literal["layer set-tileset"]
+    result: TilesetRebindStepResult
+
+
+class TilesetRemoveStepOutcome(PublicModel):
+    operation: Literal["tileset remove"]
+    result: TilesetRemoveStepResult
+
+
 class AssignProfileStepOutcome(PublicModel):
     operation: Literal["sprite assign-color-profile"]
     result: ProfileStepResult
@@ -521,7 +576,9 @@ StepOutcome = Annotated[
     | MotionStepOutcome
     | ColorModeStepOutcome
     | AssignProfileStepOutcome
-    | ConvertProfileStepOutcome,
+    | ConvertProfileStepOutcome
+    | TilesetRebindStepOutcome
+    | TilesetRemoveStepOutcome,
     Field(discriminator="operation"),
 ]
 
@@ -708,6 +765,59 @@ def _validated_steps(
                 else None
             ),
         )
+    # Lifecycle receipts preserve the collection before and after their own
+    # Step. Walk those changes backwards so earlier receipts retain their
+    # execution-time indexes while still agreeing with the final document.
+    collections = []
+    collection = final_sprite.tilesets
+    later_collection = None
+    for offset in range(len(request.plan.steps) - 1, -1, -1):
+        step, item = request.plan.steps[offset], raw[offset]
+        try:
+            if isinstance(step, (TilesetRebindStep, TilesetRemoveStep)):
+                evidence = (
+                    TilesetRebindStepResult.model_validate(item["result"])
+                    if isinstance(step, TilesetRebindStep)
+                    else TilesetRemoveStepResult.model_validate(item["result"])
+                )
+                validate_tileset_evidence(step.input, evidence)
+
+                def project(items):
+                    return [
+                        SpriteTilesetFacts(
+                            name=facts.name,
+                            tile_count=facts.tile_count,
+                            base_index=facts.base_index,
+                            grid_origin=facts.grid.origin,
+                            tile_size=facts.grid.tile_size,
+                        )
+                        for facts in items
+                    ]
+
+                if project(evidence.tilesets) != collection:
+                    raise ValueError("Tileset Step contradicts the later collection")
+                if (
+                    later_collection is not None
+                    and evidence.tilesets != later_collection
+                ):
+                    raise ValueError(
+                        "Tileset Step contradicts the later Layer bindings"
+                    )
+                later_collection = evidence.before_tilesets
+                collection = project(evidence.before_tilesets)
+            elif isinstance(step, (CreateStep, GetStep)):
+                observed = SpriteInspection.model_validate(item["result"]["sprite"])
+                if observed.tilesets is not None and observed.tilesets != collection:
+                    raise ValueError("Sprite Step contradicts its Tileset collection")
+            collections.append(collection)
+        except (KeyError, TypeError, ValueError, ValidationError) as exc:
+            raise _malformed(
+                invocation,
+                "Plan Kernel returned inconsistent Tileset Step evidence",
+                failed_step=offset + 1,
+                failed_operation=step.operation,
+            ) from exc
+    collections.reverse()
     outcomes: list[StepOutcome] = []
     mode = next(
         (
@@ -793,6 +903,10 @@ def _validated_steps(
                 validate_profile_evidence(
                     step.input, outcome.result, invocation, profile_inputs[index]
                 )
+            elif isinstance(step, TilesetRebindStep):
+                outcome = TilesetRebindStepOutcome.model_validate(item)
+            elif isinstance(step, TilesetRemoveStep):
+                outcome = TilesetRemoveStepOutcome.model_validate(item)
             elif isinstance(step, CelAddStep):
                 outcome = CelAddStepOutcome.model_validate(item)
                 target = step.input.target
@@ -800,7 +914,9 @@ def _validated_steps(
                 validate_added_cel(
                     step.input,
                     after,
-                    final_sprite,
+                    final_sprite.model_copy(
+                        update={"tilesets": collections[index - 1]}
+                    ),
                     invocation,
                     outcome.result.tilemap_creation,
                 )
@@ -871,6 +987,8 @@ def _validate_cel_count_sequence(
                 FrameGetStepOutcome,
                 AssignProfileStepOutcome,
                 ConvertProfileStepOutcome,
+                TilesetRebindStepOutcome,
+                TilesetRemoveStepOutcome,
             ),
         ):
             pass
@@ -911,10 +1029,52 @@ def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunRes
     }
     for index, prepared in profile_inputs.items():
         payload["steps"][index - 1]["input"] = prepared
+    for index, step in enumerate(plan.steps):
+        if isinstance(step, (TilesetRebindStep, TilesetRemoveStep)):
+            payload["steps"][index]["input"] = tileset_payload(step.input)
     try:
         invocation = services.invoke_kernel_direct(
             request, PLAN_RUN_HANDLER, payload, request.timeout_seconds
         )
+        tileset_rejection = invocation.payload.get("tileset_rejection")
+        if tileset_rejection is not None:
+            index = (
+                tileset_rejection.get("step_number")
+                if isinstance(tileset_rejection, dict)
+                else None
+            )
+            if (
+                type(index) is not int
+                or not 1 <= index <= len(plan.steps)
+                or not isinstance(
+                    plan.steps[index - 1], (TilesetRebindStep, TilesetRemoveStep)
+                )
+            ):
+                raise _malformed(invocation, "Invalid Tileset rejection Step")
+            step = plan.steps[index - 1]
+            assert isinstance(step, (TilesetRebindStep, TilesetRemoveStep))
+            try:
+                reject_tileset(
+                    step.input,
+                    replace(
+                        invocation,
+                        payload={"rejection": tileset_rejection["rejection"]},
+                    ),
+                )
+            except OperationIssue as exc:
+                raise OperationIssue(
+                    exc.code,
+                    str(exc),
+                    exc.details.model_copy(update={"step_number": index}),
+                ) from exc
+            except (KeyError, TypeError, ValueError, ValidationError) as exc:
+                raise _malformed(
+                    invocation,
+                    "Invalid Tileset Step rejection",
+                    failed_step=index,
+                    failed_operation=step.operation,
+                ) from exc
+            raise _malformed(invocation, "Missing Tileset Step rejection")
         rejected_color_mode = invocation.payload.get("color_mode_rejection")
         if rejected_color_mode is not None:
             index = (
@@ -1092,10 +1252,8 @@ def run_plan(request: PlanRunRequest, services: OperationServices) -> PlanRunRes
             inspection_scope=list(INSPECTION_SECTIONS),
         )
         validated_scope(final_scope_request, final_sprite, invocation)
-        # Current eligible Steps keep Canvas size and Tileset order, count, and
-        # structural facts (including Grid). Reconcile only these with final facts;
-        # Add receipts describe their own initial Cel state. A Tileset lifecycle
-        # Step would require Step-time facts instead of this invariant.
+        # Step receipts describe their own execution-time document. Lifecycle
+        # collection changes are reconciled inside Step validation.
         outcomes = _validated_steps(request, invocation, final_sprite, profile_inputs)
         metadata = final_sprite.metadata
         for field, expected in plan.postconditions.model_dump(
@@ -1185,19 +1343,24 @@ PLAN_OPERATIONS = (
             else f"Plan completed: {len(result.steps)} Steps"
         ),
         PLAN_DISCOVERY_REQUIREMENTS,
-        (
-            *RUNTIME_FAILURE_CODES,
-            *LAYER_ADDRESS_FAILURE_CODES,
-            *(item.code for item in COLOR_MODE_FAILURE_SPECS),
-            "cel_already_exists",
-            "cel_not_found",
-            "cel_unsupported_target",
-            "cel_frame_out_of_bounds",
-            "color_profile_file_failed",
-            "color_profile_source_unsupported",
-            "motion_linked_cel",
-            "motion_position_out_of_bounds",
-            "target_commit_failed",
+        tuple(
+            dict.fromkeys(
+                (
+                    *RUNTIME_FAILURE_CODES,
+                    *LAYER_ADDRESS_FAILURE_CODES,
+                    *(item.code for item in COLOR_MODE_FAILURE_SPECS),
+                    "cel_already_exists",
+                    "cel_not_found",
+                    "cel_unsupported_target",
+                    "cel_frame_out_of_bounds",
+                    "color_profile_file_failed",
+                    "color_profile_source_unsupported",
+                    "motion_linked_cel",
+                    "motion_position_out_of_bounds",
+                    *TILESET_FAILURE_CODES,
+                    "target_commit_failed",
+                )
+            )
         ),
         execution_kind="mutation",
         side_effects=("publishes one Target Sprite File for a mutating Plan",),

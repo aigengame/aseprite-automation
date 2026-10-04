@@ -67,6 +67,19 @@ not change. Cel Canvas positions, Tile Cell dimensions, and Linked Cels remain i
 This was verified through native save/reopen with a second Layer sharing the old
 Tileset left unchanged.
 
+For a changed Grid, an identity Image replacement under the old Grid precedes
+the binding change and final Image replacement. This fixed command order also
+restores cached bounds on transaction rollback. The probe forces failure after
+rebinding and verifies original bounds, pixels, positions, links, and peer bindings.
+No general restoration mechanism is used.
+
+Pure save/reopen controls also found that all-opaque Frame Palettes can be written
+as legacy FLI color chunks, which do not encode Palette length. Native round trips
+then changed 256→8 to 256→256 and 4→8 to 4→4. Same-length differing colors persisted;
+4→8 with an alpha-bearing entry persisted through the modern Palette chunk. Positive
+usage-Frame fixtures use that verified representation. Production code neither
+changes Palette encoding nor weakens save/reopen checks to accept loss.
+
 An orphan removal targets that exact native Tileset. The native reindexing of
 surviving Tilesets is reported. A referenced removal is refused before mutation;
 SPA does not use Aseprite's implicit reassignment to collection index 0.
