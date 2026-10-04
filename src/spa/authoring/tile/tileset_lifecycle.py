@@ -148,6 +148,7 @@ class ReboundCel(PublicModel):
     before_coverage: PositiveRectangle
     canvas_coverage: PositiveRectangle
     changed_cells: int = Field(ge=0)
+    used_source_indexes: list[int]
     used_target_indexes: list[int]
 
 
@@ -439,7 +440,11 @@ def validate_tileset_evidence(
     frames = [cel.frame_number for cel in evidence.cels]
     if len(frames) != len(set(frames)):
         raise ValueError("Rebind reports duplicate logical Cels")
-    targets = {item.target_index for item in mappings if item.target_index != 0}
+    mapped = {item.source_index: item.target_index for item in mappings}
+    changed_tileset = (
+        evidence.before_tileset.tileset_index != evidence.tileset.tileset_index
+    )
+    required = {}
     for cel in evidence.cels:
         for grid, area in (
             (evidence.before_tileset.grid, cel.before_coverage),
@@ -454,20 +459,28 @@ def validate_tileset_evidence(
                 raise ValueError("Rebind coverage differs from the preserved Cell grid")
         if (
             cel.changed_cells > cel.cell_size.width * cel.cell_size.height
-            or cel.used_target_indexes != sorted(set(cel.used_target_indexes))
-            or not set(cel.used_target_indexes) <= targets
+            or cel.used_source_indexes != sorted(set(cel.used_source_indexes))
+            or not set(cel.used_source_indexes) <= mapped.keys()
         ):
             raise ValueError("Rebind has invalid affected Cell facts")
+        if cel.used_target_indexes != sorted(
+            {mapped[index] for index in cel.used_source_indexes if mapped[index] != 0}
+        ):
+            raise ValueError("Rebind target usage differs from its Tile mapping")
+        changed = sorted(
+            {
+                mapped[index]
+                for index in cel.used_source_indexes
+                if mapped[index] != 0 and (changed_tileset or mapped[index] != index)
+            }
+        )
+        if changed:
+            required[cel.frame_number] = changed
     checks = evidence.palette_checks
     if evidence.transparent_index is None:
         if checks:
             raise ValueError("Non-Indexed rebind reports Palette checks")
     else:
-        required = {
-            cel.frame_number: cel.used_target_indexes
-            for cel in evidence.cels
-            if cel.used_target_indexes
-        }
         if (
             len(checks) != len(required)
             or {check.frame_number: check.tile_indexes for check in checks} != required

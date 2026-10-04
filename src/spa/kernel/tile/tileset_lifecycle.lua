@@ -18,7 +18,7 @@ local function all_facts(sprite, uuids)
   return result
 end
 
-function module.checkpoint(sprite, uuids)
+function module.checkpoint(sprite, uuids, document)
   local bindings = {}
   for _, layer in ipairs(tilesets.tilemap_layers(sprite)) do
     bindings[#bindings + 1] = {
@@ -27,13 +27,13 @@ function module.checkpoint(sprite, uuids)
     }
   end
   return {
-    document = persistence.snapshot(sprite, inspection, digest, sections, uuids),
+    document = document or persistence.snapshot(sprite, inspection, digest, sections, uuids),
     bindings = bindings,
   }
 end
 
-function module.verify_saved(sprite, checkpoint, uuids)
-  local observed = module.checkpoint(sprite, uuids)
+function module.verify_saved(sprite, checkpoint, uuids, document)
+  local observed = module.checkpoint(sprite, uuids, document)
   persistence.assert_same(checkpoint.document, observed.document, "Tileset lifecycle")
   persistence.assert_equal(checkpoint.bindings, observed.bindings, "Tileset Layer bindings")
 end
@@ -228,13 +228,15 @@ local function prepare_images(layer, source, target, mapping)
     local original = cel.image
     local update = updates[original.id]
     if update == nil then
-      local final, changed, used = Image(original), 0, {}
+      local final, changed, used, source_indexes = Image(original), 0, {}, {}
       for y = 0, original.height - 1 do
         for x = 0, original.width - 1 do
           local packed = original:getPixel(x, y)
           local output = 0
           if packed ~= 0 then
-            local destination = assert(mapping[app.pixelColor.tileI(packed)])
+            local source_index = app.pixelColor.tileI(packed)
+            source_indexes[source_index] = true
+            local destination = assert(mapping[source_index])
             if destination > 0 then
               output = destination | app.pixelColor.tileF(packed)
               used[destination] = true
@@ -250,6 +252,7 @@ local function prepare_images(layer, source, target, mapping)
         content = digest.fnv1a64(final.bytes),
         changed = changed,
         used = sorted_indexes(used),
+        source_indexes = sorted_indexes(source_indexes),
       }
       updates[original.id] = update
     end
@@ -260,17 +263,26 @@ local function prepare_images(layer, source, target, mapping)
       before_coverage = coverage(cel, source.grid),
       canvas_coverage = coverage(cel, target.grid),
       changed_cells = update.changed,
+      used_source_indexes = update.source_indexes,
       used_target_indexes = update.used,
     }
   end
   return updates, cels
 end
 
-local function validate_palettes(sprite, target, cels, input)
+local function validate_palettes(sprite, source, target, mapping, cels, input)
   if sprite.colorMode ~= ColorMode.INDEXED then return {}, null end
   local checks = {}
   for _, cel in ipairs(cels) do
-    if #cel.used_target_indexes > 0 then
+    local changed = {}
+    for _, index in ipairs(cel.used_source_indexes) do
+      local destination = mapping[index]
+      if destination > 0 and (source ~= target or destination ~= index) then
+        changed[destination] = true
+      end
+    end
+    local changed_indexes = sorted_indexes(changed)
+    if #changed_indexes > 0 then
       local palette = palettes.resolve(sprite, cel.frame_number)
       if palette == nil or sprite.transparentColor < 0 or sprite.transparentColor >= #palette then
         return nil,
@@ -283,7 +295,7 @@ local function validate_palettes(sprite, target, cels, input)
           )
       end
       local used = {}
-      for _, index in ipairs(cel.used_target_indexes) do
+      for _, index in ipairs(changed_indexes) do
         local image = target:tile(index).image
         if image.colorMode ~= ColorMode.INDEXED then
           return nil,
@@ -315,7 +327,7 @@ local function validate_palettes(sprite, target, cels, input)
       local effective = colors.palette_facts(sprite, { cel }, used)[1]
       checks[#checks + 1] = {
         frame_number = cel.frame_number,
-        tile_indexes = cel.used_target_indexes,
+        tile_indexes = changed_indexes,
         effective_palette = effective,
       }
     end
@@ -347,7 +359,8 @@ function module.rebind_live(sprite, input, uuids)
   if failure then return failure end
   local updates, cels = prepare_images(layer, source, target, mapping)
   local palette_checks, transparent_index
-  palette_checks, transparent_index, failure = validate_palettes(sprite, target, cels, input)
+  palette_checks, transparent_index, failure =
+    validate_palettes(sprite, source, target, mapping, cels, input)
   if failure then return failure end
   local before_facts = all_facts(sprite, uuids)
   local layer_fact = tilesets.layer_facts(sprite, layer, uuids)

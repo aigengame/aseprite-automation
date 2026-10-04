@@ -1413,9 +1413,10 @@ new Grid while preserving Tile Cell dimensions, coordinates, and Cel Canvas
 positions, without resampling. Results report each logical Cel, before/after
 Canvas coverage, changed Cell counts, and the resolved Key mapping. Linked Cels
 retain their relationship; other Layers that share the old Tileset remain bound
-to it. Indexed output validates Tile pixels and the Transparent Color Index in
-each affected usage Frame's Effective Palette. Different valid Frame Palettes are
-allowed; Palette mutation or index remapping is never implicit.
+to it. Newly introduced or changed Indexed Tile output validates Tile pixels and
+the Transparent Color Index in each affected usage Frame's Effective Palette.
+Unchanged usage within the same Tileset stays outside that check. Different valid
+Frame Palettes are allowed; Palette mutation or index remapping is never implicit.
 
 `spa tileset remove` takes one exact `target` and refuses a referenced Tileset
 with `tileset_in_use`, including every referencing Layer. Successful removal reports

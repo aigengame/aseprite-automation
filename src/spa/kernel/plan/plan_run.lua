@@ -243,7 +243,8 @@ local function execute()
   local before = persistence.snapshot(open_sprite, inspection, digest, all_sections, verified_uuids)
   local converted_document = converted and color_mode.observe(open_sprite) or nil
   local profile_before = profile_steps and profiles.snapshot(open_sprite, verified_uuids) or nil
-  local tileset_before = tileset_steps and tileset_lifecycle.checkpoint(open_sprite, verified_uuids)
+  local tileset_before = tileset_steps
+      and tileset_lifecycle.checkpoint(open_sprite, verified_uuids, before)
     or nil
   local persisted = false
   if type(payload.staged_sprite_file) == "string" then
@@ -260,7 +261,7 @@ local function execute()
       persistence.snapshot(open_sprite, inspection, digest, all_sections, verified_uuids)
     persistence.assert_same(before, after, "Plan")
     if tileset_before then
-      tileset_lifecycle.verify_saved(open_sprite, tileset_before, verified_uuids)
+      tileset_lifecycle.verify_saved(open_sprite, tileset_before, verified_uuids, after)
     end
     if converted_document then
       persistence.assert_equal(

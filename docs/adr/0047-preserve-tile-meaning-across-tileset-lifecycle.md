@@ -50,9 +50,12 @@ without inventing hidden cleanup or index-matching policy.
   Plan through the same packaged Lua handlers. Step results describe execution-time
   facts; a later removal or collection reindex must not invalidate an earlier
   correct result. The final save/reopen gate verifies the completed document.
-- Indexed rebinding validates the output Tiles and Transparent Color Index in the
-  Effective Palette of each Frame that actually uses those Tiles. It does not
-  rewrite Palettes or require the same colors in different valid Frame Palettes.
+- Indexed rebinding validates newly introduced or changed non-empty Tile output
+  and the Transparent Color Index in each affected usage Frame's Effective
+  Palette. Within the same Tileset, an unchanged Tile usage does not become a
+  validation target; mapping another Cell to that Tile introduces a usage and
+  requires validation. It does not rewrite Palettes or require the same colors
+  in different valid Frame Palettes.
 - SPA does not add a general orphan scanner, automatic garbage collector, or background
   cleanup policy. An Operation can remove only an exact temporary object it created or
   an explicitly addressed unreferenced Tileset.

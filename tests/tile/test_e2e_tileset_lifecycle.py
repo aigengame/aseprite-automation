@@ -241,3 +241,80 @@ def test_explicit_mapping_requires_exactly_used_keys(
     assert result["details"]["reason"] in {"mapping_incomplete", "mapping_invalid"}
     assert source.read_bytes() == original
     assert not target.exists()
+
+
+@pytest.mark.parametrize("as_plan", [False, True])
+@pytest.mark.parametrize("replace_a", ["identity", "empty", "b"])
+def test_same_tileset_checks_only_changed_usage(
+    tmp_path: Path, runtime, as_plan: bool, replace_a: str
+) -> None:
+    from tests.support import inject_palette_change
+
+    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
+    fixture(source, runtime, script="tileset_lifecycle.lua", mode="indexed")
+    # Native round-trippable Palette sizes: existing b is invalid only at Frame 2.
+    for frame, size in [(1, 4), (2, 2)]:
+        inject_palette_change(
+            source,
+            [(i, 20, 30, 0 if i == 0 else 255) for i in range(size)],
+            frame_number=frame,
+        )
+    original = source.read_bytes()
+    mapping = (
+        {"kind": "by_key"}
+        if replace_a == "identity"
+        else {
+            "kind": "explicit",
+            "entries": [
+                {
+                    "source_key": "a",
+                    "target": {"kind": "empty"}
+                    if replace_a == "empty"
+                    else {"kind": "tile", "tile_key": "b"},
+                },
+                {"source_key": "b", "target": {"kind": "tile", "tile_key": "b"}},
+            ],
+        }
+    )
+    intent = {
+        "layer": {"layer_name": "map"},
+        "target": {"tileset_name": "source"},
+        "mapping": mapping,
+        "grid_policy": "require_equal",
+    }
+    if as_plan:
+        code, result = run(
+            "plan",
+            "run",
+            plan={
+                **files(source, target),
+                "steps": [{"operation": "layer set-tileset", "input": intent}],
+            },
+        )
+    else:
+        code, result = run("layer", "set-tileset", **files(source, target), **intent)
+    assert source.read_bytes() == original
+    if replace_a == "b":
+        # A new b usage must be checked even though b already occurred here.
+        assert code != 0 and result["code"] == "tileset_lifecycle_invalid", result
+        assert result["details"]["reason"] == "palette_index"
+        assert result["details"]["frame_number"] == 2
+        assert not target.exists()
+        return
+    assert code == 0, result
+    evidence = result["steps"][0]["result"] if as_plan else result
+    assert evidence["palette_checks"] == []
+    assert [cel["changed_cells"] for cel in evidence["cels"]] == [
+        0 if replace_a == "identity" else 1
+    ] * 2
+    code, observed = run(
+        "tilemap",
+        "get",
+        sprite_file=str(target),
+        target={"layer": {"layer_name": "map"}, "frame_number": 2},
+        rectangle={"x": 0, "y": 0, "width": 3, "height": 1},
+    )
+    assert code == 0, observed
+    assert [
+        item["placement"]["tile_key"] for item in observed["snapshot"]["entries"]
+    ] == (["a", "b"] if replace_a == "identity" else ["b"])
