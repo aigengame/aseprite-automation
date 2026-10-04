@@ -725,4 +725,5 @@ def test_whole_image_limit_is_explicit_even_for_one_cell_write(
     )
     assert code == 2 and result["code"] == "tilemap_region_invalid", result
     assert result["details"]["reason"] == "tile_cells_limit"
+    assert "maximum 1048576 Tile Cells" in result["details"]["message"]
     assert source.read_bytes() == before and not target.exists()

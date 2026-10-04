@@ -94,8 +94,13 @@ function module.prepare(sprite, payload, uuids)
     return nil, reject("tilemap_cel_missing", "The selected Tilemap Cel is absent")
   end
   if cel.image.width * cel.image.height > payload.operation_limits.tile_cells then
-    local failed =
-      reject("tilemap_region_invalid", "Tilemap Cel Image exceeds the tile_cells Operation Limit")
+    local failed = reject(
+      "tilemap_region_invalid",
+      string.format(
+        "Tilemap Cel Image exceeds the tile_cells Operation Limit (maximum %d Tile Cells)",
+        payload.operation_limits.tile_cells
+      )
+    )
     failed.rejection.reason = "tile_cells_limit"
     return nil, failed
   end
