@@ -450,18 +450,209 @@ def test_contradictory_native_evidence_never_publishes_target(
 
 
 @pytest.mark.parametrize("mode", ["rgb", "grayscale"])
-def test_native_hidden_channel_normalization_never_publishes_changed_pixels(
+def test_hidden_channel_input_is_explicitly_refused_before_mutation(
     tmp_path: Path, runtime, mode: str
 ) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
     fixture(source, runtime, script="lifecycle.lua", mode=mode)
     original = source.read_bytes()
+    target.write_bytes(b"previous target")
     image = snapshot(mode)
     for row in image["rows"]:
         row[0]["color"]["alpha"] = 0
     code, result = run(
-        "tileset", "tile", "add", **files(source, target), tile_key="new", image=image
+        "tileset",
+        "tile",
+        "add",
+        **files(source, target, overwrite=True),
+        tile_key="new",
+        image=image,
     )
-    assert code != 0, result
+    assert code == 2, result
+    assert result["code"] == "tile_lifecycle_invalid"
+    assert result["details"]["reason"] == "image_incompatible"
+    assert "hidden" in result["message"]
     assert source.read_bytes() == original
-    assert not target.exists()
+    assert target.read_bytes() == b"previous target"
+    assert set(tmp_path.iterdir()) == {source, target}
+
+
+@pytest.mark.parametrize("width,height", [(64, 64), (4097, 1)])
+def test_add_inline_pixel_limit_counts_pixels_in_compressed_runs(
+    tmp_path: Path, runtime, width: int, height: int
+) -> None:
+    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
+    fixture(source, runtime, script="lifecycle_limits.lua", width=width, height=height)
+    original = source.read_bytes()
+    target.write_bytes(b"previous target")
+    image = snapshot()
+    color = image["rows"][0][0]["color"]
+    image["rectangle"].update(width=width, height=height)
+    image["rows"] = [[{"length": width, "color": color}] for _ in range(height)]
+    code, result = run(
+        "tileset",
+        "tile",
+        "add",
+        **files(source, target, overwrite=True),
+        tile_key="new",
+        image=image,
+    )
+    if width * height == 4096:
+        assert code == 0, result
+        assert result["tile"] == {"tile_index": 1, "tile_key": "new"}
+        code, observed = run(
+            "tileset",
+            "tile",
+            "get",
+            sprite_file=str(target),
+            target={"tileset_index": 1},
+            tile={"tile_key": "new"},
+        )
+        assert code == 0, observed
+        assert observed["snapshot"] == image
+    else:
+        assert code == 2, result
+        assert result["code"] == "tile_lifecycle_invalid"
+        assert result["details"]["reason"] == "operation_limit"
+        assert result["details"]["limit"] == {
+            "unit": "image_pixels",
+            "requested": 4097,
+            "maximum": 4096,
+        }
+        assert target.read_bytes() == b"previous target"
+    assert source.read_bytes() == original
+    assert set(tmp_path.iterdir()) == {source, target}
+
+
+@pytest.mark.parametrize(
+    "operation,count,accepted",
+    [
+        ("add", 4095, True),
+        ("add", 4096, False),
+        ("assign-key", 4096, True),
+        ("assign-key", 4097, False),
+        ("remove", 4097, False),
+        ("reorder", 4097, False),
+    ],
+)
+def test_tile_count_limit_includes_empty_and_append_result(
+    tmp_path: Path, runtime, operation: str, count: int, accepted: bool
+) -> None:
+    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
+    fixture(
+        source,
+        runtime,
+        script="lifecycle_limits.lua",
+        tile_count=count,
+        unkeyed=1,
+    )
+    original = source.read_bytes()
+    target.write_bytes(b"previous target")
+    image = snapshot()
+    image["rectangle"].update(width=1, height=1)
+    image["rows"] = [[{"length": 1, "color": image["rows"][0][0]["color"]}]]
+    parameters = {
+        "add": {"tile_key": "new", "image": image},
+        "assign-key": {"tile_index": 1, "tile_key": "new"},
+        "remove": {"tile_key": "tile-2"},
+        "reorder": {"tile_keys": []},
+    }[operation]
+    code, result = run(
+        "tileset",
+        "tile",
+        operation,
+        **files(source, target, overwrite=True),
+        **parameters,
+    )
+    if accepted:
+        assert code == 0, result
+        assert result["tileset"]["tile_count"] == 4096
+        assert len(result["index_mapping"]) == count
+        assert result["tile"]["tile_key"] == "new"
+    else:
+        assert code == 2, result
+        assert result["code"] == "tile_lifecycle_invalid"
+        assert result["details"]["reason"] == "operation_limit"
+        assert result["details"]["limit"] == {
+            "unit": "tiles",
+            "requested": 4097,
+            "maximum": 4096,
+        }
+        assert target.read_bytes() == b"previous target"
+    assert source.read_bytes() == original
+    assert set(tmp_path.iterdir()) == {source, target}
+
+
+@pytest.mark.parametrize("operation", ["remove", "reorder"])
+@pytest.mark.parametrize("frames,peer", [(2, False), (3, False), (2, True)])
+def test_referenced_cell_limit_counts_linked_empty_unchanged_cels(
+    tmp_path: Path, runtime, operation: str, frames: int, peer: bool
+) -> None:
+    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
+    fixture(
+        source,
+        runtime,
+        script="lifecycle_limits.lua",
+        tile_count=3,
+        frames=frames,
+        **({"peer": "true"} if peer else {}),
+    )
+    original = source.read_bytes()
+    target.write_bytes(b"previous target")
+    parameters = (
+        {"tile_key": "tile-1"}
+        if operation == "remove"
+        else {"tile_keys": ["tile-1", "tile-2"]}
+    )
+    code, result = run(
+        "tileset",
+        "tile",
+        operation,
+        **files(source, target, overwrite=True),
+        **parameters,
+    )
+    if frames == 2 and not peer:
+        assert code == 0, result
+        assert result["affected_cels"] == []
+        assert result["tileset"]["tile_count"] == (2 if operation == "remove" else 3)
+    else:
+        assert code == 2, result
+        assert result["code"] == "tile_lifecycle_invalid"
+        assert result["details"]["reason"] == "operation_limit"
+        assert result["details"]["limit"] == {
+            "unit": "tile_cells",
+            "requested": 1_572_864,
+            "maximum": 1_048_576,
+        }
+        assert target.read_bytes() == b"previous target"
+    assert source.read_bytes() == original
+    assert set(tmp_path.iterdir()) == {source, target}
+
+
+@pytest.mark.parametrize("operation", ["add", "assign-key"])
+def test_non_remapping_operations_do_not_apply_the_referenced_cell_limit(
+    tmp_path: Path, runtime, operation: str
+) -> None:
+    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
+    fixture(
+        source,
+        runtime,
+        script="lifecycle_limits.lua",
+        tile_count=3,
+        frames=3,
+        unkeyed=1,
+    )
+    image = snapshot()
+    image["rectangle"].update(width=1, height=1)
+    image["rows"] = [[{"length": 1, "color": image["rows"][0][0]["color"]}]]
+    parameters = {"image": image} if operation == "add" else {"tile_index": 1}
+    code, result = run(
+        "tileset",
+        "tile",
+        operation,
+        **files(source, target),
+        tile_key="new",
+        **parameters,
+    )
+    assert code == 0, result
+    assert result["affected_cels"] == []

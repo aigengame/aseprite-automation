@@ -25,6 +25,18 @@ local function reject(payload, reason, message)
   }
 end
 
+local function check_limit(payload, unit, requested)
+  local maximum = assert(payload.operation_limits[unit], "missing Tile Operation Limit")
+  if requested <= maximum then return nil end
+  local failure = reject(
+    payload,
+    "operation_limit",
+    string.format("Tile lifecycle %s count %d exceeds maximum %d", unit, requested, maximum)
+  )
+  failure.rejection.details.limit = { unit = unit, requested = requested, maximum = maximum }
+  return failure
+end
+
 local function copy(value)
   if type(value) ~= "table" then return value end
   local result = {}
@@ -104,10 +116,26 @@ local function prepare_add(sprite, tileset, payload, context)
       "Tile Image must cover the exact Tileset Grid at (0,0)"
     )
   end
+  failed = check_limit(payload, "image_pixels", area.width * area.height)
+  if failed then return failed end
   local valid, image, used = pcall(pixels.materialize, value, sprite.spec, false)
   if not valid then return reject(payload, "image_incompatible", tostring(image)) end
   if image.colorMode ~= sprite.colorMode then
     return reject(payload, "image_incompatible", "Tile Image Color Mode must match the Sprite")
+  end
+  if image.colorMode ~= ColorMode.INDEXED then
+    for pixel in image:pixels() do
+      local packed = pixel()
+      local alpha = image.colorMode == ColorMode.RGB and app.pixelColor.rgbaA(packed)
+        or app.pixelColor.grayaA(packed)
+      if alpha == 0 and packed ~= 0 then
+        return reject(
+          payload,
+          "image_incompatible",
+          "Alpha 0 Tile pixels require zero hidden RGB/Gray channels; native Tilesets normalize them"
+        )
+      end
+    end
   end
   context.image = image
   context.new_index = #tileset
@@ -240,9 +268,21 @@ local function remapped(packed, context)
 end
 
 local function prepare_placements(sprite, payload, context, uuids)
+  local layers = tilesets.tilemap_layers(sprite)
+  local cells = 0
+  for _, layer in ipairs(layers) do
+    if layer.tileset == context.tileset then
+      for _, cel in ipairs(layer.cels) do
+        -- Each logical Cel contributes its full area, even when the Image is linked.
+        cells = cells + cel.image.width * cel.image.height
+      end
+    end
+  end
+  local failed = check_limit(payload, "tile_cells", cells)
+  if failed then return failed end
   local images, layers_changed = {}, {}
   context.image_updates, context.image_contents = {}, {}
-  for _, layer in ipairs(tilesets.tilemap_layers(sprite)) do
+  for _, layer in ipairs(layers) do
     if layer.tileset == context.tileset then
       for _, cel in ipairs(layer.cels) do
         local image, changed = cel.image, 0
@@ -306,6 +346,10 @@ end
 
 function module.prepare(sprite, payload, uuids)
   local tileset, index, failed = tilesets.resolve_tileset(sprite, payload.target, uuids)
+  if failed then return nil, failed end
+  -- Removal must also fit its complete before-state mapping; include Empty Tile 0.
+  local required_tiles = #tileset + (payload.operation == "add" and 1 or 0)
+  failed = check_limit(payload, "tiles", required_tiles)
   if failed then return nil, failed end
   local context = {
     tileset = tileset,

@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import Annotated, Literal
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from spa.application.mutation import prepare_mutation
 from spa.authoring.color.palette import EFFECTIVE_PALETTE_RESOURCE
@@ -55,9 +55,15 @@ from spa.contracts.raster import (
 )
 
 TileKey = Annotated[str, Field(min_length=1, pattern=r"^[^\x00]*$")]
+TILE_LIFECYCLE_LIMITS = {"image_pixels": 4096, "tiles": 4096, "tile_cells": 1_048_576}
 
 
 class TileMutationRequest(RuntimeRequest):
+    """Selected Tileset count includes Empty and must fit before and after mutation."""
+
+    model_config = ConfigDict(
+        json_schema_extra={"x-spa-operation-limits": {**TILE_LIFECYCLE_LIMITS}}
+    )
     source_sprite_file: str = Field(min_length=1)
     target_sprite_file: str = Field(min_length=1)
     in_place: bool
@@ -75,8 +81,13 @@ class TileMutationRequest(RuntimeRequest):
 
 
 class TileAddRequest(TileMutationRequest):
+    """Append a Tile; image_pixels bounds inline content, and tiles bounds the Tileset."""
+
     tile_key: TileKey
-    image: PixelRegionSnapshot
+    image: PixelRegionSnapshot = Field(
+        description="Complete inline Tile Image, bounded by image_pixels. "
+        "Alpha 0 RGB/Grayscale pixels must have zero hidden color channels."
+    )
     palette_frame_number: int | None = Field(default=None, ge=1)
 
     @model_validator(mode="after")
@@ -96,6 +107,8 @@ class TileIdentity(PublicModel):
 
 
 class TileAssignKeyRequest(TileMutationRequest):
+    """Assign one missing Key; only the Tileset's tiles count limit applies."""
+
     tile_index: int = Field(ge=1)
     tile_key: TileKey
 
@@ -117,12 +130,16 @@ TileReplacement = Annotated[
 
 
 class TileRemoveRequest(TileMutationRequest):
+    """Remove a Tile; tile_cells bounds the sum of every referenced logical Cel area."""
+
     tile_key: TileKey
     replacement: TileReplacement | None = None
 
 
 class TileReorderRequest(TileMutationRequest):
-    tile_keys: list[TileKey]
+    """Reorder all Keys; tile_cells bounds every referenced logical Cel area."""
+
+    tile_keys: list[TileKey] = Field(max_length=TILE_LIFECYCLE_LIMITS["tiles"] - 1)
 
     @field_validator("tile_keys")
     @classmethod
@@ -180,6 +197,18 @@ class TileReorderResult(TileLifecycleEvidence):
     target_commit: TargetCommit
 
 
+class TileLifecycleLimit(PublicModel):
+    unit: Literal["image_pixels", "tiles", "tile_cells"]
+    requested: int = Field(gt=0)
+    maximum: int = Field(gt=0)
+
+    @model_validator(mode="after")
+    def exceeded(self) -> "TileLifecycleLimit":
+        if self.requested <= self.maximum:
+            raise ValueError("Operation Limit evidence must exceed the allowed maximum")
+        return self
+
+
 class TileLifecycleDetails(PublicModel):
     kind: Literal["tile_lifecycle"] = "tile_lifecycle"
     target: TilesetTarget
@@ -193,14 +222,22 @@ class TileLifecycleDetails(PublicModel):
         "replacement_required",
         "replacement_invalid",
         "invalid_placement",
+        "operation_limit",
     ]
     message: str
+    limit: TileLifecycleLimit | None = None
+
+    @model_validator(mode="after")
+    def limit_reason(self) -> "TileLifecycleDetails":
+        if (self.reason == "operation_limit") != (self.limit is not None):
+            raise ValueError("Operation Limit refusals require range evidence")
+        return self
 
 
 TILE_LIFECYCLE_FAILURE_SPECS = (
     FailureCodeSpec(
         "tile_lifecycle_invalid",
-        "The requested Tile lifecycle change cannot preserve Tile meaning",
+        "The requested Tile lifecycle change exceeds an Operation Limit or cannot preserve Tile meaning",
         "input",
         TileLifecycleDetails,
     ),
@@ -624,7 +661,9 @@ def _mutate[T: TileLifecycleEvidence](
             if field in payload:
                 payload[field] = str(payload[field])
         payload.update(
-            operation=operation, staged_sprite_file=str(mutation.staged_sprite_file)
+            operation=operation,
+            operation_limits=dict(TILE_LIFECYCLE_LIMITS),
+            staged_sprite_file=str(mutation.staged_sprite_file),
         )
         invocation = services.invoke_kernel(
             runtime, TILE_MUTATE_HANDLER, payload, request.timeout_seconds

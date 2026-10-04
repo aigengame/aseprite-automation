@@ -45,8 +45,21 @@ in memory, but reopening normalizes them. The cause is
 also calls `Tileset::set` for each Tile. Changing the write method cannot satisfy
 a byte-preserving save/reopen contract for those inputs. Transparent zero-channel
 pixels and Indexed Transparent Color Index content remain valid native Tiles.
-The current publication guard detects the mismatch and refuses to publish it.
-Issue #43 remains the authority for any input-scope decision based on this evidence.
+On 2026-10-04 the owner accepted a preflight refusal for Alpha 0 pixels with hidden
+nonzero RGB/Gray channels. The public Operation now returns `tile_lifecycle_invalid`
+with reason `image_incompatible` before mutation; it does not silently normalize
+the input. Existing publication checks remain in place. Issue #43 owns this current
+input boundary, which can change with later requirements and verified native capability.
+
+The owner also accepted three current Operation Limits under ADR-0008: 4096 inline
+Image Pixels for add, 4096 Tiles including Empty before and after each operation,
+and 1,048,576 referenced Tile Cells for remove/reorder. Tile Cell counts use the
+sum of each logical Cel's Image area, including Linked, Empty and unchanged Cells.
+The Lua owner checks geometry/counts before pixel traversal or mutation, returning
+typed unit/requested/maximum evidence. The existing Tile request owner supplies
+the same local constants to the generated schema and the Kernel payload. These
+limits may change with accepted requirements; they do not create a shared resource
+budget or a promise about unrelated document data or process running time.
 
 `tests/tile/test_e2e_lifecycle.py` invokes installed public Operations, then uses a
 separate native oracle to inspect saved results. A Layer UUID first assigned during

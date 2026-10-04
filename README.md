@@ -1280,6 +1280,10 @@ complete installed contract.
 
 - `add` requires a unique `tile_key` and complete canonical `image` Pixel Region
   Snapshot at `(0,0)`, matching the Tileset's tile dimensions and Sprite Color Mode.
+  The inline Image can contain at most 4096 pixels. RGB/Grayscale pixels with
+  Alpha 0 must have zero hidden color channels; otherwise the operation refuses
+  the input before mutation because native Tilesets would normalize those channels.
+  Transparent zero-channel pixels and supported Indexed transparent content remain valid.
   It appends one Tile and accepts no insertion position. Indexed input also requires
   an existing `palette_frame_number`; the result reports that Frame's Effective
   Palette, used indexes, and Transparent Color Index. Other Frames can have different
@@ -1299,6 +1303,14 @@ Frames are included; Linked Cels keep their relationships. Native Tile Images,
 text, colors, Keys, and unrelated plugin properties move together. Base Index stays
 a display offset. Empty replacements write packed zero; retained/replaced keyed
 placements keep their flags. Existing flagged index-0 observations remain intact.
+
+The selected Tileset must fit 4096 Tiles, including Empty Tile 0, both before and
+after the operation. Removal/reorder can inspect at most 1,048,576 referenced Tile
+Cells, summed over every logical Cel: Linked Cels count separately per Frame,
+including Empty and unchanged Cells. An exceeded limit returns
+`tile_lifecycle_invalid` with reason `operation_limit` and typed
+`limit: {unit, requested, maximum}` before mutation. The request schema exposes
+the current values as `x-spa-operation-limits`; these are not caller override fields.
 The current boundaries can expand with accepted requirements and verified native
 capabilities; they are not permanent restrictions.
 

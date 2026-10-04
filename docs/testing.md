@@ -98,7 +98,11 @@ and nested Layers, explicit removal replacements above/below the removed index,
 Empty versus flagged index 0, orphan reorder cleanup, all three Image Color Modes,
 Frame-varying Palettes, and Source/Target preservation on refusal. The same tests
 belong to `e2e and not slow` on macOS and Linux; no display is required. Fast tests
-check schema and preflight behavior. See [native mechanism evidence](evidence/issue-43-tiles.md).
+check schema and preflight behavior. Boundary fixtures cover inline pixels,
+before/after Tile counts, and referenced Cell totals across shared Layers and
+Linked Cels, including unchanged Empty Cells. They also verify explicit refusal
+of transparent hidden RGB/Gray and the accepted transparent-zero case. See
+[native mechanism evidence](evidence/issue-43-tiles.md).
 
 External raster import #46 checks 8-bit PNG metadata independently of native
 loading, then compares full RGBA and stored indexes through real insertion and

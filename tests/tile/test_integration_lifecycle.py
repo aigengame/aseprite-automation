@@ -17,6 +17,11 @@ def test_add_schema_exposes_complete_snapshot_and_explicit_mutation() -> None:
     schema = json.loads(result.stdout)
     assert schema["execution_kind"] == "mutation"
     assert schema["plan_eligible"] is False
+    assert schema["request_schema"]["x-spa-operation-limits"] == {
+        "image_pixels": 4096,
+        "tiles": 4096,
+        "tile_cells": 1_048_576,
+    }
     Draft202012Validator.check_schema(schema["request_schema"])
     Draft202012Validator.check_schema(schema["result_schema"])
     Draft202012Validator.check_schema(schema["failure_schema"])
