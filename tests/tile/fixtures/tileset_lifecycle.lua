@@ -26,6 +26,10 @@ sprite:newCel(map, 1, image, Point(-3, 7))
 app.activeLayer = map
 app.command.NewFrame { content = "cellinked" }
 assert(map:cel(1).image == map:cel(2).image)
+if app.params.inherited_palette then
+  sprite:newEmptyFrame(2)
+  assert(map:cel(2) == nil and map:cel(1).image == map:cel(3).image)
+end
 if app.params.separate_frames then
   app.activeFrame = 2
   app.command.UnlinkCel()

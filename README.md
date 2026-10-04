@@ -1417,6 +1417,10 @@ to it. Newly introduced or changed Indexed Tile output validates Tile pixels and
 the Transparent Color Index in each affected usage Frame's Effective Palette.
 Unchanged usage within the same Tileset stays outside that check. Different valid
 Frame Palettes are allowed; Palette mutation or index remapping is never implicit.
+Indexed refusals report the usage `frame_number`, the supplying
+`palette_frame_number`, and `palette_size`. `invalid_index` identifies the rejected
+Tile pixel index or Transparent Color Index; `tile_index` is present for a Tile
+bitmap failure. Plan refusals also identify `step_number`.
 
 `spa tileset remove` takes one exact `target` and refuses a referenced Tileset
 with `tileset_in_use`, including every referencing Layer. Successful removal reports

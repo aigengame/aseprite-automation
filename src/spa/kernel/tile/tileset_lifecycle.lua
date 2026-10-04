@@ -283,43 +283,36 @@ local function validate_palettes(sprite, source, target, mapping, cels, input)
     end
     local changed_indexes = sorted_indexes(changed)
     if #changed_indexes > 0 then
-      local palette = palettes.resolve(sprite, cel.frame_number)
+      local palette, palette_frame = palettes.resolve(sprite, cel.frame_number)
+      local function palette_rejection(message, tile_index, invalid_index)
+        local failure = reject(input, "palette_index", message, cel.frame_number, tile_index)
+        local details = failure.rejection.details
+        details.palette_frame_number = palette and palette_frame or nil
+        details.palette_size = palette and #palette or 0
+        details.invalid_index = invalid_index
+        return nil, nil, failure
+      end
       if palette == nil or sprite.transparentColor < 0 or sprite.transparentColor >= #palette then
-        return nil,
+        return palette_rejection(
+          "Sprite Transparent Color Index is absent from the usage Frame Effective Palette",
           nil,
-          reject(
-            input,
-            "palette_index",
-            "Sprite Transparent Color Index is absent from the usage Frame Effective Palette",
-            cel.frame_number
-          )
+          sprite.transparentColor
+        )
       end
       local used = {}
       for _, index in ipairs(changed_indexes) do
         local image = target:tile(index).image
         if image.colorMode ~= ColorMode.INDEXED then
-          return nil,
-            nil,
-            reject(
-              input,
-              "palette_index",
-              "Indexed rebind requires Indexed target Tile Bitmaps",
-              cel.frame_number,
-              index
-            )
+          return palette_rejection("Indexed rebind requires Indexed target Tile Bitmaps", index)
         end
         for pixel in image:pixels() do
           local value = pixel()
           if value < 0 or value >= #palette then
-            return nil,
-              nil,
-              reject(
-                input,
-                "palette_index",
-                "Target Tile pixel index is absent from the usage Frame Effective Palette",
-                cel.frame_number,
-                index
-              )
+            return palette_rejection(
+              "Target Tile pixel index is absent from the usage Frame Effective Palette",
+              index,
+              value
+            )
           end
           used[value] = true
         end

@@ -202,6 +202,65 @@ def test_indexed_rebind_checks_only_tiles_used_in_each_frame(
     ] == [4, 8]
 
 
+@pytest.mark.parametrize("as_plan", [False, True])
+@pytest.mark.parametrize("transparent,high_index,invalid_index", [(0, 7, 7), (6, 2, 6)])
+def test_indexed_refusal_reports_inherited_palette_basis_without_publication(
+    tmp_path: Path,
+    runtime,
+    as_plan: bool,
+    transparent: int,
+    high_index: int,
+    invalid_index: int,
+) -> None:
+    from tests.support import inject_palette_change
+
+    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
+    fixture(
+        source,
+        runtime,
+        script="tileset_lifecycle.lua",
+        mode="indexed",
+        inherited_palette="true",
+        transparent=transparent,
+        high_index=high_index,
+    )
+    inject_palette_change(
+        source, [(i, 20, 30, 0 if i == 0 else 255) for i in range(4)], frame_number=2
+    )
+    original = source.read_bytes()
+    target.write_bytes(b"previous target")
+    intent = {
+        "layer": {"layer_name": "map"},
+        "target": {"tileset_name": "destination"},
+        "mapping": {"kind": "by_key"},
+        "grid_policy": "require_equal",
+    }
+    publication = {**files(source, target), "overwrite": True}
+    if as_plan:
+        code, result = run(
+            "plan",
+            "run",
+            plan={
+                **publication,
+                "steps": [{"operation": "layer set-tileset", "input": intent}],
+            },
+        )
+    else:
+        code, result = run("layer", "set-tileset", **publication, **intent)
+    assert code != 0 and result["code"] == "tileset_lifecycle_invalid", result
+    details = result["details"]
+    assert details["reason"] == "palette_index"
+    assert details["frame_number"] == 3
+    assert details["palette_frame_number"] == 2
+    assert details["palette_size"] == 4
+    assert details["invalid_index"] == invalid_index
+    assert details["tile_index"] == (1 if transparent == 0 else None)
+    assert details["step_number"] == (1 if as_plan else None)
+    assert source.read_bytes() == original
+    assert target.read_bytes() == b"previous target"
+    assert not list(tmp_path.glob(".*.staged.aseprite"))
+
+
 def test_indexed_linked_rebind_allows_different_valid_frame_palettes(
     tmp_path: Path, runtime
 ) -> None:

@@ -207,6 +207,16 @@ class TilesetLifecycleDetails(PublicModel):
     message: str
     frame_number: int | None = Field(default=None, ge=1)
     tile_index: int | None = Field(default=None, ge=0)
+    palette_frame_number: int | None = Field(
+        default=None, ge=1, description="Palette Change supplying the usage Frame"
+    )
+    palette_size: int | None = Field(default=None, ge=0)
+    invalid_index: int | None = Field(
+        default=None,
+        ge=0,
+        le=255,
+        description="Rejected Tile pixel index or Sprite Transparent Color Index",
+    )
 
 
 TILESET_FAILURE_SPECS = (
