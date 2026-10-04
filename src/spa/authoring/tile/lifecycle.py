@@ -139,7 +139,7 @@ class TileRemoveRequest(TileMutationRequest):
 class TileReorderRequest(TileMutationRequest):
     """Reorder all Keys; tile_cells bounds every referenced logical Cel area."""
 
-    tile_keys: list[TileKey] = Field(max_length=TILE_LIFECYCLE_LIMITS["tiles"] - 1)
+    tile_keys: list[TileKey]
 
     @field_validator("tile_keys")
     @classmethod

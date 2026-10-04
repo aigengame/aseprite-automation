@@ -532,6 +532,7 @@ def test_add_inline_pixel_limit_counts_pixels_in_compressed_runs(
         ("assign-key", 4096, True),
         ("assign-key", 4097, False),
         ("remove", 4097, False),
+        ("reorder", 4096, True),
         ("reorder", 4097, False),
     ],
 )
@@ -544,7 +545,7 @@ def test_tile_count_limit_includes_empty_and_append_result(
         runtime,
         script="lifecycle_limits.lua",
         tile_count=count,
-        unkeyed=1,
+        unkeyed=1 if operation == "assign-key" else 0,
     )
     original = source.read_bytes()
     target.write_bytes(b"previous target")
@@ -555,7 +556,7 @@ def test_tile_count_limit_includes_empty_and_append_result(
         "add": {"tile_key": "new", "image": image},
         "assign-key": {"tile_index": 1, "tile_key": "new"},
         "remove": {"tile_key": "tile-2"},
-        "reorder": {"tile_keys": []},
+        "reorder": {"tile_keys": [f"tile-{index}" for index in range(1, count)]},
     }[operation]
     code, result = run(
         "tileset",
@@ -568,7 +569,13 @@ def test_tile_count_limit_includes_empty_and_append_result(
         assert code == 0, result
         assert result["tileset"]["tile_count"] == 4096
         assert len(result["index_mapping"]) == count
-        assert result["tile"]["tile_key"] == "new"
+        if operation == "reorder":
+            assert [tile["tile_key"] for tile in result["tiles"]] == [
+                None,
+                *parameters["tile_keys"],
+            ]
+        else:
+            assert result["tile"]["tile_key"] == "new"
     else:
         assert code == 2, result
         assert result["code"] == "tile_lifecycle_invalid"
