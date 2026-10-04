@@ -84,6 +84,7 @@ from spa.authoring.raster.selection import (
     SELECTION_OPERATIONS,
     SELECTION_SUPPORT_RESOURCE,
 )
+from spa.authoring.raster.text import text_capability_gap
 from spa.authoring.tile.cel_add import tilemap_creation_gaps
 from spa.authoring.tile.inspection import TILE_OPERATIONS, TILE_PROBE_RESOURCE
 from spa.authoring.tile.layer_creation import TILE_LAYER_PROBE_RESOURCE
@@ -224,6 +225,7 @@ def _surface(runtime: RuntimeFacts) -> tuple[list[str], list[CapabilityGap]]:
     gaps.append(
         convolution_capability_gap(runtime.aseprite_version, runtime.convolution)
     )
+    gaps.append(text_capability_gap(runtime.aseprite_version))
     gaps.extend(
         filter_capability_gaps(
             runtime.aseprite_version, runtime.verified_capabilities, supported
