@@ -184,6 +184,8 @@ class PngInputFacts:
     entries: tuple[tuple[int, int, int, int], ...]
     color_profile: Literal["none", "srgb", "icc"]
     icc_bytes: bytes | None
+    color_type: int | None = None
+    srgb_rendering_intent: int | None = None
 
 
 class PngInputError(ValueError):

@@ -234,6 +234,8 @@ def decode_png_input(payload: bytes) -> PngInputFacts:
                 entries,
                 profile,
                 icc,
+                color_type,
+                chunks[b"sRGB"][0] if b"sRGB" in chunks else None,
             )
     except (
         OSError,

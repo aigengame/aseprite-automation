@@ -176,6 +176,7 @@ def test_info_reports_installed_runtime() -> None:
         "spa image flip",
         "spa image rotate",
         "spa image import",
+        "spa raster prepare",
         "spa tag list",
         "spa tag get",
         "spa tag add",
