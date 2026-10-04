@@ -106,8 +106,8 @@ from spa.authoring.raster.paint import (
     validate_paint_evidence,
 )
 from spa.authoring.tile.cel_add import TILE_CEL_RESOURCE, TilemapCreationEvidence
-from spa.authoring.tile.inspection import TILE_INSPECTION_RESOURCE, TILE_PROBE_RESOURCE
-from spa.authoring.tile.targets import TILE_KEY_RESOURCE, TILESET_RESOURCE
+from spa.authoring.tile.inspection import TILE_PROBE_RESOURCE
+from spa.authoring.tile.targets import TILEMAP_RESOURCE, TILESET_RESOURCE
 from spa.contracts.digest import DIGEST_RESOURCE
 from spa.contracts.mutation import (
     TargetCommit,
@@ -120,7 +120,6 @@ from spa.contracts.ports import (
     OperationIssue,
     OperationServices,
     PackagedHandler,
-    PackagedResource,
     PostconditionEvidence,
     RequestIssue,
     ResponseEvidence,
@@ -178,10 +177,8 @@ PLAN_RUN_HANDLER = PackagedHandler(
         PAINT_PROBE_FIXTURE,
         TILE_CEL_RESOURCE,
         TILE_PROBE_RESOURCE,
-        TILE_INSPECTION_RESOURCE,
+        TILEMAP_RESOURCE,
         TILESET_RESOURCE,
-        TILE_KEY_RESOURCE,
-        PackagedResource("tile_properties", "tile/properties.lua"),
         SNAPSHOT_RESOURCE,
     ),
 )

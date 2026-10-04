@@ -32,15 +32,13 @@ from spa.authoring.document.targets import (
     LAYER_ADDRESS_FAILURE_CODES,
     LayerAddress,
 )
-from spa.authoring.raster.image_snapshot import SNAPSHOT_RESOURCE
 from spa.authoring.tile.cel_add import (
     TILE_CEL_RESOURCE,
     TilemapCreationEvidence,
     TilemapSize,
     require_tilemap_creation,
 )
-from spa.authoring.tile.inspection import TILE_INSPECTION_RESOURCE
-from spa.authoring.tile.targets import TILE_KEY_RESOURCE, TILESET_RESOURCE
+from spa.authoring.tile.targets import TILEMAP_RESOURCE, TILESET_RESOURCE
 from spa.contracts.digest import DIGEST_RESOURCE
 from spa.contracts.mutation import (
     TargetCommit,
@@ -253,11 +251,8 @@ CEL_MUTATE_HANDLER = PackagedHandler(
         EFFECTIVE_PALETTE_RESOURCE,
         DIGEST_RESOURCE,
         TILE_CEL_RESOURCE,
-        TILE_INSPECTION_RESOURCE,
+        TILEMAP_RESOURCE,
         TILESET_RESOURCE,
-        TILE_KEY_RESOURCE,
-        PackagedResource("tile_properties", "tile/properties.lua"),
-        SNAPSHOT_RESOURCE,
         RASTER_COLOR_RESOURCE,
     ),
 )

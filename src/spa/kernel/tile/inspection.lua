@@ -24,8 +24,6 @@ local function integer(value, minimum, maximum)
   return math.tointeger(n)
 end
 
-local grid = tilesets.grid
-local layer_facts = tilesets.layer_facts
 local tilemap_layers = tilesets.tilemap_layers
 local facts = tilesets.facts
 local resolve_layer = tilesets.resolve_layer
@@ -60,37 +58,7 @@ local function resolve_tile(tileset, address)
   return tileset:tile(index)
 end
 
-local function cel_facts(sprite, layer, frame, uuids)
-  local result = {
-    layer = layer_facts(sprite, layer, uuids),
-    tileset_index = assert(tileset_index(sprite, layer.tileset)),
-    frame_number = frame,
-    exists = false,
-    position = null,
-    cell_size = null,
-    effective_grid = null,
-    canvas_coverage = null,
-  }
-  local cel = layer:cel(frame)
-  if cel then
-    local value = grid(layer.tileset.grid)
-    value.origin.x, value.origin.y =
-      value.origin.x + cel.position.x, value.origin.y + cel.position.y
-    result.exists = true
-    result.position = { x = cel.position.x, y = cel.position.y }
-    result.cell_size = { width = cel.image.width, height = cel.image.height }
-    result.effective_grid = value
-    result.canvas_coverage = {
-      x = value.origin.x,
-      y = value.origin.y,
-      width = cel.image.width * value.tile_size.width,
-      height = cel.image.height * value.tile_size.height,
-    }
-  end
-  return result
-end
-
-module.cel_facts = cel_facts
+local cel_facts = dofile(app.params.tilemaps).cel_facts
 module.tileset_facts = facts
 module.tileset_index = tileset_index
 

@@ -9,6 +9,7 @@ from spa.contracts.ports import PackagedResource
 from spa.contracts.public import FailureCodeSpec, PublicModel
 from spa.contracts.raster import PositiveRectangle
 
+TILEMAP_RESOURCE = PackagedResource("tilemaps", "tile/tilemaps.lua")
 TILESET_RESOURCE = PackagedResource("tilesets", "tile/tilesets.lua")
 TILE_KEY_RESOURCE = PackagedResource("tile_keys", "tile/keys.lua")
 
