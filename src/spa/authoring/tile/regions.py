@@ -499,16 +499,19 @@ def _mutate[T: TilemapRegionEvidence](
             },
         )
 
-        def addresses(value: object) -> object:
+        def encode_integer_strings(value: object) -> object:
+            # Preserve exact integers across Aseprite JSON decoding through doubles.
             if type(value) is int:
                 return str(value)
             if isinstance(value, dict):
-                return {key: addresses(item) for key, item in value.items()}
+                return {
+                    key: encode_integer_strings(item) for key, item in value.items()
+                }
             if isinstance(value, list):
-                return [addresses(item) for item in value]
+                return [encode_integer_strings(item) for item in value]
             return value
 
-        payload = addresses(payload)
+        payload = encode_integer_strings(payload)
         assert isinstance(payload, dict)
         payload.update(
             operation=operation,
@@ -554,10 +557,10 @@ def fill_tilemap(
 
 TILE_REGION_OPERATIONS = (
     OperationDescriptor(
-        "tilemap fill",
-        TilemapFillRequest,
-        TilemapFillResult,
-        fill_tilemap,
+        "tilemap set",
+        TilemapSetRequest,
+        TilemapSetResult,
+        set_tilemap,
         lambda result: result.target_commit.target_sprite_file,
         TILE_REGION_REQUIREMENTS,
         TILE_REGION_FAILURE_CODES,
@@ -576,10 +579,10 @@ TILE_REGION_OPERATIONS = (
         side_effects=("publishes the declared Target Sprite File",),
     ),
     OperationDescriptor(
-        "tilemap set",
-        TilemapSetRequest,
-        TilemapSetResult,
-        set_tilemap,
+        "tilemap fill",
+        TilemapFillRequest,
+        TilemapFillResult,
+        fill_tilemap,
         lambda result: result.target_commit.target_sprite_file,
         TILE_REGION_REQUIREMENTS,
         TILE_REGION_FAILURE_CODES,

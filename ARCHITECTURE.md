@@ -339,7 +339,7 @@ import Tile creation contracts.
 Standalone and Plan inject the same Tile-owned `tile/cel_add.lua` construction
 function for explicit Tilemap requests. That function owns bounded Cell geometry,
 Tileset/Grid admission, native TILEMAP Image construction, and packed-zero checks.
-It reuses Tile inspection for creation facts. Add validates its initial state at
+It reuses `tile/tilemaps.lua` for Cel geometry and `tile/tilesets.lua` for binding facts. Add validates its initial state at
 the Step; the final save/reopen gate validates the state after all later Steps.
 Before Target Commit, creation receipts also reconcile the addressed Tileset and
 Grid with complete Sprite inspection. Current eligible Plan Steps preserve these

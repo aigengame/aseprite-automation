@@ -95,7 +95,8 @@ def test_invalid_set_is_rejected_before_runtime(tmp_path: Path, defect: str) -> 
         "target": {"layer": {"layer_path": [1]}, "frame_number": 1},
         "snapshot": snapshot,
     }
-    result = spa("tilemap", "set", "--input-json", json.dumps(request))
+    # The entries-limit case exceeds Linux's per-argument size limit.
+    result = spa("tilemap", "set", "--input-json", "-", stdin=json.dumps(request))
     assert (
         result.returncode == 2
         and json.loads(result.stdout)["code"] == "invalid_request"
