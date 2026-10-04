@@ -1220,10 +1220,11 @@ profile loading and document-dependent conversion checks occur during `spa plan 
 executes up to 64 Sprite-bound `sprite create`, `sprite get`, `frame list`,
 `frame get`, `frame add`, `frame duplicate`, `cel add`, `cel set`, `motion apply`,
 `paint apply`, `sprite change-color-mode`, `sprite assign-color-profile`,
-and `sprite convert-color-profile` Steps
+`sprite convert-color-profile`, `layer set-tileset`, and `tileset remove` Steps
 on one live Sprite in one Aseprite process. A read Plan publishes no file. A mutating
 Plan declares one Target Sprite File; the staged file is reopened and verified before
-one Target Commit. A failed Step publishes no target. Typed Cel, Color Mode, and Color Profile refusals identify the
+one Target Commit. A failed Step publishes no target. Typed Cel, Color Mode,
+Color Profile, and Tileset refusals identify the
 one-based Step in `details.step_number`; execution failures use
 `details.failed_step` when a Step was active. Each Paint Step retains its own
 256-pixel Operation Limit. A Plan with an

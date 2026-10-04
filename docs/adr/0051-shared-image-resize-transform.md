@@ -7,7 +7,7 @@ Accepted
 ## Consolidates
 
 This record consolidates ADR-0054. Image resize delivery is owned by issue #21, Image
-crop and canvas-resize delivery by issue #22, and Tileset resize delivery by issue #45.
+crop and canvas-resize delivery by issue #22, and Tileset resize delivery by issue #175.
 
 ## Context
 

@@ -12,6 +12,9 @@ from spa.authoring.document.sprite import (
     SPRITE_PERSISTENCE_RESOURCE,
     SpriteInspection,
 )
+from spa.authoring.document.sprite import (
+    TilesetFacts as SpriteTilesetFacts,
+)
 from spa.authoring.document.targets import (
     LAYER_ADDRESS_FAILURE_CODES,
     LayerAddress,
@@ -509,6 +512,20 @@ def validate_tileset_evidence(
                 )
 
 
+def project_tileset_collection(items: list[TilesetFacts]) -> list[SpriteTilesetFacts]:
+    """Project lifecycle receipts to the structure observed by Sprite inspection."""
+    return [
+        SpriteTilesetFacts(
+            name=facts.name,
+            tile_count=facts.tile_count,
+            base_index=facts.base_index,
+            grid_origin=facts.grid.origin,
+            tile_size=facts.grid.tile_size,
+        )
+        for facts in items
+    ]
+
+
 def _mutate(
     request: TilesetRemoveRequest | TilesetRebindRequest, services: OperationServices
 ) -> TilesetRemoveResult | TilesetRebindResult:
@@ -548,21 +565,8 @@ def _mutate(
                 or sprite.metadata.tileset_count != len(evidence.tilesets)
             ):
                 raise ValueError("Persisted Tileset count differs")
-            for actual, fact in zip(sprite.tilesets, evidence.tilesets, strict=True):
-                if (
-                    actual.name,
-                    actual.base_index,
-                    actual.tile_count,
-                    actual.grid_origin,
-                    actual.tile_size,
-                ) != (
-                    fact.name,
-                    fact.base_index,
-                    fact.tile_count,
-                    fact.grid.origin,
-                    fact.grid.tile_size,
-                ):
-                    raise ValueError("Persisted Tileset structure differs")
+            if sprite.tilesets != project_tileset_collection(evidence.tilesets):
+                raise ValueError("Persisted Tileset structure differs")
         except (ValueError, TypeError, KeyError, IndexError) as exc:
             raise RuntimeIssue(
                 "response_malformed",

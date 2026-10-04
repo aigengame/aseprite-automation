@@ -95,9 +95,6 @@ from spa.authoring.document.sprite import (
     validate_created_sprite,
     validated_scope,
 )
-from spa.authoring.document.sprite import (
-    TilesetFacts as SpriteTilesetFacts,
-)
 from spa.authoring.raster.image_snapshot import SNAPSHOT_RESOURCE
 from spa.authoring.raster.paint import (
     PAINT_OPERATIONS,
@@ -120,6 +117,7 @@ from spa.authoring.tile.tileset_lifecycle import (
     TilesetRebindInput,
     TilesetRemoveEvidence,
     TilesetRemoveInput,
+    project_tileset_collection,
     reject_tileset,
     tileset_payload,
     validate_tileset_evidence,
@@ -782,19 +780,7 @@ def _validated_steps(
                 )
                 validate_tileset_evidence(step.input, evidence)
 
-                def project(items):
-                    return [
-                        SpriteTilesetFacts(
-                            name=facts.name,
-                            tile_count=facts.tile_count,
-                            base_index=facts.base_index,
-                            grid_origin=facts.grid.origin,
-                            tile_size=facts.grid.tile_size,
-                        )
-                        for facts in items
-                    ]
-
-                if project(evidence.tilesets) != collection:
+                if project_tileset_collection(evidence.tilesets) != collection:
                     raise ValueError("Tileset Step contradicts the later collection")
                 if (
                     later_collection is not None
@@ -804,7 +790,7 @@ def _validated_steps(
                         "Tileset Step contradicts the later Layer bindings"
                     )
                 later_collection = evidence.before_tilesets
-                collection = project(evidence.before_tilesets)
+                collection = project_tileset_collection(evidence.before_tilesets)
             elif isinstance(step, (CreateStep, GetStep)):
                 observed = SpriteInspection.model_validate(item["result"]["sprite"])
                 if observed.tilesets is not None and observed.tilesets != collection:
