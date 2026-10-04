@@ -136,6 +136,8 @@ def test_manifest_is_projected_from_command_descriptors() -> None:
         "spa tileset tile assign-key",
         "spa tileset tile remove",
         "spa tileset tile reorder",
+        "spa tileset remove",
+        "spa layer set-tileset",
     ]
     if not conversion_available:
         expected_operations.remove("spa sprite convert-color-profile")
@@ -160,6 +162,8 @@ def test_manifest_is_projected_from_command_descriptors() -> None:
         "spa sprite change-color-mode",
         "spa sprite assign-color-profile",
         "spa sprite convert-color-profile",
+        "spa tileset remove",
+        "spa layer set-tileset",
     }
     if not conversion_available:
         expected_eligible.remove("spa sprite convert-color-profile")
