@@ -449,6 +449,49 @@ def test_contradictory_native_evidence_never_publishes_target(
     assert set(tmp_path.iterdir()) == {source, target}
 
 
+def test_changed_cell_count_uses_tile_cells_before_publication(
+    tmp_path: Path, runtime
+) -> None:
+    from spa.adapters.aseprite.aseprite import invoke
+    from spa.adapters.files import LocalTargetFiles
+    from spa.authoring.tile.lifecycle import TileReorderRequest, reorder_tiles
+    from spa.contracts.ports import (
+        KernelInvocationResult,
+        OperationServices,
+        RuntimeIssue,
+    )
+
+    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
+    fixture(source, runtime, script="lifecycle.lua")
+    original = source.read_bytes()
+    target.write_bytes(b"previous target")
+    request = TileReorderRequest.model_validate(
+        files(source, target, overwrite=True) | {"tile_keys": ["d", "c", "b", "a"]}
+    )
+
+    def corrupt(observation, handler, payload, timeout):
+        result = invoke(observation, handler, payload, timeout)
+        evidence = result.payload
+        assert evidence["affected_cels"][0]["changed_cells"] == 4
+        # The fixture has five Cells with 2x3-pixel Tiles, not thirty Cells.
+        evidence["affected_cels"][0]["changed_cells"] = 6
+        return KernelInvocationResult(
+            evidence, result.response_path, result.diagnostics
+        )
+
+    services = OperationServices(
+        probe_runtime=lambda _: runtime,
+        invoke_kernel=corrupt,
+        target_files=LocalTargetFiles(),
+    )
+    with pytest.raises(RuntimeIssue) as caught:
+        reorder_tiles(request, services)
+    assert caught.value.kind == "response_malformed"
+    assert source.read_bytes() == original
+    assert target.read_bytes() == b"previous target"
+    assert set(tmp_path.iterdir()) == {source, target}
+
+
 @pytest.mark.parametrize("mode", ["rgb", "grayscale"])
 def test_hidden_channel_input_is_explicitly_refused_before_mutation(
     tmp_path: Path, runtime, mode: str
@@ -558,11 +601,13 @@ def test_tile_count_limit_includes_empty_and_append_result(
         "remove": {"tile_key": "tile-2"},
         "reorder": {"tile_keys": [f"tile-{index}" for index in range(1, count)]},
     }[operation]
+    # The accepted 4096-Tile permutation can exceed 15 seconds under parallel load.
     code, result = run(
         "tileset",
         "tile",
         operation,
         **files(source, target, overwrite=True),
+        timeout_seconds=60,
         **parameters,
     )
     if accepted:

@@ -77,7 +77,8 @@ Run the same selection on local macOS and Linux:
 
 ```sh
 SPA_TEST_ASEPRITE=/absolute/path/to/aseprite \
-  uv run --frozen --group test pytest tests/tile -m 'e2e and not slow'
+  uv run --frozen --group test pytest tests/tile -m 'e2e and not slow' \
+  -x -vv --tb=short -rs
 ```
 
 Platform-specific execution results belong in the PR. Local evidence alone does not

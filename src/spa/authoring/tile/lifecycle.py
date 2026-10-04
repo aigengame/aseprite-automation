@@ -594,6 +594,9 @@ def _validate_remap(
     ):
         raise ValueError("Complete Tile order or mapping differs from request")
     cels = evidence.sprite.cels or []
+    tile_size = evidence.tileset.grid.tile_size
+    if tile_size.width <= 0 or tile_size.height <= 0:
+        raise ValueError("Tile size must be positive to validate affected Cells")
     seen = set()
     paths = set()
     for affected in evidence.affected_cels:
@@ -603,10 +606,14 @@ def _validate_remap(
         actual = [
             cel for cel in cels if (tuple(cel.layer_path), cel.frame_number) == address
         ]
-        if (
-            len(actual) != 1
-            or affected.changed_cells > actual[0].bounds.width * actual[0].bounds.height
-        ):
+        if len(actual) != 1:
+            raise ValueError("Affected Cel differs from persisted Sprite inspection")
+        # Cel bounds use Canvas Pixels; changed_cells uses Tile Cells.
+        width, remainder_x = divmod(actual[0].bounds.width, tile_size.width)
+        height, remainder_y = divmod(actual[0].bounds.height, tile_size.height)
+        if remainder_x or remainder_y:
+            raise ValueError("Persisted Cel bounds do not contain whole Tile Cells")
+        if affected.changed_cells > width * height:
             raise ValueError("Affected Cell count exceeds a persisted Cel")
         seen.add(address)
         paths.add(address[0])
