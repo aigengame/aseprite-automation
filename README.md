@@ -939,8 +939,6 @@ uv run spa palette remap --input-json '{"aseprite":"/path/to/aseprite","source_s
 uv run spa palette reorder --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"reordered.aseprite","in_place":false,"overwrite":false,"scope":"sprite","mapping":[{"old_index":0,"new_index":0},{"old_index":1,"new_index":2},{"old_index":2,"new_index":1},{"old_index":3,"new_index":3}]}'
 ```
 
-### Import a compatible external PNG
-
 ### Prepare a frozen raster
 
 `raster prepare` prepares one selected 8-bit RGB/RGBA PNG before native insertion.
