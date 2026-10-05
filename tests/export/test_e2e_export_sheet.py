@@ -346,6 +346,12 @@ def test_sheet_preserves_supported_profiles_with_independent_icc_verification(
                 result["color_profile"] == "icc" and result["icc_identity"] == profile
             )
             assert image.info["icc_profile"] == icc.read_bytes()
+            encoded = (tmp_path / "sheet.png").read_bytes()
+            offset = 8
+            while encoded[offset + 4 : offset + 8] != b"iCCP":
+                offset += 12 + struct.unpack_from(">I", encoded, offset)[0]
+            label = encoded[offset + 8 :].split(b"\0", 1)[0]
+            assert label == profile.encode("ascii")
         assert image.convert("RGBA").getpixel((0, 0)) == (
             (90, 90, 90, 127) if mode == "grayscale" else (11, 22, 33, 127)
         )

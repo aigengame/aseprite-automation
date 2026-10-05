@@ -100,7 +100,9 @@ alone is not a refusal. SPA does not quantize, remap or switch to RGB implicitly
 Preserve None, sRGB, or the exact packaged linear-sRGB/Display P3 ICC profiles from
 the Color Profile capability. Unknown profiles fail. Source channels are not
 converted. PNG sRGB rendering intent is normalized to zero by Aseprite and reported;
-ICC payloads are checked byte for byte.
+ICC payloads are checked byte for byte. The PNG iCCP label uses the admitted ICC
+identity (`linear_srgb` or `display_p3`), so the native encoder does not depend on a
+backend-generated display name. This label does not change the embedded ICC payload.
 
 ## Verification and failure
 

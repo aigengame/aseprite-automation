@@ -215,7 +215,13 @@ local function run(source, disposable, payload, profile, first, last, selected_i
     disposable:setPalette(palette)
     disposable.transparentColor = source.transparentColor
   end
-  disposable:assignColorSpace(source.colorSpace)
+  local export_space = ColorSpace(source.colorSpace)
+  if profile.kind == "icc" then
+    -- PNG needs a nonempty iCCP keyword. A headless backend can leave the native
+    -- display name empty; name this copy without changing the embedded ICC bytes.
+    export_space.name = assert(profile.icc_identity)
+  end
+  disposable:assignColorSpace(export_space)
   disposable:deleteCel(disposable.layers[1], 1)
   local all_tags = inspection.inspect(source, { "tags" }, uuids).tags
   local source_tags, projected_tags = {}, {}
