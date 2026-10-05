@@ -32,6 +32,7 @@ from spa.contracts.mutation import MUTATION_FAILURE_CODE_SPECS
 from spa.contracts.public import CORE_FAILURE_CODE_SPECS, register_failure_codes
 from spa.delivery.export import EXPORT_FAILURE_CODE_SPECS
 from spa.delivery.palette import PALETTE_EXPORT_FAILURE_SPECS
+from spa.delivery.sheet_contracts import SHEET_FAILURE_SPECS
 from spa.preparation.raster import PREPARATION_FAILURE_SPECS
 
 FAILURE_CODES = register_failure_codes(
@@ -57,6 +58,7 @@ FAILURE_CODES = register_failure_codes(
         *NATIVE_PAINT_FAILURE_CODE_SPECS,
         *SELECTION_FAILURE_CODE_SPECS,
         *EXPORT_FAILURE_CODE_SPECS,
+        *SHEET_FAILURE_SPECS,
         *PALETTE_EXPORT_FAILURE_SPECS,
         *IMAGE_RESIZE_FAILURE_CODE_SPECS,
         *IMAGE_SNAPSHOT_FAILURE_CODE_SPECS,

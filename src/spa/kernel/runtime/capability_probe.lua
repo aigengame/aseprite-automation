@@ -1702,6 +1702,12 @@ function module.observe()
     end)
     if ok then capabilities[#capabilities + 1] = "aseprite_export_image" end
   end
+  if app.params.export_sheet_support then
+    local sheet = dofile(app.params.export_sheet_support)
+    if sheet.observe(app.params.workspace) then
+      capabilities[#capabilities + 1] = "aseprite_export_sheet"
+    end
+  end
   return capabilities
 end
 

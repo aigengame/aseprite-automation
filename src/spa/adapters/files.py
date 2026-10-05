@@ -151,7 +151,7 @@ class LocalTargetFiles:
 
 
 class LocalArtifactFiles:
-    """File mechanics for verified single-destination Export Operations."""
+    """File mechanics for verified Export Destinations."""
 
     def normalize_destination(self, path: str) -> Path:
         return Path(os.path.abspath(os.path.expanduser(path)))
@@ -208,6 +208,20 @@ class LocalArtifactFiles:
         return destination.with_name(
             f".{destination.stem}.{uuid.uuid4().hex}.staged{destination.suffix}"
         )
+
+    def destination_exists(self, destination: Path) -> bool:
+        """Observe a publication entry without hiding an inaccessible parent."""
+        try:
+            destination.lstat()
+        except FileNotFoundError:
+            return False
+        except OSError as exc:
+            raise RuntimeIssue(
+                "artifact_file_failed",
+                "Export Destination existence could not be observed",
+                ArtifactFileEvidence(str(destination), "publication_failed"),
+            ) from exc
+        return True
 
     def rendered_path(self, staged: Path) -> Path:
         return staged.with_suffix(".rgba")

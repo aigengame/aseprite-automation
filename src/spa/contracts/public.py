@@ -94,6 +94,7 @@ RuntimeCapability = Literal[
     "aseprite_assign_color_profile",
     "aseprite_convert_color_profile",
     "aseprite_export_image",
+    "aseprite_export_sheet",
     "aseprite_selection",
     "aseprite_tile_inspection",
     "aseprite_tilemap_layer_creation",
