@@ -136,16 +136,27 @@ local function resolve(source, payload, profile, uuids)
   }
 end
 
-function module.encode_png(image, path, palette, background)
+function module.encode_png(image, path, palette, background, filename_format, occurrence)
   local temporary = Sprite(image.spec)
   local ok, result = pcall(function()
     if palette then temporary:setPalette(Palette(palette)) end
     app.activeSprite = temporary
     if background then app.command.BackgroundFromLayer { ui = false } end
     temporary.cels[1].image = image
+    local prefix, digits, suffix = filename_format:match("^([^{}]*){frame(0*[01])}([^{}]*)$")
+    -- The one-Frame container starts at ordinal zero. Let Aseprite's formatter
+    -- apply the requested output-occurrence offset and padding to the actual file.
+    local ordinal = string.format("%0" .. #digits .. "d", occurrence - 1 + tonumber(digits))
     app.command.SaveFileCopyAs {
       ui = false,
       filename = path,
+      filenameFormat = app.fs.filePath(path)
+        .. "/"
+        .. prefix
+        .. "{frame"
+        .. ordinal
+        .. "}"
+        .. suffix,
       ignoreEmpty = false,
     }
   end)
@@ -223,7 +234,14 @@ function module.execute(payload)
       end
       local filename = resolution.filenames[index]
       write_bytes(payload.evidence_directory .. "/" .. index .. ".pixels", image.bytes)
-      module.encode_png(image, payload.output_directory .. "/" .. filename, palette, background)
+      module.encode_png(
+        image,
+        payload.output_directory .. "/" .. filename,
+        palette,
+        background,
+        payload.destination.filename_format,
+        index
+      )
       frames[index] = {
         occurrence = index,
         source_frame_number = occurrence.source_frame_number,

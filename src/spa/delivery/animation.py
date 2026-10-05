@@ -1,19 +1,18 @@
-"""PNG sequence delivery: explicit playback, native rendering, verified publication."""
+"""Animation delivery: native resolution and encoding with verified publication."""
 
+import re
 from dataclasses import asdict
 from pathlib import Path
-from typing import Annotated, Literal, NoReturn
+from typing import NoReturn
 
-from pydantic import ConfigDict, Field, ValidationError, field_validator
+from pydantic import ValidationError
 
 from spa.authoring.color.palette import EFFECTIVE_PALETTE_RESOURCE
 from spa.authoring.color.profile import PROFILE_RESOURCES, supported_icc_identity
-from spa.authoring.document.sprite import PaletteEntry, TagFacts
-from spa.authoring.document.tag import TAG_SELECT_RESOURCE, TagAddress
-from spa.authoring.raster.image_snapshot import COMPOSITION_RESOURCE, LayerComposition
+from spa.authoring.document.tag import TAG_SELECT_RESOURCE
+from spa.authoring.raster.image_snapshot import COMPOSITION_RESOURCE
 from spa.contracts.artifact_set import ArtifactDestination, ArtifactSetPublicationError
 from spa.contracts.encoded_animation import AnimationDecodeError
-from spa.contracts.mutation import validate_native_sprite_path
 from spa.contracts.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.contracts.ports import (
     ArtifactVerificationEvidence,
@@ -27,233 +26,33 @@ from spa.contracts.ports import (
     RuntimeIssue,
 )
 from spa.contracts.public import (
-    FailureCodeSpec,
     PublicModel,
-    RuntimeRequest,
     RuntimeRequirements,
 )
-
-ANIMATION_LIMITS = {
-    "frame_occurrences": 1024,
-    "canvas_pixels": 1_048_576,
-    "total_pixels": 16_777_216,
-}
-
-
-class ExplicitFrames(PublicModel):
-    kind: Literal["frames"]
-    frame_numbers: list[Annotated[int, Field(ge=1)]] = Field(
-        min_length=1, max_length=1024
-    )
-
-
-class TagTraversal(PublicModel):
-    kind: Literal["tag"]
-    tag: TagAddress
-
-
-class SequenceDestination(PublicModel):
-    directory: str = Field(min_length=1, pattern=r"^[^\x00\r\n]+$")
-    filename_format: str = Field(
-        min_length=1,
-        description="Literal prefix/suffix plus one {frame0} or {frame1} ordinal, optionally zero-padded, ending in .png.",
-    )
-    if_exists: Literal["fail", "replace"]
-
-
-class GifDestination(PublicModel):
-    path: str = Field(min_length=1, pattern=r"^[^\x00\r\n]+$")
-    if_exists: Literal["fail", "replace"]
-
-    @field_validator("path")
-    @classmethod
-    def gif_extension(cls, value: str) -> str:
-        if Path(value).suffix.lower() != ".gif":
-            raise ValueError("GIF destination requires the .gif extension")
-        return value
-
-
-class AnimationExportRequest(RuntimeRequest):
-    model_config = ConfigDict(
-        json_schema_extra={"x-spa-operation-limits": {**ANIMATION_LIMITS}}
-    )
-    source_sprite_file: str
-    playback: Annotated[ExplicitFrames | TagTraversal, Field(discriminator="kind")]
-    layer_composition: LayerComposition
-
-    _source = field_validator("source_sprite_file")(validate_native_sprite_path)
-
-
-class ExportSequenceRequest(AnimationExportRequest):
-    destination: SequenceDestination
-
-
-class ExportGifRequest(AnimationExportRequest):
-    destination: GifDestination
-
-
-class FrameOccurrence(PublicModel):
-    occurrence: int = Field(ge=1)
-    source_frame_number: int = Field(ge=1)
-    source_duration_ms: int = Field(ge=1, le=65535)
-
-
-class ResolvedPlayback(PublicModel):
-    mode: Literal["explicit_frames", "tag_traversal"]
-    tag_index: int | None = Field(default=None, ge=1)
-    tag: TagFacts | None = None
-    occurrences: list[FrameOccurrence] = Field(min_length=1, max_length=1024)
-
-
-class AnimationResolution(PublicModel):
-    width: int = Field(ge=1)
-    height: int = Field(ge=1)
-    color_mode: Literal["rgb", "grayscale", "indexed"]
-    color_profile: Literal["none", "srgb", "icc"]
-    icc_identity: str | None = None
-    playback: ResolvedPlayback
-    filenames: list[str]
-
-
-class OccurrencePalette(PublicModel):
-    palette_frame_number: int = Field(ge=1)
-    transparent_color_index: int = Field(ge=0, le=255)
-    entries: list[PaletteEntry] = Field(min_length=1, max_length=256)
-
-
-class NativeSequenceFrame(PublicModel):
-    occurrence: int = Field(ge=1)
-    source_frame_number: int = Field(ge=1)
-    filename: str
-    effective_background: bool
-    resolved_layer_paths: list[list[int]]
-    effective_palette: OccurrencePalette | None
-
-
-class NativeSequenceOutput(PublicModel):
-    resolution: AnimationResolution
-    frames: list[NativeSequenceFrame]
-
-
-class NativeGifFrame(PublicModel):
-    occurrence: int = Field(ge=1)
-    source_frame_number: int = Field(ge=1)
-    effective_background: bool
-    resolved_layer_paths: list[list[int]]
-
-
-class NativeGifOutput(PublicModel):
-    resolution: AnimationResolution
-    frames: list[NativeGifFrame]
-
-
-class AnimationArtifact(PublicModel):
-    role: str
-    path: str
-    media_type: Literal["image/png", "image/gif"]
-    format: Literal["png", "gif"]
-    byte_size: int = Field(gt=0)
-    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
-
-
-class SequenceFrameFacts(NativeSequenceFrame):
-    color_mode: Literal["rgb", "grayscale", "indexed"]
-    color_profile: Literal["none", "srgb", "icc"]
-    alpha_min: int = Field(ge=0, le=255)
-    alpha_max: int = Field(ge=0, le=255)
-    encoded_palette: list[PaletteEntry] | None
-    bit_depth: int
-    color_type: int
-    icc_identity: str | None
-    srgb_rendering_intent: int | None
-
-
-class ExportSequenceResult(PublicModel):
-    status: Literal["success"] = "success"
-    operation: Literal["spa export sequence"] = "spa export sequence"
-    destination: SequenceDestination
-    playback: ResolvedPlayback
-    layer_composition: LayerComposition
-    width: int
-    height: int
-    frames: list[SequenceFrameFacts]
-    artifacts: list[AnimationArtifact]
-
-
-class GifFrameFacts(NativeGifFrame):
-    source_duration_ms: int
-    encoded_duration_ms: int
-    color_table: list[list[int]]
-    color_table_source: Literal["global", "local"]
-    transparent_color_index: int | None
-    disposal_method: int
-    encoded_rectangle: list[int]
-    changed_rgb_pixels: int
-
-
-class GifLoop(PublicModel):
-    mode: Literal["infinite"] = "infinite"
-    encoded_count: Literal[0] = 0
-
-
-class GifProfile(PublicModel):
-    source: Literal["none", "srgb", "icc"]
-    source_icc_identity: str | None
-    native_conversion: Literal["none", "to_srgb"]
-    encoded: Literal["unprofiled"] = "unprofiled"
-
-
-class ExportGifResult(PublicModel):
-    status: Literal["success"] = "success"
-    operation: Literal["spa export gif"] = "spa export gif"
-    destination: GifDestination
-    playback: ResolvedPlayback
-    layer_composition: LayerComposition
-    width: int
-    height: int
-    loop: GifLoop
-    color_profile: GifProfile
-    quantization: Literal["aseprite_native_lossy"] = "aseprite_native_lossy"
-    transparency: Literal["zero_transparent_positive_opaque"] = (
-        "zero_transparent_positive_opaque"
-    )
-    frames: list[GifFrameFacts]
-    artifacts: list[AnimationArtifact]
-
-
-class AnimationExportDetails(PublicModel):
-    kind: Literal["animation_export"] = "animation_export"
-    reason: str
-    message: str
-
-
-class PublicationPathState(PublicModel):
-    role: str
-    path: str
-    existed_before_publication: bool
-    state: Literal["published", "not_published", "indeterminate"]
-    replaced_existing: bool | None
-
-
-class PartialPublicationDetails(PublicModel):
-    kind: Literal["partial_publication"] = "partial_publication"
-    destinations: list[PublicationPathState]
-
-
-ANIMATION_EXPORT_FAILURE_SPECS = (
-    FailureCodeSpec(
-        "animation_export_invalid",
-        "Animation export cannot satisfy the declared request",
-        "input",
-        AnimationExportDetails,
-    ),
-    FailureCodeSpec(
-        "partial_publication",
-        "Export failed after a final destination changed",
-        "execution",
-        PartialPublicationDetails,
-    ),
+from spa.delivery.animation_contracts import (
+    ANIMATION_EXPORT_FAILURE_SPECS as ANIMATION_EXPORT_FAILURE_SPECS,
 )
+from spa.delivery.animation_contracts import (
+    ANIMATION_LIMITS,
+    AnimationArtifact,
+    AnimationExportDetails,
+    AnimationExportRequest,
+    AnimationResolution,
+    ExplicitFrames,
+    ExportGifRequest,
+    ExportGifResult,
+    ExportSequenceRequest,
+    ExportSequenceResult,
+    GifFrameFacts,
+    GifLoop,
+    GifProfile,
+    NativeGifOutput,
+    NativeSequenceOutput,
+    PartialPublicationDetails,
+    PublicationPathState,
+    SequenceFrameFacts,
+)
+
 ANIMATION_SUPPORT = PackagedResource(
     "animation_export", "delivery/animation_export_support.lua"
 )
@@ -284,15 +83,10 @@ GIF_REQUIREMENTS = RuntimeRequirements(
 
 def _facts[T: PublicModel](kind: type[T], invocation: KernelInvocationResult) -> T:
     rejected = invocation.payload.get("rejection")
-    if isinstance(rejected, dict):
-        raise OperationIssue(
-            "animation_export_invalid",
-            str(rejected["message"]),
-            AnimationExportDetails(
-                reason=str(rejected["reason"]), message=str(rejected["message"])
-            ),
-        )
     try:
+        if rejected is not None:
+            details = AnimationExportDetails.model_validate(rejected)
+            raise OperationIssue("animation_export_invalid", details.message, details)
         return kind.model_validate(invocation.payload)
     except ValidationError as exc:
         raise RuntimeIssue(
@@ -309,6 +103,93 @@ def _mismatch(path: Path, reason: str) -> NoReturn:
         reason,
         ArtifactVerificationEvidence(str(path), reason),
     )
+
+
+def _validate_resolution(
+    request: AnimationExportRequest, resolution: AnimationResolution
+) -> None:
+    path = Path(request.source_sprite_file)
+    playback = resolution.playback
+    frames = [item.source_frame_number for item in playback.occurrences]
+    if [item.occurrence for item in playback.occurrences] != list(
+        range(1, len(frames) + 1)
+    ):
+        _mismatch(path, "Resolved occurrence order is not contiguous")
+    if (
+        resolution.width * resolution.height > ANIMATION_LIMITS["canvas_pixels"]
+        or resolution.width * resolution.height * len(frames)
+        > ANIMATION_LIMITS["total_pixels"]
+    ):
+        _mismatch(path, "Resolved Canvas exceeds the declared Operation Limits")
+    if (resolution.color_profile == "icc") != (
+        resolution.icc_identity in ("linear_srgb", "display_p3")
+    ) or (resolution.color_profile != "icc" and resolution.icc_identity is not None):
+        _mismatch(path, "Resolved Source profile identity is inconsistent")
+    if isinstance(request.playback, ExplicitFrames):
+        if (
+            playback.mode != "explicit_frames"
+            or playback.tag is not None
+            or playback.tag_index is not None
+            or frames != request.playback.frame_numbers
+        ):
+            _mismatch(path, "Resolved Frames differ from the explicit playback")
+    else:
+        tag = playback.tag
+        address = request.playback.tag
+        if (
+            playback.mode != "tag_traversal"
+            or tag is None
+            or playback.tag_index is None
+            or (address.tag_name is not None and tag.name != address.tag_name)
+            or (
+                address.tag_index is not None
+                and playback.tag_index != address.tag_index
+            )
+        ):
+            _mismatch(path, "Resolved Tag differs from its exact address")
+        if tag.from_frame > tag.to_frame or any(
+            not tag.from_frame <= frame <= tag.to_frame for frame in frames
+        ):
+            _mismatch(path, "Resolved occurrences are outside the Tag range")
+        # Validate the receipt's one-traversal shape; native resolution owns playback.
+        span = tag.to_frame - tag.from_frame + 1
+        ping_pong = tag.direction in ("ping_pong", "ping_pong_reverse")
+        count = max(1, 2 * (span - 1)) if ping_pong else span
+        if count != len(frames):
+            _mismatch(path, "Resolved Tag occurrence count differs from one traversal")
+        expected = list(range(tag.from_frame, tag.to_frame + 1))
+        if tag.direction in ("reverse", "ping_pong_reverse"):
+            expected.reverse()
+        if ping_pong:
+            expected += expected[-2:0:-1]
+        if frames != expected:
+            _mismatch(
+                path, "Resolved Tag occurrences differ from one direction traversal"
+            )
+    if isinstance(request, ExportSequenceRequest):
+        if resolution.color_mode == "grayscale" and resolution.color_profile == "icc":
+            _mismatch(path, "Resolved Grayscale PNG cannot preserve an admitted RGB ICC")
+        pattern = re.fullmatch(
+            r"([^{}]*)\{frame(0*[01])\}([^{}]*)", request.destination.filename_format
+        )
+        if pattern is None or len(resolution.filenames) != len(frames):
+            _mismatch(path, "Resolved sequence filenames are incomplete")
+        prefix, digits, suffix = pattern.groups()
+        for ordinal, name in enumerate(resolution.filenames, int(digits)):
+            if (
+                name != f"{prefix}{ordinal:0{len(digits)}}{suffix}"
+                or not name.endswith(".png")
+                or any(value in name for value in ("/", "\\", "\x00", "\r", "\n"))
+                or name in (".", "..")
+            ):
+                _mismatch(
+                    path,
+                    "Resolved filename differs from the declared occurrence format",
+                )
+    elif resolution.filenames != ["animation.gif"] or any(
+        item.source_duration_ms < 10 for item in playback.occurrences
+    ):
+        _mismatch(path, "Resolved GIF filename or Source timing is inconsistent")
 
 
 def export_sequence(
@@ -332,15 +213,7 @@ def export_sequence(
             runtime, ANIMATION_HANDLER, payload, request.timeout_seconds
         ),
     )
-    if (
-        isinstance(request.playback, ExplicitFrames)
-        and [item.source_frame_number for item in resolution.playback.occurrences]
-        != request.playback.frame_numbers
-    ):
-        _mismatch(
-            Path(request.source_sprite_file),
-            "Resolved Frames differ from the explicit playback",
-        )
+    _validate_resolution(request, resolution)
     directory = files.normalize_destination(request.destination.directory)
     destinations = tuple(
         ArtifactDestination(
@@ -411,6 +284,7 @@ def export_sequence(
                 palette = native.effective_palette
                 if (
                     palette is None
+                    or palette.palette_frame_number > occurrence.source_frame_number
                     or palette.transparent_color_index >= len(palette.entries)
                     or [e.index for e in palette.entries]
                     != list(range(len(palette.entries)))
@@ -504,6 +378,7 @@ def export_gif(
             runtime, ANIMATION_HANDLER, payload, request.timeout_seconds
         ),
     )
+    _validate_resolution(request, resolution)
     if (
         resolution.color_profile == "icc"
         and "aseprite_convert_color_profile" not in runtime.verified_capabilities
