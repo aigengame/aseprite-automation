@@ -133,6 +133,8 @@ def test_all_installed_failure_codes_are_registered_once() -> None:
         "target_commit_failed",
         "artifact_file_failed",
         "artifact_verification_failed",
+        "animation_export_invalid",
+        "partial_publication",
         "sprite_copy_staging_failed",
         "sprite_flatten_unsupported_content",
         "sprite_geometry_unsupported_content",
@@ -202,7 +204,35 @@ def test_failure_construction_derives_category_and_refuses_mismatch() -> None:
 
 
 def test_each_registered_code_has_a_constrained_public_schema() -> None:
+    animation_details = FAILURE_CODES["animation_export_invalid"].details_type
+    publication_details = FAILURE_CODES["partial_publication"].details_type
     details_by_type = {
+        animation_details: animation_details.model_validate(
+            {
+                "reason": "gif_duration",
+                "message": "A selected Frame is shorter than 10 ms",
+            }
+        ),
+        publication_details: publication_details.model_validate(
+            {
+                "destinations": [
+                    {
+                        "role": "frame-0001",
+                        "path": "frame_1.png",
+                        "existed_before_publication": True,
+                        "state": "published",
+                        "replaced_existing": True,
+                    },
+                    {
+                        "role": "frame-0002",
+                        "path": "frame_2.png",
+                        "existed_before_publication": False,
+                        "state": "not_published",
+                        "replaced_existing": None,
+                    },
+                ]
+            }
+        ),
         PreparationDetails: PreparationDetails(reason="input", message="Invalid PNG"),
         ImageImportDetails: ImageImportDetails(
             path="input.png", reason="palette", message="Changed used index"
