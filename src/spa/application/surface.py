@@ -93,6 +93,10 @@ from spa.authoring.tile.lifecycle import (
     TILE_LIFECYCLE_PROBE_RESOURCE,
 )
 from spa.authoring.tile.regions import TILE_REGION_OPERATIONS
+from spa.authoring.tile.tileset_lifecycle import (
+    TILESET_LIFECYCLE_OPERATIONS,
+    TILESET_LIFECYCLE_PROBE_RESOURCE,
+)
 from spa.contracts.operation import (
     ACCESS_FAILURE_CODES,
     RUNTIME_FAILURE_CODES,
@@ -118,6 +122,7 @@ from spa.delivery.palette import (
 from spa.preparation.raster import PREPARATION_OPERATIONS
 
 PROBE_RESOURCES = (
+    TILESET_LIFECYCLE_PROBE_RESOURCE,
     TILE_LAYER_PROBE_RESOURCE,
     TILE_PROBE_RESOURCE,
     TILE_LIFECYCLE_PROBE_RESOURCE,
@@ -383,5 +388,6 @@ OPERATIONS = (
     *PLAN_OPERATIONS,
     *TILE_OPERATIONS,
     *TILE_LIFECYCLE_OPERATIONS,
+    *TILESET_LIFECYCLE_OPERATIONS,
     *TILE_REGION_OPERATIONS,
 )

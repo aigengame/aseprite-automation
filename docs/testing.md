@@ -9,6 +9,16 @@ repeat the known crash.
 SPA organizes tests first by the behavior owner and then names each test file by its
 verification tier. The layout does not mirror source packages or CLI Command Groups.
 
+Tileset lifecycle #45 adds public rebind/remove E2E and an independent native oracle
+for flags, Linked Cels, unchanged shared Layers, native properties, and save/reopen.
+Indexed tests cover Palette validity in each actual usage Frame, including linked
+Frames and different valid Palettes. Fixtures with different Palette lengths use
+an alpha-bearing entry so native serialization retains the modern Palette chunk;
+all-opaque legacy chunks do not encode length. A failed persistence check still
+refuses publication. Plan tests cover rebind-all/remove, collection reindexing,
+Step-time Cel creation receipts, one commit, malformed evidence, and later failure
+with Source and an existing Target preserved.
+
 ## Ownership areas
 
 | Directory | Behavior owner |

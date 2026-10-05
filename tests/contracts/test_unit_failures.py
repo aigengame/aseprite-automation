@@ -55,6 +55,10 @@ from spa.authoring.raster.selection import SelectionDetails
 from spa.authoring.tile.inspection import TileInspectionDetails, TilesetTarget
 from spa.authoring.tile.lifecycle import TileLifecycleDetails
 from spa.authoring.tile.regions import TilemapRegionDetails
+from spa.authoring.tile.tileset_lifecycle import (
+    TilesetInUseDetails,
+    TilesetLifecycleDetails,
+)
 from spa.contracts.artifact import ArtifactFileDetails, ArtifactVerificationDetails
 from spa.contracts.mutation import TargetCommitDetails
 from spa.contracts.ports import (
@@ -293,6 +297,28 @@ def test_each_registered_code_has_a_constrained_public_schema() -> None:
             )
         ),
         SelectionDetails: SelectionDetails(reason="coverage outside Canvas Rectangle"),
+        TilesetLifecycleDetails: TilesetLifecycleDetails(
+            target=TilesetTarget(tileset_index=1),
+            reason="grid_mismatch",
+            message="Source and target Grid differ",
+        ),
+        TilesetInUseDetails: TilesetInUseDetails.model_validate(
+            {
+                "target": {"tileset_index": 1},
+                "tileset": {
+                    "tileset_index": 1,
+                    "name": "terrain",
+                    "base_index": 1,
+                    "tile_count": 2,
+                    "grid": {
+                        "origin": {"x": 0, "y": 0},
+                        "tile_size": {"width": 2, "height": 3},
+                    },
+                    "layers": [{"layer_path": [2], "layer_uuid": None, "name": "map"}],
+                },
+                "layers": [{"layer_path": [2], "layer_uuid": None, "name": "map"}],
+            }
+        ),
         SnapshotDetails: SnapshotDetails(reason="incompatible bounds"),
         RequestDetails: RequestDetails(errors=[]),
         NotFoundDetails: NotFoundDetails(requested_path=None, searched=[]),
