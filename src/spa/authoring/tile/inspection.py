@@ -53,6 +53,7 @@ from spa.contracts.raster import (
     PositiveRectangle,
 )
 from spa.contracts.snapshot import SnapshotDestination
+from spa.delivery.snapshot_publication import staged_snapshot
 
 INLINE_TILE_CELLS = 4096
 INLINE_TILE_PIXELS = 4096
@@ -374,28 +375,71 @@ def _check_scope(request: TilesetListRequest, result: InspectionResult) -> None:
             raise ValueError("Tile address differs from request")
 
 
+def _check_snapshot(
+    request: TilesetListRequest,
+    result: InspectionResult,
+    contents: bytes | None,
+) -> None:
+    if not isinstance(result, (TileGetResult, TilemapGetResult)):
+        return
+    assert isinstance(request, (TileGetRequest, TilemapGetRequest))
+    schema = (
+        PixelRegionSnapshot if isinstance(result, TileGetResult) else TileRegionSnapshot
+    )
+    value = (
+        schema.model_validate_json(contents)
+        if contents is not None
+        else result.snapshot
+    )
+    expected = (
+        "artifact"
+        if request.snapshot_destination is not None
+        else "summary"
+        if isinstance(request, TilemapGetRequest) and request.rectangle is None
+        else "inline"
+    )
+    if (
+        result.output_form != expected
+        or result.artifact is not None
+        or (contents is not None and result.snapshot is not None)
+        or ((value is None) != (expected == "summary"))
+    ):
+        raise ValueError("Tile Snapshot transport differs from request")
+    if (
+        isinstance(request, TilemapGetRequest)
+        and value is not None
+        and value.rectangle != request.rectangle
+    ):
+        raise ValueError("Tile Region Snapshot differs from request")
+    if (
+        isinstance(result, TileGetResult)
+        and isinstance(value, PixelRegionSnapshot)
+        and (
+            value.rectangle.width != result.tile.image_size.width
+            or value.rectangle.height != result.tile.image_size.height
+            or value.color_mode != result.tile.color_mode
+        )
+    ):
+        raise ValueError("Tile Image Snapshot differs from Tile facts")
+
+
 def _read[T: InspectionResult](
     request: TilesetListRequest,
     services: OperationServices,
     operation: str,
     result_type: type[T],
 ) -> T:
-    files = services.artifact_files
     export = (
         request.snapshot_destination
         if isinstance(request, (TileGetRequest, TilemapGetRequest))
         else None
     )
-    destination, staged = None, None
-    if export is not None:
-        assert files is not None
-        destination = files.normalize_destination(export.path)
-        files.ensure_source_separate(Path(request.sprite_file), destination)
-        staged = files.staged_path(destination, if_exists=export.if_exists)
-    try:
+    with staged_snapshot(
+        services.artifact_files, source=Path(request.sprite_file), destination=export
+    ) as staged:
         payload = _payload(request, operation)
         if staged is not None:
-            payload["staged_snapshot_file"] = str(staged)
+            payload["staged_snapshot_file"] = str(staged.path)
         invocation = services.invoke_kernel(
             services.probe_runtime(request),
             TILE_READ_HANDLER,
@@ -406,53 +450,12 @@ def _read[T: InspectionResult](
             _reject(invocation, request)
             result = result_type.model_validate(invocation.payload)
             _check_scope(request, result)
-            contents = (
-                files.read_staged(staged)
-                if files is not None and staged is not None
-                else None
-            )
-            if isinstance(result, (TileGetResult, TilemapGetResult)):
-                schema = (
-                    PixelRegionSnapshot
-                    if isinstance(result, TileGetResult)
-                    else TileRegionSnapshot
+            if staged is not None:
+                staged.verify(
+                    lambda contents: _check_snapshot(request, result, contents)
                 )
-                value = (
-                    schema.model_validate_json(contents.payload)
-                    if contents
-                    else result.snapshot
-                )
-                expected = (
-                    "artifact"
-                    if export
-                    else "summary"
-                    if isinstance(request, TilemapGetRequest)
-                    and request.rectangle is None
-                    else "inline"
-                )
-                if (
-                    result.output_form != expected
-                    or result.artifact is not None
-                    or (staged is not None and result.snapshot is not None)
-                    or ((value is None) != (expected == "summary"))
-                ):
-                    raise ValueError("Tile Snapshot transport differs from request")
-                if (
-                    isinstance(request, TilemapGetRequest)
-                    and value is not None
-                    and value.rectangle != request.rectangle
-                ):
-                    raise ValueError("Tile Region Snapshot differs from request")
-                if (
-                    isinstance(result, TileGetResult)
-                    and isinstance(value, PixelRegionSnapshot)
-                    and (
-                        value.rectangle.width != result.tile.image_size.width
-                        or value.rectangle.height != result.tile.image_size.height
-                        or value.color_mode != result.tile.color_mode
-                    )
-                ):
-                    raise ValueError("Tile Image Snapshot differs from Tile facts")
+            else:
+                _check_snapshot(request, result, None)
         except (ValueError, TypeError) as exc:
             raise RuntimeIssue(
                 "response_malformed",
@@ -461,16 +464,7 @@ def _read[T: InspectionResult](
                 invocation.diagnostics,
             ) from exc
         if staged is not None:
-            assert (
-                files is not None
-                and destination is not None
-                and export is not None
-                and contents is not None
-            )
-            files.ensure_source_separate(Path(request.sprite_file), destination)
-            published = files.publish(
-                staged, destination, if_exists=export.if_exists, sha256=contents.sha256
-            )
+            published = staged.publish()
             artifact = TileSnapshotArtifact(
                 role="pixel-region-snapshot"
                 if isinstance(result, TileGetResult)
@@ -483,9 +477,6 @@ def _read[T: InspectionResult](
                 {**result.model_dump(), "artifact": artifact.model_dump()}
             )
         return result
-    finally:
-        if staged is not None and files is not None:
-            files.discard(staged)
 
 
 def list_tilesets(
