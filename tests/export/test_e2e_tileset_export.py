@@ -154,7 +154,7 @@ def test_preserve_mode_palette_profile_and_exact_tile_channels(
         assert not (tmp_path / "atlas.png").exists()
         assert not (tmp_path / "map.json").exists()
         return
-    assert code == 0, result
+    assert code == 0, json.dumps(result, indent=2)
     decoded = decode_png_artifact((tmp_path / "atlas.png").read_bytes())
     assert (decoded.width, decoded.height, decoded.color_mode) == (4, 4, mode)
     assert decoded.color_profile == (
