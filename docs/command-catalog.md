@@ -232,7 +232,7 @@ does not add other motion modes or recipe-owned pose and particle behavior.
 | Candidate command | Intended meaning |
 | --- | --- |
 | `spa export image` | Export one Frame and Layer Composition as a verified raster Artifact. |
-| `spa export sheet` | Installed: export a verified PNG texture and Aseprite JSON Array; see [Sprite Sheets](sprite-sheets.md). |
+| `spa export sheet` | Export a Sprite Sheet texture and associated metadata; see [Sprite Sheets](sprite-sheets.md). |
 | `spa export gif` | Export an animated GIF Artifact. |
 | `spa export sequence` | Export an ordered bounded Frame image collection. |
 | `spa export tileset` | Export Tileset image and normalized metadata Artifacts. |

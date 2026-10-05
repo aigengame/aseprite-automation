@@ -109,8 +109,8 @@ local function read_json(path)
   return value
 end
 local function common_trim(sprite, payload, first)
-  local image = payload.staged_png_file .. ".trim.png"
-  local metadata = payload.staged_metadata_file .. ".trim.json"
+  local image = assert(payload.staged_trim_png_file)
+  local metadata = assert(payload.staged_trim_metadata_file)
   local ok, result = pcall(function()
     native_export(sprite, payload, image, metadata, first, first, "horizontal", "sprite", {
       border = 0,
@@ -174,11 +174,7 @@ local function limit(source, first, last, payload)
     )
   end
 end
-local function run(source, disposable, payload, profile)
-  local first, last, selected_index, rejected = range(source, payload.selection)
-  if rejected then return rejected end
-  rejected = limit(source, first, last, payload)
-  if rejected then return rejected end
+local function run(source, disposable, payload, profile, first, last, selected_index)
   local uuids = inspection.saved_layer_uuids(source, payload.source_sprite_file)
   if payload.layer_composition.mode == "include" then
     for _, address in ipairs(payload.layer_composition.layers) do
@@ -396,7 +392,7 @@ function module.execute(payload)
         "Source Color Profile is outside None, sRGB and the exact supported ICC profiles"
       )
     end
-    local first, last, _, rejected = range(source, payload.selection)
+    local first, last, selected_index, rejected = range(source, payload.selection)
     if rejected then return rejected end
     rejected = limit(source, first, last, payload)
     if rejected then return rejected end
@@ -405,7 +401,7 @@ function module.execute(payload)
       source.height,
       payload.output_color_mode == "rgb" and ColorMode.RGB or ColorMode.INDEXED
     )
-    return run(source, disposable, payload, profile)
+    return run(source, disposable, payload, profile, first, last, selected_index)
   end)
   if disposable ~= nil then pcall(function() disposable:close() end) end
   if source ~= nil then pcall(function() source:close() end) end

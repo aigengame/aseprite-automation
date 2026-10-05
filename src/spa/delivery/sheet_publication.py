@@ -23,6 +23,8 @@ class StagedSheet:
     image: Path
     metadata: Path
     pixels: Path
+    trim_image: Path
+    trim_metadata: Path
     image_destination: Path
     metadata_destination: Path
     _source: Path
@@ -96,11 +98,15 @@ def staged_sheet(
         metadata, if_exists=request.metadata_destination.if_exists
     )
     pixels = files.rendered_path(staged_image)
+    trim_image = staged_image.with_name(staged_image.name + ".trim.png")
+    trim_metadata = staged_metadata.with_name(staged_metadata.name + ".trim.json")
     try:
         yield StagedSheet(
             staged_image,
             staged_metadata,
             pixels,
+            trim_image,
+            trim_metadata,
             image,
             metadata,
             source,
@@ -108,5 +114,5 @@ def staged_sheet(
             files,
         )
     finally:
-        for path in (staged_image, staged_metadata, pixels):
+        for path in (staged_image, staged_metadata, pixels, trim_image, trim_metadata):
             files.discard(path)

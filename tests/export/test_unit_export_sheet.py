@@ -247,6 +247,24 @@ def test_malformed_native_refusal_returns_a_response_failure(
     assert not (tmp_path / "sheet.json").exists()
 
 
+def test_native_interruption_cleans_common_trim_auxiliary_files(tmp_path: Path) -> None:
+    def interrupted(payload):
+        # A killed native process cannot run its own finally/cleanup code.
+        for path in (
+            payload["staged_png_file"],
+            payload["staged_metadata_file"],
+            payload["staged_pixels_file"],
+            payload["staged_trim_png_file"],
+            payload["staged_trim_metadata_file"],
+        ):
+            Path(path).write_bytes(b"interrupted native output")
+        raise TimeoutError("native process terminated")
+
+    with pytest.raises(TimeoutError):
+        export_sheet(request_for(tmp_path), services_for(interrupted))
+    assert not list(tmp_path.iterdir())
+
+
 def test_second_publication_failure_reports_both_paths_without_rollback(
     tmp_path: Path,
 ) -> None:

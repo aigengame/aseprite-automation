@@ -88,6 +88,8 @@ def export_sheet(
                 "staged_png_file": str(staged.image),
                 "staged_metadata_file": str(staged.metadata),
                 "staged_pixels_file": str(staged.pixels),
+                "staged_trim_png_file": str(staged.trim_image),
+                "staged_trim_metadata_file": str(staged.trim_metadata),
                 "image_reference": image_reference,
             },
             request.timeout_seconds,
