@@ -26,6 +26,7 @@ from spa.authoring.raster.paint_native import NATIVE_PAINT_FAILURE_CODE_SPECS
 from spa.authoring.raster.selection import SELECTION_FAILURE_CODE_SPECS
 from spa.authoring.tile.inspection import TILE_FAILURE_SPECS
 from spa.authoring.tile.lifecycle import TILE_LIFECYCLE_FAILURE_SPECS
+from spa.authoring.tile.regions import TILE_REGION_FAILURE_SPECS
 from spa.authoring.tile.tileset_lifecycle import TILESET_FAILURE_SPECS
 from spa.contracts.mutation import MUTATION_FAILURE_CODE_SPECS
 from spa.contracts.public import CORE_FAILURE_CODE_SPECS, register_failure_codes
@@ -40,6 +41,7 @@ FAILURE_CODES = register_failure_codes(
         *TILE_FAILURE_SPECS,
         *TILE_LIFECYCLE_FAILURE_SPECS,
         *TILESET_FAILURE_SPECS,
+        *TILE_REGION_FAILURE_SPECS,
         *FILTER_FAILURE_SPECS,
         *INVERT_FAILURE_SPECS,
         *PALETTE_FAILURE_CODE_SPECS,

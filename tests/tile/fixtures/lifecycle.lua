@@ -4,6 +4,7 @@ local mode = modes[app.params.mode or "rgb"]
 local sprite = Sprite(16, 16, mode)
 if app.params.uuids then sprite.useLayerUuids = app.params.uuids == "true" end
 sprite.transparentColor = mode == ColorMode.INDEXED and 7 or 0
+if app.params.palette_size then sprite:setPalette(Palette(tonumber(app.params.palette_size))) end
 app.activeSprite = sprite
 app.command.NewLayer { tilemap = true, ask = false, gridBounds = Rectangle(0, 0, 2, 3) }
 local layer, tileset = app.activeLayer, app.activeLayer.tileset

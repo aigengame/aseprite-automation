@@ -1515,3 +1515,63 @@ Snapshot schema as the inline value, with digest and byte size reported only aft
 verified publication. Smaller Snapshots can also be sent to an Artifact explicitly.
 No region is silently truncated; no read writes the Source Sprite File. These are
 current delivery choices, open to extension when future requirements justify it.
+
+### Tilemap region writes
+
+`tilemap set`, `tilemap patch`, and `tilemap fill` address one existing Tilemap Cel
+through an exact Layer address and a one-based Frame Number. Their coordinates are
+zero-based Cel-local Tile Cells. Negative Cel positions on the Canvas do not change
+these coordinates. Use `cel add` with `tilemap_size` first when the Cel is absent.
+
+| Operation | Input | Omitted Cells |
+| --- | --- | --- |
+| `tilemap set` | `snapshot`: complete Tile Cell Rectangle, Empty default, row-major non-empty entries | Become Empty inside the Rectangle |
+| `tilemap patch` | `patch`: unique explicit entries in any order | Remain unchanged |
+| `tilemap fill` | `coordinate_space`, `rectangle`, and one `placement` | Every Cell in the Rectangle receives that Placement |
+
+Write Placements are `{"kind":"empty"}` or `{"kind":"tile","tile_key":"stone",
+"flip_x":false,"flip_y":false,"flip_diagonal":false}`. All three flags are explicit
+and independent. Set represents Empty through omitted entries; Patch and Fill can
+use the Empty variant directly. Writes never accept a packed native integer, Base
+Index, or bare Tile Index. An observed Snapshot with unkeyed placements remains
+readable, but it cannot serve as keyed write input without an explicit identity
+decision by the caller.
+
+```sh
+spa tilemap patch --input-json '{
+  "source_sprite_file":"map.aseprite",
+  "target_sprite_file":"map-edited.aseprite",
+  "in_place":false,"overwrite":false,
+  "target":{"layer":{"layer_name":"Ground"},"frame_number":2},
+  "patch":{"coordinate_space":"tile-cell","entries":[
+    {"tile_x":1,"tile_y":0,"placement":{"kind":"tile","tile_key":"stone",
+      "flip_x":true,"flip_y":false,"flip_diagonal":false}},
+    {"tile_x":2,"tile_y":0,"placement":{"kind":"empty"}}
+  ]}
+}'
+```
+
+The entire Rectangle and every explicit entry must fit the existing Cel Image.
+There is no clipping or implicit Cel creation. Every Key is resolved before the
+write. Current bounds are 4096 explicit Set/Patch entries and 1,048,576 Tile Cells
+in the addressed Image, whose complete content must be copied and verified. These
+standalone Operations are not yet eligible for Plan Steps.
+
+Writes preserve native Linked Cels. `affected_cels` lists every Cel sharing the
+modified Image, including Frames outside the selected address. `cells_written`
+and `cells_changed` count Cells in that one Image, without multiplying by the
+number of linked Cels. A no-op still reports the complete sharing set.
+
+For non-empty Indexed Placements, `written_tiles` reports the resolved Keys,
+current indexes, and stored Tile Bitmap Palette indexes. `effective_palettes`
+reports the basis for every affected Frame, including the Sprite Transparent
+Color Index. Every referenced index must exist at every such Frame. Tile creation
+Palette basis is not a permanent binding; different valid colors across Frames
+are allowed. Undefined indexes cause atomic refusal with Frame/Palette details.
+Empty-only writes require no Palette basis. No write remaps indexes, changes
+Palettes, or repairs unrelated placements.
+
+The Kernel edits a detached Image and assigns it through Aseprite's native
+transaction. It verifies content, geometry, sharing, and document facts after
+save/reopen; SPA checks the returned evidence before Target Commit. Failure leaves
+the Source and any previous Target unchanged.

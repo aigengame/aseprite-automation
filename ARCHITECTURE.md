@@ -339,8 +339,9 @@ import Tile creation contracts.
 Standalone and Plan inject the same Tile-owned `tile/cel_add.lua` construction
 function for explicit Tilemap requests. That function owns bounded Cell geometry,
 Tileset/Grid admission, native TILEMAP Image construction, and packed-zero checks.
-It reuses Tile inspection for creation facts. Add validates its initial state at
-the Step; the final save/reopen gate validates the state after all later Steps.
+It reuses `tile/tilemaps.lua` for Cel geometry and `tile/tilesets.lua` for binding
+facts. Add validates its initial state at the Step; the final save/reopen gate
+validates the state after all later Steps.
 Before Target Commit, creation receipts also reconcile the addressed Tileset and
 Grid with the collection at that Step. Plan derives these collections from the
 ordered lifecycle receipts and final Sprite inspection; later rebinding or removal
@@ -652,7 +653,17 @@ reconstruct native Tile metadata. Shared document verification and exact Layer
 bindings guard the change and final save/reopen. Python validates typed receipts
 and request correspondence; Plan also reconciles the collection between Steps.
 Scoped Tileset resize remains deferred in #175 pending native preservation evidence.
-Cel mutation and Plan retain staging and Target Commit ownership. The existing Tile probe observes empty-Cel save/reopen
+
+`tile/regions.lua` owns keyed Set/Patch/Fill intent, complete bounds checks, and
+Indexed compatibility at every affected Cel Frame. It edits a detached Image and
+replaces the original once through the native Cel setter, preserving Linked Cels.
+It reuses Document's affected-Cel observations, Color and Palette's Effective
+Palette resolver, and shared save/reopen verification. `tile/tilemaps.lua` owns
+Cel geometry facts consumed by inspection, explicit Cel creation, and region
+writes. Python checks returned coverage, sharing, identity, and Palette evidence
+before Target Commit. Region Operations are standalone in this delivery.
+Cel mutation and Plan retain staging and Target Commit ownership. The existing
+Tile probe observes empty-Cel save/reopen
 separately from inspection; only explicit Tilemap creation requests require that
 capability. Shared JSON Snapshot destination mechanics live in
 `contracts/snapshot.py`; Tile Region values stay in their feature owner. Color and Palette owns the shared Effective

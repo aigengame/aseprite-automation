@@ -138,6 +138,9 @@ def test_manifest_is_projected_from_command_descriptors() -> None:
         "spa tileset tile reorder",
         "spa tileset remove",
         "spa layer set-tileset",
+        "spa tilemap set",
+        "spa tilemap patch",
+        "spa tilemap fill",
     ]
     if not conversion_available:
         expected_operations.remove("spa sprite convert-color-profile")

@@ -54,6 +54,7 @@ from spa.authoring.raster.paint_native import PaintCapabilityDetails
 from spa.authoring.raster.selection import SelectionDetails
 from spa.authoring.tile.inspection import TileInspectionDetails, TilesetTarget
 from spa.authoring.tile.lifecycle import TileLifecycleDetails
+from spa.authoring.tile.regions import TilemapRegionDetails
 from spa.authoring.tile.tileset_lifecycle import (
     TilesetInUseDetails,
     TilesetLifecycleDetails,
@@ -208,6 +209,13 @@ def test_each_registered_code_has_a_constrained_public_schema() -> None:
         ),
         TileInspectionDetails: TileInspectionDetails(
             target=TilesetTarget(tileset_index=1)
+        ),
+        TilemapRegionDetails: TilemapRegionDetails(
+            target=LifecycleCelAddress(
+                layer=LayerAddress(layer_path=[1]), frame_number=1
+            ),
+            reason="tile_cells_limit",
+            message="Image exceeds the Tile Cell limit",
         ),
         TileLifecycleDetails: TileLifecycleDetails(
             target=TilesetTarget(tileset_index=1),
