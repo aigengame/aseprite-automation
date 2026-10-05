@@ -30,9 +30,6 @@ from spa.contracts.public import (
     RuntimeRequirements,
 )
 from spa.delivery.animation_contracts import (
-    ANIMATION_EXPORT_FAILURE_SPECS as ANIMATION_EXPORT_FAILURE_SPECS,
-)
-from spa.delivery.animation_contracts import (
     ANIMATION_LIMITS,
     AnimationArtifact,
     AnimationExportDetails,
@@ -168,7 +165,9 @@ def _validate_resolution(
             )
     if isinstance(request, ExportSequenceRequest):
         if resolution.color_mode == "grayscale" and resolution.color_profile == "icc":
-            _mismatch(path, "Resolved Grayscale PNG cannot preserve an admitted RGB ICC")
+            _mismatch(
+                path, "Resolved Grayscale PNG cannot preserve an admitted RGB ICC"
+            )
         pattern = re.fullmatch(
             r"([^{}]*)\{frame(0*[01])\}([^{}]*)", request.destination.filename_format
         )
