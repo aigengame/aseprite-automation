@@ -236,11 +236,13 @@ def test_failed_snapshot_publication_preserves_files_and_cleans_staging(
         return KernelInvocationResult(caller.evidence, "/response.json", DIAGNOSTICS)
 
     class ChangingFiles(LocalArtifactFiles):
-        def read_staged(self, staged):
-            observed = super().read_staged(staged)
+        def publish(self, staged, destination, *, if_exists, sha256):
             if fault == "snapshot_changed":
-                staged.write_bytes(observed.payload + b" ")
-            return observed
+                # The owner has completed domain validation before publication.
+                staged.write_bytes(staged.read_bytes() + b" ")
+            return super().publish(
+                staged, destination, if_exists=if_exists, sha256=sha256
+            )
 
     if fault == "publication_failed":
 
