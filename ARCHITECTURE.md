@@ -339,7 +339,7 @@ import Tile creation contracts.
 Standalone and Plan inject the same Tile-owned `tile/cel_add.lua` construction
 function for explicit Tilemap requests. That function owns bounded Cell geometry,
 Tileset/Grid admission, native TILEMAP Image construction, and packed-zero checks.
-It reuses Tile inspection for creation facts. Add validates its initial state at
+It reuses `tile/tilemaps.lua` for Cel geometry and `tile/tilesets.lua` for binding facts. Add validates its initial state at
 the Step; the final save/reopen gate validates the state after all later Steps.
 Before Target Commit, creation receipts also reconcile the addressed Tileset and
 Grid with complete Sprite inspection. Current eligible Plan Steps preserve these
@@ -643,6 +643,14 @@ is not a metadata transfer format. A nonzero Tile mapped to Empty becomes packed
 other retained placements keep flags, including existing flagged index-0 observations.
 The native `MoveTiles` command requires a Tilemap Layer; orphan reorder creates and
 removes only its own temporary native context within the mutation transaction.
+`tile/regions.lua` owns keyed Set/Patch/Fill intent, complete bounds checks, and
+Indexed compatibility at every affected Cel Frame. It edits a detached Image and
+replaces the original once through the native Cel setter, preserving Linked Cels.
+It reuses Document's affected-Cel observations, Color and Palette's Effective
+Palette resolver, and shared save/reopen verification. `tile/tilemaps.lua` owns
+Cel geometry facts consumed by inspection, explicit Cel creation, and region
+writes. Python checks returned coverage, sharing, identity, and Palette evidence
+before Target Commit. Region Operations are standalone in this delivery.
 Public Tile lifecycle Operations are standalone in this delivery. Cel mutation and Plan retain staging and
 Target Commit ownership. The existing Tile probe observes empty-Cel save/reopen
 separately from inspection; only explicit Tilemap creation requests require that

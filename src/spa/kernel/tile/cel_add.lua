@@ -1,6 +1,7 @@
 -- Tile-owned geometry, Empty Tile construction, and creation observations.
 local module = {}
-local inspection = dofile(app.params.tile_inspection)
+local tilemaps = dofile(app.params.tilemaps)
+local tilesets = dofile(app.params.tilesets)
 
 local function reject(message)
   return { rejection = { code = "cel_unsupported_target", message = message } }
@@ -12,10 +13,10 @@ function module.observe(sprite, layer, frame, uuids)
   for value in cel.image:pixels() do
     assert(value() == 0, "created Tilemap Cell is not Empty Tile 0 without flags")
   end
-  local index = assert(inspection.tileset_index(sprite, layer.tileset))
+  local index = assert(tilesets.tileset_index(sprite, layer.tileset))
   return {
-    tilemap = inspection.cel_facts(sprite, layer, frame, uuids),
-    tileset = inspection.tileset_facts(sprite, layer.tileset, index, uuids),
+    tilemap = tilemaps.cel_facts(sprite, layer, frame, uuids),
+    tileset = tilesets.facts(sprite, layer.tileset, index, uuids),
     empty_tile_cells_verified = true,
   }
 end
@@ -39,7 +40,7 @@ function module.add(sprite, layer, frame, input, uuids)
   then
     return reject("Tilemap size requires sides 1..65535 and at most 1048576 Tile Cells")
   end
-  if not inspection.tileset_index(sprite, layer.tileset) then
+  if not tilesets.tileset_index(sprite, layer.tileset) then
     return reject("Tilemap Cel add requires an existing Tileset binding")
   end
   local grid = layer.tileset.grid

@@ -217,6 +217,9 @@ def test_info_reports_installed_runtime() -> None:
         "spa tileset tile assign-key",
         "spa tileset tile remove",
         "spa tileset tile reorder",
+        "spa tilemap set",
+        "spa tilemap patch",
+        "spa tilemap fill",
     ]
     expected_runtime_gaps = []
     if not conversion_available:

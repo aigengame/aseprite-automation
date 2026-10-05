@@ -92,6 +92,7 @@ from spa.authoring.tile.lifecycle import (
     TILE_LIFECYCLE_OPERATIONS,
     TILE_LIFECYCLE_PROBE_RESOURCE,
 )
+from spa.authoring.tile.regions import TILE_REGION_OPERATIONS
 from spa.contracts.operation import (
     ACCESS_FAILURE_CODES,
     RUNTIME_FAILURE_CODES,
@@ -382,4 +383,5 @@ OPERATIONS = (
     *PLAN_OPERATIONS,
     *TILE_OPERATIONS,
     *TILE_LIFECYCLE_OPERATIONS,
+    *TILE_REGION_OPERATIONS,
 )

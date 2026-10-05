@@ -21,7 +21,7 @@ if app.params.frames then
   local layer, generated = app.activeLayer, app.activeLayer.tileset
   layer.tileset = tileset
   sprite:deleteTileset(generated)
-  local image = Image(1024, 512, ColorMode.TILEMAP)
+  local image = Image(tonumber(app.params.image_width or "1024"), 512, ColorMode.TILEMAP)
   image:clear(0)
   sprite:newCel(layer, 1, image)
   for _ = 2, tonumber(app.params.frames) do
