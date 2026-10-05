@@ -18,7 +18,7 @@ from spa.contracts.ports import (
     ResponseEvidence,
     RuntimeIssue,
 )
-from spa.contracts.public import RuntimeRequirements
+from spa.contracts.public import PublicModel, RuntimeRequirements
 from spa.delivery.export import ExportDestination, ImageArtifact
 from spa.delivery.sheet_contracts import (
     ExportSheetRequest,
@@ -56,6 +56,11 @@ SHEET_REQUIREMENTS = RuntimeRequirements(
 )
 
 
+class NativeSheetRejection(PublicModel):
+    message: str
+    reason: str
+
+
 def export_sheet(
     request: ExportSheetRequest, services: OperationServices
 ) -> ExportSheetResult:
@@ -87,14 +92,16 @@ def export_sheet(
             },
             request.timeout_seconds,
         )
-        if "rejection" in invocation.payload:
-            rejection = invocation.payload["rejection"]
-            raise OperationIssue(
-                "export_sheet_unsupported",
-                rejection["message"],
-                SheetRejection(reason=rejection["reason"]),
-            )
         try:
+            if "rejection" in invocation.payload:
+                rejection = NativeSheetRejection.model_validate(
+                    invocation.payload["rejection"]
+                )
+                raise OperationIssue(
+                    "export_sheet_unsupported",
+                    rejection.message,
+                    SheetRejection(reason=rejection.reason),
+                )
             native = NativeSheet.model_validate(invocation.payload)
         except ValidationError as exc:
             raise RuntimeIssue(
@@ -134,7 +141,7 @@ def export_sheet(
             output_color_mode=png.color_mode,
             color_profile=png.color_profile,
             icc_identity=native.icc_identity,
-            srgb_rendering_intent=png.srgb_rendering_intent,
+            srgb_rendering_intent=0 if png.srgb_rendering_intent == 0 else None,
             source_frames=native.source_frames,
             source_tags=native.source_tags,
             selected_tag=native.selected_tag,

@@ -2,6 +2,7 @@
 
 import json
 import re
+from bisect import bisect_left, insort
 from typing import Any, Literal
 
 from pydantic import Field
@@ -11,7 +12,9 @@ from spa.authoring.raster.image_snapshot import LayerComposition
 from spa.contracts.ports import PngInputFacts
 from spa.contracts.public import PublicModel
 from spa.delivery.sheet_contracts import (
+    ColumnLayout,
     ExportSheetRequest,
+    RowLayout,
     SheetFrame,
     SheetRange,
     SheetRect,
@@ -40,7 +43,6 @@ class NativeSheet(PublicModel):
     source_frames: list[int] = Field(min_length=1)
     frames: list[NativeSheetFrame] = Field(min_length=1)
     source_tags: list[SheetTagFacts]
-    projected_tags: list[dict[str, Any]]
     selected_tag: SheetTagFacts | None = None
     common_trim: SheetRect | None = None
     effective_background: bool
@@ -71,6 +73,16 @@ def _rect(value: Any) -> SheetRect:
     return SheetRect(x=value["x"], y=value["y"], width=value["w"], height=value["h"])
 
 
+def _size(value: Any) -> tuple[int, int]:
+    _require(
+        isinstance(value, dict)
+        and set(value) == {"w", "h"}
+        and all(type(side) is int and side > 0 for side in value.values()),
+        "Invalid metadata dimensions",
+    )
+    return value["w"], value["h"]
+
+
 def _projected_tags(native: NativeSheet) -> list[dict[str, Any]]:
     first, last = native.source_frames[0], native.source_frames[-1]
     directions = {"ping_pong": "pingpong", "ping_pong_reverse": "pingpong_reverse"}
@@ -90,6 +102,66 @@ def _projected_tags(native: NativeSheet) -> list[dict[str, Any]]:
             projected["repeat"] = str(tag.repeats)
         result.append(projected)
     return result
+
+
+def _verify_layout(request: ExportSheetRequest, frames: list[SheetFrame]) -> None:
+    """Check separation, native band counts and padding; do not calculate a packing."""
+    rectangles = sorted(
+        {
+            (f.rectangle.x, f.rectangle.y, f.rectangle.width, f.rectangle.height)
+            for f in frames
+        }
+    )
+    shape, border = request.padding.shape, request.padding.border
+    events = []
+    for index, (x, y, width, height) in enumerate(rectangles):
+        interval = (y, y + height + shape, index)
+        events.extend(((x, 1, interval), (x + width + shape, 0, interval)))
+    active: list[tuple[int, int, int]] = []
+    for _, start, interval in sorted(events):
+        position = bisect_left(active, interval)
+        if not start:
+            active.pop(position)
+            continue
+        _require(
+            (position == 0 or active[position - 1][1] <= interval[0])
+            and (position == len(active) or interval[1] <= active[position][0]),
+            "Distinct frame rectangles overlap or violate shape padding",
+        )
+        insort(active, interval)
+    if request.layout.kind == "packed":
+        return
+    vertical = request.layout.kind in ("vertical", "columns")
+    bands: dict[int, list[tuple[int, int, int]]] = {}
+    for x, y, width, height in rectangles:
+        along, across, extent, depth = (
+            (y, x, height, width) if vertical else (x, y, width, height)
+        )
+        bands.setdefault(across, []).append((along, extent, depth))
+    limit = (
+        request.layout.columns
+        if isinstance(request.layout, RowLayout)
+        else request.layout.rows
+        if isinstance(request.layout, ColumnLayout)
+        else len(rectangles)
+    )
+    _require(
+        request.layout.kind in ("rows", "columns") or len(bands) == 1,
+        "Sheet direction differs from requested layout",
+    )
+    across_expected = border
+    ordered_bands = sorted(bands.items())
+    for number, (across, items) in enumerate(ordered_bands):
+        _require(across == across_expected, "Band spacing differs")
+        _require(
+            len(items) <= limit and (number == len(bands) - 1 or len(items) == limit),
+            "Native row/column count differs",
+        )
+        along_expected = border
+        for along, extent, _ in sorted(items):
+            _require(along == along_expected, "Frame spacing differs")
+            along_expected += extent + shape
+        across_expected += max(item[2] for item in items) + shape
 
 
 def verify_sheet(
@@ -121,7 +193,7 @@ def verify_sheet(
         "Atlas dimensions differ",
     )
     _require(
-        meta["size"] == {"w": png.width, "h": png.height},
+        _size(meta["size"]) == (png.width, png.height),
         "Metadata texture size differs",
     )
     _require(
@@ -208,9 +280,22 @@ def verify_sheet(
             "Native Frame association differs",
         )
         _require(trim == sample.trim, "Trim rectangle differs from native observation")
+        untrimmed = SheetRect(
+            x=0, y=0, width=native.source_width, height=native.source_height
+        )
+        if request.trim == "none":
+            _require(
+                trim == untrimmed and native.common_trim is None, "Unexpected trim"
+            )
+        elif request.trim == "sprite":
+            _require(trim == native.common_trim, "Common trim differs between Frames")
+        else:
+            _require(native.common_trim is None, "Unexpected common trim")
         _require(
-            record["sourceSize"]
-            == {"w": native.source_width, "h": native.source_height},
+            record["trimmed"] is (trim != untrimmed), "Metadata trimmed flag differs"
+        )
+        _require(
+            _size(record["sourceSize"]) == (native.source_width, native.source_height),
             "Original Canvas size differs",
         )
         _require(
@@ -256,6 +341,11 @@ def verify_sheet(
             target = (
                 (rect.y + padding.inner + row) * png.width + rect.x + padding.inner
             ) * bpp
+            _require(
+                png.stored_bytes[target : target + trim.width * bpp]
+                == pixels[source : source + trim.width * bpp],
+                "Logical Frame pixels differ from their native sample",
+            )
             expected[target : target + trim.width * bpp] = pixels[
                 source : source + trim.width * bpp
             ]
@@ -274,4 +364,5 @@ def verify_sheet(
         expected == png.stored_bytes,
         "Atlas pixels or padding differ from native samples",
     )
+    _verify_layout(request, result)
     return result

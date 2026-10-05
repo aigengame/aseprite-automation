@@ -432,6 +432,12 @@ application paths supported by one Filter. It is not a generic effect destinatio
 The Canvas Rectangle rendered by an Export Image Operation. It is distinct from a
 Selection Mask.
 
+**Sprite Sheet**
+A Delivery texture and ordered logical Frame metadata. Each selected Source Frame
+has one record; equivalent native output content can share a physical atlas rectangle
+without merging durations or Frame identity. The sheet Operation owns its selection,
+layout, trim and color contract, independently of static Export Image policy.
+
 **Layer Composition**
 The explicit Layer set and native stacking context used to render composited pixels
 for Image observation or an Export Operation. Aseprite remains the compositor.

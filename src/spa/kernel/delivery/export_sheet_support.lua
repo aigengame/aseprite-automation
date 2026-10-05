@@ -81,6 +81,9 @@ local function native_export(sprite, payload, image, metadata, first, last, kind
     listSlices = false,
     splitLayers = false,
     splitTags = false,
+    splitGrid = false,
+    fromTilesets = false,
+    powerOfTwoSize = false,
     tagnameFormat = "{tag}",
     layer = "",
     trim = trim == "frame",
@@ -135,7 +138,12 @@ local function limit(source, first, last, payload)
   local count = last - first + 1
   local timeline_count = payload.trim == "sprite" and #source.frames or count
   if source.width * source.height * timeline_count > max_pixels then
-    return reject("allocation_limit", "Rendered timeline exceeds the current 16777216 Pixel limit")
+    return reject(
+      "allocation_limit",
+      "Rendered timeline requests "
+        .. (source.width * source.height * timeline_count)
+        .. " Pixels; current allowed maximum is 16777216"
+    )
   end
   local cell_w = source.width + 2 * payload.padding.inner
   local cell_h = source.height + 2 * payload.padding.inner
@@ -149,17 +157,20 @@ local function limit(source, first, last, payload)
     rows = math.min(count, payload.layout.rows)
     cols = math.ceil(count / rows)
   elseif payload.layout.kind == "packed" then
-    -- Automatic packing can choose a less compact rectangle than the horizontal strip.
-    cols = math.ceil(math.sqrt(count * cell_h / cell_w))
-    cols = math.max(1, math.min(count, cols))
-    rows = math.ceil(count / cols)
+    -- Bound both axes by the sum of all untrimmed sample extents. This deliberately
+    -- conservative allocation guard does not predict or replace native packing.
+    cols, rows = count, count
   end
   local width = cols * cell_w + (cols - 1) * payload.padding.shape + 2 * payload.padding.border
   local height = rows * cell_h + (rows - 1) * payload.padding.shape + 2 * payload.padding.border
   if width > max_side or height > max_side or width * height > max_pixels then
     return reject(
       "allocation_limit",
-      "Untrimmed sheet estimate exceeds current 65535-side or 16777216-Pixel limits"
+      "Conservative untrimmed sheet bound is "
+        .. width
+        .. "x"
+        .. height
+        .. "; current allowed maximum is 65535 per side and 16777216 Pixels"
     )
   end
 end
@@ -336,25 +347,6 @@ local function run(source, disposable, payload, profile)
     payload.padding
   )
   local metadata = read_json(payload.staged_metadata_file)
-  local projected_native_tags = {}
-  local native_directions = {
-    forward = "forward",
-    reverse = "reverse",
-    ping_pong = "pingpong",
-    ping_pong_reverse = "pingpong_reverse",
-  }
-  for _, projected in ipairs(projected_tags) do
-    local color = projected.color
-    local facts = {
-      name = projected.name,
-      from = projected.from,
-      to = projected.to,
-      direction = native_directions[projected.direction],
-      color = string.format("#%02x%02x%02x%02x", color.red, color.green, color.blue, color.alpha),
-    }
-    if projected.repeats > 0 then facts["repeat"] = tostring(projected.repeats) end
-    projected_native_tags[#projected_native_tags + 1] = facts
-  end
   metadata.meta.image = payload.image_reference
   local metadata_file = assert(io.open(payload.staged_metadata_file, "wb"))
   assert(metadata_file:write(json.encode(metadata)))
@@ -372,7 +364,6 @@ local function run(source, disposable, payload, profile)
     source_frames = source_frames,
     frames = frame_facts,
     source_tags = source_tags,
-    projected_tags = projected_native_tags,
     selected_tag = selected_index and source_tags[selected_index] or null,
     common_trim = common or null,
     effective_background = has_background,

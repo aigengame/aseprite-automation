@@ -1251,6 +1251,13 @@ Tilemap Images in the selected Frame, including hidden Layers. It preserves nati
 Alpha values, verifies the staged PNG with an independent decoder, and requires
 `if_exists: fail` or `replace` before publication.
 
+`spa export sheet` exports selected Frames or a Tag to a PNG texture and Aseprite
+JSON Array. Choose `rgb` visual rendering or `indexed` preservation explicitly.
+Five native layouts, three trim modes and explicit padding are supported. Logical
+Frame records remain distinct when native packing shares image rectangles. Both
+files must pass independent verification before image-then-metadata publication.
+See [Sprite Sheet requests, boundaries and failures](docs/sprite-sheets.md).
+
 `--aseprite` and `SPA_ASEPRITE_EXECUTABLE` name an executable file, not a macOS
 `.app` directory. When `--aseprite` is absent, SPA checks
 `SPA_ASEPRITE_EXECUTABLE`, then `aseprite` on `PATH`. `spa schema` is the source
