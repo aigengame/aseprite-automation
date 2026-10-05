@@ -1205,6 +1205,19 @@ Color Profile, Palette preparation, Color Mode, transparency or Background behav
 and File Format encoding. Other export families own their own feature contracts. Export
 never mutates the Source Sprite.
 
+`delivery/tileset.py` coordinates one Tileset atlas and normalized map pair.
+`tileset_contracts.py` defines its projection and validates complete Tile coverage,
+keyed placement correspondence, and explicit Grid mapping. Tile Authoring retains
+Tileset/Tile identity and canonical Tile Region Snapshot ownership; Delivery calls
+those Lua helpers directly. The native handler copies Tile Images with `BlendMode.SRC`
+into one atlas and uses the existing Image encoder with the selected Frame's Effective
+Palette. Color and Palette owns Profile restoration and exact ICC identity.
+The PNG adapter shares structural decoding across its existing input subset and the
+RGB/Grayscale/Indexed Artifact subset. Delivery compares decoded Tile regions with
+original native Tile Image digests and parses the separate JSON against native and
+request facts. The File Adapter publishes the validated finite pair in caller order
+and records partial publication; it has no Tile or PNG semantics.
+
 A successful result reports the complete declared output set. When an Export has
 several final paths, SPA publishes them in a deterministic order. A failure after a
 final path changed returns `partial_publication` with the known state of every declared

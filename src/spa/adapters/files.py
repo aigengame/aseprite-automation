@@ -266,20 +266,9 @@ class LocalArtifactFiles:
                     sha256=item.sha256,
                 )
             except RuntimeIssue as exc:
-                # A publication failure can be reported after a filesystem effect. Be
-                # explicit about uncertainty rather than claiming an unobserved rollback.
-                state = states[index]
-                uncertain = (
-                    isinstance(exc.evidence, ArtifactFileEvidence)
-                    and exc.evidence.reason == "publication_failed"
-                )
-                states[index] = ArtifactDestinationState(
-                    state.role,
-                    state.path,
-                    state.existed_before,
-                    "indeterminate" if uncertain else "not_published",
-                )
-                if published or uncertain:
+                # publish() reports a failure before its atomic filesystem call
+                # changes this entry; there is no fallible step after that call.
+                if published:
                     raise RuntimeIssue(
                         "partial_publication",
                         "The complete Artifact set was not published",

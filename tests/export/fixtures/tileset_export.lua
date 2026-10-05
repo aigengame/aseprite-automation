@@ -5,7 +5,9 @@ local large = app.params.large_colors == "true"
 assert(not large or mode == ColorMode.RGB, "Large color fixture requires RGB")
 local width, height = large and 257 or 2, large and 1 or 2
 local sprite = Sprite(width * 3, height * 2, mode)
-if mode == ColorMode.INDEXED then sprite.transparentColor = 7 end
+if mode == ColorMode.INDEXED then
+  sprite.transparentColor = tonumber(app.params.transparent or "7")
+end
 sprite.gridBounds = Rectangle(0, 0, width, height)
 app.activeSprite = sprite
 app.command.NewLayer { tilemap = true, ui = false }
@@ -45,6 +47,7 @@ map:clear(0)
 map:putPixel(0, 0, 1)
 map:putPixel(2, 0, 1 | app.pixelColor.TILE_XFLIP)
 map:putPixel(1, 1, 1 | app.pixelColor.TILE_YFLIP | app.pixelColor.TILE_DFLIP)
+if app.params.invalid_index == "true" then map:putPixel(1, 0, 99) end
 if app.params.flagged_zero == "true" then map:putPixel(1, 0, app.pixelColor.TILE_XFLIP) end
 sprite:newCel(layer, 1, map, Point(-5, 7))
 sprite:newEmptyFrame()

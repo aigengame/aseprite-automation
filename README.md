@@ -1251,6 +1251,45 @@ Tilemap Images in the selected Frame, including hidden Layers. It preserves nati
 Alpha values, verifies the staged PNG with an independent decoder, and requires
 `if_exists: fail` or `replace` before publication.
 
+`spa export tileset` publishes a complete Tileset atlas PNG and one normalized map
+JSON file. Select the Tileset, an existing Tilemap Cel that uses it, a finite Cel-local
+Tile Cell Rectangle, and a positive atlas column count. Every nonzero Tile needs a
+unique Tile Key, including unused or fully transparent Tiles. Tile 0 has an explicit
+empty entry without a Key; its atlas cell preserves its native Image. The map reuses
+the complete sparse Tile Region Snapshot, including placement flags and explicit
+Canvas/Grid mapping. A flagged index-0 placement is refused.
+
+```sh
+spa export tileset --input-json '{
+  "source_sprite_file":"map.aseprite",
+  "tileset":{"tileset_name":"terrain"},
+  "target":{"layer":{"layer_name":"map"},"frame_number":2},
+  "rectangle":{"x":0,"y":0,"width":3,"height":2},
+  "columns":2,
+  "image":{"path":"atlas.png","if_exists":"fail"},
+  "metadata":{"path":"map.json","if_exists":"fail"}
+}'
+```
+
+The atlas preserves RGB, Grayscale, or Indexed Tile pixels in native index order.
+Unused cells in the last row are transparent. Indexed output uses the selected map
+Frame's Effective Palette, retaining all 1–256 entries, duplicate colors, unused
+entries, and pixel indexes. Native PNG transparency makes the Sprite Transparent
+Color Index transparent and retains the other entries' alpha values. Incomplete or
+oversized Palettes are refused. No implicit color conversion or quantization occurs.
+None and built-in sRGB Profiles are supported in all three modes. The exact packaged
+linear-sRGB and Display P3 ICC profiles are also supported for RGB and Indexed;
+Grayscale with these RGB ICC profiles is refused. PNG facts report the actual encoded
+color type, which can omit an unnecessary alpha channel.
+
+Both staged files must pass independent decoding and cross-file checks before
+publication. The result reports the normalized destinations and `tileset-image` and
+`map-data` Artifacts. Publication proceeds image first, then metadata. If publication
+stops after the image changes, `partial_publication` reports both destination states
+and replacement facts. SPA returns no successful pair and performs no automatic
+rollback or cleanup for that partial result. Export leaves the Source unchanged and
+is not a Plan Step. Use `spa export tileset --schema` for the installed contract.
+
 `--aseprite` and `SPA_ASEPRITE_EXECUTABLE` name an executable file, not a macOS
 `.app` directory. When `--aseprite` is absent, SPA checks
 `SPA_ASEPRITE_EXECUTABLE`, then `aseprite` on `PATH`. `spa schema` is the source

@@ -815,3 +815,30 @@ through the installed info/schema surface. No Convolution callable capability is
 inferred from a resource name or a small successful probe. The evidence record is
 [issue-39-native-filters.md](evidence/issue-39-native-filters.md). Batch/native-command
 parity and any local windowed comparison are reported separately there.
+
+
+## Tileset atlas and normalized map export
+
+`tests/export/test_e2e_tileset_export.py` exercises `spa export tileset` with a real
+Aseprite process. It verifies complete Tileset coverage, unused keyed Tiles, Tile 0,
+explicit-column layout and padding, Cel-local regions and placement flags, exact RGB
+and Grayscale channels, and Indexed Frame-based Palette selection. The Indexed fixture
+has two Palette Changes, a nonzero Transparent Color Index, duplicate and unused
+entries, and partial alpha. A 257-color RGB Tile guards against implicit quantization.
+The accepted Profile matrix includes None and sRGB in all three modes, and the fixed
+linear-sRGB/Display P3 ICC files in RGB/Indexed. Grayscale with these ICC files and
+other Profiles are refused before publication. Tests independently decode PNG and JSON
+and check Source bytes after execution.
+
+Fast integration tests corrupt staged outputs and inject publication failures through
+the Kernel/File boundaries. They verify that missing, malformed or inconsistent pairs
+never publish, and that failure after the image publishes reports both path states
+without rollback or cleanup. The native suite uses batch scripting and requires no
+windowed UI. Evidence applies to the runtime on which it was executed; these tests do
+not establish a separate Aseprite version matrix.
+
+```sh
+uv run --frozen --group test pytest tests/export -m "not e2e"
+SPA_TEST_ASEPRITE=/absolute/path/to/aseprite \
+  uv run --frozen --group test pytest tests/export/test_e2e_tileset_export.py
+```
