@@ -136,8 +136,16 @@ local function resolve(source, payload, profile, uuids)
   }
 end
 
-function module.encode_png(image, path, palette, background, filename_format, occurrence)
-  local temporary = Sprite(image.spec)
+function module.encode_png(image, path, palette, background, filename_format, occurrence, profile)
+  local spec = ImageSpec(image.spec)
+  if profile.kind == "icc" and spec.colorSpace.name == "" then
+    -- The none backend leaves ICC display names empty; libpng requires an iCCP
+    -- keyword. Name only this private profile copy, preserving the exact ICC bytes.
+    local color_space = ColorSpace(spec.colorSpace)
+    color_space.name = "ICC Profile"
+    spec.colorSpace = color_space
+  end
+  local temporary = Sprite(spec)
   local ok, result = pcall(function()
     if palette then temporary:setPalette(Palette(palette)) end
     app.activeSprite = temporary
@@ -240,7 +248,8 @@ function module.execute(payload)
         palette,
         background,
         payload.destination.filename_format,
-        index
+        index,
+        profile
       )
       frames[index] = {
         occurrence = index,

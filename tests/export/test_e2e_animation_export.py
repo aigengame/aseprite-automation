@@ -141,7 +141,13 @@ def test_sequence_preserves_native_mode_alpha_and_full_palette(
 
 @pytest.mark.parametrize(
     "mode,profile",
-    [("rgb", "linear_srgb"), ("indexed", "display_p3"), ("grayscale", "srgb")],
+    [
+        ("rgb", "linear_srgb"),
+        ("rgb", "display_p3"),
+        ("indexed", "linear_srgb"),
+        ("indexed", "display_p3"),
+        ("grayscale", "srgb"),
+    ],
 )
 def test_sequence_preserves_supported_profiles(tmp_path: Path, mode: str, profile: str):
     from spa.adapters.sequence_png import decode_sequence_png
@@ -149,6 +155,7 @@ def test_sequence_preserves_supported_profiles(tmp_path: Path, mode: str, profil
     profile_path = Path("src/spa/kernel/color/profiles") / f"{profile}.icc"
     options = {"icc_file": str(profile_path.resolve())} if profile != "srgb" else {}
     source = _source(tmp_path, "animation_representation.lua", mode=mode, **options)
+    original = source.read_bytes()
     request = {
         "aseprite": os.environ["SPA_TEST_ASEPRITE"],
         "source_sprite_file": str(source),
@@ -170,6 +177,7 @@ def test_sequence_preserves_supported_profiles(tmp_path: Path, mode: str, profil
             assert observed.icc_bytes == profile_path.read_bytes()
         else:
             assert observed.srgb_rendering_intent == 0
+    assert source.read_bytes() == original
 
 
 def test_sequence_resolves_linked_cels_palette_per_occurrence(tmp_path: Path):

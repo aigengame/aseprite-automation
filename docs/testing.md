@@ -162,6 +162,13 @@ Failure injection after one replacement checks every ordered publication state;
 an exception after a final write reports the current path as `indeterminate`.
 Published files are retained and no successful Artifact set is returned.
 
+PNG ICC tests cover both admitted identities in RGB and Indexed modes. Aseprite's
+`none` backend leaves the loaded ICC display name empty, which libpng rejects as an
+empty iCCP keyword. Export assigns a nonempty label to the private PNG container's
+profile copy. This changes neither the Source nor the ICC payload; independent
+decoding still requires exact ICC bytes. The converter capability is unrelated to
+this encoding label.
+
 `tests/export/test_e2e_wizard_animation_export.py` reuses the retained v2 Sources and
 delivery PNGs. It exports all 193 retained outputs: 32 Frames each for Scene,
 Background, Wizard, Gem, Burst and Projectile, plus the single Target Frame.
