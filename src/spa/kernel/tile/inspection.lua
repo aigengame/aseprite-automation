@@ -92,6 +92,24 @@ local function region(image, tileset, area)
   return result
 end
 
+-- Shared bounded observation for Tile consumers; mutation policy remains separate.
+local function rectangle(image, requested)
+  local x, y = integer(requested.x, 0, image.width - 1), integer(requested.y, 0, image.height - 1)
+  local width, height =
+    integer(requested.width, 1, image.width), integer(requested.height, 1, image.height)
+  if
+    not x
+    or not y
+    or not width
+    or not height
+    or x + width > image.width
+    or y + height > image.height
+  then
+    return nil, reject("tile_region_out_of_bounds", "Tile Cell Rectangle is outside the Cel Image")
+  end
+  return { x = x, y = y, width = width, height = height }
+end
+
 local function snapshot_output(result, value, payload)
   if payload.staged_snapshot_file then
     local file = assert(io.open(payload.staged_snapshot_file, "wb"))
@@ -244,35 +262,19 @@ function module.read(sprite, payload)
         if not cel then
           return reject("tilemap_cel_missing", "The selected Tilemap Cel is absent")
         end
-        local requested = payload.rectangle
-        local x, y =
-          integer(requested.x, 0, cel.image.width - 1),
-          integer(requested.y, 0, cel.image.height - 1)
-        local width, height =
-          integer(requested.width, 1, cel.image.width),
-          integer(requested.height, 1, cel.image.height)
-        if
-          not x
-          or not y
-          or not width
-          or not height
-          or x + width > cel.image.width
-          or y + height > cel.image.height
-        then
-          return reject("tile_region_out_of_bounds", "Tile Cell Rectangle is outside the Cel Image")
-        end
+        local area, region_failure = rectangle(cel.image, payload.rectangle)
+        if region_failure then return region_failure end
+        local width, height = area.width, area.height
         if width * height > payload.inline_cells and not payload.staged_snapshot_file then
           return snapshot_limit("tile_cells", width * height, payload.inline_cells)
         end
-        return snapshot_output(
-          result,
-          region(cel.image, tileset, { x = x, y = y, width = width, height = height }),
-          payload
-        )
+        return snapshot_output(result, region(cel.image, tileset, area), payload)
       end
     end
   end
   return result
 end
 
+module.region = region
+module.rectangle = rectangle
 return module
