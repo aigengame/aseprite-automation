@@ -7,8 +7,11 @@ import uuid
 from pathlib import Path
 
 from spa.contracts.ports import (
+    ArtifactDestinationState,
     ArtifactFileEvidence,
     ArtifactFileObservation,
+    ArtifactPublication,
+    PartialPublicationEvidence,
     PathObservation,
     RuntimeIssue,
     StagedArtifact,
@@ -208,6 +211,92 @@ class LocalArtifactFiles:
         return destination.with_name(
             f".{destination.stem}.{uuid.uuid4().hex}.staged{destination.suffix}"
         )
+
+    def ensure_destinations_distinct(self, destinations: tuple[Path, ...]) -> None:
+        for index, destination in enumerate(destinations):
+            try:
+                duplicate = any(
+                    _same_publication_target(other, destination)
+                    for other in destinations[:index]
+                )
+            except (OSError, ValueError, RuntimeError) as exc:
+                raise RuntimeIssue(
+                    "artifact_file_failed",
+                    "Destination identity could not be verified",
+                    ArtifactFileEvidence(
+                        str(destination), "source_destination_identity_unverified"
+                    ),
+                ) from exc
+            if duplicate:
+                raise RuntimeIssue(
+                    "artifact_file_failed",
+                    "Export Destinations must be distinct",
+                    ArtifactFileEvidence(str(destination), "destination_collision"),
+                )
+
+    def publish_many(
+        self, artifacts: tuple[ArtifactPublication, ...]
+    ) -> tuple[ArtifactFileObservation, ...]:
+        """Publish a verified finite set in caller order; never roll back a changed path."""
+        self.ensure_destinations_distinct(tuple(item.destination for item in artifacts))
+        # Check the whole set before any final path changes, then publish rechecks each file.
+        for item in artifacts:
+            if self.read_staged(item.staged).sha256 != item.sha256:
+                raise RuntimeIssue(
+                    "artifact_file_failed",
+                    "Staged Artifact changed after verification",
+                    ArtifactFileEvidence(str(item.destination), "staged_file_changed"),
+                )
+        states = [
+            ArtifactDestinationState(
+                item.role,
+                str(item.destination),
+                item.destination.exists(),
+                "not_published",
+            )
+            for item in artifacts
+        ]
+        published = []
+        for index, item in enumerate(artifacts):
+            try:
+                observation = self.publish(
+                    item.staged,
+                    item.destination,
+                    if_exists=item.if_exists,
+                    sha256=item.sha256,
+                )
+            except RuntimeIssue as exc:
+                # A publication failure can be reported after a filesystem effect. Be
+                # explicit about uncertainty rather than claiming an unobserved rollback.
+                state = states[index]
+                uncertain = (
+                    isinstance(exc.evidence, ArtifactFileEvidence)
+                    and exc.evidence.reason == "publication_failed"
+                )
+                states[index] = ArtifactDestinationState(
+                    state.role,
+                    state.path,
+                    state.existed_before,
+                    "indeterminate" if uncertain else "not_published",
+                )
+                if published or uncertain:
+                    raise RuntimeIssue(
+                        "partial_publication",
+                        "The complete Artifact set was not published",
+                        PartialPublicationEvidence(tuple(states)),
+                        exc.diagnostics,
+                    ) from exc
+                raise
+            state = states[index]
+            states[index] = ArtifactDestinationState(
+                state.role,
+                state.path,
+                state.existed_before,
+                "published",
+                state.existed_before,
+            )
+            published.append(observation)
+        return tuple(published)
 
     def rendered_path(self, staged: Path) -> Path:
         return staged.with_suffix(".rgba")

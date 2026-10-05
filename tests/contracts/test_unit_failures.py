@@ -59,9 +59,14 @@ from spa.authoring.tile.tileset_lifecycle import (
     TilesetInUseDetails,
     TilesetLifecycleDetails,
 )
-from spa.contracts.artifact import ArtifactFileDetails, ArtifactVerificationDetails
+from spa.contracts.artifact import (
+    ArtifactFileDetails,
+    ArtifactVerificationDetails,
+    PartialPublicationDetails,
+)
 from spa.contracts.mutation import TargetCommitDetails
 from spa.contracts.ports import (
+    ArtifactDestinationState,
     ArtifactFileEvidence,
     ArtifactVerificationEvidence,
     DiscoveryEvidence,
@@ -95,6 +100,7 @@ from spa.contracts.public import (
 )
 from spa.contracts.raster import Point, PositiveRectangle, Size
 from spa.delivery.palette import PaletteExportDetails
+from spa.delivery.tileset import TilesetExportDetails
 from spa.preparation.raster import PreparationDetails
 from tests.support import operation_services
 
@@ -203,6 +209,17 @@ def test_failure_construction_derives_category_and_refuses_mismatch() -> None:
 
 def test_each_registered_code_has_a_constrained_public_schema() -> None:
     details_by_type = {
+        TilesetExportDetails: TilesetExportDetails(reason="tile_key_missing"),
+        PartialPublicationDetails: PartialPublicationDetails(
+            destinations=[
+                ArtifactDestinationState(
+                    "tileset-image", "atlas.png", False, "published", False
+                ),
+                ArtifactDestinationState(
+                    "map-data", "map.json", False, "not_published"
+                ),
+            ]
+        ),
         PreparationDetails: PreparationDetails(reason="input", message="Invalid PNG"),
         ImageImportDetails: ImageImportDetails(
             path="input.png", reason="palette", message="Changed used index"
