@@ -1707,6 +1707,7 @@ function module.observe()
     if pcall(animation.probe_sequence) then
       capabilities[#capabilities + 1] = "aseprite_export_sequence"
     end
+    if pcall(animation.probe_gif) then capabilities[#capabilities + 1] = "aseprite_export_gif" end
   end
   return capabilities
 end
