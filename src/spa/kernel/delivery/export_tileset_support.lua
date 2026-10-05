@@ -137,12 +137,16 @@ local function prepare(sprite, payload)
     return nil, reject("atlas_layout", "Atlas columns must be a positive integer")
   end
   local grid = tileset.grid.tileSize
-  if grid.width < 1 or grid.height < 1 or columns > 0x7fffffff // grid.width then
-    return nil, reject("atlas_layout", "Atlas dimensions exceed native Image bounds")
+  local max_dimension = 0x7fffffff
+  local dimension_range = "Atlas width and height must each be within 1.."
+    .. max_dimension
+    .. " pixels"
+  if grid.width < 1 or grid.height < 1 or columns > max_dimension // grid.width then
+    return nil, reject("atlas_layout", dimension_range)
   end
   local width, height = columns * grid.width, ((#tileset - 1) // columns + 1) * grid.height
-  if width < 1 or height < 1 or width > 0x7fffffff or height > 0x7fffffff then
-    return nil, reject("atlas_layout", "Atlas dimensions exceed native Image bounds")
+  if width < 1 or height < 1 or width > max_dimension or height > max_dimension then
+    return nil, reject("atlas_layout", dimension_range)
   end
   -- Tile Authoring supplies native Findings; this export requires all of them clear.
   local findings = tile_inspection.key_findings(tileset, index)

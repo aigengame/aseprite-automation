@@ -305,3 +305,19 @@ def test_invalid_target_or_region_refuses_without_output(
     assert (
         not (tmp_path / "atlas.png").exists() and not (tmp_path / "map.json").exists()
     )
+
+
+def test_oversized_atlas_reports_allowed_dimensions_without_publication(
+    tmp_path: Path, runtime
+) -> None:
+    source = matrix_source(tmp_path, runtime)
+    before = source.read_bytes()
+    inputs = matrix_request(source, tmp_path) | {"columns": 2147483647}
+    code, result = run("export", "tileset", **inputs)
+    assert code == 2 and result["code"] == "tileset_export_unsupported", result
+    assert result["details"] == {"kind": "tileset_export", "reason": "atlas_layout"}
+    assert "1..2147483647 pixels" in result["message"]
+    assert source.read_bytes() == before
+    assert not (tmp_path / "atlas.png").exists()
+    assert not (tmp_path / "map.json").exists()
+    assert not list(tmp_path.glob(".*.staged.*"))
