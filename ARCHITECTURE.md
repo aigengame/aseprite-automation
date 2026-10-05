@@ -494,6 +494,18 @@ The same distinction applies when a domain-specific observation produces an Arti
 the observed concept retains its semantic owner. No duplicate exporter or verifier is
 introduced by the strategic classification.
 
+Image Get, Tile Get, and Tilemap Get share `spa.delivery.snapshot_publication` for
+their single JSON Snapshot Artifact. Its `staged_snapshot` scope owns destination
+normalization, Source separation, staging, and cleanup. `verify` reads the staged
+bytes and records their digest only after the caller's validation succeeds;
+`publish` rechecks Source separation and delegates digest-bound publication to the
+File Adapter. The scope clears its verification state and discards staging on exit.
+Image and Tile retain native invocation, Snapshot types and semantic checks, output
+forms, failure mapping, and Artifact result projection. Image still observes staged
+bytes before parsing native evidence; Tile checks native evidence and scope first.
+Inline and summary reads use no Artifact File Adapter. This bounded lifecycle does
+not add a codec, a format registry, or a native invocation.
+
 An Operation that spans modules is coordinated by Application through public contracts.
 Module dependencies must remain acyclic, but this document does not freeze a complete
 intra-domain dependency graph before implementation supplies real change and reuse
@@ -665,8 +677,9 @@ before Target Commit. Region Operations are standalone in this delivery.
 Cel mutation and Plan retain staging and Target Commit ownership. The existing
 Tile probe observes empty-Cel save/reopen
 separately from inspection; only explicit Tilemap creation requests require that
-capability. Shared JSON Snapshot destination mechanics live in
-`contracts/snapshot.py`; Tile Region values stay in their feature owner. Color and Palette owns the shared Effective
+capability. Shared JSON Snapshot destination shape lives in `contracts/snapshot.py`,
+and the scoped publication lifecycle lives in `delivery/snapshot_publication.py`;
+Tile Region values stay in their feature owner. Color and Palette owns the shared Effective
 Palette resolver and standalone Palette list/get/set/resize/remap/reorder. Its native module resolves
 Frame-based change points, edits only exact existing changes, and checks the full
 Palette timeline after shared Sprite persistence completes. This Palette-specific

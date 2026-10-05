@@ -243,8 +243,12 @@ def test_tilemap_region_is_complete_sparse_and_uses_cel_local_coordinates(
 def test_tile_images_use_existing_pixel_snapshot_modes(
     tmp_path: Path, runtime, mode: str
 ) -> None:
+    import hashlib
+    import json
+
     source = tmp_path / "tiles.aseprite"
     fixture(source, runtime, mode=mode)
+    original = source.read_bytes()
     code, result = run(
         "tileset",
         "tile",
@@ -256,6 +260,30 @@ def test_tile_images_use_existing_pixel_snapshot_modes(
     assert code == 0, result
     assert result["snapshot"]["color_mode"] == mode
     assert result["tile"]["tile_index"] == 2
+    destination = tmp_path / "tile.json"
+    code, artifact = run(
+        "tileset",
+        "tile",
+        "get",
+        sprite_file=str(source),
+        target={"tileset_index": 1},
+        tile={"tile_key": "green"},
+        snapshot_destination={"path": str(destination), "if_exists": "fail"},
+    )
+    assert code == 0, artifact
+    raw = destination.read_bytes()
+    assert json.loads(raw) == result["snapshot"]
+    assert artifact["snapshot"] is None and artifact["output_form"] == "artifact"
+    assert artifact["artifact"] == {
+        "role": "pixel-region-snapshot",
+        "media_type": "application/json",
+        "format": "json",
+        "path": str(destination),
+        "byte_size": len(raw),
+        "sha256": hashlib.sha256(raw).hexdigest(),
+    }
+    assert source.read_bytes() == original
+    assert not list(tmp_path.glob(".*.staged.json"))
 
 
 def test_large_region_artifact_is_same_schema_and_has_no_truncated_cells(
@@ -297,7 +325,14 @@ def test_large_region_artifact_is_same_schema_and_has_no_truncated_cells(
     snapshot = TileRegionSnapshot.model_validate_json(raw)
     assert snapshot.entries[-1].tile_x == 64 and snapshot.entries[-1].tile_y == 64
     assert len(snapshot.entries) == 5
-    assert result["artifact"]["sha256"] == hashlib.sha256(raw).hexdigest()
+    assert result["artifact"] == {
+        "role": "tile-region-snapshot",
+        "media_type": "application/json",
+        "format": "json",
+        "path": str(destination),
+        "byte_size": len(raw),
+        "sha256": hashlib.sha256(raw).hexdigest(),
+    }
     small = {"x": 0, "y": 0, "width": 3, "height": 2}
     code, inline = run(
         "tilemap", "get", sprite_file=str(source), target=target, rectangle=small
@@ -314,6 +349,7 @@ def test_large_region_artifact_is_same_schema_and_has_no_truncated_cells(
     assert code == 0, exported
     assert json.loads(destination.read_bytes()) == inline["snapshot"]
     assert source.read_bytes() == original
+    assert not list(tmp_path.glob(".*.staged.json"))
 
 
 def test_large_tile_image_failure_reports_its_inline_pixel_limit(
