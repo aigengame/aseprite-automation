@@ -157,19 +157,21 @@ local function key_findings(tileset, tsi)
   return result
 end
 
+-- Native placement facts shared by observation and strict downstream policies.
+local function cell_finding(tileset, packed)
+  local index = app.pixelColor.tileI(packed)
+  if index >= #tileset then return "tile_index_out_of_bounds", index end
+  if index == 0 and packed ~= 0 then return "empty_tile_flags", index end
+  return nil, index
+end
+
 local function cell_findings(sprite, layer, frame, findings)
   local cel = layer:cel(frame)
   if cel == nil then return end
   for y = 0, cel.image.height - 1 do
     for x = 0, cel.image.width - 1 do
       local packed = cel.image:getPixel(x, y)
-      local index = app.pixelColor.tileI(packed)
-      local code
-      if index >= #layer.tileset then
-        code = "tile_index_out_of_bounds"
-      elseif index == 0 and packed ~= 0 then
-        code = "empty_tile_flags"
-      end
+      local code, index = cell_finding(layer.tileset, packed)
       if code then
         findings[#findings + 1] = {
           code = code,
@@ -275,6 +277,8 @@ function module.read(sprite, payload)
   return result
 end
 
+module.key_findings = key_findings
+module.cell_finding = cell_finding
 module.region = region
 module.rectangle = rectangle
 return module

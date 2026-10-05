@@ -144,19 +144,17 @@ local function prepare(sprite, payload)
   if width < 1 or height < 1 or width > 0x7fffffff or height > 0x7fffffff then
     return nil, reject("atlas_layout", "Atlas dimensions exceed native Image bounds")
   end
-  local tile_entries, digests, seen = {}, {}, {}
+  -- Tile Authoring supplies native Findings; this export requires all of them clear.
+  local findings = tile_inspection.key_findings(tileset, index)
+  if #findings > 0 then
+    return nil, reject(findings[1].code, "Tileset identity or Tile Image Grid is invalid")
+  end
+  local tile_entries, digests = {}, {}
   for tile_index = 0, #tileset - 1 do
     local tile = tileset:tile(tile_index)
-    if
-      tile.image.width ~= grid.width
-      or tile.image.height ~= grid.height
-      or tile.image.colorMode ~= sprite.colorMode
-    then
+    if tile.image.colorMode ~= sprite.colorMode then
       return nil,
-        reject(
-          "tile_image_grid_mismatch",
-          "Every Tile Image must match the Tileset Grid and Source Color Mode"
-        )
+        reject("tile_image_grid_mismatch", "Every Tile Image must match the Source Color Mode")
     end
     local entry = {
       kind = tile_index == 0 and "empty" or "tile",
@@ -168,14 +166,7 @@ local function prepare(sprite, payload)
         height = grid.height,
       },
     }
-    if tile_index > 0 then
-      local key, code = keys.observe(tile)
-      if code then return nil, reject(code, "Every nonzero Tile requires a non-empty Tile Key") end
-      if seen[key] then
-        return nil, reject("tile_key_duplicate", "Tile Keys must be unique within the Tileset")
-      end
-      seen[key], entry.tile_key = true, key
-    end
+    if tile_index > 0 then entry.tile_key = keys.observe(tile) end
     tile_entries[#tile_entries + 1] = entry
     digests[#digests + 1] = digest.fnv1a64(tile.image.bytes)
   end
@@ -184,13 +175,9 @@ local function prepare(sprite, payload)
   for y = area.y, area.y + area.height - 1 do
     for x = area.x, area.x + area.width - 1 do
       local packed = cel.image:getPixel(x, y)
-      local ti, flags = pc.tileI(packed), pc.tileF(packed)
-      if
-        ti >= #tileset
-        or (ti == 0 and packed ~= 0)
-        or (flags & ~allowed_flags) ~= 0
-        or (ti | flags) ~= packed
-      then
+      local finding, ti = tile_inspection.cell_finding(tileset, packed)
+      local flags = pc.tileF(packed)
+      if finding or (flags & ~allowed_flags) ~= 0 or (ti | flags) ~= packed then
         return nil,
           reject(
             "placement_invalid",
