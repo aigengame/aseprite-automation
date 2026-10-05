@@ -1702,6 +1702,12 @@ function module.observe()
     end)
     if ok then capabilities[#capabilities + 1] = "aseprite_export_image" end
   end
+  if app.params.animation_export then
+    local animation = dofile(app.params.animation_export)
+    if pcall(animation.probe_sequence) then
+      capabilities[#capabilities + 1] = "aseprite_export_sequence"
+    end
+  end
   return capabilities
 end
 

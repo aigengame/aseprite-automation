@@ -30,6 +30,7 @@ from spa.authoring.tile.regions import TILE_REGION_FAILURE_SPECS
 from spa.authoring.tile.tileset_lifecycle import TILESET_FAILURE_SPECS
 from spa.contracts.mutation import MUTATION_FAILURE_CODE_SPECS
 from spa.contracts.public import CORE_FAILURE_CODE_SPECS, register_failure_codes
+from spa.delivery.animation import ANIMATION_EXPORT_FAILURE_SPECS
 from spa.delivery.export import EXPORT_FAILURE_CODE_SPECS
 from spa.delivery.palette import PALETTE_EXPORT_FAILURE_SPECS
 from spa.preparation.raster import PREPARATION_FAILURE_SPECS
@@ -57,6 +58,7 @@ FAILURE_CODES = register_failure_codes(
         *NATIVE_PAINT_FAILURE_CODE_SPECS,
         *SELECTION_FAILURE_CODE_SPECS,
         *EXPORT_FAILURE_CODE_SPECS,
+        *ANIMATION_EXPORT_FAILURE_SPECS,
         *PALETTE_EXPORT_FAILURE_SPECS,
         *IMAGE_RESIZE_FAILURE_CODE_SPECS,
         *IMAGE_SNAPSHOT_FAILURE_CODE_SPECS,

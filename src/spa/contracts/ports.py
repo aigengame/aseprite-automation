@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
+from spa.contracts.artifact_set import ArtifactSets
+from spa.contracts.encoded_animation import GifDecoder, SequencePngDecoder
 from spa.contracts.mutation import (
     PublicationIdentityObserver,
     TargetCommitFailureReason,
@@ -234,6 +236,9 @@ class OperationServices:
     invoke_kernel_direct: DirectKernelInvoker | None = None
     decode_palette_file: PaletteFileDecoder | None = None
     decode_png_input: PngInputDecoder | None = None
+    artifact_sets: ArtifactSets | None = None
+    decode_sequence_png: SequencePngDecoder | None = None
+    decode_gif: GifDecoder | None = None
 
 
 @dataclass(frozen=True)
@@ -309,6 +314,14 @@ ArtifactFileFailureReason = Literal[
     "staged_file_empty",
     "staged_file_changed",
     "publication_failed",
+    "destination_set_empty",
+    "destination_invalid",
+    "destination_collision",
+    "staging_failed",
+    "staged_set_mismatch",
+    "staged_file_not_regular",
+    "staged_set_unreadable",
+    "destination_unreadable",
 ]
 
 

@@ -114,6 +114,7 @@ from spa.contracts.public import (
     VersionResult,
     failure_schema,
 )
+from spa.delivery.animation import ANIMATION_EXPORT_OPERATIONS, ANIMATION_SUPPORT
 from spa.delivery.export import EXPORT_OPERATIONS, EXPORT_PROBE_RESOURCES
 from spa.delivery.palette import (
     PALETTE_EXPORT_OPERATIONS,
@@ -122,6 +123,7 @@ from spa.delivery.palette import (
 from spa.preparation.raster import PREPARATION_OPERATIONS
 
 PROBE_RESOURCES = (
+    ANIMATION_SUPPORT,
     TILESET_LIFECYCLE_PROBE_RESOURCE,
     TILE_LAYER_PROBE_RESOURCE,
     TILE_PROBE_RESOURCE,
@@ -383,6 +385,7 @@ OPERATIONS = (
     *COLOR_MODE_OPERATIONS,
     *PROFILE_OPERATIONS,
     *EXPORT_OPERATIONS,
+    *ANIMATION_EXPORT_OPERATIONS,
     *PALETTE_EXPORT_OPERATIONS,
     *ANIMATION_OPERATIONS,
     *PLAN_OPERATIONS,
