@@ -3,6 +3,7 @@ local kernel_protocol_version = 1
 local inspection = dofile(app.params.inspection)
 local selection = dofile(app.params.layer_select)
 local cel = dofile(app.params.cel)
+local tile_creation = dofile(app.params.tile_cel_add)
 local frame = dofile(app.params.frame)
 local persistence = dofile(app.params.persistence)
 local digest = dofile(app.params.digest)
@@ -61,9 +62,17 @@ local function execute()
   if rejected then return rejected end
   local number = payload.target.frame_number
   local target_background = layer.isBackground
-  rejected =
-    cel.prevalidate(open_sprite, layer, number, payload.operation, payload.background_color, frame)
-  if rejected then return rejected end
+  if payload.operation ~= "add" then
+    rejected = cel.prevalidate(
+      open_sprite,
+      layer,
+      number,
+      payload.operation,
+      payload.background_color,
+      frame
+    )
+    if rejected then return rejected end
+  end
   local affected_before = nil
   if payload.operation == "clear" then
     local image = layer:cel(number).image
@@ -87,15 +96,20 @@ local function execute()
   end
   local before = cel.inspect(open_sprite, layer, path, number)
   local before_count = #open_sprite.cels
-  cel.apply(
-    open_sprite,
-    layer,
-    number,
-    payload.operation,
-    payload.background_color,
-    frame,
-    payload.image_size
-  )
+  if payload.operation == "add" then
+    local added = cel.add_live(open_sprite, payload, selection, uuids, tile_creation.add)
+    if added.rejection then return added end
+  else
+    cel.apply(
+      open_sprite,
+      layer,
+      number,
+      payload.operation,
+      payload.background_color,
+      frame,
+      payload.image_size
+    )
+  end
   local live = persistence.snapshot(open_sprite, inspection, digest, all_sections, uuids)
   local expected_count = before_count
     + (payload.operation == "add" and 1 or payload.operation == "remove" and -1 or 0)
@@ -141,12 +155,17 @@ local function execute()
     affected_reopened = cel.affected(open_sprite, selected.layer:cel(number).image)
     assert_affected(affected_live, affected_reopened, target_background)
   end
+  local tilemap_creation
+  if payload.operation == "add" and after.is_tilemap then
+    tilemap_creation = tile_creation.observe(open_sprite, selected.layer, number, reopened_uuids)
+  end
   open_sprite:close()
   open_sprite = nil
   return {
     before = before,
     before_cel_count = before_count,
     cel = after,
+    tilemap_creation = tilemap_creation,
     affected_cels = affected_reopened,
     sprite = reopened.sprite,
     persisted_reopen_verified = true,

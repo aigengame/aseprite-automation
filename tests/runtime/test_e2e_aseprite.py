@@ -13,6 +13,13 @@ from tests.support import spa
 pytestmark = pytest.mark.e2e
 
 
+def test_slice_authoring_capability_is_verified_by_native_roundtrip() -> None:
+    run = spa("info", "--aseprite", os.environ["SPA_TEST_ASEPRITE"], "--json")
+    assert run.returncode == 0, run.stdout
+    result = json.loads(run.stdout)
+    assert "aseprite_slice_authoring" in result["runtime"]["verified_capabilities"]
+
+
 def test_info_reports_installed_runtime() -> None:
     run = spa("info", "--aseprite", os.environ["SPA_TEST_ASEPRITE"], "--json")
     assert run.returncode == 0, run.stderr
@@ -57,6 +64,11 @@ def test_info_reports_installed_runtime() -> None:
         "aseprite_palette_reorder",
         "aseprite_sprite_create",
         "aseprite_sprite_inspection",
+        "aseprite_tile_inspection",
+        "aseprite_tile_cel_creation",
+        "aseprite_tilemap_layer_creation",
+        "aseprite_tile_lifecycle",
+        "aseprite_tileset_lifecycle",
         "aseprite_sprite_flatten",
         "aseprite_sprite_resize",
         "aseprite_image_canvas_transform",
@@ -89,6 +101,7 @@ def test_info_reports_installed_runtime() -> None:
         "aseprite_cel_lifecycle",
         "aseprite_cel_relationships",
         "aseprite_tag_authoring",
+        "aseprite_slice_authoring",
         "aseprite_export_image",
     ]
     if not conversion_available:
@@ -164,11 +177,18 @@ def test_info_reports_installed_runtime() -> None:
         "spa image canvas-resize",
         "spa image flip",
         "spa image rotate",
+        "spa image import",
+        "spa raster prepare",
         "spa tag list",
         "spa tag get",
         "spa tag add",
         "spa tag set",
         "spa tag remove",
+        "spa slice list",
+        "spa slice get",
+        "spa slice add",
+        "spa slice set",
+        "spa slice remove",
         "spa palette reorder",
         "spa palette remap",
         "spa palette resize",
@@ -187,6 +207,22 @@ def test_info_reports_installed_runtime() -> None:
         "spa animation preview",
         "spa plan check",
         "spa plan run",
+        "spa tileset list",
+        "spa tileset get",
+        "spa tileset tile get",
+        "spa tileset validate",
+        "spa tilemap list",
+        "spa tilemap get",
+        "spa tilemap validate",
+        "spa tileset tile add",
+        "spa tileset tile assign-key",
+        "spa tileset tile remove",
+        "spa tileset tile reorder",
+        "spa tileset remove",
+        "spa layer set-tileset",
+        "spa tilemap set",
+        "spa tilemap patch",
+        "spa tilemap fill",
     ]
     expected_runtime_gaps = []
     if not conversion_available:
@@ -214,6 +250,7 @@ def test_info_reports_installed_runtime() -> None:
         "spa palette add",
         "spa palette remove",
         "spa filter convolution-matrix",
+        "native text rasterization",
         "spa filter hue-saturation: Tilemap pixels",
         "spa filter color-curve: Tilemap pixels",
         "spa filter replace-color: Tilemap pixels",
@@ -222,6 +259,9 @@ def test_info_reports_installed_runtime() -> None:
         "spa filter outline: Indexed component Channels",
         "spa filter despeckle: Tilemap pixels",
         "spa filter despeckle: Indexed components without Green",
+        "spa slice key add/set/remove",
+        "spa slice set: multi-Key or later-starting geometry",
+        "spa slice set: clearing pivot",
     ]
     assert all(
         gap["aseprite_version"] == result["runtime"]["aseprite_version"]

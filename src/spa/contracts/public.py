@@ -75,6 +75,7 @@ RuntimeCapability = Literal[
     "aseprite_image_flip",
     "aseprite_image_rotate",
     "aseprite_tag_authoring",
+    "aseprite_slice_authoring",
     "aseprite_palette_entries",
     "aseprite_palette_resize",
     "aseprite_palette_remap",
@@ -94,6 +95,11 @@ RuntimeCapability = Literal[
     "aseprite_convert_color_profile",
     "aseprite_export_image",
     "aseprite_selection",
+    "aseprite_tile_inspection",
+    "aseprite_tilemap_layer_creation",
+    "aseprite_tile_cel_creation",
+    "aseprite_tile_lifecycle",
+    "aseprite_tileset_lifecycle",
 ]
 
 

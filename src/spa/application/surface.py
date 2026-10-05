@@ -19,11 +19,13 @@ from spa.authoring.color.quantization import (
     QUANTIZATION_OPERATIONS,
 )
 from spa.authoring.document.animation import ANIMATION_OPERATIONS
-from spa.authoring.document.cel import CEL_OPERATIONS, CEL_SUPPORT_RESOURCE
+from spa.authoring.document.cel import CEL_OPERATIONS
+from spa.authoring.document.cel_contracts import CEL_SUPPORT_RESOURCE
 from spa.authoring.document.cel_relationship import CEL_RELATIONSHIP_OPERATIONS
 from spa.authoring.document.frame import FRAME_OPERATIONS, FRAME_SUPPORT_RESOURCE
 from spa.authoring.document.layer import LAYER_OPERATIONS, LAYER_SELECT_RESOURCE
 from spa.authoring.document.motion import MOTION_OPERATIONS
+from spa.authoring.document.slice import SLICE_OPERATIONS, slice_capability_gaps
 from spa.authoring.document.sprite import SPRITE_OPERATIONS, SPRITE_PROBE_RESOURCES
 from spa.authoring.document.tag import TAG_OPERATIONS
 from spa.authoring.raster.color_curve import (
@@ -54,6 +56,7 @@ from spa.authoring.raster.image import (
     IMAGE_ORIENTATION_TRANSFORM_RESOURCE,
     IMAGE_RESIZE_TRANSFORM_RESOURCE,
 )
+from spa.authoring.raster.image_import import IMAGE_IMPORT_OPERATIONS
 from spa.authoring.raster.image_snapshot import COMPOSITION_RESOURCE, SNAPSHOT_RESOURCE
 from spa.authoring.raster.invert_outline import (
     INVERT_COLOR_RESOURCE,
@@ -81,6 +84,19 @@ from spa.authoring.raster.selection import (
     SELECTION_OPERATIONS,
     SELECTION_SUPPORT_RESOURCE,
 )
+from spa.authoring.raster.text import text_capability_gap
+from spa.authoring.tile.cel_add import tilemap_creation_gaps
+from spa.authoring.tile.inspection import TILE_OPERATIONS, TILE_PROBE_RESOURCE
+from spa.authoring.tile.layer_creation import TILE_LAYER_PROBE_RESOURCE
+from spa.authoring.tile.lifecycle import (
+    TILE_LIFECYCLE_OPERATIONS,
+    TILE_LIFECYCLE_PROBE_RESOURCE,
+)
+from spa.authoring.tile.regions import TILE_REGION_OPERATIONS
+from spa.authoring.tile.tileset_lifecycle import (
+    TILESET_LIFECYCLE_OPERATIONS,
+    TILESET_LIFECYCLE_PROBE_RESOURCE,
+)
 from spa.contracts.operation import (
     ACCESS_FAILURE_CODES,
     RUNTIME_FAILURE_CODES,
@@ -103,8 +119,13 @@ from spa.delivery.palette import (
     PALETTE_EXPORT_OPERATIONS,
     palette_export_capability_gaps,
 )
+from spa.preparation.raster import PREPARATION_OPERATIONS
 
 PROBE_RESOURCES = (
+    TILESET_LIFECYCLE_PROBE_RESOURCE,
+    TILE_LAYER_PROBE_RESOURCE,
+    TILE_PROBE_RESOURCE,
+    TILE_LIFECYCLE_PROBE_RESOURCE,
     CONVOLUTION_PROBE_RESOURCE,
     DESPECKLE_RESOURCE,
     *FILTER_RESOURCES,
@@ -215,6 +236,7 @@ def _surface(runtime: RuntimeFacts) -> tuple[list[str], list[CapabilityGap]]:
     gaps.append(
         convolution_capability_gap(runtime.aseprite_version, runtime.convolution)
     )
+    gaps.append(text_capability_gap(runtime.aseprite_version))
     gaps.extend(
         filter_capability_gaps(
             runtime.aseprite_version, runtime.verified_capabilities, supported
@@ -227,6 +249,24 @@ def _surface(runtime: RuntimeFacts) -> tuple[list[str], list[CapabilityGap]]:
     )
     if "spa filter despeckle" in supported:
         gaps.extend(despeckle_capability_gaps(runtime.aseprite_version))
+    gaps.extend(slice_capability_gaps(runtime.aseprite_version))
+    if (
+        "spa layer add" in supported
+        and "aseprite_tilemap_layer_creation" not in runtime.verified_capabilities
+    ):
+        gaps.append(
+            CapabilityGap(
+                capability="spa layer add: tilemap",
+                aseprite_version=runtime.aseprite_version,
+                evidence="The selected runtime did not verify native Tilemap Layer creation, shared Tileset binding, temporary Tileset removal, and save/reopen persistence.",
+            )
+        )
+    if "spa cel add" in supported:
+        gaps.extend(
+            tilemap_creation_gaps(
+                runtime.aseprite_version, runtime.verified_capabilities
+            )
+        )
     return supported, gaps
 
 
@@ -333,7 +373,10 @@ OPERATIONS = (
     *CEL_RELATIONSHIP_OPERATIONS,
     *MOTION_OPERATIONS,
     *IMAGE_OPERATIONS,
+    *IMAGE_IMPORT_OPERATIONS,
+    *PREPARATION_OPERATIONS,
     *TAG_OPERATIONS,
+    *SLICE_OPERATIONS,
     *PALETTE_OPERATIONS,
     *PALETTE_FILE_OPERATIONS,
     *QUANTIZATION_OPERATIONS,
@@ -343,4 +386,8 @@ OPERATIONS = (
     *PALETTE_EXPORT_OPERATIONS,
     *ANIMATION_OPERATIONS,
     *PLAN_OPERATIONS,
+    *TILE_OPERATIONS,
+    *TILE_LIFECYCLE_OPERATIONS,
+    *TILESET_LIFECYCLE_OPERATIONS,
+    *TILE_REGION_OPERATIONS,
 )

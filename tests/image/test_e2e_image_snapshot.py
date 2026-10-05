@@ -1,5 +1,6 @@
 """Canonical Image snapshots through the public CLI and real native files."""
 
+import hashlib
 import json
 import os
 import struct
@@ -1294,6 +1295,7 @@ def test_native_composite_modes_share_the_same_artifact_value(
     tmp_path: Path, mode: str, output_mode: str, expected: list
 ) -> None:
     source = _fixture(tmp_path, mode + "-composite")
+    original = source.read_bytes()
     request = _composite({"mode": "visible"}, output_color_mode=output_mode)
     code, inline = _get(source, source=request)
     assert code == 0, inline
@@ -1305,6 +1307,18 @@ def test_native_composite_modes_share_the_same_artifact_value(
         snapshot_destination={"path": str(artifact), "if_exists": "fail"},
     )
     assert code == 0, result
-    assert json.loads(artifact.read_text()) == inline["snapshot"]
+    raw = artifact.read_bytes()
+    assert json.loads(raw) == inline["snapshot"]
+    assert result["snapshot"] is None and result["output_form"] == "artifact"
+    assert result["artifact"] == {
+        "role": "pixel-region-snapshot",
+        "media_type": "application/json",
+        "format": "json",
+        "path": str(artifact),
+        "byte_size": len(raw),
+        "sha256": hashlib.sha256(raw).hexdigest(),
+    }
     assert result["effective_palettes"] == inline["effective_palettes"]
     assert result["mask_color"] == inline["mask_color"]
+    assert source.read_bytes() == original
+    assert not list(tmp_path.glob(".*.staged.json"))

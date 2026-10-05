@@ -6,8 +6,7 @@ from typing import Literal
 from pydantic import Field, ValidationError, field_validator, model_validator
 
 from spa.application.mutation import prepare_mutation
-from spa.authoring.document.cel import (
-    CEL_SELECT_RESOURCE,
+from spa.authoring.document.cel_contracts import (
     CEL_SUPPORT_RESOURCE,
     CelAddress,
     CelState,
@@ -15,7 +14,7 @@ from spa.authoring.document.cel import (
 )
 from spa.authoring.document.sprite import (
     INSPECTION_SECTIONS,
-    SPRITE_INSPECTION_RESOURCE,
+    SPRITE_INSPECTION_RESOURCES,
     SPRITE_PERSISTENCE_RESOURCE,
     SpriteGetRequest,
     SpriteInspection,
@@ -142,9 +141,8 @@ CEL_RELATIONSHIP_HANDLER = PackagedHandler(
     "cel_relationship",
     "document/cel/cel_relationship.lua",
     (
-        SPRITE_INSPECTION_RESOURCE,
+        *SPRITE_INSPECTION_RESOURCES,
         SPRITE_PERSISTENCE_RESOURCE,
-        CEL_SELECT_RESOURCE,
         CEL_SUPPORT_RESOURCE,
         CEL_RELATIONSHIP_RESOURCE,
         DIGEST_RESOURCE,

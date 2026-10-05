@@ -134,6 +134,36 @@ def inject_palette_change(
     target.write_bytes(payload)
 
 
+def clear_first_saved_layer_uuid(source: Path, layer_name: str) -> None:
+    """Make the first named Layer in a native fixture lack a saved UUID."""
+    payload = bytearray(source.read_bytes())
+    frame_offset = 128
+    frame_size, frame_magic, chunk_count = struct.unpack_from(
+        "<IHH", payload, frame_offset
+    )
+    assert frame_magic == 0xF1FA and frame_size > 16
+    chunk_offset = frame_offset + 16
+    for _ in range(chunk_count):
+        chunk_size, chunk_type = struct.unpack_from("<IH", payload, chunk_offset)
+        assert chunk_size >= 6
+        if chunk_type == 0x2004:
+            assert chunk_size >= 24
+            name_length = struct.unpack_from("<H", payload, chunk_offset + 22)[0]
+            name = payload[chunk_offset + 24 : chunk_offset + 24 + name_length]
+            if name == layer_name.encode("utf-8"):
+                uuid_offset = chunk_offset + 24 + name_length
+                layer_type = struct.unpack_from("<H", payload, chunk_offset + 8)[0]
+                if layer_type == 2:
+                    uuid_offset += 4  # Tilemap's Tileset index precedes its UUID.
+                assert uuid_offset + 16 <= chunk_offset + chunk_size
+                assert any(payload[uuid_offset : uuid_offset + 16])
+                payload[uuid_offset : uuid_offset + 16] = bytes(16)
+                source.write_bytes(payload)
+                return
+        chunk_offset += chunk_size
+    raise AssertionError(f"fixture has no Layer chunk named {layer_name!r}")
+
+
 def runtime_observation(*capabilities: RuntimeCapability) -> RuntimeObservation:
     return RuntimeObservation(
         selection_source="explicit",

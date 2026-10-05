@@ -2,6 +2,8 @@
 local module = {}
 local layer_selection =
   dofile(assert(app.params.layer_select, "Missing Kernel resource: layer_select"))
+local slice_inspection =
+  dofile(assert(app.params.slice_inspect, "Missing Kernel resource: slice_inspect"))
 local json_null = json.decode("null")
 
 local function rgba(color)
@@ -164,125 +166,6 @@ local function requested_set(scope)
   return result
 end
 
-local function read_file(path)
-  local file = assert(io.open(path, "rb"), "could not open Slice vendor data")
-  local payload = file:read("*a")
-  file:close()
-  return payload
-end
-
-local function is_json_object(value)
-  local kind = type(value)
-  return kind == "table" or kind == "userdata"
-end
-
-local function vendor_rectangle(value)
-  assert(is_json_object(value), "Slice Key Rectangle is not an object")
-  assert(
-    type(value.x) == "number" and type(value.y) == "number",
-    "Slice Key Rectangle has invalid coordinates"
-  )
-  assert(
-    type(value.w) == "number" and type(value.h) == "number",
-    "Slice Key Rectangle has invalid dimensions"
-  )
-  return { x = value.x, y = value.y, width = value.w, height = value.h }
-end
-
-local function vendor_point(value)
-  assert(is_json_object(value), "Slice Key Point is not an object")
-  assert(
-    type(value.x) == "number" and type(value.y) == "number",
-    "Slice Key Point has invalid coordinates"
-  )
-  return { x = value.x, y = value.y }
-end
-
-local function restore_editor_state(previous)
-  if previous.sprite ~= nil and previous.sprite.isValid then
-    pcall(function() app.activeSprite = previous.sprite end)
-    pcall(function() app.activeLayer = previous.layer end)
-    pcall(function() app.activeFrame = previous.frame end)
-  end
-end
-
-local function inspect_slices(sprite)
-  if #sprite.slices == 0 then return {} end
-  local workspace = assert(app.params.workspace, "missing Kernel workspace")
-  local data_path = workspace .. "/sprite-slices.json"
-  local texture_path = workspace .. "/sprite-slices.png"
-  local previous = {
-    sprite = app.activeSprite,
-    layer = app.activeLayer,
-    frame = app.activeFrame,
-  }
-  local exported, failure = pcall(function()
-    app.activeSprite = sprite
-    app.command.ExportSpriteSheet {
-      ui = false,
-      recent = false,
-      askOverwrite = false,
-      type = SpriteSheetType.HORIZONTAL,
-      textureFilename = texture_path,
-      dataFilename = data_path,
-      dataFormat = SpriteSheetDataFormat.JSON_HASH,
-      listLayers = false,
-      listTags = false,
-      listSlices = true,
-      openGenerated = false,
-    }
-  end)
-  restore_editor_state(previous)
-  if not exported then error(failure) end
-
-  local vendor = json.decode(read_file(data_path))
-  assert(
-    is_json_object(vendor) and is_json_object(vendor.meta),
-    "Slice vendor data has no metadata object"
-  )
-  local vendor_slices = vendor.meta.slices
-  assert(is_json_object(vendor_slices), "Slice vendor data has no Slice array")
-  assert(#vendor_slices == #sprite.slices, "Slice vendor count differs from the opened Sprite")
-
-  local slices = {}
-  for slice_index = 1, #sprite.slices do
-    local native_slice = sprite.slices[slice_index]
-    local vendor_slice = vendor_slices[slice_index]
-    assert(is_json_object(vendor_slice), "Slice vendor entry is not an object")
-    assert(
-      vendor_slice.name == native_slice.name,
-      "Slice vendor order differs from the opened Sprite"
-    )
-    assert(type(native_slice.data) == "string", "Slice user data is not a string")
-    assert(is_json_object(vendor_slice.keys), "Slice vendor entry has no Keys")
-    local keys = {}
-    for key_index = 1, #vendor_slice.keys do
-      local key = vendor_slice.keys[key_index]
-      assert(is_json_object(key), "Slice Key vendor entry is not an object")
-      assert(
-        type(key.frame) == "number"
-          and key.frame >= 0
-          and key.frame < #sprite.frames
-          and key.frame % 1 == 0,
-        "Slice Key has an invalid Frame"
-      )
-      keys[#keys + 1] = {
-        frame_number = key.frame + 1,
-        bounds = vendor_rectangle(key.bounds),
-        center = key.center == nil and json_null or vendor_rectangle(key.center),
-        pivot = key.pivot == nil and json_null or vendor_point(key.pivot),
-      }
-    end
-    assert(#keys > 0, "Slice vendor entry has no explicit Keys")
-    slices[#slices + 1] = {
-      name = native_slice.name,
-      data = native_slice.data,
-      keys = keys,
-    }
-  end
-  return slices
-end
-
 function module.inspect(sprite, scope, verified_uuids)
   local requested = requested_set(scope)
   local paths = {}
@@ -375,7 +258,7 @@ function module.inspect(sprite, scope, verified_uuids)
     result.cels = cels
   end
 
-  if requested.slices then result.slices = inspect_slices(sprite) end
+  if requested.slices then result.slices = slice_inspection.inspect(sprite) end
 
   if requested.tilesets then
     local tilesets = {}

@@ -30,9 +30,10 @@ from spa.authoring.color.palette_file import PaletteFileDetails
 from spa.authoring.color.profile import ProfileFileDetails, ProfileSourceDetails
 from spa.authoring.color.quantization import QuantizationDetails
 from spa.authoring.document.animation import AuditLimitDetails
-from spa.authoring.document.cel import CelAddress as LifecycleCelAddress
-from spa.authoring.document.cel import CelFrameRangeDetails, CelTargetDetails
+from spa.authoring.document.cel_contracts import CelAddress as LifecycleCelAddress
+from spa.authoring.document.cel_contracts import CelFrameRangeDetails, CelTargetDetails
 from spa.authoring.document.layer import LayerAddress, LayerTargetDetails
+from spa.authoring.document.slice import SliceAddress, SliceTargetDetails
 from spa.authoring.document.sprite import (
     SpriteCopyStagingDetails,
     SpriteCropBoundsDetails,
@@ -42,6 +43,7 @@ from spa.authoring.document.sprite import (
 from spa.authoring.document.tag import TagAddress, TagRangeDetails, TagTargetDetails
 from spa.authoring.raster.filter import FilterRejection
 from spa.authoring.raster.image import ImageRotatePositionDetails
+from spa.authoring.raster.image_import import ImageImportDetails
 from spa.authoring.raster.image_snapshot import SnapshotDetails
 from spa.authoring.raster.invert_outline import FilterIndexRejection
 from spa.authoring.raster.paint_composite import (
@@ -50,6 +52,13 @@ from spa.authoring.raster.paint_composite import (
 )
 from spa.authoring.raster.paint_native import PaintCapabilityDetails
 from spa.authoring.raster.selection import SelectionDetails
+from spa.authoring.tile.inspection import TileInspectionDetails, TilesetTarget
+from spa.authoring.tile.lifecycle import TileLifecycleDetails
+from spa.authoring.tile.regions import TilemapRegionDetails
+from spa.authoring.tile.tileset_lifecycle import (
+    TilesetInUseDetails,
+    TilesetLifecycleDetails,
+)
 from spa.contracts.artifact import ArtifactFileDetails, ArtifactVerificationDetails
 from spa.contracts.mutation import TargetCommitDetails
 from spa.contracts.ports import (
@@ -86,6 +95,7 @@ from spa.contracts.public import (
 )
 from spa.contracts.raster import Point, PositiveRectangle, Size
 from spa.delivery.palette import PaletteExportDetails
+from spa.preparation.raster import PreparationDetails
 from tests.support import operation_services
 
 registered_failure_envelope = partial(failure_envelope, failure_codes=FAILURE_CODES)
@@ -193,6 +203,25 @@ def test_failure_construction_derives_category_and_refuses_mismatch() -> None:
 
 def test_each_registered_code_has_a_constrained_public_schema() -> None:
     details_by_type = {
+        PreparationDetails: PreparationDetails(reason="input", message="Invalid PNG"),
+        ImageImportDetails: ImageImportDetails(
+            path="input.png", reason="palette", message="Changed used index"
+        ),
+        TileInspectionDetails: TileInspectionDetails(
+            target=TilesetTarget(tileset_index=1)
+        ),
+        TilemapRegionDetails: TilemapRegionDetails(
+            target=LifecycleCelAddress(
+                layer=LayerAddress(layer_path=[1]), frame_number=1
+            ),
+            reason="tile_cells_limit",
+            message="Image exceeds the Tile Cell limit",
+        ),
+        TileLifecycleDetails: TileLifecycleDetails(
+            target=TilesetTarget(tileset_index=1),
+            reason="replacement_required",
+            message="Removing a used Tile requires an explicit replacement",
+        ),
         FilterIndexRejection: FilterIndexRejection.model_validate(
             {
                 "reason": "Index outside Palette",
@@ -268,6 +297,28 @@ def test_each_registered_code_has_a_constrained_public_schema() -> None:
             )
         ),
         SelectionDetails: SelectionDetails(reason="coverage outside Canvas Rectangle"),
+        TilesetLifecycleDetails: TilesetLifecycleDetails(
+            target=TilesetTarget(tileset_index=1),
+            reason="grid_mismatch",
+            message="Source and target Grid differ",
+        ),
+        TilesetInUseDetails: TilesetInUseDetails.model_validate(
+            {
+                "target": {"tileset_index": 1},
+                "tileset": {
+                    "tileset_index": 1,
+                    "name": "terrain",
+                    "base_index": 1,
+                    "tile_count": 2,
+                    "grid": {
+                        "origin": {"x": 0, "y": 0},
+                        "tile_size": {"width": 2, "height": 3},
+                    },
+                    "layers": [{"layer_path": [2], "layer_uuid": None, "name": "map"}],
+                },
+                "layers": [{"layer_path": [2], "layer_uuid": None, "name": "map"}],
+            }
+        ),
         SnapshotDetails: SnapshotDetails(reason="incompatible bounds"),
         RequestDetails: RequestDetails(errors=[]),
         NotFoundDetails: NotFoundDetails(requested_path=None, searched=[]),
@@ -319,6 +370,7 @@ def test_each_registered_code_has_a_constrained_public_schema() -> None:
             allowed_maximum=32767,
         ),
         TagTargetDetails: TagTargetDetails(address=TagAddress(tag_index=1)),
+        SliceTargetDetails: SliceTargetDetails(address=SliceAddress(slice_index=1)),
         TagRangeDetails: TagRangeDetails(from_frame=1, to_frame=2, frame_count=1),
         SpriteUnsupportedContentDetails: SpriteUnsupportedContentDetails(
             source_sprite_file="sprite.aseprite",

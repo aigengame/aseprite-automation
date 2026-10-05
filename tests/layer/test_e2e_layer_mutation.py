@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from spa.adapters.aseprite.invocation import prepare_invocation
+from spa.authoring.document.sprite import SPRITE_INSPECTION_RESOURCES
 from tests.support import process_diagnostics, spa
 
 pytestmark = pytest.mark.e2e
@@ -269,10 +270,10 @@ def test_merge_compositing_ignores_both_ambient_preference_values(
                 "source": str(source),
                 "target": str(target),
                 "report": str(report),
-                "inspection": str(
-                    kernel.joinpath("document/sprite/sprite_inspect.lua")
-                ),
-                "layer_select": str(kernel.joinpath("document/layer/layer_select.lua")),
+                **{
+                    resource.parameter_name: str(kernel.joinpath(resource.package_path))
+                    for resource in SPRITE_INSPECTION_RESOURCES
+                },
                 "cel": str(kernel.joinpath("document/cel/cel_support.lua")),
                 "mutation": str(
                     kernel.joinpath("document/layer/layer_mutation_support.lua")

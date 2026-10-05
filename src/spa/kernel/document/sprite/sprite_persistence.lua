@@ -23,6 +23,23 @@ local function difference(left, right, at)
       .. tostring(right)
       .. ")"
   end
+  if at:match("%.sprite%.slices$") then
+    -- Slice addresses belong to the current snapshot. Native persistence can
+    -- reorder the collection; complete facts and duplicate counts must survive.
+    if #left ~= #right then return at .. " (Slice count differs)" end
+    local used = {}
+    for index, fact in ipairs(left) do
+      local matched = false
+      for other_index, other in ipairs(right) do
+        if not used[other_index] and difference(fact, other, at .. "." .. index) == nil then
+          used[other_index], matched = true, true
+          break
+        end
+      end
+      if not matched then return at .. "." .. index .. " (Slice facts have no match)" end
+    end
+    return nil
+  end
   for key, value in pairs(left) do
     local found = difference(value, right[key], at .. "." .. tostring(key))
     if found ~= nil then return found end

@@ -6,8 +6,7 @@ from typing import Annotated, Literal
 from pydantic import ConfigDict, Field, ValidationError, model_validator
 
 from spa.authoring.color.palette import EFFECTIVE_PALETTE_RESOURCE
-from spa.authoring.document.cel import (
-    CEL_SELECT_RESOURCE,
+from spa.authoring.document.cel_contracts import (
     CEL_SUPPORT_RESOURCE,
     CelAddress,
     CelState,
@@ -16,7 +15,7 @@ from spa.authoring.document.cel import (
 from spa.authoring.document.cel_relationship import CelRelationshipRequest
 from spa.authoring.document.layer import LAYER_ADDRESS_FAILURE_CODES
 from spa.authoring.document.sprite import (
-    SPRITE_INSPECTION_RESOURCE,
+    SPRITE_INSPECTION_RESOURCES,
     SPRITE_PERSISTENCE_RESOURCE,
 )
 from spa.contracts.digest import DIGEST_RESOURCE
@@ -359,12 +358,11 @@ NATIVE_PAINT_RESOURCE = PackagedResource(
 NATIVE_PAINT_RESOURCES = (
     NATIVE_TOOL_RESOURCE,
     NATIVE_PAINT_RESOURCE,
-    CEL_SELECT_RESOURCE,
     CEL_SUPPORT_RESOURCE,
     RASTER_COLOR_RESOURCE,
     SELECTION_MASK_RESOURCE,
     EFFECTIVE_PALETTE_RESOURCE,
-    SPRITE_INSPECTION_RESOURCE,
+    *SPRITE_INSPECTION_RESOURCES,
     SPRITE_PERSISTENCE_RESOURCE,
     DIGEST_RESOURCE,
 )

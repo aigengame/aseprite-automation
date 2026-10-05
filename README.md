@@ -4,7 +4,7 @@ Aseprite Automation (SPA) provides agent-facing automation for Aseprite. `SPA` i
 short project name used in documentation; `spa` is the primary executable.
 
 > [!IMPORTANT]
-> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery, Sprite creation, inspection, copy, resize, crop, flatten, and validation, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Tag inspection and authoring, Palette Change inspection and Entry edits, native Color Profile assignment and conversion, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, bounded Pixel Patch application, native Snapshot composition (`spa paint composite`), native Line, Rectangle, Ellipse, Contour, and Blur Paint operations, verified RGB PNG Image Export, animation audit, Frame comparison, and verified continuity Preview export. Feature issues own delivery contracts, evidence requirements, provenance links, curated evidence summaries, and status, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
+> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery, Sprite creation, inspection, copy, resize, crop, flatten, and validation, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Tag inspection and authoring, complete Slice inspection and bounded whole-Slice authoring, Palette Change inspection and Entry edits, native Color Profile assignment and conversion, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, bounded Pixel Patch application, native Snapshot composition (`spa paint composite`), native Line, Rectangle, Ellipse, Contour, and Blur Paint operations, verified RGB PNG Image Export, animation audit, Frame comparison, and verified continuity Preview export. Feature issues own delivery contracts, evidence requirements, provenance links, curated evidence summaries, and status, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
 
 For a complete authoring example, see [Moonlit Spell Practice](examples/wizard_cast/README.md):
 a reproducible SPA wizard animation, reusable pixel assets, and a Godot target-practice demo.
@@ -54,6 +54,12 @@ appears in the installed Surface Manifest.
 | Agent access | Publish version-locked Agent Skill guidance and project the installed operation surface through the Model Context Protocol (MCP). |
 | Asset workflow integration | Participate in external asset workflows through the public `spa` CLI JSON contract. |
 
+Native text rasterization currently has an evidence-backed Capability Gap in
+`spa info` and `spa schema`, with no callable text command. The
+[bounded investigation](docs/evidence/issue-47-native-text.md) records the tested
+macOS baseline, blank native output, and evidence limits. Text authoring remains
+candidate product territory under [issue #47](https://github.com/aigengame/aseprite-automation/issues/47).
+
 Command Groups are navigation, not module architecture. Domain Modules own cohesive vertical slices and can project several groups when native behavior shares a lifecycle. `image` represents Aseprite Image observation and structural transformation; `paint` represents authoring intent. Native batch Filters remain distinct from native Tools. The [command catalog](docs/command-catalog.md) lists candidate territory; feature issues own delivery contracts.
 
 ## Public Contract
@@ -90,7 +96,7 @@ installed Surface Manifest reports callable facts for one installation. See
 The accepted domain strategy separates **Sprite Authoring** (Core), **Asset
 Preparation** (Supporting), and **Asset Delivery** (Supporting) within one context.
 Reusable motion belongs to authoring; native save remains part of mutation completion.
-Preparation contracts remain planned. Bounded Cel motion is available through
+Frozen PNG preparation is available through `raster prepare`. Bounded Cel motion is available through
 `motion apply`; Asset Delivery reuses existing exports. See [domain ownership](ARCHITECTURE.md#domain-ownership-view) and
 [ADR-0095](docs/adr/0095-asset-preparation-authoring-and-delivery.md); the installed
 Surface Manifest remains the source for callable capabilities.
@@ -204,9 +210,22 @@ positions. Names use exact case-sensitive matching and must be unique across the
 Sprite. UUIDs are returned only when verified across independent opens of the saved
 Sprite; a Layer with no verified saved UUID reports `null`. SPA preserves the
 Sprite's existing `useLayerUuids` value.
-`spa layer add` creates a regular Transparent or Group Layer at the root, or as
-the last child of the Group selected by `parent`. Its result reports the Layer's
-address after save and reopen. These Layer commands are not Plan Steps.
+`spa layer add` creates a regular Transparent, Group, or Tilemap Layer at the root,
+or as the last child of the Group selected by `parent`. Its result reports the
+Layer's address after save and reopen. For `kind: "tilemap"`, provide exactly one
+Tileset intent:
+
+- `"tileset":{"create":{"name":"terrain","grid":{"origin":{"x":0,"y":0},"tile_size":{"width":16,"height":16}},"base_index":1}}`
+- `"tileset":{"share":{"tileset_index":1}}`, or select a unique exact
+  `tileset_name` instead of an index.
+
+Tilemap creation requires Grid origin `(0,0)` and Base Index `-32768..32767`;
+the request schema rejects other values before starting Aseprite. These are current
+native persistence bounds and can change with accepted requirements and native
+evidence. Sharing removes only the temporary Tileset made by that invocation.
+Existing Layers and Tilesets, including unbound Tilesets, remain. The `tilemap`
+result reports the persisted binding, Grid, Tileset counts, and zero initial Cels;
+Cel creation is a separate operation. These Layer commands are not Plan Steps.
 `spa layer set` changes name, visibility, and editability on a regular Transparent
 Image or Group Layer; opacity and blend mode require a regular Transparent Image.
 `spa layer move` changes only the sibling stack position under the current parent.
@@ -642,7 +661,33 @@ without resizing it. Creation uses the Sprite's Color Mode, Color Profile, and
 Transparent Color Index, with position `(0, 0)`, opacity 255, and z-index 0.
 The same option is available in a `cel add` Plan Step, including before a Paint
 Step; returned dimensions remain in `cel.image_bounds`.
-`cel clear` and `cel remove` do not accept `image_size`.
+
+For an existing Tilemap Layer and an absent Cel at an existing Frame, `cel add`
+instead requires `tilemap_size: {"width": 2, "height": 3}` in **Tile Cells**.
+Each side is an integer from 1 through 65535, with at most 1,048,576 Cells in total;
+Canvas coverage must fit native signed 32-bit Rectangle coordinates. Do not combine
+`tilemap_size` with raster `image_size`. The bound Tileset supplies the Grid; this
+operation creates neither a Layer nor a Frame. The independent native Tilemap Image
+starts with packed Empty Tile 0 in every Cell, without transform flags, even when
+the Sprite's Transparent Color Index is nonzero. Position `(0, 0)`, opacity 255,
+and z-index 0 match ordinary creation. The Tilemap may extend beyond the Canvas.
+
+`tilemap_creation` reports #41 Tilemap/Tileset facts (Cell size, binding, Grid,
+and Canvas coverage) and verified empty Cells; shared `cel.image_bounds` remains
+`null`. Use `tilemap get` to observe the persisted Cells. Standalone and Plan use
+the same construction path. Each add Step verifies its initial state; later valid
+Steps may change it, and final save/reopen verifies the resulting document before
+one Target Commit. A failed Step publishes nothing. The selected runtime must
+verify `aseprite_tile_cel_creation`; discovery reports a conditional Capability Gap
+when unavailable. Ordinary Cel creation retains its existing capability contract.
+
+```sh
+spa cel add --input-json '{"source_sprite_file":"map.aseprite","target_sprite_file":"with-cel.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[2]},"frame_number":3},"tilemap_size":{"width":2,"height":3}}'
+```
+
+The ordinary-only boundaries in #13 and #106 describe those earlier slices;
+#165 adds explicit Tilemap creation. `cel clear` and `cel remove` retain their
+existing target policies and accept neither `image_size` nor `tilemap_size`.
 `cel clear` preserves the Cel and its Image bounds; on a
 Background Layer it requires an explicit compatible `background_color` and fills
 the Cel with that color. Clearing a shared Image preserves native links and reports
@@ -900,6 +945,112 @@ uv run spa palette remap --input-json '{"aseprite":"/path/to/aseprite","source_s
 uv run spa palette reorder --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"reordered.aseprite","in_place":false,"overwrite":false,"scope":"sprite","mapping":[{"old_index":0,"new_index":0},{"old_index":1,"new_index":2},{"old_index":2,"new_index":1},{"old_index":3,"new_index":3}]}'
 ```
 
+### Prepare a frozen raster
+
+`raster prepare` prepares one selected 8-bit RGB/RGBA PNG before native insertion.
+It normalizes color to sRGB, applies binary alpha, crops, resizes with native nearest
+neighbor, maps to an explicit ordered Palette, aligns named anchors, and publishes
+one verified RGBA or Indexed PNG. It leaves the input unchanged.
+
+For a 32×32 input, save this request as `prepare.json` (replace the executable path):
+
+```json
+{
+  "aseprite": "/path/to/aseprite",
+  "raster_file": "selected.png",
+  "intent": {"kind": "initial"},
+  "specification": {
+    "alpha_threshold": 128,
+    "crop": {"kind": "rectangle", "rectangle": {"x": 0, "y": 0, "width": 32, "height": 32}},
+    "resize": {"kind": "size", "width": 16, "height": 16},
+    "rounding": "nearest-away-from-zero",
+    "palette": {
+      "entries": [
+        {"red": 0, "green": 0, "blue": 0, "alpha": 0},
+        {"red": 180, "green": 70, "blue": 30, "alpha": 255},
+        {"red": 255, "green": 255, "blue": 255, "alpha": 255}
+      ],
+      "transparent_index": 0
+    },
+    "mapping": {"rgb_map_algorithm": "octree", "color_best_fit_criteria": "rgb", "dithering": "none"},
+    "canvas": {"width": 32, "height": 32},
+    "anchors": [{"name": "foot", "x": 16, "y": 32}],
+    "alignment": {"primary_anchor": "foot", "position": {"x": 16, "y": 32}},
+    "output_mode": "indexed"
+  },
+  "destination": {"path": "prepared.png", "if_exists": "fail"}
+}
+```
+
+```sh
+uv run spa raster prepare --input-json - < prepare.json > prepared-result.json
+```
+
+Use `output_mode: "rgba"` for RGBA PNG. Both formats encode sRGB intent 0 and match
+in complete decoded pixels. The Palette has 2..256 entries: exactly one declared
+RGBA(0,0,0,0) entry, all others opaque. Indexed output preserves length, order,
+unused entries, and the transparent index. Native mapping chooses among duplicate
+or equally fitting opaque colors; SPA does not promise the first matching index.
+
+Anchors are signed integer Points in the original input's Image Pixel space.
+They may lie outside the image. Crop origin is subtracted before scaling by the
+actual integer resize ratios; the chosen rounding rule also applies to derived
+anchor coordinates. Alignment must keep the entire resized rectangle inside the
+output Canvas. `crop: {"kind":"automatic"}` uses nontransparent bounds after
+thresholding and rejects an empty result. `resize: {"kind":"scale","factor":0.5}`
+uses a finite positive scale. The other rounding choices are `toward-zero`, `floor`,
+and `ceil`; zero or oversized derived dimensions reject.
+
+Truly untagged input explicitly assumes sRGB. Encoded sRGB retains its meaning;
+the Color Profile owner's supported ICC identities are natively converted before
+thresholding and mapping. Ambiguous/unsupported metadata rejects. ICC input needs
+the observed `aseprite_convert_color_profile` capability; the current Linux build
+without a native converter refuses that path. Untagged/sRGB preparation does not
+require it.
+
+Retain the result's `reproduction` object. To reproduce, keep the specification and
+set `intent` to `{"kind":"reproduce","expected": <retained reproduction object>}`.
+SPA checks input bytes, runtime versions, effective choices, geometry, Palette, and
+complete decoded content before publishing. A new destination is allowed; replacing
+an existing file requires `if_exists: "replace"`. Input/output aliases reject.
+This is a standalone operation; native insertion remains a separate `image import`.
+
+### Import a prepared raster
+
+`image import` inserts one source-sized, independent Image into an empty Cel slot
+on an existing regular transparent Layer and Frame:
+
+```sh
+uv run spa image import --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"imported.aseprite","in_place":false,"overwrite":false,"raster_file":"prepared.png","target":{"layer":{"layer_path":[1]},"frame_number":1},"position":{"x":-2,"y":3}}'
+```
+
+The input must be a single-frame 8-bit RGB/RGBA or Indexed PNG. RGB requires an RGB
+Sprite; Indexed requires an Indexed Sprite and equal complete RGBA meaning at
+every used index in the selected Frame's Effective Palette. Unused entries and
+Palette lengths may differ. Palette alpha and the destination's Transparent Color
+Index both matter: native loss of transparent hidden RGB or partial alpha causes
+refusal. Numeric mask indexes need not be equal when the used pixels retain their
+meaning. The target Palette remains unchanged.
+
+Encoded None, sRGB, or an exact supported ICC (`linear_srgb`, `display_p3`) must
+match the destination Profile. Unsupported or conflicting metadata fails, including
+standalone gAMA/cHRM definitions. Input loading does not infer sRGB for an untagged
+PNG or convert its channels. See the [import evidence](docs/evidence/issue-46-raster-import.md)
+for the supported metadata combinations and native counterexamples.
+
+An occupied Cel, including a Linked Cel, is refused. Positions use the existing
+signed 16-bit Cel bounds; negative or off-Canvas placement preserves the entire
+stored Image. The Operation creates no Layer or Frame and performs no resizing,
+Palette remapping, or Color Mode/Profile conversion. These are the current delivery
+limits; future accepted requirements can extend them.
+
+The result reports the consumed PNG's SHA-256 and byte size, reopened Cel/Image
+facts, stored-content and RGBA digests, Profile and applicable Palette basis, and
+the Target Commit. The input is frozen before native loading. Save/reopen content
+loss, malformed evidence, or an output alias of the input prevents publication.
+The created native Image is not a file Artifact. This Operation is standalone and
+is not eligible for an Operation Plan.
+
 ### Palette files and Color Quantization
 
 `spa palette import` replaces one exact existing `palette_frame_number` with a
@@ -1069,10 +1220,11 @@ profile loading and document-dependent conversion checks occur during `spa plan 
 executes up to 64 Sprite-bound `sprite create`, `sprite get`, `frame list`,
 `frame get`, `frame add`, `frame duplicate`, `cel add`, `cel set`, `motion apply`,
 `paint apply`, `sprite change-color-mode`, `sprite assign-color-profile`,
-and `sprite convert-color-profile` Steps
+`sprite convert-color-profile`, `layer set-tileset`, and `tileset remove` Steps
 on one live Sprite in one Aseprite process. A read Plan publishes no file. A mutating
 Plan declares one Target Sprite File; the staged file is reopened and verified before
-one Target Commit. A failed Step publishes no target. Typed Cel, Color Mode, and Color Profile refusals identify the
+one Target Commit. A failed Step publishes no target. Typed Cel, Color Mode,
+Color Profile, and Tileset refusals identify the
 one-based Step in `details.step_number`; execution failures use
 `details.failed_step` when a Step was active. Each Paint Step retains its own
 256-pixel Operation Limit. A Plan with an
@@ -1193,3 +1345,233 @@ that are absent from issue bodies.
 - [Incremental command catalog](docs/command-catalog.md)
 - [Aseprite CLI documentation](https://www.aseprite.org/docs/cli/)
 - [Aseprite scripting documentation](https://www.aseprite.org/docs/scripting/)
+
+
+## Keyed Tile lifecycle
+
+`spa tileset tile add/assign-key/remove/reorder` edit one exact `target` Tileset.
+Each requires `source_sprite_file`, `target_sprite_file`, explicit `in_place` and
+`overwrite`. These standalone Operations use the same staged save/reopen and
+Target Commit rules as other mutations. Use each command's `--schema` for its
+complete installed contract.
+
+- `add` requires a unique `tile_key` and complete canonical `image` Pixel Region
+  Snapshot at `(0,0)`, matching the Tileset's tile dimensions and Sprite Color Mode.
+  The inline Image can contain at most 4096 pixels. RGB/Grayscale pixels with
+  Alpha 0 must have zero hidden color channels; otherwise the operation refuses
+  the input before mutation because native Tilesets would normalize those channels.
+  Transparent zero-channel pixels and supported Indexed transparent content remain valid.
+  It appends one Tile and accepts no insertion position. Indexed input also requires
+  an existing `palette_frame_number`; the result reports that Frame's Effective
+  Palette, used indexes, and Transparent Color Index. Other Frames can have different
+  Palettes. No palette conversion, resizing, or pixel synthesis is implicit.
+- `assign-key` requires a current nonzero `tile_index` with no existing Key and a
+  unique `tile_key`. It preserves the Tile's content and unrelated properties;
+  this is not an existing-Key rename or duplicate repair.
+- `remove` selects `tile_key`. A used Tile requires `replacement: {"kind":"empty"}`
+  or `{"kind":"tile","tile_key":"surviving-key"}` in the same Tileset. An unused
+  Tile needs no replacement. Empty Tile 0 cannot be removed.
+- `reorder` requires `tile_keys` containing every current nonzero Tile Key exactly
+  once. Missing, extra, duplicated, or unkeyed entries reject the entire request.
+
+Removal and reorder return complete `index_mapping` and resulting `tiles`, plus
+the actually changed Layers, Cels, and Cell counts. All referencing Layers and
+Frames are included; Linked Cels keep their relationships. Native Tile Images,
+text, colors, Keys, and unrelated plugin properties move together. Base Index stays
+a display offset. Empty replacements write packed zero; retained/replaced keyed
+placements keep their flags. Existing flagged index-0 observations remain intact.
+
+The selected Tileset must fit 4096 Tiles, including Empty Tile 0, both before and
+after the operation. Removal/reorder can inspect at most 1,048,576 referenced Tile
+Cells, summed over every logical Cel: Linked Cels count separately per Frame,
+including Empty and unchanged Cells. An exceeded limit returns
+`tile_lifecycle_invalid` with reason `operation_limit` and typed
+`limit: {unit, requested, maximum}` before mutation. The request schema exposes
+the current values as `x-spa-operation-limits`; these are not caller override fields.
+The current boundaries can expand with accepted requirements and verified native
+capabilities; they are not permanent restrictions.
+
+## Tileset rebind and removal
+
+`spa layer set-tileset` binds one exact Tilemap `layer` to a `target` Tileset.
+It requires `mapping: {"kind":"by_key"}` or a complete explicit mapping of used
+source Keys, such as:
+
+```json
+{"kind":"explicit","entries":[
+  {"source_key":"grass","target":{"kind":"tile","tile_key":"meadow"}},
+  {"source_key":"water","target":{"kind":"empty"}}
+]}
+```
+
+Used source Keys and requested target Keys must resolve uniquely. Unused unkeyed
+Tiles do not need repair. Keyed destinations retain X/Y/diagonal flags; an explicit
+Empty destination writes packed zero. A flagged index-0 observation is not Empty
+and cannot be rebound without a valid source Key.
+
+`grid_policy: "require_equal"` requires matching Grids. `"use_target"` accepts the
+new Grid while preserving Tile Cell dimensions, coordinates, and Cel Canvas
+positions, without resampling. Results report each logical Cel, before/after
+Canvas coverage, changed Cell counts, and the resolved Key mapping. Linked Cels
+retain their relationship; other Layers that share the old Tileset remain bound
+to it. Newly introduced or changed Indexed Tile output validates Tile pixels and
+the Transparent Color Index in each affected usage Frame's Effective Palette.
+Unchanged usage within the same Tileset stays outside that check. Different valid
+Frame Palettes are allowed; Palette mutation or index remapping is never implicit.
+Indexed refusals report the usage `frame_number`, the supplying
+`palette_frame_number`, and `palette_size`. `invalid_index` identifies the rejected
+Tile pixel index or Transparent Color Index; `tile_index` is present for a Tile
+bitmap failure. Plan refusals also identify `step_number`.
+
+`spa tileset remove` takes one exact `target` and refuses a referenced Tileset
+with `tileset_in_use`, including every referencing Layer. Successful removal reports
+the surviving collection and old-to-new index mapping. Indexes are snapshot addresses.
+
+Both Operations use `source_sprite_file`, `target_sprite_file`, `in_place`, and
+`overwrite`, verify staged save/reopen, and are eligible Plan Steps. Put one rebind
+per referencing Layer before removal in a Plan to publish one Target. Step receipts
+retain their execution-time facts after later reindexing; any failed Step prevents
+Target Commit and preserves Source and the previous Target.
+
+```sh
+spa layer set-tileset --input-json '{"source_sprite_file":"map.aseprite","target_sprite_file":"rebound.aseprite","in_place":false,"overwrite":false,"layer":{"layer_name":"terrain"},"target":{"tileset_name":"replacement"},"mapping":{"kind":"by_key"},"grid_policy":"require_equal"}'
+```
+
+Current boundaries can change with accepted needs and verified native capability.
+Scoped `tileset resize` remains deferred in #175; it is not a callable Operation.
+See [native lifecycle evidence](docs/evidence/issue-45-tileset-lifecycle.md).
+
+## Tileset and Tilemap inspection
+
+`spa tileset list` reports every current Tileset, its one-based `tileset_index`,
+Grid, display-only `base_index`, Tile count, and all referencing Tilemap Layers.
+`spa tileset get` accepts exactly one `target.tileset_index`, exact unique
+`target.tileset_name`, or `target.layer` using the existing Layer address. It
+reports every current Tile index, including Empty Tile 0 and unkeyed Tiles.
+`spa tileset tile get` additionally selects one `tile.tile_index` or unique
+`tile.tile_key` and returns its complete Image as the existing Pixel Region Snapshot.
+Tileset name and Tile Key addresses reject embedded NUL as `invalid_request` before
+native execution.
+Base Index changes display numbering (`tile_index + base_index - 1`), never identity.
+
+Both Tile queries return `properties` for the default namespace (`""`),
+`aigengame.spa`, and the additional names in `property_namespaces`. Each namespace
+contains a typed `value`: a table of ordered key/value `entries`, or an explicit
+`unavailable` observation. An empty namespace is a table with no entries. Repeated
+namespace names are read once. Completeness accounts for the selected namespaces;
+representation gaps remain explicit in their values.
+
+Values distinguish nil, boolean, string, integer, number, Point, Size, Rectangle,
+UUID, and table. Lua integers use decimal strings to retain precision. Tables use
+typed keys and entries, so numeric keys and string keys remain distinct. A value
+that the projection cannot represent is explicitly `unavailable` with a reason;
+non-finite numbers are reported this way instead of silently becoming JSON null.
+A non-UTF-8 string value is unavailable; an unrepresentable key makes its containing
+table or namespace unavailable. Other selected namespaces remain readable.
+A Tile Key that cannot be represented as text is reported as `tile_key: null`;
+its property observation explains the gap, and validation reports `tile_key_invalid`.
+Native file type tags, namespace enumeration, and metadata reconstruction are
+outside this inspection subset. It can expand when a later authoring need and
+native evidence establish the scope.
+
+The observation follows native getter behavior. On the verified Aseprite baseline,
+Tile 0's Properties getter exposes Tileset properties. Those values remain visible
+as returned by the API; Tile 0 still has no SPA Tile Key.
+
+`spa tilemap list` reports all Tilemap bindings, the complete Frame count, and every
+existing Tilemap Cel without expanding Cells. `spa tilemap get` selects one exact
+Layer and Frame; without `rectangle` it reports topology, including an absent Cel.
+With a Rectangle it reads complete Cel-local Tile Cell coverage. Negative or
+out-of-bounds regions reject without clipping. A Tilemap Cel's Canvas position,
+Tileset Grid, effective Cel Grid, and full Canvas coverage are separate facts;
+coverage can extend outside the Sprite Canvas.
+
+```sh
+spa tilemap get --input-json '{
+  "sprite_file":"map.aseprite",
+  "target":{"layer":{"layer_name":"Ground"},"frame_number":1},
+  "rectangle":{"x":0,"y":0,"width":8,"height":6}
+}'
+```
+
+Tile Region Snapshots declare Empty Tile as their default and include every
+non-empty placement in row-major order. Each observation retains the current Tile
+index and X/Y/diagonal flags, with `tile_key: null` for unkeyed or invalid-index
+references. Reads never assign or repair Keys. `tileset validate` checks Tile Keys,
+Image/Grid agreement, and Cell references across every bound Layer and Frame;
+`tilemap validate` checks the bound Tileset and references in the selected Frame.
+Both return typed Findings and a `valid` verdict without making invalid Keys
+prevent inspection. A validation result is an observation, not a mutation.
+
+The empty default represents a native Cell with both index and flags zero. A Cell
+with index 0 and any flag is retained with `tile_key: null`; validation reports
+`empty_tile_flags`. It can render Tile 0's Image and is never silently discarded
+or repaired by inspection.
+
+The inline limits are 4096 Tile Cells per region and 4096 Image Pixels per Tile
+Image. For larger values provide `snapshot_destination` with a `.json` path and
+explicit `if_exists: "fail"` or `"replace"`. The JSON Artifact has exactly the same
+Snapshot schema as the inline value, with digest and byte size reported only after
+verified publication. Smaller Snapshots can also be sent to an Artifact explicitly.
+No region is silently truncated; no read writes the Source Sprite File. These are
+current delivery choices, open to extension when future requirements justify it.
+
+### Tilemap region writes
+
+`tilemap set`, `tilemap patch`, and `tilemap fill` address one existing Tilemap Cel
+through an exact Layer address and a one-based Frame Number. Their coordinates are
+zero-based Cel-local Tile Cells. Negative Cel positions on the Canvas do not change
+these coordinates. Use `cel add` with `tilemap_size` first when the Cel is absent.
+
+| Operation | Input | Omitted Cells |
+| --- | --- | --- |
+| `tilemap set` | `snapshot`: complete Tile Cell Rectangle, Empty default, row-major non-empty entries | Become Empty inside the Rectangle |
+| `tilemap patch` | `patch`: unique explicit entries in any order | Remain unchanged |
+| `tilemap fill` | `coordinate_space`, `rectangle`, and one `placement` | Every Cell in the Rectangle receives that Placement |
+
+Write Placements are `{"kind":"empty"}` or `{"kind":"tile","tile_key":"stone",
+"flip_x":false,"flip_y":false,"flip_diagonal":false}`. All three flags are explicit
+and independent. Set represents Empty through omitted entries; Patch and Fill can
+use the Empty variant directly. Writes never accept a packed native integer, Base
+Index, or bare Tile Index. An observed Snapshot with unkeyed placements remains
+readable, but it cannot serve as keyed write input without an explicit identity
+decision by the caller.
+
+```sh
+spa tilemap patch --input-json '{
+  "source_sprite_file":"map.aseprite",
+  "target_sprite_file":"map-edited.aseprite",
+  "in_place":false,"overwrite":false,
+  "target":{"layer":{"layer_name":"Ground"},"frame_number":2},
+  "patch":{"coordinate_space":"tile-cell","entries":[
+    {"tile_x":1,"tile_y":0,"placement":{"kind":"tile","tile_key":"stone",
+      "flip_x":true,"flip_y":false,"flip_diagonal":false}},
+    {"tile_x":2,"tile_y":0,"placement":{"kind":"empty"}}
+  ]}
+}'
+```
+
+The entire Rectangle and every explicit entry must fit the existing Cel Image.
+There is no clipping or implicit Cel creation. Every Key is resolved before the
+write. Current bounds are 4096 explicit Set/Patch entries and 1,048,576 Tile Cells
+in the addressed Image, whose complete content must be copied and verified. These
+standalone Operations are not yet eligible for Plan Steps.
+
+Writes preserve native Linked Cels. `affected_cels` lists every Cel sharing the
+modified Image, including Frames outside the selected address. `cells_written`
+and `cells_changed` count Cells in that one Image, without multiplying by the
+number of linked Cels. A no-op still reports the complete sharing set.
+
+For non-empty Indexed Placements, `written_tiles` reports the resolved Keys,
+current indexes, and stored Tile Bitmap Palette indexes. `effective_palettes`
+reports the basis for every affected Frame, including the Sprite Transparent
+Color Index. Every referenced index must exist at every such Frame. Tile creation
+Palette basis is not a permanent binding; different valid colors across Frames
+are allowed. Undefined indexes cause atomic refusal with Frame/Palette details.
+Empty-only writes require no Palette basis. No write remaps indexes, changes
+Palettes, or repairs unrelated placements.
+
+The Kernel edits a detached Image and assigns it through Aseprite's native
+transaction. It verifies content, geometry, sharing, and document facts after
+save/reopen; SPA checks the returned evidence before Target Commit. Failure leaves
+the Source and any previous Target unchanged.

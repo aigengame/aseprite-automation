@@ -391,6 +391,66 @@ local function observes_sprite_creation()
   return ok
 end
 
+local function observes_slice_authoring()
+  local sprite
+  local path = app.fs.joinPath(app.params.workspace, "slice-authoring-probe.aseprite")
+  local previous = { sprite = app.activeSprite, layer = app.activeLayer, frame = app.activeFrame }
+  local ok = pcall(function()
+    local function reopen()
+      assert(sprite:saveAs(path))
+      sprite:close()
+      sprite = nil
+      sprite = assert(app.open(path))
+      return inspection.inspect(sprite, { "slices" }).slices
+    end
+    sprite = Sprite(4, 4, ColorMode.RGB)
+    sprite:newEmptyFrame()
+    local slice = sprite:newSlice(Rectangle(0, 1, 2, 3))
+    slice.name = "probe"
+    local added = reopen()
+    assert(#added == 1 and added[1].name == "probe")
+    assert(#added[1].keys == 1 and added[1].keys[1].frame_number == 1)
+    local key = added[1].keys[1]
+    assert(key.bounds.x == 0 and key.bounds.y == 1)
+    assert(key.bounds.width == 2 and key.bounds.height == 3)
+    assert(key.center == json.decode("null") and key.pivot == json.decode("null"))
+    slice = sprite.slices[1]
+    app.activeFrame = sprite.frames[2]
+    slice.name = "changed"
+    slice.data = "probe-data"
+    slice.color = Color { r = 12, g = 34, b = 56, a = 78 }
+    slice.bounds = Rectangle(-1, 1, 3, 2)
+    slice.center = Rectangle(1, 0, 1, 1)
+    slice.pivot = Point(-1, 3)
+    local changed = reopen()
+    assert(#changed == 1 and changed[1].name == "changed" and changed[1].data == "probe-data")
+    local color = changed[1].color
+    assert(color.red == 12 and color.green == 34 and color.blue == 56 and color.alpha == 78)
+    assert(#changed[1].keys == 1 and changed[1].keys[1].frame_number == 1)
+    key = changed[1].keys[1]
+    assert(key.bounds.x == -1 and key.bounds.y == 1)
+    assert(key.bounds.width == 3 and key.bounds.height == 2)
+    assert(key.center.x == 1 and key.center.y == 0)
+    assert(key.center.width == 1 and key.center.height == 1)
+    assert(key.pivot.x == -1 and key.pivot.y == 3)
+    sprite.slices[1].center = nil
+    local cleared = reopen()
+    assert(#cleared == 1 and #cleared[1].keys == 1)
+    assert(cleared[1].keys[1].center == json.decode("null"))
+    assert(cleared[1].keys[1].pivot.x == -1 and cleared[1].keys[1].pivot.y == 3)
+    sprite:deleteSlice(sprite.slices[1])
+    assert(#reopen() == 0)
+  end)
+  if sprite ~= nil then pcall(function() sprite:close() end) end
+  pcall(function() os.remove(path) end)
+  if previous.sprite ~= nil and previous.sprite.isValid then
+    pcall(function() app.activeSprite = previous.sprite end)
+    pcall(function() app.activeLayer = previous.layer end)
+    pcall(function() app.activeFrame = previous.frame end)
+  end
+  return ok
+end
+
 local function observes_layer_hierarchy()
   if layer_select == nil then return false end
   local previous = {
@@ -1526,6 +1586,22 @@ function module.observe()
     capabilities[#capabilities + 1] = "aseprite_sprite_create"
   end
   if supports_inspection then capabilities[#capabilities + 1] = "aseprite_sprite_inspection" end
+  if app.params.tile_probe then
+    local inspected, created = dofile(app.params.tile_probe).observes()
+    if inspected then capabilities[#capabilities + 1] = "aseprite_tile_inspection" end
+    if created then capabilities[#capabilities + 1] = "aseprite_tile_cel_creation" end
+  end
+  if app.params.tile_layer_probe and dofile(app.params.tile_layer_probe).observes() then
+    capabilities[#capabilities + 1] = "aseprite_tilemap_layer_creation"
+  end
+  if app.params.tile_lifecycle_probe and dofile(app.params.tile_lifecycle_probe).observes() then
+    capabilities[#capabilities + 1] = "aseprite_tile_lifecycle"
+  end
+  if
+    app.params.tileset_lifecycle_probe and dofile(app.params.tileset_lifecycle_probe).observes()
+  then
+    capabilities[#capabilities + 1] = "aseprite_tileset_lifecycle"
+  end
   if observes_sprite_flatten() then capabilities[#capabilities + 1] = "aseprite_sprite_flatten" end
   if observes_sprite_resize() then capabilities[#capabilities + 1] = "aseprite_sprite_resize" end
   if observes_image_canvas_transform() then
@@ -1592,6 +1668,9 @@ function module.observe()
     capabilities[#capabilities + 1] = "aseprite_cel_relationships"
   end
   if observes_tag_authoring() then capabilities[#capabilities + 1] = "aseprite_tag_authoring" end
+  if observes_slice_authoring() then
+    capabilities[#capabilities + 1] = "aseprite_slice_authoring"
+  end
   if exporter ~= nil then
     local ok = pcall(function()
       local fixture = Sprite(1, 1, ColorMode.RGB)

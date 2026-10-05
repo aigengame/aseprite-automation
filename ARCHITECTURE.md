@@ -21,7 +21,7 @@ this view instead of treating it as another decision authority.
 > and native relationships, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, bounded Pixel Patch
 > application, native Snapshot composition (`spa paint composite`), native Line,
 > Rectangle, Ellipse, Contour, and Blur Paint operations, native Brightness/Contrast,
-> verified RGB
+> frozen raster preparation with RGBA/Indexed PNG delivery, verified RGB
 > PNG Image Export, animation audit, Frame comparison, and continuity Preview
 > export. The module
 > ownership below includes both this delivered vertical slice and planned work. Feature
@@ -30,8 +30,8 @@ this view instead of treating it as another decision authority.
 
 Asset Preparation and reusable Bounded Motion Authoring are accepted ownership areas
 under ADR-0095. `spa.authoring.document.motion` implements bounded position/opacity authoring over
-existing independent Cels, both standalone and in a Plan (#104). Asset Preparation
-remains planned. Wizard examples retain their recipe-owned pose and artistic rules;
+existing independent Cels, both standalone and in a Plan (#104). `spa.preparation`
+implements one frozen raster preparation path (#103). Wizard examples retain their recipe-owned pose and artistic rules;
 Asset Delivery reuses the existing export implementations.
 
 The document evolves with the product. An accepted change to the Bounded Context,
@@ -322,10 +322,31 @@ inspection and authoring; `spa.authoring.document.cel` owns Cel existence, inspe
 while `spa.authoring.document.cel_relationship` owns Cel placement, opacity, z-index, and native
 copy/link/unlink mutations; `spa.authoring.document.animation` owns declared animation audit,
 full-Canvas Frame comparison, and the composed continuity Preview use case.
-Cel Add accepts optional initial Image dimensions. Its `cel_support.lua` owner
-creates transparent native Images from the Sprite specification for both standalone
-mutations and Plan Steps. Add validates its initial state at the Step; the final
-save/reopen gate validates the state after all later Steps.
+`spa.authoring.document.slice` owns complete Slice snapshots, exact current
+index/unique-name addressing, and whole-Slice authoring. Its Lua `slice_inspect`
+module owns native sprite-sheet metadata decoding and is shared by aggregate
+Sprite inspection and Slice operations. `slice_support` owns Key coverage,
+static-geometry admission, native mutation, and save/reopen preservation checks.
+Python owns typed requests/results and staged Target Commit orchestration. Slice
+mutation results return the complete reopened address snapshot because native
+serialization can reorder Slices; they expose no persistent Slice identity.
+Cel Add accepts optional raster Image dimensions or explicit Tile Cell dimensions.
+`document/targets.py` owns shared Layer/Cel addresses and Layer target failures.
+`document/cel_contracts.py` consumes those addresses and owns shared mutation
+requests, Cel facts, and typed rejection translation; ordinary consumers do not
+import Tile creation contracts.
+`cel_support.lua` owns target selection, existence, and ordinary Image construction.
+Standalone and Plan inject the same Tile-owned `tile/cel_add.lua` construction
+function for explicit Tilemap requests. That function owns bounded Cell geometry,
+Tileset/Grid admission, native TILEMAP Image construction, and packed-zero checks.
+It reuses `tile/tilemaps.lua` for Cel geometry and `tile/tilesets.lua` for binding
+facts. Add validates its initial state at the Step; the final save/reopen gate
+validates the state after all later Steps.
+Before Target Commit, creation receipts also reconcile the addressed Tileset and
+Grid with the collection at that Step. Plan derives these collections from the
+ordered lifecycle receipts and final Sprite inspection; later rebinding or removal
+can change bindings and current indexes without invalidating earlier Cel facts.
+Initial Cel properties are not compared with their later state.
 The Layer-owned `layer_select.lua` Module supplies `current_path` for an already
 attached native Layer. Cel, Frame, Sprite inspection, Pixel Patch, and native Paint
 reuse this current stack-index fact. Exact name/path/verified-UUID selection remains
@@ -333,12 +354,15 @@ separate from that observation; tree traversal and composition keep their own ru
 The Cel-owned `is_regular_transparent` predicate is also used by Layer mutation and
 Animation audit where the same eligibility rule applies. Their Group, Background,
 Reference, and Tilemap policies remain with each Operation. Python consumers use
-`spa.authoring.document.cel.raise_cel_rejection` for shared failure translation and
+`spa.authoring.document.cel_contracts.raise_cel_rejection` for shared failure translation and
 supply their own address roles and Frame Ranges. Each handler binding explicitly
 includes the Lua resources these dependencies require, including standalone,
 capability-probe, and Plan paths.
 The shared `sprite_persistence.lua` Module owns native snapshots and their
-persisted-fact comparison. Standalone Cel set/copy/link/unlink and Motion use its
+persisted-fact comparison. It compares Slice collections as complete fact
+multisets, including in nested snapshots, while preserving Slice Key order.
+Slice mutation reuses this comparison for live postconditions and save/reopen.
+Standalone Cel set/copy/link/unlink and Motion use its
 `save_verified` Interface to capture live facts, save, close, reopen, observe saved
 Layer UUIDs, and compare the captured native document snapshot. The Interface
 consumes the live Sprite and returns a reopened Sprite, fresh UUID facts, and
@@ -371,6 +395,18 @@ whole-Image flip and exact pixel/pivot permutation. The Cel-targeted handlers ow
 eligibility, complete Linked Cel scope, coherent placement, unchanged document
 facts, and staged save/reopen verification. Python validates intent and Kernel
 evidence and coordinates the existing Source/Target commit boundary.
+`spa.authoring.raster.image_import` owns compatible external PNG insertion into an
+explicitly empty Cel slot. The PNG input adapter independently observes encoded
+format, Profile metadata, stored indexes, and complete RGBA; it uses Pillow for
+pixel decoding. The use case freezes those input bytes and checks the existing
+Color Profile identities. Its fixed native handler loads a private copy, reuses
+Cel eligibility, the Effective Palette resolver, and Color Profile assignment,
+then inserts through `Sprite:newCel`. It checks complete pixels before insertion
+and after save/reopen, and compares unrelated document facts through the existing
+Profile persistence observations. Python checks the returned evidence against the
+decoded input before the shared Target Commit. Preparation policy and conversion
+remain with their existing owners; this path introduces no importer registry or
+Plan Step. See [the bounded import evidence](docs/evidence/issue-46-raster-import.md).
 `spa.authoring.raster.image_snapshot` owns individual
 and native composite Image reads plus complete Image replacement. Its Lua helpers
 own canonical native pixel reads and Layer Composition over the original tree;
@@ -423,16 +459,26 @@ applies position offsets and opacity keys to existing per-Frame Cels, preserving
 Frame's artwork. It owns explicit sampling, interpolation, rounding, and standalone/Plan
 semantics. Further motion modes need their own accepted scope and native evidence.
 
-The planned [#103](https://github.com/aigengame/aseprite-automation/issues/103) preparation
-slice normalizes inputs to sRGB before applying the caller's palette. It composes native
-Color Profile assignment/conversion from #34 with the shared Image and Color Mode
-capabilities. The issue owns the current input/output matrix, assumptions, and rejection
-rules; this view does not establish installed support.
+`spa.preparation` owns `raster prepare`: explicit initial/reproduce intent, a frozen
+input identity, geometry and named anchors, and a verified reproduction record.
+It admits single-frame 8-bit RGB/RGBA PNG, normalizes to sRGB before binary alpha
+and the caller's ordered Palette, and publishes one RGBA or Indexed PNG. Its fixed
+Kernel handler composes existing Color Profile, Image crop/resize/canvas, Palette,
+Color Mode, and PNG encoding owners. Only binary alpha normalization and opaque
+bounds are new native Raster helpers. Python derives geometry and checks complete
+native/decoded evidence; it does not resample or map pixels. The input decoder also
+verifies the output's representation, sRGB intent, complete Palette, and pixels.
+Reproduction compares frozen bytes, explicit choices, runtime versions, geometry,
+and decoded content before publication, without a registry or cross-runtime promise.
+ICC conversion remains conditional on the Color Profile owner's runtime capability.
+The Color Profile owner supplies one exact ICC identity resolver for its own
+conversion preflight, Image Import, and Preparation; callers keep their refusal policies.
+See [the preparation evidence](docs/evidence/issue-103-raster-preparation.md).
 
 Animation comparison and continuity inspection have a Document and Animation owner;
 the Preview Artifact has Asset Delivery export and publication guarantees. The current
 `spa.authoring.document.animation` use case composes these responsibilities with existing export support.
-Export Image and Animation Preview share `spa.delivery.png_publication`. Its
+Export Image, Animation Preview, and Raster Preparation share `spa.delivery.png_publication`. Its
 `staged_png` scope owns the PNG and native RGBA evidence paths, independent decoding,
 common native/decoded comparisons, verified digest, Source/destination checks,
 publication, and cleanup through inner-owned ports. The File Adapter implements the
@@ -447,6 +493,18 @@ Selection Preview and other Artifact formats retain their existing paths.
 The same distinction applies when a domain-specific observation produces an Artifact:
 the observed concept retains its semantic owner. No duplicate exporter or verifier is
 introduced by the strategic classification.
+
+Image Get, Tile Get, and Tilemap Get share `spa.delivery.snapshot_publication` for
+their single JSON Snapshot Artifact. Its `staged_snapshot` scope owns destination
+normalization, Source separation, staging, and cleanup. `verify` reads the staged
+bytes and records their digest only after the caller's validation succeeds;
+`publish` rechecks Source separation and delegates digest-bound publication to the
+File Adapter. The scope clears its verification state and discards staging on exit.
+Image and Tile retain native invocation, Snapshot types and semantic checks, output
+forms, failure mapping, and Artifact result projection. Image still observes staged
+bytes before parsing native evidence; Tile checks native evidence and scope first.
+Inline and summary reads use no Artifact File Adapter. This bounded lifecycle does
+not add a codec, a format registry, or a native invocation.
 
 An Operation that spans modules is coordinated by Application through public contracts.
 Module dependencies must remain acyclic, but this document does not freeze a complete
@@ -491,6 +549,7 @@ src/spa/
     public.py, operation.py, ports.py
     mutation.py           # Source/Target identity and Target Commit contracts
     artifact.py           # shared publication/verification failure details
+    snapshot.py           # explicit destination for complete JSON Snapshot transport
     digest.py             # one shared native evidence digest binding
     raster.py, rounding.py # shared values and their native bindings
   authoring/
@@ -498,7 +557,7 @@ src/spa/
       sprite.py, layer.py, frame.py, cel.py, cel_relationship.py
       tag.py, animation.py, motion.py
     raster/
-      image.py, image_snapshot.py, selection.py
+      image.py, image_snapshot.py, image_import.py, selection.py
       paint.py, paint_composite.py, paint_native.py
     color/
       palette.py          # Palette reads, Entry edits, sizing, reorder, and remap contracts
@@ -506,13 +565,21 @@ src/spa/
       quantization.py     # explicit native Palette generation contract and evidence
       color_mode.py       # Conditional native conversion contract and evidence
       profile.py          # Native Color Profile contracts and ICC input policy
+    tile/
+      inspection.py, values.py # exact native Tile observations and bounded Snapshot values
+      properties.py       # typed projection of selected native Lua property values
+      lifecycle.py        # keyed Tile mutations and validated native remapping evidence
+  preparation/
+    contracts.py          # explicit Preparation Specification, geometry, and reproduction facts
+    raster.py             # frozen input admission, native composition, verified Artifact publication
   delivery/
     export.py             # Export Image contract, native invocation, and result
     palette.py            # verified Palette file export and explicit generation composition
-    png_publication.py    # staged PNG verification/publication for Export and Preview
+    png_publication.py    # staged PNG verification/publication for Export, Preview, Preparation
   adapters/
     aseprite/             # process, resource discovery, and transport
-    files.py, png.py       # filesystem mechanics and independent PNG decoding
+    files.py, png.py       # filesystem mechanics and export PNG verification
+    png_input.py           # independent encoded PNG input facts and pixels
     icc.py                # ICC byte validation and digest, without color transforms
     palette_file.py       # independent GPL/Indexed PNG observations, not a color engine
   kernel/                 # fixed native semantic handlers and shared owners
@@ -522,7 +589,9 @@ src/spa/
     raster/
       image/, paint/, selection/
       raster_color.lua
+    tile/                 # Tileset identity, topology, validation, complete Tile Regions
     color/                # Palette semantics, native Color Mode and Color Profile operations
+    preparation/          # fixed composition of existing Raster and Color owners
     delivery/             # native Image Export
     runtime/              # runtime and capability probes
       fixtures/           # real native probe inputs
@@ -565,8 +634,52 @@ compares all nested Kernel files with source bytes outside the checkout, includi
 real LFS fixture content. This inventory verifies the distribution and is not an
 Operation registry.
 
-Add a module only with a complete functional slice. Preparation and Tile packages
-have no placeholder implementation. Color and Palette owns the shared Effective
+Add a module only with a complete functional slice. Tile Authoring owns
+`authoring/tile` and `kernel/tile`: Python
+publishes typed inspection, explicit Tileset creation/sharing, and Tilemap Cel contracts, and
+checks evidence before Artifact or Target publication. Lua resolves native Tilesets,
+Tile Keys, Layer bindings, and Tile Cell placements, and constructs explicitly
+sized empty Tilemap Cels. The `layer add` Descriptor
+remains in Document; its Tilemap variant delegates the cross-Layer/Tileset lifecycle
+to Tile Authoring, including exact removal of its own temporary implicit Tileset.
+Shared `document/targets.py` and `tile/targets.py` hold addresses and target failures;
+reads and mutations consume these contracts without importing each other's use cases.
+The native `tile/tilesets.lua` owns exact Tileset resolution and binding facts for
+both paths. Tile Authoring reuses shared Sprite save/reopen verification, adds Tile
+Image preservation checks, and leaves Target Commit to the existing file adapter.
+It depends on Document's shared Layer/Cel contracts and Raster's Pixel Region
+Snapshot encoding for Tile bitmaps. `tile/keys.lua` owns one Key projection and exact
+lookup for reads and writes. `tile/lifecycle.lua` owns append, missing-Key assignment,
+remove, and reorder. It precomputes the complete native index mapping and all affected
+Cel Images, moves complete native Tile records, and updates each shared Image once.
+Opaque author/plugin Properties stay with native Tile records; the observation JSON
+is not a metadata transfer format. A nonzero Tile mapped to Empty becomes packed zero;
+other retained placements keep flags, including existing flagged index-0 observations.
+The native `MoveTiles` command requires a Tilemap Layer; orphan reorder creates and
+removes only its own temporary native context within the mutation transaction.
+Public Tile record lifecycle Operations are standalone in this delivery.
+`tile/tileset_lifecycle.lua` owns explicit Layer rebinding and unreferenced Tileset
+removal. Both standalone and Plan call its live semantics. It resolves used Keys,
+Grid intent, and usage-Frame Palette validity before mutation; it does not copy or
+reconstruct native Tile metadata. Shared document verification and exact Layer
+bindings guard the change and final save/reopen. Python validates typed receipts
+and request correspondence; Plan also reconciles the collection between Steps.
+Scoped Tileset resize remains deferred in #175 pending native preservation evidence.
+
+`tile/regions.lua` owns keyed Set/Patch/Fill intent, complete bounds checks, and
+Indexed compatibility at every affected Cel Frame. It edits a detached Image and
+replaces the original once through the native Cel setter, preserving Linked Cels.
+It reuses Document's affected-Cel observations, Color and Palette's Effective
+Palette resolver, and shared save/reopen verification. `tile/tilemaps.lua` owns
+Cel geometry facts consumed by inspection, explicit Cel creation, and region
+writes. Python checks returned coverage, sharing, identity, and Palette evidence
+before Target Commit. Region Operations are standalone in this delivery.
+Cel mutation and Plan retain staging and Target Commit ownership. The existing
+Tile probe observes empty-Cel save/reopen
+separately from inspection; only explicit Tilemap creation requests require that
+capability. Shared JSON Snapshot destination shape lives in `contracts/snapshot.py`,
+and the scoped publication lifecycle lives in `delivery/snapshot_publication.py`;
+Tile Region values stay in their feature owner. Color and Palette owns the shared Effective
 Palette resolver and standalone Palette list/get/set/resize/remap/reorder. Its native module resolves
 Frame-based change points, edits only exact existing changes, and checks the full
 Palette timeline after shared Sprite persistence completes. This Palette-specific
@@ -608,8 +721,9 @@ Python reads and freezes input ICC bytes through the file adapter and
 validates them through the ICC adapter;
 it does not transform colors. The profile-specific persistence check verifies native
 profile equality, encoded kind, all stored colors, and the complete Palette timeline.
-The bounded encoded-profile reader is shared with Export, whose format policy remains
-separate. This preserves encoded None despite Aseprite's batch load default and adds
+The bounded encoded-profile reader is shared with Export. Import supplies its own
+independently decoded PNG declaration to the same native assignment helper; each
+consumer retains its format policy. This preserves encoded None despite Aseprite's batch load default and adds
 no general profile or preference service. See the [native evidence](docs/evidence/issue-34-color-profile.md).
 
 Reuse the canonical
@@ -632,7 +746,11 @@ orchestrates existing Artifact staging, independent JSON/PNG verification, and
 publication. No persistent editor Selection or second Mask engine is introduced.
 
 Native Filters share target observations, Cel writeback checks, and staged Target
-publication in `authoring/raster/filter.py`. Brightness/Contrast and Hue/Saturation
+publication in `authoring/raster/filter.py`. Its `FilterTargetObservations` owns
+intersection consistency and request-to-evidence target/Selection correspondence for
+all seven Filter Operations before Target Commit. Selection checks establish feasible
+coverage from the declared facts; live Layer resolution and actual Canvas clipping
+remain in the Kernel. Brightness/Contrast and Hue/Saturation
 also share their palette-aware application variants. `pixel_filter.py` owns the
 fixed-pixel request/evidence subset for Color Curve and Replace Color, without a
 public application selector. Each operation keeps its adjustment schema and native
@@ -685,6 +803,13 @@ Kernel records direct requested/observed Channel probes, and `RuntimeFacts`
 transports both observations. Raster Authoring provides the Convolution gap evidence;
 the installed Surface Manifest reports the applicable Capability Gap. No descriptor,
 custom convolution engine, or general resource registry is added.
+
+Native text rasterization is also discovery-only under issue #47. Raster Authoring
+owns the retained Capability Gap evidence; `surface.py` projects it through
+`info` and `schema` without a text Descriptor or schema. The
+[bounded macOS investigation](docs/evidence/issue-47-native-text.md) is separate
+from selected-runtime identity. Text probes are manual evidence fixtures, not
+packaged discovery resources, so discovery never repeats the known crash.
 
 Brightness/Contrast passes the concrete `filter_tiles.lua` module into the shared
 execution path. It owns Manual Tilemap admission, preserved placement/binding/Grid
@@ -1132,7 +1257,7 @@ Milestones group phase outcomes, and explicit issue dependencies determine imple
 order.
 
 ADR-0095 adds preparation and reusable motion as bounded follow-up work and reclassifies
-existing Delivery. Issue #103 owns the planned preparation contract. The #104 motion
+existing Delivery. Issue #103 owns the delivered bounded preparation contract. The #104 motion
 slice verifies wizard and floating-emblem fixtures through standalone and Plan
 execution; its [performance evidence](docs/evidence/issue-104-motion-performance.md)
 reports a bounded local workload. Existing

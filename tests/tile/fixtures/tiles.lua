@@ -1,0 +1,81 @@
+local modes = { rgb = ColorMode.RGB, grayscale = ColorMode.GRAY, indexed = ColorMode.INDEXED }
+local mode = modes[app.params.mode or "rgb"]
+local s = Sprite(16, 16, mode)
+if app.params.uuids then s.useLayerUuids = app.params.uuids == "true" end
+if mode == ColorMode.INDEXED and app.params.transparent then
+  s.transparentColor = tonumber(app.params.transparent)
+end
+s.gridBounds =
+  Rectangle(0, 0, tonumber(app.params.tile_width or "2"), tonumber(app.params.tile_height or "3"))
+app.activeSprite = s
+app.command.NewLayer { tilemap = true, ui = false }
+local first = app.activeLayer
+first.name = "map"
+local ts = first.tileset
+ts.name = "terrain"
+ts.baseIndex = tonumber(app.params.base_index or "1")
+for index = 1, 4 do
+  local tile = s:newTile(ts)
+  tile.image:clear(mode == ColorMode.RGB and app.pixelColor.rgba(index * 40, 30, 20, 255) or index)
+  if index ~= 3 then
+    tile.properties("aigengame.spa").tile_key = index == 4 and "red" or ({ "red", "green" })[index]
+  end
+end
+if app.params.properties == "true" then
+  local props = ts:tile(2).properties
+  props.title = "stone"
+  props.visible = true
+  props.integer = 9007199254740993
+  props.ratio = 1.25
+  props.anchor = Point(2, -3)
+  props.extent = Size(4, 5)
+  props.bounds = Rectangle(1, 2, 3, 4)
+  props.uuid = Uuid("01234567-89ab-cdef-0123-456789abcdef")
+  props.nested = { label = "nested", offset = Point(4, 6) }
+  props.sequence = { "first", "second" }
+  props.empty = {}
+  props.infinity = math.huge
+  props("example.tiles").walkable = true
+  props("not.requested").private = "not selected"
+  ts.properties("aigengame.spa").tile_key = "tileset metadata"
+end
+if app.params.byte_property == "value" then
+  ts:tile(2).properties.binary = string.char(255, 254)
+elseif app.params.byte_property == "nested-key" then
+  ts:tile(2).properties.binary = { [string.char(255, 254)] = "retained value" }
+elseif app.params.byte_property == "root-key" then
+  ts:tile(2).properties[string.char(255, 254)] = "retained value"
+elseif app.params.byte_property == "tile-key" then
+  ts:tile(2).properties("aigengame.spa").tile_key = string.char(255, 254)
+end
+local mw, mh = tonumber(app.params.map_width or "3"), tonumber(app.params.map_height or "2")
+local m = Image(mw, mh, ColorMode.TILEMAP)
+m:clear(0)
+m:putPixel(0, 0, 1)
+m:putPixel(2, 0, 2 | 0x80000000)
+m:putPixel(0, 1, 3 | 0x60000000)
+m:putPixel(2, 1, 4 | 0xe0000000)
+if mw > 3 then m:putPixel(mw - 1, mh - 1, 2) end
+if app.params.invalid_index == "true" then m:putPixel(1, 0, 99 | 0x80000000) end
+if app.params.flagged_zero == "true" then
+  ts:tile(0).image:clear(app.pixelColor.rgba(255, 0, 0, 255))
+  m:putPixel(1, 0, 0xe0000000)
+end
+s:newCel(first, 1, m, Point(-5, 7))
+s:newEmptyFrame()
+app.activeLayer = first
+app.command.NewLayer { tilemap = true, ui = false }
+local shared = app.activeLayer
+shared.name = "shared"
+shared.tileset = ts
+s:newCel(shared, 2, Image(m), Point(3, -2))
+local extra = s:newTileset(Grid { x = 0, y = 0, width = 4, height = 4 })
+extra.name = app.params.duplicate_name == "true" and "terrain" or "orphan"
+if app.params.group == "true" then
+  local group = s:newGroup()
+  group.name = "parent"
+  local child = s:newLayer()
+  child.name, child.parent = "existing child", group
+end
+assert(s:saveAs(app.params.source))
+s:close()

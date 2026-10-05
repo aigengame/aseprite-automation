@@ -55,7 +55,7 @@ better Aseprite-aligned evidence.
 | --- | --- |
 | `spa layer list` | List the native Layer hierarchy and current address facts. |
 | `spa layer get` | Inspect one exactly addressed Layer. |
-| `spa layer add` | Add a regular Transparent or Group Layer; Tilemap creation belongs to its own slice. |
+| `spa layer add` | Add a regular Transparent, Group, or Tilemap Layer; Tilemap uses explicit Tileset create/share intent (#42). |
 | `spa layer remove` | Remove one exactly addressed Layer and its subtree; reject Tilemap content in this slice. |
 | `spa layer set` | Set name, visibility, or editability on a regular Transparent Image or Group; set opacity or blend mode only on a regular Transparent Image. |
 | `spa layer move` | Reorder one regular Transparent Image or Group among its current parent's children. |
@@ -211,14 +211,16 @@ does not add other motion modes or recipe-owned pose and particle behavior.
 | `spa tileset add` | Add a named Tileset with explicit Grid and Base Index. |
 | `spa tileset set` | Set supported writable Tileset properties. |
 | `spa tileset remove` | Remove one unreferenced Tileset. |
-| `spa tileset resize` | Replace a Tileset under explicit image, Grid, Cel, and placement policies. |
+| `spa tileset resize` | Deferred in #175 pending verified scoped native preservation; planned explicit image, Grid, Cel, and placement policies. |
 | `spa tileset tile get` | Inspect a Tile by key or current index. |
 | `spa tileset tile add` | Append a keyed non-empty Tile from typed Image input. |
+| `spa tileset tile assign-key` | Assign a unique missing Key to one current nonzero Tile Index. |
 | `spa tileset tile set-key` | Assign or change one Tile Key explicitly. |
 | `spa tileset tile set` | Set a keyed Tile's Image or native properties. |
 | `spa tileset tile remove` | Remove a Tile and explicitly rewrite affected placements. |
 | `spa tileset tile reorder` | Reorder every keyed non-empty Tile through a complete permutation. |
 | `spa tileset validate` | Validate Grid, references, indexes, keys, and Tile rules. |
+| `spa tilemap list` | List complete Tilemap Layer bindings and existing Cel topology. |
 | `spa tilemap get` | Inspect topology or one bounded Tile Region Snapshot. |
 | `spa tilemap set` | Replace a complete Tile Cell Rectangle. |
 | `spa tilemap patch` | Change listed Tile Cells and preserve the rest. |
@@ -248,21 +250,21 @@ does not add other motion modes or recipe-owned pose and particle behavior.
 | --- | --- |
 | `spa script run` | Execute exact caller-owned Lua under the documented trust boundary. |
 
-## Unresolved candidate groups
-
-### Preparation
+## Preparation
 
 [ADR-0095](adr/0095-asset-preparation-authoring-and-delivery.md) assigns Asset
 Preparation to a Supporting Subdomain and Bounded Motion Authoring to Document and
-Animation. Candidate intents are preparing a selected raster under explicit geometry,
-color, transparency, and anchor rules, and verifying frozen input facts. Feature issue
-[#103](https://github.com/aigengame/aseprite-automation/issues/103) owns that accepted
-planned contract and the choice of command spellings during implementation. Its
-alignment does not establish installed support. Bounded Cel motion is listed above.
-This catalog adds no
+Animation. `spa raster prepare` prepares a frozen RGB/RGBA PNG under explicit
+geometry, color, transparency, and named-anchor rules, then verifies and publishes
+one RGBA or Indexed PNG with a reproduction record. Feature issue
+[#103](https://github.com/aigengame/aseprite-automation/issues/103) owns the bounded
+feature matrix; the installed Descriptor owns callable schemas and runtime requirements.
+Bounded Cel motion is listed above. This catalog adds no
 `preprocess`/`postprocess` command surface, provider API, or general workflow engine.
 Existing `export` candidates belong to Asset Delivery and retain their separate format
 contracts.
+
+## Unresolved candidate groups
 
 ### Rasterized text
 

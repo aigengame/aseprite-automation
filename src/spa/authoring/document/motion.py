@@ -7,8 +7,7 @@ from typing import Literal, Self
 from pydantic import Field, ValidationError, model_validator
 
 from spa.application.mutation import prepare_mutation
-from spa.authoring.document.cel import (
-    CEL_SELECT_RESOURCE,
+from spa.authoring.document.cel_contracts import (
     CEL_SUPPORT_RESOURCE,
     CelAddress,
     CelState,
@@ -19,7 +18,7 @@ from spa.authoring.document.cel_relationship import CelRelationshipRequest
 from spa.authoring.document.layer import LAYER_ADDRESS_FAILURE_CODES, LayerAddress
 from spa.authoring.document.sprite import (
     INSPECTION_SECTIONS,
-    SPRITE_INSPECTION_RESOURCE,
+    SPRITE_INSPECTION_RESOURCES,
     SPRITE_PERSISTENCE_RESOURCE,
     SpriteGetRequest,
     SpriteInspection,
@@ -148,9 +147,8 @@ MOTION_FAILURE_CODES = (
 )
 MOTION_RESOURCE = PackagedResource("motion", "document/animation/motion_support.lua")
 MOTION_RESOURCES = (
-    SPRITE_INSPECTION_RESOURCE,
+    *SPRITE_INSPECTION_RESOURCES,
     SPRITE_PERSISTENCE_RESOURCE,
-    CEL_SELECT_RESOURCE,
     CEL_SUPPORT_RESOURCE,
     ROUNDING_RESOURCE,
     DIGEST_RESOURCE,

@@ -6,7 +6,7 @@ from typing import Annotated, Literal
 from pydantic import Field, ValidationError, field_validator, model_validator
 
 from spa.authoring.color.palette import EFFECTIVE_PALETTE_RESOURCE
-from spa.authoring.document.cel import (
+from spa.authoring.document.cel_contracts import (
     CEL_SUPPORT_RESOURCE,
     CelAddress,
     CelFrameRangeDetails,
@@ -15,12 +15,11 @@ from spa.authoring.document.cel import (
 )
 from spa.authoring.document.layer import (
     LAYER_ADDRESS_FAILURE_CODES,
-    LAYER_SELECT_RESOURCE,
     LayerAddress,
 )
 from spa.authoring.document.sprite import (
     INSPECTION_SECTIONS,
-    SPRITE_INSPECTION_RESOURCE,
+    SPRITE_INSPECTION_RESOURCES,
     SPRITE_PERSISTENCE_RESOURCE,
     SpriteGetRequest,
     SpriteInspection,
@@ -35,6 +34,7 @@ from spa.contracts.mutation import (
 )
 from spa.contracts.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.contracts.ports import (
+    KernelInvocationResult,
     OperationIssue,
     OperationServices,
     PackagedHandler,
@@ -59,17 +59,10 @@ from spa.contracts.raster import (
     PositiveRectangle,
     Size,
 )
+from spa.contracts.snapshot import SnapshotDestination
+from spa.delivery.snapshot_publication import staged_snapshot
 
 INLINE_SNAPSHOT_PIXELS = 4096
-
-
-class SnapshotDestination(PublicModel):
-    path: str = Field(
-        min_length=6,
-        pattern=r"^[^\x00\r\n]+\.json$",
-        json_schema_extra={"not": {"pattern": r"[\r\n]"}},
-    )
-    if_exists: Literal["fail", "replace"]
 
 
 class SnapshotArtifact(PublicModel):
@@ -297,8 +290,7 @@ COMPOSITION_RESOURCE = PackagedResource(
     "layer_composition", "raster/image/layer_composition.lua"
 )
 SNAPSHOT_SUPPORT_RESOURCES = (
-    SPRITE_INSPECTION_RESOURCE,
-    LAYER_SELECT_RESOURCE,
+    *SPRITE_INSPECTION_RESOURCES,
     CEL_SUPPORT_RESOURCE,
     SNAPSHOT_RESOURCE,
     RASTER_COLOR_RESOURCE,
@@ -411,87 +403,75 @@ def _source_matches(
     return False
 
 
-def get_image(request: ImageGetRequest, services: OperationServices) -> ImageGetResult:
-    files = services.artifact_files
-    destination, staged = None, None
-    if request.snapshot_destination is not None:
-        assert files is not None
-        destination = files.normalize_destination(request.snapshot_destination.path)
-        files.ensure_source_separate(Path(request.sprite_file), destination)
-        staged = files.staged_path(
-            destination, if_exists=request.snapshot_destination.if_exists
-        )
+def _get_evidence(
+    request: ImageGetRequest,
+    invocation: KernelInvocationResult,
+    contents: bytes | None,
+) -> ImageGetEvidence:
     try:
+        evidence = ImageGetEvidence.model_validate(invocation.payload)
+        value = (
+            PixelRegionSnapshot.model_validate_json(contents)
+            if contents is not None
+            else evidence.snapshot
+        )
+        if (
+            value is None
+            or not _source_matches(request.source, evidence.source)
+            or evidence.width != value.rectangle.width
+            or evidence.height != value.rectangle.height
+            or evidence.color_mode != value.color_mode
+            or evidence.width != request.source.rectangle.width
+            or evidence.height != request.source.rectangle.height
+            or ((evidence.snapshot is None) != (contents is not None))
+        ):
+            raise ValueError("Image Get source or Snapshot differs from request")
+    except (ValueError, ValidationError) as exc:
+        raise RuntimeIssue(
+            "response_malformed",
+            f"Invalid Image Get evidence: {exc}",
+            ResponseEvidence(invocation.response_path),
+            invocation.diagnostics,
+        ) from exc
+    return evidence
+
+
+def get_image(request: ImageGetRequest, services: OperationServices) -> ImageGetResult:
+    with staged_snapshot(
+        services.artifact_files,
+        source=Path(request.sprite_file),
+        destination=request.snapshot_destination,
+    ) as staged:
         observation = services.probe_runtime(request)
         payload = {
             "sprite_file": request.sprite_file,
             "source": request.source.model_dump(mode="json", exclude_none=True),
         }
         if staged is not None:
-            payload["staged_snapshot_file"] = str(staged)
+            payload["staged_snapshot_file"] = str(staged.path)
         invocation = services.invoke_kernel(
             observation, IMAGE_GET_HANDLER, payload, request.timeout_seconds
         )
         _reject_get(invocation, request.source)
         artifact = None
-        staged_payload = (
-            files.read_staged(staged)
-            if staged is not None and files is not None
-            else None
-        )
-        try:
-            evidence = ImageGetEvidence.model_validate(invocation.payload)
-            value = (
-                PixelRegionSnapshot.model_validate_json(staged_payload.payload)
-                if staged_payload is not None
-                else evidence.snapshot
-            )
-            if (
-                value is None
-                or not _source_matches(request.source, evidence.source)
-                or evidence.width != value.rectangle.width
-                or evidence.height != value.rectangle.height
-                or evidence.color_mode != value.color_mode
-                or evidence.width != request.source.rectangle.width
-                or evidence.height != request.source.rectangle.height
-                or ((evidence.snapshot is None) != (staged is not None))
-            ):
-                raise ValueError("Image Get source or Snapshot differs from request")
-        except (ValueError, ValidationError) as exc:
-            raise RuntimeIssue(
-                "response_malformed",
-                f"Invalid Image Get evidence: {exc}",
-                ResponseEvidence(invocation.response_path),
-                invocation.diagnostics,
-            ) from exc
         if staged is not None:
-            assert (
-                files is not None
-                and destination is not None
-                and staged_payload is not None
+            evidence = staged.verify(
+                lambda contents: _get_evidence(request, invocation, contents)
             )
-            assert request.snapshot_destination is not None
-            files.ensure_source_separate(Path(request.sprite_file), destination)
-            published = files.publish(
-                staged,
-                destination,
-                if_exists=request.snapshot_destination.if_exists,
-                sha256=staged_payload.sha256,
-            )
+            published = staged.publish()
             artifact = SnapshotArtifact(
                 path=published.path,
                 byte_size=published.byte_size,
                 sha256=published.sha256,
             )
+        else:
+            evidence = _get_evidence(request, invocation, None)
         return ImageGetResult(
             sprite_file=request.sprite_file,
             **evidence.model_dump(),
             output_form="artifact" if artifact else "inline",
             artifact=artifact,
         )
-    finally:
-        if staged is not None and files is not None:
-            files.discard(staged)
 
 
 def replace_image(

@@ -5,6 +5,12 @@ local creation = dofile(app.params.creation)
 local paint = dofile(app.params.paint)
 local frame = dofile(app.params.frame)
 local cel = dofile(app.params.cel)
+local tile_creation = dofile(app.params.tile_cel_add)
+local tileset_lifecycle = dofile(app.params.tileset_lifecycle)
+local tileset_operations = {
+  ["layer set-tileset"] = tileset_lifecycle.rebind_live,
+  ["tileset remove"] = tileset_lifecycle.remove_live,
+}
 local relationship = dofile(app.params.cel_relationship)
 local motion = dofile(app.params.motion)
 local layer_select = dofile(app.params.layer_select)
@@ -140,7 +146,7 @@ local function execute_step(step)
     return evidence
   end
   if step.operation == "cel add" then
-    return cel.add_live(open_sprite, input, layer_select, verified_uuids)
+    return cel.add_live(open_sprite, input, layer_select, verified_uuids, tile_creation.add)
   end
   if step.operation == "cel set" then
     local result = relationship.apply_live(
@@ -149,6 +155,12 @@ local function execute_step(step)
       { target = input.target, changes = input },
       verified_uuids
     )
+    if result.rejection == nil then result.persisted_reopen_verified = false end
+    return result
+  end
+  local tileset_operation = tileset_operations[step.operation]
+  if tileset_operation then
+    local result = tileset_operation(open_sprite, input, verified_uuids)
     if result.rejection == nil then result.persisted_reopen_verified = false end
     return result
   end
@@ -177,8 +189,10 @@ local function execute()
   verify_runtime(requirements)
   assert(payload.steps ~= nil and #payload.steps > 0, "Plan has no Steps")
   local profile_steps = false
+  local tileset_steps = false
   for _, step in ipairs(payload.steps) do
     if profile_operations[step.operation] then profile_steps = true end
+    if tileset_operations[step.operation] then tileset_steps = true end
   end
   if type(payload.source_sprite_file) == "string" then
     open_sprite = assert(app.open(payload.source_sprite_file), "could not open Source Sprite File")
@@ -202,6 +216,9 @@ local function execute()
       open_sprite = nil
       if profile_operations[step.operation] then
         return { profile_rejection = { step_number = index, rejection = result.rejection } }
+      end
+      if tileset_operations[step.operation] then
+        return { tileset_rejection = { step_number = index, rejection = result.rejection } }
       end
       return {
         cel_rejection = {
@@ -227,6 +244,9 @@ local function execute()
   local before = persistence.snapshot(open_sprite, inspection, digest, all_sections, verified_uuids)
   local converted_document = converted and color_mode.observe(open_sprite) or nil
   local profile_before = profile_steps and profiles.snapshot(open_sprite, verified_uuids) or nil
+  local tileset_before = tileset_steps
+      and tileset_lifecycle.checkpoint(open_sprite, verified_uuids, before)
+    or nil
   local persisted = false
   if type(payload.staged_sprite_file) == "string" then
     assert(open_sprite:saveAs(payload.staged_sprite_file), "could not save staged Sprite")
@@ -241,6 +261,9 @@ local function execute()
     local after =
       persistence.snapshot(open_sprite, inspection, digest, all_sections, verified_uuids)
     persistence.assert_same(before, after, "Plan")
+    if tileset_before then
+      tileset_lifecycle.verify_saved(open_sprite, tileset_before, verified_uuids, after)
+    end
     if converted_document then
       persistence.assert_equal(
         converted_document,

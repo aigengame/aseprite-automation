@@ -175,6 +175,27 @@ PngVerifier = Callable[[bytes, Path], PngFacts]
 
 
 @dataclass(frozen=True)
+class PngInputFacts:
+    width: int
+    height: int
+    color_mode: Literal["rgb", "indexed"]
+    rgba_bytes: bytes
+    stored_bytes: bytes
+    entries: tuple[tuple[int, int, int, int], ...]
+    color_profile: Literal["none", "srgb", "icc"]
+    icc_bytes: bytes | None
+    color_type: int | None = None
+    srgb_rendering_intent: int | None = None
+
+
+class PngInputError(ValueError):
+    """The bytes do not represent a supported, valid raster input PNG."""
+
+
+PngInputDecoder = Callable[[bytes], PngInputFacts]
+
+
+@dataclass(frozen=True)
 class IccFacts:
     byte_size: int
     sha256: str
@@ -212,6 +233,7 @@ class OperationServices:
     verify_icc: IccVerifier | None = None
     invoke_kernel_direct: DirectKernelInvoker | None = None
     decode_palette_file: PaletteFileDecoder | None = None
+    decode_png_input: PngInputDecoder | None = None
 
 
 @dataclass(frozen=True)

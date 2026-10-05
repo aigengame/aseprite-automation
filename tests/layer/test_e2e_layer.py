@@ -2,7 +2,6 @@
 
 import json
 import os
-import struct
 import subprocess
 import tempfile
 from pathlib import Path
@@ -11,7 +10,7 @@ import pytest
 from jsonschema import validate
 
 from spa.adapters.aseprite.invocation import prepare_invocation
-from tests.support import process_diagnostics, spa
+from tests.support import clear_first_saved_layer_uuid, process_diagnostics, spa
 
 pytestmark = pytest.mark.e2e
 
@@ -49,32 +48,6 @@ def _run(command: str, request: dict[str, object]) -> tuple[int, dict]:
     request["aseprite"] = os.environ["SPA_TEST_ASEPRITE"]
     result = spa("layer", command, "--input-json", json.dumps(request))
     return result.returncode, json.loads(result.stdout)
-
-
-def _clear_duplicate_uuid(source: Path) -> None:
-    """Simulate an accepted file with one absent persisted Layer UUID."""
-    payload = bytearray(source.read_bytes())
-    frame_offset = 128
-    frame_size, frame_magic, chunk_count = struct.unpack_from(
-        "<IHH", payload, frame_offset
-    )
-    assert frame_magic == 0xF1FA and frame_size > 16
-    chunk_offset = frame_offset + 16
-    for _ in range(chunk_count):
-        chunk_size, chunk_type = struct.unpack_from("<IH", payload, chunk_offset)
-        assert chunk_size >= 6
-        if chunk_type == 0x2004:
-            assert chunk_size >= 24
-            name_length = struct.unpack_from("<H", payload, chunk_offset + 22)[0]
-            name = payload[chunk_offset + 24 : chunk_offset + 24 + name_length]
-            if name == b"duplicate":
-                uuid_offset = chunk_offset + 24 + name_length
-                assert any(payload[uuid_offset : uuid_offset + 16])
-                payload[uuid_offset : uuid_offset + 16] = bytes(16)
-                source.write_bytes(payload)
-                return
-        chunk_offset += chunk_size
-    raise AssertionError("fixture has no root duplicate Layer chunk")
 
 
 @pytest.mark.parametrize("persist", [False, True])
@@ -233,7 +206,7 @@ def test_zero_saved_uuid_is_not_exposed_as_persistent_identity(tmp_path: Path) -
     assert code == 0
     old_uuid = original["layers"][1]["layer_uuid"]
     assert isinstance(old_uuid, str)
-    _clear_duplicate_uuid(source)
+    clear_first_saved_layer_uuid(source, "duplicate")
 
     for _ in range(2):
         code, listing = _run("list", {"sprite_file": str(source)})
@@ -286,7 +259,7 @@ def test_plan_sprite_get_preserves_verified_layer_uuids(
     source = tmp_path / "source.aseprite"
     _fixture(source, uuid_persistence=True)
     if zero_saved_uuid:
-        _clear_duplicate_uuid(source)
+        clear_first_saved_layer_uuid(source, "duplicate")
     direct = spa(
         "sprite",
         "get",

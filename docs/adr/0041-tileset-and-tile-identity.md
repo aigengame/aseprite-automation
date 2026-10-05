@@ -39,7 +39,8 @@ index changes.
 - SPA publishes Aseprite's persisted `Tileset.baseIndex` as `base_index` and reports
   its display role. It is never accepted as an address or Tile Index.
 - `tile_index` is Aseprite's native zero-based Tile position. Index 0 is the Empty
-  Tile, cannot be removed, and has no Tile Key.
+  Tile, cannot be removed, and has no Tile Key. Empty Cell detection uses the full
+  packed value, as defined by ADR-0044; an index of zero alone is insufficient.
 - `tile_key` is a caller-supplied, non-empty string stored in the documented,
   versioned `aigengame.spa` Tile properties namespace. It must be unique among the
   non-empty Tiles of one Tileset; it is not globally unique.
@@ -50,9 +51,18 @@ index changes.
   Tile Key. Persistent Tile references and Tile Placements use Tile Key within an
   exactly resolved Tileset. Results return both the Key and current Tile Index.
 - A missing Key fails as not found and a duplicate Key fails as ambiguous. Validation
-  can report missing or duplicate Keys as Findings without making the Sprite unreadable.
+  reports missing, invalid, or duplicate Keys as Findings without making the Sprite
+  unreadable. Identity fields use the same property projection; an unrepresentable
+  Key remains observable through its property result and has a null identity field.
 - Fixed Tile Operations preserve generic Tile user data and unrelated author or
   plugin properties when writing the SPA namespace.
+- Property observation and native user-data preservation have separate responsibilities.
+  Tile Authoring owns one conversion from the public Lua Properties API to typed
+  observations within an explicit namespace scope. It reports what Lua retains,
+  without inferring file storage types or reconstructing information already lost
+  by the native API. Issue #41 defines the current reading subset for inspection
+  and authoring assistance. Later accepted needs can extend that subset within
+  native Aseprite capabilities; the boundary is not a permanent feature prohibition.
 - Any Operation that changes Tile Indexes must preserve or explicitly replace every
   affected Tile Placement. It cannot reinterpret unchanged numeric indexes as identity.
 

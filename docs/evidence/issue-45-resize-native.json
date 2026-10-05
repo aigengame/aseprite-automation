@@ -1,0 +1,151 @@
+{
+  "api": 41,
+  "cases": [
+    {
+      "name": "batch-layer-copy-paste",
+      "ok": true,
+      "result": {
+        "copy": false,
+        "layers": 1,
+        "paste": false,
+        "range_type": 4,
+        "tilesets": 0
+      }
+    },
+    {
+      "name": "sprite-clone-and-tile0-restore",
+      "ok": true,
+      "result": {
+        "before": {
+          "base": 1,
+          "one": {
+            "binary": true,
+            "color": 3355640321,
+            "data": "tile1",
+            "int64": true,
+            "note": "tile1",
+            "point": true
+          },
+          "ts": {
+            "binary": true,
+            "color": 3355640321,
+            "data": "tileset",
+            "int64": true,
+            "note": "tile0",
+            "point": true
+          },
+          "zero": {
+            "binary": true,
+            "color": 3355640321,
+            "data": "tile0",
+            "int64": true,
+            "note": "tile0",
+            "point": true
+          }
+        },
+        "reopened": {
+          "base": 77,
+          "one": {
+            "binary": true,
+            "color": 3355640321,
+            "data": "tile1",
+            "int64": true,
+            "note": "tile1",
+            "point": true
+          },
+          "ts": {
+            "binary": true,
+            "color": 3355640321,
+            "data": "tileset",
+            "int64": true,
+            "note": "tile0",
+            "point": true
+          },
+          "zero": {
+            "binary": true,
+            "color": 3355640321,
+            "data": "tile0",
+            "int64": true,
+            "note": "tile0",
+            "point": true
+          }
+        },
+        "resized": {
+          "base": 1,
+          "one": {
+            "binary": true,
+            "color": 3355640321,
+            "data": "tile1",
+            "int64": true,
+            "note": "tile1",
+            "point": true
+          },
+          "ts": {
+            "binary": true,
+            "color": 3355640321,
+            "data": "tileset",
+            "int64": true,
+            "note": "tile0",
+            "point": true
+          },
+          "zero": {
+            "binary": true,
+            "color": 0,
+            "data": "",
+            "int64": true,
+            "note": "tile0",
+            "point": true
+          }
+        },
+        "restored": {
+          "base": 77,
+          "one": {
+            "binary": true,
+            "color": 3355640321,
+            "data": "tile1",
+            "int64": true,
+            "note": "tile1",
+            "point": true
+          },
+          "ts": {
+            "binary": true,
+            "color": 3355640321,
+            "data": "tileset",
+            "int64": true,
+            "note": "tile0",
+            "point": true
+          },
+          "zero": {
+            "binary": true,
+            "color": 3355640321,
+            "data": "tile0",
+            "int64": true,
+            "note": "tile0",
+            "point": true
+          }
+        }
+      }
+    },
+    {
+      "name": "tile0-opaque-default-properties",
+      "ok": true,
+      "result": {
+        "getter": [],
+        "native_file_markers": "Verified by read-only Python byte search in markers.json",
+        "restored_color": 3355640321,
+        "restored_data": "tile0"
+      }
+    },
+    {
+      "name": "public-cross-sprite-transfer",
+      "ok": true,
+      "result": {
+        "clone_error": "/private/tmp/spa45-resize-experiment/probe.lua:77: cannot duplicate a tileset that belongs to another sprite",
+        "clone_ok": false,
+        "layer_error": "[string \"internal\"]:1: you cannot move layers between sprites",
+        "layer_ok": false
+      }
+    }
+  ],
+  "runtime": "1.3.18.5-dev"
+}

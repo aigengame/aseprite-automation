@@ -54,6 +54,7 @@ class OperationDescriptor[RequestT: BaseModel, ResultT: BaseModel]:
     side_effects: tuple[str, ...] = ()
     plan_eligible: bool = False
     probe_before_execute: bool = True
+    help_summary: str | None = None
 
     def __post_init__(self) -> None:
         command = f"spa {self.name}"

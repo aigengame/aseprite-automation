@@ -42,17 +42,18 @@ PROFILE_ICC_RESOURCES = (
     PackagedResource("profile_display_p3", "color/profiles/display_p3.icc"),
 )
 PROFILE_RESOURCE = PackagedResource("color_profile", "color/profile.lua")
+PROFILE_RESOURCES = (
+    *SPRITE_INSPECTION_RESOURCES,
+    SPRITE_PERSISTENCE_RESOURCE,
+    DIGEST_RESOURCE,
+    PROFILE_RESOURCE,
+    PROFILE_FILE_RESOURCE,
+    *PROFILE_ICC_RESOURCES,
+)
 PROFILE_HANDLER = PackagedHandler(
     "color_profile",
     "color/profile_mutation.lua",
-    (
-        *SPRITE_INSPECTION_RESOURCES,
-        SPRITE_PERSISTENCE_RESOURCE,
-        DIGEST_RESOURCE,
-        PROFILE_RESOURCE,
-        PROFILE_FILE_RESOURCE,
-        *PROFILE_ICC_RESOURCES,
-    ),
+    PROFILE_RESOURCES,
 )
 
 
@@ -115,6 +116,26 @@ PROFILE_FAILURE_SPECS = (
 )
 
 
+def supported_icc_identity(payload: bytes) -> str | None:
+    """Identify exact supported ICC bytes using the Color Profile owner's resources."""
+    package = packaged_files("spa.kernel")
+    references = [package.joinpath(item.package_path) for item in PROFILE_ICC_RESOURCES]
+    try:
+        contents = tuple(reference.read_bytes() for reference in references)
+    except OSError as exc:
+        raise RuntimeIssue(
+            "resources_absent",
+            "Packaged Color Profile resources could not be read",
+            ResourceEvidence(
+                canonical_path=str(package), searched=[str(item) for item in references]
+            ),
+        ) from exc
+    for resource, content in zip(PROFILE_ICC_RESOURCES, contents):
+        if content == payload:
+            return Path(resource.package_path).stem
+    return None
+
+
 def profile_payload(
     request: AssignProfileInput | ConvertProfileInput,
     services: OperationServices,
@@ -153,32 +174,16 @@ def profile_payload(
                 path=path, reason="unsupported_color_space", step_number=step_number
             ),
         )
-    if isinstance(request, ConvertProfileInput):
-        # Preflight derives target membership from the same immutable files sent
-        # to Lua. Source identity and directed pairs still require live state.
-        package = packaged_files("spa.kernel")
-        references = [
-            package.joinpath(item.package_path) for item in PROFILE_ICC_RESOURCES
-        ]
-        try:
-            admitted = raw in tuple(reference.read_bytes() for reference in references)
-        except OSError as exc:
-            raise RuntimeIssue(
-                "resources_absent",
-                "Packaged Color Profile resources could not be read",
-                ResourceEvidence(
-                    canonical_path=str(package),
-                    searched=[str(item) for item in references],
-                ),
-            ) from exc
-        if not admitted:
-            raise OperationIssue(
-                "color_profile_file_failed",
-                "The requested ICC is outside the supported conversion set",
-                ProfileFileDetails(
-                    path=path, reason="unsupported_profile", step_number=step_number
-                ),
-            )
+    # Preflight derives target membership from the same immutable files sent
+    # to Lua. Source identity and directed pairs still require live state.
+    if isinstance(request, ConvertProfileInput) and supported_icc_identity(raw) is None:
+        raise OperationIssue(
+            "color_profile_file_failed",
+            "The requested ICC is outside the supported conversion set",
+            ProfileFileDetails(
+                path=path, reason="unsupported_profile", step_number=step_number
+            ),
+        )
     result["icc_bytes"] = raw.hex()
     result["icc_file"] = {
         "path": path,

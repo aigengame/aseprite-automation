@@ -1,7 +1,23 @@
 # Test suite
 
+For native text, `tests/paint/test_e2e_text_discovery.py` verifies the installed
+Capability Gap and absence of false callability. The [issue #47 investigation](evidence/issue-47-native-text.md)
+retains manual native pixel and save/reopen observations. Its text fixture is not
+part of routine discovery or pytest; neither installed discovery nor CI needs to
+repeat the known crash.
+
 SPA organizes tests first by the behavior owner and then names each test file by its
 verification tier. The layout does not mirror source packages or CLI Command Groups.
+
+Tileset lifecycle #45 adds public rebind/remove E2E and an independent native oracle
+for flags, Linked Cels, unchanged shared Layers, native properties, and save/reopen.
+Indexed tests cover Palette validity in each actual usage Frame, including linked
+Frames and different valid Palettes. Fixtures with different Palette lengths use
+an alpha-bearing entry so native serialization retains the modern Palette chunk;
+all-opaque legacy chunks do not encode length. A failed persistence check still
+refuses publication. Plan tests cover rebind-all/remove, collection reindexing,
+Step-time Cel creation receipts, one commit, malformed evidence, and later failure
+with Source and an existing Target preserved.
 
 ## Ownership areas
 
@@ -16,15 +32,19 @@ verification tier. The layout does not mirror source packages or CLI Command Gro
 | `tests/examples/` | Installed-CLI workflows, deterministic asset production, and checked-in downstream asset agreement. |
 | `tests/frame/` | Frame timing, insertion, Cel copy/link intent, Tag adjustment, and native persistence. |
 | `tests/filter/` | Native Filter application, Channels, Cel targets, Palette basis, state restoration, and verified publication. |
+| `tests/import/` | Encoded PNG facts, compatible native Cel insertion, frozen input identity, and publication refusal. |
 | `tests/layer/` | Layer hierarchy, exact addressing, and native addition evidence. |
 | `tests/motion/` | Bounded Cel curve sampling, complete preflight, and persisted pixel/property preservation. |
 | `tests/paint/` | Paint Domain Module contract, bounded mutation evidence, and native Pixel Patch behavior. |
 | `tests/palette/` | Shared Effective Palette resolution over native Frame-based Palette Changes. |
 | `tests/plan/` | Static Plan preflight, single-Sprite Step composition, and commit gates. |
+| `tests/preparation/` | Frozen input/specification checks, geometry and anchors, native preparation, exact PNG facts, reproduction, and publication gates. |
 | `tests/release/` | Release metadata and publication gates. |
 | `tests/runtime/` | Aseprite Runtime Integration, including discovery, launch, private Kernel transport, and real-runtime evidence. |
+| `tests/slice/` | Complete Slice Keys and coverage, exact addressing, bounded native authoring, exporter validation, and save/reopen evidence. |
 | `tests/sprite/` | Sprite Domain Module contracts plus real creation, copy, flatten, bounded validation, persisted reopen, structural inspection, and Target Commit evidence. |
 | `tests/tag/` | Tag stored facts, exact current addressing, native mutation, and save/reopen evidence. |
+| `tests/tile/` | Tileset/Tile identity and lifecycle, exact Tilemap topology, complete Tile Region transport, native validation, Tilemap Layer create/share persistence, and explicit Tilemap Cel creation. |
 
 Add an ownership directory only when tests for that behavior exist. Keep a helper in
 the narrowest ownership directory that uses it. Move a helper to `tests/support.py`
@@ -76,7 +96,56 @@ Tile 0. Direct native calls supply boundary-value parity; injected post-command
 failures verify transaction rollback and active Sprite, range, Palette Picks, and
 Selection restoration. All cases use batch scripting without a graphical display.
 
+Explicit Tilemap Cel creation (#165) lives in `tests/tile/test_e2e_cel_creation.py`.
+The independent `cel_creation.lua` fixture creates a native Layer/Tileset without
+SPA Layer creation, then verifies saved Cells, native Image independence, existing
+links, Tile Images/Keys/properties, Palette, binding, and Grid. The matrix covers
+RGB/Grayscale/Indexed (Transparent Color Index 7), first/later Frames, and both
+standalone and Plan creation. Refusals and a later failing Step preserve Source
+and an existing Target; a later successful Step may change the initial links.
+Contract tests cover installed schemas, geometry bounds, conditional runtime
+capability, and contradictory creation evidence without launching Aseprite,
+including Tileset ordinals and Grid facts that disagree with complete Sprite
+inspection. Positive controls include a valid second Tileset.
+These are batch E2E tests: local macOS results do not establish Linux verification.
+
+Tile lifecycle #43 uses `test_e2e_lifecycle.py` with public CLI requests and an
+independent native oracle. It checks opaque plugin data, Linked Cels across shared
+and nested Layers, explicit removal replacements above/below the removed index,
+Empty versus flagged index 0, orphan reorder cleanup, all three Image Color Modes,
+Frame-varying Palettes, and Source/Target preservation on refusal. The same tests
+belong to `e2e and not slow` on macOS and Linux; no display is required. Fast tests
+check schema and preflight behavior. Boundary fixtures cover inline pixels,
+before/after Tile counts, and referenced Cell totals across shared Layers and
+Linked Cels, including unchanged Empty Cells. They also verify explicit refusal
+of transparent hidden RGB/Gray and the accepted transparent-zero case. See
+[native mechanism evidence](evidence/issue-43-tiles.md).
+
+External raster import #46 checks 8-bit PNG metadata independently of native
+loading, then compares full RGBA and stored indexes through real insertion and
+save/reopen. Fixtures cover used-index Palette equality at the selected Frame,
+mask collisions, partial alpha and transparent hidden RGB, None/sRGB/supported ICC,
+empty-slot eligibility, signed Cel positions, and independent Images beside linked
+Cels. Failure cases preserve inputs and any previous Target, discard staging, and
+refuse inconsistent native evidence or output aliases of the raster. These tests
+use the existing local macOS and Linux `--batch --script` lanes without a display;
+they do not exercise the editor UI. Run `pytest tests/import` with the same runtime
+configuration as other native owners.
+
 ## Verification tiers
+
+Frozen raster preparation #103 has fast public-dispatch tests for malformed input,
+geometry/Palette rules, reproduction mismatch, contradictory native/PNG evidence,
+alias safety, and publication failure cleanup. Installed-CLI native cases use an
+independent small raster and the existing frozen wizard input. They cover all four
+rounding policies, threshold boundaries, empty explicit crops, outside anchors,
+exact PLTE/tRNS with transparent indices 0/7/255, complete RGBA/Indexed parity,
+and reproduction. The wider-gamut ICC counterexample checks conversion before
+mapping; runtimes without native conversion must report `runtime_incompatible`.
+These are bounded `e2e` batch tests, not windowed UI or complete example rebuilds.
+Run `pytest tests/preparation` with the normal `SPA_TEST_ASEPRITE` configuration;
+local macOS evidence and unexecuted Linux coverage are distinguished in
+[the preparation report](evidence/issue-103-raster-preparation.md).
 
 Use the tier in the file name:
 
@@ -107,8 +176,17 @@ with literal expected Frame and color facts and unrelated active editor state. O
 E2E tests retain coverage of caller-specific validation, resource loading, and publication.
 Slice inspection uses Aseprite's native sprite-sheet metadata export to observe the
 complete ordered Key list, converts its zero-based Frames to the public one-based model,
-and combines it with public Slice user data. The private metadata and texture remain in
-the invocation workspace.
+and combines it with public Slice text and color data. The private metadata stays in
+the invocation workspace; the reader requests no texture output. The Slice suite
+uses native fixtures plus test-only file-format construction for multi-Key input
+that public Lua cannot create. Product handlers never patch the file format.
+`test_e2e_vendor.py` wraps the native export boundary to check malformed and stale
+metadata refusal. `test_e2e_slice.py` verifies CLI addressing, complete Frame
+coverage, static geometry, metadata-only edits on animated Slices, whole deletion,
+reopened addresses, custom property retention, and failure without Target publication.
+The runtime probe separately checks whole-Slice add/set/remove with real
+save/close/reopen. These are batch tests on local macOS and Linux CI; they make no
+windowed GUI claim. See [Slice evidence](evidence/issue-40-slices.md).
 The Export Image E2E fixtures cover native visible Layer composition, RGB Alpha
 values, no-profile and sRGB files, unsupported source modes, Tilemap Images on visible
 and hidden Layers, unsupported Color Profiles, and explicit replacement. A wheel-installed

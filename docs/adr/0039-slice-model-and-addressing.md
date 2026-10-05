@@ -25,13 +25,14 @@ creating a parallel identity system.
 - A Slice preserves its name, user data, and complete ordered collection of
   explicit Slice Keys.
 - Each Key uses public one-based `frame_number`. Bounds are in Canvas Pixel
-  space; center and pivot use Aseprite's native relation to the bounds.
+  space; center and pivot are relative to the bounds' top-left, as in Aseprite.
 - A Key is effective from its Frame through the Frame before the next Key, or
   through the Sprite's last Frame. SPA creates no synthetic value before the
   first explicit Key.
 - `slice_index` is a one-based current-snapshot address, not Persistent
   Identity. A Slice name must match exactly once.
-- Structural mutation rereads and returns the resulting current address facts.
+- Mutation rereads and returns the resulting current address facts after
+  save/close/reopen, which can reorder the collection even for metadata edits.
 - SPA exposes no process-local ID, synthetic UUID, SPA Key, universal Selector,
   or first-name-match mutation.
 - Runtime-specific read and mutation reachability is a Capability Gap concern;
