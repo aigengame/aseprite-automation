@@ -163,13 +163,16 @@ an exception after a final write reports the current path as `indeterminate`.
 Published files are retained and no successful Artifact set is returned.
 
 `tests/export/test_e2e_wizard_animation_export.py` reuses the retained v2 Sources and
-delivery PNGs. It exports the full 32-Frame Scene, five Gem occurrences including a
-blank Frame and both scale pulses, and five Projectile occurrences around emission,
-then independently compares all 42 PNGs, filenames, playback, profiles and Source
-bytes. A separate five-occurrence Gem GIF checks binary alpha, duration, infinite
-looping and exact visible colors on that finite fixture. These are bounded `e2e`
-batch tests in `e2e and not slow`; they do not rebuild the 193-export recipe, run
-Godot, or claim visual/play acceptance. Fetch the retained Git LFS assets first.
+delivery PNGs. It exports all 193 retained outputs: 32 Frames each for Scene,
+Background, Wizard, Gem, Burst and Projectile, plus the single Target Frame.
+Ten additional Gem and Projectile occurrences check repeated and nonmonotonic
+playback around blank Frames, scale pulses and emission. The tests independently
+compare all 203 PNGs, filenames, playback, profiles and Source bytes. A separate
+five-occurrence Gem GIF checks binary alpha, duration, infinite looping and exact
+visible colors on that finite fixture. These are bounded `e2e` batch tests in
+`e2e and not slow`; they reuse the saved Sources without rebuilding the authoring
+recipe, running Godot, or claiming visual/play acceptance. Fetch the retained Git
+LFS assets first.
 Run `pytest tests/export tests/delivery` with the normal `SPA_TEST_ASEPRITE`
 configuration. Results apply to the actual tested runtime and platform.
 

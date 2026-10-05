@@ -274,6 +274,7 @@ def test_staging_allocation_failure_is_typed_and_leaves_final_paths_unchanged(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
+    import errno
     import tempfile
 
     import pytest
@@ -282,13 +283,16 @@ def test_staging_allocation_failure_is_typed_and_leaves_final_paths_unchanged(
 
     source = tmp_path / "source.aseprite"
     source.write_bytes(b"source")
-    unavailable = tmp_path / "not-a-directory"
-    unavailable.write_bytes(b"file")
-    monkeypatch.setattr(tempfile, "tempdir", str(unavailable))
+
+    def fail_allocation(*args, **kwargs):
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    monkeypatch.setattr(tempfile, "mkdtemp", fail_allocation)
     destination = ArtifactDestination("image", tmp_path / "001.png", "fail")
     with pytest.raises(RuntimeIssue) as caught:
         LocalArtifactSets().prepare(source, (destination,))
     assert caught.value.kind == "artifact_file_failed"
+    assert caught.value.evidence.reason == "staging_failed"
     assert not destination.path.exists()
     assert source.read_bytes() == b"source"
 
@@ -320,3 +324,49 @@ def test_partial_native_output_and_wrong_digest_count_never_publish(
         assert source.read_bytes() == b"source"
     finally:
         files.discard(staged)
+
+
+def test_publication_uses_destination_filesystem_when_system_temp_is_elsewhere(
+    tmp_path: Path, monkeypatch
+) -> None:
+    import errno
+    import os
+    import tempfile
+
+    temporary_volume = tmp_path / "system-temp-volume"
+    destination_volume = tmp_path / "destination-volume"
+    temporary_volume.mkdir()
+    destination_volume.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(temporary_volume))
+    source = tmp_path / "source.aseprite"
+    source.write_bytes(b"source")
+    link, replace = os.link, os.replace
+
+    def on_same_volume(operation):
+        def guarded(staged, destination, **kwargs):
+            # Model the OS boundary while retaining real link/replace and file contents.
+            if not Path(staged).resolve().is_relative_to(destination_volume.resolve()):
+                raise OSError(errno.EXDEV, "Invalid cross-device link")
+            return operation(staged, destination, **kwargs)
+
+        return guarded
+
+    monkeypatch.setattr(os, "link", on_same_volume(link))
+    monkeypatch.setattr(os, "replace", on_same_volume(replace))
+    for policy in ("fail", "replace"):
+        destination = destination_volume / f"{policy}.png"
+        if policy == "replace":
+            destination.write_bytes(b"old")
+        files = LocalArtifactSets()
+        staged = files.prepare(
+            source, (ArtifactDestination("image", destination, policy),)
+        )
+        try:
+            (staged.output_directory / destination.name).write_bytes(b"new")
+            digests = tuple(item.sha256 for item in files.verify_set(staged))
+            files.publish(staged, digests)
+            assert destination.read_bytes() == b"new"
+        finally:
+            files.discard(staged)
+        assert not staged.root.exists()
+    assert source.read_bytes() == b"source"

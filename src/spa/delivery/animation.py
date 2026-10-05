@@ -102,6 +102,18 @@ def _mismatch(path: Path, reason: str) -> NoReturn:
     )
 
 
+def _partial_publication(error: ArtifactSetPublicationError) -> OperationIssue:
+    return OperationIssue(
+        "partial_publication",
+        str(error),
+        PartialPublicationDetails(
+            destinations=[
+                PublicationPathState(**asdict(item)) for item in error.destinations
+            ]
+        ),
+    )
+
+
 def _validate_resolution(
     request: AnimationExportRequest, resolution: AnimationResolution
 ) -> None:
@@ -323,16 +335,7 @@ def export_sequence(
         try:
             published = sets.publish(staged, tuple(item.sha256 for item in contents))
         except ArtifactSetPublicationError as exc:
-            raise OperationIssue(
-                "partial_publication",
-                str(exc),
-                PartialPublicationDetails(
-                    destinations=[
-                        PublicationPathState(**asdict(item))
-                        for item in exc.destinations
-                    ]
-                ),
-            ) from exc
+            raise _partial_publication(exc) from exc
         return ExportSequenceResult(
             destination=request.destination.model_copy(
                 update={"directory": str(directory)}
@@ -496,16 +499,7 @@ def export_gif(
         try:
             published = sets.publish(staged, (contents[0].sha256,))
         except ArtifactSetPublicationError as exc:
-            raise OperationIssue(
-                "partial_publication",
-                str(exc),
-                PartialPublicationDetails(
-                    destinations=[
-                        PublicationPathState(**asdict(item))
-                        for item in exc.destinations
-                    ]
-                ),
-            ) from exc
+            raise _partial_publication(exc) from exc
         return ExportGifResult(
             destination=request.destination.model_copy(
                 update={"path": str(destination)}

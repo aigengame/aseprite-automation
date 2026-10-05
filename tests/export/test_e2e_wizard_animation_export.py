@@ -42,6 +42,12 @@ def _export(operation: str, source: Path, frames: list[int], destination: dict) 
     ("source_name", "component", "frames", "size"),
     [
         ("wizard_scene", "scene", list(range(1, 33)), (384, 288)),
+        ("background", "background", list(range(1, 33)), (384, 288)),
+        ("wizard", "wizard", list(range(1, 33)), (256, 256)),
+        ("gem", "gem", list(range(1, 33)), (104, 116)),
+        ("burst", "burst", list(range(1, 33)), (176, 160)),
+        ("projectile", "projectile", list(range(1, 33)), (72, 40)),
+        ("target", "target", [1], (64, 84)),
         ("gem", "gem", [15, 7, 14, 1, 15], (104, 116)),
         ("projectile", "projectile", [1, 15, 20, 21, 15], (72, 40)),
     ],

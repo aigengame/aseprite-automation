@@ -83,7 +83,13 @@ class LocalArtifactSets:
                 paths.append(item.path)
                 self._files.ensure_source_separate(source, item.path)
                 self._files.staged_path(item.path, if_exists=item.if_exists)
-            root = Path(tempfile.mkdtemp(prefix="spa-artifact-set-"))
+            # Current exports share one destination directory. Keep native output
+            # on that filesystem so the existing atomic link/replace can publish it.
+            root = Path(
+                tempfile.mkdtemp(
+                    prefix=".spa-artifact-set-", dir=normalized[0].path.parent
+                )
+            )
             output = root / "outputs"
             evidence = root / "evidence"
             output.mkdir()
