@@ -1,5 +1,6 @@
 """Public Failure Code registration and schema conformance for issue #64."""
 
+import json
 from dataclasses import replace
 from functools import partial
 from inspect import getsource
@@ -66,7 +67,6 @@ from spa.contracts.artifact import (
 )
 from spa.contracts.mutation import TargetCommitDetails
 from spa.contracts.ports import (
-    ArtifactDestinationState,
     ArtifactFileEvidence,
     ArtifactVerificationEvidence,
     DiscoveryEvidence,
@@ -74,11 +74,13 @@ from spa.contracts.ports import (
     LaunchEvidence,
     PostconditionEvidence,
     ProcessEvidence,
+    PublishedArtifactDestination,
     ResourceEvidence,
     ResponseEvidence,
     RuntimeCompatibilityEvidence,
     RuntimeIssue,
     TargetCommitEvidence,
+    UnpublishedArtifactDestination,
 )
 from spa.contracts.public import (
     CapabilityGap,
@@ -212,11 +214,18 @@ def test_each_registered_code_has_a_constrained_public_schema() -> None:
         TilesetExportDetails: TilesetExportDetails(reason="tile_key_missing"),
         PartialPublicationDetails: PartialPublicationDetails(
             destinations=[
-                ArtifactDestinationState(
-                    "tileset-image", "atlas.png", False, "published", False
+                PublishedArtifactDestination(
+                    role="tileset-image",
+                    path="atlas.png",
+                    existed_before=False,
+                    state="published",
+                    replaced_existing=False,
                 ),
-                ArtifactDestinationState(
-                    "map-data", "map.json", False, "not_published"
+                UnpublishedArtifactDestination(
+                    role="map-data",
+                    path="map.json",
+                    existed_before=False,
+                    state="not_published",
                 ),
             ]
         ),
@@ -792,3 +801,30 @@ def test_export_failures_are_owned_by_export_image(
     Draft202012Validator(export.schema(FAILURE_CODES).failure_schema).validate(
         outcome.model_dump(mode="json")
     )
+
+
+@pytest.mark.parametrize("replacement", [{}, {"replaced_existing": None}])
+def test_published_destination_requires_replacement_fact_in_model_and_schema(
+    replacement: dict,
+) -> None:
+    destination = {
+        "role": "tileset-image",
+        "path": "/atlas.png",
+        "existed_before": False,
+        "state": "published",
+    }
+    invalid = {
+        "kind": "partial_publication",
+        "destinations": [destination | replacement],
+    }
+    validator = Draft202012Validator(PartialPublicationDetails.model_json_schema())
+    assert not validator.is_valid(invalid)
+    with pytest.raises(ValidationError):
+        PartialPublicationDetails.model_validate_json(json.dumps(invalid))
+    for replaced in (False, True):
+        valid = {
+            "kind": "partial_publication",
+            "destinations": [destination | {"replaced_existing": replaced}],
+        }
+        validator.validate(valid)
+        assert PartialPublicationDetails.model_validate_json(json.dumps(valid))

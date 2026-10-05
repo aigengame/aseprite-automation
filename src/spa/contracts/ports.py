@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
+from pydantic import ConfigDict
+
 from spa.contracts.mutation import (
     PublicationIdentityObserver,
     TargetCommitFailureReason,
@@ -147,13 +149,27 @@ class ArtifactPublication:
     sha256: str
 
 
-@dataclass(frozen=True)
-class ArtifactDestinationState:
+class PublishedArtifactDestination(PublicModel):
+    model_config = ConfigDict(frozen=True)
+
     role: str
     path: str
     existed_before: bool
-    state: Literal["published", "not_published", "indeterminate"]
-    replaced_existing: bool | None = None
+    state: Literal["published"]
+    replaced_existing: bool
+
+
+class UnpublishedArtifactDestination(PublicModel):
+    model_config = ConfigDict(frozen=True)
+
+    role: str
+    path: str
+    existed_before: bool
+    state: Literal["not_published", "indeterminate"]
+    replaced_existing: None = None
+
+
+ArtifactDestinationState = PublishedArtifactDestination | UnpublishedArtifactDestination
 
 
 @dataclass(frozen=True)

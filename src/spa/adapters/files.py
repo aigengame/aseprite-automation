@@ -13,10 +13,12 @@ from spa.contracts.ports import (
     ArtifactPublication,
     PartialPublicationEvidence,
     PathObservation,
+    PublishedArtifactDestination,
     RuntimeIssue,
     StagedArtifact,
     TargetCommitEvidence,
     TargetCommitObservation,
+    UnpublishedArtifactDestination,
 )
 
 
@@ -247,12 +249,12 @@ class LocalArtifactFiles:
                     "Staged Artifact changed after verification",
                     ArtifactFileEvidence(str(item.destination), "staged_file_changed"),
                 )
-        states = [
-            ArtifactDestinationState(
-                item.role,
-                str(item.destination),
-                item.destination.exists(),
-                "not_published",
+        states: list[ArtifactDestinationState] = [
+            UnpublishedArtifactDestination(
+                role=item.role,
+                path=str(item.destination),
+                existed_before=item.destination.exists(),
+                state="not_published",
             )
             for item in artifacts
         ]
@@ -277,12 +279,12 @@ class LocalArtifactFiles:
                     ) from exc
                 raise
             state = states[index]
-            states[index] = ArtifactDestinationState(
-                state.role,
-                state.path,
-                state.existed_before,
-                "published",
-                state.existed_before,
+            states[index] = PublishedArtifactDestination(
+                role=state.role,
+                path=state.path,
+                existed_before=state.existed_before,
+                state="published",
+                replaced_existing=state.existed_before,
             )
             published.append(observation)
         return tuple(published)
