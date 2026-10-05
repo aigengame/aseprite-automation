@@ -28,7 +28,8 @@ with Source and an existing Target preserved.
 | `tests/cli/` | Access Projection through the installed CLI and its in-process projections. |
 | `tests/color_mode/` | Conditional Color Mode choices, native mapping/Dithering, complete Sprite and Plan conversion evidence. |
 | `tests/contracts/` | Shared Published Language rules, including Failure Code registration and Operation Descriptor constraints. |
-| `tests/export/` | Image Export contract, PNG Artifact verification and publication, and real Aseprite output evidence. |
+| `tests/delivery/` | Shared Artifact staging, verification/publication lifecycles, and real filesystem publication boundaries. |
+| `tests/export/` | Image, GIF and PNG sequence Export contracts, independent format verification, and real Aseprite output evidence. |
 | `tests/examples/` | Installed-CLI workflows, deterministic asset production, and checked-in downstream asset agreement. |
 | `tests/frame/` | Frame timing, insertion, Cel copy/link intent, Tag adjustment, and native persistence. |
 | `tests/filter/` | Native Filter application, Channels, Cel targets, Palette basis, state restoration, and verified publication. |
@@ -131,6 +132,46 @@ refuse inconsistent native evidence or output aliases of the raster. These tests
 use the existing local macOS and Linux `--batch --script` lanes without a display;
 they do not exercise the editor UI. Run `pytest tests/import` with the same runtime
 configuration as other native owners.
+
+## Animation export
+
+`tests/export/test_e2e_animation_export.py` exercises the public GIF and PNG sequence
+Operations independently. Native fixtures check explicit and repeated Frames, one
+Tag direction traversal without repeat expansion, full Canvas, occurrence naming,
+PNG Color Mode and alpha, per-Frame Indexed Palettes with Linked Cels, supported
+profiles, GIF duration truncation, infinite looping, and allowed native color loss.
+The accepted representation matrix is documented in [README](../README.md#export).
+Unknown profiles, unsupported representation combinations and GIF Frames below
+10 ms are refused before publication. ICC-to-sRGB GIF conversion remains conditional
+on the actual runtime's separately observed Color Profile capability; macOS evidence
+does not remove the Linux conversion Capability Gap.
+
+The native `opaque red → fully transparent → opaque green` GIF regression retains
+a bounded macOS arm64 Aseprite 1.3.18.5-dev / API 41 observation: the blank occurrence
+can contain residual opaque pixels. Independent per-Frame alpha verification rejects
+that staged output and preserves any existing final destination. This verifies refusal
+for the observed encoding path, not a limitation across all releases or a repaired GIF.
+Future accepted requirements and reliable native evidence can extend this boundary.
+
+`test_unit_animation_decoders.py` separately verifies encoded PNG samples, Palette,
+profile and transparency facts and GIF blocks, color tables, disposal, timing and
+loop observations, including malformed bytes. Real filesystem tests in
+`tests/delivery/test_integration_artifact_set.py` check complete-set preflight, exact
+regular-file staging, digest tampering, Source alias refusal and allocation cleanup.
+Failure injection after one replacement checks every ordered publication state;
+an exception after a final write reports the current path as `indeterminate`.
+Published files are retained and no successful Artifact set is returned.
+
+`tests/export/test_e2e_wizard_animation_export.py` reuses the retained v2 Sources and
+delivery PNGs. It exports the full 32-Frame Scene, five Gem occurrences including a
+blank Frame and both scale pulses, and five Projectile occurrences around emission,
+then independently compares all 42 PNGs, filenames, playback, profiles and Source
+bytes. A separate five-occurrence Gem GIF checks binary alpha, duration, infinite
+looping and exact visible colors on that finite fixture. These are bounded `e2e`
+batch tests in `e2e and not slow`; they do not rebuild the 193-export recipe, run
+Godot, or claim visual/play acceptance. Fetch the retained Git LFS assets first.
+Run `pytest tests/export tests/delivery` with the normal `SPA_TEST_ASEPRITE`
+configuration. Results apply to the actual tested runtime and platform.
 
 ## Verification tiers
 

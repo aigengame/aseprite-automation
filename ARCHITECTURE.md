@@ -494,6 +494,28 @@ The same distinction applies when a domain-specific observation produces an Arti
 the observed concept retains its semantic owner. No duplicate exporter or verifier is
 introduced by the strategic classification.
 
+GIF and PNG sequence have separate Operation Descriptors and runtime gates under
+Asset Delivery. `spa.delivery.animation` owns their staging lifecycle, request/Kernel/
+decoded comparisons, and Result projection; `animation_contracts.py` contains their
+request, observation, and Result DTOs. Both reuse existing Frame/Tag addressing,
+Layer Composition, and Color Profile owners. `composition.resolve` supplies shared
+selection facts for preflight and rendering instead of a separate exporter selector.
+The fixed `kernel/delivery/animation_export_support.lua` resolves playback and the
+complete destination names, then renders and encodes through native Aseprite.
+`animation_gif.lua` builds a private RGB timeline for native GIF encoding; PNG retains
+Source Color Mode, per-Frame Effective Palette, and effective Background context.
+These temporary Sprites do not mutate the Source.
+
+The inner-owned `ArtifactSets` port separates file mechanics from semantic verification.
+`LocalArtifactSets` reuses `LocalArtifactFiles` for path normalization, Source identity,
+byte reads, digest binding and publication. It preflights the complete bounded
+set, allocates separate output and evidence directories, enumerates the actual output
+set, and publishes in resolved order. `adapters/sequence_png.py` and `adapters/gif.py`
+independently decode typed format facts through `contracts/encoded_animation.py`.
+The Application compares those observations with native composition, timing, profile,
+Palette and cross-file expectations before passing the verified digests to publication.
+No decoder defines expected Sprite semantics or repairs encoded bytes.
+
 Image Get, Tile Get, and Tilemap Get share `spa.delivery.snapshot_publication` for
 their single JSON Snapshot Artifact. Its `staged_snapshot` scope owns destination
 normalization, Source separation, staging, and cleanup. `verify` reads the staged
@@ -549,6 +571,8 @@ src/spa/
     public.py, operation.py, ports.py
     mutation.py           # Source/Target identity and Target Commit contracts
     artifact.py           # shared publication/verification failure details
+    artifact_set.py       # bounded destination staging and per-path publication states
+    encoded_animation.py  # independent PNG/GIF observed format facts
     snapshot.py           # explicit destination for complete JSON Snapshot transport
     digest.py             # one shared native evidence digest binding
     raster.py, rounding.py # shared values and their native bindings
@@ -574,11 +598,15 @@ src/spa/
     raster.py             # frozen input admission, native composition, verified Artifact publication
   delivery/
     export.py             # Export Image contract, native invocation, and result
+    animation.py          # GIF/PNG sequence lifecycles and semantic comparisons
+    animation_contracts.py # animation export request, observation, and Result DTOs
     palette.py            # verified Palette file export and explicit generation composition
     png_publication.py    # staged PNG verification/publication for Export, Preview, Preparation
   adapters/
     aseprite/             # process, resource discovery, and transport
     files.py, png.py       # filesystem mechanics and export PNG verification
+    artifact_set.py        # complete set preflight, staging, ordered publication
+    sequence_png.py, gif.py # independent encoded animation observations
     png_input.py           # independent encoded PNG input facts and pixels
     icc.py                # ICC byte validation and digest, without color transforms
     palette_file.py       # independent GPL/Indexed PNG observations, not a color engine
@@ -592,7 +620,7 @@ src/spa/
     tile/                 # Tileset identity, topology, validation, complete Tile Regions
     color/                # Palette semantics, native Color Mode and Color Profile operations
     preparation/          # fixed composition of existing Raster and Color owners
-    delivery/             # native Image Export
+    delivery/             # native Image, GIF and PNG sequence Export
     runtime/              # runtime and capability probes
       fixtures/           # real native probe inputs
     plan/                 # single-Sprite Plan execution
@@ -1204,6 +1232,19 @@ Static image export uses a fixed private composition order for Layer Composition
 Color Profile, Palette preparation, Color Mode, transparency or Background behavior,
 and File Format encoding. Other export families own their own feature contracts. Export
 never mutates the Source Sprite.
+
+For GIF and PNG sequence, explicit Frames retain occurrence order and duplicates;
+an exactly addressed Tag produces one direction traversal without expanding stored
+repeats or nested Tags. PNG names use one bounded native occurrence ordinal, and
+all occurrences share the full Canvas. Separate format comparisons preserve PNG
+native Color Mode, per-Frame Palette and Background-sensitive mask rules while GIF
+uses native RGB visual composition, lossy quantization, binary alpha, centisecond
+truncation and an infinite encoded loop. ICC-to-sRGB GIF conversion requires the
+Color Profile owner's observed runtime capability. An opaque-to-blank native GIF
+that fails independent alpha verification stays in staging and is not published.
+The current support matrix and limits are described in [README](README.md#export)
+and constrained by the installed Operation Descriptors; local native evidence is not
+a cross-platform or cross-release promise. These exports are not Plan Steps.
 
 A successful result reports the complete declared output set. When an Export has
 several final paths, SPA publishes them in a deterministic order. A failure after a

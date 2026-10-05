@@ -4,7 +4,7 @@ Aseprite Automation (SPA) provides agent-facing automation for Aseprite. `SPA` i
 short project name used in documentation; `spa` is the primary executable.
 
 > [!IMPORTANT]
-> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery, Sprite creation, inspection, copy, resize, crop, flatten, and validation, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Tag inspection and authoring, complete Slice inspection and bounded whole-Slice authoring, Palette Change inspection and Entry edits, native Color Profile assignment and conversion, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, bounded Pixel Patch application, native Snapshot composition (`spa paint composite`), native Line, Rectangle, Ellipse, Contour, and Blur Paint operations, verified RGB PNG Image Export, animation audit, Frame comparison, and verified continuity Preview export. Feature issues own delivery contracts, evidence requirements, provenance links, curated evidence summaries, and status, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
+> This repository is at the bootstrap stage. Disposable prototypes tested selected feasibility assumptions; [issue #1](https://github.com/aigengame/aseprite-automation/issues/1) records their conclusions and is the umbrella product requirements document (PRD). The installed CLI provides runtime discovery, Sprite creation, inspection, copy, resize, crop, flatten, and validation, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Tag inspection and authoring, complete Slice inspection and bounded whole-Slice authoring, Palette Change inspection and Entry edits, native Color Profile assignment and conversion, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, bounded Pixel Patch application, native Snapshot composition (`spa paint composite`), native Line, Rectangle, Ellipse, Contour, and Blur Paint operations, verified RGB PNG Image Export, GIF and PNG sequence export, animation audit, Frame comparison, and verified continuity Preview export. Feature issues own delivery contracts, evidence requirements, provenance links, curated evidence summaries, and status, while milestones group phase outcomes. [`AUTHORITY_MATRIX.md`](AUTHORITY_MATRIX.md) routes normative facts and document dependencies. The installed Surface Manifest reports shipped behavior.
 
 For a complete authoring example, see [Moonlit Spell Practice](examples/wizard_cast/README.md):
 a reproducible SPA wizard animation, reusable pixel assets, and a Godot target-practice demo.
@@ -1245,11 +1245,79 @@ starts. Use separate Steps for different Layers. Its before/after facts describe
 that Step, with `persisted_reopen_verified: false`; later Steps may change those
 facts. Final verification compares the final live Sprite with the reopened file.
 
+### Export
+
 `spa export image` renders one explicit Frame of the full canvas with persisted visible
 Layers. It accepts RGB Source Sprites with no Color Profile or sRGB. It rejects
 Tilemap Images in the selected Frame, including hidden Layers. It preserves native
 Alpha values, verifies the staged PNG with an independent decoder, and requires
 `if_exists: fail` or `replace` before publication.
+
+`spa export sequence` writes an ordered PNG collection; `spa export gif` writes
+one animated GIF. Both take `source_sprite_file`, explicit `layer_composition`,
+and exactly one `playback` form:
+
+- `{"kind":"frames","frame_numbers":[2,1,2]}` preserves ordered, repeated Frame occurrences.
+- `{"kind":"tag","tag":{"tag_name":"CAST"}}` or `tag_index` resolves one exact Tag and exports one direction traversal. A 1–3 ping-pong Tag yields 1,2,3,2; stored Tag repeats do not expand it, and nested Tag playback is not applied.
+
+`layer_composition: {"mode":"visible"}` uses stored visibility.
+`{"mode":"include","layers":[{"layer_path":[1]}]}` includes exact Layer or Group
+addresses, including a selected Group's hidden descendants and participating ancestor
+Blend Mode and opacity. Reference content is excluded; direct Reference inclusion is
+refused. Both outputs use the full Sprite Canvas; blank occurrences must pass verification
+before publication. These exports preserve the Source and are not Plan Steps.
+
+PNG destinations require an existing `directory`, `filename_format`, and explicit
+`if_exists: fail | replace`. The Filename Format contains a literal prefix/suffix,
+exactly one `{frame0}` or `{frame1}` occurrence ordinal, optional zero padding up to
+9 digits, and a `.png` suffix. For example, `wizard_{frame0001}.png` starts at 0001.
+Names stay in that directory and are checked against native expansion and produced
+filenames. The ordinal identifies output order; results separately report each Source
+Frame. GIF destinations require `path` ending in `.gif` and `if_exists`.
+
+| Output | Source Color Mode | Admitted Color Profiles | Encoded representation |
+| --- | --- | --- | --- |
+| PNG sequence | RGB | None, sRGB, exact packaged linear-sRGB and Display P3 ICC | Native composed RGB and alpha; supported ICC payload preserved. |
+| PNG sequence | Grayscale | None, sRGB | Native composed gray and alpha; the two RGB ICC profiles are refused. |
+| PNG sequence | Indexed | None, sRGB, exact packaged linear-sRGB and Display P3 ICC | Native Palette Indexes and each occurrence's complete ordered Effective Palette, including duplicate and unused Entries. |
+| GIF | RGB, Grayscale, Indexed | None, sRGB; supported ICC requires the runtime's native conversion to sRGB | Native RGB visual composition, lossy native quantization, and binary transparency; no embedded Source ICC. |
+
+PNG uses no implicit Color Mode conversion or quantization. sRGB rendering intent
+is normalized natively to 0. Indexed requires 1–256 Palette Entries and defined mask
+and output indexes. Without an effective Background, its Transparent Color Index
+has alpha 0; with a Background, that forced mask rule does not apply. Other Palette
+Entry alpha stays intact. This preserves native Indexed representation, which can
+differ from RGB visual blending. Linked Cels use the Palette of each actual Source
+Frame; sequence files can have different Palettes.
+
+GIF reports native quantization and observed color tables and color loss. After native
+composition, alpha 0 must stay transparent and positive alpha must become opaque.
+Each selected Source Frame must last at least 10 ms; encoded durations are rounded
+down to 10 ms units and reported alongside Source durations. The encoded loop count
+0 means infinite repetition of the resolved sequence, independently of stored Tag
+`repeats=0`, whose playback meaning remains unspecified. None and sRGB need no profile
+conversion; supported ICC uses the independently gated Color Profile converter.
+
+Independent decoders check every staged occurrence before any publication. A known
+opaque-to-blank GIF path on macOS arm64 Aseprite 1.3.18.5-dev / API 41 retained opaque
+pixels; when decoded alpha violates the declared rule, SPA refuses publication.
+That evidence does not establish a limitation or successful conversion on every
+platform or release. See [the export test policy](docs/testing.md#animation-export).
+
+Both Operations allow at most 1024 Frame occurrences, 1,048,576 Canvas pixels, and
+16,777,216 total occurrence pixels. Empty, colliding, unsupported, or incomplete output
+sets fail before publication. Results report ordered playback and Artifacts with byte
+size and SHA-256. A failure after a final path changes returns `partial_publication`
+with every destination's prior existence, `published`, `not_published` or
+`indeterminate` state, and known replacement facts. Already published files are
+retained without automatic rollback. These are current delivery boundaries;
+future accepted needs and native evidence can extend formats, playback, naming,
+encoding controls, or representation support.
+
+```sh
+uv run spa export sequence --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","playback":{"kind":"frames","frame_numbers":[2,1,2]},"layer_composition":{"mode":"visible"},"destination":{"directory":"existing-output-directory","filename_format":"wizard_{frame0001}.png","if_exists":"fail"}}'
+uv run spa export gif --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","playback":{"kind":"tag","tag":{"tag_name":"CAST"}},"layer_composition":{"mode":"visible"},"destination":{"path":"cast.gif","if_exists":"fail"}}'
+```
 
 `--aseprite` and `SPA_ASEPRITE_EXECUTABLE` name an executable file, not a macOS
 `.app` directory. When `--aseprite` is absent, SPA checks
