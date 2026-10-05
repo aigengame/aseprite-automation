@@ -840,5 +840,5 @@ not establish a separate Aseprite version matrix.
 ```sh
 uv run --frozen --group test pytest tests/export -m "not e2e"
 SPA_TEST_ASEPRITE=/absolute/path/to/aseprite \
-  uv run --frozen --group test pytest tests/export/test_e2e_tileset_export.py
+  uv run --frozen --group test pytest tests/export/test_e2e_tileset_export.py -x -vv --tb=short -rs
 ```
