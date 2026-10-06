@@ -251,8 +251,17 @@ function module.execute(payload)
       assert(payload.transparency.kind == "background", "unsupported transparency choice")
       local changed, failure = pcall(function()
         local layer = working.layers[1]
-        if layer.isBackground then layers.convert_from_background(working, layer) end
-        layers.convert_to_background(working, layer, payload.transparency.background_color, frames)
+        if layer.isBackground then
+          -- Its mask index can be opaque. Keep that meaning; verify opacity below.
+          frames.background_color_for_frame(working, payload.transparency.background_color, 1)
+        else
+          layers.convert_to_background(
+            working,
+            layer,
+            payload.transparency.background_color,
+            frames
+          )
+        end
       end)
       if not changed then return reject("background", tostring(failure)) end
     end

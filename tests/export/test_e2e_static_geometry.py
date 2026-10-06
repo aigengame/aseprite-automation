@@ -76,6 +76,76 @@ def test_rectangle_rebases_source_canvas_pixels_to_output_origin(
     assert source.read_bytes() == before
 
 
+def test_opaque_request_keeps_existing_indexed_background_mask_pixels(
+    tmp_path: Path,
+) -> None:
+    source = source_sprite(
+        tmp_path, "static_geometry.lua", variant="indexed_background"
+    )
+    before = source.read_bytes()
+    destination = tmp_path / "opaque-background.png"
+    result = _export(
+        _request(
+            source,
+            destination,
+            layer_composition={"mode": "include", "layers": [{"layer_path": [1]}]},
+            transparency={
+                "kind": "background",
+                "background_color": {"kind": "palette-index", "index": 4},
+            },
+        )
+    )
+    assert result["effective_background"] is True
+    assert result["alpha_channel"]["minimum"] == 255
+    with Image.open(destination) as image:
+        assert list(image.get_flattened_data()) == [1, 7, 7]
+        assert list(image.convert("RGBA").get_flattened_data()) == [
+            (200, 0, 0, 255),
+            (70, 77, 84, 255),
+            (70, 77, 84, 255),
+        ]
+    assert source.read_bytes() == before
+
+
+@pytest.mark.parametrize("partial_content", [False, True])
+def test_existing_background_still_checks_color_and_encoded_opacity(
+    tmp_path, partial_content
+):
+    source = source_sprite(
+        tmp_path, "static_geometry.lua", variant="indexed_background"
+    )
+    before = source.read_bytes()
+    destination = tmp_path / "existing-background.png"
+    destination.write_bytes(b"keep destination")
+    request = _request(
+        source,
+        destination,
+        layer_composition=(
+            {"mode": "visible"}
+            if partial_content
+            else {"mode": "include", "layers": [{"layer_path": [1]}]}
+        ),
+        transparency={
+            "kind": "background",
+            "background_color": {
+                "kind": "palette-index",
+                "index": 4 if partial_content else 2,
+            },
+        },
+    )
+    request["destination"]["if_exists"] = "replace"
+    run = spa("export", "image", "--input-json", json.dumps(request))
+    assert run.returncode != 0
+    failure = json.loads(run.stdout)
+    assert failure["code"] == "export_image_invalid"
+    assert failure["details"]["reason"] == "background"
+    assert (
+        source.read_bytes() == before
+        and destination.read_bytes() == b"keep destination"
+    )
+    assert not list(tmp_path.glob("*.staged.*"))
+
+
 def _animated_slices(source: Path) -> None:
     # Fixture-only file-format injection supplies Keys absent from Lua setters.
     chunks = []
