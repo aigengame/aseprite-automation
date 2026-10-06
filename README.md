@@ -117,6 +117,28 @@ actual dependencies. The operating model is a trusted
 local workspace. Asset Pipeline integration uses a downstream-owned Anti-Corruption
 Layer and the public `spa` CLI JSON contract.
 
+## Use the SPA Agent Skill
+
+The [SPA Skill](skills/spa/SKILL.md) is an entry guide for discovery, authoring,
+verification, export, and recovery. It reads the installed CLI's help and schemas
+instead of maintaining another command catalog. Install SPA and Aseprite separately;
+Skill installation does not install either executable.
+
+Use the [Skills CLI](https://github.com/vercel-labs/skills) from the project that will
+consume the Skill. It requires Node/npm. The repository shorthand below reads the
+default branch: if that branch does not yet contain the Skill, use a local SPA
+checkout path or the Skills CLI's native Git source/reference syntax instead.
+
+```sh
+npx skills add aigengame/aseprite-automation --list
+npx skills add aigengame/aseprite-automation --skill spa -a codex
+```
+
+The source must contain `skills/spa/SKILL.md`; access to a private source requires
+the caller's Git credentials. Installation, updates, and version management use the
+Skills CLI's native mechanisms. The Skill guides applicability decisions from the
+actual installed SPA surface; there is no separate Skill-to-CLI compatibility check.
+
 ## Try the installed CLI
 
 For a source checkout, install Git LFS and run `git lfs install` followed by
