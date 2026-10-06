@@ -102,6 +102,7 @@ from spa.contracts.public import (
 )
 from spa.contracts.raster import Point, PositiveRectangle, Size
 from spa.delivery.palette import PaletteExportDetails
+from spa.delivery.sheet_contracts import SheetRejection
 from spa.delivery.tileset import TilesetExportDetails
 from spa.preparation.raster import PreparationDetails
 from tests.support import operation_services
@@ -377,6 +378,7 @@ def test_each_registered_code_has_a_constrained_public_schema() -> None:
         ArtifactVerificationDetails: ArtifactVerificationDetails(
             path="image.png", reason="content mismatch"
         ),
+        SheetRejection: SheetRejection(reason="palette_mismatch"),
         LayerTargetDetails: LayerTargetDetails(
             address_role="target", address=LayerAddress(layer_path=[1])
         ),

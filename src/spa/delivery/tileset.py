@@ -14,7 +14,6 @@ from spa.authoring.document.targets import (
 )
 from spa.authoring.tile.inspection import TILE_READ_HANDLER
 from spa.authoring.tile.targets import TILE_FAILURE_SPECS, TileInspectionDetails
-from spa.contracts.artifact import PartialPublicationDetails
 from spa.contracts.digest import fnv1a64
 from spa.contracts.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.contracts.ports import (
@@ -52,12 +51,6 @@ TILESET_EXPORT_FAILURE_SPECS = (
         "The selected Tileset cannot satisfy the explicit atlas and map contract",
         "input",
         TilesetExportDetails,
-    ),
-    FailureCodeSpec(
-        "partial_publication",
-        "Only part of the declared Artifact set was published",
-        "execution",
-        PartialPublicationDetails,
     ),
 )
 

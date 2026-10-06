@@ -19,6 +19,14 @@ if mode == "rgb" then
   else
     image:putPixel(0, 0, app.pixelColor.rgba(11, 22, 33, 127))
   end
+elseif mode == "grayscale" then
+  sprite.cels[1].image:drawPixel(0, 0, app.pixelColor.graya(90, 127))
+else
+  local palette = Palette(8)
+  palette:setColor(1, Color { r = 11, g = 22, b = 33, a = 127 })
+  sprite:setPalette(palette)
+  sprite.transparentColor = 7
+  sprite.cels[1].image.bytes = string.char(1, 7)
 end
 if app.params.two_frames == "true" then
   local first_cel = sprite.layers[1]:cel(1)
