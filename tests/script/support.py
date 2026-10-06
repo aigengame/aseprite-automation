@@ -24,15 +24,30 @@ def script_runtime(tmp_path: Path, body: str) -> Path:
         "verified_capabilities": ["aseprite_runtime_introspection"],
     }
     driver.write_text(
-        "import json, os, shutil, sys, time\nfrom pathlib import Path\n"
-        "if Path(sys.argv[-1]).name == 'probe.lua':\n"
-        "    params = dict(arg.split('=', 1) for arg in sys.argv[1:] if '=' in arg)\n"
-        "    shutil.copyfile(params['request'], params['echo'])\n"
-        f"    Path(params['response']).write_text({json.dumps(probe)!r})\n"
-        "else:\n" + "\n".join("    " + line for line in body.splitlines()) + "\n",
+        "import os, sys, time\nfrom pathlib import Path\n" + body + "\n",
         encoding="utf-8",
     )
+    # Keep the protocol stub independent of Python startup so short caller
+    # deadlines exercise the intended process, including on a loaded test host.
     return fake_aseprite(
         tmp_path,
-        f'exec {shlex.quote(sys.executable)} {shlex.quote(str(driver))} "$@"\n',
+        f"""probe_request=
+probe_response=
+probe_echo=
+is_probe=false
+for argument in "$@"; do
+  case "$argument" in
+    request=*) probe_request=${{argument#request=}};;
+    response=*) probe_response=${{argument#response=}};;
+    echo=*) probe_echo=${{argument#echo=}};;
+    */probe.lua) is_probe=true;;
+  esac
+done
+if [ "$is_probe" = true ]; then
+  cp "$probe_request" "$probe_echo"
+  printf '%s' {shlex.quote(json.dumps(probe))} > "$probe_response"
+else
+  exec {shlex.quote(sys.executable)} {shlex.quote(str(driver))} "$@"
+fi
+""",
     )
