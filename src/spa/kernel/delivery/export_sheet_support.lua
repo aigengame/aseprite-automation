@@ -134,7 +134,7 @@ local function trim_bounds(image, has_background, mode, common)
   if bounds.isEmpty then return { x = 0, y = 0, width = 1, height = 1 } end
   return rectangle(bounds)
 end
-local function limit(source, first, last, payload)
+local function check_allocation_limits(source, first, last, payload)
   local count = last - first + 1
   local timeline_count = payload.trim == "sprite" and #source.frames or count
   if source.width * source.height * timeline_count > max_pixels then
@@ -400,7 +400,7 @@ function module.execute(payload)
     end
     local first, last, selected_index, rejected = range(source, payload.selection)
     if rejected then return rejected end
-    rejected = limit(source, first, last, payload)
+    rejected = check_allocation_limits(source, first, last, payload)
     if rejected then return rejected end
     disposable = Sprite(
       source.width,
