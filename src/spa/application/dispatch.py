@@ -7,7 +7,11 @@ from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
-from spa.contracts.artifact import ArtifactFileDetails, ArtifactVerificationDetails
+from spa.contracts.artifact import (
+    ArtifactFileDetails,
+    ArtifactVerificationDetails,
+    PartialPublicationDetails,
+)
 from spa.contracts.mutation import TargetCommitDetails
 from spa.contracts.operation import OperationDescriptor
 from spa.contracts.ports import (
@@ -18,6 +22,7 @@ from spa.contracts.ports import (
     LaunchEvidence,
     OperationIssue,
     OperationServices,
+    PartialPublicationEvidence,
     PostconditionEvidence,
     ProcessEvidence,
     RequestIssue,
@@ -149,6 +154,11 @@ def _runtime_failure(
             code = "artifact_verification_failed"
             details = ArtifactVerificationDetails(
                 path=evidence.path, reason=evidence.reason
+            )
+        case "partial_publication", PartialPublicationEvidence() as evidence:
+            code = "partial_publication"
+            details = PartialPublicationDetails(
+                destinations=list(evidence.destinations)
             )
         case _:
             raise ValueError(f"Unknown runtime issue kind: {issue.kind}")

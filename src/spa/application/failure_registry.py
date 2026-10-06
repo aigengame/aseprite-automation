@@ -28,16 +28,20 @@ from spa.authoring.tile.inspection import TILE_FAILURE_SPECS
 from spa.authoring.tile.lifecycle import TILE_LIFECYCLE_FAILURE_SPECS
 from spa.authoring.tile.regions import TILE_REGION_FAILURE_SPECS
 from spa.authoring.tile.tileset_lifecycle import TILESET_FAILURE_SPECS
+from spa.contracts.artifact import ARTIFACT_PUBLICATION_FAILURE_SPECS
 from spa.contracts.mutation import MUTATION_FAILURE_CODE_SPECS
 from spa.contracts.public import CORE_FAILURE_CODE_SPECS, register_failure_codes
 from spa.delivery.animation_contracts import ANIMATION_EXPORT_FAILURE_SPECS
 from spa.delivery.export import EXPORT_FAILURE_CODE_SPECS
 from spa.delivery.palette import PALETTE_EXPORT_FAILURE_SPECS
+from spa.delivery.sheet_contracts import SHEET_FAILURE_SPECS
+from spa.delivery.tileset import TILESET_EXPORT_FAILURE_SPECS
 from spa.preparation.raster import PREPARATION_FAILURE_SPECS
 
 FAILURE_CODES = register_failure_codes(
     (
         *CORE_FAILURE_CODE_SPECS,
+        *ARTIFACT_PUBLICATION_FAILURE_SPECS,
         *PREPARATION_FAILURE_SPECS,
         *TILE_FAILURE_SPECS,
         *TILE_LIFECYCLE_FAILURE_SPECS,
@@ -59,6 +63,8 @@ FAILURE_CODES = register_failure_codes(
         *SELECTION_FAILURE_CODE_SPECS,
         *EXPORT_FAILURE_CODE_SPECS,
         *ANIMATION_EXPORT_FAILURE_SPECS,
+        *SHEET_FAILURE_SPECS,
+        *TILESET_EXPORT_FAILURE_SPECS,
         *PALETTE_EXPORT_FAILURE_SPECS,
         *IMAGE_RESIZE_FAILURE_CODE_SPECS,
         *IMAGE_SNAPSHOT_FAILURE_CODE_SPECS,

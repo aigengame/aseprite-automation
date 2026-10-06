@@ -7,13 +7,18 @@ import uuid
 from pathlib import Path
 
 from spa.contracts.ports import (
+    ArtifactDestinationState,
     ArtifactFileEvidence,
     ArtifactFileObservation,
+    ArtifactPublication,
+    PartialPublicationEvidence,
     PathObservation,
+    PublishedArtifactDestination,
     RuntimeIssue,
     StagedArtifact,
     TargetCommitEvidence,
     TargetCommitObservation,
+    UnpublishedArtifactDestination,
 )
 
 
@@ -151,7 +156,7 @@ class LocalTargetFiles:
 
 
 class LocalArtifactFiles:
-    """File mechanics for verified single-destination Export Operations."""
+    """File mechanics for verified Export Destinations."""
 
     def normalize_destination(self, path: str) -> Path:
         return Path(os.path.abspath(os.path.expanduser(path)))
@@ -208,6 +213,95 @@ class LocalArtifactFiles:
         return destination.with_name(
             f".{destination.stem}.{uuid.uuid4().hex}.staged{destination.suffix}"
         )
+
+    def destination_exists(self, destination: Path) -> bool:
+        """Observe a publication entry without hiding an inaccessible parent."""
+        try:
+            destination.lstat()
+        except FileNotFoundError:
+            return False
+        except OSError as exc:
+            raise RuntimeIssue(
+                "artifact_file_failed",
+                "Export Destination existence could not be observed",
+                ArtifactFileEvidence(str(destination), "publication_failed"),
+            ) from exc
+        return True
+
+    def ensure_destinations_distinct(self, destinations: tuple[Path, ...]) -> None:
+        for index, destination in enumerate(destinations):
+            try:
+                duplicate = any(
+                    _same_publication_target(other, destination)
+                    for other in destinations[:index]
+                )
+            except (OSError, ValueError, RuntimeError) as exc:
+                raise RuntimeIssue(
+                    "artifact_file_failed",
+                    "Destination identity could not be verified",
+                    ArtifactFileEvidence(
+                        str(destination), "source_destination_identity_unverified"
+                    ),
+                ) from exc
+            if duplicate:
+                raise RuntimeIssue(
+                    "artifact_file_failed",
+                    "Export Destinations must be distinct",
+                    ArtifactFileEvidence(str(destination), "destination_collision"),
+                )
+
+    def publish_many(
+        self, artifacts: tuple[ArtifactPublication, ...]
+    ) -> tuple[ArtifactFileObservation, ...]:
+        """Publish a verified finite set in caller order; never roll back a changed path."""
+        self.ensure_destinations_distinct(tuple(item.destination for item in artifacts))
+        # Check the whole set before any final path changes, then publish rechecks each file.
+        for item in artifacts:
+            if self.read_staged(item.staged).sha256 != item.sha256:
+                raise RuntimeIssue(
+                    "artifact_file_failed",
+                    "Staged Artifact changed after verification",
+                    ArtifactFileEvidence(str(item.destination), "staged_file_changed"),
+                )
+        states: list[ArtifactDestinationState] = [
+            UnpublishedArtifactDestination(
+                role=item.role,
+                path=str(item.destination),
+                existed_before=item.destination.exists(),
+                state="not_published",
+            )
+            for item in artifacts
+        ]
+        published = []
+        for index, item in enumerate(artifacts):
+            try:
+                observation = self.publish(
+                    item.staged,
+                    item.destination,
+                    if_exists=item.if_exists,
+                    sha256=item.sha256,
+                )
+            except RuntimeIssue as exc:
+                # publish() reports a failure before its atomic filesystem call
+                # changes this entry; there is no fallible step after that call.
+                if published:
+                    raise RuntimeIssue(
+                        "partial_publication",
+                        "The complete Artifact set was not published",
+                        PartialPublicationEvidence(tuple(states)),
+                        exc.diagnostics,
+                    ) from exc
+                raise
+            state = states[index]
+            states[index] = PublishedArtifactDestination(
+                role=state.role,
+                path=state.path,
+                existed_before=state.existed_before,
+                state="published",
+                replaced_existing=state.existed_before,
+            )
+            published.append(observation)
+        return tuple(published)
 
     def rendered_path(self, staged: Path) -> Path:
         return staged.with_suffix(".rgba")

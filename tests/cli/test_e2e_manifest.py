@@ -121,6 +121,8 @@ def test_manifest_is_projected_from_command_descriptors() -> None:
         "spa export image",
         "spa export gif",
         "spa export sequence",
+        "spa export sheet",
+        "spa export tileset",
         "spa palette export",
         "spa animation audit",
         "spa animation compare",

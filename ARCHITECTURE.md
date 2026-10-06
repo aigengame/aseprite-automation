@@ -22,7 +22,7 @@ this view instead of treating it as another decision authority.
 > application, native Snapshot composition (`spa paint composite`), native Line,
 > Rectangle, Ellipse, Contour, and Blur Paint operations, native Brightness/Contrast,
 > frozen raster preparation with RGBA/Indexed PNG delivery, verified RGB
-> PNG Image Export, animation audit, Frame comparison, and continuity Preview
+> PNG Image Export, verified PNG/JSON Sprite Sheets, animation audit, Frame comparison, and continuity Preview
 > export. The module
 > ownership below includes both this delivered vertical slice and planned work. Feature
 > issues own delivery status, while the installed Surface Manifest reports the callable
@@ -490,6 +490,14 @@ remain with their callers. Export Image's separate invalid-alpha-bounds postcond
 still follows common Artifact checks; Animation Preview retains that check as an
 Artifact verification failure. The scope adds no native invocation or rendering.
 Selection Preview and other Artifact formats retain their existing paths.
+Sprite Sheet export uses the existing Layer Composition and Color Profile owners to
+prepare native per-Frame samples before Aseprite performs layout and encoding.
+`spa.delivery.sheet_verification` compares independently decoded PNG/JSON against
+those samples for every logical Frame, including shared physical rectangles.
+The Delivery use case gates publication on complete-pair verification.
+`sheet_publication` owns the fixed pair and auxiliary staging paths,
+image-then-metadata order, and partial-publication facts. File mechanics remain with
+the same inner-owned Artifact Files port.
 The same distinction applies when a domain-specific observation produces an Artifact:
 the observed concept retains its semantic owner. No duplicate exporter or verifier is
 introduced by the strategic classification.
@@ -600,6 +608,9 @@ src/spa/
     export.py             # Export Image contract, native invocation, and result
     animation.py          # GIF/PNG sequence lifecycles and semantic comparisons
     animation_contracts.py # animation export request, observation, and Result DTOs
+    sheet.py, sheet_contracts.py # Sprite Sheet use case and explicit pair contract
+    sheet_verification.py # independent sheet evidence comparisons for every logical Frame
+    sheet_publication.py  # fixed pair staging, auxiliary cleanup, and publication outcomes
     palette.py            # verified Palette file export and explicit generation composition
     png_publication.py    # staged PNG verification/publication for Export, Preview, Preparation
   adapters/
@@ -620,7 +631,7 @@ src/spa/
     tile/                 # Tileset identity, topology, validation, complete Tile Regions
     color/                # Palette semantics, native Color Mode and Color Profile operations
     preparation/          # fixed composition of existing Raster and Color owners
-    delivery/             # native Image, GIF and PNG sequence Export
+    delivery/             # native Image, Sheet, Tileset, GIF and PNG sequence Export
     runtime/              # runtime and capability probes
       fixtures/           # real native probe inputs
     plan/                 # single-Sprite Plan execution
@@ -1245,6 +1256,19 @@ that fails independent alpha verification stays in staging and is not published.
 The current support matrix and limits are described in [README](README.md#export)
 and constrained by the installed Operation Descriptors; local native evidence is not
 a cross-platform or cross-release promise. These exports are not Plan Steps.
+
+`delivery/tileset.py` coordinates one Tileset atlas and normalized map pair.
+`tileset_contracts.py` defines its projection and validates complete Tile coverage,
+keyed placement correspondence, and explicit Grid mapping. Tile Authoring retains
+Tileset/Tile identity and canonical Tile Region Snapshot ownership; Delivery calls
+those Lua helpers directly. The native handler copies Tile Images with `BlendMode.SRC`
+into one atlas and uses the existing Image encoder with the selected Frame's Effective
+Palette. Color and Palette owns Profile restoration and exact ICC identity.
+The PNG adapter shares structural decoding across its existing input subset and the
+RGB/Grayscale/Indexed Artifact subset. Delivery compares decoded Tile regions with
+original native Tile Image digests and parses the separate JSON against native and
+request facts. The File Adapter publishes the validated finite pair in caller order
+and records partial publication; it has no Tile or PNG semantics.
 
 A successful result reports the complete declared output set. When an Export has
 several final paths, SPA publishes them in a deterministic order. A failure after a

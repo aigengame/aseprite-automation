@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
+from pydantic import ConfigDict
+
 from spa.contracts.artifact_set import ArtifactSets
 from spa.contracts.encoded_animation import GifDecoder, SequencePngDecoder
 from spa.contracts.mutation import (
@@ -149,6 +151,43 @@ class StagedArtifact:
     sha256: str
 
 
+@dataclass(frozen=True)
+class ArtifactPublication:
+    role: str
+    staged: Path
+    destination: Path
+    if_exists: Literal["fail", "replace"]
+    sha256: str
+
+
+class PublishedArtifactDestination(PublicModel):
+    model_config = ConfigDict(frozen=True)
+
+    role: str
+    path: str
+    existed_before: bool
+    state: Literal["published"]
+    replaced_existing: bool
+
+
+class UnpublishedArtifactDestination(PublicModel):
+    model_config = ConfigDict(frozen=True)
+
+    role: str
+    path: str
+    existed_before: bool
+    state: Literal["not_published", "indeterminate"]
+    replaced_existing: None = None
+
+
+ArtifactDestinationState = PublishedArtifactDestination | UnpublishedArtifactDestination
+
+
+@dataclass(frozen=True)
+class PartialPublicationEvidence:
+    destinations: tuple[ArtifactDestinationState, ...]
+
+
 class ArtifactFiles(Protocol):
     """Domain-neutral staging and publication of one Export Destination."""
 
@@ -158,7 +197,15 @@ class ArtifactFiles(Protocol):
 
     def ensure_source_separate(self, source: Path, destination: Path) -> None: ...
 
+    def destination_exists(self, destination: Path) -> bool: ...
+
     def staged_path(self, destination: Path, *, if_exists: str) -> Path: ...
+
+    def ensure_destinations_distinct(self, destinations: tuple[Path, ...]) -> None: ...
+
+    def publish_many(
+        self, artifacts: tuple[ArtifactPublication, ...]
+    ) -> tuple[ArtifactFileObservation, ...]: ...
 
     def rendered_path(self, staged: Path) -> Path: ...
 
@@ -186,10 +233,10 @@ PngVerifier = Callable[[bytes, Path], PngFacts]
 
 
 @dataclass(frozen=True)
-class PngInputFacts:
+class PngRasterFacts:
     width: int
     height: int
-    color_mode: Literal["rgb", "indexed"]
+    color_mode: Literal["rgb", "grayscale", "indexed"]
     rgba_bytes: bytes
     stored_bytes: bytes
     entries: tuple[tuple[int, int, int, int], ...]
@@ -197,6 +244,14 @@ class PngInputFacts:
     icc_bytes: bytes | None
     color_type: int | None = None
     srgb_rendering_intent: int | None = None
+
+
+@dataclass(frozen=True)
+class PngInputFacts(PngRasterFacts):
+    color_mode: Literal["rgb", "indexed"]
+
+
+PngArtifactDecoder = Callable[[bytes], PngRasterFacts]
 
 
 class PngInputError(ValueError):
@@ -248,6 +303,7 @@ class OperationServices:
     artifact_sets: ArtifactSets | None = None
     decode_sequence_png: SequencePngDecoder | None = None
     decode_gif: GifDecoder | None = None
+    decode_png_artifact: PngArtifactDecoder | None = None
 
 
 @dataclass(frozen=True)
@@ -315,6 +371,7 @@ class TargetCommitEvidence:
 ArtifactFileFailureReason = Literal[
     "input_file_unreadable",
     "source_destination_alias",
+    "destination_collision",
     "source_destination_identity_unverified",
     "destination_exists",
     "destination_not_file",
@@ -325,7 +382,6 @@ ArtifactFileFailureReason = Literal[
     "publication_failed",
     "destination_set_empty",
     "destination_invalid",
-    "destination_collision",
     "staging_failed",
     "staged_set_mismatch",
     "staged_file_not_regular",
@@ -358,6 +414,7 @@ RuntimeEvidence = (
     | TargetCommitEvidence
     | ArtifactFileEvidence
     | ArtifactVerificationEvidence
+    | PartialPublicationEvidence
 )
 RuntimeIssueKind = Literal[
     "discovery_absent",
@@ -375,6 +432,7 @@ RuntimeIssueKind = Literal[
     "target_commit_failed",
     "artifact_file_failed",
     "artifact_verification_failed",
+    "partial_publication",
 ]
 _EVIDENCE_TYPES: dict[RuntimeIssueKind, type[RuntimeEvidence]] = {
     "discovery_absent": DiscoveryEvidence,
@@ -392,6 +450,7 @@ _EVIDENCE_TYPES: dict[RuntimeIssueKind, type[RuntimeEvidence]] = {
     "target_commit_failed": TargetCommitEvidence,
     "artifact_file_failed": ArtifactFileEvidence,
     "artifact_verification_failed": ArtifactVerificationEvidence,
+    "partial_publication": PartialPublicationEvidence,
 }
 
 

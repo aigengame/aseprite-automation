@@ -1,5 +1,6 @@
 """Public Failure Code registration and schema conformance for issue #64."""
 
+import json
 from dataclasses import replace
 from functools import partial
 from inspect import getsource
@@ -59,7 +60,11 @@ from spa.authoring.tile.tileset_lifecycle import (
     TilesetInUseDetails,
     TilesetLifecycleDetails,
 )
-from spa.contracts.artifact import ArtifactFileDetails, ArtifactVerificationDetails
+from spa.contracts.artifact import (
+    ArtifactFileDetails,
+    ArtifactVerificationDetails,
+    PartialPublicationDetails,
+)
 from spa.contracts.mutation import TargetCommitDetails
 from spa.contracts.ports import (
     ArtifactFileEvidence,
@@ -69,11 +74,13 @@ from spa.contracts.ports import (
     LaunchEvidence,
     PostconditionEvidence,
     ProcessEvidence,
+    PublishedArtifactDestination,
     ResourceEvidence,
     ResponseEvidence,
     RuntimeCompatibilityEvidence,
     RuntimeIssue,
     TargetCommitEvidence,
+    UnpublishedArtifactDestination,
 )
 from spa.contracts.public import (
     CapabilityGap,
@@ -94,7 +101,10 @@ from spa.contracts.public import (
     register_failure_codes,
 )
 from spa.contracts.raster import Point, PositiveRectangle, Size
+from spa.delivery.animation_contracts import AnimationExportDetails
 from spa.delivery.palette import PaletteExportDetails
+from spa.delivery.sheet_contracts import SheetRejection
+from spa.delivery.tileset import TilesetExportDetails
 from spa.preparation.raster import PreparationDetails
 from tests.support import operation_services
 
@@ -133,8 +143,6 @@ def test_all_installed_failure_codes_are_registered_once() -> None:
         "target_commit_failed",
         "artifact_file_failed",
         "artifact_verification_failed",
-        "animation_export_invalid",
-        "partial_publication",
         "sprite_copy_staging_failed",
         "sprite_flatten_unsupported_content",
         "sprite_geometry_unsupported_content",
@@ -204,34 +212,27 @@ def test_failure_construction_derives_category_and_refuses_mismatch() -> None:
 
 
 def test_each_registered_code_has_a_constrained_public_schema() -> None:
-    animation_details = FAILURE_CODES["animation_export_invalid"].details_type
-    publication_details = FAILURE_CODES["partial_publication"].details_type
     details_by_type = {
-        animation_details: animation_details.model_validate(
-            {
-                "reason": "gif_duration",
-                "message": "A selected Frame is shorter than 10 ms",
-            }
+        AnimationExportDetails: AnimationExportDetails(
+            reason="gif_duration", message="Frame is shorter than 10 ms"
         ),
-        publication_details: publication_details.model_validate(
-            {
-                "destinations": [
-                    {
-                        "role": "frame-0001",
-                        "path": "frame_1.png",
-                        "existed_before_publication": True,
-                        "state": "published",
-                        "replaced_existing": True,
-                    },
-                    {
-                        "role": "frame-0002",
-                        "path": "frame_2.png",
-                        "existed_before_publication": False,
-                        "state": "not_published",
-                        "replaced_existing": None,
-                    },
-                ]
-            }
+        TilesetExportDetails: TilesetExportDetails(reason="tile_key_missing"),
+        PartialPublicationDetails: PartialPublicationDetails(
+            destinations=[
+                PublishedArtifactDestination(
+                    role="tileset-image",
+                    path="atlas.png",
+                    existed_before=False,
+                    state="published",
+                    replaced_existing=False,
+                ),
+                UnpublishedArtifactDestination(
+                    role="map-data",
+                    path="map.json",
+                    existed_before=False,
+                    state="not_published",
+                ),
+            ]
         ),
         PreparationDetails: PreparationDetails(reason="input", message="Invalid PNG"),
         ImageImportDetails: ImageImportDetails(
@@ -381,6 +382,7 @@ def test_each_registered_code_has_a_constrained_public_schema() -> None:
         ArtifactVerificationDetails: ArtifactVerificationDetails(
             path="image.png", reason="content mismatch"
         ),
+        SheetRejection: SheetRejection(reason="palette_mismatch"),
         LayerTargetDetails: LayerTargetDetails(
             address_role="target", address=LayerAddress(layer_path=[1])
         ),
@@ -805,3 +807,30 @@ def test_export_failures_are_owned_by_export_image(
     Draft202012Validator(export.schema(FAILURE_CODES).failure_schema).validate(
         outcome.model_dump(mode="json")
     )
+
+
+@pytest.mark.parametrize("replacement", [{}, {"replaced_existing": None}])
+def test_published_destination_requires_replacement_fact_in_model_and_schema(
+    replacement: dict,
+) -> None:
+    destination = {
+        "role": "tileset-image",
+        "path": "/atlas.png",
+        "existed_before": False,
+        "state": "published",
+    }
+    invalid = {
+        "kind": "partial_publication",
+        "destinations": [destination | replacement],
+    }
+    validator = Draft202012Validator(PartialPublicationDetails.model_json_schema())
+    assert not validator.is_valid(invalid)
+    with pytest.raises(ValidationError):
+        PartialPublicationDetails.model_validate_json(json.dumps(invalid))
+    for replaced in (False, True):
+        valid = {
+            "kind": "partial_publication",
+            "destinations": [destination | {"replaced_existing": replaced}],
+        }
+        validator.validate(valid)
+        assert PartialPublicationDetails.model_validate_json(json.dumps(valid))

@@ -205,30 +205,11 @@ class AnimationExportDetails(PublicModel):
     message: str
 
 
-class PublicationPathState(PublicModel):
-    role: str
-    path: str
-    existed_before_publication: bool
-    state: Literal["published", "not_published", "indeterminate"]
-    replaced_existing: bool | None
-
-
-class PartialPublicationDetails(PublicModel):
-    kind: Literal["partial_publication"] = "partial_publication"
-    destinations: list[PublicationPathState]
-
-
 ANIMATION_EXPORT_FAILURE_SPECS = (
     FailureCodeSpec(
         "animation_export_invalid",
         "Animation export cannot satisfy the declared request",
         "input",
         AnimationExportDetails,
-    ),
-    FailureCodeSpec(
-        "partial_publication",
-        "Export failed after a final destination changed",
-        "execution",
-        PartialPublicationDetails,
     ),
 )

@@ -11,6 +11,7 @@ from spa.authoring.color.palette import EFFECTIVE_PALETTE_RESOURCE
 from spa.authoring.color.profile import PROFILE_RESOURCES, supported_icc_identity
 from spa.authoring.document.tag import TAG_SELECT_RESOURCE
 from spa.authoring.raster.image_snapshot import COMPOSITION_RESOURCE
+from spa.contracts.artifact import PartialPublicationDetails
 from spa.contracts.artifact_set import ArtifactDestination, ArtifactSetPublicationError
 from spa.contracts.encoded_animation import AnimationDecodeError
 from spa.contracts.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
@@ -45,8 +46,6 @@ from spa.delivery.animation_contracts import (
     GifProfile,
     NativeGifOutput,
     NativeSequenceOutput,
-    PartialPublicationDetails,
-    PublicationPathState,
     SequenceFrameFacts,
 )
 
@@ -106,10 +105,20 @@ def _partial_publication(error: ArtifactSetPublicationError) -> OperationIssue:
     return OperationIssue(
         "partial_publication",
         str(error),
-        PartialPublicationDetails(
-            destinations=[
-                PublicationPathState(**asdict(item)) for item in error.destinations
-            ]
+        PartialPublicationDetails.model_validate(
+            {
+                "destinations": [
+                    {
+                        "role": item.role,
+                        "path": item.path,
+                        "existed_before": item.existed_before_publication,
+                        "state": item.state,
+                        "replaced_existing": item.replaced_existing,
+                    }
+                    for item in error.destinations
+                ],
+                "reason": str(error),
+            }
         ),
     )
 

@@ -10,7 +10,7 @@ from spa.adapters.gif import decode_gif
 from spa.adapters.icc import verify_icc
 from spa.adapters.palette_file import decode_palette_file
 from spa.adapters.png import verify_png
-from spa.adapters.png_input import decode_png_input
+from spa.adapters.png_input import decode_png_artifact, decode_png_input
 from spa.adapters.sequence_png import decode_sequence_png
 from spa.application.failure_registry import FAILURE_CODES
 from spa.application.surface import PROBE_RESOURCES
@@ -33,6 +33,7 @@ def main() -> None:
                 verify_icc=verify_icc,
                 decode_palette_file=decode_palette_file,
                 decode_png_input=decode_png_input,
+                decode_png_artifact=decode_png_artifact,
             ),
             FAILURE_CODES,
         ),

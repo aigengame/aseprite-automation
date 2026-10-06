@@ -105,6 +105,7 @@ def test_info_reports_installed_runtime() -> None:
         "aseprite_export_image",
         "aseprite_export_sequence",
         "aseprite_export_gif",
+        "aseprite_export_sheet",
     ]
     if not conversion_available:
         expected_runtime.remove("aseprite_convert_color_profile")
@@ -205,6 +206,8 @@ def test_info_reports_installed_runtime() -> None:
         "spa export image",
         "spa export gif",
         "spa export sequence",
+        "spa export sheet",
+        "spa export tileset",
         "spa palette export",
         "spa animation audit",
         "spa animation compare",
