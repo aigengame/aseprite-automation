@@ -22,7 +22,7 @@ class NativePngFacts(Protocol):
 
     width: int
     height: int
-    color_profile: Literal["none", "srgb"]
+    color_profile: Literal["none", "srgb", "icc"]
     alpha_min: int
     alpha_max: int
     rendered_byte_size: int

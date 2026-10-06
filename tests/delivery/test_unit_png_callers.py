@@ -9,12 +9,15 @@ from PIL import Image
 
 from spa.adapters.files import LocalArtifactFiles, LocalTargetFiles
 from spa.adapters.png import verify_png
+from spa.adapters.png_input import decode_png_artifact
 from spa.authoring.document.animation import AnimationPreviewRequest, preview_animation
+from spa.contracts.digest import fnv1a64
 from spa.contracts.ports import (
     ArtifactVerificationEvidence,
     HandlerEvidence,
     KernelInvocationResult,
     OperationServices,
+    PngInputError,
     RuntimeIssue,
 )
 from spa.contracts.public import Diagnostics
@@ -44,6 +47,9 @@ class Caller:
                     {
                         **fields,
                         "frame_number": 1,
+                        "export_image_area": {"kind": "canvas"},
+                        "layer_composition": {"mode": "visible"},
+                        "composition_color_mode": "preserve",
                         "color_mode": "preserve",
                         "color_profile": "preserve",
                         "transparency": "preserve",
@@ -77,7 +83,19 @@ def caller(request, tmp_path):
         "rendered_byte_size": 4,
     }
     if request.param == "export":
-        native["frame_number"] = 1
+        native.update(
+            frame_number=1,
+            source_color_mode="rgb",
+            composition_color_mode="preserve",
+            source_canvas={"width": 1, "height": 1},
+            export_image_area={
+                "kind": "canvas",
+                "rectangle": {"x": 0, "y": 0, "width": 1, "height": 1},
+            },
+            resolved_layer_paths=[[1]],
+            effective_background=False,
+            stored_content_digest=fnv1a64(RGBA),
+        )
     else:
         native.update(
             earlier_frame=1,
@@ -111,13 +129,14 @@ def write_render(payload):
     return png, rgba
 
 
-def services(invoke, files, verifier=verify_png):
+def services(invoke, files, verifier=verify_png, decoder=decode_png_artifact):
     return OperationServices(
         probe_runtime=lambda _request: runtime_observation("aseprite_export_image"),
         invoke_kernel=invoke,
         target_files=LocalTargetFiles(),
         artifact_files=files,
         verify_png=verifier,
+        decode_png_artifact=decoder,
     )
 
 
@@ -232,6 +251,16 @@ def test_failure_preserves_destination_and_cleans_both_stages(
             staged.write_bytes(payload + b"changed after verification")
         return facts
 
+    def decoder(payload):
+        if fault == "decoder_rejected":
+            raise PngInputError("decoder refused")
+        facts = decode_png_artifact(payload)
+        if fault == "png_changed":
+            Path(invocations[-1]["staged_png_file"]).write_bytes(
+                payload + b"changed after verification"
+            )
+        return facts
+
     if fault == "publication_failed":
 
         def refuse_replace(*_args):
@@ -240,9 +269,11 @@ def test_failure_preserves_destination_and_cleans_both_stages(
         monkeypatch.setattr("spa.adapters.files.os.replace", refuse_replace)
 
     with pytest.raises(RuntimeIssue) as caught:
-        caller.run(services(invoke, files, verifier))
+        caller.run(services(invoke, files, verifier, decoder))
     assert caught.value.kind == kind
     if reason is not None:
+        if fault == "wrong_profile" and caller.name == "export":
+            reason = "PNG representation differs from native export facts"
         assert caught.value.evidence.reason == reason
     assert len(invocations) == 1
     assert len(files.publications) == publication_attempts
@@ -266,19 +297,14 @@ def test_alpha_bounds_classification_and_order_remain_operation_owned(
         return KernelInvocationResult(caller.native, "/response.json", DIAGNOSTICS)
 
     def verifier(payload, staged):
-        # Deliberately contradictory decoder facts exercise the existing defensive
-        # classification; a real image cannot have its minimum above its maximum.
+        # Preview retains its verifier port. Export uses the real artifact decoder,
+        # whose alpha bounds are always computed from the independently decoded pixels.
         return replace(verify_png(payload, staged), alpha_min=200, alpha_max=100)
 
     with pytest.raises(RuntimeIssue) as caught:
         caller.run(services(invoke, files, verifier))
-    if caller.name == "export" and not also_mismatch:
-        assert caught.value.kind == "postcondition_failed"
-        assert caught.value.evidence.reason == "invalid alpha bounds"
-        assert caught.value.evidence.response_path == "/response.json"
-    else:
-        assert caught.value.kind == "artifact_verification_failed"
-        assert caught.value.evidence.reason == "native and decoded facts differ"
+    assert caught.value.kind == "artifact_verification_failed"
+    assert caught.value.evidence.reason == "native and decoded facts differ"
     assert caught.value.diagnostics == DIAGNOSTICS
     assert not files.publications
     assert caller.destination.read_bytes() == b"existing destination"

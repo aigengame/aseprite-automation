@@ -29,6 +29,9 @@ def _request(
         "source_sprite_file": str(source),
         "destination": {"path": str(destination), "if_exists": if_exists},
         "frame_number": frame_number,
+        "export_image_area": {"kind": "canvas"},
+        "layer_composition": {"mode": "visible"},
+        "composition_color_mode": "preserve",
         "color_mode": "preserve",
         "color_profile": "preserve",
         "transparency": "preserve",
@@ -53,8 +56,11 @@ def test_export_frame_as_verified_visible_rgb_png(tmp_path: Path) -> None:
     assert result["frame_number"] == 2
     assert result["width"] == 3 and result["height"] == 2
     assert result["color_mode"] == "rgb"
-    assert result["export_image_area"] == "canvas"
-    assert result["layer_composition"] == "visible"
+    assert result["export_image_area"] == {
+        "kind": "canvas",
+        "rectangle": {"x": 0, "y": 0, "width": 3, "height": 2},
+    }
+    assert result["layer_composition"] == {"mode": "visible"}
     assert result["color_profile"] == "srgb"
     assert result["alpha_channel"] == {
         "present": True,
@@ -211,45 +217,59 @@ def test_export_opaque_background_preserves_rgb_values(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("mode", ["grayscale", "indexed"])
-def test_export_rejects_unsupported_source_color_modes(
+def test_export_preserves_grayscale_and_indexed_source_color_modes(
     tmp_path: Path, mode: str
 ) -> None:
     source = _source(tmp_path, "rgb_profile_alpha.lua", mode=mode)
-    destination = tmp_path / "unsupported.png"
+    destination = tmp_path / "preserved.png"
 
     run = spa(
         "export", "image", "--input-json", json.dumps(_request(source, destination))
     )
 
-    assert run.returncode != 0
-    assert json.loads(run.stdout)["code"] == "kernel_execution_failed"
-    assert not destination.exists()
+    assert run.returncode == 0, run.stdout
+    result = json.loads(run.stdout)
+    assert result["source_color_mode"] == mode
+    assert result["color_mode"] == mode
+    assert result["composition_color_mode"] == "preserve"
+    with Image.open(destination) as image:
+        image.load()
+        assert image.mode == ("LA" if mode == "grayscale" else "P")
+        assert image.convert("RGBA").getpixel((0, 0)) == (
+            (90, 90, 90, 127) if mode == "grayscale" else (11, 22, 33, 127)
+        )
+        assert image.convert("RGBA").getpixel((1, 0))[3] == 0
     assert not list(tmp_path.glob("*.staged.png"))
+    assert not list(tmp_path.glob("*.staged.rgba"))
 
 
 @pytest.mark.parametrize("arrangement", ["visible", "hidden_layer", "hidden_group"])
-def test_export_rejects_tilemap_image_before_encoding(
+def test_export_composes_visible_tilemap_image(
     tmp_path: Path, arrangement: str
 ) -> None:
     source = _source(tmp_path, "rgb_tilemap.lua", arrangement=arrangement)
     source_sha = hashlib.sha256(source.read_bytes()).hexdigest()
-    destination = tmp_path / "unsupported.png"
+    destination = tmp_path / "tilemap.png"
     request = _request(source, destination)
     schema = json.loads(spa("export", "image", "--schema").stdout)
     validate(request, schema["request_schema"])
 
     run = spa("export", "image", "--input-json", json.dumps(request))
 
-    assert run.returncode != 0
-    failure = json.loads(run.stdout)
-    validate(failure, schema["failure_schema"])
-    assert failure["code"] == "kernel_execution_failed"
-    assert not destination.exists()
+    assert run.returncode == 0, run.stdout
+    result = json.loads(run.stdout)
+    validate(result, schema["result_schema"])
+    assert result["layer_composition"] == {"mode": "visible"}
+    with Image.open(destination) as image:
+        image.load()
+        assert image.convert("RGBA").getpixel((0, 0)) == (
+            (250, 0, 0, 255) if arrangement == "visible" else (0, 0, 0, 0)
+        )
     assert not list(tmp_path.glob("*.staged.png"))
     assert hashlib.sha256(source.read_bytes()).hexdigest() == source_sha
 
 
-def test_export_rejects_icc_source_before_encoding(tmp_path: Path) -> None:
+def test_export_rejects_unlisted_icc_source_before_encoding(tmp_path: Path) -> None:
     icc_file = tmp_path / "profile.icc"
     icc_file.write_bytes(
         ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
@@ -264,7 +284,7 @@ def test_export_rejects_icc_source_before_encoding(tmp_path: Path) -> None:
     )
 
     assert run.returncode != 0
-    assert json.loads(run.stdout)["code"] == "kernel_execution_failed"
+    assert json.loads(run.stdout)["code"] == "export_image_invalid"
     assert not destination.exists()
     assert not list(tmp_path.glob("*.staged.png"))
 
@@ -290,7 +310,7 @@ def test_export_rejects_gamma_profile_before_encoding(tmp_path: Path) -> None:
     )
 
     assert run.returncode != 0
-    assert json.loads(run.stdout)["code"] == "kernel_execution_failed"
+    assert json.loads(run.stdout)["code"] == "export_image_invalid"
     assert not destination.exists()
     assert not list(tmp_path.glob("*.staged.png"))
 
@@ -344,7 +364,7 @@ def test_export_rejects_out_of_range_frame_before_encoding(tmp_path: Path) -> No
     )
 
     assert run.returncode != 0
-    assert json.loads(run.stdout)["code"] == "kernel_execution_failed"
+    assert json.loads(run.stdout)["code"] == "export_image_invalid"
     assert not destination.exists()
     assert not list(tmp_path.glob("*.staged.png"))
 
@@ -363,7 +383,9 @@ def test_export_uses_native_visible_group_composition(tmp_path: Path) -> None:
         assert image.convert("RGBA").getpixel((0, 0)) == (0, 0, 200, 128)
 
 
-def test_export_schema_refuses_out_of_slice_choices(tmp_path: Path) -> None:
+def test_export_schema_refuses_unsupported_and_incomplete_choices(
+    tmp_path: Path,
+) -> None:
     source = _source(tmp_path)
     destination = tmp_path / "rejected.png"
     accepted = _request(source, destination)
@@ -385,6 +407,10 @@ def test_export_schema_refuses_out_of_slice_choices(tmp_path: Path) -> None:
         ("destination.if_exists", None),
         ("frame_number", 0),
         ("frame_number", None),
+        ("export_image_area", None),
+        ("layer_composition", None),
+        ("composition_color_mode", None),
+        ("composition_color_mode", "grayscale"),
         ("tag", "walk"),
         ("frame_range", [1, 2]),
         ("ignore_empty", True),

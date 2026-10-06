@@ -222,7 +222,7 @@ class ArtifactFiles(Protocol):
 class PngFacts:
     width: int
     height: int
-    color_profile: Literal["none", "srgb"]
+    color_profile: Literal["none", "srgb", "icc"]
     alpha_channel_present: bool
     alpha_min: int
     alpha_max: int

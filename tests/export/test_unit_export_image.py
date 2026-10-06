@@ -7,7 +7,8 @@ import pytest
 from PIL import Image
 
 from spa.adapters.files import LocalArtifactFiles, LocalTargetFiles
-from spa.adapters.png import verify_png
+from spa.adapters.png_input import decode_png_artifact
+from spa.contracts.digest import fnv1a64
 from spa.contracts.ports import (
     KernelInvocationResult,
     OperationServices,
@@ -35,6 +36,9 @@ def test_export_does_not_publish_missing_malformed_or_mismatched_png(
             "source_sprite_file": str(tmp_path / "source.aseprite"),
             "destination": {"path": str(destination), "if_exists": "fail"},
             "frame_number": 1,
+            "export_image_area": {"kind": "canvas"},
+            "layer_composition": {"mode": "visible"},
+            "composition_color_mode": "preserve",
             "color_mode": "preserve",
             "color_profile": "preserve",
             "transparency": "preserve",
@@ -54,6 +58,16 @@ def test_export_does_not_publish_missing_malformed_or_mismatched_png(
         return KernelInvocationResult(
             payload={
                 "frame_number": 1,
+                "source_color_mode": "rgb",
+                "composition_color_mode": "preserve",
+                "source_canvas": {"width": 1, "height": 1},
+                "export_image_area": {
+                    "kind": "canvas",
+                    "rectangle": {"x": 0, "y": 0, "width": 1, "height": 1},
+                },
+                "resolved_layer_paths": [[1]],
+                "effective_background": False,
+                "stored_content_digest": fnv1a64(bytes((0, 0, 0, 255))),
                 "width": 1,
                 "height": 1,
                 "color_mode": "rgb",
@@ -71,7 +85,7 @@ def test_export_does_not_publish_missing_malformed_or_mismatched_png(
         invoke_kernel=invoke,
         target_files=LocalTargetFiles(),
         artifact_files=LocalArtifactFiles(),
-        verify_png=verify_png,
+        decode_png_artifact=decode_png_artifact,
     )
     with pytest.raises(RuntimeIssue) as failure:
         export_image(request, services)

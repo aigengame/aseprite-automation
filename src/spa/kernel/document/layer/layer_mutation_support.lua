@@ -406,6 +406,82 @@ local function render_digests(sprite, digest)
   return result
 end
 
+-- Attached-Sprite native Background behavior shared with disposable exports.
+function module.convert_to_background(sprite, layer, background_color, frame)
+  local color = frame.background_color_for_frame(sprite, background_color, 1)
+  app.activeSprite = sprite
+  app.activeLayer = layer
+  app.activeFrame = sprite.frames[1]
+  app.bgColor = color
+  assert(app.command.BackgroundFromLayer(), "native Background conversion failed")
+  assert(layer.isBackground, "native conversion did not create Background Layer")
+  assert(background_layer(sprite) == layer, "native conversion changed Background identity")
+  for number = 1, #sprite.frames do
+    local cel = assert(layer:cel(number), "converted Background is missing a Cel")
+    local bounds = cel.bounds
+    assert(
+      bounds.x == 0
+        and bounds.y == 0
+        and bounds.width == sprite.width
+        and bounds.height == sprite.height
+        and cel.opacity == 255,
+      "converted Background Cel does not cover the Frame opaquely"
+    )
+    local palette = sprite.colorMode == ColorMode.INDEXED
+        and assert(palettes.resolve(sprite, number), "Indexed Background has no Effective Palette")
+      or nil
+    for pixel in cel.image:pixels() do
+      local value = pixel()
+      local alpha
+      if sprite.colorMode == ColorMode.RGB then
+        alpha = app.pixelColor.rgbaA(value)
+      elseif sprite.colorMode == ColorMode.GRAY then
+        alpha = app.pixelColor.grayaA(value)
+      else
+        alpha = palette:getColor(value).alpha
+      end
+      assert(alpha == 255, "converted Background contains a transparent pixel")
+    end
+  end
+end
+
+function module.convert_from_background(sprite, layer)
+  local before_cels = {}
+  for number = 1, #sprite.frames do
+    local cel = assert(layer:cel(number), "Background is missing a source Cel")
+    before_cels[number] = {
+      image = cel.image.bytes,
+      x = cel.bounds.x,
+      y = cel.bounds.y,
+      width = cel.bounds.width,
+      height = cel.bounds.height,
+      opacity = cel.opacity,
+    }
+  end
+  app.activeSprite = sprite
+  app.activeLayer = layer
+  app.activeFrame = sprite.frames[1]
+  assert(app.command.LayerFromBackground(), "native Transparent conversion failed")
+  assert(
+    cel_rules.is_regular_transparent(layer),
+    "native conversion did not create Transparent Image Layer"
+  )
+  assert(background_layer(sprite) == nil, "native conversion retained Background Layer")
+  for number, before_cel in ipairs(before_cels) do
+    local cel = assert(layer:cel(number), "native conversion removed a Cel")
+    local bounds = cel.bounds
+    assert(
+      cel.image.bytes == before_cel.image
+        and bounds.x == before_cel.x
+        and bounds.y == before_cel.y
+        and bounds.width == before_cel.width
+        and bounds.height == before_cel.height
+        and cel.opacity == before_cel.opacity,
+      "native conversion changed Background Cel content"
+    )
+  end
+end
+
 local function apply(sprite, payload, layer, lower, inspection, frame)
   if payload.operation == "set" then
     app.transaction("Set Layer", function()
@@ -461,79 +537,9 @@ local function apply(sprite, payload, layer, lower, inspection, frame)
     assert(current[lower_id] ~= nil, "native Merge Down removed the lower Layer")
     assert(current[source_id] == nil, "native Merge Down retained the source Layer")
   elseif payload.operation == "convert-to-background" then
-    local color = frame.background_color_for_frame(sprite, payload.background_color, 1)
-    app.activeSprite = sprite
-    app.activeLayer = layer
-    app.activeFrame = sprite.frames[1]
-    app.bgColor = color
-    assert(app.command.BackgroundFromLayer(), "native Background conversion failed")
-    assert(layer.isBackground, "native conversion did not create Background Layer")
-    assert(background_layer(sprite) == layer, "native conversion changed Background identity")
-    for number = 1, #sprite.frames do
-      local cel = assert(layer:cel(number), "converted Background is missing a Cel")
-      local bounds = cel.bounds
-      assert(
-        bounds.x == 0
-          and bounds.y == 0
-          and bounds.width == sprite.width
-          and bounds.height == sprite.height
-          and cel.opacity == 255,
-        "converted Background Cel does not cover the Frame opaquely"
-      )
-      local palette = sprite.colorMode == ColorMode.INDEXED
-          and assert(
-            palettes.resolve(sprite, number),
-            "Indexed Background has no Effective Palette"
-          )
-        or nil
-      for pixel in cel.image:pixels() do
-        local value = pixel()
-        local alpha
-        if sprite.colorMode == ColorMode.RGB then
-          alpha = app.pixelColor.rgbaA(value)
-        elseif sprite.colorMode == ColorMode.GRAY then
-          alpha = app.pixelColor.grayaA(value)
-        else
-          alpha = palette:getColor(value).alpha
-        end
-        assert(alpha == 255, "converted Background contains a transparent pixel")
-      end
-    end
+    module.convert_to_background(sprite, layer, payload.background_color, frame)
   elseif payload.operation == "convert-from-background" then
-    local before_cels = {}
-    for number = 1, #sprite.frames do
-      local cel = assert(layer:cel(number), "Background is missing a source Cel")
-      before_cels[number] = {
-        image = cel.image.bytes,
-        x = cel.bounds.x,
-        y = cel.bounds.y,
-        width = cel.bounds.width,
-        height = cel.bounds.height,
-        opacity = cel.opacity,
-      }
-    end
-    app.activeSprite = sprite
-    app.activeLayer = layer
-    app.activeFrame = sprite.frames[1]
-    assert(app.command.LayerFromBackground(), "native Transparent conversion failed")
-    assert(
-      cel_rules.is_regular_transparent(layer),
-      "native conversion did not create Transparent Image Layer"
-    )
-    assert(background_layer(sprite) == nil, "native conversion retained Background Layer")
-    for number, before_cel in ipairs(before_cels) do
-      local cel = assert(layer:cel(number), "native conversion removed a Cel")
-      local bounds = cel.bounds
-      assert(
-        cel.image.bytes == before_cel.image
-          and bounds.x == before_cel.x
-          and bounds.y == before_cel.y
-          and bounds.width == before_cel.width
-          and bounds.height == before_cel.height
-          and cel.opacity == before_cel.opacity,
-        "native conversion changed Background Cel content"
-      )
-    end
+    module.convert_from_background(sprite, layer)
   else
     error("unsupported Layer operation")
   end
