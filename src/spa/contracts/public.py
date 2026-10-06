@@ -5,13 +5,14 @@ from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import Any, Literal, get_args
+from typing import Any, Literal, Self, get_args
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
     SerializeAsAny,
+    model_validator,
 )
 
 
@@ -174,10 +175,44 @@ class InfoResult(PublicModel):
     capability_gaps: list[CapabilityGap]
 
 
+ExecutionKind = Literal["read", "mutation", "export", "script-run"]
+OperationDeterminism = Literal["deterministic", "native-stochastic", "caller-defined"]
+
+
+def validate_operation_determinism(
+    kind: ExecutionKind, determinism: OperationDeterminism
+) -> None:
+    if kind not in get_args(ExecutionKind) or determinism not in get_args(
+        OperationDeterminism
+    ):
+        raise ValueError("Unknown Execution Kind or Operation Determinism")
+    if (kind == "script-run") != (determinism == "caller-defined"):
+        raise ValueError("Only script-run must declare caller-defined determinism")
+
+
 class OperationSchema(PublicModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "allOf": [
+                {
+                    "if": {"properties": {"execution_kind": {"const": "script-run"}}},
+                    "then": {
+                        "properties": {"determinism": {"const": "caller-defined"}}
+                    },
+                    "else": {
+                        "properties": {
+                            "determinism": {
+                                "enum": ["deterministic", "native-stochastic"]
+                            }
+                        }
+                    },
+                }
+            ],
+        }
+    )
     operation: str
-    execution_kind: Literal["read", "mutation", "export"]
-    determinism: Literal["deterministic"]
+    execution_kind: ExecutionKind
+    determinism: OperationDeterminism
     side_effects: list[str]
     minimum_aseprite_version: str | None
     requires_runtime: bool
@@ -187,6 +222,11 @@ class OperationSchema(PublicModel):
     result_schema: dict
     failure_schema: dict
     invocation_schema: dict
+
+    @model_validator(mode="after")
+    def valid_classification(self) -> Self:
+        validate_operation_determinism(self.execution_kind, self.determinism)
+        return self
 
 
 class SchemaResult(PublicModel):

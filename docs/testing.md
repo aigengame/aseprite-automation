@@ -42,6 +42,7 @@ with Source and an existing Target preserved.
 | `tests/preparation/` | Frozen input/specification checks, geometry and anchors, native preparation, exact PNG facts, reproduction, and publication gates. |
 | `tests/release/` | Release metadata and publication gates. |
 | `tests/runtime/` | Aseprite Runtime Integration, including discovery, launch, private Kernel transport, and real-runtime evidence. |
+| `tests/script/` | Exact caller-owned Lua transport, process/file facts, bounds, and exclusion from core identities and Plans. |
 | `tests/slice/` | Complete Slice Keys and coverage, exact addressing, bounded native authoring, exporter validation, and save/reopen evidence. |
 | `tests/sprite/` | Sprite Domain Module contracts plus real creation, copy, flatten, bounded validation, persisted reopen, structural inspection, and Target Commit evidence. |
 | `tests/tag/` | Tag stored facts, exact current addressing, native mutation, and save/reopen evidence. |
@@ -892,4 +893,27 @@ not establish a separate Aseprite version matrix.
 uv run --frozen --group test pytest tests/export -m "not e2e"
 SPA_TEST_ASEPRITE=/absolute/path/to/aseprite \
   uv run --frozen --group test pytest tests/export/test_e2e_tileset_export.py -x -vv --tb=short -rs
+```
+
+
+## Caller-owned Lua
+
+Issue #51 tests the separate installed `spa script run` path. Contract tests cover
+all Execution Kind / Determinism pairings in both model validation and JSON Schema.
+Installed discovery reports `script-run` / `caller-defined`, while request and Plan
+tests prevent caller source or printed JSON from becoming an Ordinary Core Operation.
+
+Controlled process tests cover timeout (including early closure of both output
+streams), the 65,536-byte per-stream guard, nonzero exit, exact UTF-8 materialization,
+and typed failures. Real batch E2E covers native Lua and syntax errors, unchanged
+BOM rejection, file bytes and CRLF preservation, script-relative `require`, explicit
+parameters, binary-to-text replacement, and declared file facts. These are batch
+tests, with no windowed UI requirement or claim. Current macOS and Linux profiles
+run them through the existing `e2e and not slow` selection; one profile's evidence
+does not establish the other.
+
+```sh
+uv run --frozen --group test pytest tests/script tests/contracts/test_unit_determinism.py -m "not e2e"
+SPA_TEST_ASEPRITE=/absolute/path/to/aseprite \
+  uv run --frozen --group test pytest tests/script -m e2e -x -vv --tb=short
 ```

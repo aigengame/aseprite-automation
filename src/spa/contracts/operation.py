@@ -2,17 +2,20 @@
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Literal, get_args
+from typing import get_args
 
 from pydantic import BaseModel
 
 from spa.contracts.ports import OperationServices
 from spa.contracts.public import (
+    ExecutionKind,
     FailureCodeSpec,
+    OperationDeterminism,
     OperationSchema,
     RuntimeRequest,
     RuntimeRequirements,
     failure_schema,
+    validate_operation_determinism,
 )
 
 COMMON_CLI_FLAGS = {
@@ -50,13 +53,19 @@ class OperationDescriptor[RequestT: BaseModel, ResultT: BaseModel]:
     render_human: Callable[[ResultT], str]
     runtime_requirements: RuntimeRequirements | None
     failure_codes: tuple[str, ...]
-    execution_kind: Literal["read", "mutation", "export"] = "read"
+    execution_kind: ExecutionKind = "read"
+    determinism: OperationDeterminism = "deterministic"
     side_effects: tuple[str, ...] = ()
     plan_eligible: bool = False
     probe_before_execute: bool = True
     help_summary: str | None = None
 
     def __post_init__(self) -> None:
+        validate_operation_determinism(self.execution_kind, self.determinism)
+        if (self.name == "script run") != (self.execution_kind == "script-run"):
+            raise ValueError("script run is the only caller-owned execution identity")
+        if self.execution_kind == "script-run" and self.plan_eligible:
+            raise ValueError("Caller scripts cannot be Operation Plan Steps")
         command = f"spa {self.name}"
         operation_field = self.result_type.model_fields.get("operation")
         if (
@@ -94,7 +103,7 @@ class OperationDescriptor[RequestT: BaseModel, ResultT: BaseModel]:
         return OperationSchema(
             operation=command,
             execution_kind=self.execution_kind,
-            determinism="deterministic",
+            determinism=self.determinism,
             side_effects=list(self.side_effects),
             minimum_aseprite_version=None,
             requires_runtime=self.requires_runtime,

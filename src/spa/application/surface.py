@@ -2,6 +2,7 @@
 
 from spa.application.failure_registry import FAILURE_CODES
 from spa.application.plan import PLAN_OPERATIONS
+from spa.application.script import SCRIPT_OPERATIONS
 from spa.authoring.color.color_mode import COLOR_MODE_OPERATIONS, COLOR_MODE_RESOURCE
 from spa.authoring.color.palette import (
     PALETTE_OPERATIONS,
@@ -378,6 +379,7 @@ META_OPERATIONS = (
 
 OPERATIONS = (
     *META_OPERATIONS,
+    *SCRIPT_OPERATIONS,
     *SPRITE_OPERATIONS,
     *LAYER_OPERATIONS,
     *PAINT_OPERATIONS,

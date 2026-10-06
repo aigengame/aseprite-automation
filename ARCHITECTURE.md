@@ -956,7 +956,15 @@ application-composed capability can order packaged semantic entry points through
 own fixed handler without redefining their semantics. `script run` uses a separate caller-script
 path. SPA registration, identity resolution, and Ordinary Core Operation dispatch cannot
 use that path to replace, override, rewrite, proxy, or bypass an existing Ordinary Core
-Operation.
+Operation. The Application-owned `script.py` use case calls the inner-owned
+`CallerScriptInvoker` port in `contracts/caller_script.py`; the Aseprite Adapter
+owns exact source transport and process observations. After successful invocation,
+Application obtains declared-path facts through the inner-owned `ScriptFileObserver`
+contract, implemented by the File Adapter in `adapters/files.py`. The caller-script
+invocation port does not use `PackagedHandler` or the Kernel response protocol. The
+caller cannot supply an Operation identity or execution metadata. Script output
+remains diagnostics under
+the validated `spa script run` result or registered failure.
 
 Every Descriptor declares Operation Determinism. `deterministic` and
 `native-stochastic` apply to `read`, `mutation`, and `export`; only `script-run` can

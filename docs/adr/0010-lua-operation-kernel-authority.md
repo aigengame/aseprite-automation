@@ -61,3 +61,31 @@ SPA cannot route an Ordinary Core Operation through `script run` to bypass its D
 packaged handler, Postconditions, validation, or result and failure contract. A caller
 can still execute arbitrary Lua through `script run`, but that execution stays outside
 the Ordinary Core Operation contract and has no sandbox claim.
+
+
+## Caller-script transport
+
+Issue #51 implements this boundary through `contracts/caller_script.py`, the
+`application/script.py` use case, and a separate Aseprite `invoke_script` port.
+It reuses process launch, isolated user-folder preparation, timeout, and output
+capture mechanics. It does not call the packaged handler invoker or consume the
+Kernel response protocol for caller execution. The ordinary runtime compatibility
+probe still precedes execution. After a successful invocation, Application requests
+declared-path observations through the narrow `ScriptFileObserver` contract. The
+File Adapter owns their filesystem observation, separate from process transport.
+
+Inline source is UTF-8 materialized without a wrapper or source edits because
+Aseprite's CLI requires a file. That temporary file determines `_SCRIPT_PATH` and
+script-relative module lookup. File source is passed directly without SPA copying
+or rewriting it; concurrent edits and native decoding remain caller/native concerns.
+Explicit parameters use CLI arguments rather than source interpolation. The
+working directory is independent of the script directory.
+
+A typed success records only process exit 0, bounded text diagnostics, configured
+process limits, and post-process facts for declared paths. File facts do not prove
+that the script produced or validated a file. Registered process failures keep
+captured diagnostics; they do not promise a file inventory or rollback. Output is
+UTF-8 decoded with replacement, so arbitrary binary streams are not lossless. Native
+exit-code handling, including OS truncation of integer Lua returns, is not a domain
+success or failure protocol. ADR-0066 owns the `script-run` / `caller-defined`
+classification; Descriptor and discovery-schema validation enforce that pairing.

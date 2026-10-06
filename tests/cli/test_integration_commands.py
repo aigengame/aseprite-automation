@@ -140,8 +140,21 @@ def test_installed_manifest_exposes_access_failures_without_real_aseprite(
         "spa info",
         "spa version",
         "spa schema",
+        "spa script run",
         "spa plan check",
     ]
+    script = next(
+        item for item in manifest["operations"] if item["operation"] == "spa script run"
+    )
+    assert script["execution_kind"] == "script-run"
+    assert script["determinism"] == "caller-defined"
+    assert script["plan_eligible"] is False
+    assert script["side_effects"] == ["caller-defined"]
+    assert all(
+        item["determinism"] != "caller-defined"
+        for item in manifest["operations"]
+        if item is not script
+    )
     gaps = {
         item["capability"]: item["evidence"] for item in manifest["capability_gaps"]
     }
