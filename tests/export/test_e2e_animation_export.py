@@ -13,6 +13,62 @@ from tests.support import spa
 pytestmark = pytest.mark.e2e
 
 
+@pytest.mark.parametrize(
+    "directory",
+    [
+        "sequence",
+        "literal-{frame0}",
+        "literal-{title}",
+        "literal-{path}-{frame01}-{tag}",
+    ],
+)
+def test_sequence_treats_output_directory_as_literal(tmp_path: Path, directory: str):
+    source = _source(tmp_path)
+    original = source.read_bytes()
+    output = tmp_path / directory
+    output.mkdir()
+    request = {
+        "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+        "source_sprite_file": os.path.relpath(source),
+        "playback": {"kind": "frames", "frame_numbers": [1, 1]},
+        "layer_composition": {"mode": "visible"},
+        "destination": {
+            "directory": str(output),
+            "filename_format": "frame{frame1}.png",
+            "if_exists": "fail",
+        },
+    }
+
+    run = spa("export", "sequence", "--input-json", json.dumps(request))
+
+    pngs = set(tmp_path.rglob("*.png"))
+    assert run.returncode == 0, (run.stdout, sorted(map(str, pngs)))
+    expected = [output / "frame1.png", output / "frame2.png"]
+    assert pngs == set(expected)
+    assert [
+        Path(item["path"]) for item in json.loads(run.stdout)["artifacts"]
+    ] == expected
+    assert {item.name for item in output.iterdir()} == {"frame1.png", "frame2.png"}
+    assert {item.name for item in tmp_path.iterdir()} == {"source.aseprite", directory}
+    for path in expected:
+        with Image.open(path) as image:
+            assert image.size == (3, 2)
+            assert image.convert("RGBA").getpixel((0, 0)) == (200, 10, 20, 255)
+    assert source.read_bytes() == original
+
+    # A second export applies the same literal directory and preflight policy.
+    refused = spa("export", "sequence", "--input-json", json.dumps(request))
+    assert refused.returncode == 1, refused.stdout
+    assert json.loads(refused.stdout)["details"]["reason"] == "destination_exists"
+    request["destination"]["if_exists"] = "replace"
+    replaced = spa("export", "sequence", "--input-json", json.dumps(request))
+    assert replaced.returncode == 0, replaced.stdout
+    assert set(tmp_path.rglob("*.png")) == set(expected)
+    assert {item.name for item in output.iterdir()} == {"frame1.png", "frame2.png"}
+    assert {item.name for item in tmp_path.iterdir()} == {"source.aseprite", directory}
+    assert source.read_bytes() == original
+
+
 def test_sequence_keeps_order_repeated_occurrences_and_full_canvas(tmp_path: Path):
     source = _source(tmp_path)
     original = source.read_bytes()

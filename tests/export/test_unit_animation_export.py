@@ -162,7 +162,7 @@ class _Export:
     def files(self):
         return {path.name: path.read_bytes() for path in self.directory.iterdir()}
 
-    def invoke(self, _runtime, _handler, payload, _timeout):
+    def invoke(self, _runtime, _handler, payload, _timeout, *, working_directory=None):
         self.phases.append(payload["phase"])
         if payload["phase"] == "resolve":
             facts = deepcopy(self.resolution)

@@ -158,13 +158,9 @@ function module.encode_png(image, path, palette, background, filename_format, oc
     app.command.SaveFileCopyAs {
       ui = false,
       filename = path,
-      filenameFormat = app.fs.filePath(path)
-        .. "/"
-        .. prefix
-        .. "{frame"
-        .. ordinal
-        .. "}"
-        .. suffix,
+      -- The process runs in the owned output directory. Keep directory text out
+      -- of the formatter: even a {path} substitution is rescanned for tokens.
+      filenameFormat = prefix .. "{frame" .. ordinal .. "}" .. suffix,
       ignoreEmpty = false,
     }
   end)
@@ -274,9 +270,9 @@ function module.execute(payload)
 end
 
 function module.probe_sequence()
-  local root = app.params.workspace .. "/sequence-probe"
-  app.fs.makeDirectory(root)
-  local source = root .. "/source.aseprite"
+  -- Runtime probing runs in this private workspace, matching PNG encoding's cwd.
+  local root = app.params.workspace
+  local source = root .. "/sequence-probe.aseprite"
   local fixture = Sprite(2, 1, ColorMode.RGB)
   fixture.cels[1].image:putPixel(0, 0, app.pixelColor.rgba(80, 20, 40, 255))
   assert(fixture:saveAs(source))

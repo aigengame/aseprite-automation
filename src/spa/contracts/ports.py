@@ -86,10 +86,19 @@ class KernelInvocationResult:
     diagnostics: Diagnostics
 
 
-KernelInvoker = Callable[
-    [RuntimeObservation, PackagedHandler, dict[str, Any], float],
-    KernelInvocationResult,
-]
+class KernelInvoker(Protocol):
+    def __call__(
+        self,
+        observation: RuntimeObservation,
+        handler: PackagedHandler,
+        payload: dict[str, Any],
+        timeout_seconds: float,
+        /,
+        *,
+        working_directory: Path | None = None,
+    ) -> KernelInvocationResult: ...
+
+
 DirectKernelInvoker = Callable[
     [RuntimeRequest, PackagedHandler, dict[str, Any], float],
     KernelInvocationResult,

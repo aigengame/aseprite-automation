@@ -236,11 +236,18 @@ def export_sequence(
     try:
         payload.update(
             phase="encode",
+            # Keep caller-relative Source paths stable when native encoding runs
+            # inside the owned output directory.
+            source_sprite_file=str(Path(request.source_sprite_file).absolute()),
             output_directory=str(staged.output_directory),
             evidence_directory=str(staged.evidence_directory),
         )
         invocation = services.invoke_kernel(
-            runtime, ANIMATION_HANDLER, payload, request.timeout_seconds
+            runtime,
+            ANIMATION_HANDLER,
+            payload,
+            request.timeout_seconds,
+            working_directory=staged.output_directory,
         )
         output = _facts(NativeSequenceOutput, invocation)
         if output.resolution != resolution or len(output.frames) != len(destinations):

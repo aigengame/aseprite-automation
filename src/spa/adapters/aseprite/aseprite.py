@@ -97,10 +97,16 @@ def _run(
     env: dict[str, str],
     timeout: float,
     canonical_executable: Path,
+    *,
+    working_directory: Path | None = None,
 ) -> tuple[int, Diagnostics]:
     try:
         process = subprocess.Popen(
-            command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=env,
+            cwd=working_directory,
         )
     except OSError as exc:
         raise RuntimeIssue(
@@ -262,7 +268,11 @@ def probe(
             str(script),
         ]
         status, diagnostics = _run(
-            command, prepared.environment, request.timeout_seconds, canonical
+            command,
+            prepared.environment,
+            request.timeout_seconds,
+            canonical,
+            working_directory=Path(work),
         )
         if not response_file.is_file():
             if status != 0:
@@ -389,6 +399,8 @@ def invoke(
     handler: PackagedHandler,
     payload: dict[str, Any],
     timeout_seconds: float,
+    *,
+    working_directory: Path | None = None,
 ) -> KernelInvocationResult:
     """Invoke one fixed packaged handler and return its private result object."""
     return _invoke_at(
@@ -397,6 +409,7 @@ def invoke(
         handler,
         payload,
         timeout_seconds,
+        working_directory=working_directory,
     )
 
 
@@ -426,6 +439,7 @@ def _invoke_at(
     timeout_seconds: float,
     *,
     with_capability_probe: bool = False,
+    working_directory: Path | None = None,
 ) -> KernelInvocationResult:
     handler_name = handler.name
     script = files("spa.kernel").joinpath(handler.package_path)
@@ -484,7 +498,11 @@ def _invoke_at(
             str(script),
         ]
         status, diagnostics = _run(
-            command, prepared.environment, timeout_seconds, canonical
+            command,
+            prepared.environment,
+            timeout_seconds,
+            canonical,
+            working_directory=working_directory,
         )
         if not response_file.is_file():
             if status != 0:
