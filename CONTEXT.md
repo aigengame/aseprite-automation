@@ -686,8 +686,13 @@ A format-specific outbound adapter that independently decodes typed observed fac
 staged Artifact bytes. It does not define the expected domain result or publish files.
 
 **Agent Skill**
-Version-matched guidance that teaches agents how to discover and invoke the installed
-SPA Operation surface.
+Self-contained, self-describing guidance through which an agent discovers the installed
+SPA Operation surface, determines which instructions apply, and invokes supported
+Operations. Compatibility judgment belongs to these instructions and the agent that
+follows them, using installed schemas and typed outcomes. The Skill does not own an
+independent Operation contract. [ADR-0096](docs/adr/0096-agent-skill-delivery.md) assigns
+distribution and version management to the Skills CLI without an external
+Skill-to-CLI compatibility mechanism.
 
 **MCP Adapter**
 An inbound adapter that derives tools from the installed Surface Manifest and invokes

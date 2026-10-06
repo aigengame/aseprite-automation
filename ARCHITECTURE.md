@@ -301,7 +301,7 @@ Sprite creation and inspection slice extends that same stack.
 | Ordinary Core Operations | Packaged Lua handlers | Core Operation Semantics and native mapping executed through Aseprite. The current package contains a fixed runtime probe, shared capability observations, Sprite creation, inspection, native flattening, resize and crop, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, Tag inspection and authoring, exact Pixel Patch, native Snapshot composition, native Line, Rectangle, Ellipse, Contour, and Blur Paint, animation audit, Frame comparison, continuity Preview, Export Image, and Operation Plan handlers. Sprite copy uses the File Adapter for byte preservation and the packaged inspection handler for verification. |
 | Aseprite integration | External `aseprite --batch --script` | Native document, Tool, Filter, color, and export behavior. |
 | Private transport | Versioned JSON request and response files | Data exchange through `--script-param`, separate from diagnostics. |
-| Agent access | Version-matched Agent Skill and planned local stdio MCP Adapter with CLI subprocess invocation | Guidance and equivalent tool projection from the installed surface. |
+| Agent access | Planned Agent Skill distribution through the Skills CLI and local stdio MCP Adapter with CLI subprocess invocation | Self-contained guidance and equivalent tool projection from the installed surface. |
 
 These choices can change when implementation or distribution evidence requires it.
 The Bounded Context, Published Language, and behavior authority do not depend on one
@@ -992,8 +992,8 @@ flowchart TB
     AppPath ~~~ Binding
     Binding ~~~ ScriptPath
     Manifest --> MCPTool[MCP tool projection]
-    SkillDocs[Version-matched Agent Skill] -. teaches .-> CLICommand
-    Manifest -. installed capability checks .-> SkillDocs
+    SkillDocs[Agent Skill guidance] -. teaches .-> CLICommand
+    Manifest -. read by the agent following Skill guidance .-> SkillDocs
 ```
 
 The installed Surface Manifest reports the callable Operations, schemas, execution
@@ -1110,9 +1110,16 @@ history, or cross-command recovery system.
 - The **CLI** is the first public execution channel for the public `spa` CLI
   JSON contract.
 - The **Agent Skill** teaches discovery and the edit-observe-verify-export loop for the
-  installed surface.
+  installed surface. Under the planned [#52](https://github.com/aigengame/aseprite-automation/issues/52)
+  delivery, `skills/spa/SKILL.md` contains the self-contained instructions that let the
+  consuming agent determine applicability from installed schemas and typed outcomes.
 - The **MCP Adapter** reads the Surface Manifest, invokes `spa`, and relays equivalent
   requests and outcomes.
+
+[ADR-0096](docs/adr/0096-agent-skill-delivery.md) delegates Skill discovery, installation,
+updates, and version management to the Skills CLI. SPA adds no `spa skill` command,
+wheel copy of the Skill, or external Skill-to-CLI compatibility checker. The Python
+package and native runtime keep their existing installation and execution checks.
 
 The planned initial MCP slice uses stdio between the MCP client and adapter. The adapter invokes
 the installed `spa` CLI as a subprocess; it does not require a REST or HTTP intermediary.
@@ -1382,6 +1389,7 @@ This map is navigation, not a second decision record.
 | --- | --- |
 | Strategic-context decisions and rationale; current model in `CONTEXT.md` | [ADR-0001](docs/adr/0001-single-sprite-automation-context.md), [ADR-0007](docs/adr/0007-demand-driven-nfrs.md), [ADR-0009](docs/adr/0009-command-groups-and-domain-modules.md), [ADR-0095](docs/adr/0095-asset-preparation-authoring-and-delivery.md) |
 | Operation contract, Plan, targets, limits, and outcomes | [ADR-0002](docs/adr/0002-operation-descriptor-authority.md), [ADR-0003](docs/adr/0003-operation-plan-boundary.md), [ADR-0006](docs/adr/0006-operation-targets-and-identity.md), [ADR-0008](docs/adr/0008-operation-owned-bounds.md), [ADR-0013](docs/adr/0013-result-and-failure-contract.md) |
+| Agent Skill distribution and self-contained guidance | [ADR-0096](docs/adr/0096-agent-skill-delivery.md) |
 | Kernel authority and mutation publication | [ADR-0010](docs/adr/0010-lua-operation-kernel-authority.md), [ADR-0014](docs/adr/0014-mutation-file-semantics.md) |
 | Document, animation, color, and selection semantics | [ADR-0021](docs/adr/0021-frame-numbering.md), [ADR-0024](docs/adr/0024-color-values-and-conversion.md), [ADR-0025](docs/adr/0025-coordinate-spaces-and-rectangles.md), [ADR-0028](docs/adr/0028-background-layer-and-cels.md), [ADR-0029](docs/adr/0029-selection-as-explicit-value.md), [ADR-0033](docs/adr/0033-tag-playback-semantics.md), [ADR-0035](docs/adr/0035-palette-time-semantics.md), [ADR-0039](docs/adr/0039-slice-model-and-addressing.md) |
 | Raster, Tile, Paint, and Filter semantics | [ADR-0018](docs/adr/0018-raster-authoring-boundary.md), [ADR-0041](docs/adr/0041-tileset-and-tile-identity.md), [ADR-0044](docs/adr/0044-tilemap-and-placement-semantics.md), [ADR-0047](docs/adr/0047-preserve-tile-meaning-across-tileset-lifecycle.md), [ADR-0051](docs/adr/0051-shared-image-resize-transform.md), [ADR-0057](docs/adr/0057-canonical-pixel-region-snapshot.md), [ADR-0060](docs/adr/0060-private-native-tool-invocation.md), [ADR-0066](docs/adr/0066-declare-native-stochastic-operations.md), [ADR-0074](docs/adr/0074-shared-native-filter-semantics.md) |
