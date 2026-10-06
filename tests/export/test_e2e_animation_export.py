@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
+from tests.export.support import png_icc_label
 from tests.export.test_e2e_export_image import _source
 from tests.support import spa
 
@@ -231,6 +232,9 @@ def test_sequence_preserves_supported_profiles(tmp_path: Path, mode: str, profil
         assert observed.color_profile == ("srgb" if profile == "srgb" else "icc")
         if profile != "srgb":
             assert observed.icc_bytes == profile_path.read_bytes()
+            assert png_icc_label(Path(item["path"]).read_bytes()) == profile.encode(
+                "ascii"
+            )
         else:
             assert observed.srgb_rendering_intent == 0
     assert source.read_bytes() == original

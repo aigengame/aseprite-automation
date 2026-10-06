@@ -48,6 +48,7 @@ from spa.delivery.animation_contracts import (
     NativeSequenceOutput,
     SequenceFrameFacts,
 )
+from spa.delivery.export import EXPORT_SUPPORT
 
 ANIMATION_SUPPORT = PackagedResource(
     "animation_export", "delivery/animation_export_support.lua"
@@ -63,6 +64,7 @@ ANIMATION_HANDLER = PackagedHandler(
         TAG_SELECT_RESOURCE,
         ANIMATION_SUPPORT,
         GIF_RESOURCE,
+        EXPORT_SUPPORT,
     ),
 )
 SEQUENCE_REQUIREMENTS = RuntimeRequirements(

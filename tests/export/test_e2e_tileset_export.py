@@ -10,6 +10,7 @@ from PIL import Image
 from spa.adapters.aseprite.aseprite import probe
 from spa.application.surface import PROBE_RESOURCES
 from spa.contracts.public import RuntimeRequest
+from tests.export.support import png_icc_label
 from tests.tile.support import fixture, run
 
 pytestmark = pytest.mark.e2e
@@ -169,6 +170,9 @@ def test_preserve_mode_palette_profile_and_exact_tile_channels(
         assert (
             decoded.icc_bytes
             == files("spa.kernel").joinpath(resource.package_path).read_bytes()
+        )
+        assert png_icc_label((tmp_path / "atlas.png").read_bytes()) == profile.encode(
+            "ascii"
         )
     if profile == "srgb":
         assert decoded.srgb_rendering_intent == 0

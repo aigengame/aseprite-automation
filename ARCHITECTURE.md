@@ -1270,12 +1270,24 @@ original native Tile Image digests and parses the separate JSON against native a
 request facts. The File Adapter publishes the validated finite pair in caller order
 and records partial publication; it has no Tile or PNG semantics.
 
+Sheet, Tileset, and PNG sequence export share `png_color_space()` in
+`kernel/delivery/export_image_support.lua`. It copies the native ColorSpace and
+uses the admitted ICC identity as the PNG iCCP keyword. Backend display names can
+be empty or invalid PNG keywords. This changes only the output label: it preserves
+the ICC payload and Source profile, performs no color conversion, and adds no Image
+copy. Each exporter retains its profile admission and independent byte/pixel checks;
+Color and Palette remains the owner of profile identity and conversion semantics.
+
 A successful result reports the complete declared output set. When an Export has
 several final paths, SPA publishes them in a deterministic order. A failure after a
 final path changed returns `partial_publication` with the known state of every declared
 destination and whether a published path replaced an existing file. SPA does not return
 a successful Artifact set, restore replaced files, remove published files, or promise
-filesystem atomicity or a general recovery mechanism. A hard interruption can leave
+filesystem atomicity or a general recovery mechanism. The shared failure contract in
+`contracts/artifact.py` uses `existed_before` for each destination's prior existence
+and requires `replaced_existing` when its state is `published`. The single failure
+registration serves Tileset, Sheet, GIF, and PNG sequence output.
+A hard interruption can leave
 the final state indeterminate; a later request observes existing paths through its
 normal explicit `if_exists` policy.
 

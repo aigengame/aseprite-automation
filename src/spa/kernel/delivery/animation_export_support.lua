@@ -4,6 +4,7 @@ local composition = dofile(app.params.layer_composition)
 local selection = dofile(app.params.layer_select)
 local inspection = dofile(app.params.inspection)
 local profiles = dofile(app.params.color_profile)
+local images = dofile(app.params.export_image_support)
 local tags = dofile(app.params.tag_select)
 local palettes = dofile(app.params.effective_palette)
 local gif = dofile(app.params.animation_gif)
@@ -138,13 +139,7 @@ end
 
 function module.encode_png(image, path, palette, background, filename_format, occurrence, profile)
   local spec = ImageSpec(image.spec)
-  if profile.kind == "icc" and spec.colorSpace.name == "" then
-    -- The none backend leaves ICC display names empty; libpng requires an iCCP
-    -- keyword. Name only this private profile copy, preserving the exact ICC bytes.
-    local color_space = ColorSpace(spec.colorSpace)
-    color_space.name = "ICC Profile"
-    spec.colorSpace = color_space
-  end
+  spec.colorSpace = images.png_color_space(spec.colorSpace, profile)
   local temporary = Sprite(spec)
   local ok, result = pcall(function()
     if palette then temporary:setPalette(Palette(palette)) end
