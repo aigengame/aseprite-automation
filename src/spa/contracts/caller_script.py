@@ -46,6 +46,10 @@ class ScriptFileFact(PublicModel):
     error: str | None = None
 
 
+class ScriptSuccessDiagnostics(Diagnostics):
+    exit_status: Literal[0] = Field(...)
+
+
 class ScriptRunResult(PublicModel):
     status: Literal["success"] = "success"
     operation: Literal["spa script run"] = "spa script run"
@@ -53,9 +57,9 @@ class ScriptRunResult(PublicModel):
     determinism: Literal["caller-defined"] = "caller-defined"
     executable: str
     working_directory: str
-    timeout_seconds: float
-    output_limit_bytes: int
-    diagnostics: Diagnostics
+    timeout_seconds: float = Field(gt=0, le=120)
+    output_limit_bytes: int = Field(ge=1)
+    diagnostics: ScriptSuccessDiagnostics
     files: list[ScriptFileFact]
 
 

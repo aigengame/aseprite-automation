@@ -43,3 +43,38 @@ def test_schema_accepts_only_the_declared_classification_pairing(
 def test_descriptor_rejects_invalid_classification(kind, determinism) -> None:
     with pytest.raises(ValueError, match="[Dd]eterminism|caller-defined"):
         replace(SCRIPT_OPERATIONS[0], execution_kind=kind, determinism=determinism)
+
+
+def test_script_descriptor_cannot_register_under_an_ordinary_identity_or_in_a_plan() -> (
+    None
+):
+    from spa.authoring.document.sprite import SPRITE_OPERATIONS
+
+    script = SCRIPT_OPERATIONS[0]
+    ordinary = SPRITE_OPERATIONS[0]
+    with pytest.raises(ValueError, match="script run"):
+        replace(script, name=ordinary.name, result_type=ordinary.result_type)
+    with pytest.raises(ValueError, match="Plan"):
+        replace(script, plan_eligible=True)
+    with pytest.raises(ValueError, match="script run"):
+        replace(script, execution_kind="mutation", determinism="deterministic")
+
+
+def test_script_result_cannot_claim_success_for_an_unobserved_or_failed_exit() -> None:
+    from spa.contracts.caller_script import ScriptRunResult
+
+    result = {
+        "executable": "/aseprite",
+        "working_directory": "/tmp",
+        "timeout_seconds": 15.0,
+        "output_limit_bytes": 65536,
+        "diagnostics": {"stdout": "", "stderr": "", "exit_status": 0},
+        "files": [],
+    }
+    validator = Draft202012Validator(ScriptRunResult.model_json_schema())
+    validator.validate(result)
+    for status in (None, 1, -9):
+        result["diagnostics"]["exit_status"] = status
+        assert not validator.is_valid(result)
+        with pytest.raises(ValidationError):
+            ScriptRunResult.model_validate(result)

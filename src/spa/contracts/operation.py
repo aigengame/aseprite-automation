@@ -62,6 +62,10 @@ class OperationDescriptor[RequestT: BaseModel, ResultT: BaseModel]:
 
     def __post_init__(self) -> None:
         validate_operation_determinism(self.execution_kind, self.determinism)
+        if (self.name == "script run") != (self.execution_kind == "script-run"):
+            raise ValueError("script run is the only caller-owned execution identity")
+        if self.execution_kind == "script-run" and self.plan_eligible:
+            raise ValueError("Caller scripts cannot be Operation Plan Steps")
         command = f"spa {self.name}"
         operation_field = self.result_type.model_fields.get("operation")
         if (

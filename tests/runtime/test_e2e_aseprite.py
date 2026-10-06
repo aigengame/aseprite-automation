@@ -114,6 +114,7 @@ def test_info_reports_installed_runtime() -> None:
         "spa info",
         "spa version",
         "spa schema",
+        "spa script run",
         "spa sprite create",
         "spa sprite get",
         "spa sprite copy",

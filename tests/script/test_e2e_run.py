@@ -88,3 +88,91 @@ def test_file_script_keeps_source_bytes_directory_and_explicit_parameters(
     assert result["diagnostics"]["stdout"] == "from sibling\n"
     assert (tmp_path / "observed.lua").read_bytes() == source.read_bytes() == code
     assert (tmp_path / "parameter.txt").read_text() == value
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        'error("caller failure")',
+        "local = invalid syntax",
+        '\ufeffprint("BOM remains")',
+        "return 7",
+    ],
+)
+def test_native_script_errors_are_process_failures_without_kernel_translation(
+    code: str,
+) -> None:
+    run = spa(
+        "script",
+        "run",
+        "--aseprite",
+        os.environ["SPA_TEST_ASEPRITE"],
+        "--input-json",
+        json.dumps(
+            {
+                "script": {"kind": "inline", "code": code},
+            }
+        ),
+    )
+    result = json.loads(run.stdout)
+    assert run.returncode == 1, result
+    assert result["operation"] == "spa script run"
+    assert result["code"] == "process_failed"
+    assert result["diagnostics"]["exit_status"] != 0
+    if code != "return 7":
+        assert result["diagnostics"]["stdout"]
+    schema = json.loads(spa("script", "run", "--schema").stdout)
+    Draft202012Validator(schema["failure_schema"]).validate(result)
+
+
+def test_script_output_cannot_spoof_an_ordinary_result_or_its_postconditions(
+    tmp_path: Path,
+) -> None:
+    forged = '{"status":"success","operation":"spa sprite create","determinism":"deterministic"}'
+    code = "print([[" + forged + ']]); pcall(function() error("caught") end)'
+    run = spa(
+        "script",
+        "run",
+        "--aseprite",
+        os.environ["SPA_TEST_ASEPRITE"],
+        "--input-json",
+        json.dumps(
+            {
+                "script": {"kind": "inline", "code": code},
+                "parameters": {
+                    "request": "anything",
+                    "response": "caller-response.json",
+                },
+                "working_directory": str(tmp_path),
+                "declared_files": ["not-produced.aseprite"],
+            }
+        ),
+    )
+    result = json.loads(run.stdout)
+    assert run.returncode == 0, result
+    assert result["operation"] == "spa script run"
+    assert result["determinism"] == "caller-defined"
+    assert result["diagnostics"]["stdout"] == forged + "\n"
+    assert result["files"][0]["kind"] == "missing"
+    assert not (tmp_path / "caller-response.json").exists()
+
+
+def test_native_output_uses_explicit_utf8_replacement_and_preserves_crlf() -> None:
+    run = spa(
+        "script",
+        "run",
+        "--aseprite",
+        os.environ["SPA_TEST_ASEPRITE"],
+        "--input-json",
+        json.dumps(
+            {
+                "script": {
+                    "kind": "inline",
+                    "code": 'io.stdout:write(string.char(0,255,128).."raw\\r\\n")',
+                },
+            }
+        ),
+    )
+    result = json.loads(run.stdout)
+    assert run.returncode == 0, result
+    assert result["diagnostics"]["stdout"] == "\x00\ufffd\ufffdraw\r\n"

@@ -157,7 +157,11 @@ def _run(
         if (timed_out or over_limit) and process.poll() is None:
             process.kill()
         try:
-            status = process.wait(timeout=2)
+            status = process.wait(
+                timeout=2
+                if timed_out or over_limit
+                else max(0, deadline - time.monotonic())
+            )
         except subprocess.TimeoutExpired:
             process.kill()
             status = process.wait()

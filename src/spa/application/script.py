@@ -1,6 +1,10 @@
 """Application entry point for exact caller-owned Lua, outside Operation Plans."""
 
-from spa.contracts.caller_script import ScriptRunRequest, ScriptRunResult
+from spa.contracts.caller_script import (
+    ScriptRunRequest,
+    ScriptRunResult,
+    ScriptSuccessDiagnostics,
+)
 from spa.contracts.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.contracts.ports import OperationServices
 from spa.contracts.public import RuntimeRequirements
@@ -17,7 +21,9 @@ def run_script(
         working_directory=observed.working_directory,
         timeout_seconds=request.timeout_seconds,
         output_limit_bytes=observed.output_limit_bytes,
-        diagnostics=observed.diagnostics,
+        diagnostics=ScriptSuccessDiagnostics.model_validate(
+            observed.diagnostics.model_dump()
+        ),
         files=list(observed.files),
     )
 

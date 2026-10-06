@@ -1420,6 +1420,65 @@ See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the integrated context map, subdoma
 module responsibilities, dependency rules, technology profile, contracts, execution
 flows, trust boundary, and decision map.
 
+### Caller-owned Lua
+
+`spa script run` executes exact caller-owned Lua in Aseprite batch mode. Its
+Execution Kind is `script-run` and its Determinism is `caller-defined`. A successful
+result means the process exited with status 0; it makes no claim about the script's
+repeatability, domain effects, output correctness, or native stochastic behavior.
+It cannot participate in Operation Plans or replace an Ordinary Core Operation.
+
+```sh
+spa script run --input-json - <<'JSON'
+{
+  "script": {"kind": "inline", "code": "print(app.version)"},
+  "timeout_seconds": 15
+}
+JSON
+
+spa script run --input-json '{
+  "script": {"kind": "file", "path": "scripts/build.lua"},
+  "working_directory": "/absolute/project",
+  "parameters": {"variant": "blue"},
+  "declared_files": ["output/sprite.aseprite"]
+}'
+spa script run --schema
+```
+
+- Inline text is encoded as UTF-8 and written byte-for-byte to a temporary Lua file:
+  no wrapper, newline normalization, BOM removal, or injected source. Its
+  `_SCRIPT_PATH` and script-relative module search refer to that temporary directory.
+- File input is passed directly at its absolute path, without reading, copying, or
+  rewriting its contents in SPA. Its script-directory semantics are native. The
+  caller owns the file during execution; SPA does not freeze it against concurrent
+  edits. Native file decoding remains Aseprite's responsibility.
+- `working_directory` defaults to the SPA process's current directory. Relative
+  script paths and declared file paths use that directory. Aseprite also uses it
+  for relative I/O; `_SCRIPT_PATH` remains distinct. Paths in JSON do not expand `~`.
+- Parameter names are ASCII identifiers (`[A-Za-z_][A-Za-z0-9_]*`); values are
+  strings without NUL. They are passed as individual `--script-param name=value`
+  arguments before `--script`, never as generated Lua or shell commands.
+- `diagnostics.stdout` and `.stderr` contain captured process output, decoded as
+  UTF-8 with replacement for invalid bytes; these are text observations, not a
+  lossless binary output format. Aseprite may write Lua errors to stdout or host
+  notices to stderr. Neither stream is parsed as a Kernel response or SPA result.
+- `timeout_seconds` is positive and at most 120 (default 15), separately applied
+  to the runtime probe and caller process. Each stream is limited to 65,536 raw
+  bytes; exceeding either limit or timing out stops the process and returns the
+  registered `output_limit_exceeded` or `process_timeout` failure with captured
+  diagnostics. A nonzero exit becomes `process_failed`, without Lua error parsing.
+- After exit 0, `files` observes only `declared_files`, following symlinks: regular
+  file size, directory, other, missing, or unavailable with its OS error. These are
+  post-process filesystem facts, not proof of creation, modification, persistence,
+  or domain validity. Missing files do not turn exit 0 into failure. A process
+  failure returns diagnostics without a file inventory; script writes may remain.
+
+This is trusted local execution with the caller's filesystem privileges and
+Aseprite's native scripting behavior. It has no sandbox, rollback, Target Commit,
+or Artifact publication guarantee. SPA uses the same isolated Aseprite user folder
+as its other invocations. Use the ordinary typed Operations when their guarantees
+are needed.
+
 ## Delivery Plan
 
 The project grows through evidence-bearing vertical slices. GitHub issues own scope,
