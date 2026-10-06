@@ -7,50 +7,13 @@ from typing import Literal
 
 from PIL import Image, UnidentifiedImageError
 
-from spa.adapters.png_input import _encoded_chunks, _entries, _inflate, _profile
+from spa.adapters.png_input import (
+    _encoded_chunks,
+    _entries,
+    _profile,
+    _verify_pixel_stream,
+)
 from spa.contracts.encoded_animation import AnimationDecodeError, DecodedSequencePng
-
-
-def _verify_samples(
-    chunks: dict[bytes, bytes],
-    width: int,
-    height: int,
-    color_type: int,
-    depth: int,
-    interlace: int,
-) -> None:
-    # Pillow owns unfiltering and Adam7. Check complete packed scanlines first;
-    # its decoder can otherwise tolerate an extended or truncated zlib stream.
-    channels = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}[color_type]
-    passes = (
-        ((0, 0, 1, 1),)
-        if interlace == 0
-        else (
-            (0, 0, 8, 8),
-            (4, 0, 8, 8),
-            (0, 4, 4, 8),
-            (2, 0, 4, 4),
-            (0, 2, 2, 4),
-            (1, 0, 2, 2),
-            (0, 1, 1, 2),
-        )
-    )
-    rows: list[tuple[int, int]] = []
-    for x, y, dx, dy in passes:
-        pass_width = max(0, (width - x + dx - 1) // dx)
-        pass_height = max(0, (height - y + dy - 1) // dy)
-        if pass_width and pass_height:
-            rows.append(((pass_width * channels * depth + 7) // 8 + 1, pass_height))
-    expected = sum(stride * count for stride, count in rows)
-    stream = _inflate(chunks[b"IDAT"], expected)
-    if len(stream) != expected:
-        raise ValueError("PNG pixel stream size disagrees with IHDR")
-    offset = 0
-    for stride, count in rows:
-        for _ in range(count):
-            if stream[offset] > 4:
-                raise ValueError("Invalid PNG scanline filter")
-            offset += stride
 
 
 def decode_sequence_png(payload: bytes) -> DecodedSequencePng:
@@ -98,7 +61,9 @@ def decode_sequence_png(payload: bytes) -> DecodedSequencePng:
                 raise ValueError(
                     "PNG decoder representation disagrees with encoded facts"
                 )
-            _verify_samples(chunks, width, height, color_type, depth, interlace)
+            _verify_pixel_stream(
+                chunks[b"IDAT"], width, height, color_type, interlace, bit_depth=depth
+            )
             image.load()
             mode: Literal["rgb", "grayscale", "indexed"]
             rgba = image.convert("RGBA").tobytes()

@@ -125,6 +125,47 @@ def _replace_png_chunk(payload: bytes, kind: bytes, data: bytes) -> bytes:
     return payload[:offset] + chunk + payload[offset + size + 12 :]
 
 
+def _packed_adam7_png(depth: int, stream: bytes) -> bytes:
+    image = Image.new("P", (3, 2))
+    image.putpalette([11, 22, 33, 44, 55, 66])
+    payload = _png(image, bits=depth)
+    payload = _replace_png_chunk(
+        payload, b"IHDR", struct.pack(">IIBBBBB", 3, 2, depth, 3, 0, 0, 1)
+    )
+    return _replace_png_chunk(payload, b"IDAT", zlib.compress(stream))
+
+
+@pytest.mark.parametrize(
+    "depth,stream",
+    [
+        (1, bytes([0, 128, 0, 128, 0, 0, 0, 64])),
+        (2, bytes([0, 64, 0, 64, 0, 0, 0, 16])),
+        (4, bytes([0, 16, 0, 16, 0, 0, 0, 1, 0])),
+    ],
+)
+def test_sequence_png_decodes_complete_packed_adam7(depth: int, stream: bytes):
+    # 3x2 Adam7: passes 1, 4, 6 each contain one top-row pixel; pass 7
+    # contains the three bottom-row pixels. Every pass row starts with filter 0.
+    decoded = decode_sequence_png(_packed_adam7_png(depth, stream))
+
+    assert decoded.bit_depth == depth
+    assert decoded.stored_bytes == bytes([1, 0, 1, 0, 1, 0])
+    assert decoded.entries[:2] == ((11, 22, 33, 255), (44, 55, 66, 255))
+
+
+@pytest.mark.parametrize(
+    "stream",
+    [
+        bytes([0, 128, 0, 128, 0, 0, 0]),  # Missing last packed sample.
+        bytes([0, 128, 0, 128, 0, 0, 0, 64, 0]),  # Extra scanline byte.
+        bytes([0, 128, 0, 128, 0, 0, 5, 64]),  # Invalid final-pass filter.
+    ],
+)
+def test_sequence_png_rejects_invalid_packed_adam7_stream(stream: bytes):
+    with pytest.raises(AnimationDecodeError):
+        decode_sequence_png(_packed_adam7_png(1, stream))
+
+
 @pytest.mark.parametrize(
     "damage",
     ["crc", "trailing", "truncated", "scanline", "zlib_tail", "duplicate_ihdr"],
