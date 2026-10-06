@@ -246,13 +246,13 @@ does not add other motion modes or recipe-owned pose and particle behavior.
 
 ## `script`
 
-| Installed command | Intended meaning |
+| Candidate command | Intended meaning |
 | --- | --- |
 | `spa script run` | Execute exact caller-owned Lua (`script-run` / `caller-defined`) and report process and declared file facts, outside Operation Plans and Ordinary Core Operation guarantees. |
 
 Issue [#51](https://github.com/aigengame/aseprite-automation/issues/51) owns scope;
 [ADR-0010](adr/0010-lua-operation-kernel-authority.md) records exact source transport.
-Use the installed schema for request/result shapes and the [caller-script guide](../README.md#caller-owned-lua)
+Use the installed schema for actual availability and request/result shapes and the [caller-script guide](../README.md#caller-owned-lua)
 for working-directory, output decoding, and process-limit behavior.
 
 ## Preparation
