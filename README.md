@@ -51,7 +51,7 @@ appears in the installed Surface Manifest.
 | Slices and imported content | Work with Slices, external raster input, and evidence-gated text rasterization through verified contracts. |
 | Inspection and validation | Observe and validate each owned Aseprite concept beside its creation or editing capabilities. |
 | Composition and delivery | Apply eligible Operations in a bounded single-Sprite Plan and export image, animation, sheet, Tileset, preview, and metadata Artifacts. |
-| Agent access | Publish version-locked Agent Skill guidance and project the installed operation surface through the Model Context Protocol (MCP). |
+| Agent access | Distribute self-contained Agent Skill guidance through the Skills CLI and project the installed operation surface through the Model Context Protocol (MCP). |
 | Asset workflow integration | Participate in external asset workflows through the public `spa` CLI JSON contract. |
 
 Native text rasterization currently has an evidence-backed Capability Gap in
