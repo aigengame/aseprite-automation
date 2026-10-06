@@ -1454,7 +1454,9 @@ spa script run --schema
   edits. Native file decoding remains Aseprite's responsibility.
 - `working_directory` defaults to the SPA process's current directory. Relative
   script paths and declared file paths use that directory. Aseprite also uses it
-  for relative I/O; `_SCRIPT_PATH` remains distinct. Paths in JSON do not expand `~`.
+  for relative I/O; `_SCRIPT_PATH` remains distinct. The script path,
+  `working_directory`, and declared-file paths do not expand `~`. The `aseprite`
+  executable path retains runtime discovery's home-directory expansion.
 - Parameter names are ASCII identifiers (`[A-Za-z_][A-Za-z0-9_]*`); values are
   strings without NUL. They are passed as individual `--script-param name=value`
   arguments before `--script`, never as generated Lua or shell commands.
