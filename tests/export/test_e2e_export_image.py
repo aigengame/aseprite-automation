@@ -12,31 +12,11 @@ import pytest
 from jsonschema import Draft202012Validator, validate
 from PIL import Image, ImageCms
 
+from tests.export.support import export_image_request as _request
 from tests.export.support import source_sprite as _source
 from tests.support import spa
 
 pytestmark = pytest.mark.e2e
-
-
-def _request(
-    source: Path,
-    destination: Path,
-    *,
-    frame_number: int = 1,
-    if_exists: str = "fail",
-) -> dict[str, object]:
-    return {
-        "source_sprite_file": str(source),
-        "destination": {"path": str(destination), "if_exists": if_exists},
-        "frame_number": frame_number,
-        "export_image_area": {"kind": "canvas"},
-        "layer_composition": {"mode": "visible"},
-        "composition_color_mode": "preserve",
-        "color_mode": "preserve",
-        "color_profile": "preserve",
-        "transparency": "preserve",
-        "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-    }
 
 
 def test_export_frame_as_verified_visible_rgb_png(tmp_path: Path) -> None:

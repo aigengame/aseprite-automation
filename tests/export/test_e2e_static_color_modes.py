@@ -8,8 +8,9 @@ from PIL import Image
 
 from spa.contracts.digest import fnv1a64
 from tests.color_mode.test_e2e_color_mode import conversion_for, convert
+from tests.export.support import export_image_request as _request
 from tests.export.support import source_sprite
-from tests.export.test_e2e_static_geometry import _export, _request
+from tests.export.test_e2e_static_geometry import _export
 from tests.support import inject_palette_change, spa
 
 pytestmark = pytest.mark.e2e

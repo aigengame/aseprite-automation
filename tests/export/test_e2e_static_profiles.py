@@ -11,8 +11,9 @@ from PIL import Image
 from spa.adapters.aseprite.aseprite import probe
 from spa.application.surface import PROBE_RESOURCES
 from spa.contracts.public import RuntimeRequest
+from tests.export.support import export_image_request as _request
 from tests.export.support import png_icc_label, source_sprite
-from tests.export.test_e2e_static_geometry import _export, _request
+from tests.export.test_e2e_static_geometry import _export
 from tests.support import spa
 
 pytestmark = pytest.mark.e2e

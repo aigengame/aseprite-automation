@@ -6,7 +6,8 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from tests.export.test_e2e_static_geometry import _export, _request
+from tests.export.support import export_image_request as _request
+from tests.export.test_e2e_static_geometry import _export
 
 pytestmark = pytest.mark.e2e
 EXAMPLE = Path(__file__).resolve().parents[2] / "examples/wizard_cast_v2"

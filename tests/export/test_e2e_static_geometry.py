@@ -9,26 +9,11 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
+from tests.export.support import export_image_request as _request
 from tests.export.support import source_sprite
 from tests.support import spa
 
 pytestmark = pytest.mark.e2e
-
-
-def _request(source: Path, destination: Path, **choices: object) -> dict:
-    return {
-        "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-        "source_sprite_file": str(source),
-        "destination": {"path": str(destination), "if_exists": "fail"},
-        "frame_number": 1,
-        "export_image_area": {"kind": "canvas"},
-        "layer_composition": {"mode": "visible"},
-        "composition_color_mode": "preserve",
-        "color_mode": "preserve",
-        "color_profile": "preserve",
-        "transparency": "preserve",
-        **choices,
-    }
 
 
 def _export(request: dict) -> dict:

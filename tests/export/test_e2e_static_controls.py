@@ -6,8 +6,8 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
+from tests.export.support import export_image_request as _request
 from tests.export.support import source_sprite
-from tests.export.test_e2e_export_image import _request
 from tests.support import spa
 
 pytestmark = pytest.mark.e2e
