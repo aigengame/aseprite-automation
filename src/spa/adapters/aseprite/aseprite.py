@@ -5,6 +5,7 @@ import os
 import selectors
 import shutil
 import signal
+import stat
 import subprocess
 import tempfile
 import time
@@ -14,6 +15,12 @@ from typing import Any, Literal, cast, get_args
 
 from spa.adapters.aseprite.convolution import discover_convolution_resources
 from spa.adapters.aseprite.invocation import prepare_invocation
+from spa.contracts.caller_script import (
+    InlineScript,
+    ScriptFileFact,
+    ScriptInvocationResult,
+    ScriptRunRequest,
+)
 from spa.contracts.ports import (
     DiscoveryEvidence,
     HandlerEvidence,
@@ -22,6 +29,7 @@ from spa.contracts.ports import (
     PackagedHandler,
     PackagedResource,
     ProcessEvidence,
+    RequestIssue,
     ResourceEvidence,
     ResponseEvidence,
     RuntimeCompatibilityEvidence,
@@ -35,6 +43,7 @@ from spa.contracts.public import (
     RuntimeCapability,
     RuntimeCompatibilityDetails,
     RuntimeRequest,
+    ValidationIssue,
 )
 
 KERNEL_PROTOCOL_VERSION = 1
@@ -594,3 +603,94 @@ def _invoke_at(
                 ResponseEvidence(response_path=str(response_file)),
                 diagnostics,
             ) from exc
+
+
+def _script_file_fact(path: Path) -> ScriptFileFact:
+    try:
+        observed = path.stat()
+    except FileNotFoundError:
+        return ScriptFileFact(path=str(path), kind="missing")
+    except OSError as exc:
+        return ScriptFileFact(path=str(path), kind="unavailable", error=str(exc))
+    if stat.S_ISREG(observed.st_mode):
+        return ScriptFileFact(path=str(path), kind="file", size_bytes=observed.st_size)
+    return ScriptFileFact(
+        path=str(path), kind="directory" if stat.S_ISDIR(observed.st_mode) else "other"
+    )
+
+
+def invoke_script(
+    observation: RuntimeObservation, request: ScriptRunRequest
+) -> ScriptInvocationResult:
+    """Run the caller's source without the packaged Kernel protocol or wrappers."""
+    canonical = Path(observation.canonical_path)
+    resource = Path(observation.resource_path)
+    try:
+        working_directory = Path(request.working_directory or Path.cwd()).absolute()
+        if not working_directory.is_dir():
+            raise RequestIssue(
+                [
+                    ValidationIssue(
+                        location=["working_directory"],
+                        code="directory_required",
+                        message="working_directory must be an existing directory",
+                    )
+                ]
+            )
+        script = None
+        if not isinstance(request.script, InlineScript):
+            script = working_directory / request.script.path
+            if not script.is_file() or not os.access(script, os.R_OK):
+                raise RequestIssue(
+                    [
+                        ValidationIssue(
+                            location=["script", "path"],
+                            code="readable_file_required",
+                            message="script.path must be a readable regular file",
+                        )
+                    ]
+                )
+        workspace = tempfile.TemporaryDirectory(prefix="spa-caller-script-")
+    except OSError as exc:
+        raise RuntimeIssue(
+            "launch_failed", str(exc), LaunchEvidence(executable=str(canonical))
+        ) from exc
+    with workspace as work:
+        try:
+            if isinstance(request.script, InlineScript):
+                script = Path(work) / "caller.lua"
+                script.write_bytes(request.script.code.encode("utf-8"))
+        except (OSError, UnicodeError) as exc:
+            raise RuntimeIssue(
+                "launch_failed", str(exc), LaunchEvidence(executable=str(canonical))
+            ) from exc
+        prepared = prepare_invocation(canonical, resource, Path(work))
+        arguments = [str(prepared.executable), "--batch"]
+        for name, value in request.parameters.items():
+            arguments.extend(("--script-param", f"{name}={value}"))
+        assert script is not None
+        arguments.extend(("--script", str(script)))
+        status, diagnostics = _run(
+            arguments,
+            prepared.environment,
+            request.timeout_seconds,
+            canonical,
+            working_directory=working_directory,
+        )
+        if status != 0:
+            raise RuntimeIssue(
+                "process_failed",
+                f"Caller script Aseprite process exited with status {status}",
+                ProcessEvidence(executable=str(canonical), exit_status=status),
+                diagnostics,
+            )
+        return ScriptInvocationResult(
+            executable=str(canonical),
+            working_directory=str(working_directory),
+            output_limit_bytes=OUTPUT_LIMIT_BYTES,
+            diagnostics=diagnostics,
+            files=tuple(
+                _script_file_fact(working_directory / path)
+                for path in request.declared_files
+            ),
+        )

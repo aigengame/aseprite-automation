@@ -9,6 +9,7 @@ from typing import Any, Literal, Protocol
 from pydantic import ConfigDict
 
 from spa.contracts.artifact_set import ArtifactSets
+from spa.contracts.caller_script import CallerScriptInvoker
 from spa.contracts.encoded_animation import GifDecoder, SequencePngDecoder
 from spa.contracts.mutation import (
     PublicationIdentityObserver,
@@ -304,6 +305,7 @@ class OperationServices:
     decode_sequence_png: SequencePngDecoder | None = None
     decode_gif: GifDecoder | None = None
     decode_png_artifact: PngArtifactDecoder | None = None
+    invoke_script: CallerScriptInvoker | None = None
 
 
 @dataclass(frozen=True)
