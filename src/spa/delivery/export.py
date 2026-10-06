@@ -4,9 +4,18 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from spa.authoring.color.color_mode import COLOR_MODE_RESOURCES
+from spa.authoring.color.color_mode import (
+    COLOR_MODE_FAILURE_SPECS,
+    COLOR_MODE_RESOURCES,
+    reject_color_mode,
+)
 from spa.authoring.color.palette import PALETTE_TRANSFORM_HANDLER
-from spa.authoring.color.palette_file import PALETTE_FILE_RESOURCE
+from spa.authoring.color.palette_file import (
+    PALETTE_FILE_FAILURE_SPECS,
+    PALETTE_FILE_RESOURCE,
+    read_palette_file,
+    reject_palette_file,
+)
 from spa.authoring.color.profile import (
     PROFILE_FAILURE_SPECS,
     PROFILE_FILE_RESOURCE,
@@ -17,7 +26,11 @@ from spa.authoring.color.profile import (
     reject_profile,
     supported_icc_identity,
 )
-from spa.authoring.color.quantization import PALETTE_QUANTIZATION_RESOURCE
+from spa.authoring.color.quantization import (
+    PALETTE_QUANTIZATION_RESOURCE,
+    QUANTIZATION_FAILURE_SPECS,
+    reject_quantization,
+)
 from spa.authoring.document.layer import LAYER_MUTATE_HANDLER
 from spa.authoring.document.slice import SLICE_RESOURCE, SliceTargetDetails
 from spa.authoring.document.targets import (
@@ -28,6 +41,7 @@ from spa.authoring.raster.image_snapshot import COMPOSITION_RESOURCE
 from spa.contracts.artifact import ArtifactFileDetails, ArtifactVerificationDetails
 from spa.contracts.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
 from spa.contracts.ports import (
+    ArtifactVerificationEvidence,
     KernelInvocationResult,
     OperationIssue,
     OperationServices,
@@ -37,7 +51,12 @@ from spa.contracts.ports import (
     RuntimeCompatibilityEvidence,
     RuntimeIssue,
 )
-from spa.contracts.public import FailureCodeSpec, RuntimeRequirements
+from spa.contracts.public import (
+    CapabilityGap,
+    FailureCodeSpec,
+    RuntimeCapability,
+    RuntimeRequirements,
+)
 from spa.delivery.export_contracts import (
     AlphaChannelFacts,
     AssignExportProfile,
@@ -48,7 +67,9 @@ from spa.delivery.export_contracts import (
     ExportImageRequest,
     ExportImageResult,
     ImageArtifact,
+    ImportedExportPalette,
     NativeImageFacts,
+    QuantizedExportPalette,
     SliceArea,
 )
 from spa.delivery.export_verification import matches_request, verify_export_png
@@ -108,6 +129,27 @@ EXPORT_HANDLER = PackagedHandler(
 )
 
 
+def export_image_capability_gaps(
+    aseprite_version: str, verified_capabilities: list[RuntimeCapability]
+) -> list[CapabilityGap]:
+    return [
+        CapabilityGap(
+            capability=f"spa export image: {choice}",
+            aseprite_version=aseprite_version,
+            evidence=f"{capability} was not observed; requests using this choice are refused",
+        )
+        for choice, capability in (
+            ("assign profile", "aseprite_assign_color_profile"),
+            ("convert profile", "aseprite_convert_color_profile"),
+            ("change color mode", "aseprite_change_color_mode"),
+            ("import palette", "aseprite_palette_files"),
+            ("quantize palette", "aseprite_palette_quantization"),
+            ("opaque background", "aseprite_background_conversion"),
+        )
+        if capability not in verified_capabilities
+    ]
+
+
 def _native_facts(
     request: ExportImageRequest, invocation: KernelInvocationResult
 ) -> NativeImageFacts:
@@ -117,6 +159,12 @@ def _native_facts(
             code = rejected["code"]
             if code in {item.code for item in PROFILE_FAILURE_SPECS}:
                 reject_profile(invocation)
+            if code in {item.code for item in COLOR_MODE_FAILURE_SPECS}:
+                reject_color_mode(invocation, rejected)
+            if code in {item.code for item in PALETTE_FILE_FAILURE_SPECS}:
+                reject_palette_file(invocation)
+            if code in {item.code for item in QUANTIZATION_FAILURE_SPECS}:
+                reject_quantization(invocation)
             if code in ("slice_missing", "slice_ambiguous"):
                 assert isinstance(request.export_image_area, SliceArea)
                 raise OperationIssue(
@@ -160,13 +208,21 @@ def export_image(
         {name: getattr(request, name) for name in ExportImageParameters.model_fields}
     )
     payload = parameters.model_dump(mode="json", exclude_none=True)
+    imported_palette = None
+    if isinstance(request.palette_preparation, ImportedExportPalette):
+        raw, imported_palette = read_palette_file(
+            request.palette_preparation.palette_file, services
+        )
+        payload["palette_preparation"]["palette_file_bytes"] = raw.hex()
     profile = request.color_profile
+    assigned_icc_identity = None
     if isinstance(profile, (AssignExportProfile, ConvertExportProfile)):
         prepared = profile_payload(profile, services)
-        if (
-            isinstance(profile.profile, IccProfile)
-            and supported_icc_identity(bytes.fromhex(prepared["icc_bytes"])) is None
-        ):
+        if isinstance(profile.profile, IccProfile):
+            assigned_icc_identity = supported_icc_identity(
+                bytes.fromhex(prepared["icc_bytes"])
+            )
+        if isinstance(profile.profile, IccProfile) and assigned_icc_identity is None:
             raise OperationIssue(
                 "color_profile_file_failed",
                 "The requested ICC is outside the static PNG support set",
@@ -183,27 +239,36 @@ def export_image(
         if_exists=request.destination.if_exists,
     ) as staged:
         observation = services.probe_runtime(request)
-        capability = (
+        capability: RuntimeCapability | None = (
             "aseprite_assign_color_profile"
             if isinstance(profile, AssignExportProfile)
             else "aseprite_convert_color_profile"
             if isinstance(profile, ConvertExportProfile)
             else None
         )
-        if (
-            capability is not None
-            and capability not in observation.verified_capabilities
-        ):
+        required: set[RuntimeCapability] = (
+            {capability} if capability is not None else set()
+        )
+        if request.color_mode != "preserve":
+            required.add("aseprite_change_color_mode")
+        if isinstance(request.palette_preparation, ImportedExportPalette):
+            required.add("aseprite_palette_files")
+        if isinstance(request.palette_preparation, QuantizedExportPalette):
+            required.add("aseprite_palette_quantization")
+        if request.transparency != "preserve":
+            required.add("aseprite_background_conversion")
+        missing = required - set(observation.verified_capabilities)
+        if missing:
             raise RuntimeIssue(
                 "runtime_incompatible",
-                "The requested export Profile behavior is unavailable",
+                "A requested native export behavior is unavailable",
                 RuntimeCompatibilityEvidence(
                     aseprite_version=observation.aseprite_version,
                     lua_version=observation.lua_version,
                     api_version=observation.api_version,
                     required_lua_language="Lua 5.4",
                     minimum_api_version=41,
-                    missing_capabilities=(capability,),
+                    missing_capabilities=tuple(sorted(missing)),
                 ),
             )
         invocation = services.invoke_kernel(
@@ -218,10 +283,29 @@ def export_image(
             request.timeout_seconds,
         )
         native = _native_facts(request, invocation)
+        imported_entries = (
+            tuple(
+                (c.red, c.green, c.blue, c.alpha)
+                for c in native.imported_palette_entries
+            )
+            if native.imported_palette_entries is not None
+            else None
+        )
+        if imported_entries != (imported_palette.entries if imported_palette else None):
+            raise RuntimeIssue(
+                "artifact_verification_failed",
+                "Native Palette import differs from independent file decoding",
+                ArtifactVerificationEvidence(
+                    str(staged.png_file), "ordered Palette Entries differ"
+                ),
+                invocation.diagnostics,
+            )
         decoded = staged.verify(
             native,
             invocation,
-            matches_expected=matches_request(request, native),
+            matches_expected=matches_request(
+                request, native, assigned_icc_identity=assigned_icc_identity
+            ),
             mismatch_message="Decoded PNG differs from the native rendered Image",
         )
         published = staged.publish()
@@ -275,10 +359,17 @@ EXPORT_OPERATIONS = (
             "slice_missing",
             "slice_ambiguous",
             *(spec.code for spec in PROFILE_FAILURE_SPECS),
+            *(spec.code for spec in COLOR_MODE_FAILURE_SPECS),
+            *(spec.code for spec in PALETTE_FILE_FAILURE_SPECS),
+            *(spec.code for spec in QUANTIZATION_FAILURE_SPECS),
         ),
         execution_kind="export",
         side_effects=("publishes one verified PNG Image Artifact",),
         probe_before_execute=False,
-        help_summary="Export one explicit Frame, Canvas area and Layer Composition as a verified PNG.",
+        help_summary=(
+            "Export one Frame: select Canvas/Rectangle/Slice and visible/include Layers, "
+            "compose in preserve/rgb mode, then apply Profile, Palette preparation, "
+            "Color Mode, and transparency choices before verified PNG publication."
+        ),
     ),
 )

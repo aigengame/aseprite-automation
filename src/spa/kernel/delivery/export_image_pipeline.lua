@@ -218,6 +218,7 @@ function module.execute(payload)
     local maps_to_indexed = conversion ~= "preserve"
       and composed_mode ~= "indexed"
       and conversion.target.color_mode == "indexed"
+    local imported_palette_entries
     if maps_to_indexed then
       if not payload.palette_preparation then
         return reject(
@@ -227,6 +228,12 @@ function module.execute(payload)
       end
       local prepared = palette_preparation(working, payload.palette_preparation)
       if prepared.rejection then return prepared end
+      if payload.palette_preparation.kind == "import" then
+        imported_palette_entries = {}
+        for _, entry in ipairs(palette_file.entries(palettes.resolve(working, 1))) do
+          imported_palette_entries[#imported_palette_entries + 1] = entry.color
+        end
+      end
     elseif payload.palette_preparation ~= nil then
       return reject(
         "palette_preparation",
@@ -275,6 +282,7 @@ function module.execute(payload)
       transparent_index = working.colorMode == ColorMode.INDEXED and working.transparentColor
         or nil,
       palette_entries = entries,
+      imported_palette_entries = imported_palette_entries,
       alpha_min = minimum,
       alpha_max = maximum,
       rendered_byte_size = #bytes,

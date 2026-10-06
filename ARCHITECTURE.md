@@ -486,10 +486,21 @@ filesystem mechanics; the PNG Artifact Verifier decodes bytes independently.
 Each caller invokes its own native handler and validates its own native facts model.
 It supplies its expected-facts verdict to `verify`, performs any remaining domain
 postconditions, then explicitly calls `publish`. Result models and Artifact roles
-remain with their callers. Export Image's separate invalid-alpha-bounds postcondition
-still follows common Artifact checks; Animation Preview retains that check as an
-Artifact verification failure. The scope adds no native invocation or rendering.
+remain with their callers. Export Image verifies the decoded Color Mode, stored
+content, complete Palette, and exact ICC identity before publication. Both callers
+compare native alpha observations against independently decoded pixels. The scope
+adds no native invocation or rendering.
 Selection Preview and other Artifact formats retain their existing paths.
+Static Image Export extends its existing Descriptor through `export_contracts`,
+`export`, and `export_verification`. Its private Lua pipeline resolves one Frame,
+Canvas/Rectangle/effective Slice Key, and shared Layer Composition. It then composes
+existing Color Profile, Palette import/quantization, Color Mode, and Background
+owners in the order defined by ADR-0094. These owners retain their rules and refusals.
+The derived Sprite retains effective Background context for native PNG encoding;
+`Image:saveAs` alone would lose that context. Source snapshots are compared and editor
+state is restored before returning. Palette-file input preparation is shared with Palette
+Import; the independent decoder checks the native imported entries. No second
+color engine, configurable pipeline, or new Plan Step is introduced.
 Sprite Sheet export uses the existing Layer Composition and Color Profile owners to
 prepare native per-Frame samples before Aseprite performs layout and encoding.
 `spa.delivery.sheet_verification` compares independently decoded PNG/JSON against
@@ -605,7 +616,9 @@ src/spa/
     contracts.py          # explicit Preparation Specification, geometry, and reproduction facts
     raster.py             # frozen input admission, native composition, verified Artifact publication
   delivery/
-    export.py             # Export Image contract, native invocation, and result
+    export.py             # Static export composition and verified publication
+    export_contracts.py   # Explicit static PNG choices and native facts
+    export_verification.py # Bind decoded PNG to native samples and export choices
     animation.py          # GIF/PNG sequence lifecycles and semantic comparisons
     animation_contracts.py # animation export request, observation, and Result DTOs
     sheet.py, sheet_contracts.py # Sprite Sheet use case and explicit pair contract

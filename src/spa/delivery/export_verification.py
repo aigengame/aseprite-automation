@@ -20,7 +20,12 @@ from spa.delivery.export_contracts import (
 )
 
 
-def matches_request(request: ExportImageRequest, native: NativeImageFacts) -> bool:
+def matches_request(
+    request: ExportImageRequest,
+    native: NativeImageFacts,
+    *,
+    assigned_icc_identity: str | None = None,
+) -> bool:
     area = native.export_image_area
     rectangle = area.rectangle
     expected = request.export_image_area
@@ -48,6 +53,27 @@ def matches_request(request: ExportImageRequest, native: NativeImageFacts) -> bo
                 or area.slice_name == expected.slice.slice_name
             )
         )
+    composed_mode = (
+        native.source_color_mode
+        if request.composition_color_mode == "preserve"
+        else "rgb"
+    )
+    conversion = request.color_mode
+    if conversion != "preserve" and conversion.source_color_mode != composed_mode:
+        return False
+    final_mode = (
+        composed_mode if conversion == "preserve" else conversion.target.color_mode
+    )
+    profile = request.color_profile
+    if profile != "preserve" and (
+        native.color_profile != profile.profile.kind
+        or native.icc_identity != assigned_icc_identity
+    ):
+        return False
+    if request.transparency != "preserve" and (
+        not native.effective_background or native.alpha_min != 255
+    ):
+        return False
     return (
         matches_area
         and native.frame_number == request.frame_number
@@ -56,12 +82,7 @@ def matches_request(request: ExportImageRequest, native: NativeImageFacts) -> bo
         and native.height == rectangle.height
         and 0 <= rectangle.x <= native.source_canvas.width - rectangle.width
         and 0 <= rectangle.y <= native.source_canvas.height - rectangle.height
-        and native.color_mode
-        == (
-            native.source_color_mode
-            if request.composition_color_mode == "preserve"
-            else "rgb"
-        )
+        and native.color_mode == final_mode
     )
 
 

@@ -171,7 +171,7 @@ uv run spa layer convert-from-background --input-json '{"aseprite":"/path/to/ase
 uv run spa paint apply --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"painted.aseprite","in_place":false,"overwrite":false,"target":{"layer_path":[1],"frame_number":1},"patch":{"coordinate_space":"image-pixel","rectangle":{"x":0,"y":0,"width":2,"height":1},"runs":[{"x":0,"y":0,"length":2,"color":{"kind":"rgba","red":255,"green":0,"blue":0,"alpha":255}}]}}'
 uv run spa plan check --input-json '{"plan":{"source_sprite_file":"sprite.aseprite","steps":[{"operation":"sprite get","input":{"inspection_scope":["frames","layers"]}}]}}'
 uv run spa plan run --input-json '{"aseprite":"/path/to/aseprite","plan":{"source_sprite_file":"sprite.aseprite","steps":[{"operation":"sprite get","input":{"inspection_scope":["frames","layers"]}}]}}'
-uv run spa export image --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","destination":{"path":"image.png","if_exists":"fail"},"frame_number":1,"color_mode":"preserve","color_profile":"preserve","transparency":"preserve"}'
+uv run spa export image --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","destination":{"path":"image.png","if_exists":"fail"},"frame_number":1,"export_image_area":{"kind":"canvas"},"layer_composition":{"mode":"visible"},"composition_color_mode":"preserve","color_mode":"preserve","color_profile":"preserve","transparency":"preserve"}'
 ```
 
 `--input-json -` reads one complete JSON request object from stdin; a literal
@@ -1247,11 +1247,36 @@ facts. Final verification compares the final live Sprite with the reopened file.
 
 ### Export
 
-`spa export image` renders one explicit Frame of the full canvas with persisted visible
-Layers. It accepts RGB Source Sprites with no Color Profile or sRGB. It rejects
-Tilemap Images in the selected Frame, including hidden Layers. It preserves native
-Alpha values, verifies the staged PNG with an independent decoder, and requires
-`if_exists: fail` or `replace` before publication.
+`spa export image` delivers one PNG from one explicit Frame. It composes a private
+Sprite, preserves the Source, and verifies the encoded PNG before publication.
+It requires explicit area, Layer Composition, and composition representation choices:
+
+- `export_image_area`: `{"kind":"canvas"}`, `{"kind":"rectangle","rectangle":{"x":8,"y":4,"width":16,"height":24}}`, or `{"kind":"slice","slice":{"slice_name":"component"}}` (`slice_index` is also supported). Slice lookup uses the effective Key at the requested Frame. The positive area must be inside the Canvas; pixels are rebased to the output origin. The Result reports the resolved Rectangle and any Slice/Key address.
+- `layer_composition`: `{"mode":"visible"}` or `{"mode":"include","layers":[{"layer_path":[1]}]}`. Include keeps all descendants of a selected Group, including hidden Layers, with the native ancestor blend/opacity context. Ordinary, Background, and Tilemap content uses the shared composition owner. Reference content is excluded; directly including a Reference Layer is refused.
+- `composition_color_mode`: `preserve` keeps native Color Mode semantics; `rgb` renders directly into RGB. Indexed composition followed by RGB conversion is not equivalent to direct RGB visual composition.
+
+After composition, color choices run in this fixed order:
+
+1. `color_profile`: `preserve`, `{"kind":"assign","profile":...}`, or `{"kind":"convert","profile":...}`. Profile inputs and directed conversions reuse `sprite assign-color-profile` / `convert-color-profile`: None, sRGB, and the exact packaged linear-sRGB / Display P3 ICC files. Assign keeps channel values; Convert requires the observed native conversion capability. Preserve and Assign do not imply conversion.
+2. `palette_preparation`: required only for non-Indexed → Indexed conversion. Choose `{"kind":"current"}`, `{"kind":"import","palette_file":{"format":"gpl","path":"colors.gpl"}}` (also Indexed PNG), or `{"kind":"quantize","max_colors":16,"with_alpha":true,"rgb_map_algorithm":"octree","new_layer_blending_method":true}`. The current Palette comes from the selected Source Frame and follows Profile conversion. Import uses independently decoded, frozen file bytes. Quantization sees only the one-Frame composed area. No Palette is generated implicitly.
+3. `color_mode`: `preserve` or the existing `sprite change-color-mode` Conversion object, such as `{"source_color_mode":"rgb","target":{"color_mode":"grayscale","to_gray":"luma"}}`. The declared source mode refers to the composed Sprite. Same-mode requests are no-ops; mapping and Dithering retain their existing applicability rules.
+4. `transparency`: `preserve` adds no extra transformation, or `{"kind":"background","background_color":{"kind":"rgba","red":0,"green":0,"blue":0,"alpha":255}}` fills through the native Background owner. Use a Color Value in the final Color Mode. Every encoded pixel must be opaque; an Indexed Palette entry that remains semi-transparent causes refusal with no publication.
+
+The final PNG preserves native RGB/Grayscale channels or Indexed stored indexes and
+the full ordered Palette. Without an effective Background, the Transparent Color
+Index encodes alpha 0; with a Background its Palette alpha is preserved. Other Palette
+alpha values remain unchanged. Indexed PNG requires 1–256 complete entries and a
+defined Transparent Color Index and every output index. No padding, remapping, or
+mode fallback is implicit. RGB/Indexed can retain the two admitted ICC payloads;
+Grayscale supports None/sRGB. sRGB rendering intent is normalized to 0 and reported.
+All limits can evolve with accepted requirements and verified native support.
+
+The Result echoes requested choices and reports resolved area/Layers, final mode,
+Profile, Palette, alpha range, and Artifact size/digest. `spa info` reports unavailable
+optional native branches; a missing Profile converter does not disable preserve
+exports. The destination remains one `.png` path with `if_exists: fail | replace`.
+Failures retain an existing destination and remove staged files. This operation is
+not a Plan Step. See [ADR-0094](docs/adr/0094-export-image-semantics-and-operation-order.md).
 
 `spa export sequence` writes an ordered PNG collection; `spa export gif` writes
 one animated GIF. Both take `source_sprite_file`, explicit `layer_composition`,

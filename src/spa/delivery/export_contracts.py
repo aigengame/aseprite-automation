@@ -2,13 +2,16 @@
 
 from typing import Annotated, Literal
 
-from pydantic import Field
+from pydantic import ConfigDict, Field, field_serializer, model_validator
 
+from spa.authoring.color.color_mode import Conversion
+from spa.authoring.color.palette_file import PaletteFileInput
 from spa.authoring.color.profile import AssignProfileInput, ConvertProfileInput
+from spa.authoring.color.quantization import QuantizationOptions
 from spa.authoring.document.slice import SliceAddress
 from spa.authoring.raster.image_snapshot import LayerComposition
 from spa.contracts.public import PublicModel, RuntimeRequest
-from spa.contracts.raster import PositiveRectangle, RgbaColor, Size
+from spa.contracts.raster import ColorValue, PositiveRectangle, RgbaColor, Size
 
 
 class ExportDestination(PublicModel):
@@ -53,14 +56,80 @@ ExportProfile = (
 )
 
 
+class CurrentExportPalette(PublicModel):
+    kind: Literal["current"]
+
+
+class ImportedExportPalette(PublicModel):
+    kind: Literal["import"]
+    palette_file: PaletteFileInput
+
+
+class QuantizedExportPalette(QuantizationOptions):
+    kind: Literal["quantize"]
+
+
+ExportPalette = Annotated[
+    CurrentExportPalette | ImportedExportPalette | QuantizedExportPalette,
+    Field(discriminator="kind"),
+]
+
+
+class ExportBackground(PublicModel):
+    kind: Literal["background"]
+    background_color: ColorValue
+
+
 class ExportImageParameters(PublicModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "if": {
+                "properties": {
+                    "color_mode": {
+                        "type": "object",
+                        "properties": {
+                            "source_color_mode": {"enum": ["rgb", "grayscale"]},
+                            "target": {
+                                "properties": {"color_mode": {"const": "indexed"}}
+                            },
+                        },
+                    }
+                },
+            },
+            "then": {
+                "required": ["palette_preparation"],
+                "properties": {"palette_preparation": {"type": "object"}},
+            },
+            "else": {"properties": {"palette_preparation": {"type": "null"}}},
+        }
+    )
     frame_number: int = Field(ge=1)
     export_image_area: ExportImageArea
     layer_composition: LayerComposition
     composition_color_mode: Literal["preserve", "rgb"]
-    color_mode: Literal["preserve"]
+    color_mode: Literal["preserve"] | Conversion
     color_profile: ExportProfile
-    transparency: Literal["preserve"]
+    transparency: Literal["preserve"] | ExportBackground
+    palette_preparation: ExportPalette | None = None
+
+    @field_serializer("color_mode")
+    def serialize_color_mode(self, value: Literal["preserve"] | Conversion):
+        # Omission selects the native default Matrix; explicit null is invalid.
+        return value if value == "preserve" else value.model_dump(exclude_none=True)
+
+    @model_validator(mode="after")
+    def validate_palette_use(self) -> "ExportImageParameters":
+        conversion = self.color_mode
+        needs_palette = (
+            conversion != "preserve"
+            and conversion.source_color_mode != "indexed"
+            and conversion.target.color_mode == "indexed"
+        )
+        if needs_palette != (self.palette_preparation is not None):
+            raise ValueError(
+                "Palette preparation is required only for non-Indexed conversion to Indexed"
+            )
+        return self
 
 
 class ExportImageRequest(ExportImageParameters, RuntimeRequest):
@@ -110,6 +179,7 @@ class NativeImageFacts(PublicModel):
     icc_identity: Literal["linear_srgb", "display_p3"] | None = None
     transparent_index: int | None = Field(default=None, ge=0, le=255)
     palette_entries: list[RgbaColor] = Field(default_factory=list)
+    imported_palette_entries: list[RgbaColor] | None = None
     stored_content_digest: str = Field(pattern=r"^[0-9a-f]{16}$")
     alpha_min: int = Field(ge=0, le=255)
     alpha_max: int = Field(ge=0, le=255)

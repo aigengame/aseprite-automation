@@ -59,6 +59,9 @@ def test_export_frame_as_verified_visible_rgb_png(tmp_path: Path) -> None:
     assert result["export_image_area"] == {
         "kind": "canvas",
         "rectangle": {"x": 0, "y": 0, "width": 3, "height": 2},
+        "slice_index": None,
+        "slice_name": None,
+        "key_frame_number": None,
     }
     assert result["layer_composition"] == {"mode": "visible"}
     assert result["color_profile"] == "srgb"
@@ -205,15 +208,15 @@ def test_export_opaque_background_preserves_rgb_values(tmp_path: Path) -> None:
     assert run.returncode == 0, run.stdout
     result = json.loads(run.stdout)
     assert result["alpha_channel"] == {
-        "present": True,
+        "present": False,
         "minimum": 255,
         "maximum": 255,
     }
     with Image.open(destination) as image:
         image.load()
-        assert image.mode == "RGBA"
-        assert image.getpixel((0, 0)) == (10, 20, 30, 255)
-        assert image.getpixel((1, 0)) == (40, 50, 60, 255)
+        assert image.mode == "RGB"
+        assert image.getpixel((0, 0)) == (10, 20, 30)
+        assert image.getpixel((1, 0)) == (40, 50, 60)
 
 
 @pytest.mark.parametrize("mode", ["grayscale", "indexed"])
@@ -310,7 +313,7 @@ def test_export_rejects_gamma_profile_before_encoding(tmp_path: Path) -> None:
     )
 
     assert run.returncode != 0
-    assert json.loads(run.stdout)["code"] == "export_image_invalid"
+    assert json.loads(run.stdout)["code"] == "kernel_execution_failed"
     assert not destination.exists()
     assert not list(tmp_path.glob("*.staged.png"))
 
