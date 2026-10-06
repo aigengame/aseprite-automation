@@ -487,7 +487,7 @@ Each caller invokes its own native handler and validates its own native facts mo
 It supplies its expected-facts verdict to `verify`, performs any remaining domain
 postconditions, then explicitly calls `publish`. Result models and Artifact roles
 remain with their callers. Export Image verifies the decoded Color Mode, stored
-content, complete Palette, and exact ICC identity before publication. Both callers
+content, complete Palette, and exact ICC identity before publication. All callers
 compare native alpha observations against independently decoded pixels. The scope
 adds no native invocation or rendering.
 Selection Preview and other Artifact formats retain their existing paths.

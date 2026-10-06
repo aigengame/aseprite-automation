@@ -1201,7 +1201,8 @@ Convert leaves Tileset pixels unchanged; this is reported explicitly. See the
 [profile evidence](docs/evidence/issue-34-color-profile.md) for Color Mode behavior
 and the batch loader's treatment of encoded None. Supported same-profile requests
 and content-dependent no-ops are valid; changed-pixel counts do not determine success.
-These operations do not add profile conversion to PNG Export.
+PNG Export reuses these native Profile operations through its explicit
+`color_profile` choice on a private derived Sprite.
 Conversion requires a probed native converter. The current Linux CI build uses
 `LAF_BACKEND=none`; it is expected to report a conversion Capability Gap and reject
 Convert, while retaining Assign. Native conversion is verified on the macOS bundle.
@@ -1260,7 +1261,7 @@ After composition, color choices run in this fixed order:
 1. `color_profile`: `preserve`, `{"kind":"assign","profile":...}`, or `{"kind":"convert","profile":...}`. Profile inputs and directed conversions reuse `sprite assign-color-profile` / `convert-color-profile`: None, sRGB, and the exact packaged linear-sRGB / Display P3 ICC files. Assign keeps channel values; Convert requires the observed native conversion capability. Preserve and Assign do not imply conversion.
 2. `palette_preparation`: required only for non-Indexed → Indexed conversion. Choose `{"kind":"current"}`, `{"kind":"import","palette_file":{"format":"gpl","path":"colors.gpl"}}` (also Indexed PNG), or `{"kind":"quantize","max_colors":16,"with_alpha":true,"rgb_map_algorithm":"octree","new_layer_blending_method":true}`. The current Palette comes from the selected Source Frame and follows Profile conversion. Import uses independently decoded, frozen file bytes. Quantization sees only the one-Frame composed area. No Palette is generated implicitly.
 3. `color_mode`: `preserve` or the existing `sprite change-color-mode` Conversion object, such as `{"source_color_mode":"rgb","target":{"color_mode":"grayscale","to_gray":"luma"}}`. The declared source mode refers to the composed Sprite. Same-mode requests are no-ops; mapping and Dithering retain their existing applicability rules.
-4. `transparency`: `preserve` adds no extra transformation, or `{"kind":"background","background_color":{"kind":"rgba","red":0,"green":0,"blue":0,"alpha":255}}` fills through the native Background owner. Use a Color Value in the final Color Mode. Every encoded pixel must be opaque; an Indexed Palette entry that remains semi-transparent causes refusal with no publication.
+4. `transparency`: `preserve` adds no extra transformation, or `{"kind":"background","background_color":{"kind":"rgba","red":0,"green":0,"blue":0,"alpha":255}}` fills through the native Background owner. Use a Color Value in the final Color Mode. For background requests, every encoded output pixel must be opaque. An Indexed pixel that uses a Palette Entry with alpha below 255 fails this requirement and prevents publication; unused semi-transparent Entries do not.
 
 The final PNG preserves native RGB/Grayscale channels or Indexed stored indexes and
 the full ordered Palette. Without an effective Background, the Transparent Color
