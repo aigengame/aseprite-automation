@@ -120,7 +120,11 @@ from spa.delivery.animation import (
     ANIMATION_SUPPORT,
     GIF_RESOURCE,
 )
-from spa.delivery.export import EXPORT_OPERATIONS, EXPORT_PROBE_RESOURCES
+from spa.delivery.export import (
+    EXPORT_OPERATIONS,
+    EXPORT_PROBE_RESOURCES,
+    export_image_capability_gaps,
+)
 from spa.delivery.palette import (
     PALETTE_EXPORT_OPERATIONS,
     palette_export_capability_gaps,
@@ -223,6 +227,12 @@ def _surface(runtime: RuntimeFacts) -> tuple[list[str], list[CapabilityGap]]:
     if "spa palette export" in supported:
         gaps.extend(
             palette_export_capability_gaps(
+                runtime.aseprite_version, runtime.verified_capabilities
+            )
+        )
+    if "spa export image" in supported:
+        gaps.extend(
+            export_image_capability_gaps(
                 runtime.aseprite_version, runtime.verified_capabilities
             )
         )

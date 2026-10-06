@@ -1,4 +1,4 @@
-"""Native Source Sprite fixtures for delivery E2E tests."""
+"""Requests and native Source Sprite fixtures for delivery E2E tests."""
 
 import os
 import struct
@@ -11,6 +11,29 @@ from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.application.surface import PROBE_RESOURCES
 from spa.contracts.public import RuntimeRequest
 from tests.support import process_diagnostics
+
+
+def export_image_request(
+    source: Path,
+    destination: Path,
+    *,
+    frame_number: int = 1,
+    if_exists: str = "fail",
+    **choices: object,
+) -> dict:
+    return {
+        "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+        "source_sprite_file": str(source),
+        "destination": {"path": str(destination), "if_exists": if_exists},
+        "frame_number": frame_number,
+        "export_image_area": {"kind": "canvas"},
+        "layer_composition": {"mode": "visible"},
+        "composition_color_mode": "preserve",
+        "color_mode": "preserve",
+        "color_profile": "preserve",
+        "transparency": "preserve",
+        **choices,
+    }
 
 
 def png_icc_label(encoded: bytes) -> bytes:
