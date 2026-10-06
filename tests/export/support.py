@@ -1,6 +1,7 @@
 """Native Source Sprite fixtures for delivery E2E tests."""
 
 import os
+import struct
 import subprocess
 import tempfile
 from pathlib import Path
@@ -10,6 +11,16 @@ from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.application.surface import PROBE_RESOURCES
 from spa.contracts.public import RuntimeRequest
 from tests.support import process_diagnostics
+
+
+def png_icc_label(encoded: bytes) -> bytes:
+    offset = 8
+    while offset < len(encoded):
+        size = struct.unpack_from(">I", encoded, offset)[0]
+        if encoded[offset + 4 : offset + 8] == b"iCCP":
+            return encoded[offset + 8 : offset + 8 + size].split(b"\0", 1)[0]
+        offset += 12 + size
+    raise AssertionError("PNG has no iCCP chunk")
 
 
 def source_sprite(

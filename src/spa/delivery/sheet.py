@@ -19,7 +19,7 @@ from spa.contracts.ports import (
     RuntimeIssue,
 )
 from spa.contracts.public import PublicModel, RuntimeRequirements
-from spa.delivery.export import ExportDestination, ImageArtifact
+from spa.delivery.export import EXPORT_SUPPORT, ExportDestination, ImageArtifact
 from spa.delivery.sheet_contracts import (
     ExportSheetRequest,
     ExportSheetResult,
@@ -42,6 +42,7 @@ SHEET_RESOURCES = tuple(
             TAG_SELECT_RESOURCE,
             EFFECTIVE_PALETTE_RESOURCE,
             COMPOSITION_RESOURCE,
+            EXPORT_SUPPORT,
             SHEET_SUPPORT,
         )
     )

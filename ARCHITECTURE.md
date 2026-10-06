@@ -502,6 +502,28 @@ The same distinction applies when a domain-specific observation produces an Arti
 the observed concept retains its semantic owner. No duplicate exporter or verifier is
 introduced by the strategic classification.
 
+GIF and PNG sequence have separate Operation Descriptors and runtime gates under
+Asset Delivery. `spa.delivery.animation` owns their staging lifecycle, request/Kernel/
+decoded comparisons, and Result projection; `animation_contracts.py` contains their
+request, observation, and Result DTOs. Both reuse existing Frame/Tag addressing,
+Layer Composition, and Color Profile owners. `composition.resolve` supplies shared
+selection facts for preflight and rendering instead of a separate exporter selector.
+The fixed `kernel/delivery/animation_export_support.lua` resolves playback and the
+complete destination names, then renders and encodes through native Aseprite.
+`animation_gif.lua` builds a private RGB timeline for native GIF encoding; PNG retains
+Source Color Mode, per-Frame Effective Palette, and effective Background context.
+These temporary Sprites do not mutate the Source.
+
+The inner-owned `ArtifactSets` port separates file mechanics from semantic verification.
+`LocalArtifactSets` reuses `LocalArtifactFiles` for path normalization, Source identity,
+byte reads, digest binding and publication. It preflights the complete bounded
+set, allocates separate output and evidence directories, enumerates the actual output
+set, and publishes in resolved order. `adapters/sequence_png.py` and `adapters/gif.py`
+independently decode typed format facts through `contracts/encoded_animation.py`.
+The Application compares those observations with native composition, timing, profile,
+Palette and cross-file expectations before passing the verified digests to publication.
+No decoder defines expected Sprite semantics or repairs encoded bytes.
+
 Image Get, Tile Get, and Tilemap Get share `spa.delivery.snapshot_publication` for
 their single JSON Snapshot Artifact. Its `staged_snapshot` scope owns destination
 normalization, Source separation, staging, and cleanup. `verify` reads the staged
@@ -557,6 +579,8 @@ src/spa/
     public.py, operation.py, ports.py
     mutation.py           # Source/Target identity and Target Commit contracts
     artifact.py           # shared publication/verification failure details
+    artifact_set.py       # bounded destination staging and per-path publication states
+    encoded_animation.py  # independent PNG/GIF observed format facts
     snapshot.py           # explicit destination for complete JSON Snapshot transport
     digest.py             # one shared native evidence digest binding
     raster.py, rounding.py # shared values and their native bindings
@@ -582,6 +606,8 @@ src/spa/
     raster.py             # frozen input admission, native composition, verified Artifact publication
   delivery/
     export.py             # Export Image contract, native invocation, and result
+    animation.py          # GIF/PNG sequence lifecycles and semantic comparisons
+    animation_contracts.py # animation export request, observation, and Result DTOs
     sheet.py, sheet_contracts.py # Sprite Sheet use case and explicit pair contract
     sheet_verification.py # independent sheet evidence comparisons for every logical Frame
     sheet_publication.py  # fixed pair staging, auxiliary cleanup, and publication outcomes
@@ -590,6 +616,8 @@ src/spa/
   adapters/
     aseprite/             # process, resource discovery, and transport
     files.py, png.py       # filesystem mechanics and export PNG verification
+    artifact_set.py        # complete set preflight, staging, ordered publication
+    sequence_png.py, gif.py # independent encoded animation observations
     png_input.py           # independent encoded PNG input facts and pixels
     icc.py                # ICC byte validation and digest, without color transforms
     palette_file.py       # independent GPL/Indexed PNG observations, not a color engine
@@ -603,7 +631,7 @@ src/spa/
     tile/                 # Tileset identity, topology, validation, complete Tile Regions
     color/                # Palette semantics, native Color Mode and Color Profile operations
     preparation/          # fixed composition of existing Raster and Color owners
-    delivery/             # native Image and Sprite Sheet Export
+    delivery/             # native Image, Sheet, Tileset, GIF and PNG sequence Export
     runtime/              # runtime and capability probes
       fixtures/           # real native probe inputs
     plan/                 # single-Sprite Plan execution
@@ -1216,6 +1244,19 @@ Color Profile, Palette preparation, Color Mode, transparency or Background behav
 and File Format encoding. Other export families own their own feature contracts. Export
 never mutates the Source Sprite.
 
+For GIF and PNG sequence, explicit Frames retain occurrence order and duplicates;
+an exactly addressed Tag produces one direction traversal without expanding stored
+repeats or nested Tags. PNG names use one bounded native occurrence ordinal, and
+all occurrences share the full Canvas. Separate format comparisons preserve PNG
+native Color Mode, per-Frame Palette and Background-sensitive mask rules while GIF
+uses native RGB visual composition, lossy quantization, binary alpha, centisecond
+truncation and an infinite encoded loop. ICC-to-sRGB GIF conversion requires the
+Color Profile owner's observed runtime capability. An opaque-to-blank native GIF
+that fails independent alpha verification stays in staging and is not published.
+The current support matrix and limits are described in [README](README.md#export)
+and constrained by the installed Operation Descriptors; local native evidence is not
+a cross-platform or cross-release promise. These exports are not Plan Steps.
+
 `delivery/tileset.py` coordinates one Tileset atlas and normalized map pair.
 `tileset_contracts.py` defines its projection and validates complete Tile coverage,
 keyed placement correspondence, and explicit Grid mapping. Tile Authoring retains
@@ -1229,12 +1270,24 @@ original native Tile Image digests and parses the separate JSON against native a
 request facts. The File Adapter publishes the validated finite pair in caller order
 and records partial publication; it has no Tile or PNG semantics.
 
+Sheet, Tileset, and PNG sequence export share `png_color_space()` in
+`kernel/delivery/export_image_support.lua`. It copies the native ColorSpace and
+uses the admitted ICC identity as the PNG iCCP keyword. Backend display names can
+be empty or invalid PNG keywords. This changes only the output label: it preserves
+the ICC payload and Source profile, performs no color conversion, and adds no Image
+copy. Each exporter retains its profile admission and independent byte/pixel checks;
+Color and Palette remains the owner of profile identity and conversion semantics.
+
 A successful result reports the complete declared output set. When an Export has
 several final paths, SPA publishes them in a deterministic order. A failure after a
 final path changed returns `partial_publication` with the known state of every declared
 destination and whether a published path replaced an existing file. SPA does not return
 a successful Artifact set, restore replaced files, remove published files, or promise
-filesystem atomicity or a general recovery mechanism. A hard interruption can leave
+filesystem atomicity or a general recovery mechanism. The shared failure contract in
+`contracts/artifact.py` uses `existed_before` for each destination's prior existence
+and requires `replaced_existing` when its state is `published`. The single failure
+registration serves Tileset, Sheet, GIF, and PNG sequence output.
+A hard interruption can leave
 the final state indeterminate; a later request observes existing paths through its
 normal explicit `if_exists` policy.
 

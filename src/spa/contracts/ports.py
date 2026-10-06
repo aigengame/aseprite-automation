@@ -8,6 +8,8 @@ from typing import Any, Literal, Protocol
 
 from pydantic import ConfigDict
 
+from spa.contracts.artifact_set import ArtifactSets
+from spa.contracts.encoded_animation import GifDecoder, SequencePngDecoder
 from spa.contracts.mutation import (
     PublicationIdentityObserver,
     TargetCommitFailureReason,
@@ -86,10 +88,19 @@ class KernelInvocationResult:
     diagnostics: Diagnostics
 
 
-KernelInvoker = Callable[
-    [RuntimeObservation, PackagedHandler, dict[str, Any], float],
-    KernelInvocationResult,
-]
+class KernelInvoker(Protocol):
+    def __call__(
+        self,
+        observation: RuntimeObservation,
+        handler: PackagedHandler,
+        payload: dict[str, Any],
+        timeout_seconds: float,
+        /,
+        *,
+        working_directory: Path | None = None,
+    ) -> KernelInvocationResult: ...
+
+
 DirectKernelInvoker = Callable[
     [RuntimeRequest, PackagedHandler, dict[str, Any], float],
     KernelInvocationResult,
@@ -289,6 +300,9 @@ class OperationServices:
     invoke_kernel_direct: DirectKernelInvoker | None = None
     decode_palette_file: PaletteFileDecoder | None = None
     decode_png_input: PngInputDecoder | None = None
+    artifact_sets: ArtifactSets | None = None
+    decode_sequence_png: SequencePngDecoder | None = None
+    decode_gif: GifDecoder | None = None
     decode_png_artifact: PngArtifactDecoder | None = None
 
 
@@ -366,6 +380,13 @@ ArtifactFileFailureReason = Literal[
     "staged_file_empty",
     "staged_file_changed",
     "publication_failed",
+    "destination_set_empty",
+    "destination_invalid",
+    "staging_failed",
+    "staged_set_mismatch",
+    "staged_file_not_regular",
+    "staged_set_unreadable",
+    "destination_unreadable",
 ]
 
 

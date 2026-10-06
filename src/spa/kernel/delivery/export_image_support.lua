@@ -68,6 +68,17 @@ function module.render_frame(source, frame_number)
   return rendered
 end
 
+-- Prepare only PNG's profile label; callers retain profile admission and conversion policy.
+function module.png_color_space(native_space, profile)
+  local output = ColorSpace(native_space)
+  if profile.kind == "icc" then
+    -- Native PNG uses this name as its iCCP keyword. Backend names can be empty
+    -- or invalid; name only this copy with the caller's admitted ICC identity.
+    output.name = assert(profile.icc_identity)
+  end
+  return output
+end
+
 -- Encode the supplied native Image; callers own format/profile policy and verification.
 function module.encode_image(image, path, palette)
   local saved

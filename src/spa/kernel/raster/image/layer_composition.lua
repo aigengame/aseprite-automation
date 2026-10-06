@@ -61,32 +61,17 @@ function module.copy(value)
   return { mode = "include", layers = layers }
 end
 
-function module.render(sprite, frame_number, composition, area, selection, uuids, output_color_mode)
-  assert(output_color_mode == "preserve" or output_color_mode == "rgb", "invalid output Color Mode")
-  local mask = sprite.transparentColor
-  local needs_zero_mask = output_color_mode == "preserve"
-    and sprite.colorMode == ColorMode.INDEXED
-    and mask ~= 0
-  local effective
-  if needs_zero_mask then
-    effective = palettes.resolve(sprite, frame_number)
-    if effective == nil then
-      return nil, nil, missing_palette_index("Requested Frame has no Effective Palette")
-    end
-    if mask >= #effective then
-      return nil,
-        nil,
-        missing_palette_index("Requested Frame Effective Palette has no Transparent Color Index")
-    end
-  end
-  local records, included = {}, {}
+-- Selection facts are shared by rendering and format-specific export admission.
+function module.resolve(sprite, composition, selection, uuids)
+  local records, included, direct_reference = {}, {}, false
   layers_at(sprite.layers, {}, true, records)
   if composition.mode == "include" then
     for index, address in ipairs(composition.layers) do
       local selected, code, message = selection.resolve(sprite, address, uuids)
       if selected == nil then
-        return nil, nil, { rejection = { code = code, message = message, selector_number = index } }
+        return nil, { rejection = { code = code, message = message, selector_number = index } }
       end
+      if selected.layer.isReference then direct_reference = true end
       local key = table.concat(selected.path, "/")
       included[key] = true
       if selected.layer.isGroup then
@@ -111,6 +96,43 @@ function module.render(sprite, frame_number, composition, area, selection, uuids
       included[record.key] = record.visible
     end
   end
+  local paths, background = {}, false
+  for _, record in ipairs(records) do
+    if included[record.key] then
+      paths[#paths + 1] = record.path
+      if record.layer.isBackground then background = true end
+    end
+  end
+  return {
+    records = records,
+    included = included,
+    paths = paths,
+    effective_background = background,
+    direct_reference = direct_reference,
+  }
+end
+
+function module.render(sprite, frame_number, composition, area, selection, uuids, output_color_mode)
+  assert(output_color_mode == "preserve" or output_color_mode == "rgb", "invalid output Color Mode")
+  local mask = sprite.transparentColor
+  local needs_zero_mask = output_color_mode == "preserve"
+    and sprite.colorMode == ColorMode.INDEXED
+    and mask ~= 0
+  local effective
+  if needs_zero_mask then
+    effective = palettes.resolve(sprite, frame_number)
+    if effective == nil then
+      return nil, nil, missing_palette_index("Requested Frame has no Effective Palette")
+    end
+    if mask >= #effective then
+      return nil,
+        nil,
+        missing_palette_index("Requested Frame Effective Palette has no Transparent Color Index")
+    end
+  end
+  local context, rejected = module.resolve(sprite, composition, selection, uuids)
+  if rejected then return nil, nil, rejected end
+  local records, included = context.records, context.included
   local previous_compose = app.preferences.experimental.compose_groups
   local resolved = {}
   local changed_images, changed_palettes, seen = {}, {}, {}
@@ -189,7 +211,7 @@ function module.render(sprite, frame_number, composition, area, selection, uuids
   app.preferences.experimental.compose_groups = previous_compose
   if not ok then error(result) end
   if output_rejection then return nil, nil, output_rejection end
-  return result, resolved, nil
+  return result, resolved, nil, context.effective_background
 end
 
 return module

@@ -127,7 +127,13 @@ def _inflate(compressed: bytes, limit: int) -> bytes:
 
 
 def _verify_pixel_stream(
-    compressed: bytes, width: int, height: int, color_type: int, interlace: int
+    compressed: bytes,
+    width: int,
+    height: int,
+    color_type: int,
+    interlace: int,
+    *,
+    bit_depth: int = 8,
 ) -> None:
     # Validate the encoded stream that Pillow can tolerate truncating or extending.
     # Pillow still owns unfiltering, Adam7 reconstruction, and pixel decoding.
@@ -150,7 +156,7 @@ def _verify_pixel_stream(
         pass_width = max(0, (width - x + dx - 1) // dx)
         pass_height = max(0, (height - y + dy - 1) // dy)
         if pass_width and pass_height:
-            rows.append((pass_width * channels + 1, pass_height))
+            rows.append(((pass_width * channels * bit_depth + 7) // 8 + 1, pass_height))
     expected = sum(row_size * count for row_size, count in rows)
     decoded = _inflate(compressed, expected)
     if len(decoded) != expected:

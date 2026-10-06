@@ -1702,6 +1702,13 @@ function module.observe()
     end)
     if ok then capabilities[#capabilities + 1] = "aseprite_export_image" end
   end
+  if app.params.animation_export then
+    local animation = dofile(app.params.animation_export)
+    if pcall(animation.probe_sequence) then
+      capabilities[#capabilities + 1] = "aseprite_export_sequence"
+    end
+    if pcall(animation.probe_gif) then capabilities[#capabilities + 1] = "aseprite_export_gif" end
+  end
   if app.params.export_sheet_support then
     local sheet = dofile(app.params.export_sheet_support)
     if sheet.observe(app.params.workspace) then

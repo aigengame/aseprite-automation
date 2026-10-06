@@ -235,13 +235,7 @@ function module.execute(payload)
     local atlas_facts = context.metadata.atlas
     local spec = sprite.spec
     spec.width, spec.height = atlas_facts.width, atlas_facts.height
-    local output_profile = sprite.colorSpace
-    -- PNG needs an iCCP keyword; the no-backend runtime leaves ICC names empty.
-    -- The getter returns a private copy, so this does not change the Source.
-    if atlas_facts.profile.kind == "icc" and output_profile.name == "" then
-      output_profile.name = "SPA ICC"
-    end
-    spec.colorSpace = output_profile
+    spec.colorSpace = images.png_color_space(sprite.colorSpace, atlas_facts.profile)
     spec.transparentColor = sprite.colorMode == ColorMode.INDEXED and sprite.transparentColor or 0
     local atlas = assert(Image(spec), "Could not allocate atlas Image")
     assert(

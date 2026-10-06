@@ -27,7 +27,7 @@ from spa.authoring.document.layer import LAYER_OPERATIONS, LAYER_SELECT_RESOURCE
 from spa.authoring.document.motion import MOTION_OPERATIONS
 from spa.authoring.document.slice import SLICE_OPERATIONS, slice_capability_gaps
 from spa.authoring.document.sprite import SPRITE_OPERATIONS, SPRITE_PROBE_RESOURCES
-from spa.authoring.document.tag import TAG_OPERATIONS
+from spa.authoring.document.tag import TAG_OPERATIONS, TAG_SELECT_RESOURCE
 from spa.authoring.raster.color_curve import (
     COLOR_CURVE_OPERATIONS,
     COLOR_CURVE_RESOURCE,
@@ -114,6 +114,11 @@ from spa.contracts.public import (
     VersionResult,
     failure_schema,
 )
+from spa.delivery.animation import (
+    ANIMATION_EXPORT_OPERATIONS,
+    ANIMATION_SUPPORT,
+    GIF_RESOURCE,
+)
 from spa.delivery.export import EXPORT_OPERATIONS, EXPORT_PROBE_RESOURCES
 from spa.delivery.palette import (
     PALETTE_EXPORT_OPERATIONS,
@@ -124,6 +129,9 @@ from spa.delivery.tileset import TILESET_EXPORT_OPERATIONS
 from spa.preparation.raster import PREPARATION_OPERATIONS
 
 PROBE_RESOURCES = (
+    ANIMATION_SUPPORT,
+    GIF_RESOURCE,
+    TAG_SELECT_RESOURCE,
     TILESET_LIFECYCLE_PROBE_RESOURCE,
     TILE_LAYER_PROBE_RESOURCE,
     TILE_PROBE_RESOURCE,
@@ -387,6 +395,7 @@ OPERATIONS = (
     *COLOR_MODE_OPERATIONS,
     *PROFILE_OPERATIONS,
     *EXPORT_OPERATIONS,
+    *ANIMATION_EXPORT_OPERATIONS,
     *SHEET_OPERATIONS,
     *TILESET_EXPORT_OPERATIONS,
     *PALETTE_EXPORT_OPERATIONS,

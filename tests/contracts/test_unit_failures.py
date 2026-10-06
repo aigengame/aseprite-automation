@@ -101,6 +101,7 @@ from spa.contracts.public import (
     register_failure_codes,
 )
 from spa.contracts.raster import Point, PositiveRectangle, Size
+from spa.delivery.animation_contracts import AnimationExportDetails
 from spa.delivery.palette import PaletteExportDetails
 from spa.delivery.sheet_contracts import SheetRejection
 from spa.delivery.tileset import TilesetExportDetails
@@ -212,6 +213,9 @@ def test_failure_construction_derives_category_and_refuses_mismatch() -> None:
 
 def test_each_registered_code_has_a_constrained_public_schema() -> None:
     details_by_type = {
+        AnimationExportDetails: AnimationExportDetails(
+            reason="gif_duration", message="Frame is shorter than 10 ms"
+        ),
         TilesetExportDetails: TilesetExportDetails(reason="tile_key_missing"),
         PartialPublicationDetails: PartialPublicationDetails(
             destinations=[

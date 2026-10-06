@@ -103,6 +103,8 @@ def test_info_reports_installed_runtime() -> None:
         "aseprite_tag_authoring",
         "aseprite_slice_authoring",
         "aseprite_export_image",
+        "aseprite_export_sequence",
+        "aseprite_export_gif",
         "aseprite_export_sheet",
     ]
     if not conversion_available:
@@ -202,6 +204,8 @@ def test_info_reports_installed_runtime() -> None:
         "spa sprite assign-color-profile",
         "spa sprite convert-color-profile",
         "spa export image",
+        "spa export gif",
+        "spa export sequence",
         "spa export sheet",
         "spa export tileset",
         "spa palette export",
