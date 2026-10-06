@@ -143,31 +143,11 @@ class SheetRejection(PublicModel):
     reason: str
 
 
-class PublicationState(PublicModel):
-    role: Literal["image", "metadata"]
-    path: str
-    existed_before_publication: bool
-    state: Literal["published", "not_published", "indeterminate"]
-    replaced_existing: bool | None = None
-
-
-class PartialPublication(PublicModel):
-    kind: Literal["partial_publication"] = "partial_publication"
-    destinations: tuple[PublicationState, PublicationState]
-    reason: str
-
-
 SHEET_FAILURE_SPECS = (
     FailureCodeSpec(
         "export_sheet_unsupported",
         "The selected Source or native sheet operation cannot satisfy the requested export",
         "execution",
         SheetRejection,
-    ),
-    FailureCodeSpec(
-        "partial_publication",
-        "The image was published but metadata publication failed; no rollback was attempted",
-        "execution",
-        PartialPublication,
     ),
 )

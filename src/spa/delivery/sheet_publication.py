@@ -5,17 +5,16 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
+from spa.contracts.artifact import PartialPublicationDetails
 from spa.contracts.ports import (
     ArtifactFileObservation,
     ArtifactFiles,
     OperationIssue,
+    PublishedArtifactDestination,
     RuntimeIssue,
+    UnpublishedArtifactDestination,
 )
-from spa.delivery.sheet_contracts import (
-    ExportSheetRequest,
-    PartialPublication,
-    PublicationState,
-)
+from spa.delivery.sheet_contracts import ExportSheetRequest
 
 
 @dataclass(frozen=True)
@@ -59,22 +58,22 @@ class StagedSheet:
             raise OperationIssue(
                 "partial_publication",
                 "Image published; metadata publication failed. No rollback was attempted",
-                PartialPublication(
-                    destinations=(
-                        PublicationState(
+                PartialPublicationDetails(
+                    destinations=[
+                        PublishedArtifactDestination(
                             role="image",
                             path=str(self.image_destination),
-                            existed_before_publication=image_existed,
+                            existed_before=image_existed,
                             state="published",
                             replaced_existing=image_existed,
                         ),
-                        PublicationState(
+                        UnpublishedArtifactDestination(
                             role="metadata",
                             path=str(self.metadata_destination),
-                            existed_before_publication=metadata_existed,
+                            existed_before=metadata_existed,
                             state="not_published" if known else "indeterminate",
                         ),
-                    ),
+                    ],
                     reason=str(exc),
                 ),
             ) from exc

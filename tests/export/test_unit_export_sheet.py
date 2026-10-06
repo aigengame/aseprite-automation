@@ -289,22 +289,22 @@ def test_second_publication_failure_reports_both_paths_without_rollback(
     with pytest.raises(OperationIssue) as failure:
         export_sheet(request, services_for(native_output, MetadataFailure()))
     assert failure.value.code == "partial_publication"
-    assert failure.value.details.model_dump()["destinations"] == (
+    assert failure.value.details.model_dump()["destinations"] == [
         {
             "role": "image",
             "path": str(tmp_path / "sheet.png"),
-            "existed_before_publication": True,
+            "existed_before": True,
             "state": "published",
             "replaced_existing": True,
         },
         {
             "role": "metadata",
             "path": str(tmp_path / "sheet.json"),
-            "existed_before_publication": True,
+            "existed_before": True,
             "state": "not_published",
             "replaced_existing": None,
         },
-    )
+    ]
     assert (tmp_path / "sheet.png").read_bytes().startswith(b"\x89PNG")
     assert (tmp_path / "sheet.json").read_bytes() == b"old metadata"
     assert not list(tmp_path.glob(".*.staged.*"))

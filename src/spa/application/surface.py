@@ -120,6 +120,7 @@ from spa.delivery.palette import (
     palette_export_capability_gaps,
 )
 from spa.delivery.sheet import SHEET_OPERATIONS, SHEET_RESOURCES
+from spa.delivery.tileset import TILESET_EXPORT_OPERATIONS
 from spa.preparation.raster import PREPARATION_OPERATIONS
 
 PROBE_RESOURCES = (
@@ -387,6 +388,7 @@ OPERATIONS = (
     *PROFILE_OPERATIONS,
     *EXPORT_OPERATIONS,
     *SHEET_OPERATIONS,
+    *TILESET_EXPORT_OPERATIONS,
     *PALETTE_EXPORT_OPERATIONS,
     *ANIMATION_OPERATIONS,
     *PLAN_OPERATIONS,

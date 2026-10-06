@@ -203,6 +203,7 @@ def test_info_reports_installed_runtime() -> None:
         "spa sprite convert-color-profile",
         "spa export image",
         "spa export sheet",
+        "spa export tileset",
         "spa palette export",
         "spa animation audit",
         "spa animation compare",
