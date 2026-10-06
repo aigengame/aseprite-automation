@@ -945,9 +945,12 @@ path. SPA registration, identity resolution, and Ordinary Core Operation dispatc
 use that path to replace, override, rewrite, proxy, or bypass an existing Ordinary Core
 Operation. The Application-owned `script.py` use case calls the inner-owned
 `CallerScriptInvoker` port in `contracts/caller_script.py`; the Aseprite Adapter
-owns exact source transport and process/file observations. This port does not use
-`PackagedHandler` or the Kernel response protocol. The caller cannot supply an
-Operation identity or execution metadata. Script output remains diagnostics under
+owns exact source transport and process observations. After successful invocation,
+Application obtains declared-path facts through the inner-owned `ScriptFileObserver`
+contract, implemented by the File Adapter in `adapters/files.py`. The caller-script
+invocation port does not use `PackagedHandler` or the Kernel response protocol. The
+caller cannot supply an Operation identity or execution metadata. Script output
+remains diagnostics under
 the validated `spa script run` result or registered failure.
 
 Every Descriptor declares Operation Determinism. `deterministic` and

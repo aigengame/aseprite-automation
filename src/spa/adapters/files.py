@@ -1,11 +1,13 @@
-"""Local filesystem adapter for staged Sprite publication."""
+"""Local filesystem observation and staged Sprite/Artifact publication."""
 
 import hashlib
 import os
 import shutil
+import stat
 import uuid
 from pathlib import Path
 
+from spa.contracts.caller_script import ScriptFileFact
 from spa.contracts.ports import (
     ArtifactDestinationState,
     ArtifactFileEvidence,
@@ -363,3 +365,18 @@ class LocalArtifactFiles:
             staged.unlink()
         except OSError:
             pass
+
+
+def observe_script_file(path: Path) -> ScriptFileFact:
+    """Observe one declared path after caller execution, following symlinks."""
+    try:
+        observed = path.stat()
+    except FileNotFoundError:
+        return ScriptFileFact(path=str(path), kind="missing")
+    except OSError as exc:
+        return ScriptFileFact(path=str(path), kind="unavailable", error=str(exc))
+    if stat.S_ISREG(observed.st_mode):
+        return ScriptFileFact(path=str(path), kind="file", size_bytes=observed.st_size)
+    return ScriptFileFact(
+        path=str(path), kind="directory" if stat.S_ISDIR(observed.st_mode) else "other"
+    )

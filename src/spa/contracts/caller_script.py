@@ -1,6 +1,8 @@
 """Caller-script transport contract, separate from native domain Operations."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Literal, Protocol
 
 from pydantic import Field, field_validator
@@ -69,10 +71,12 @@ class ScriptInvocationResult:
     working_directory: str
     output_limit_bytes: int
     diagnostics: Diagnostics
-    files: tuple[ScriptFileFact, ...]
 
 
 class CallerScriptInvoker(Protocol):
     def __call__(
         self, observation: "RuntimeObservation", request: ScriptRunRequest
     ) -> ScriptInvocationResult: ...
+
+
+ScriptFileObserver = Callable[[Path], ScriptFileFact]

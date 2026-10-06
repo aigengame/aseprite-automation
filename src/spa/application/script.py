@@ -1,5 +1,7 @@
 """Application entry point for exact caller-owned Lua, outside Operation Plans."""
 
+from pathlib import Path
+
 from spa.contracts.caller_script import (
     ScriptRunRequest,
     ScriptRunResult,
@@ -15,6 +17,8 @@ def run_script(
 ) -> ScriptRunResult:
     if services.invoke_script is None:
         raise RuntimeError("Caller-script adapter is not configured")
+    if services.observe_script_file is None:
+        raise RuntimeError("Caller-script File Adapter is not configured")
     observed = services.invoke_script(services.probe_runtime(request), request)
     return ScriptRunResult(
         executable=observed.executable,
@@ -24,7 +28,10 @@ def run_script(
         diagnostics=ScriptSuccessDiagnostics.model_validate(
             observed.diagnostics.model_dump()
         ),
-        files=list(observed.files),
+        files=[
+            services.observe_script_file(Path(observed.working_directory) / path)
+            for path in request.declared_files
+        ],
     )
 
 

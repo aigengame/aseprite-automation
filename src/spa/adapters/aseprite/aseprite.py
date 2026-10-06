@@ -5,7 +5,6 @@ import os
 import selectors
 import shutil
 import signal
-import stat
 import subprocess
 import tempfile
 import time
@@ -17,7 +16,6 @@ from spa.adapters.aseprite.convolution import discover_convolution_resources
 from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.contracts.caller_script import (
     InlineScript,
-    ScriptFileFact,
     ScriptInvocationResult,
     ScriptRunRequest,
 )
@@ -609,20 +607,6 @@ def _invoke_at(
             ) from exc
 
 
-def _script_file_fact(path: Path) -> ScriptFileFact:
-    try:
-        observed = path.stat()
-    except FileNotFoundError:
-        return ScriptFileFact(path=str(path), kind="missing")
-    except OSError as exc:
-        return ScriptFileFact(path=str(path), kind="unavailable", error=str(exc))
-    if stat.S_ISREG(observed.st_mode):
-        return ScriptFileFact(path=str(path), kind="file", size_bytes=observed.st_size)
-    return ScriptFileFact(
-        path=str(path), kind="directory" if stat.S_ISDIR(observed.st_mode) else "other"
-    )
-
-
 def invoke_script(
     observation: RuntimeObservation, request: ScriptRunRequest
 ) -> ScriptInvocationResult:
@@ -693,8 +677,4 @@ def invoke_script(
             working_directory=str(working_directory),
             output_limit_bytes=OUTPUT_LIMIT_BYTES,
             diagnostics=diagnostics,
-            files=tuple(
-                _script_file_fact(working_directory / path)
-                for path in request.declared_files
-            ),
         )

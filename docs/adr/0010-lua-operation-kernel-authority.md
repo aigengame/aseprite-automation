@@ -70,7 +70,9 @@ Issue #51 implements this boundary through `contracts/caller_script.py`, the
 It reuses process launch, isolated user-folder preparation, timeout, and output
 capture mechanics. It does not call the packaged handler invoker or consume the
 Kernel response protocol for caller execution. The ordinary runtime compatibility
-probe still precedes execution.
+probe still precedes execution. After a successful invocation, Application requests
+declared-path observations through the narrow `ScriptFileObserver` contract. The
+File Adapter owns their filesystem observation, separate from process transport.
 
 Inline source is UTF-8 materialized without a wrapper or source edits because
 Aseprite's CLI requires a file. That temporary file determines `_SCRIPT_PATH` and

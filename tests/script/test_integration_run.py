@@ -197,3 +197,84 @@ def test_ordinary_operation_cannot_accept_a_caller_replacement(extra) -> None:
         error["location"] == [extra] and error["code"] == "extra_forbidden"
         for error in result["details"]["errors"]
     )
+
+
+@pytest.mark.parametrize("exit_status", [0, 7])
+def test_declared_file_observations_follow_only_successful_execution(
+    tmp_path, exit_status
+) -> None:
+    (tmp_path / "normal.bin").write_bytes(b"before")
+    (tmp_path / "link.bin").symlink_to("normal.bin")
+    (tmp_path / "dangling.bin").symlink_to("missing.bin")
+    (tmp_path / "directory").mkdir()
+    os.mkfifo(tmp_path / "pipe")
+    binary = script_runtime(
+        tmp_path,
+        f'Path("normal.bin").write_bytes(b"after-run"); sys.exit({exit_status})',
+    )
+    run = spa(
+        "script",
+        "run",
+        "--aseprite",
+        str(binary),
+        "--input-json",
+        json.dumps(
+            {
+                "script": {"kind": "inline", "code": ""},
+                "working_directory": str(tmp_path),
+                "declared_files": [
+                    "normal.bin",
+                    "link.bin",
+                    "dangling.bin",
+                    "directory",
+                    "pipe",
+                    "normal.bin/child",
+                ],
+            }
+        ),
+    )
+    result = json.loads(run.stdout)
+    assert (tmp_path / "normal.bin").read_bytes() == b"after-run"
+    if exit_status:
+        assert run.returncode == 1, result
+        assert result["code"] == "process_failed"
+        assert "files" not in result
+        return
+    assert run.returncode == 0, result
+    assert result["files"][:-1] == [
+        {
+            "path": str(tmp_path / "normal.bin"),
+            "kind": "file",
+            "size_bytes": 9,
+            "error": None,
+        },
+        {
+            "path": str(tmp_path / "link.bin"),
+            "kind": "file",
+            "size_bytes": 9,
+            "error": None,
+        },
+        {
+            "path": str(tmp_path / "dangling.bin"),
+            "kind": "missing",
+            "size_bytes": None,
+            "error": None,
+        },
+        {
+            "path": str(tmp_path / "directory"),
+            "kind": "directory",
+            "size_bytes": None,
+            "error": None,
+        },
+        {
+            "path": str(tmp_path / "pipe"),
+            "kind": "other",
+            "size_bytes": None,
+            "error": None,
+        },
+    ]
+    unavailable = result["files"][-1]
+    assert unavailable["path"] == str(tmp_path / "normal.bin/child")
+    assert unavailable["kind"] == "unavailable"
+    assert unavailable["size_bytes"] is None
+    assert unavailable["path"] in unavailable["error"]

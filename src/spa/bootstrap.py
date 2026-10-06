@@ -5,7 +5,7 @@ from functools import partial
 from spa.access.cli import build_app, run_cli
 from spa.adapters.artifact_set import LocalArtifactSets
 from spa.adapters.aseprite.aseprite import invoke, invoke_direct, invoke_script, probe
-from spa.adapters.files import LocalArtifactFiles, LocalTargetFiles
+from spa.adapters.files import LocalArtifactFiles, LocalTargetFiles, observe_script_file
 from spa.adapters.gif import decode_gif
 from spa.adapters.icc import verify_icc
 from spa.adapters.palette_file import decode_palette_file
@@ -24,6 +24,7 @@ def main() -> None:
                 probe_runtime=partial(probe, resources=PROBE_RESOURCES),
                 invoke_kernel=invoke,
                 invoke_script=invoke_script,
+                observe_script_file=observe_script_file,
                 invoke_kernel_direct=invoke_direct,
                 target_files=LocalTargetFiles(),
                 artifact_files=LocalArtifactFiles(),
