@@ -100,6 +100,7 @@ sources.
 | --- | --- | --- | --- |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Integrated explanation of the current domain, modules, dependencies, contracts, and flows, including its diagrams and reader-oriented organization. | PRD #1, `CONTEXT.md`, accepted ADRs, and explicitly labeled planning, implementation, or installed-state sources. | New product requirements, architecture decisions, feature contracts, delivery status, or installed support. |
 | [`README.md`](README.md) | User-facing product introduction and promotion, value-proposition narrative, onboarding, adoption guidance, current-status summary, and navigation. | PRD #1, this matrix, `ARCHITECTURE.md`, milestones, and the installed Surface Manifest when available. | Independent product requirements, architecture decisions, feature contracts, delivery status, or installed support. |
+| [Usage guide](docs/usage.md) | Task recipes, runtime setup, result interpretation, and explanations of current operation limits. | Operation Descriptors, implementation, accepted issues, and runtime evidence. | New contracts, independent command schemas, or broader support promises. |
 
 Normative facts flow into these views in one direction; the views add communication,
 not a competing fact source:

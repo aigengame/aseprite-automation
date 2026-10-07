@@ -8,8 +8,24 @@ module-name = "spa"
 [project]
 name = "aseprite-automation"
 version = "0.2.0"
-description = "Agent-facing automation for Aseprite"
+description = "Aseprite automation for AI agents. Create, edit, verify, and export pixel art, sprite animations, and tilesets through a CLI, Agent Skill, or MCP server."
 readme = "README.md"
+keywords = [
+  "aseprite",
+  "pixel-art",
+  "sprite-animation",
+  "sprite-sheet",
+  "tileset",
+  "game-assets",
+  "ai-agent",
+  "ai-game-development",
+  "cli",
+  "agent-skill",
+  "mcp",
+  "mcp-server",
+  "model-context-protocol",
+  "asset-pipeline",
+]
 requires-python = ">=3.13"
 dependencies = [
   "pillow>=12,<13",
