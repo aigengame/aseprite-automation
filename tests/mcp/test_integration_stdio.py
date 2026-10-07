@@ -43,17 +43,28 @@ def cli(tmp_path):
             }
         ],
     }
-    program = tmp_path / "spa-fixture"
-    program.write_text(f"""#!{sys.executable}
+
+    def write_cli(*, output=None, exit_status=0, stderr=""):
+        program = tmp_path / "spa-fixture"
+        program.write_text(f"""#!{sys.executable}
 import json, sys
 request = json.load(sys.stdin)
 if sys.argv[1] == 'schema':
     print({json.dumps(json.dumps(manifest))})
 else:
-    print(json.dumps({{"status": "success", "operation": "spa echo", "value": request.get("value")}}))
+    output = {output!r}
+    if output is None:
+        output = json.dumps({{"status": "success", "operation": "spa echo", "value": request.get("value")}})
+    print(output)
+    stderr = {stderr!r}
+    if stderr:
+        print(stderr, file=sys.stderr)
+    sys.exit({exit_status})
 """)
-    program.chmod(0o755)
-    return program, manifest
+        program.chmod(0o755)
+        return program
+
+    return write_cli, manifest
 
 
 def parameters(cli: Path, **env):
@@ -68,7 +79,8 @@ def parameters(cli: Path, **env):
     "mode,protocol", [("2026-07-28", "2026-07-28"), ("legacy", "2025-11-25")]
 )
 def test_stdio_projects_manifest_and_preserves_request_and_result(cli, mode, protocol):
-    program, manifest = cli
+    write_cli, manifest = cli
+    program = write_cli()
 
     async def exercise():
         async with Client(
@@ -97,20 +109,14 @@ def test_stdio_projects_manifest_and_preserves_request_and_result(cli, mode, pro
 
 
 def test_nonzero_cli_failure_is_lossless_and_has_no_success_content(cli):
-    program, _ = cli
-    original = program.read_text()
+    write_cli, _ = cli
     failure = {
         "status": "failure",
         "operation": "spa echo",
         "code": "invalid_request",
         "diagnostics": {"stderr": "native detail", "exit_status": 42},
     }
-    program.write_text(
-        original.replace(
-            'print(json.dumps({"status": "success", "operation": "spa echo", "value": request.get("value")}))',
-            f"print({json.dumps(json.dumps(failure))}); sys.exit(2)",
-        )
-    )
+    program = write_cli(output=json.dumps(failure), exit_status=2)
 
     async def exercise():
         async with Client(parameters(program), mode="2026-07-28") as client:
@@ -126,14 +132,8 @@ def test_nonzero_cli_failure_is_lossless_and_has_no_success_content(cli):
     "output", ["not json", '{"status":"success","operation":"spa echo","wrong":1}']
 )
 def test_unusable_cli_output_retains_diagnostics(cli, output):
-    program, _ = cli
-    original = program.read_text()
-    program.write_text(
-        original.replace(
-            'print(json.dumps({"status": "success", "operation": "spa echo", "value": request.get("value")}))',
-            f'print({output!r}); print("native warning", file=sys.stderr)',
-        )
-    )
+    write_cli, _ = cli
+    program = write_cli(output=output, stderr="native warning")
 
     async def exercise():
         async with Client(parameters(program), mode="2026-07-28") as client:
