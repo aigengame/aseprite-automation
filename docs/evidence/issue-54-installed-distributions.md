@@ -36,6 +36,8 @@ No build selector, trigger, budget or recovery policy changes for this issue.
 - The package loaded from the temporary wheel environment's
   `lib/python3.13/site-packages/spa`. Native consumer calls ran outside the
   checkout, with `PYTHONPATH` removed. No editable install supplied these results.
+- All 251 Python and Kernel source files were also compared byte for byte with
+  the built wheel. Ruff lint/format and Pyright passed for the checkout.
 
 The installed verifier checked the version and all **143** Kernel resources
 (`.lua`, `.aseprite`, `.icc`) against their source paths and SHA-256 digests.
@@ -123,10 +125,13 @@ passed on 2026-10-05 for PR #181's merge preview
 Aseprite 1.3.18.5-dev. That SHA predates the current package and these checks;
 it cannot satisfy #54's current-revision Linux acceptance criterion.
 
-[Native E2E run 37414803405](https://github.com/aigengame/aseprite-automation/actions/runs/37414803405)
-and [CI run 37571290552](https://github.com/aigengame/aseprite-automation/actions/runs/37571290552)
-did not start jobs. GitHub reported failed account payments or a spending limit.
-Zero executed steps provide no package or runtime verification.
+[PR #190 CI run 37582628552](https://github.com/aigengame/aseprite-automation/actions/runs/37582628552)
+and [Native E2E run 37582700255](https://github.com/aigengame/aseprite-automation/actions/runs/37582700255)
+did not start jobs. Both reported failed account payments or a spending limit.
+All three CI jobs had zero steps; the native target resolver also had zero
+steps, so no merge SHA was resolved and no native shard executed. This attempt
+was made for PR head `e05516272a97d46a3d1a54d139970a01a052ebc3`. Zero executed
+steps provide no package or runtime verification.
 
 After that external block is resolved, run the existing Native E2E workflow for
 this PR's merge result. Record its target SHA, actual runner/runtime facts,
