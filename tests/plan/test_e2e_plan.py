@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.support import spa
+from tests.support import isolated_wheel_cli, spa
 
 
 @pytest.mark.e2e
@@ -352,11 +352,7 @@ def test_source_alias_is_rejected_for_both_in_place_values(
 def test_wheel_installed_plan_uses_packaged_handler(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    installed_cli = os.environ.get("SPA_TEST_INSTALLED_CLI")
-    if installed_cli is None:
-        pytest.skip("SPA_TEST_INSTALLED_CLI does not select a wheel-installed CLI")
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.delenv("PYTHONPATH", raising=False)
+    installed_cli = isolated_wheel_cli(tmp_path, monkeypatch)
     target = tmp_path / "wheel-plan.aseprite"
     run = spa(
         "plan",
