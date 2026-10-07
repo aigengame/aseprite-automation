@@ -34,7 +34,7 @@ Aseprite is the upstream language and behavior authority. SPA follows its object
 
 ### SPA Open Host Service
 
-The `spa` CLI first exposes the Sprite Automation Open Host Service and Published Language. The Agent Skill and planned initial MCP access project the installed CLI surface and do not maintain independent domain contracts. A later accepted transport remains an Access Projection over the same Published Language; it does not create another domain or Operation authority.
+The `spa` CLI first exposes the Sprite Automation Open Host Service and Published Language. The Agent Skill and MCP access project the installed CLI surface and do not maintain independent domain contracts. A later accepted transport remains an Access Projection over the same Published Language; it does not create another domain or Operation authority.
 
 ### Asset Pipeline downstream
 

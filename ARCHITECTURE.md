@@ -55,7 +55,7 @@ flowchart TB
 
     subgraph SPA[Sprite Automation Bounded Context]
         direction TB
-        Access["Access Projection<br/>Agent Skill · planned MCP Adapter · spa CLI"]
+        Access["Access Projection<br/>Agent Skill · MCP Adapter · spa CLI"]
         Access --> App[Application use cases]
         App --> Core[Core and Supporting domain responsibilities]
         App --> Runtime["Aseprite Runtime<br/>Integration"]
@@ -94,7 +94,7 @@ discover
 
 The create/edit and inspect/validate steps repeat as the agent refines an asset.
 
-The `spa` CLI is the first Open Host Service. The Agent Skill and planned initial Model
+The `spa` CLI is the first Open Host Service. The Agent Skill and Model
 Context Protocol (MCP) adapter project the installed CLI surface instead of defining
 parallel behavior. The current delivery plan does not include a standalone REST API or
 remote HTTP service. HTTP is not excluded as a future transport: a validated functional
@@ -245,7 +245,7 @@ flowchart TB
 
 Solid arrows show permitted source dependency and inward invocation direction. CLI and
 MCP are sibling adapters to the same Descriptor-projected Application contract; neither
-has a source dependency on the other. In the planned initial runtime path, MCP reaches that
+has a source dependency on the other. In the initial runtime path, MCP reaches that
 contract through the installed CLI subprocess shown below. Within Application, Dispatch
 invokes the selected use case, Plan coordinates Domain behavior, and Commit uses
 inner-owned ports. Within Outbound, each adapter depends on the applicable inner-owned
@@ -301,7 +301,7 @@ Sprite creation and inspection slice extends that same stack.
 | Ordinary Core Operations | Packaged Lua handlers | Core Operation Semantics and native mapping executed through Aseprite. The current package contains a fixed runtime probe, shared capability observations, Sprite creation, inspection, native flattening, resize and crop, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, Tag inspection and authoring, exact Pixel Patch, native Snapshot composition, native Line, Rectangle, Ellipse, Contour, and Blur Paint, animation audit, Frame comparison, continuity Preview, Export Image, and Operation Plan handlers. Sprite copy uses the File Adapter for byte preservation and the packaged inspection handler for verification. |
 | Aseprite integration | External `aseprite --batch --script` | Native document, Tool, Filter, color, and export behavior. |
 | Private transport | Versioned JSON request and response files | Data exchange through `--script-param`, separate from diagnostics. |
-| Agent access | Agent Skill distribution through the Skills CLI and planned local stdio MCP Adapter with CLI subprocess invocation | Self-contained guidance and equivalent tool projection from the installed surface. |
+| Agent access | Agent Skill distribution through the Skills CLI and local stdio MCP Adapter with CLI subprocess invocation | Self-contained guidance and equivalent tool projection from the installed surface. |
 
 These choices can change when implementation or distribution evidence requires it.
 The Bounded Context, Published Language, and behavior authority do not depend on one
@@ -577,8 +577,10 @@ callable Operations.
 ```text
 src/spa/
   __init__.py
-  bootstrap.py            # composition and installed entry point
+  bootstrap.py            # CLI composition and installed entry point
+  mcp_bootstrap.py         # optional MCP stdio composition
   access/
+    mcp/                  # Manifest tool projection, CLI subprocesses, PNG content
     cli.py                # Descriptor-derived command projection
   application/
     dispatch.py           # dispatch and outcome classification
@@ -1120,10 +1122,19 @@ updates, and version management to the Skills CLI. SPA adds no `spa skill` comma
 wheel copy of the Skill, or external Skill-to-CLI compatibility checker. The Python
 package and native runtime keep their existing installation and execution checks.
 
-The planned initial MCP slice uses stdio between the MCP client and adapter. The adapter invokes
-the installed `spa` CLI as a subprocess; it does not require a REST or HTTP intermediary.
-MCP image and resource content is projected through MCP itself and does not require an
-HTTP file service.
+The MCP slice uses stdio through the optional `spa-mcp` bootstrap. It invokes the
+selected installed CLI for both schema discovery and calls. The SDK owns modern
+`2026-07-28` discovery and legacy `2025-11-25` initialization. The adapter adds no
+current-Sprite or cross-call session state. [ADR-0097](docs/adr/0097-mcp-cli-projection.md)
+records this boundary; [usage](docs/mcp.md) documents installation.
+
+`access/mcp/server.py` maps Manifest Operations to tools. `access/mcp/cli.py` owns
+JSON subprocess invocation and cancellation cleanup. `access/mcp/content.py` checks
+published outcome schemas and projects PNG Artifact bytes after size/digest/format
+verification. These owners have no source dependency on CLI execution internals,
+Application or Kernel modules. `mcp_bootstrap.py` selects the CLI/runtime and wires
+stdio. A projection failure preserves the completed CLI Result and reports its own
+diagnostic. The slice offers no resource browser or HTTP file service.
 
 MCP does not call the Lua Kernel directly and does not own schemas, failure meanings, or
 feature taxonomy. A later MCP Streamable HTTP transport or bounded HTTP resource adapter

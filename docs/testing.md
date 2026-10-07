@@ -35,6 +35,7 @@ with Source and an existing Target preserved.
 | `tests/filter/` | Native Filter application, Channels, Cel targets, Palette basis, state restoration, and verified publication. |
 | `tests/import/` | Encoded PNG facts, compatible native Cel insertion, frozen input identity, and publication refusal. |
 | `tests/layer/` | Layer hierarchy, exact addressing, and native addition evidence. |
+| `tests/mcp/` | MCP protocol projection, CLI process lifecycle, Artifact content, and installed native workflows. |
 | `tests/motion/` | Bounded Cel curve sampling, complete preflight, and persisted pixel/property preservation. |
 | `tests/paint/` | Paint Domain Module contract, bounded mutation evidence, and native Pixel Patch behavior. |
 | `tests/palette/` | Shared Effective Palette resolution over native Frame-based Palette Changes. |
@@ -917,3 +918,22 @@ uv run --frozen --group test pytest tests/script tests/contracts/test_unit_deter
 SPA_TEST_ASEPRITE=/absolute/path/to/aseprite \
   uv run --frozen --group test pytest tests/script -m e2e -x -vv --tb=short
 ```
+
+## MCP Access Projection
+
+`tests/mcp/` uses real stdio clients pinned separately to `2026-07-28` and the
+SDK legacy `2025-11-25` path. Controlled CLI subprocesses test wire projection,
+diagnostics and cleanup. The native tests compare every tool schema with the
+installed Manifest, then create, inspect, validate and export through real
+Aseprite. They decode ImageContent and compare bytes, digest and pixels; ordinary
+fast tests cover removed/changed Artifact files and distinguish projection failure
+from a completed Operation.
+
+```sh
+SPA_TEST_ASEPRITE=/absolute/path/to/aseprite \
+  uv run --frozen --group test pytest tests/mcp -q
+```
+
+The test dependency group includes the optional MCP SDK. Routine CI still runs
+`not e2e`; the installed native paths join the existing `e2e and not slow` selection.
+No new workflow, example rebuild or automatic native trigger is added.
