@@ -1,13 +1,17 @@
 # Use SPA through MCP
 
-Install the optional MCP extra in the SPA environment:
+Use a SPA checkout whose `pyproject.toml` defines the `mcp` extra and the `spa-mcp`
+entry point. An unqualified repository Git URL installs the default branch; it
+cannot provide MCP until this change is promoted to `main`.
+
+From the root of that checkout, install the optional MCP extra:
 
 ```sh
-uv tool install 'aseprite-automation[mcp] @ git+https://github.com/aigengame/aseprite-automation.git'
+uv sync --extra mcp
 ```
 
-For a local checkout, use `uv sync --extra mcp`, then the absolute path to
-`.venv/bin/spa-mcp`. Ordinary `spa` installation and use do not require MCP.
+Configure the client with the absolute path to that checkout's `.venv/bin/spa-mcp`.
+Ordinary `spa` installation and use do not require MCP.
 
 ## Connect a local client
 
