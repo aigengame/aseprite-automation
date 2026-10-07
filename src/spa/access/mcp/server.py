@@ -1,9 +1,8 @@
 """Project installed Operation schemas and outcomes into MCP tools."""
 
-import json
 import re
+from importlib.metadata import version
 
-from jsonschema import Draft202012Validator, ValidationError
 from mcp import MCPError
 from mcp.server import Server, ServerRequestContext
 from mcp.types import (
@@ -12,11 +11,11 @@ from mcp.types import (
     CallToolResult,
     ListToolsResult,
     PaginatedRequestParams,
-    TextContent,
     Tool,
 )
 
 from spa.access.mcp.cli import AdapterError, Cli
+from spa.access.mcp.content import adapter_failure, project_outcome
 
 
 async def build_server(cli: Cli) -> Server:
@@ -38,8 +37,6 @@ async def build_server(cli: Cli) -> Server:
             name = operation[4:].replace(" ", "_").replace("-", "_")
             if name in entries:
                 raise ValueError(f"Duplicate MCP tool name: {name}")
-            for field in ("request_schema", "result_schema", "failure_schema"):
-                Draft202012Validator.check_schema(entry[field])
             entries[name] = entry
             tools.append(
                 Tool(
@@ -47,6 +44,13 @@ async def build_server(cli: Cli) -> Server:
                     description=operation,
                     input_schema=entry["request_schema"],
                     output_schema=entry["result_schema"],
+                    _meta={
+                        "spa": {
+                            key: entry[key]
+                            for key in ("execution_kind", "determinism", "side_effects")
+                            if key in entry
+                        }
+                    },
                 )
             )
         if not tools:
@@ -73,33 +77,13 @@ async def build_server(cli: Cli) -> Server:
             outcome = await cli.invoke(
                 entries[params.name]["operation"], params.arguments or {}
             )
-            entry = entries[params.name]
-            schema = entry[
-                "result_schema" if outcome.exit_status == 0 else "failure_schema"
-            ]
-            try:
-                Draft202012Validator(schema).validate(outcome.payload)
-            except ValidationError as exc:
-                raise AdapterError(
-                    "SPA output does not match its published schema",
-                    reason=exc.message,
-                    stdout=outcome.stdout,
-                    stderr=outcome.stderr,
-                    exit_status=outcome.exit_status,
-                ) from exc
+            return project_outcome(outcome, entries[params.name])
         except AdapterError as exc:
-            return CallToolResult(
-                is_error=True,
-                content=[
-                    TextContent(
-                        type="text", text=json.dumps({"adapter_error": exc.diagnostics})
-                    )
-                ],
-            )
-        return CallToolResult(
-            is_error=outcome.exit_status != 0,
-            structured_content=outcome.payload if outcome.exit_status == 0 else None,
-            content=[TextContent(type="text", text=outcome.stdout)],
-        )
+            return adapter_failure(exc)
 
-    return Server("spa", on_list_tools=list_tools, on_call_tool=call_tool)
+    return Server(
+        "spa",
+        version=version("aseprite-automation"),
+        on_list_tools=list_tools,
+        on_call_tool=call_tool,
+    )

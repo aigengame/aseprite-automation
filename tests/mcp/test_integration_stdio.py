@@ -84,6 +84,8 @@ def test_stdio_projects_manifest_and_preserves_request_and_result(cli, mode, pro
             entry = manifest["operations"][0]
             assert tool.input_schema == entry["request_schema"]
             assert tool.output_schema == entry["result_schema"]
+            assert tool.meta["spa"]["execution_kind"] == "read"
+            assert tool.meta["spa"]["side_effects"] == []
             value = {"unicode": "像素", "nested": [1, False, None]}
             called = await client.call_tool("echo", {"value": value})
             assert not called.is_error

@@ -4,8 +4,11 @@ import asyncio
 import json
 import os
 import signal
+import sys
 from dataclasses import dataclass
 from typing import Any
+
+import anyio
 
 
 @dataclass(frozen=True)
@@ -55,16 +58,22 @@ class Cli:
         finally:
             if process.returncode is None:
                 # The native child inherits this group. Cancellation must not orphan it.
-                if os.name == "posix":
-                    os.killpg(process.pid, signal.SIGKILL)
-                else:
-                    process.kill()
-                await process.wait()
+                with anyio.CancelScope(shield=True):
+                    try:
+                        if os.name == "posix":
+                            os.killpg(process.pid, signal.SIGKILL)
+                        else:
+                            process.kill()
+                    except ProcessLookupError:
+                        pass
+                    await process.wait()
         diagnostics: dict[str, Any] = {
             "stdout": stdout.decode("utf-8", errors="replace"),
             "stderr": stderr.decode("utf-8", errors="replace"),
             "exit_status": process.returncode,
         }
+        if diagnostics["stderr"]:
+            print(diagnostics["stderr"], file=sys.stderr, end="")
         try:
             payload = json.loads(stdout)
             if not isinstance(payload, dict):
