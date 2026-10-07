@@ -10,12 +10,28 @@ name = "aseprite-automation"
 version = "0.2.0"
 description = "Agent-facing automation for Aseprite"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{name = "aigengame"}]
+keywords = ["aseprite", "pixel-art", "animation", "cli", "mcp", "automation"]
+classifiers = [
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Multimedia :: Graphics",
+]
 requires-python = ">=3.13"
 dependencies = [
   "pillow>=12,<13",
   "pydantic>=2.11,<3",
   "typer>=0.16,<1",
 ]
+
+[project.urls]
+Repository = "https://github.com/aigengame/aseprite-automation"
+Issues = "https://github.com/aigengame/aseprite-automation/issues"
+Changelog = "https://github.com/aigengame/aseprite-automation/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 mcp = ["mcp>=2.3,<3", "jsonschema>=4,<5"]
