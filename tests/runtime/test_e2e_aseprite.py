@@ -13,6 +13,41 @@ from tests.support import spa
 pytestmark = pytest.mark.e2e
 
 
+def test_wheel_installed_info_discovers_real_runtime(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    installed_cli = os.environ.get("SPA_TEST_INSTALLED_CLI")
+    if installed_cli is None:
+        pytest.skip("SPA_TEST_INSTALLED_CLI does not select a wheel-installed CLI")
+    # Exercise the consumer entry point outside the checkout without a source path.
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("PYTHONPATH", raising=False)
+    run = spa(
+        "info",
+        "--aseprite",
+        os.environ["SPA_TEST_ASEPRITE"],
+        executable=installed_cli,
+    )
+    assert run.returncode == 0, run.stdout + run.stderr
+    result = json.loads(run.stdout)
+    schema = json.loads(spa("info", "--schema", executable=installed_cli).stdout)
+    validate(result, schema["result_schema"])
+    assert result["status"] == "success"
+    assert result["runtime"]["resource_complete"] is True
+    assert result["runtime"]["canonical_path"] == str(
+        Path(os.environ["SPA_TEST_ASEPRITE"]).resolve()
+    )
+    assert result["runtime"]["verified_prerequisites"] == [
+        "aseprite_scripting",
+        "lua_file_io",
+        "aseprite_json",
+    ]
+    assert (
+        "aseprite_runtime_introspection" in result["runtime"]["verified_capabilities"]
+    )
+    assert all(gap["evidence"] for gap in result["capability_gaps"])
+
+
 def test_slice_authoring_capability_is_verified_by_native_roundtrip() -> None:
     run = spa("info", "--aseprite", os.environ["SPA_TEST_ASEPRITE"], "--json")
     assert run.returncode == 0, run.stdout

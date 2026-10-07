@@ -349,10 +349,14 @@ def test_source_alias_is_rejected_for_both_in_place_values(
 
 
 @pytest.mark.e2e
-def test_wheel_installed_plan_uses_packaged_handler(tmp_path: Path) -> None:
+def test_wheel_installed_plan_uses_packaged_handler(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     installed_cli = os.environ.get("SPA_TEST_INSTALLED_CLI")
     if installed_cli is None:
         pytest.skip("SPA_TEST_INSTALLED_CLI does not select a wheel-installed CLI")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("PYTHONPATH", raising=False)
     target = tmp_path / "wheel-plan.aseprite"
     run = spa(
         "plan",
@@ -383,7 +387,13 @@ def test_wheel_installed_plan_uses_packaged_handler(tmp_path: Path) -> None:
                                 "opacity": 63,
                             },
                         },
+                        {"operation": "paint apply", "input": _red_pixel()},
+                        {
+                            "operation": "sprite get",
+                            "input": {"inspection_scope": ["cels"]},
+                        },
                     ],
+                    "postconditions": {"width": 2, "height": 2, "frame_count": 1},
                 },
             }
         ),
@@ -394,3 +404,9 @@ def test_wheel_installed_plan_uses_packaged_handler(tmp_path: Path) -> None:
     result = json.loads(run.stdout)
     assert result["persisted_reopen_verified"] is True
     assert result["steps"][1]["result"]["cel"]["opacity"] == 63
+    assert result["steps"][2]["result"]["pixels_written"] == 1
+    assert result["steps"][3]["result"]["sprite"]["cels"]
+    assert (
+        result["target_commit"]["sha256"]
+        == hashlib.sha256(target.read_bytes()).hexdigest()
+    )
