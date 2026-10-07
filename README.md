@@ -1,5 +1,7 @@
 # SPA — Aseprite Automation for AI Agents
 
+![SPA: concept artwork becomes pixel art animation frames](https://raw.githubusercontent.com/aigengame/aseprite-automation/1ca5e1f4cd7587cf351ddcd1a16122f47d3f8ba0/docs/assets/hero-concept-to-animation.png)
+
 **Create, edit, validate, and export pixel art and sprite animations with AI agents.**
 
 SPA brings Aseprite to your agent workflows through a CLI, Agent Skill, or MCP server.
@@ -7,12 +9,6 @@ Keep editable `.aseprite` sources and deliver PNGs, GIFs, sprite sheets, and til
 
 [![Python 3.13+](https://img.shields.io/badge/Python-3.13%2B-blue)](https://www.python.org/)
 [![CLI · Agent Skill · MCP](https://img.shields.io/badge/access-CLI%20%C2%B7%20Agent%20Skill%20%C2%B7%20MCP-7057ff)](#choose-your-integration)
-
-[![Animated pixel art wizard casting a spell, exported through SPA](https://github.com/aigengame/aseprite-automation/blob/dev/examples/wizard_cast_v2/evidence/scene-loop.webp?raw=true)](https://github.com/aigengame/aseprite-automation/blob/dev/examples/wizard_cast_v2/README.md)
-
-*Moonlit Spell Practice v2: imagegen artwork, Python motion assembly, and SPA animation
-and export. This preview uses exported PNG frames; the example also includes a playable
-Godot project.*
 
 [Quick start](#quick-start) · [Usage guide](https://github.com/aigengame/aseprite-automation/blob/dev/docs/usage.md) ·
 [Examples](#examples) · [MCP setup](https://github.com/aigengame/aseprite-automation/blob/dev/docs/mcp.md)
@@ -217,6 +213,12 @@ Normal CLI use does not need the MCP extra. The MCP server uses the same operati
 and results; it does not keep an active sprite between calls.
 
 ## Examples
+
+[![Animated pixel art wizard casting a spell, exported through SPA](https://raw.githubusercontent.com/aigengame/aseprite-automation/1ca5e1f4cd7587cf351ddcd1a16122f47d3f8ba0/examples/wizard_cast_v2/evidence/scene-loop.webp)](https://github.com/aigengame/aseprite-automation/blob/dev/examples/wizard_cast_v2/README.md)
+
+*Moonlit Spell Practice v2: imagegen artwork, Python motion assembly, and SPA animation
+and export. This preview uses exported PNG frames; the example also includes a playable
+Godot project.*
 
 Both wizard examples keep editable Aseprite sources and exported components.
 Their Godot projects use those assets for a spell-timing game: cast at a moving
