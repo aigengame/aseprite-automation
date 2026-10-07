@@ -14,7 +14,7 @@ from spa.adapters.aseprite.aseprite import probe
 from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.application.surface import PROBE_RESOURCES
 from spa.contracts.public import RuntimeRequest
-from tests.support import process_diagnostics, spa
+from tests.support import isolated_wheel_cli, process_diagnostics, spa
 
 pytestmark = pytest.mark.e2e
 
@@ -210,10 +210,9 @@ def test_get_reports_complete_requested_sections_and_explicit_omissions(
 
 def test_wheel_installed_handler_rejection_is_schema_valid_without_target_commit(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    installed_cli = os.environ.get("SPA_TEST_INSTALLED_CLI")
-    if installed_cli is None:
-        pytest.skip("SPA_TEST_INSTALLED_CLI does not select a wheel-installed CLI")
+    installed_cli = isolated_wheel_cli(tmp_path, monkeypatch)
     parent_file = tmp_path / "not-a-directory"
     parent_file.write_text("occupied", encoding="utf-8")
     target = parent_file / "never-committed.aseprite"

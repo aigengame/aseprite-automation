@@ -1,11 +1,14 @@
 """Helpers shared across test ownership areas."""
 
+import os
 import shlex
 import shutil
 import struct
 import subprocess
 from pathlib import Path
 from typing import Any
+
+import pytest
 
 from spa.contracts.ports import (
     KernelInvocationResult,
@@ -71,6 +74,16 @@ def spa(
         env=env,
         input=stdin,
     )
+
+
+def isolated_wheel_cli(work_directory: Path, monkeypatch: pytest.MonkeyPatch) -> str:
+    """Select the wheel CLI and isolate consumer calls from checkout imports."""
+    selected = os.environ.get("SPA_TEST_INSTALLED_CLI")
+    if not selected:
+        pytest.skip("SPA_TEST_INSTALLED_CLI does not select a wheel-installed CLI")
+    monkeypatch.chdir(work_directory)
+    monkeypatch.delenv("PYTHONPATH", raising=False)
+    return selected
 
 
 def fake_aseprite(tmp_path: Path, body: str) -> Path:

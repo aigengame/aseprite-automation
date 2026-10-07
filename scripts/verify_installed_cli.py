@@ -37,10 +37,15 @@ def main() -> None:
             [str(executable), "version"],
             cwd=work,
             env=environment,
-            check=True,
+            check=False,
             capture_output=True,
             text=True,
         )
+        if completed.returncode:
+            raise SystemExit(
+                f"installed CLI version failed ({completed.returncode}): "
+                f"{completed.stdout}{completed.stderr}"
+            )
         response = json.loads(completed.stdout)
         expected = {
             "status": "success",
@@ -52,13 +57,24 @@ def main() -> None:
                 f"installed CLI returned {response!r}; expected {expected!r}"
             )
 
-        subprocess.run(
+        inspected = subprocess.run(
             [
                 str(installed_python),
                 "-I",
                 "-c",
                 """import hashlib, json, sys
+from importlib.metadata import distribution
 from importlib.resources import files
+from pathlib import Path
+
+package = files("spa")
+metadata = distribution("aseprite-automation")
+origin = json.loads(metadata.read_text("direct_url.json") or "{}")
+if origin.get("dir_info", {}).get("editable"):
+    raise SystemExit("installed verification requires a wheel, not an editable install")
+if sys.prefix == sys.base_prefix or not Path(str(package)).resolve().is_relative_to(Path(sys.prefix).resolve()):
+    raise SystemExit("SPA must load from the selected isolated Python environment")
+print(f"installed package: {package}; Python: {sys.version.split()[0]}")
 
 def inventory(directory, prefix=""):
     result = {}
@@ -85,8 +101,10 @@ if actual != expected:
             ],
             cwd=work,
             env=environment,
-            check=True,
+            check=False,
         )
+        if inspected.returncode:
+            raise SystemExit(inspected.returncode)
 
     print(
         f"verified installed SPA {expected_version} and {len(expected_resources)} "

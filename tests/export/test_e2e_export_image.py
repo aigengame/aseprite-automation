@@ -14,7 +14,7 @@ from PIL import Image, ImageCms
 
 from tests.export.support import export_image_request as _request
 from tests.export.support import source_sprite as _source
-from tests.support import spa
+from tests.support import isolated_wheel_cli, spa
 
 pytestmark = pytest.mark.e2e
 
@@ -460,10 +460,10 @@ def test_export_cannot_publish_when_source_is_missing(tmp_path: Path) -> None:
     assert not list(tmp_path.glob("*.staged.rgba"))
 
 
-def test_wheel_installed_cli_exports_verified_image(tmp_path: Path) -> None:
-    installed_cli = os.environ.get("SPA_TEST_INSTALLED_CLI")
-    if not installed_cli:
-        pytest.skip("SPA_TEST_INSTALLED_CLI does not select a wheel-installed CLI")
+def test_wheel_installed_cli_exports_verified_image(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    installed_cli = isolated_wheel_cli(tmp_path, monkeypatch)
     source = _source(tmp_path)
     destination = tmp_path / "wheel.png"
 

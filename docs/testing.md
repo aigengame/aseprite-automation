@@ -314,6 +314,14 @@ build the current wheel, install it with the locked runtime dependencies in a se
 environment, and set `SPA_TEST_INSTALLED_CLI` to that environment's `bin/spa`. Otherwise
 the existing wheel-only cases report their environment skips.
 
+The [installed distribution record](evidence/issue-54-installed-distributions.md)
+defines the bounded macOS/Linux profiles, the isolated-wheel replay, and the
+remaining Linux evidence requirement. `scripts/verify_installed_cli.py` rejects
+editable/source-tree imports and checks all packaged Kernel resources. Both the
+distribution smoke action and the Linux native action reuse that verifier. The
+native wheel cases cover `info`, Plan creation/painting/inspection, PNG export
+and a typed failure; they run consumer calls outside the checkout.
+
 ### Shared native parallel execution
 
 `scripts/native_e2e.py` owns selection, configuration, partitioning, execution, and
