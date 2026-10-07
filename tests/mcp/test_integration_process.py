@@ -60,7 +60,8 @@ def test_missing_runtime_fails_discovery_without_an_empty_tool_surface(tmp_path)
 @pytest.mark.skipif(
     os.name != "posix", reason="process-group cleanup on supported macOS/Linux hosts"
 )
-def test_cancellation_stops_cli_and_its_native_child(tmp_path):
+@pytest.mark.parametrize("parent_exits", [False, True])
+def test_cancellation_stops_cli_and_its_native_child(tmp_path, parent_exits):
     marker = tmp_path / "child-pids.json"
     program = tmp_path / "waiting-cli.py"
     program.write_text(f"""
@@ -68,7 +69,8 @@ import json, os, subprocess, sys, time
 child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])
 with open({str(marker)!r}, 'w') as target:
     json.dump([os.getpid(), child.pid], target)
-time.sleep(60)
+if not {parent_exits!r}:
+    time.sleep(60)
 """)
 
     async def exercise():

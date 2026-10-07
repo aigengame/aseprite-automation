@@ -53,16 +53,18 @@ class Cli:
             raise AdapterError(
                 "Could not start SPA", command=command, reason=str(exc)
             ) from exc
+        completed = False
         try:
             stdout, stderr = await process.communicate(json.dumps(arguments).encode())
+            completed = True
         finally:
-            if process.returncode is None:
+            if not completed:
                 # The native child inherits this group. Cancellation must not orphan it.
                 with anyio.CancelScope(shield=True):
                     try:
                         if os.name == "posix":
                             os.killpg(process.pid, signal.SIGKILL)
-                        else:
+                        elif process.returncode is None:
                             process.kill()
                     except ProcessLookupError:
                         pass
