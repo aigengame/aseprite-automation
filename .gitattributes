@@ -17,6 +17,6 @@
 *.exr filter=lfs diff=lfs merge=lfs -text
 *.aseprite filter=lfs diff=lfs merge=lfs -text
 
-# README images use raw.githubusercontent.com and must contain image bytes.
+# README image URLs must resolve to image bytes, not LFS pointers.
 /docs/assets/hero-concept-to-animation.png -filter -diff -merge -text
 /examples/wizard_cast_v2/evidence/scene-loop.webp -filter -diff -merge -text
