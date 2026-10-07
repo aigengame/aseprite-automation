@@ -24,7 +24,7 @@ def main() -> None:
         from spa.access.mcp.cli import AdapterError, Cli
         from spa.access.mcp.server import build_server
     except ModuleNotFoundError as exc:
-        parser.exit(2, f"spa-mcp requires aseprite-automation[mcp]: {exc}\n")
+        parser.exit(2, f"spa-mcp requires sprite-automation[mcp]: {exc}\n")
     environment = os.environ.copy()
     if args.aseprite:
         environment["SPA_ASEPRITE_EXECUTABLE"] = args.aseprite

@@ -6,7 +6,7 @@ build-backend = "uv_build"
 module-name = "spa"
 
 [project]
-name = "aseprite-automation"
+name = "sprite-automation"
 version = "0.2.0"
 description = "Agent-facing automation for Aseprite"
 readme = "README.md"
