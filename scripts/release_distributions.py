@@ -23,14 +23,21 @@ def read_archives(directory: Path, version: str) -> dict[str, dict[str, bytes]]:
             f"expected one SPA wheel and sdist for {version}; got {sorted(names)}"
         )
     with zipfile.ZipFile(directory / wheel) as archive:
-        wheel_files = {
-            item.filename: archive.read(item)
-            for item in archive.infolist()
-            if not item.is_dir()
-        }
+        wheel_files = {}
+        wheel_members = set()
+        for item in archive.infolist():
+            if item.filename in wheel_members:
+                raise ValueError(f"duplicate archive member: {item.filename}")
+            wheel_members.add(item.filename)
+            if not item.is_dir():
+                wheel_files[item.filename] = archive.read(item)
     with tarfile.open(directory / sdist) as archive:
         sdist_files = {}
+        sdist_members = set()
         for member in archive:
+            if member.name in sdist_members:
+                raise ValueError(f"duplicate archive member: {member.name}")
+            sdist_members.add(member.name)
             if member.isdir():
                 continue
             stream = archive.extractfile(member) if member.isfile() else None

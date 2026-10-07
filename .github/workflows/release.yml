@@ -267,10 +267,17 @@ jobs:
       - name: Reject conflicting files before PyPI upload
         run: python3 -I scripts/release_distributions.py dist --pypi-tag "$SPA_RELEASE_TAG" --allow-missing
 
+      # PyPA writes attestation sidecars into packages-dir. Keep the verified
+      # artifact pair separate for the post-upload check and GitHub publication.
+      - name: Prepare the PyPI upload workspace
+        run: |
+          mkdir pypi-upload
+          cp dist/*.whl dist/*.tar.gz pypi-upload/
+
       - name: Upload the preserved distributions to PyPI
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
         with:
-          packages-dir: dist/
+          packages-dir: pypi-upload/
           skip-existing: true
 
       - name: Require the complete matching PyPI release

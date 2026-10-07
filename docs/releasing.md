@@ -77,6 +77,25 @@ commands and skip policy.
 
 ## Configure the first PyPI publisher
 
+### Reconcile the pending GitHub release
+
+Before expecting a new Release PR, resolve the pending pre-PyPI release with the
+owner. On 2026-10-07, `main` recorded version `0.3.0`, but its GitHub draft had no
+`v0.3.0` tag. The existing maintenance gate therefore returned `ready=false`.
+Merging this implementation or running manual verification does not clear that gate.
+
+The original draft belongs to commit
+`4db66c94cdb13c68780fdaa42e9666010bd33e3e` and
+[Release run 37270734204](https://github.com/aigengame/aseprite-automation/actions/runs/37270734204).
+Its package build passed, but native verification failed on a process timeout.
+Completing that original GitHub-only run is a possible recovery path, subject to
+the owner's decision in #189 and successful verification of its original SHA and
+preserved files. Do not bypass the tag gate or attach new code to the old version.
+If the owner abandons the draft instead, agree on the release-ledger reconciliation
+before creating the next Release PR. Then let release-please select the new version.
+
+### Configure account access
+
 Use the PyPI account that maintains `gda`. Before the first upload, add a
 [pending Trusted Publisher](https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/)
 with these exact fields:
@@ -97,6 +116,8 @@ record passwords or tokens. A successful first upload creates the project and
 converts the pending publisher into its publisher. Inspect the project and files
 afterward, as required by #189.
 
+### Inspect the public files
+
 Before that first release, inspect the wheel/sdist inventory and public metadata,
 including the MIT license and `Copyright (c) 2026 aigengame`. After publication,
 install the exact published version in a clean environment outside the checkout,
@@ -105,6 +126,18 @@ run the installed-CLI tracer with a separately supplied Aseprite, and verify the
 results in #189. [Issue #54 evidence](evidence/issue-54-installed-distributions.md)
 provides the shared installed-wheel checks; it does not substitute for a real
 PyPI installation or the release SHA's Linux verification.
+
+The MIT grant covers SPA-owned material. The bundled 536-byte Display P3 profile
+is recorded as an unchanged macOS file with an Apple 2022 copyright notice in
+[the profile evidence](evidence/issue-34-color-profile.md). As of the #191 review,
+its public redistribution terms have not been established. The
+[ICC library's grant](https://registry.color.org/profile-library/) applies to
+ICC-owned profiles and does not establish permission for this Apple resource.
+Before accepting the first public files, #189 must record either the applicable
+permission or an approved and validated replacement. Reconcile the packaged
+notices, [archive license expression](https://packaging.python.org/en/latest/specifications/core-metadata/#license-expression)
+and content verifier with that result. A copyright notice alone does not close
+this publication prerequisite.
 
 ## Prepare and publish a release
 
@@ -142,6 +175,10 @@ the reviewed stdlib release-file verifier, which reads archives as data. It does
 install SPA, import its package code, run tests, or invoke the build backend.
 The PyPA action exchanges the job's OIDC identity for short-lived upload authority;
 no long-lived PyPI token is stored in the repository.
+It receives a copy of the preserved distribution pair in its own upload directory,
+where it can generate attestations. The post-upload check still reads the original
+pair, and GitHub receives the preserved artifact; attestation sidecars do not become
+extra distribution files or weaken the two-file check.
 
 The GitHub publisher has repository contents permission for the existing draft and
 read access to the verified run artifact. It downloads that artifact, attaches exactly
@@ -150,10 +187,11 @@ A separate post-release job owns the permissions needed to maintain the next Rel
 PR and dispatch its CI. Verification-only manual runs never upload to either destination.
 
 The public-content check requires the MIT metadata and license, the packaged Python
-and Kernel files, and the expected build metadata. It rejects extra archive contents,
-unresolved LFS pointers and unexpected distribution files. It does not package the
-Aseprite program, runtime caches, examples or workspace configuration. Publishing a
-wheel and sdist makes their contents public even while the GitHub repository is private.
+and Kernel files, and the expected build metadata. It rejects duplicate member names,
+extra archive contents, unresolved LFS pointers and unexpected distribution files.
+It does not package the Aseprite program, runtime caches, examples or workspace
+configuration. Publishing a wheel and sdist makes their contents public even while
+the GitHub repository is private.
 Repository visibility and Aseprite binary-cache compliance remain with
 [issue #126](https://github.com/aigengame/aseprite-automation/issues/126).
 

@@ -103,6 +103,36 @@ def test_public_pair_contains_the_same_sources_and_license(distributions) -> Non
     assert len(verify_contents(root, dist)) == 2
 
 
+@pytest.mark.parametrize("archive_kind", ["wheel", "sdist"])
+@pytest.mark.filterwarnings("ignore:Duplicate name:UserWarning")
+def test_duplicate_paths_cannot_hide_unintended_archive_content(
+    distributions, archive_kind: str
+) -> None:
+    root, dist = distributions
+    private_payload = b"private sentinel that must never enter a public archive"
+    if archive_kind == "wheel":
+        path = next(dist.glob("*.whl"))
+        with zipfile.ZipFile(path) as archive:
+            members = [(item, archive.read(item)) for item in archive.infolist()]
+        with zipfile.ZipFile(path, "w") as archive:
+            archive.writestr("spa/__init__.py", private_payload)
+            for item, payload in members:
+                archive.writestr(item, payload)
+    else:
+        path = next(dist.glob("*.tar.gz"))
+        with tarfile.open(path) as archive:
+            members = [(item, archive.extractfile(item).read()) for item in archive]
+        with tarfile.open(path, "w:gz") as archive:
+            duplicate = tarfile.TarInfo("sprite_automation-1.2.3/README.md")
+            duplicate.size = len(private_payload)
+            archive.addfile(duplicate, io.BytesIO(private_payload))
+            for item, payload in members:
+                archive.addfile(item, io.BytesIO(payload))
+
+    with pytest.raises(ValueError, match="duplicate archive member"):
+        verify_contents(root, dist)
+
+
 def test_changed_kernel_resource_is_rejected(distributions) -> None:
     root, dist = distributions
     (root / "src/spa/kernel/probe.lua").write_text("return false\n")

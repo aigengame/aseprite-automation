@@ -1,14 +1,21 @@
 """Execute release-tail guards and recovery with controlled external tools."""
 
+import hashlib
+import io
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
+import tarfile
 import textwrap
+import zipfile
 from pathlib import Path
 
 import pytest
+
+from scripts.release_distributions import verify_pypi
 
 WORKFLOW = Path(__file__).resolve().parents[2] / ".github/workflows/release.yml"
 
@@ -84,6 +91,69 @@ def test_approved_release_can_publish(tmp_path: Path) -> None:
         "Require an approved and verified release", tmp_path, publish_environment()
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_attestations_do_not_contaminate_the_verified_release_pair(
+    tmp_path: Path, monkeypatch
+) -> None:
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    prefix = "sprite_automation-1.2.3"
+    metadata = b"Name: sprite-automation\nVersion: 1.2.3\n"
+    with zipfile.ZipFile(dist / f"{prefix}-py3-none-any.whl", "w") as wheel:
+        wheel.writestr(f"{prefix}.dist-info/METADATA", metadata)
+    with tarfile.open(dist / f"{prefix}.tar.gz", "w:gz") as sdist:
+        member = tarfile.TarInfo(f"{prefix}/PKG-INFO")
+        member.size = len(metadata)
+        sdist.addfile(member, io.BytesIO(metadata))
+    original = {path.name: path.read_bytes() for path in dist.iterdir()}
+    remote_files = []
+    monkeypatch.setattr(
+        "urllib.request.urlopen",
+        lambda *a, **kw: io.BytesIO(
+            json.dumps(
+                {
+                    "info": {"name": "sprite-automation", "version": "1.2.3"},
+                    "urls": remote_files,
+                }
+            ).encode()
+        ),
+    )
+
+    job = (
+        WORKFLOW.read_text()
+        .split("\n  publish-pypi:\n", 1)[1]
+        .split("\n  publish:\n", 1)[0]
+    )
+    for step in job.split("      - name: ")[1:]:
+        if "run: python3 -I scripts/release_distributions.py" in step:
+            command = shlex.split(step.split("run: ", 1)[1].strip())
+            verify_pypi(
+                tmp_path / command[3],
+                "1.2.3",
+                allow_missing="--allow-missing" in command,
+            )
+        elif "run: |" in step:
+            result = run_step(step.splitlines()[0], tmp_path, publish_environment())
+            assert result.returncode == 0, result.stderr
+        elif "uses: pypa/gh-action-pypi-publish@" in step:
+            upload_dir = tmp_path / step.split("packages-dir: ", 1)[1].splitlines()[0]
+            assert {p.name: p.read_bytes() for p in upload_dir.iterdir()} == original
+            # The pinned PyPA action writes these sidecars next to the uploads.
+            for path in list(upload_dir.iterdir()):
+                remote_files.append(
+                    {
+                        "filename": path.name,
+                        "size": path.stat().st_size,
+                        "digests": {
+                            "sha256": hashlib.sha256(path.read_bytes()).hexdigest()
+                        },
+                    }
+                )
+                path.with_name(path.name + ".publish.attestation").write_text("{}")
+
+    assert len(remote_files) == 2
+    assert {path.name: path.read_bytes() for path in dist.iterdir()} == original
 
 
 def test_github_failure_after_pypi_success_resumes_the_same_files(
