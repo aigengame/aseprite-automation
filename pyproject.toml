@@ -17,8 +17,12 @@ dependencies = [
   "typer>=0.16,<1",
 ]
 
+[project.optional-dependencies]
+mcp = ["mcp>=2.3,<3", "jsonschema>=4,<5"]
+
 [project.scripts]
 spa = "spa.bootstrap:main"
+spa-mcp = "spa.mcp_bootstrap:main"
 
 [dependency-groups]
 dev = [
@@ -27,6 +31,7 @@ dev = [
     "twine==6.2.0",
 ]
 test = [
+    "mcp>=2.3,<3",
     "pytest>=8,<10",
     "jsonschema>=4,<5",
     "pytest-xdist>=3.8,<4",

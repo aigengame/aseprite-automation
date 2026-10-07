@@ -139,6 +139,13 @@ the caller's Git credentials. Installation, updates, and version management use 
 Skills CLI's native mechanisms. The Skill guides applicability decisions from the
 actual installed SPA surface; there is no separate Skill-to-CLI compatibility check.
 
+## Use SPA through MCP
+
+Install the optional `aseprite-automation[mcp]` extra and configure a local stdio
+client to launch `spa-mcp`. Tools derive from the installed `spa schema` surface;
+PNG Artifacts also arrive as native image content. Normal CLI use needs no MCP
+dependency. See [installation and client configuration](docs/mcp.md).
+
 ## Try the installed CLI
 
 For a source checkout, install Git LFS and run `git lfs install` followed by
