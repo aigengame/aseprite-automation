@@ -301,7 +301,7 @@ Sprite creation and inspection slice extends that same stack.
 | Ordinary Core Operations | Packaged Lua handlers | Core Operation Semantics and native mapping executed through Aseprite. The current package contains a fixed runtime probe, shared capability observations, Sprite creation, inspection, native flattening, resize and crop, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, Tag inspection and authoring, exact Pixel Patch, native Snapshot composition, native Line, Rectangle, Ellipse, Contour, and Blur Paint, animation audit, Frame comparison, continuity Preview, Export Image, and Operation Plan handlers. Sprite copy uses the File Adapter for byte preservation and the packaged inspection handler for verification. |
 | Aseprite integration | External `aseprite --batch --script` | Native document, Tool, Filter, color, and export behavior. |
 | Private transport | Versioned JSON request and response files | Data exchange through `--script-param`, separate from diagnostics. |
-| Agent access | Planned Agent Skill distribution through the Skills CLI and local stdio MCP Adapter with CLI subprocess invocation | Self-contained guidance and equivalent tool projection from the installed surface. |
+| Agent access | Agent Skill distribution through the Skills CLI and planned local stdio MCP Adapter with CLI subprocess invocation | Self-contained guidance and equivalent tool projection from the installed surface. |
 
 These choices can change when implementation or distribution evidence requires it.
 The Bounded Context, Published Language, and behavior authority do not depend on one
@@ -1110,8 +1110,7 @@ history, or cross-command recovery system.
 - The **CLI** is the first public execution channel for the public `spa` CLI
   JSON contract.
 - The **Agent Skill** teaches discovery and the edit-observe-verify-export loop for the
-  installed surface. Under the planned [#52](https://github.com/aigengame/aseprite-automation/issues/52)
-  delivery, `skills/spa/SKILL.md` contains the self-contained instructions that let the
+  installed surface. The [SPA Skill](skills/spa/SKILL.md) contains the self-contained instructions that let the
   consuming agent determine applicability from installed schemas and typed outcomes.
 - The **MCP Adapter** reads the Surface Manifest, invokes `spa`, and relays equivalent
   requests and outcomes.

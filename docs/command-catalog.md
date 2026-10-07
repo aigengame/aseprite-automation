@@ -32,8 +32,8 @@ better Aseprite-aligned evidence.
 | `spa schema` | Emit the aggregate installed Surface Manifest. |
 | `spa <group> <command> --schema` | Emit one Operation's request, result, failure, and invocation schemas. |
 
-Agent Skill delivery is planned in [#52](https://github.com/aigengame/aseprite-automation/issues/52)
-through the Skills CLI, outside the SPA command surface; see
+The [SPA Agent Skill](../skills/spa/SKILL.md) is distributed through the Skills CLI,
+outside the SPA command surface; see
 [ADR-0096](adr/0096-agent-skill-delivery.md).
 
 ## `sprite`
