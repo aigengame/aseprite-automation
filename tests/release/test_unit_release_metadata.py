@@ -10,14 +10,14 @@ from scripts.verify_release_metadata import validate_release_metadata
 
 def write_release_tree(root: Path, *, version: str = "1.2.3") -> None:
     (root / "pyproject.toml").write_text(
-        f'[project]\nname = "aseprite-automation"\nversion = "{version}"\n',
+        f'[project]\nname = "sprite-automation"\nversion = "{version}"\n',
         encoding="utf-8",
     )
     (root / ".release-please-manifest.json").write_text(
         json.dumps({".": version}), encoding="utf-8"
     )
     (root / "uv.lock").write_text(
-        f'[[package]]\nname = "aseprite-automation"\nversion = "{version}"\n',
+        f'[[package]]\nname = "sprite-automation"\nversion = "{version}"\n',
         encoding="utf-8",
     )
     (root / "CHANGELOG.md").write_text(
@@ -43,7 +43,7 @@ def test_release_metadata_agrees_on_version_and_tag(tmp_path: Path) -> None:
 def test_release_metadata_rejects_stale_lock(tmp_path: Path) -> None:
     write_release_tree(tmp_path)
     (tmp_path / "uv.lock").write_text(
-        '[[package]]\nname = "aseprite-automation"\nversion = "1.2.2"\n',
+        '[[package]]\nname = "sprite-automation"\nversion = "1.2.2"\n',
         encoding="utf-8",
     )
 

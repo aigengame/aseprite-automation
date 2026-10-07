@@ -1,17 +1,24 @@
 # Use SPA through MCP
 
-Use a SPA checkout whose `pyproject.toml` defines the `mcp` extra and the `spa-mcp`
-entry point. An unqualified repository Git URL installs the default branch; it
-cannot provide MCP until this change is promoted to `main`.
+After the first PyPI release is available, install the optional MCP extra:
 
-From the root of that checkout, install the optional MCP extra:
+```sh
+uv tool install 'sprite-automation[mcp]'
+spa-mcp --help
+```
+
+Use `uv tool upgrade sprite-automation` to update that installation. Configure the
+client with the absolute `spa-mcp` path reported by your shell (`command -v spa-mcp`
+on macOS/Linux). [Issue #189](https://github.com/aigengame/aseprite-automation/issues/189)
+tracks the first production upload; until then, use a checkout that provides the
+`mcp` extra. From its root:
 
 ```sh
 uv sync --extra mcp
 ```
 
-Configure the client with the absolute path to that checkout's `.venv/bin/spa-mcp`.
-Ordinary `spa` installation and use do not require MCP.
+For the checkout installation, use the absolute path to `.venv/bin/spa-mcp`.
+Ordinary CLI use does not require the MCP extra. Aseprite remains a separate install.
 
 ## Connect a local client
 

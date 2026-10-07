@@ -117,6 +117,29 @@ actual dependencies. The operating model is a trusted
 local workspace. Asset Pipeline integration uses a downstream-owned Anti-Corruption
 Layer and the public `spa` CLI JSON contract.
 
+## Install SPA
+
+The PyPI distribution is **`sprite-automation`**; its commands are `spa` and
+`spa-mcp`, and its Python package is `spa`. Python 3.13 or later is required.
+After the first PyPI release is available, install and upgrade with
+[uv](https://docs.astral.sh/uv/guides/tools/):
+
+```sh
+uv tool install sprite-automation
+spa version
+uv tool upgrade sprite-automation
+```
+
+For MCP clients, use `uv tool install 'sprite-automation[mcp]'` instead. Aseprite
+is installed separately; SPA does not distribute its executable. The SPA-owned
+code and documentation use the [MIT license](LICENSE).
+
+[Issue #189](https://github.com/aigengame/aseprite-automation/issues/189) tracks the
+first production upload and installation validation. Until it is complete, use
+the source checkout instructions below or install a wheel from a GitHub Release
+with `uv tool install /absolute/path/to/the-wheel.whl`. A source checkout needs
+access to this repository while it is private. See [release setup and recovery](docs/releasing.md).
+
 ## Use the SPA Agent Skill
 
 The [SPA Skill](skills/spa/SKILL.md) is an entry guide for discovery, authoring,
@@ -141,7 +164,7 @@ actual installed SPA surface; there is no separate Skill-to-CLI compatibility ch
 
 ## Use SPA through MCP
 
-Install the optional `aseprite-automation[mcp]` extra and configure a local stdio
+Install the optional `sprite-automation[mcp]` extra and configure a local stdio
 client to launch `spa-mcp`. Tools derive from the installed `spa schema` surface;
 PNG Artifacts also arrive as native image content. Normal CLI use needs no MCP
 dependency. See [installation and client configuration](docs/mcp.md).
