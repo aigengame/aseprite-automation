@@ -29,7 +29,7 @@ def validate_release_metadata(root: Path) -> ReleaseMetadata:
     locked_versions = [
         package["version"]
         for package in lock["package"]
-        if package["name"] == "sprite-automation"
+        if package["name"] == "aseprite-automation"
     ]
     if locked_versions != [version]:
         raise ValueError(

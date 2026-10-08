@@ -14,7 +14,7 @@ from pathlib import Path
 
 
 def read_archives(directory: Path, version: str) -> dict[str, dict[str, bytes]]:
-    prefix = f"sprite_automation-{version}"
+    prefix = f"aseprite_automation-{version}"
     wheel = f"{prefix}-py3-none-any.whl"
     sdist = f"{prefix}.tar.gz"
     names = {p.name for p in directory.iterdir() if p.name != ".gitignore"}
@@ -51,11 +51,11 @@ def read_archives(directory: Path, version: str) -> dict[str, dict[str, bytes]]:
         )
         metadata = BytesParser().parsebytes(files.get(metadata_path, b""))
         if (
-            metadata.get("Name") != "sprite-automation"
+            metadata.get("Name") != "aseprite-automation"
             or metadata.get("Version") != version
         ):
             raise ValueError(
-                f"{filename}: metadata identity does not match sprite-automation {version}"
+                f"{filename}: metadata identity does not match aseprite-automation {version}"
             )
     return archives
 
@@ -64,7 +64,7 @@ def verify_pypi(
     directory: Path, version: str, *, allow_missing: bool = False
 ) -> list[str]:
     archives = read_archives(directory, version)
-    url = f"https://pypi.org/pypi/sprite-automation/{urllib.parse.quote(version, safe='')}/json"
+    url = f"https://pypi.org/pypi/aseprite-automation/{urllib.parse.quote(version, safe='')}/json"
     try:
         with urllib.request.urlopen(url, timeout=20) as response:
             release = json.load(response)
@@ -72,11 +72,11 @@ def verify_pypi(
         if error.code != 404:
             raise
         release = {
-            "info": {"name": "sprite-automation", "version": version},
+            "info": {"name": "aseprite-automation", "version": version},
             "urls": [],
         }
     if (
-        release["info"]["name"] != "sprite-automation"
+        release["info"]["name"] != "aseprite-automation"
         or release["info"]["version"] != version
     ):
         raise ValueError("PyPI release identity conflict")
@@ -118,15 +118,15 @@ def verify_contents(root: Path, directory: Path) -> dict[str, dict[str, bytes]]:
         raise ValueError("source package inventory is empty")
     for filename, files in archives.items():
         wheel = filename.endswith(".whl")
-        info = f"sprite_automation-{version}.dist-info"
+        info = f"aseprite_automation-{version}.dist-info"
         metadata_path = (
-            f"sprite_automation-{version}.dist-info/METADATA" if wheel else "PKG-INFO"
+            f"aseprite_automation-{version}.dist-info/METADATA" if wheel else "PKG-INFO"
         )
         metadata = BytesParser().parsebytes(files[metadata_path])
         if metadata.get("License-Expression") != "MIT":
             raise ValueError(f"{filename}: MIT license metadata is required")
         license_path = (
-            f"sprite_automation-{version}.dist-info/licenses/LICENSE"
+            f"aseprite_automation-{version}.dist-info/licenses/LICENSE"
             if wheel
             else "LICENSE"
         )

@@ -296,7 +296,7 @@ def _surface(runtime: RuntimeFacts) -> tuple[list[str], list[CapabilityGap]]:
 def version_result(_: VersionRequest, _services: OperationServices) -> VersionResult:
     from importlib.metadata import version
 
-    return VersionResult(spa_version=version("sprite-automation"))
+    return VersionResult(spa_version=version("aseprite-automation"))
 
 
 def info_result(request: RuntimeRequest, services: OperationServices) -> InfoResult:
@@ -319,7 +319,7 @@ def info_result(request: RuntimeRequest, services: OperationServices) -> InfoRes
     )
     supported, gaps = _surface(facts)
     return InfoResult(
-        spa_version=version("sprite-automation"),
+        spa_version=version("aseprite-automation"),
         runtime=facts,
         supported_capabilities=supported,
         capability_gaps=gaps,

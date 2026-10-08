@@ -225,7 +225,7 @@ jobs:
       id-token: write
     environment:
       name: pypi
-      url: https://pypi.org/p/sprite-automation
+      url: https://pypi.org/p/aseprite-automation
     env:
       SPA_RELEASE_TAG: ${{ needs.cut-draft.outputs.tag_name }}
     steps:

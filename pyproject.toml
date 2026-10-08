@@ -6,14 +6,29 @@ build-backend = "uv_build"
 module-name = "spa"
 
 [project]
-name = "sprite-automation"
+name = "aseprite-automation"
 version = "0.2.0"
-description = "Agent-facing automation for Aseprite"
+description = "Aseprite automation for AI agents. Create, edit, verify, and export pixel art, sprite animations, and tilesets through a CLI, Agent Skill, or MCP server."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{name = "aigengame"}]
-keywords = ["aseprite", "pixel-art", "animation", "cli", "mcp", "automation"]
+keywords = [
+  "aseprite",
+  "pixel-art",
+  "sprite-animation",
+  "sprite-sheet",
+  "tileset",
+  "game-assets",
+  "ai-agent",
+  "ai-game-development",
+  "cli",
+  "agent-skill",
+  "mcp",
+  "mcp-server",
+  "model-context-protocol",
+  "asset-pipeline",
+]
 classifiers = [
   "Environment :: Console",
   "Intended Audience :: Developers",

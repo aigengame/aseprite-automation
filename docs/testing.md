@@ -142,7 +142,7 @@ Operations independently. Native fixtures check explicit and repeated Frames, on
 Tag direction traversal without repeat expansion, full Canvas, occurrence naming,
 PNG Color Mode and alpha, per-Frame Indexed Palettes with Linked Cels, supported
 profiles, GIF duration truncation, infinite looping, and allowed native color loss.
-The accepted representation matrix is documented in [README](../README.md#export).
+The accepted representation matrix is documented in the [usage guide](usage.md#export).
 Unknown profiles, unsupported representation combinations and GIF Frames below
 10 ms are refused before publication. ICC-to-sRGB GIF conversion remains conditional
 on the actual runtime's separately observed Color Profile capability; macOS evidence

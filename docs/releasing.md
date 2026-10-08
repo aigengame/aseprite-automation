@@ -13,6 +13,11 @@ tracks the initial setup and production installation evidence.
 
 ## Release authorities
 
+- `pyproject.toml` owns the package description and keywords. Its `readme` field
+  selects `README.md` as the package's long description. The build backend projects
+  these fields into wheel and sdist metadata for PyPI; no separate PyPI copy exists.
+  GitHub About and Topics mirror the project description and keywords. When editing
+  those fields, synchronize the repository settings from the same values.
 - `release-please-config.json` defines versioning, changelog sections, and tag shape;
   `.release-please-manifest.json` is its released-version ledger.
 - `.github/actions/maintain-release-pr/action.yml` projects the selected version into
@@ -102,7 +107,7 @@ with these exact fields:
 
 | Field | Value |
 | --- | --- |
-| PyPI project name | `sprite-automation` |
+| PyPI project name | `aseprite-automation` |
 | GitHub owner | `aigengame` |
 | GitHub repository | `aseprite-automation` |
 | Workflow filename | `release.yml` |

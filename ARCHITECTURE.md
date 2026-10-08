@@ -1291,7 +1291,7 @@ uses native RGB visual composition, lossy quantization, binary alpha, centisecon
 truncation and an infinite encoded loop. ICC-to-sRGB GIF conversion requires the
 Color Profile owner's observed runtime capability. An opaque-to-blank native GIF
 that fails independent alpha verification stays in staging and is not published.
-The current support matrix and limits are described in [README](README.md#export)
+The current support matrix and limits are described in the [usage guide](docs/usage.md#export)
 and constrained by the installed Operation Descriptors; local native evidence is not
 a cross-platform or cross-release promise. These exports are not Plan Steps.
 
