@@ -1,5 +1,8 @@
 # Test suite
 
+**Current CI status:** the [interim verification policy](#interim-verification-policy--2026-10-08)
+suspends hosted Aseprite execution. Local native tests remain available.
+
 For native text, `tests/paint/test_e2e_text_discovery.py` verifies the installed
 Capability Gap and absence of false callability. The [issue #47 investigation](evidence/issue-47-native-text.md)
 retains manual native pixel and save/reopen observations. Its text fixture is not
@@ -456,6 +459,48 @@ behavior. Use the real-runtime E2E tier for that evidence.
 
 ## CI gates
 
+### Interim verification policy — 2026-10-08
+
+The owner accepted the operational hold in
+[#126](https://github.com/aigengame/aseprite-automation/issues/126) for public
+readiness. It takes precedence over the retained native workflow procedures below.
+
+- Keep `Build Aseprite`, `Native E2E`, `Native E2E shards`, and `Release` disabled
+  in GitHub settings. Preserve their YAML and history. Do not build, restore, or
+  execute Aseprite in CI, including through manual dispatch or historical reruns.
+  The historical cache-scope experiment also stays disabled.
+- Ordinary CI retains source quality, non-native fast tests, and SPA distribution
+  checks. Aseprite binary caches remain absent. A workflow pause is an operational
+  control, not a claim that the retained code can never execute again.
+- Use the existing local `scripts/native_e2e.py run` entry point for native merge
+  verification, with an explicitly supplied Aseprite installation. Its selection
+  remains `e2e and not slow`, with the same configurable shards and workers.
+  Complete example rebuilds remain local opt-in work.
+- Record the tested commit and tree, intended merge result, actual OS and Aseprite
+  version, command/configuration, pass/fail/skip counts and reasons, and report
+  location in the PR. Before merge, verify that the tested tree matches the
+  intended merge tree; a different commit ID is acceptable only with that tree
+  match. A changed tree needs fresh native evidence. Do not relabel an older run
+  as a pass for an untested tree or claim Linux coverage from macOS results.
+- During this hold, that local evidence replaces the hosted Linux native merge
+  check. It does not replace routine CI or review. An absent, skipped, cancelled,
+  or billing-blocked job is not a passing test. Any exception to other merge
+  requirements needs an explicit owner decision.
+- Release maintenance, verification, GitHub publication, and PyPI publication stay
+  paused. Repository visibility does not authorize publication. Before resuming
+  Release, accept a compliant execution arrangement and its verification policy;
+  successful native verification of the exact release SHA remains required.
+  Local merge evidence alone does not satisfy the release gate.
+
+Attach local reports through the existing PR review process. Commit Statuses
+reporting and a Linux VPS runner are possible later improvements, not prerequisites
+for public visibility. No status publisher or runner has been adopted by this policy.
+Existing time budgets remain unchanged. Re-enabling a workflow, recreating a native
+cache, or resuming native CI requires a separately accepted licensing and access
+boundary; closing #126 or making the repository public does not lift the hold.
+
+### Routine CI
+
 `.github/workflows/ci.yml` runs on every pull request, every push to `main`, and
 manual dispatch. Release maintenance also dispatches it for the resulting Release
 PR head. These routine jobs use Python 3.13, uv 0.11.19, and the committed `uv.lock`
@@ -472,6 +517,10 @@ when branch protection is available. Their success does **not** establish Linux
 native execution. There is no maintenance selector or skipped native job in CI.
 
 ### Native E2E before merge
+
+**Suspended:** follow the [interim policy](#interim-verification-policy--2026-10-08).
+The following procedure records the retained hosted design; it is not permission
+to dispatch or rerun it during the hold.
 
 `.github/workflows/native-e2e.yml` owns explicit pre-merge Linux verification and
 weekly main regression. Target preparation precedes the shared shard matrix, followed
@@ -542,6 +591,9 @@ This provisional entry is not stable-main rollout evidence.
 
 ### Complete example rebuilds
 
+The native trigger rows below describe the retained workflow design. Hosted native
+execution is currently suspended by the [interim policy](#interim-verification-policy--2026-10-08).
+
 | Trigger | Real-runtime selection |
 | --- | --- |
 | Routine PR update, main push, or manual CI | None; source, fast-test and distribution checks only. |
@@ -585,13 +637,15 @@ responses. It covers stale PR targets, merge-parent mismatches, main-only routin
 API failures, Release PR head convergence and metadata checks. These tests do not
 establish hosted cache visibility, token permissions or Linux native execution.
 
-Run affected native tests locally before requesting Linux verification. For CI
-infrastructure, resolve syntax, shell and branch/dispatch logic locally first.
-Use a small hosted probe only for a remaining platform-specific hypothesis, then
-one final native run when the change has converged. Do not run the whole suite on
-every diagnostic push. For an unchanged target, rerun only failed jobs; a changed
-PR target requires fresh preparation and all shards. macOS results remain
-macOS evidence. `act` can help with shell/container checks, but does not reproduce
+Run affected native tests locally. For CI infrastructure, resolve syntax, shell
+and branch/dispatch logic locally first. The hosted native steps that follow apply
+only after an accepted resumption under the
+[interim policy](#interim-verification-policy--2026-10-08): use a small hosted probe
+for a remaining platform-specific hypothesis, then one final native run after
+convergence. Do not run the whole suite on every diagnostic push. For an unchanged
+target, rerun only failed jobs; a changed PR target requires fresh preparation and
+all shards. macOS results remain macOS evidence. `act` can help with shell/container
+checks, but does not reproduce
 all GitHub permissions, concurrency or timeout behavior; see its
 [unsupported features](https://nektosact.com/not_supported.html).
 
@@ -616,6 +670,10 @@ The [issue #107 evidence](evidence/issue-107-ci-capacity.md) records measurement
 and superseded experiments.
 
 ### Restore the Aseprite runtime
+
+**Suspended:** do not use this recovery procedure during the
+[interim hold](#interim-verification-policy--2026-10-08), including for historical
+failed runs. Restoring Actions billing does not authorize native execution.
 
 Native E2E and Release only
 restore an exact Aseprite cache entry. A miss fails before native dependency

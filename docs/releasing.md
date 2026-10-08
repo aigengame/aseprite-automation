@@ -1,5 +1,13 @@
 # Releases
 
+**Current status — 2026-10-08:** `Release` is disabled under
+[#126](https://github.com/aigengame/aseprite-automation/issues/126). Release PR
+maintenance, verification, and GitHub/PyPI publication are paused. The
+[interim verification policy](testing.md#interim-verification-policy--2026-10-08)
+owns the current operating instructions. The workflow procedures below describe
+the retained design; do not run them during the hold. Making the repository public
+does not resume Release or waive verification of the exact publication SHA.
+
 SPA uses a reviewed Release PR and an exact-commit automatic release workflow.
 It publishes one verified Python wheel and source distribution to PyPI, then attaches
 the same files to the GitHub Release. Aseprite is supplied separately.
@@ -141,10 +149,12 @@ Exact source inventory checks also reject extra packaged files; this is not a ge
 scanner for every embedded encoding.
 
 [#194 evidence](evidence/issue-194-redistributable-profile.md) records replacement
-validation and the historical-copy disposition plan. Merging the replacement does not
-remove the original Apple blob from Git history or retained distribution artifacts.
-Those copies need separate authorized disposition before #126's public-readiness gate
-can close. #189's first-publish inspection must use newly built distributions containing
+validation and the owner's historical-copy disposition. The subsequent licensing
+check did not establish infringement; the owner accepted retaining historical
+copies without making history rewriting or artifact deletion a public-readiness
+requirement. Current source and new packages use the CC0 reference. Reassess that
+disposition if concrete contrary licensing evidence or a rights-holder request
+appears. #189's first-publish inspection must use newly built distributions containing
 the replacement; old artifacts cannot be relabeled as the corrected output.
 
 ## Prepare and publish a release
