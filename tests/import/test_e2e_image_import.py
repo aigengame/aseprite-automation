@@ -16,7 +16,12 @@ from spa.adapters.aseprite.aseprite import probe
 from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.application.surface import PROBE_RESOURCES
 from spa.contracts.public import RuntimeRequest
-from tests.support import inject_palette_change, process_diagnostics, spa
+from tests.support import (
+    caller_apple_p3,
+    inject_palette_change,
+    process_diagnostics,
+    spa,
+)
 
 pytestmark = pytest.mark.e2e
 
@@ -149,7 +154,9 @@ def test_import_indexed_matches_used_entries_only(tmp_path, runtime):
     assert source.read_bytes() == original
 
 
-@pytest.mark.parametrize("profile_name", ["srgb", "linear_srgb", "display_p3_cc0"])
+@pytest.mark.parametrize(
+    "profile_name", ["srgb", "linear_srgb", "display_p3_cc0", "display_p3"]
+)
 def test_import_same_encoded_profile_preserves_profile(tmp_path, runtime, profile_name):
     source, raster, target = (
         tmp_path / name for name in ("source.aseprite", "input.png", "target.aseprite")
@@ -161,7 +168,11 @@ def test_import_same_encoded_profile_preserves_profile(tmp_path, runtime, profil
         info.add(b"sRGB", b"\0")
         kwargs["pnginfo"] = info
     else:
-        icc = files("spa.kernel").joinpath(f"color/profiles/{profile_name}.icc")
+        icc = (
+            caller_apple_p3()
+            if profile_name == "display_p3"
+            else files("spa.kernel").joinpath(f"color/profiles/{profile_name}.icc")
+        )
         _create(runtime, source, profile="icc", icc=str(icc))
         kwargs["icc_profile"] = icc.read_bytes()
     Image.new("RGB", (2, 2), (17, 31, 53)).save(raster, **kwargs)

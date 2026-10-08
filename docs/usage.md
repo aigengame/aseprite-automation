@@ -1178,14 +1178,20 @@ metadata and valid ICC files excluded from Convert, without transforming stored 
 | Encoded None | Built-in sRGB |
 | Built-in sRGB | Built-in sRGB; fixed linear-sRGB ICC |
 | Fixed linear-sRGB ICC | Built-in sRGB; the same fixed linear-sRGB ICC |
-| Fixed Display P3 ICC | Built-in sRGB; the same fixed Display P3 ICC |
+| Fixed CC0 Display P3 ICC | Built-in sRGB; the same fixed CC0 Display P3 ICC |
+| Previously accepted Apple Display P3 ICC, supplied by the caller | Built-in sRGB; the same exact Apple ICC |
 
-The fixed files are [linear_srgb.icc](../src/spa/kernel/color/profiles/linear_srgb.icc)
-and [display_p3.icc](../src/spa/kernel/color/profiles/display_p3.icc), also included in
-the installed package. Any path containing the exact file bytes works. Other encodings
-or metadata changes, even with the same profile name, are outside this Convert set.
-Display P3 is the exact file verified for #103's canonical sRGB preparation path.
-Built-in sRGB is not an arbitrary sRGB ICC file.
+The package includes [linear_srgb.icc](../src/spa/kernel/color/profiles/linear_srgb.icc)
+and [display_p3_cc0.icc](../src/spa/kernel/color/profiles/display_p3_cc0.icc).
+[Their notice](../src/spa/kernel/color/profiles/NOTICE.txt) records provenance and
+redistribution terms. Apple P3 bytes are not included, downloaded, or reconstructed.
+The [finite identity data](../src/spa/kernel/color/profiles/identities.json) pins the
+complete input hashes: `linear_srgb`, `display_p3_cc0`, and the existing caller-supplied
+`display_p3`. Any path containing the admitted bytes works. Other encodings or metadata
+changes, even with the same profile name, are outside this Convert set. The two P3
+files are not equivalent identities, and conversion between them is not admitted.
+The CC0 reference verifies #103's canonical sRGB preparation path. Built-in sRGB is
+not an arbitrary sRGB ICC file. The set can expand with accepted demand and evidence.
 
 An unlisted Source ICC returns `color_profile_source_unsupported`. An unlisted target
 ICC or conversion direction returns `color_profile_file_failed` with reason
@@ -1304,7 +1310,7 @@ Index both matter: native loss of transparent hidden RGB or partial alpha causes
 refusal. Numeric mask indexes need not be equal when the used pixels retain their
 meaning. The target Palette remains unchanged.
 
-Encoded None, sRGB, or an exact supported ICC (`linear_srgb`, `display_p3`) must
+Encoded None, sRGB, or an exact supported ICC (`linear_srgb`, `display_p3`, `display_p3_cc0`) must
 match the destination Profile. Unsupported or conflicting metadata fails, including
 standalone gAMA/cHRM definitions. Input loading does not infer sRGB for an untagged
 PNG or convert its channels. See the [import evidence](evidence/issue-46-raster-import.md)
@@ -1395,7 +1401,7 @@ It requires explicit area, Layer Composition, and composition representation cho
 
 After composition, color choices run in this fixed order:
 
-1. `color_profile`: `preserve`, `{"kind":"assign","profile":...}`, or `{"kind":"convert","profile":...}`. Profile inputs and directed conversions reuse `sprite assign-color-profile` / `convert-color-profile`: None, sRGB, and the exact packaged linear-sRGB / Display P3 ICC files. Assign keeps channel values; Convert requires the observed native conversion capability. Preserve and Assign do not imply conversion.
+1. `color_profile`: `preserve`, `{"kind":"assign","profile":...}`, or `{"kind":"convert","profile":...}`. Profile inputs and directed conversions reuse `sprite assign-color-profile` / `convert-color-profile`; final PNG identities use the admitted set in [Color Profiles](#color-profiles). Assign keeps channel values; Convert requires the observed native conversion capability. Preserve and Assign do not imply conversion.
 2. `palette_preparation`: required only for non-Indexed → Indexed conversion. Choose `{"kind":"current"}`, `{"kind":"import","palette_file":{"format":"gpl","path":"colors.gpl"}}` (also Indexed PNG), or `{"kind":"quantize","max_colors":16,"with_alpha":true,"rgb_map_algorithm":"octree","new_layer_blending_method":true}`. The current Palette comes from the selected Source Frame and follows Profile conversion. Import uses independently decoded, frozen file bytes. Quantization sees only the one-Frame composed area. No Palette is generated implicitly.
 3. `color_mode`: `preserve` or the existing `sprite change-color-mode` Conversion object, such as `{"source_color_mode":"rgb","target":{"color_mode":"grayscale","to_gray":"luma"}}`. The declared source mode refers to the composed Sprite. Same-mode requests are no-ops; mapping and Dithering retain their existing applicability rules.
 4. `transparency`: `preserve` adds no extra transformation, or `{"kind":"background","background_color":{"kind":"rgba","red":0,"green":0,"blue":0,"alpha":255}}` fills through the native Background owner. Use a Color Value in the final Color Mode. For background requests, every encoded output pixel must be opaque. An Indexed pixel that uses a Palette Entry with alpha below 255 fails this requirement and prevents publication; unused semi-transparent Entries do not.
@@ -1405,7 +1411,7 @@ the full ordered Palette. Without an effective Background, the Transparent Color
 Index encodes alpha 0; with a Background its Palette alpha is preserved. Other Palette
 alpha values remain unchanged. Indexed PNG requires 1–256 complete entries and a
 defined Transparent Color Index and every output index. No padding, remapping, or
-mode fallback is implicit. RGB/Indexed can retain the two admitted ICC payloads;
+mode fallback is implicit. RGB/Indexed can retain the admitted ICC payloads;
 Grayscale supports None/sRGB. sRGB rendering intent is normalized to 0 and reported.
 All limits can evolve with accepted requirements and verified native support.
 
@@ -1442,9 +1448,9 @@ Frame. GIF destinations require `path` ending in `.gif` and `if_exists`.
 
 | Output | Source Color Mode | Admitted Color Profiles | Encoded representation |
 | --- | --- | --- | --- |
-| PNG sequence | RGB | None, sRGB, exact packaged linear-sRGB and Display P3 ICC | Native composed RGB and alpha; supported ICC payload preserved. |
-| PNG sequence | Grayscale | None, sRGB | Native composed gray and alpha; the two RGB ICC profiles are refused. |
-| PNG sequence | Indexed | None, sRGB, exact packaged linear-sRGB and Display P3 ICC | Native Palette Indexes and each occurrence's complete ordered Effective Palette, including duplicate and unused Entries. |
+| PNG sequence | RGB | None, sRGB, exact ICC identities in [Color Profiles](#color-profiles) | Native composed RGB and alpha; supported ICC payload preserved. |
+| PNG sequence | Grayscale | None, sRGB | Native composed gray and alpha; admitted RGB ICC profiles are refused. |
+| PNG sequence | Indexed | None, sRGB, exact ICC identities in [Color Profiles](#color-profiles) | Native Palette Indexes and each occurrence's complete ordered Effective Palette, including duplicate and unused Entries. |
 | GIF | RGB, Grayscale, Indexed | None, sRGB; supported ICC requires the runtime's native conversion to sRGB | Native RGB visual composition, lossy native quantization, and binary transparency; no embedded Source ICC. |
 
 PNG uses no implicit Color Mode conversion or quantization. sRGB rendering intent
@@ -1521,8 +1527,8 @@ Frame's Effective Palette, retaining all 1–256 entries, duplicate colors, unus
 entries, and pixel indexes. Native PNG transparency makes the Sprite Transparent
 Color Index transparent and retains the other entries' alpha values. Incomplete or
 oversized Palettes are refused. No implicit color conversion or quantization occurs.
-None and built-in sRGB Profiles are supported in all three modes. The exact packaged
-linear-sRGB and Display P3 ICC profiles are also supported for RGB and Indexed;
+None and built-in sRGB Profiles are supported in all three modes. The exact ICC
+identities in [Color Profiles](#color-profiles) are also supported for RGB and Indexed;
 Grayscale with these RGB ICC profiles is refused. PNG facts report the actual encoded
 color type, which can omit an unnecessary alpha channel.
 

@@ -1,5 +1,6 @@
 """Helpers shared across test ownership areas."""
 
+import hashlib
 import os
 import shlex
 import shutil
@@ -19,6 +20,18 @@ from spa.contracts.ports import (
     TargetCommitObservation,
 )
 from spa.contracts.public import RuntimeCapability
+
+
+def caller_apple_p3() -> Path:
+    """Use only an explicitly supplied input; never locate or download Apple bytes."""
+    configured = os.environ.get("SPA_TEST_APPLE_P3_ICC")
+    if not configured:
+        pytest.skip("set SPA_TEST_APPLE_P3_ICC to test caller-supplied Apple P3")
+    path = Path(configured).expanduser()
+    assert hashlib.sha256(path.read_bytes()).hexdigest() == (
+        "0ff6958f98684c61f6bbdce1368ddeaf3873baf84545baba482e920d92a914c0"
+    ), "the supplied Apple profile is not the previously admitted input"
+    return path
 
 
 def process_diagnostics(run: subprocess.CompletedProcess[str]) -> str:

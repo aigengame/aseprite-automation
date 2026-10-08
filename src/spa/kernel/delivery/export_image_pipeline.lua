@@ -161,7 +161,7 @@ function module.execute(payload)
     if profile.kind == "icc" and not profile.icc_identity then
       return reject(
         "color_profile",
-        "Only the packaged linear-sRGB and Display P3 ICC identities are supported"
+        "Only the admitted linear-sRGB and Display P3 ICC identities are supported"
       )
     end
     uuids = inspection.saved_layer_uuids(source, payload.source_sprite_file)

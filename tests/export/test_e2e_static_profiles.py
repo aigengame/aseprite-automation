@@ -14,10 +14,10 @@ from spa.contracts.public import RuntimeRequest
 from tests.export.support import export_image_request as _request
 from tests.export.support import png_icc_label, source_sprite
 from tests.export.test_e2e_static_geometry import _export
-from tests.support import spa
+from tests.support import caller_apple_p3, spa
 
 pytestmark = pytest.mark.e2e
-PROFILES = ("none", "srgb", "linear_srgb", "display_p3_cc0")
+PROFILES = ("none", "srgb", "linear_srgb", "display_p3_cc0", "display_p3")
 UNCHANGED = [(11, 22, 33, 255), (44, 55, 66, 255)]
 
 
@@ -29,6 +29,8 @@ def runtime():
 
 
 def _icc(identity: str) -> Path:
+    if identity == "display_p3":
+        return caller_apple_p3()
     return Path(str(files("spa.kernel").joinpath(f"color/profiles/{identity}.icc")))
 
 

@@ -13,7 +13,7 @@ from spa.adapters.aseprite.aseprite import probe
 from spa.application.surface import PROBE_RESOURCES
 from spa.contracts.public import RuntimeRequest
 from tests.preparation.support import specification
-from tests.support import spa
+from tests.support import caller_apple_p3, spa
 
 pytestmark = pytest.mark.e2e
 
@@ -252,7 +252,9 @@ def test_automatic_crop_fractional_scale_and_outside_anchors(
     assert source.read_bytes() == original
 
 
-@pytest.mark.parametrize("source_kind", ["none", "srgb", "display_p3_cc0"])
+@pytest.mark.parametrize(
+    "source_kind", ["none", "srgb", "display_p3_cc0", "display_p3"]
+)
 def test_prepare_normalizes_color_before_threshold_and_mapping(
     tmp_path, runtime, source_kind
 ):
@@ -262,12 +264,13 @@ def test_prepare_normalizes_color_before_threshold_and_mapping(
         metadata = PngImagePlugin.PngInfo()
         metadata.add(b"sRGB", bytes([3]))
         options["pnginfo"] = metadata
-    elif source_kind == "display_p3_cc0":
-        options["icc_profile"] = (
-            files("spa.kernel")
-            .joinpath("color/profiles/display_p3_cc0.icc")
-            .read_bytes()
+    elif source_kind in ("display_p3_cc0", "display_p3"):
+        profile_input = (
+            caller_apple_p3()
+            if source_kind == "display_p3"
+            else files("spa.kernel").joinpath("color/profiles/display_p3_cc0.icc")
         )
+        options["icc_profile"] = profile_input.read_bytes()
     original = save_rgba(
         source,
         (3, 1),
@@ -275,7 +278,9 @@ def test_prepare_normalizes_color_before_threshold_and_mapping(
         **options,
     )
     converted = (
-        (195, 60, 2, 255) if source_kind == "display_p3_cc0" else (180, 70, 30, 255)
+        (195, 60, 2, 255)
+        if source_kind in ("display_p3_cc0", "display_p3")
+        else (180, 70, 30, 255)
     )
     outputs = []
     for mode in ("rgba", "indexed"):
@@ -286,7 +291,7 @@ def test_prepare_normalizes_color_before_threshold_and_mapping(
         target = tmp_path / f"{mode}.png"
         code, result = prepare(source, target, spec)
         if (
-            source_kind == "display_p3_cc0"
+            source_kind in ("display_p3_cc0", "display_p3")
             and "aseprite_convert_color_profile" not in runtime.verified_capabilities
         ):
             assert code != 0 and result["code"] == "runtime_incompatible", result
@@ -294,13 +299,15 @@ def test_prepare_normalizes_color_before_threshold_and_mapping(
             continue
         assert code == 0, result
         assert result["reproduction"]["profile"] == {
-            "source_kind": "icc" if source_kind == "display_p3_cc0" else source_kind,
-            "source_icc_identity": "display_p3_cc0"
-            if source_kind == "display_p3_cc0"
+            "source_kind": "icc"
+            if source_kind in ("display_p3_cc0", "display_p3")
+            else source_kind,
+            "source_icc_identity": source_kind
+            if source_kind in ("display_p3_cc0", "display_p3")
             else None,
             "assumption": "srgb" if source_kind == "none" else None,
             "effective": "srgb",
-            "converted": source_kind == "display_p3_cc0",
+            "converted": source_kind in ("display_p3_cc0", "display_p3"),
         }
         outputs.append(rgba_pixels(target, mode))
     if outputs:

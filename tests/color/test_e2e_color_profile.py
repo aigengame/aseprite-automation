@@ -15,7 +15,7 @@ from spa.adapters.aseprite.aseprite import probe
 from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.application.surface import PROBE_RESOURCES
 from spa.contracts.public import RuntimeRequest
-from tests.support import process_diagnostics, spa
+from tests.support import caller_apple_p3, process_diagnostics, spa
 
 pytestmark = pytest.mark.e2e
 
@@ -611,7 +611,7 @@ def test_p3_to_srgb_preserves_preparation_and_plan_parity(
     original = source.read_bytes()
     icc = tmp_path / "display-p3.icc"
     if profile_source == "caller_apple":
-        icc_input = _apple_profile()
+        icc_input = caller_apple_p3()
         expected_sha = (
             "0ff6958f98684c61f6bbdce1368ddeaf3873baf84545baba482e920d92a914c0"
         )
@@ -702,7 +702,9 @@ def test_known_icc_membership_does_not_admit_untested_directions(
     )
 
 
-@pytest.mark.parametrize("profile_kind", ["linear_srgb", "display_p3_cc0"])
+@pytest.mark.parametrize(
+    "profile_kind", ["linear_srgb", "display_p3_cc0", "display_p3"]
+)
 def test_admitted_same_profile_and_content_noops_remain_successful(
     tmp_path: Path, runtime, profile_kind: str
 ):
@@ -710,9 +712,12 @@ def test_admitted_same_profile_and_content_noops_remain_successful(
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
     _native(runtime, source, action="create", black="true")
     icc = tmp_path / "known.icc"
-    icc.write_bytes(
-        files("spa.kernel").joinpath(f"color/profiles/{profile_kind}.icc").read_bytes()
+    profile_input = (
+        caller_apple_p3()
+        if profile_kind == "display_p3"
+        else files("spa.kernel").joinpath(f"color/profiles/{profile_kind}.icc")
     )
+    icc.write_bytes(profile_input.read_bytes())
     profile = {"kind": "icc", "icc_file": str(icc)}
     assert _run("assign-color-profile", source, source, profile)[0] == 0
     for command in ["standalone", "plan"]:
@@ -803,22 +808,13 @@ def test_conversion_discovery_matches_runtime_and_missing_converter_refuses_publ
     assert not list(tmp_path.glob(".*.staged.aseprite"))
 
 
-def _apple_profile() -> Path:
-    configured = os.environ.get("SPA_TEST_APPLE_P3_ICC")
-    if not configured:
-        pytest.skip(
-            "Apple ICC input test needs an explicitly supplied SPA_TEST_APPLE_P3_ICC"
-        )
-    return Path(configured).expanduser()
-
-
 @pytest.mark.parametrize("source_identity", ["apple", "cc0"])
 def test_distinct_p3_profiles_do_not_admit_cross_conversion(
     tmp_path: Path, runtime, source_identity: str
 ):
     _require_conversion(runtime)
     profiles = {
-        "apple": {"kind": "icc", "icc_file": str(_apple_profile())},
+        "apple": {"kind": "icc", "icc_file": str(caller_apple_p3())},
         "cc0": {
             "kind": "icc",
             "icc_file": str(

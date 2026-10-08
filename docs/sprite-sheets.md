@@ -97,11 +97,11 @@ is encoded with alpha zero. If retained Background pixels would lose visible alp
 the request fails. This check uses the declared trim result; Background presence
 alone is not a refusal. SPA does not quantize, remap or switch to RGB implicitly.
 
-Preserve None, sRGB, or the exact packaged linear-sRGB/Display P3 ICC profiles from
-the Color Profile capability. Unknown profiles fail. SPA does not convert between
+Preserve None, sRGB, or the exact ICC identities admitted by
+[Color Profiles](usage.md#color-profiles). Unknown profiles fail. SPA does not convert between
 Color Profiles during export. PNG sRGB rendering intent is normalized to zero by
 Aseprite and reported; ICC payloads are checked byte for byte. The PNG iCCP label
-uses the admitted ICC identity (`linear_srgb` or `display_p3`), so the native encoder
+uses the admitted ICC identity, so the native encoder
 does not depend on a backend-generated display name. This label does not change
 the embedded ICC payload.
 

@@ -164,12 +164,20 @@ Failure injection after one replacement checks every ordered publication state;
 an exception after a final write reports the current path as `indeterminate`.
 Published files are retained and no successful Artifact set is returned.
 
-PNG ICC tests cover both admitted identities in RGB and Indexed modes. Aseprite's
+PNG ICC tests cover the bundled linear-sRGB and CC0 Display P3 identities in RGB and Indexed modes. Aseprite's
 `none` backend leaves the loaded ICC display name empty, which libpng rejects as an
 empty iCCP keyword. Export assigns a nonempty label to the private PNG container's
 profile copy. This changes neither the Source nor the ICC payload; independent
 decoding still requires exact ICC bytes. The converter capability is unrelated to
 this encoding label.
+
+Optional caller-supplied Apple P3 checks require `SPA_TEST_APPLE_P3_ICC` to point to
+the exact previously admitted local file. They skip when it is unset; tests do not
+search the host or download that file. Normal CI needs only the bundled CC0 reference.
+The optional checks exercise the caller's original bytes through native conversion,
+live Plans, Preparation, Import, and PNG export, including refusal between the distinct P3 identities. A successful
+CC0 probe alone does not establish Apple conversion on a new runtime. See
+[#194 evidence](evidence/issue-194-redistributable-profile.md).
 
 `tests/export/test_e2e_wizard_animation_export.py` reuses the retained v2 Sources and
 delivery PNGs. It exports all 193 retained outputs: 32 Frames each for Scene,

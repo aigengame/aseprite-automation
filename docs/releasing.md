@@ -132,17 +132,20 @@ results in #189. [Issue #54 evidence](evidence/issue-54-installed-distributions.
 provides the shared installed-wheel checks; it does not substitute for a real
 PyPI installation or the release SHA's Linux verification.
 
-The MIT grant covers SPA-owned material. The bundled 536-byte Display P3 profile
-is recorded as an unchanged macOS file with an Apple 2022 copyright notice in
-[the profile evidence](evidence/issue-34-color-profile.md). As of the #191 review,
-its public redistribution terms have not been established. The
-[ICC library's grant](https://registry.color.org/profile-library/) applies to
-ICC-owned profiles and does not establish permission for this Apple resource.
-Before accepting the first public files, #189 must record either the applicable
-permission or an approved and validated replacement. Reconcile the packaged
-notices, [archive license expression](https://packaging.python.org/en/latest/specifications/core-metadata/#license-expression)
-and content verifier with that result. A copyright notice alone does not close
-this publication prerequisite.
+The MIT grant covers SPA-owned material. [Third-party notices](../THIRD_PARTY_NOTICES.md)
+identify the CC0 Display P3 replacement and its distributed legal text. Package license
+metadata comes from `pyproject.toml`; it covers both MIT and CC0 material. The content
+verifier checks those declared license files and refuses the known old Apple ICC
+payload, including uncompressed embedded copies, in actual wheel/sdist members.
+Exact source inventory checks also reject extra packaged files; this is not a general
+scanner for every embedded encoding.
+
+[#194 evidence](evidence/issue-194-redistributable-profile.md) records replacement
+validation and the historical-copy disposition plan. Merging the replacement does not
+remove the original Apple blob from Git history or retained distribution artifacts.
+Those copies need separate authorized disposition before #126's public-readiness gate
+can close. #189's first-publish inspection must use newly built distributions containing
+the replacement; old artifacts cannot be relabeled as the corrected output.
 
 ## Prepare and publish a release
 
@@ -191,7 +194,7 @@ one wheel and one sdist, and publishes the draft only after the PyPI job succeed
 A separate post-release job owns the permissions needed to maintain the next Release
 PR and dispatch its CI. Verification-only manual runs never upload to either destination.
 
-The public-content check requires the MIT metadata and license, the packaged Python
+The public-content check requires the declared license metadata and files, the packaged Python
 and Kernel files, and the expected build metadata. It rejects duplicate member names,
 extra archive contents, unresolved LFS pointers and unexpected distribution files.
 It does not package the Aseprite program, runtime caches, examples or workspace
