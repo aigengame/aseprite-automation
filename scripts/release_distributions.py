@@ -12,6 +12,26 @@ import zipfile
 from email.parser import BytesParser
 from pathlib import Path
 
+APPLE_DISPLAY_P3_SHA256 = (
+    "0ff6958f98684c61f6bbdce1368ddeaf3873baf84545baba482e920d92a914c0"
+)
+APPLE_DISPLAY_P3_BYTES = 536
+PROFILE_NOTICE = "spa/kernel/color/profiles/NOTICE.txt"
+
+
+def reject_apple_profile(payload: bytes, filename: str) -> None:
+    """Reject the known ICC, including uncompressed embedded profile bytes."""
+    offset = payload.find(b"acsp")
+    while offset >= 0:
+        start = offset - 36
+        if start >= 0 and payload[start : start + 4] == APPLE_DISPLAY_P3_BYTES.to_bytes(
+            4, "big"
+        ):
+            candidate = payload[start : start + APPLE_DISPLAY_P3_BYTES]
+            if hashlib.sha256(candidate).hexdigest() == APPLE_DISPLAY_P3_SHA256:
+                raise ValueError(f"{filename}: forbidden Apple Display P3 ICC payload")
+        offset = payload.find(b"acsp", offset + 1)
+
 
 def read_archives(directory: Path, version: str) -> dict[str, dict[str, bytes]]:
     prefix = f"aseprite_automation-{version}"
@@ -46,6 +66,8 @@ def read_archives(directory: Path, version: str) -> dict[str, dict[str, bytes]]:
             sdist_files[member.name.removeprefix(prefix + "/")] = stream.read()
     archives = {wheel: wheel_files, sdist: sdist_files}
     for filename, files in archives.items():
+        for name, payload in files.items():
+            reject_apple_profile(payload, f"{filename}:{name}")
         metadata_path = (
             f"{prefix}.dist-info/METADATA" if filename == wheel else "PKG-INFO"
         )
@@ -110,7 +132,10 @@ def verify_contents(root: Path, directory: Path) -> dict[str, dict[str, bytes]]:
             path.suffix == ".py"
             or (
                 path.is_relative_to(root / "src/spa/kernel")
-                and path.suffix in {".lua", ".aseprite", ".icc"}
+                and (
+                    path.suffix in {".lua", ".aseprite", ".icc", ".json"}
+                    or path.relative_to(root / "src").as_posix() == PROFILE_NOTICE
+                )
             )
         )
     }
@@ -123,23 +148,33 @@ def verify_contents(root: Path, directory: Path) -> dict[str, dict[str, bytes]]:
             f"aseprite_automation-{version}.dist-info/METADATA" if wheel else "PKG-INFO"
         )
         metadata = BytesParser().parsebytes(files[metadata_path])
-        if metadata.get("License-Expression") != "MIT":
-            raise ValueError(f"{filename}: MIT license metadata is required")
-        license_path = (
-            f"aseprite_automation-{version}.dist-info/licenses/LICENSE"
-            if wheel
-            else "LICENSE"
-        )
-        if files.get(license_path) != (root / "LICENSE").read_bytes():
-            raise ValueError(f"{filename}: MIT license file differs from source")
+        if metadata.get("License-Expression") != project["license"]:
+            raise ValueError(
+                f"{filename}: {project['license']} license metadata is required"
+            )
+        licenses = {
+            path.relative_to(root).as_posix(): path.read_bytes()
+            for pattern in project["license-files"]
+            for path in root.glob(pattern)
+            if path.is_file()
+        }
+        if not licenses or set(metadata.get_all("License-File", [])) != licenses.keys():
+            raise ValueError(f"{filename}: license file metadata differs from source")
         expected = (
             source if wheel else {f"src/{name}": data for name, data in source.items()}
-        ) | {license_path: (root / "LICENSE").read_bytes()}
+        ) | {
+            f"{info}/licenses/{name}" if wheel else name: payload
+            for name, payload in licenses.items()
+        }
         if not wheel:
             expected.update(
                 {
                     name: (root / name).read_bytes()
-                    for name in ("README.md", "pyproject.toml")
+                    for name in (
+                        "README.md",
+                        "pyproject.toml",
+                        "THIRD_PARTY_NOTICES.md",
+                    )
                 }
             )
         generated = (
@@ -157,7 +192,8 @@ def verify_contents(root: Path, directory: Path) -> dict[str, dict[str, bytes]]:
             if files.get(name) != payload:
                 raise ValueError(f"{filename}: missing or changed source file {name}")
             if (
-                not payload and Path(name).suffix in {".lua", ".aseprite", ".icc"}
+                not payload
+                and Path(name).suffix in {".lua", ".aseprite", ".icc", ".json"}
             ) or payload.startswith(b"version https://git-lfs.github.com/spec/v1"):
                 raise ValueError(
                     f"{filename}: empty resource or unresolved LFS pointer: {name}"

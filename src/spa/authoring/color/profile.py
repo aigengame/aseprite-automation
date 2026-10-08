@@ -1,8 +1,10 @@
 """Native Color Profile assignment and conversion, independent of Color Mode."""
 
+import hashlib
+import json
 from importlib.resources import files as packaged_files
 from pathlib import Path
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, cast, get_args
 
 from pydantic import Field, field_validator, model_validator
 
@@ -37,9 +39,15 @@ from spa.contracts.public import (
 )
 
 PROFILE_FILE_RESOURCE = PackagedResource("color_profile_file", "color/profile_file.lua")
+ICC_IDENTITIES_RESOURCE = PackagedResource(
+    "profile_identities", "color/profiles/identities.json"
+)
+IccIdentity = Literal["linear_srgb", "display_p3", "display_p3_cc0"]
+SUPPORTED_ICC_IDENTITIES = get_args(IccIdentity)
 PROFILE_ICC_RESOURCES = (
+    ICC_IDENTITIES_RESOURCE,
     PackagedResource("profile_linear_srgb", "color/profiles/linear_srgb.icc"),
-    PackagedResource("profile_display_p3", "color/profiles/display_p3.icc"),
+    PackagedResource("profile_display_p3_cc0", "color/profiles/display_p3_cc0.icc"),
 )
 PROFILE_RESOURCE = PackagedResource("color_profile", "color/profile.lua")
 PROFILE_RESOURCES = (
@@ -116,23 +124,22 @@ PROFILE_FAILURE_SPECS = (
 )
 
 
-def supported_icc_identity(payload: bytes) -> str | None:
-    """Identify exact supported ICC bytes using the Color Profile owner's resources."""
+def supported_icc_identity(payload: bytes) -> IccIdentity | None:
+    """Identify admitted input bytes without distributing every admitted ICC."""
     package = packaged_files("spa.kernel")
-    references = [package.joinpath(item.package_path) for item in PROFILE_ICC_RESOURCES]
+    reference = package.joinpath(ICC_IDENTITIES_RESOURCE.package_path)
     try:
-        contents = tuple(reference.read_bytes() for reference in references)
+        identities = json.loads(reference.read_text(encoding="utf-8"))
     except OSError as exc:
         raise RuntimeIssue(
             "resources_absent",
             "Packaged Color Profile resources could not be read",
-            ResourceEvidence(
-                canonical_path=str(package), searched=[str(item) for item in references]
-            ),
+            ResourceEvidence(canonical_path=str(package), searched=[str(reference)]),
         ) from exc
-    for resource, content in zip(PROFILE_ICC_RESOURCES, contents):
-        if content == payload:
-            return Path(resource.package_path).stem
+    digest = hashlib.sha256(payload).hexdigest()
+    for identity, facts in identities.items():
+        if facts.get("sha256") == digest:
+            return cast(IccIdentity, identity)
     return None
 
 
@@ -174,8 +181,8 @@ def profile_payload(
                 path=path, reason="unsupported_color_space", step_number=step_number
             ),
         )
-    # Preflight derives target membership from the same immutable files sent
-    # to Lua. Source identity and directed pairs still require live state.
+    # Preflight hashes the actual input against the same finite identity facts
+    # used by Lua. Source identity and directed pairs still require live state.
     if isinstance(request, ConvertProfileInput) and supported_icc_identity(raw) is None:
         raise OperationIssue(
             "color_profile_file_failed",

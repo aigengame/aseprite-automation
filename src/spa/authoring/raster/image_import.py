@@ -8,7 +8,11 @@ from pydantic import Field, model_validator
 
 from spa.application.mutation import prepare_mutation
 from spa.authoring.color.palette import EFFECTIVE_PALETTE_RESOURCE
-from spa.authoring.color.profile import PROFILE_RESOURCES, supported_icc_identity
+from spa.authoring.color.profile import (
+    PROFILE_RESOURCES,
+    IccIdentity,
+    supported_icc_identity,
+)
 from spa.authoring.document.cel_contracts import (
     CEL_SUPPORT_RESOURCE,
     CelMutationRequest,
@@ -45,7 +49,7 @@ class ImageImportRequest(CelMutationRequest):
 
 class ImportProfile(PublicModel):
     kind: Literal["none", "srgb", "icc"]
-    icc_identity: Literal["linear_srgb", "display_p3"] | None
+    icc_identity: IccIdentity | None
 
     @model_validator(mode="after")
     def validate_identity(self) -> "ImportProfile":

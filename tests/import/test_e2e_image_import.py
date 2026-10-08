@@ -149,7 +149,7 @@ def test_import_indexed_matches_used_entries_only(tmp_path, runtime):
     assert source.read_bytes() == original
 
 
-@pytest.mark.parametrize("profile_name", ["srgb", "linear_srgb", "display_p3"])
+@pytest.mark.parametrize("profile_name", ["srgb", "linear_srgb", "display_p3_cc0"])
 def test_import_same_encoded_profile_preserves_profile(tmp_path, runtime, profile_name):
     source, raster, target = (
         tmp_path / name for name in ("source.aseprite", "input.png", "target.aseprite")
@@ -317,7 +317,7 @@ def test_target_refusals_preserve_existing_files(
         ("srgb", "none"),
         ("none", "srgb"),
         ("srgb", "linear_srgb"),
-        ("linear_srgb", "display_p3"),
+        ("linear_srgb", "display_p3_cc0"),
     ],
 )
 def test_profile_mismatch_is_not_converted(

@@ -4,14 +4,15 @@ build-backend = "uv_build"
 
 [tool.uv.build-backend]
 module-name = "spa"
+source-include = ["THIRD_PARTY_NOTICES.md"]
 
 [project]
 name = "aseprite-automation"
 version = "0.3.0"
 description = "Aseprite automation for AI agents. Create, edit, verify, and export pixel art, sprite animations, and tilesets through a CLI, Agent Skill, or MCP server."
 readme = "README.md"
-license = "MIT"
-license-files = ["LICENSE"]
+license = "MIT AND CC0-1.0"
+license-files = ["LICENSE", "LICENSES/CC0-1.0.txt"]
 authors = [{name = "aigengame"}]
 keywords = [
   "aseprite",

@@ -17,7 +17,7 @@ from tests.export.test_e2e_static_geometry import _export
 from tests.support import spa
 
 pytestmark = pytest.mark.e2e
-PROFILES = ("none", "srgb", "linear_srgb", "display_p3")
+PROFILES = ("none", "srgb", "linear_srgb", "display_p3_cc0")
 UNCHANGED = [(11, 22, 33, 255), (44, 55, 66, 255)]
 
 
@@ -123,8 +123,8 @@ def _conversion_refusal(
         ("srgb", "linear_srgb", [(1, 2, 4, 255), (6, 10, 14, 255)]),
         ("linear_srgb", "srgb", [(59, 83, 101, 255), (115, 128, 139, 255)]),
         ("linear_srgb", "linear_srgb", UNCHANGED),
-        ("display_p3", "srgb", [(8, 22, 34, 255), (41, 55, 67, 255)]),
-        ("display_p3", "display_p3", UNCHANGED),
+        ("display_p3_cc0", "srgb", [(8, 22, 34, 255), (41, 55, 67, 255)]),
+        ("display_p3_cc0", "display_p3_cc0", UNCHANGED),
     ],
 )
 def test_each_admitted_profile_conversion_uses_actual_runtime_capability(
@@ -152,7 +152,7 @@ def test_each_admitted_profile_conversion_uses_actual_runtime_capability(
     assert source.read_bytes() == before
 
 
-def test_unadmitted_srgb_to_display_p3_direction_preserves_existing_destination(
+def test_unadmitted_srgb_to_display_p3_cc0_direction_preserves_existing_destination(
     tmp_path: Path, runtime
 ) -> None:
     source = _source(tmp_path, "srgb")
@@ -163,7 +163,7 @@ def test_unadmitted_srgb_to_display_p3_direction_preserves_existing_destination(
     request = _request(
         source,
         destination,
-        color_profile={"kind": "convert", "profile": _profile("display_p3")},
+        color_profile={"kind": "convert", "profile": _profile("display_p3_cc0")},
     )
     request["destination"]["if_exists"] = "replace"
     run = spa("export", "image", "--input-json", json.dumps(request))

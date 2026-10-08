@@ -4,6 +4,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field, model_validator
 
+from spa.authoring.color.profile import IccIdentity
 from spa.authoring.document.sprite import TagFacts
 from spa.authoring.document.tag import TagAddress
 from spa.authoring.raster.image_snapshot import LayerComposition
@@ -127,7 +128,7 @@ class ExportSheetResult(PublicModel):
     height: int = Field(gt=0)
     output_color_mode: Literal["rgb", "indexed"]
     color_profile: Literal["none", "srgb", "icc"]
-    icc_identity: Literal["linear_srgb", "display_p3"] | None = None
+    icc_identity: IccIdentity | None = None
     srgb_rendering_intent: Literal[0] | None = None
     source_frames: list[int]
     source_tags: list[SheetTagFacts]

@@ -92,14 +92,14 @@ def test_animation_reuses_native_tilemap_group_and_reference_selection(
         ("grayscale", "none"),
         ("indexed", "srgb"),
         ("rgb", "linear_srgb"),
-        ("indexed", "display_p3"),
+        ("indexed", "display_p3_cc0"),
     ],
 )
 def test_gif_profile_matrix_gates_actual_native_conversion(
     tmp_path: Path, mode: str, profile: str
 ):
     options = {"profile": profile}
-    if profile in ("linear_srgb", "display_p3"):
+    if profile in ("linear_srgb", "display_p3_cc0"):
         options["icc_file"] = str(
             (Path("src/spa/kernel/color/profiles") / f"{profile}.icc").resolve()
         )
@@ -110,7 +110,7 @@ def test_gif_profile_matrix_gates_actual_native_conversion(
         RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
     )
     code, result = _run("gif", request)
-    converted = profile in ("linear_srgb", "display_p3")
+    converted = profile in ("linear_srgb", "display_p3_cc0")
     if (
         converted
         and "aseprite_convert_color_profile" not in runtime.verified_capabilities

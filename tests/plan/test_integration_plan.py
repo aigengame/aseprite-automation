@@ -134,7 +134,7 @@ def test_plan_rejects_bad_icc_before_runtime(
     [
         ("assign-color-profile", "unlisted"),
         ("convert-color-profile", "linear_srgb"),
-        ("convert-color-profile", "display_p3"),
+        ("convert-color-profile", "display_p3_cc0"),
     ],
 )
 def test_plan_check_accepts_valid_icc_without_runtime(
@@ -878,3 +878,39 @@ def test_color_mode_failure_cannot_travel_through_a_cel_rejection(
         run_plan(request, services)
     assert source.read_bytes() == b"original source"
     assert not target.exists()
+
+
+def test_plan_check_admits_redistributable_p3_without_native_execution(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source.aseprite"
+    source.write_bytes(b"unused by static preflight")
+    profile = files("spa.kernel").joinpath("color/profiles/display_p3_cc0.icc")
+    run = spa(
+        "plan",
+        "check",
+        "--input-json",
+        json.dumps(
+            {
+                "plan": {
+                    "source_sprite_file": str(source),
+                    "target_sprite_file": str(tmp_path / "target.aseprite"),
+                    "overwrite": True,
+                    "steps": [
+                        {
+                            "operation": "sprite convert-color-profile",
+                            "input": {
+                                "profile": {"kind": "icc", "icc_file": str(profile)}
+                            },
+                        }
+                    ],
+                }
+            }
+        ),
+        env=os.environ | {"SPA_ASEPRITE_EXECUTABLE": "/missing/aseprite"},
+    )
+    assert run.returncode == 0, run.stdout + run.stderr
+    result = json.loads(run.stdout)
+    assert result["operation"] == "spa plan check"
+    assert result["step_count"] == 1
+    assert result["commit_required"] is True

@@ -178,7 +178,7 @@ local function observes_color_profile(operation)
       local assigned = profiles.apply_live(
         sprite,
         "assign",
-        icc_input(app.params.profile_display_p3),
+        icc_input(app.params.profile_display_p3_cc0),
         {},
         profile_state
       )

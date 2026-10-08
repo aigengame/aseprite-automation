@@ -6,7 +6,11 @@ from pydantic import ConfigDict, Field, field_serializer, model_validator
 
 from spa.authoring.color.color_mode import Conversion
 from spa.authoring.color.palette_file import PaletteFileInput
-from spa.authoring.color.profile import AssignProfileInput, ConvertProfileInput
+from spa.authoring.color.profile import (
+    AssignProfileInput,
+    ConvertProfileInput,
+    IccIdentity,
+)
 from spa.authoring.color.quantization import QuantizationOptions
 from spa.authoring.document.slice import SliceAddress
 from spa.authoring.raster.image_snapshot import LayerComposition
@@ -176,7 +180,7 @@ class NativeImageFacts(PublicModel):
     height: int = Field(gt=0)
     color_mode: Literal["rgb", "grayscale", "indexed"]
     color_profile: Literal["none", "srgb", "icc"]
-    icc_identity: Literal["linear_srgb", "display_p3"] | None = None
+    icc_identity: IccIdentity | None = None
     transparent_index: int | None = Field(default=None, ge=0, le=255)
     palette_entries: list[RgbaColor] = Field(default_factory=list)
     imported_palette_entries: list[RgbaColor] | None = None
@@ -200,7 +204,7 @@ class ExportImageResult(PublicModel):
     effective_background: bool
     color_mode: Literal["rgb", "grayscale", "indexed"]
     color_profile: Literal["none", "srgb", "icc"]
-    icc_identity: Literal["linear_srgb", "display_p3"] | None = None
+    icc_identity: IccIdentity | None = None
     srgb_rendering_intent: Literal[0] | None = None
     transparent_index: int | None = Field(default=None, ge=0, le=255)
     palette_entries: list[RgbaColor] = Field(default_factory=list)

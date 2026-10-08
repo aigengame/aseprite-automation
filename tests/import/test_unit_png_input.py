@@ -138,7 +138,7 @@ def test_invalid_palette_or_undefined_used_index_is_rejected(
         decode_png_input(_png(b"\x00" + pixels, color_type=3, before=before))
 
 
-@pytest.mark.parametrize("name", ["linear_srgb", "display_p3"])
+@pytest.mark.parametrize("name", ["linear_srgb", "display_p3_cc0"])
 def test_valid_icc_preserves_exact_profile_bytes(name: str) -> None:
     profile = (
         files("spa.kernel").joinpath("color", "profiles", name + ".icc").read_bytes()

@@ -11,6 +11,7 @@ from spa.authoring.color.color_mode import (
     MappingEvidence,
     RGBMapAlgorithm,
 )
+from spa.authoring.color.profile import IccIdentity
 from spa.authoring.raster.image import ImageCanvasOffset, ImageCropRectangle
 from spa.contracts.public import PublicModel, RuntimeRequest
 from spa.contracts.raster import RgbaColor
@@ -120,7 +121,7 @@ class PreparationGeometry(PublicModel):
 
 class PreparationProfile(PublicModel):
     source_kind: Literal["none", "srgb", "icc"]
-    source_icc_identity: Literal["linear_srgb", "display_p3"] | None
+    source_icc_identity: IccIdentity | None
     assumption: Literal["srgb"] | None
     effective: Literal["srgb"]
     converted: bool

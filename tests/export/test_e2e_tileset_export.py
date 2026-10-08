@@ -104,7 +104,7 @@ def matrix_source(
     from tests.support import inject_palette_change
 
     source = tmp_path / "source.aseprite"
-    if profile in ("linear_srgb", "display_p3"):
+    if profile in ("linear_srgb", "display_p3_cc0"):
         resource = next(
             item
             for item in PROFILE_ICC_RESOURCES
@@ -136,7 +136,7 @@ def matrix_request(source: Path, tmp_path: Path) -> dict:
 
 
 @pytest.mark.parametrize("mode", ["rgb", "grayscale", "indexed"])
-@pytest.mark.parametrize("profile", ["none", "srgb", "linear_srgb", "display_p3"])
+@pytest.mark.parametrize("profile", ["none", "srgb", "linear_srgb", "display_p3_cc0"])
 def test_preserve_mode_palette_profile_and_exact_tile_channels(
     tmp_path: Path, runtime, mode: str, profile: str
 ) -> None:
@@ -149,7 +149,7 @@ def test_preserve_mode_palette_profile_and_exact_tile_channels(
     before = source.read_bytes()
     code, result = run("export", "tileset", **matrix_request(source, tmp_path))
     assert source.read_bytes() == before
-    if mode == "grayscale" and profile in ("linear_srgb", "display_p3"):
+    if mode == "grayscale" and profile in ("linear_srgb", "display_p3_cc0"):
         assert code != 0 and result["code"] == "tileset_export_unsupported", result
         assert result["details"]["reason"] == "color_profile"
         assert not (tmp_path / "atlas.png").exists()
@@ -159,7 +159,7 @@ def test_preserve_mode_palette_profile_and_exact_tile_channels(
     decoded = decode_png_artifact((tmp_path / "atlas.png").read_bytes())
     assert (decoded.width, decoded.height, decoded.color_mode) == (4, 4, mode)
     assert decoded.color_profile == (
-        "icc" if profile in ("linear_srgb", "display_p3") else profile
+        "icc" if profile in ("linear_srgb", "display_p3_cc0") else profile
     )
     if decoded.icc_bytes is not None:
         resource = next(

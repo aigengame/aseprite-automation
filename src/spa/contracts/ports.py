@@ -57,10 +57,10 @@ class PackagedResource:
         if not re.fullmatch(r"[a-z][a-z0-9_]*", self.parameter_name):
             raise ValueError("Packaged resource parameter must be lower_snake_case")
         if not re.fullmatch(
-            _PACKAGE_STEM + r"\.(?:lua|aseprite|icc)", self.package_path
+            _PACKAGE_STEM + r"\.(?:lua|aseprite|icc|json)", self.package_path
         ):
             raise ValueError(
-                "Packaged resource must be a relative Lua, Aseprite, or ICC path"
+                "Packaged resource must be a relative Lua, Aseprite, ICC, or JSON path"
             )
 
 
