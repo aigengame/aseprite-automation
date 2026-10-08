@@ -120,7 +120,5 @@ objects and external copies remain outside its scope.
 
 Current source and new distributions use the CC0 reference. Old artifacts must not
 be represented as rebuilt or corrected packages. The separate Aseprite executable
-distribution audit and operational hold remain under
-[#126](https://github.com/aigengame/aseprite-automation/issues/126); see the
-[interim verification policy](../testing.md#interim-verification-policy--2026-10-08).
-Public visibility does not lift that hold or authorize a Release.
+distribution audit remains under
+[#126](https://github.com/aigengame/aseprite-automation/issues/126).

@@ -2,18 +2,6 @@
 
 ## Current acceptance
 
-The owner accepted a public-readiness hold on 2026-10-08 through
-[#126](https://github.com/aigengame/aseprite-automation/issues/126). The
-[interim verification policy](../testing.md#interim-verification-policy--2026-10-08)
-replaces hosted Linux merge verification with recorded local native evidence and
-keeps Release paused. Native builders, consumers, and historical reruns remain
-suspended; binary caches stay absent. The outstanding hosted checks in #107 are
-deferred, not passed, and do not block repository visibility. Billing recovery or
-closure of #126 does not authorize native execution. Selection, parallel execution,
-and time budgets remain unchanged.
-
-## Previous acceptance — 2026-09-29
-
 The owner decision on 2026-09-29 reduces native execution frequency. Routine CI
 now has source, fast-test and distribution jobs only. Independent `native-e2e.yml`
 runs explicitly before merge on the current PR merge result and weekly/manual on

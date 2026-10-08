@@ -1,13 +1,5 @@
 # Releases
 
-**Current status — 2026-10-08:** `Release` is disabled under
-[#126](https://github.com/aigengame/aseprite-automation/issues/126). Release PR
-maintenance, verification, and GitHub/PyPI publication are paused. The
-[interim verification policy](testing.md#interim-verification-policy--2026-10-08)
-owns the current operating instructions. The workflow procedures below describe
-the retained design; do not run them during the hold. Making the repository public
-does not resume Release or waive verification of the exact publication SHA.
-
 SPA uses a reviewed Release PR and an exact-commit automatic release workflow.
 It publishes one verified Python wheel and source distribution to PyPI, then attaches
 the same files to the GitHub Release. Aseprite is supplied separately.

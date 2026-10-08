@@ -5,11 +5,6 @@ recorded on 2026-10-07. The macOS checks passed. Validation of the current revis
 on the selected Linux runner remains outstanding. This record does not certify
 other platforms, later Aseprite releases, or public distribution of Aseprite.
 
-**Later operating decision:** the
-[#126 interim policy](../testing.md#interim-verification-policy--2026-10-08)
-suspends the hosted native setup and recovery procedures described in this dated
-record. Their retained evidence does not authorize a new CI run.
-
 ## Selected profiles
 
 | Profile | Aseprite acquisition | SPA installation | Current evidence |
@@ -138,13 +133,11 @@ steps, so no merge SHA was resolved and no native shard executed. This attempt
 was made for PR head `e05516272a97d46a3d1a54d139970a01a052ebc3`. Zero executed
 steps provide no package or runtime verification.
 
-This is a historical Linux coverage gap, not permission to rerun the closed PR
-or resume native execution after billing recovery. The later
-[#126 interim policy](../testing.md#interim-verification-policy--2026-10-08)
-keeps native CI and Release suspended. Any future accepted Linux verification must
-record its actual target SHA, runner/runtime facts, package/resource checks and
-installed tracer outcomes. An older result cannot establish a newer pass. This
-remaining platform evidence is not a prerequisite for repository visibility.
+After that external block is resolved, run the existing Native E2E workflow for
+this PR's merge result. Record its target SHA, actual runner/runtime facts,
+package/resource verification and installed tracer outcomes before completing
+#54. Recheck the source revision if it changes; a newer green job cannot be
+inferred from an older result.
 
 ## Separate delivery evidence
 
