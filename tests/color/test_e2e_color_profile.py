@@ -15,7 +15,7 @@ from spa.adapters.aseprite.aseprite import probe
 from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.application.surface import PROBE_RESOURCES
 from spa.contracts.public import RuntimeRequest
-from tests.support import caller_apple_p3, process_diagnostics, spa
+from tests.support import icc_fixture_path, process_diagnostics, spa
 
 pytestmark = pytest.mark.e2e
 
@@ -611,12 +611,12 @@ def test_p3_to_srgb_preserves_preparation_and_plan_parity(
     original = source.read_bytes()
     icc = tmp_path / "display-p3.icc"
     if profile_source == "caller_apple":
-        icc_input = caller_apple_p3()
+        icc_input = icc_fixture_path("display_p3")
         expected_sha = (
             "0ff6958f98684c61f6bbdce1368ddeaf3873baf84545baba482e920d92a914c0"
         )
     else:
-        icc_input = files("spa.kernel").joinpath("color/profiles/display_p3_cc0.icc")
+        icc_input = icc_fixture_path("display_p3_cc0")
         expected_sha = (
             "cb51de38e482ee974c0c76b9689e16aad04bad16e226fed2f30c842d15ff3a3d"
         )
@@ -712,12 +712,7 @@ def test_admitted_same_profile_and_content_noops_remain_successful(
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
     _native(runtime, source, action="create", black="true")
     icc = tmp_path / "known.icc"
-    profile_input = (
-        caller_apple_p3()
-        if profile_kind == "display_p3"
-        else files("spa.kernel").joinpath(f"color/profiles/{profile_kind}.icc")
-    )
-    icc.write_bytes(profile_input.read_bytes())
+    icc.write_bytes(icc_fixture_path(profile_kind).read_bytes())
     profile = {"kind": "icc", "icc_file": str(icc)}
     assert _run("assign-color-profile", source, source, profile)[0] == 0
     for command in ["standalone", "plan"]:
@@ -814,12 +809,10 @@ def test_distinct_p3_profiles_do_not_admit_cross_conversion(
 ):
     _require_conversion(runtime)
     profiles = {
-        "apple": {"kind": "icc", "icc_file": str(caller_apple_p3())},
+        "apple": {"kind": "icc", "icc_file": str(icc_fixture_path("display_p3"))},
         "cc0": {
             "kind": "icc",
-            "icc_file": str(
-                files("spa.kernel").joinpath("color/profiles/display_p3_cc0.icc")
-            ),
+            "icc_file": str(icc_fixture_path("display_p3_cc0")),
         },
     }
     source, assigned, target = [

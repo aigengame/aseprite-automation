@@ -17,7 +17,7 @@ from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.application.surface import PROBE_RESOURCES
 from spa.contracts.public import RuntimeRequest
 from tests.support import (
-    caller_apple_p3,
+    icc_fixture_path,
     inject_palette_change,
     process_diagnostics,
     spa,
@@ -168,11 +168,7 @@ def test_import_same_encoded_profile_preserves_profile(tmp_path, runtime, profil
         info.add(b"sRGB", b"\0")
         kwargs["pnginfo"] = info
     else:
-        icc = (
-            caller_apple_p3()
-            if profile_name == "display_p3"
-            else files("spa.kernel").joinpath(f"color/profiles/{profile_name}.icc")
-        )
+        icc = icc_fixture_path(profile_name)
         _create(runtime, source, profile="icc", icc=str(icc))
         kwargs["icc_profile"] = icc.read_bytes()
     Image.new("RGB", (2, 2), (17, 31, 53)).save(raster, **kwargs)

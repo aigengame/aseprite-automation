@@ -6,6 +6,7 @@ import shlex
 import shutil
 import struct
 import subprocess
+from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
@@ -22,8 +23,10 @@ from spa.contracts.ports import (
 from spa.contracts.public import RuntimeCapability
 
 
-def caller_apple_p3() -> Path:
-    """Use only an explicitly supplied input; never locate or download Apple bytes."""
+def icc_fixture_path(identity: str) -> Path:
+    """Resolve a packaged ICC or an explicitly supplied Apple input."""
+    if identity != "display_p3":
+        return Path(str(files("spa.kernel").joinpath(f"color/profiles/{identity}.icc")))
     configured = os.environ.get("SPA_TEST_APPLE_P3_ICC")
     if not configured:
         pytest.skip("set SPA_TEST_APPLE_P3_ICC to test caller-supplied Apple P3")

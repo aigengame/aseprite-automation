@@ -3,7 +3,6 @@
 import hashlib
 import json
 import os
-from importlib.resources import files
 from pathlib import Path
 
 import pytest
@@ -13,7 +12,7 @@ from spa.adapters.aseprite.aseprite import probe
 from spa.application.surface import PROBE_RESOURCES
 from spa.contracts.public import RuntimeRequest
 from tests.preparation.support import specification
-from tests.support import caller_apple_p3, spa
+from tests.support import icc_fixture_path, spa
 
 pytestmark = pytest.mark.e2e
 
@@ -265,12 +264,7 @@ def test_prepare_normalizes_color_before_threshold_and_mapping(
         metadata.add(b"sRGB", bytes([3]))
         options["pnginfo"] = metadata
     elif source_kind in ("display_p3_cc0", "display_p3"):
-        profile_input = (
-            caller_apple_p3()
-            if source_kind == "display_p3"
-            else files("spa.kernel").joinpath("color/profiles/display_p3_cc0.icc")
-        )
-        options["icc_profile"] = profile_input.read_bytes()
+        options["icc_profile"] = icc_fixture_path(source_kind).read_bytes()
     original = save_rgba(
         source,
         (3, 1),

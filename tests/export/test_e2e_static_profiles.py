@@ -2,7 +2,6 @@
 
 import json
 import os
-from importlib.resources import files
 from pathlib import Path
 
 import pytest
@@ -14,7 +13,7 @@ from spa.contracts.public import RuntimeRequest
 from tests.export.support import export_image_request as _request
 from tests.export.support import png_icc_label, source_sprite
 from tests.export.test_e2e_static_geometry import _export
-from tests.support import caller_apple_p3, spa
+from tests.support import icc_fixture_path, spa
 
 pytestmark = pytest.mark.e2e
 PROFILES = ("none", "srgb", "linear_srgb", "display_p3_cc0", "display_p3")
@@ -28,17 +27,11 @@ def runtime():
     )
 
 
-def _icc(identity: str) -> Path:
-    if identity == "display_p3":
-        return caller_apple_p3()
-    return Path(str(files("spa.kernel").joinpath(f"color/profiles/{identity}.icc")))
-
-
 def _profile(identity: str) -> dict:
     return (
         {"kind": identity}
         if identity in ("none", "srgb")
-        else {"kind": "icc", "icc_file": str(_icc(identity))}
+        else {"kind": "icc", "icc_file": str(icc_fixture_path(identity))}
     )
 
 
@@ -49,7 +42,9 @@ def _source(tmp_path: Path, identity: str, *, mode: str = "rgb") -> Path:
         mode=mode,
         alpha="opaque",
         profile=identity if identity in ("none", "srgb") else "icc",
-        icc_file=str(_icc(identity)),
+        icc_file=""
+        if identity in ("none", "srgb")
+        else str(icc_fixture_path(identity)),
     )
 
 
@@ -64,7 +59,7 @@ def _encoded_profile(result: dict, destination: Path, identity: str) -> None:
             assert (
                 result["color_profile"] == "icc" and result["icc_identity"] == identity
             )
-            assert image.info["icc_profile"] == _icc(identity).read_bytes()
+            assert image.info["icc_profile"] == icc_fixture_path(identity).read_bytes()
             assert png_icc_label(destination.read_bytes()) == identity.encode("ascii")
 
 
@@ -209,7 +204,9 @@ def test_profile_conversion_precedes_palette_import_and_mapping_on_selected_cont
     tmp_path: Path, runtime, palette_format: str
 ) -> None:
     source = source_sprite(
-        tmp_path, "static_profiles_order.lua", icc_file=str(_icc("linear_srgb"))
+        tmp_path,
+        "static_profiles_order.lua",
+        icc_file=str(icc_fixture_path("linear_srgb")),
     )
     before = source.read_bytes()
     palette = tmp_path / f"mapping.{palette_format}"
