@@ -141,10 +141,12 @@ Exact source inventory checks also reject extra packaged files; this is not a ge
 scanner for every embedded encoding.
 
 [#194 evidence](evidence/issue-194-redistributable-profile.md) records replacement
-validation and the historical-copy disposition plan. Merging the replacement does not
-remove the original Apple blob from Git history or retained distribution artifacts.
-Those copies need separate authorized disposition before #126's public-readiness gate
-can close. #189's first-publish inspection must use newly built distributions containing
+validation and the owner's historical-copy disposition. The subsequent licensing
+check did not establish infringement; the owner accepted retaining historical
+copies without making history rewriting or artifact deletion a public-readiness
+requirement. Current source and new packages use the CC0 reference. Reassess that
+disposition if concrete contrary licensing evidence or a rights-holder request
+appears. #189's first-publish inspection must use newly built distributions containing
 the replacement; old artifacts cannot be relabeled as the corrected output.
 
 ## Prepare and publish a release

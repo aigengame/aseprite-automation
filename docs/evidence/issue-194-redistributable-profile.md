@@ -91,20 +91,34 @@ The candidate wheel and sdist are local validation builds at the existing 0.3.0
 development version. They are not an upload, a historical release replacement, or
 authorization to publish. A future release still uses its reviewed release version.
 
-## Historical copies: disposition still required
+## Historical copies: accepted disposition — 2026-10-08
 
-The [read-only inventory](https://github.com/aigengame/aseprite-automation/issues/194#issuecomment-6051655588)
-records concrete refs, artifact IDs, run IDs, and coverage limits, as observed at
-2026-10-08 03:30 UTC. No history or remote object was deleted.
+The owner retained the CC0 replacement and accepted a bounded disposition after
+the licensing follow-up. The available evidence does not establish infringement
+by the old profile. Removing historical ICC copies, rewriting Git history, or
+migrating the repository is not a public-readiness prerequisite. Reassess only if
+concrete contrary licensing evidence or a rights-holder request appears.
 
-| Location | Evidence | Next action before public readiness |
-| --- | --- | --- |
-| Git history and branch tips | Old blob `a484af3025b82a9a9a64e4c6a36acd345856a5f7`; 37 of 40 observed remote heads/tags contained it. Earlier audit also found PR refs. | Merge this source fix; separately authorize and execute a history/ref disposition plan, including GitHub-retained PR objects. Branch-tip replacement alone is insufficient. |
-| Actions artifacts | 95 retained containers held 190 direct ICC members in wheels/sdists; one previously identified container was already absent. | Refresh the recorded IDs, then explicitly authorize removal of affected artifacts. Rebuild any still-needed distributions from corrected source. |
-| Existing v0.1.0/v0.2.0 Release assets | Four inspected wheel/sdist assets had no direct member matching the old ICC. | No deletion justified by this direct-copy finding; retain the audit's embedded-content coverage limitation. |
+The [ICC registry's Apple-supplied profile](https://registry.color.org/rgb-registry/displayp3)
+and OpenPrinting's profile have the same bytes as the former 536-byte file except
+for the 16-byte ICC Profile ID. The old ID is zero; the published ID matches the
+checksum computed under the [ICC specification, section 6.1.13](https://www.color.org/icc1-v41.pdf).
+Color data and copyright text are identical. OpenPrinting added the profile and
+its [permissive license text](https://github.com/OpenPrinting/sample-files/blob/0c3f6880da8a9270f720dbc185c72cadf8d27cd0/source/DisplayP3-License.txt)
+together. That is evidence against assuming that the system copy has no
+redistribution permission; it does not independently authenticate Apple's original
+grant. The project disposition makes no broader licensing claim.
 
-The archived-member audit did not decode every embedded PNG/Aseprite profile and
-does not establish absence in inaccessible objects or external consumers. The
-current-tree check above has a different scope. Recheck affected objects after
-authorized cleanup. #126 remains the public-readiness gate; merging #194 alone
-does not make the repository ready to become public.
+The [dated inventory](https://github.com/aigengame/aseprite-automation/issues/194#issuecomment-6051655588)
+remains useful evidence of historical copies, not a mandatory deletion list. The
+expanded follow-up covered 667 commits, 4,275 Git blobs and 254 verified LFS
+objects: the direct old ICC blob remained, with no old ICC in the 238 PNG or 26
+Aseprite documents inspected. Retained wheel/sdist artifacts can still contain
+the old direct member. The four inspected v0.1.0/v0.2.0 Release assets did not.
+No history or remote object was removed by this investigation; inaccessible
+objects and external copies remain outside its scope.
+
+Current source and new distributions use the CC0 reference. Old artifacts must not
+be represented as rebuilt or corrected packages. The separate Aseprite executable
+distribution audit remains under
+[#126](https://github.com/aigengame/aseprite-automation/issues/126).
