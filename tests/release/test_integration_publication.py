@@ -98,8 +98,8 @@ def test_attestations_do_not_contaminate_the_verified_release_pair(
 ) -> None:
     dist = tmp_path / "dist"
     dist.mkdir()
-    prefix = "sprite_automation-1.2.3"
-    metadata = b"Name: sprite-automation\nVersion: 1.2.3\n"
+    prefix = "aseprite_automation-1.2.3"
+    metadata = b"Name: aseprite-automation\nVersion: 1.2.3\n"
     with zipfile.ZipFile(dist / f"{prefix}-py3-none-any.whl", "w") as wheel:
         wheel.writestr(f"{prefix}.dist-info/METADATA", metadata)
     with tarfile.open(dist / f"{prefix}.tar.gz", "w:gz") as sdist:
@@ -113,7 +113,7 @@ def test_attestations_do_not_contaminate_the_verified_release_pair(
         lambda *a, **kw: io.BytesIO(
             json.dumps(
                 {
-                    "info": {"name": "sprite-automation", "version": "1.2.3"},
+                    "info": {"name": "aseprite-automation", "version": "1.2.3"},
                     "urls": remote_files,
                 }
             ).encode()
@@ -161,8 +161,8 @@ def test_github_failure_after_pypi_success_resumes_the_same_files(
 ) -> None:
     dist = tmp_path / "dist"
     dist.mkdir()
-    (dist / "sprite_automation-1.2.3-py3-none-any.whl").write_bytes(b"verified wheel")
-    (dist / "sprite_automation-1.2.3.tar.gz").write_bytes(b"verified sdist")
+    (dist / "aseprite_automation-1.2.3-py3-none-any.whl").write_bytes(b"verified wheel")
+    (dist / "aseprite_automation-1.2.3.tar.gz").write_bytes(b"verified sdist")
     tools = tmp_path / "bin"
     tools.mkdir()
     gh = tools / "gh"

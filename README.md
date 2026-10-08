@@ -74,7 +74,7 @@ You need **Python 3.13+**, [uv](https://docs.astral.sh/uv/getting-started/instal
 and a separate [Aseprite installation](https://www.aseprite.org/). SPA does not bundle
 the Aseprite executable.
 
-The upcoming PyPI package is **`sprite-automation`**; the command is **`spa`**.
+The upcoming PyPI package is **`aseprite-automation`**; the command is **`spa`**.
 The [first PyPI publication](https://github.com/aigengame/aseprite-automation/issues/189)
 is pending. For the current development version, use the source install below.
 
@@ -103,12 +103,12 @@ the native probe fixtures and example assets. If `spa` is not on `PATH`, run
 ### PyPI installation after the first publication
 
 ```sh
-uv tool install sprite-automation
+uv tool install aseprite-automation
 spa version
-uv tool upgrade sprite-automation
+uv tool upgrade aseprite-automation
 ```
 
-For MCP, install the optional extra: `uv tool install 'sprite-automation[mcp]'`.
+For MCP, install the optional extra: `uv tool install 'aseprite-automation[mcp]'`.
 For source development, use `uv sync` and `uv run spa`; see the
 [usage guide](https://github.com/aigengame/aseprite-automation/blob/dev/docs/usage.md).
 

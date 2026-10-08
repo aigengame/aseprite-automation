@@ -68,7 +68,7 @@ from importlib.resources import files
 from pathlib import Path
 
 package = files("spa")
-metadata = distribution("sprite-automation")
+metadata = distribution("aseprite-automation")
 origin = json.loads(metadata.read_text("direct_url.json") or "{}")
 if origin.get("dir_info", {}).get("editable"):
     raise SystemExit("installed verification requires a wheel, not an editable install")

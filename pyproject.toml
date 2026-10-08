@@ -6,7 +6,7 @@ build-backend = "uv_build"
 module-name = "spa"
 
 [project]
-name = "sprite-automation"
+name = "aseprite-automation"
 version = "0.2.0"
 description = "Aseprite automation for AI agents. Create, edit, verify, and export pixel art, sprite animations, and tilesets through a CLI, Agent Skill, or MCP server."
 readme = "README.md"

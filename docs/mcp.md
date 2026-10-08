@@ -3,11 +3,11 @@
 After the first PyPI release is available, install the optional MCP extra:
 
 ```sh
-uv tool install 'sprite-automation[mcp]'
+uv tool install 'aseprite-automation[mcp]'
 spa-mcp --help
 ```
 
-Use `uv tool upgrade sprite-automation` to update that installation. Configure the
+Use `uv tool upgrade aseprite-automation` to update that installation. Configure the
 client with the absolute `spa-mcp` path reported by your shell (`command -v spa-mcp`
 on macOS/Linux). [Issue #189](https://github.com/aigengame/aseprite-automation/issues/189)
 tracks the first production upload; until then, use a checkout that provides the

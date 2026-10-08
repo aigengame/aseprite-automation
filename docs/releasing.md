@@ -107,7 +107,7 @@ with these exact fields:
 
 | Field | Value |
 | --- | --- |
-| PyPI project name | `sprite-automation` |
+| PyPI project name | `aseprite-automation` |
 | GitHub owner | `aigengame` |
 | GitHub repository | `aseprite-automation` |
 | Workflow filename | `release.yml` |

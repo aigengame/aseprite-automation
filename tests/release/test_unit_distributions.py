@@ -24,7 +24,7 @@ def distributions(tmp_path: Path) -> tuple[Path, Path]:
     (root / "LICENSE").write_text("MIT License\nCopyright (c) 2026 aigengame\n")
     (root / "README.md").write_text("# SPA\n")
     (root / "pyproject.toml").write_text(
-        '[project]\nname = "sprite-automation"\nversion = "1.2.3"\n'
+        '[project]\nname = "aseprite-automation"\nversion = "1.2.3"\n'
     )
     dist = tmp_path / "dist"
     dist.mkdir()
@@ -36,11 +36,11 @@ def write_distributions(
     root: Path, dist: Path, *, license: bool = True, metadata_version: str = "1.2.3"
 ) -> None:
     metadata = (
-        f"Metadata-Version: 2.4\nName: sprite-automation\nVersion: {metadata_version}\n".encode()
+        f"Metadata-Version: 2.4\nName: aseprite-automation\nVersion: {metadata_version}\n".encode()
         + (b"License-Expression: MIT\nLicense-File: LICENSE\n" if license else b"")
         + b"\n# SPA\n"
     )
-    prefix = "sprite_automation-1.2.3"
+    prefix = "aseprite_automation-1.2.3"
     files = {
         p.relative_to(root / "src").as_posix(): p.read_bytes()
         for p in (root / "src/spa").rglob("*")
@@ -123,7 +123,7 @@ def test_duplicate_paths_cannot_hide_unintended_archive_content(
         with tarfile.open(path) as archive:
             members = [(item, archive.extractfile(item).read()) for item in archive]
         with tarfile.open(path, "w:gz") as archive:
-            duplicate = tarfile.TarInfo("sprite_automation-1.2.3/README.md")
+            duplicate = tarfile.TarInfo("aseprite_automation-1.2.3/README.md")
             duplicate.size = len(private_payload)
             archive.addfile(duplicate, io.BytesIO(private_payload))
             for item, payload in members:
@@ -160,7 +160,7 @@ def test_extra_distribution_does_not_become_public(distributions) -> None:
 def pypi_response(dist: Path, names: list[str]) -> bytes:
     return json.dumps(
         {
-            "info": {"name": "sprite-automation", "version": "1.2.3"},
+            "info": {"name": "aseprite-automation", "version": "1.2.3"},
             "urls": [
                 {
                     "filename": name,
@@ -186,7 +186,7 @@ def test_matching_partial_upload_can_resume_but_is_not_complete(
     )
 
     assert verify_pypi(dist, "1.2.3", allow_missing=True) == [
-        "sprite_automation-1.2.3.tar.gz"
+        "aseprite_automation-1.2.3.tar.gz"
     ]
     with pytest.raises(ValueError, match="missing"):
         verify_pypi(dist, "1.2.3")
