@@ -83,7 +83,7 @@ async def build_server(cli: Cli) -> Server:
 
     return Server(
         "spa",
-        version=version("aseprite-automation"),
+        version=version("sprite-automation"),
         on_list_tools=list_tools,
         on_call_tool=call_tool,
     )

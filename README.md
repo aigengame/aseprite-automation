@@ -91,6 +91,11 @@ uv tool install --python 3.13 .
 spa version
 ```
 
+You can also install a wheel from a
+[GitHub Release](https://github.com/aigengame/aseprite-automation/releases) with
+`uv tool install /absolute/path/to/the-wheel.whl`. Published releases may provide
+fewer capabilities than the current development version.
+
 The repository is currently private, so cloning requires access. Git LFS retrieves
 the native probe fixtures and example assets. If `spa` is not on `PATH`, run
 `uv tool update-shell` and open a new shell.
@@ -257,6 +262,6 @@ Start with [testing](https://github.com/aigengame/aseprite-automation/blob/dev/d
 and the [domain model](https://github.com/aigengame/aseprite-automation/blob/dev/CONTEXT.md).
 The [authority matrix](https://github.com/aigengame/aseprite-automation/blob/dev/AUTHORITY_MATRIX.md) routes product and implementation decisions.
 
-SPA's MIT license is being added with the
-[PyPI publication change](https://github.com/aigengame/aseprite-automation/pull/191).
+SPA-owned code and documentation use the
+[MIT license](https://github.com/aigengame/aseprite-automation/blob/dev/LICENSE).
 Aseprite is a separate product with its own [license](https://www.aseprite.org/faq/#is-aseprite-free).

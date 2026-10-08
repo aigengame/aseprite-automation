@@ -12,6 +12,10 @@ runs:
       shell: bash
       run: uv run --frozen twine check dist/*
 
+    - name: Check public package contents
+      shell: bash
+      run: uv run --frozen python scripts/release_distributions.py dist
+
     - name: Install and smoke test the wheel
       shell: bash
       run: |
