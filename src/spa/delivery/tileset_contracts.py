@@ -4,6 +4,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field, field_validator, model_validator
 
+from spa.authoring.color.profile import IccIdentity
 from spa.authoring.document.targets import CelAddress
 from spa.authoring.tile.targets import TilesetTarget
 from spa.authoring.tile.values import TilemapFacts, TileRegionSnapshot, TilesetFacts
@@ -43,7 +44,7 @@ AtlasTile = Annotated[EmptyAtlasTile | KeyedAtlasTile, Field(discriminator="kind
 
 class AtlasProfile(PublicModel):
     kind: Literal["none", "srgb", "icc"]
-    icc_identity: Literal["linear_srgb", "display_p3"] | None
+    icc_identity: IccIdentity | None
 
     @model_validator(mode="after")
     def identity(self) -> "AtlasProfile":

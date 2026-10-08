@@ -4,6 +4,7 @@ import hashlib
 import io
 import json
 import tarfile
+import tomllib
 import urllib.error
 import zipfile
 from pathlib import Path
@@ -22,9 +23,18 @@ def distributions(tmp_path: Path) -> tuple[Path, Path]:
     (package / "kernel").mkdir()
     (package / "kernel/probe.lua").write_text("return true\n")
     (root / "LICENSE").write_text("MIT License\nCopyright (c) 2026 aigengame\n")
+    (root / "LICENSES").mkdir()
+    (root / "LICENSES/CC0-1.0.txt").write_text("CC0 fixture license\n")
+    (root / "THIRD_PARTY_NOTICES.md").write_text("# Third-party notices\n")
+    (package / "kernel/color/profiles").mkdir(parents=True)
+    (package / "kernel/color/profiles/NOTICE.txt").write_text(
+        "CC0 Display P3 reference\n"
+    )
+    (package / "kernel/color/profiles/identities.json").write_text('{"profiles": []}\n')
     (root / "README.md").write_text("# SPA\n")
     (root / "pyproject.toml").write_text(
-        '[project]\nname = "aseprite-automation"\nversion = "1.2.3"\n'
+        '[project]\nname = "aseprite-automation"\nversion = "1.2.3"\nlicense = "MIT AND CC0-1.0"\n'
+        'license-files = ["LICENSE", "LICENSES/CC0-1.0.txt"]\n'
     )
     dist = tmp_path / "dist"
     dist.mkdir()
@@ -35,9 +45,17 @@ def distributions(tmp_path: Path) -> tuple[Path, Path]:
 def write_distributions(
     root: Path, dist: Path, *, license: bool = True, metadata_version: str = "1.2.3"
 ) -> None:
+    project = tomllib.loads((root / "pyproject.toml").read_text())["project"]
+    license_names = project["license-files"]
+    license_metadata = (
+        "License-Expression: "
+        + project["license"]
+        + "\n"
+        + "".join(f"License-File: {name}\n" for name in license_names)
+    ).encode()
     metadata = (
         f"Metadata-Version: 2.4\nName: aseprite-automation\nVersion: {metadata_version}\n".encode()
-        + (b"License-Expression: MIT\nLicense-File: LICENSE\n" if license else b"")
+        + (license_metadata if license else b"")
         + b"\n# SPA\n"
     )
     prefix = "aseprite_automation-1.2.3"
@@ -53,20 +71,21 @@ def write_distributions(
         for name in ("WHEEL", "RECORD", "entry_points.txt"):
             wheel.writestr(f"{prefix}.dist-info/{name}", b"")
         if license:
-            wheel.writestr(
-                f"{prefix}.dist-info/licenses/LICENSE", (root / "LICENSE").read_bytes()
-            )
+            for name in license_names:
+                wheel.writestr(
+                    f"{prefix}.dist-info/licenses/{name}", (root / name).read_bytes()
+                )
     with tarfile.open(dist / f"{prefix}.tar.gz", "w:gz") as sdist:
         content = {f"src/{name}": data for name, data in files.items()}
         content.update(
             {
                 name: (root / name).read_bytes()
-                for name in ("README.md", "pyproject.toml")
+                for name in ("README.md", "pyproject.toml", "THIRD_PARTY_NOTICES.md")
             }
         )
         content["PKG-INFO"] = metadata
         if license:
-            content["LICENSE"] = (root / "LICENSE").read_bytes()
+            content.update({name: (root / name).read_bytes() for name in license_names})
         for name, payload in content.items():
             info = tarfile.TarInfo(f"{prefix}/{name}")
             info.size = len(payload)
@@ -237,3 +256,78 @@ def test_only_not_found_can_start_a_new_upload(
     else:
         with pytest.raises(urllib.error.HTTPError):
             verify_pypi(dist, "1.2.3", allow_missing=True)
+
+
+@pytest.mark.parametrize("embedded", [False, True])
+@pytest.mark.parametrize("archive_kind", ["wheel", "sdist"])
+def test_known_profile_payload_is_rejected_even_when_source_inventory_matches(
+    distributions, monkeypatch, embedded: bool, archive_kind: str
+) -> None:
+    root, dist = distributions
+    # A synthetic ICC-shaped sentinel tests the boundary without storing Apple bytes.
+    sentinel = bytearray(536)
+    sentinel[:4] = (536).to_bytes(4, "big")
+    sentinel[36:40] = b"acsp"
+    sentinel[128:] = b"x" * (536 - 128)
+    monkeypatch.setattr(
+        "scripts.release_distributions.APPLE_DISPLAY_P3_SHA256",
+        hashlib.sha256(sentinel).hexdigest(),
+    )
+    payload = bytes(sentinel)
+    if embedded:
+        payload = b"authored document prefix" + payload + b"document suffix"
+    resource = root / "src/spa/kernel/fixture.aseprite"
+    resource.write_bytes(payload)
+    write_distributions(root, dist)
+    # Remove the sentinel from the other archive so both archive readers are exercised.
+    other = "sdist" if archive_kind == "wheel" else "wheel"
+    path = next(dist.glob("*.tar.gz" if other == "sdist" else "*.whl"))
+    if other == "wheel":
+        with zipfile.ZipFile(path) as archive:
+            members = [(item, archive.read(item)) for item in archive.infolist()]
+        with zipfile.ZipFile(path, "w") as archive:
+            for item, data in members:
+                archive.writestr(
+                    item,
+                    b"safe fixture"
+                    if item.filename.endswith("fixture.aseprite")
+                    else data,
+                )
+    else:
+        with tarfile.open(path) as archive:
+            members = [(item, archive.extractfile(item).read()) for item in archive]
+        with tarfile.open(path, "w:gz") as archive:
+            for item, data in members:
+                if item.name.endswith("fixture.aseprite"):
+                    data = b"safe fixture"
+                    item.size = len(data)
+                archive.addfile(item, io.BytesIO(data))
+    with pytest.raises(ValueError, match="forbidden Apple Display P3"):
+        verify_contents(root, dist)
+
+
+def test_icc_structure_alone_does_not_reject_a_different_profile(distributions) -> None:
+    root, dist = distributions
+    profile = bytearray(536)
+    profile[:4] = (536).to_bytes(4, "big")
+    profile[36:40] = b"acsp"
+    (root / "src/spa/kernel/reference.icc").write_bytes(profile)
+    write_distributions(root, dist)
+    assert len(verify_contents(root, dist)) == 2
+
+
+@pytest.mark.parametrize("resource", ["identities.json", "NOTICE.txt"])
+def test_changed_profile_identity_or_notice_is_rejected(
+    distributions, resource
+) -> None:
+    root, dist = distributions
+    (root / "src/spa/kernel/color/profiles" / resource).write_text("changed content\n")
+    with pytest.raises(ValueError, match="changed source file"):
+        verify_contents(root, dist)
+
+
+def test_cc0_license_contents_must_match_source(distributions) -> None:
+    root, dist = distributions
+    (root / "LICENSES/CC0-1.0.txt").write_text("changed license\n")
+    with pytest.raises(ValueError, match="changed source file"):
+        verify_contents(root, dist)

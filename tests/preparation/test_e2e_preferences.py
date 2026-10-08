@@ -35,7 +35,7 @@ def runtime():
 
 
 @pytest.mark.parametrize("mode", ["rgba", "indexed"])
-@pytest.mark.parametrize("source_kind", ["none", "srgb", "display_p3"])
+@pytest.mark.parametrize("source_kind", ["none", "srgb", "display_p3_cc0"])
 def test_preparation_ignores_and_restores_editor_preferences(
     tmp_path: Path, runtime, mode: str, source_kind: str
 ) -> None:
@@ -56,9 +56,11 @@ def test_preparation_ignores_and_restores_editor_preferences(
         metadata = PngImagePlugin.PngInfo()
         metadata.add(b"sRGB", bytes([3]))
         options["pnginfo"] = metadata
-    elif source_kind == "display_p3":
+    elif source_kind == "display_p3_cc0":
         options["icc_profile"] = (
-            files("spa.kernel").joinpath("color/profiles/display_p3.icc").read_bytes()
+            files("spa.kernel")
+            .joinpath("color/profiles/display_p3_cc0.icc")
+            .read_bytes()
         )
     image.save(source, **options)
     original = source.read_bytes()
@@ -68,7 +70,7 @@ def test_preparation_ignores_and_restores_editor_preferences(
         {"red": 180, "green": 70, "blue": 30, "alpha": 255},
         {"red": 195, "green": 60, "blue": 2, "alpha": 255},
     ]
-    if source_kind == "display_p3" and (
+    if source_kind == "display_p3_cc0" and (
         "aseprite_convert_color_profile" not in runtime.verified_capabilities
     ):
         # Exercise the actual public capability refusal on that Linux runtime.
@@ -164,7 +166,7 @@ def test_preparation_ignores_and_restores_editor_preferences(
     assert run.returncode == 0, process_diagnostics(run)
     observations = []
     expected = [(0, 0, 0, 0)] * 20
-    color = (195, 60, 2, 255) if source_kind == "display_p3" else (180, 70, 30, 255)
+    color = (195, 60, 2, 255) if source_kind == "display_p3_cc0" else (180, 70, 30, 255)
     expected[6] = expected[7] = expected[12] = color
     for number in (1, 2):
         response = json.loads((workspace / f"response-{number}.json").read_text())
@@ -181,7 +183,7 @@ def test_preparation_ignores_and_restores_editor_preferences(
             == "none"
         )
         assert native.profile.effective == "srgb" and native.normalized_alpha_preserved
-        assert native.profile.converted == (source_kind == "display_p3")
+        assert native.profile.converted == (source_kind == "display_p3_cc0")
         assert (
             native.source_rgba_digest != native.normalized_rgba_digest
         ) == native.profile.converted

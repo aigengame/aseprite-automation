@@ -1,0 +1,17 @@
+Third-party Color Profile resource
+
+File: display_p3_cc0.icc
+Source: saucecontrol/Compact-ICC-Profiles, profiles/DisplayP3-v4.icc
+Revision: bdd84663061bc4ae95ca70decff54f581e27f702
+URL: https://github.com/saucecontrol/Compact-ICC-Profiles/blob/bdd84663061bc4ae95ca70decff54f581e27f702/profiles/DisplayP3-v4.icc
+SHA-256: cb51de38e482ee974c0c76b9689e16aad04bad16e226fed2f30c842d15ff3a3d
+License: CC0-1.0. The profile is distributed unchanged.
+The CC0 legal text is included in the distribution's license files.
+
+linear_srgb.icc was generated with LittleCMS for SPA's native conversion tests;
+its embedded copyright tag states "No copyright, use freely". Its identity and
+provenance are recorded in the Color Profile evidence.
+
+SPA's own code and documentation use the MIT license. The Apple profile formerly
+bundled as display_p3.icc is not included. Its exact digest is retained only to
+recognize caller-supplied input; this does not grant rights to that input.

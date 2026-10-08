@@ -51,6 +51,15 @@ without merging these operations or allowing hidden state to decide agent output
 - Color Profile is independent of Color Mode. Assign Color Profile and Convert Color
   Profile remain separate native operations because assignment preserves stored values
   while conversion changes applicable Image pixels and Palette Entries.
+- Admission of an exact ICC input is independent of which reference files SPA can
+  distribute. The Color Profile owner keeps one finite set of complete-byte digests
+  and directed conversion pairs, shared by Python preparation and native Lua admission.
+  Both hash the actual input; a profile name or supplied digest is not proof. Probe and
+  test resources have their own documented redistribution terms. Replacing a reference
+  does not relabel caller input or admit all encodings of the same color space. #194
+  records the replacement evidence and distinct identities; future additions require
+  accepted demand and native evidence. This does not constrain valid-ICC Assign or
+  introduce a general ICC classifier.
 - Each Operation Descriptor exposes only inputs applicable to the actual native path.
   Result-affecting native choices are explicit. Omission is not equated with an explicit
   native `default`, and unknown, case-variant, numeric, cross-branch, or otherwise

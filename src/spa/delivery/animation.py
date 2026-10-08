@@ -8,7 +8,11 @@ from typing import NoReturn
 from pydantic import ValidationError
 
 from spa.authoring.color.palette import EFFECTIVE_PALETTE_RESOURCE
-from spa.authoring.color.profile import PROFILE_RESOURCES, supported_icc_identity
+from spa.authoring.color.profile import (
+    PROFILE_RESOURCES,
+    SUPPORTED_ICC_IDENTITIES,
+    supported_icc_identity,
+)
 from spa.authoring.document.tag import TAG_SELECT_RESOURCE
 from spa.authoring.raster.image_snapshot import COMPOSITION_RESOURCE
 from spa.contracts.artifact import PartialPublicationDetails
@@ -142,7 +146,7 @@ def _validate_resolution(
     ):
         _mismatch(path, "Resolved Canvas exceeds the declared Operation Limits")
     if (resolution.color_profile == "icc") != (
-        resolution.icc_identity in ("linear_srgb", "display_p3")
+        resolution.icc_identity in SUPPORTED_ICC_IDENTITIES
     ) or (resolution.color_profile != "icc" and resolution.icc_identity is not None):
         _mismatch(path, "Resolved Source profile identity is inconsistent")
     if isinstance(request.playback, ExplicitFrames):

@@ -766,11 +766,15 @@ Color and Palette also owns `sprite assign-color-profile` and
 `sprite convert-color-profile`. `profile.lua` applies the same native operation to a
 standalone Sprite or a live Plan Sprite and observes all Cel Images, Palette Changes,
 and Tileset Tiles. The same owner admits Convert through a finite directed matrix
-and exact packaged ICC bytes. It binds encoded Source bytes, or bytes from the last
+and exact ICC input digests. It binds encoded Source bytes, or bytes from the last
 live Assign, to the native profile before admission. This policy does not constrain
 valid-ICC Assign or infer arbitrary native ICC compatibility. Static Preflight rejects
-unlisted Convert target bytes by reading those same co-packaged resources; it does
-not reproduce the Lua source/direction rule.
+unlisted Convert target bytes through the same finite `color/profiles/identities.json`
+data consumed by Lua; it does not reproduce the Lua source/direction rule. Both hash
+actual input bytes. Admitted input identities are independent of the reference files
+distributed for probing and tests. The former Apple P3 file remains an admitted
+caller-supplied input, while the bundled CC0 P3 reference has a distinct identity.
+See [#194 evidence](docs/evidence/issue-194-redistributable-profile.md).
 Python reads and freezes input ICC bytes through the file adapter and
 validates them through the ICC adapter;
 it does not transform colors. The profile-specific persistence check verifies native

@@ -7,7 +7,7 @@ from typing import Any, Literal
 
 from pydantic import Field
 
-from spa.authoring.color.profile import supported_icc_identity
+from spa.authoring.color.profile import IccIdentity, supported_icc_identity
 from spa.authoring.raster.image_snapshot import LayerComposition
 from spa.contracts.ports import PngInputFacts
 from spa.contracts.public import PublicModel
@@ -37,7 +37,7 @@ class NativeSheet(PublicModel):
     source_height: int = Field(gt=0, le=65535)
     color_mode: Literal["rgb", "indexed"]
     color_profile: Literal["none", "srgb", "icc"]
-    icc_identity: Literal["linear_srgb", "display_p3"] | None = None
+    icc_identity: IccIdentity | None = None
     transparent_index: int | None = Field(default=None, ge=0, le=255)
     palette: list[list[int]] | None = None
     source_frames: list[int] = Field(min_length=1)

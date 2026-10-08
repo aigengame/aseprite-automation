@@ -101,7 +101,7 @@ def test_sequence_png_reports_srgb_rendering_intent() -> None:
 
 @pytest.mark.parametrize("mode", ["RGB", "P"])
 def test_sequence_png_reports_exact_icc_payload(mode: str) -> None:
-    profile = Path("src/spa/kernel/color/profiles/display_p3.icc").read_bytes()
+    profile = Path("src/spa/kernel/color/profiles/display_p3_cc0.icc").read_bytes()
     image = Image.new(mode, (1, 1))
     if mode == "P":
         image.putpalette([11, 22, 33])

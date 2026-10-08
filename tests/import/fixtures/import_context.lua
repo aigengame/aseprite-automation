@@ -12,7 +12,8 @@ local original_pixels = ambient.layers[1]:cel(1).image.bytes
 local sprite_count = #app.sprites
 local native_preferences = app.preferences.color
 native_preferences.manage = true
-native_preferences.working_rgb_space = ColorSpace { fromFile = app.params.profile_display_p3 }.name
+native_preferences.working_rgb_space =
+  ColorSpace { fromFile = app.params.profile_display_p3_cc0 }.name
 native_preferences.files_with_profile = 2 -- CONVERT
 native_preferences.missing_profile = 3 -- ASSIGN
 local expected_preferences = {

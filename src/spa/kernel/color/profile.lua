@@ -13,22 +13,22 @@ local function read_bytes(path)
   return bytes
 end
 
--- This is a finite set of tested files and directions, not an ICC classifier.
--- Exact bytes include descriptive metadata; a modified ICC needs separate evidence.
-local known_icc = {
-  linear_srgb = read_bytes(app.params.profile_linear_srgb),
-  display_p3 = read_bytes(app.params.profile_display_p3),
-}
-local conversion_targets = {
-  none = { srgb = true },
-  srgb = { srgb = true, linear_srgb = true },
-  linear_srgb = { srgb = true, linear_srgb = true },
-  display_p3 = { srgb = true, display_p3 = true },
-}
+-- Hash actual encoded/live input, never an input's claimed digest or profile name.
+-- Recognizing a tested ICC does not require distributing its bytes.
+local identities = json.decode(read_bytes(app.params.profile_identities))
+local conversion_targets = {}
+for identity, facts in pairs(identities) do
+  conversion_targets[identity] = {}
+  for _, target in ipairs(facts.convert_to) do
+    conversion_targets[identity][target] = true
+  end
+end
 
 local function icc_identity(bytes)
-  for identity, reference in pairs(known_icc) do
-    if bytes == reference then return identity end
+  if bytes == nil then return nil end
+  local value = digest.sha256(bytes)
+  for identity, facts in pairs(identities) do
+    if value == facts.sha256 then return identity end
   end
   return nil
 end

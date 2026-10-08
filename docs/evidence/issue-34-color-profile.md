@@ -1,6 +1,19 @@
 # Native Color Profile evidence — issue #34
 
-## Baseline and reproducible checks
+## Current reference replacement
+
+[#194](issue-194-redistributable-profile.md) replaces the distributed Apple file with
+a CC0 reference. Current admission uses the finite complete-byte digests and directed
+pairs in `src/spa/kernel/color/profiles/identities.json`. The caller-supplied Apple
+identity remains distinct from the new CC0 identity; neither admits conversion to the
+other. Current tests use the CC0 resource, with optional explicitly supplied Apple
+input checks. The replacement record owns current package provenance and validation.
+
+The sections below retain the original #34 investigation and executed evidence. Their
+references to two packaged profiles describe the historical #151 implementation, not
+the current distributed file set.
+
+## Historical baseline and reproducible checks
 
 Local macOS Aseprite 1.3.18.5-dev, Lua 5.4, API 41. Native source baseline:
 [`v1.3.18.5`](https://github.com/aseprite/aseprite/tree/375989a61c3425cd4e8cdedfcfcca4bdfef7e1d9).

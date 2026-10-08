@@ -312,7 +312,7 @@ def test_indexed_background_conflict_is_decided_after_native_trim(
     "mode,output",
     [("rgb", "rgb"), ("grayscale", "rgb"), ("indexed", "rgb"), ("indexed", "indexed")],
 )
-@pytest.mark.parametrize("profile", ["none", "srgb", "linear_srgb", "display_p3"])
+@pytest.mark.parametrize("profile", ["none", "srgb", "linear_srgb", "display_p3_cc0"])
 def test_sheet_preserves_supported_profiles_with_independent_icc_verification(
     tmp_path: Path, mode: str, output: str, profile: str
 ) -> None:

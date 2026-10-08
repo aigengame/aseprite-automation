@@ -41,7 +41,7 @@ local function resolve(source, payload, profile, uuids)
     return nil,
       reject(
         "color_profile",
-        "Only the packaged linear-sRGB and Display P3 ICC identities are supported"
+        "Only the admitted linear-sRGB and Display P3 ICC identities are supported"
       )
   end
   if payload.format == "png" and source.colorMode == ColorMode.GRAY and profile.kind == "icc" then

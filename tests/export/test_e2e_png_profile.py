@@ -11,7 +11,7 @@ from tests.export.support import png_icc_label, source_sprite
 pytestmark = pytest.mark.e2e
 
 
-@pytest.mark.parametrize("profile", ["none", "srgb", "linear_srgb", "display_p3"])
+@pytest.mark.parametrize("profile", ["none", "srgb", "linear_srgb", "display_p3_cc0"])
 def test_png_profile_copy_preserves_content_and_input(tmp_path: Path, profile: str):
     kernel = files("spa.kernel")
     icc = kernel.joinpath(f"color/profiles/{profile}.icc")
@@ -24,7 +24,7 @@ def test_png_profile_copy_preserves_content_and_input(tmp_path: Path, profile: s
         export_image_support=str(kernel.joinpath("delivery/export_image_support.lua")),
         color_profile_file=str(kernel.joinpath("color/profile_file.lua")),
     )
-    is_icc = profile in ("linear_srgb", "display_p3")
+    is_icc = profile in ("linear_srgb", "display_p3_cc0")
     outputs = sorted(tmp_path.glob("profile-*.png"))
     assert len(outputs) == (4 if is_icc else 1)
     for path in outputs:

@@ -1,10 +1,12 @@
 """Helpers shared across test ownership areas."""
 
+import hashlib
 import os
 import shlex
 import shutil
 import struct
 import subprocess
+from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +21,20 @@ from spa.contracts.ports import (
     TargetCommitObservation,
 )
 from spa.contracts.public import RuntimeCapability
+
+
+def icc_fixture_path(identity: str) -> Path:
+    """Resolve a packaged ICC or an explicitly supplied Apple input."""
+    if identity != "display_p3":
+        return Path(str(files("spa.kernel").joinpath(f"color/profiles/{identity}.icc")))
+    configured = os.environ.get("SPA_TEST_APPLE_P3_ICC")
+    if not configured:
+        pytest.skip("set SPA_TEST_APPLE_P3_ICC to test caller-supplied Apple P3")
+    path = Path(configured).expanduser()
+    assert hashlib.sha256(path.read_bytes()).hexdigest() == (
+        "0ff6958f98684c61f6bbdce1368ddeaf3873baf84545baba482e920d92a914c0"
+    ), "the supplied Apple profile is not the previously admitted input"
+    return path
 
 
 def process_diagnostics(run: subprocess.CompletedProcess[str]) -> str:

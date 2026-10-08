@@ -15,7 +15,7 @@ from spa.adapters.aseprite.aseprite import probe
 from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.application.surface import PROBE_RESOURCES
 from spa.contracts.public import RuntimeRequest
-from tests.support import process_diagnostics, spa
+from tests.support import icc_fixture_path, process_diagnostics, spa
 
 pytestmark = pytest.mark.e2e
 
@@ -34,7 +34,9 @@ def _require_conversion(runtime) -> None:
         pytest.skip("selected Linux runtime has no native Color Profile converter")
 
 
-def _native(runtime, source: Path, **params: str) -> dict:
+def _native(
+    runtime, source: Path, *, fixture: str = "profile_sprite.lua", **params: str
+) -> dict:
     with tempfile.TemporaryDirectory(prefix="spa-profile-test-") as work:
         prepared = prepare_invocation(
             Path(runtime.canonical_path), Path(runtime.resource_path), Path(work)
@@ -46,7 +48,7 @@ def _native(runtime, source: Path, **params: str) -> dict:
             [
                 *arguments,
                 "--script",
-                str(Path(__file__).parent / "fixtures/profile_sprite.lua"),
+                str(Path(__file__).parent / "fixtures" / fixture),
             ],
             env=prepared.environment,
             text=True,
@@ -519,7 +521,9 @@ def test_convert_refuses_unlisted_icc_file_but_assign_preserves_it(
     raw = bytearray(ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes())
     if case == "metadata":
         raw = bytearray(
-            files("spa.kernel").joinpath("color/profiles/display_p3.icc").read_bytes()
+            files("spa.kernel")
+            .joinpath("color/profiles/display_p3_cc0.icc")
+            .read_bytes()
         )
         raw[35] = (
             1  # Only the creation second changes; this is a different file identity.
@@ -586,8 +590,9 @@ def test_convert_refuses_unlisted_icc_file_but_assign_preserves_it(
         assert not list(tmp_path.glob(".*.staged.aseprite"))
 
 
-def test_display_p3_to_srgb_preserves_required_preparation_path_and_plan_parity(
-    tmp_path: Path, runtime
+@pytest.mark.parametrize("profile_source", ["redistributable", "caller_apple"])
+def test_p3_to_srgb_preserves_preparation_and_plan_parity(
+    tmp_path: Path, runtime, profile_source: str
 ):
     import hashlib
 
@@ -605,13 +610,18 @@ def test_display_p3_to_srgb_preserves_required_preparation_path_and_plan_parity(
     before = _native(runtime, source, action="create", p3_sample="true")
     original = source.read_bytes()
     icc = tmp_path / "display-p3.icc"
-    contents = (
-        files("spa.kernel").joinpath("color/profiles/display_p3.icc").read_bytes()
-    )
-    assert (
-        hashlib.sha256(contents).hexdigest()
-        == "0ff6958f98684c61f6bbdce1368ddeaf3873baf84545baba482e920d92a914c0"
-    )
+    if profile_source == "caller_apple":
+        icc_input = icc_fixture_path("display_p3")
+        expected_sha = (
+            "0ff6958f98684c61f6bbdce1368ddeaf3873baf84545baba482e920d92a914c0"
+        )
+    else:
+        icc_input = icc_fixture_path("display_p3_cc0")
+        expected_sha = (
+            "cb51de38e482ee974c0c76b9689e16aad04bad16e226fed2f30c842d15ff3a3d"
+        )
+    contents = icc_input.read_bytes()
+    assert hashlib.sha256(contents).hexdigest() == expected_sha
     icc.write_bytes(contents)
     p3 = {"kind": "icc", "icc_file": str(icc)}
     assert _run("assign-color-profile", source, assigned, p3)[0] == 0
@@ -642,11 +652,11 @@ def test_display_p3_to_srgb_preserves_required_preparation_path_and_plan_parity(
 @pytest.mark.parametrize(
     "source_kind,target_kind",
     [
-        ("srgb", "display_p3"),
-        ("linear_srgb", "display_p3"),
-        ("display_p3", "linear_srgb"),
+        ("srgb", "display_p3_cc0"),
+        ("linear_srgb", "display_p3_cc0"),
+        ("display_p3_cc0", "linear_srgb"),
         ("none", "linear_srgb"),
-        ("none", "display_p3"),
+        ("none", "display_p3_cc0"),
     ],
 )
 def test_known_icc_membership_does_not_admit_untested_directions(
@@ -659,7 +669,7 @@ def test_known_icc_membership_does_not_admit_untested_directions(
     )
     _native(runtime, source, action="create")
     profiles = {}
-    for kind in ["linear_srgb", "display_p3"]:
+    for kind in ["linear_srgb", "display_p3_cc0"]:
         path = tmp_path / f"{kind}.icc"
         path.write_bytes(
             files("spa.kernel").joinpath(f"color/profiles/{kind}.icc").read_bytes()
@@ -692,7 +702,9 @@ def test_known_icc_membership_does_not_admit_untested_directions(
     )
 
 
-@pytest.mark.parametrize("profile_kind", ["linear_srgb", "display_p3"])
+@pytest.mark.parametrize(
+    "profile_kind", ["linear_srgb", "display_p3_cc0", "display_p3"]
+)
 def test_admitted_same_profile_and_content_noops_remain_successful(
     tmp_path: Path, runtime, profile_kind: str
 ):
@@ -700,9 +712,7 @@ def test_admitted_same_profile_and_content_noops_remain_successful(
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
     _native(runtime, source, action="create", black="true")
     icc = tmp_path / "known.icc"
-    icc.write_bytes(
-        files("spa.kernel").joinpath(f"color/profiles/{profile_kind}.icc").read_bytes()
-    )
+    icc.write_bytes(icc_fixture_path(profile_kind).read_bytes())
     profile = {"kind": "icc", "icc_file": str(icc)}
     assert _run("assign-color-profile", source, source, profile)[0] == 0
     for command in ["standalone", "plan"]:
@@ -791,3 +801,72 @@ def test_conversion_discovery_matches_runtime_and_missing_converter_refuses_publ
     ]
     assert source.read_bytes() == original and target.read_bytes() == b"existing Target"
     assert not list(tmp_path.glob(".*.staged.aseprite"))
+
+
+@pytest.mark.parametrize("source_identity", ["apple", "cc0"])
+def test_distinct_p3_profiles_do_not_admit_cross_conversion(
+    tmp_path: Path, runtime, source_identity: str
+):
+    _require_conversion(runtime)
+    profiles = {
+        "apple": {"kind": "icc", "icc_file": str(icc_fixture_path("display_p3"))},
+        "cc0": {
+            "kind": "icc",
+            "icc_file": str(icc_fixture_path("display_p3_cc0")),
+        },
+    }
+    source, assigned, target = [
+        tmp_path / name
+        for name in ("source.aseprite", "assigned.aseprite", "target.aseprite")
+    ]
+    _native(runtime, source, action="create", p3_sample="true")
+    first = profiles[source_identity]
+    second = profiles["cc0" if source_identity == "apple" else "apple"]
+    assert _run("assign-color-profile", source, assigned, first)[0] == 0
+    before = assigned.read_bytes()
+    target.write_bytes(b"existing Target")
+    code, result = _run("convert-color-profile", assigned, target, second)
+    assert code != 0 and result["code"] == "color_profile_file_failed", result
+    assert result["details"]["reason"] == "unsupported_conversion"
+    steps = [
+        {"operation": "sprite assign-color-profile", "input": {"profile": first}},
+        {"operation": "sprite convert-color-profile", "input": {"profile": second}},
+    ]
+    code, result = _plan(source, target, steps)
+    assert code != 0 and result["details"]["reason"] == "unsupported_conversion", result
+    assert result["details"]["step_number"] == 2
+    assert assigned.read_bytes() == before
+    assert target.read_bytes() == b"existing Target"
+
+
+def test_native_identity_digest_matches_independent_complete_byte_hashes(
+    tmp_path: Path, runtime
+):
+    import hashlib
+
+    payloads = [
+        b"",
+        b"abc",
+        b"a" * 55,
+        b"a" * 56,
+        b"a" * 63,
+        b"a" * 64,
+        b"a" * 65,
+        bytes(range(256)),
+    ]
+    inputs = []
+    for index, payload in enumerate(payloads):
+        path = tmp_path / f"payload-{index}"
+        path.write_bytes(payload)
+        inputs.append(str(path))
+    index = tmp_path / "inputs.json"
+    index.write_text(json.dumps(inputs))
+    observed = _native(
+        runtime,
+        index,
+        fixture="profile_digest.lua",
+        digest=str(files("spa.kernel").joinpath("foundation/digest.lua")),
+    )
+    assert observed["sha256"] == [
+        hashlib.sha256(payload).hexdigest() for payload in payloads
+    ]

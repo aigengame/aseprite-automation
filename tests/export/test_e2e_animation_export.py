@@ -200,9 +200,9 @@ def test_sequence_preserves_native_mode_alpha_and_full_palette(
     "mode,profile",
     [
         ("rgb", "linear_srgb"),
-        ("rgb", "display_p3"),
+        ("rgb", "display_p3_cc0"),
         ("indexed", "linear_srgb"),
-        ("indexed", "display_p3"),
+        ("indexed", "display_p3_cc0"),
         ("grayscale", "srgb"),
     ],
 )

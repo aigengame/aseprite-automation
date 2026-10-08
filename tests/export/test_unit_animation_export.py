@@ -422,7 +422,7 @@ def test_unknown_icc_identity_cannot_become_an_admitted_animation_profile(
     case.resolution.update(color_profile="icc", icc_identity=None)
     if file_format == "png":
         profile = bytearray(
-            Path("src/spa/kernel/color/profiles/display_p3.icc").read_bytes()
+            Path("src/spa/kernel/color/profiles/display_p3_cc0.icc").read_bytes()
         )
         # A valid profile with a changed rendering intent has no packaged exact identity.
         profile[67] = (profile[67] + 1) % 4

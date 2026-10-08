@@ -264,4 +264,6 @@ The [authority matrix](https://github.com/aigengame/aseprite-automation/blob/dev
 
 SPA-owned code and documentation use the
 [MIT license](https://github.com/aigengame/aseprite-automation/blob/dev/LICENSE).
+Bundled third-party resources have their own
+[notices](https://github.com/aigengame/aseprite-automation/blob/main/THIRD_PARTY_NOTICES.md).
 Aseprite is a separate product with its own [license](https://www.aseprite.org/faq/#is-aseprite-free).
