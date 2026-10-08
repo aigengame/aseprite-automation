@@ -58,7 +58,13 @@ None. Destination Profile and input Profile must match:
 | --- | --- |
 | No encoded color definition | None |
 | Valid sRGB, optionally accompanied by the standard matching gAMA/cHRM values | sRGB |
-| Valid iCCP with exact packaged `linear_srgb` or `display_p3` bytes | The same ICC identity |
+| Valid iCCP whose complete bytes match an admitted [Color Profile identity](../../src/spa/kernel/color/profiles/identities.json) | The same ICC identity |
+
+Admission does not require a bundled reference. The current packaged references
+are `linear_srgb` and `display_p3_cc0`; `display_p3` remains available only from
+caller-supplied bytes. See the [#194 replacement evidence](issue-194-redistributable-profile.md)
+for this resource change and its validation. Earlier #46 runtime receipts remain
+historical evidence for their tested inputs.
 
 An unlisted ICC, conflicting sRGB metadata, standalone gAMA/cHRM, ICC combined
 with gAMA/cHRM, cICP, mDCV, cLLI, and eXIf are refused. These exclusions are the
