@@ -5,8 +5,6 @@ import json
 import os
 import shutil
 import struct
-import subprocess
-import tempfile
 from copy import deepcopy
 from pathlib import Path
 
@@ -14,72 +12,11 @@ import pytest
 from jsonschema import Draft202012Validator, validate
 from PIL import Image, ImageCms
 
-from spa.adapters.aseprite.aseprite import probe
-from spa.adapters.aseprite.invocation import prepare_invocation
-from spa.application.surface import PROBE_RESOURCES
-from spa.contracts.public import RuntimeRequest
-from tests.support import process_diagnostics, spa
+from tests.export.support import export_image_request as _request
+from tests.export.support import source_sprite as _source
+from tests.support import isolated_wheel_cli, spa
 
 pytestmark = pytest.mark.e2e
-
-
-def _source(
-    tmp_path: Path,
-    fixture_name: str = "rgb_frames.lua",
-    **params: str,
-) -> Path:
-    source = tmp_path / "source.aseprite"
-    observation = probe(
-        RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]),
-        PROBE_RESOURCES,
-    )
-    fixture = Path(__file__).parent / "fixtures" / fixture_name
-    with tempfile.TemporaryDirectory(prefix="spa-export-fixture-") as work:
-        prepared = prepare_invocation(
-            Path(observation.canonical_path),
-            Path(observation.resource_path),
-            Path(work),
-        )
-        run = subprocess.run(
-            [
-                str(prepared.executable),
-                "--batch",
-                "--script-param",
-                f"out={source}",
-                *[
-                    argument
-                    for name, value in params.items()
-                    for argument in ("--script-param", f"{name}={value}")
-                ],
-                "--script",
-                str(fixture),
-            ],
-            text=True,
-            capture_output=True,
-            check=False,
-            env=prepared.environment,
-        )
-    assert run.returncode == 0, process_diagnostics(run)
-    assert source.is_file()
-    return source
-
-
-def _request(
-    source: Path,
-    destination: Path,
-    *,
-    frame_number: int = 1,
-    if_exists: str = "fail",
-) -> dict[str, object]:
-    return {
-        "source_sprite_file": str(source),
-        "destination": {"path": str(destination), "if_exists": if_exists},
-        "frame_number": frame_number,
-        "color_mode": "preserve",
-        "color_profile": "preserve",
-        "transparency": "preserve",
-        "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-    }
 
 
 def test_export_frame_as_verified_visible_rgb_png(tmp_path: Path) -> None:
@@ -99,8 +36,14 @@ def test_export_frame_as_verified_visible_rgb_png(tmp_path: Path) -> None:
     assert result["frame_number"] == 2
     assert result["width"] == 3 and result["height"] == 2
     assert result["color_mode"] == "rgb"
-    assert result["export_image_area"] == "canvas"
-    assert result["layer_composition"] == "visible"
+    assert result["export_image_area"] == {
+        "kind": "canvas",
+        "rectangle": {"x": 0, "y": 0, "width": 3, "height": 2},
+        "slice_index": None,
+        "slice_name": None,
+        "key_frame_number": None,
+    }
+    assert result["layer_composition"] == {"mode": "visible"}
     assert result["color_profile"] == "srgb"
     assert result["alpha_channel"] == {
         "present": True,
@@ -245,57 +188,71 @@ def test_export_opaque_background_preserves_rgb_values(tmp_path: Path) -> None:
     assert run.returncode == 0, run.stdout
     result = json.loads(run.stdout)
     assert result["alpha_channel"] == {
-        "present": True,
+        "present": False,
         "minimum": 255,
         "maximum": 255,
     }
     with Image.open(destination) as image:
         image.load()
-        assert image.mode == "RGBA"
-        assert image.getpixel((0, 0)) == (10, 20, 30, 255)
-        assert image.getpixel((1, 0)) == (40, 50, 60, 255)
+        assert image.mode == "RGB"
+        assert image.getpixel((0, 0)) == (10, 20, 30)
+        assert image.getpixel((1, 0)) == (40, 50, 60)
 
 
 @pytest.mark.parametrize("mode", ["grayscale", "indexed"])
-def test_export_rejects_unsupported_source_color_modes(
+def test_export_preserves_grayscale_and_indexed_source_color_modes(
     tmp_path: Path, mode: str
 ) -> None:
     source = _source(tmp_path, "rgb_profile_alpha.lua", mode=mode)
-    destination = tmp_path / "unsupported.png"
+    destination = tmp_path / "preserved.png"
 
     run = spa(
         "export", "image", "--input-json", json.dumps(_request(source, destination))
     )
 
-    assert run.returncode != 0
-    assert json.loads(run.stdout)["code"] == "kernel_execution_failed"
-    assert not destination.exists()
+    assert run.returncode == 0, run.stdout
+    result = json.loads(run.stdout)
+    assert result["source_color_mode"] == mode
+    assert result["color_mode"] == mode
+    assert result["composition_color_mode"] == "preserve"
+    with Image.open(destination) as image:
+        image.load()
+        assert image.mode == ("LA" if mode == "grayscale" else "P")
+        assert image.convert("RGBA").getpixel((0, 0)) == (
+            (90, 90, 90, 127) if mode == "grayscale" else (11, 22, 33, 127)
+        )
+        assert image.convert("RGBA").getpixel((1, 0))[3] == 0
     assert not list(tmp_path.glob("*.staged.png"))
+    assert not list(tmp_path.glob("*.staged.rgba"))
 
 
 @pytest.mark.parametrize("arrangement", ["visible", "hidden_layer", "hidden_group"])
-def test_export_rejects_tilemap_image_before_encoding(
+def test_export_composes_visible_tilemap_image(
     tmp_path: Path, arrangement: str
 ) -> None:
     source = _source(tmp_path, "rgb_tilemap.lua", arrangement=arrangement)
     source_sha = hashlib.sha256(source.read_bytes()).hexdigest()
-    destination = tmp_path / "unsupported.png"
+    destination = tmp_path / "tilemap.png"
     request = _request(source, destination)
     schema = json.loads(spa("export", "image", "--schema").stdout)
     validate(request, schema["request_schema"])
 
     run = spa("export", "image", "--input-json", json.dumps(request))
 
-    assert run.returncode != 0
-    failure = json.loads(run.stdout)
-    validate(failure, schema["failure_schema"])
-    assert failure["code"] == "kernel_execution_failed"
-    assert not destination.exists()
+    assert run.returncode == 0, run.stdout
+    result = json.loads(run.stdout)
+    validate(result, schema["result_schema"])
+    assert result["layer_composition"] == {"mode": "visible"}
+    with Image.open(destination) as image:
+        image.load()
+        assert image.convert("RGBA").getpixel((0, 0)) == (
+            (250, 0, 0, 255) if arrangement == "visible" else (0, 0, 0, 0)
+        )
     assert not list(tmp_path.glob("*.staged.png"))
     assert hashlib.sha256(source.read_bytes()).hexdigest() == source_sha
 
 
-def test_export_rejects_icc_source_before_encoding(tmp_path: Path) -> None:
+def test_export_rejects_unlisted_icc_source_before_encoding(tmp_path: Path) -> None:
     icc_file = tmp_path / "profile.icc"
     icc_file.write_bytes(
         ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
@@ -310,7 +267,7 @@ def test_export_rejects_icc_source_before_encoding(tmp_path: Path) -> None:
     )
 
     assert run.returncode != 0
-    assert json.loads(run.stdout)["code"] == "kernel_execution_failed"
+    assert json.loads(run.stdout)["code"] == "export_image_invalid"
     assert not destination.exists()
     assert not list(tmp_path.glob("*.staged.png"))
 
@@ -390,7 +347,7 @@ def test_export_rejects_out_of_range_frame_before_encoding(tmp_path: Path) -> No
     )
 
     assert run.returncode != 0
-    assert json.loads(run.stdout)["code"] == "kernel_execution_failed"
+    assert json.loads(run.stdout)["code"] == "export_image_invalid"
     assert not destination.exists()
     assert not list(tmp_path.glob("*.staged.png"))
 
@@ -409,7 +366,9 @@ def test_export_uses_native_visible_group_composition(tmp_path: Path) -> None:
         assert image.convert("RGBA").getpixel((0, 0)) == (0, 0, 200, 128)
 
 
-def test_export_schema_refuses_out_of_slice_choices(tmp_path: Path) -> None:
+def test_export_schema_refuses_unsupported_and_incomplete_choices(
+    tmp_path: Path,
+) -> None:
     source = _source(tmp_path)
     destination = tmp_path / "rejected.png"
     accepted = _request(source, destination)
@@ -431,6 +390,10 @@ def test_export_schema_refuses_out_of_slice_choices(tmp_path: Path) -> None:
         ("destination.if_exists", None),
         ("frame_number", 0),
         ("frame_number", None),
+        ("export_image_area", None),
+        ("layer_composition", None),
+        ("composition_color_mode", None),
+        ("composition_color_mode", "grayscale"),
         ("tag", "walk"),
         ("frame_range", [1, 2]),
         ("ignore_empty", True),
@@ -497,10 +460,10 @@ def test_export_cannot_publish_when_source_is_missing(tmp_path: Path) -> None:
     assert not list(tmp_path.glob("*.staged.rgba"))
 
 
-def test_wheel_installed_cli_exports_verified_image(tmp_path: Path) -> None:
-    installed_cli = os.environ.get("SPA_TEST_INSTALLED_CLI")
-    if not installed_cli:
-        pytest.skip("SPA_TEST_INSTALLED_CLI does not select a wheel-installed CLI")
+def test_wheel_installed_cli_exports_verified_image(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    installed_cli = isolated_wheel_cli(tmp_path, monkeypatch)
     source = _source(tmp_path)
     destination = tmp_path / "wheel.png"
 

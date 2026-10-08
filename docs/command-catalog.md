@@ -30,8 +30,11 @@ better Aseprite-aligned evidence.
 | `spa info` | Report the selected Aseprite runtime, resources, version, supported capabilities, and Capability Gaps. |
 | `spa version` | Report the installed SPA version. |
 | `spa schema` | Emit the aggregate installed Surface Manifest. |
-| `spa skill` | Emit or install Agent Skill guidance matched to the installed operation surface. |
 | `spa <group> <command> --schema` | Emit one Operation's request, result, failure, and invocation schemas. |
+
+The [SPA Agent Skill](../skills/spa/SKILL.md) is distributed through the Skills CLI,
+outside the SPA command surface; see
+[ADR-0096](adr/0096-agent-skill-delivery.md).
 
 ## `sprite`
 
@@ -232,7 +235,7 @@ does not add other motion modes or recipe-owned pose and particle behavior.
 | Candidate command | Intended meaning |
 | --- | --- |
 | `spa export image` | Export one Frame and Layer Composition as a verified raster Artifact. |
-| `spa export sheet` | Export sprite-sheet image and typed metadata Artifacts. |
+| `spa export sheet` | Export a Sprite Sheet texture and associated metadata; see [Sprite Sheets](sprite-sheets.md). |
 | `spa export gif` | Export an animated GIF Artifact. |
 | `spa export sequence` | Export an ordered bounded Frame image collection. |
 | `spa export tileset` | Export Tileset image and normalized metadata Artifacts. |
@@ -248,7 +251,12 @@ does not add other motion modes or recipe-owned pose and particle behavior.
 
 | Candidate command | Intended meaning |
 | --- | --- |
-| `spa script run` | Execute exact caller-owned Lua under the documented trust boundary. |
+| `spa script run` | Execute exact caller-owned Lua (`script-run` / `caller-defined`) and report process and declared file facts, outside Operation Plans and Ordinary Core Operation guarantees. |
+
+Issue [#51](https://github.com/aigengame/aseprite-automation/issues/51) owns scope;
+[ADR-0010](adr/0010-lua-operation-kernel-authority.md) records exact source transport.
+Use the installed schema for actual availability and request/result shapes and the [caller-script guide](usage.md#caller-owned-lua)
+for working-directory, output decoding, and process-limit behavior.
 
 ## Preparation
 

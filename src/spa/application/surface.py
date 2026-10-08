@@ -2,6 +2,7 @@
 
 from spa.application.failure_registry import FAILURE_CODES
 from spa.application.plan import PLAN_OPERATIONS
+from spa.application.script import SCRIPT_OPERATIONS
 from spa.authoring.color.color_mode import COLOR_MODE_OPERATIONS, COLOR_MODE_RESOURCE
 from spa.authoring.color.palette import (
     PALETTE_OPERATIONS,
@@ -27,7 +28,7 @@ from spa.authoring.document.layer import LAYER_OPERATIONS, LAYER_SELECT_RESOURCE
 from spa.authoring.document.motion import MOTION_OPERATIONS
 from spa.authoring.document.slice import SLICE_OPERATIONS, slice_capability_gaps
 from spa.authoring.document.sprite import SPRITE_OPERATIONS, SPRITE_PROBE_RESOURCES
-from spa.authoring.document.tag import TAG_OPERATIONS
+from spa.authoring.document.tag import TAG_OPERATIONS, TAG_SELECT_RESOURCE
 from spa.authoring.raster.color_curve import (
     COLOR_CURVE_OPERATIONS,
     COLOR_CURVE_RESOURCE,
@@ -114,14 +115,28 @@ from spa.contracts.public import (
     VersionResult,
     failure_schema,
 )
-from spa.delivery.export import EXPORT_OPERATIONS, EXPORT_PROBE_RESOURCES
+from spa.delivery.animation import (
+    ANIMATION_EXPORT_OPERATIONS,
+    ANIMATION_SUPPORT,
+    GIF_RESOURCE,
+)
+from spa.delivery.export import (
+    EXPORT_OPERATIONS,
+    EXPORT_PROBE_RESOURCES,
+    export_image_capability_gaps,
+)
 from spa.delivery.palette import (
     PALETTE_EXPORT_OPERATIONS,
     palette_export_capability_gaps,
 )
+from spa.delivery.sheet import SHEET_OPERATIONS, SHEET_RESOURCES
+from spa.delivery.tileset import TILESET_EXPORT_OPERATIONS
 from spa.preparation.raster import PREPARATION_OPERATIONS
 
 PROBE_RESOURCES = (
+    ANIMATION_SUPPORT,
+    GIF_RESOURCE,
+    TAG_SELECT_RESOURCE,
     TILESET_LIFECYCLE_PROBE_RESOURCE,
     TILE_LAYER_PROBE_RESOURCE,
     TILE_PROBE_RESOURCE,
@@ -154,6 +169,8 @@ PROBE_RESOURCES = (
     SELECTION_SUPPORT_RESOURCE,
     COMPOSITE_SUPPORT_RESOURCE,
 )
+
+PROBE_RESOURCES = tuple(dict.fromkeys((*PROBE_RESOURCES, *SHEET_RESOURCES)))
 
 KERNEL_RUNTIME_REQUIREMENTS = RuntimeRequirements(
     lua_language="Lua 5.4",
@@ -210,6 +227,12 @@ def _surface(runtime: RuntimeFacts) -> tuple[list[str], list[CapabilityGap]]:
     if "spa palette export" in supported:
         gaps.extend(
             palette_export_capability_gaps(
+                runtime.aseprite_version, runtime.verified_capabilities
+            )
+        )
+    if "spa export image" in supported:
+        gaps.extend(
+            export_image_capability_gaps(
                 runtime.aseprite_version, runtime.verified_capabilities
             )
         )
@@ -356,6 +379,7 @@ META_OPERATIONS = (
 
 OPERATIONS = (
     *META_OPERATIONS,
+    *SCRIPT_OPERATIONS,
     *SPRITE_OPERATIONS,
     *LAYER_OPERATIONS,
     *PAINT_OPERATIONS,
@@ -383,6 +407,9 @@ OPERATIONS = (
     *COLOR_MODE_OPERATIONS,
     *PROFILE_OPERATIONS,
     *EXPORT_OPERATIONS,
+    *ANIMATION_EXPORT_OPERATIONS,
+    *SHEET_OPERATIONS,
+    *TILESET_EXPORT_OPERATIONS,
     *PALETTE_EXPORT_OPERATIONS,
     *ANIMATION_OPERATIONS,
     *PLAN_OPERATIONS,

@@ -1,6 +1,6 @@
 -- Fixed packaged Export Image handler. Runtime files carry data only.
 local kernel_protocol_version = 1
-local exporter = dofile(assert(app.params.export_image_support))
+local exporter = dofile(assert(app.params.export_image_pipeline))
 
 local function execute()
   local request_file = assert(io.open(app.params.request, "rb"))

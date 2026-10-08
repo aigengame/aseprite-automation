@@ -61,7 +61,9 @@ def test_import_restores_native_context_and_preserves_encoded_meaning(
     original_run = aseprite._run
     launches = []
 
-    def context_launch(command, environment, timeout, canonical):
+    def context_launch(
+        command, environment, timeout, canonical, *, working_directory=None
+    ):
         assert command[-2] == "--script"
         launches.append(command[-1])
         command = [
@@ -75,7 +77,13 @@ def test_import_restores_native_context_and_preserves_encoded_meaning(
             "--script",
             str(Path(__file__).parent / "fixtures/import_context.lua"),
         ]
-        return original_run(command, environment, timeout, canonical)
+        return original_run(
+            command,
+            environment,
+            timeout,
+            canonical,
+            working_directory=working_directory,
+        )
 
     monkeypatch.setattr(aseprite, "_run", context_launch)
     result = _dispatch(source, raster, target, runtime, observed_files, aseprite.invoke)

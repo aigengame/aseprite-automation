@@ -28,12 +28,14 @@ with Source and an existing Target preserved.
 | `tests/cli/` | Access Projection through the installed CLI and its in-process projections. |
 | `tests/color_mode/` | Conditional Color Mode choices, native mapping/Dithering, complete Sprite and Plan conversion evidence. |
 | `tests/contracts/` | Shared Published Language rules, including Failure Code registration and Operation Descriptor constraints. |
-| `tests/export/` | Image Export contract, PNG Artifact verification and publication, and real Aseprite output evidence. |
+| `tests/delivery/` | Shared Artifact staging, verification/publication lifecycles, and real filesystem publication boundaries. |
+| `tests/export/` | Image, GIF and PNG sequence Export contracts, independent format verification, and real Aseprite output evidence. |
 | `tests/examples/` | Installed-CLI workflows, deterministic asset production, and checked-in downstream asset agreement. |
 | `tests/frame/` | Frame timing, insertion, Cel copy/link intent, Tag adjustment, and native persistence. |
 | `tests/filter/` | Native Filter application, Channels, Cel targets, Palette basis, state restoration, and verified publication. |
 | `tests/import/` | Encoded PNG facts, compatible native Cel insertion, frozen input identity, and publication refusal. |
 | `tests/layer/` | Layer hierarchy, exact addressing, and native addition evidence. |
+| `tests/mcp/` | MCP protocol projection, CLI process lifecycle, Artifact content, and installed native workflows. |
 | `tests/motion/` | Bounded Cel curve sampling, complete preflight, and persisted pixel/property preservation. |
 | `tests/paint/` | Paint Domain Module contract, bounded mutation evidence, and native Pixel Patch behavior. |
 | `tests/palette/` | Shared Effective Palette resolution over native Frame-based Palette Changes. |
@@ -41,6 +43,7 @@ with Source and an existing Target preserved.
 | `tests/preparation/` | Frozen input/specification checks, geometry and anchors, native preparation, exact PNG facts, reproduction, and publication gates. |
 | `tests/release/` | Release metadata and publication gates. |
 | `tests/runtime/` | Aseprite Runtime Integration, including discovery, launch, private Kernel transport, and real-runtime evidence. |
+| `tests/script/` | Exact caller-owned Lua transport, process/file facts, bounds, and exclusion from core identities and Plans. |
 | `tests/slice/` | Complete Slice Keys and coverage, exact addressing, bounded native authoring, exporter validation, and save/reopen evidence. |
 | `tests/sprite/` | Sprite Domain Module contracts plus real creation, copy, flatten, bounded validation, persisted reopen, structural inspection, and Target Commit evidence. |
 | `tests/tag/` | Tag stored facts, exact current addressing, native mutation, and save/reopen evidence. |
@@ -131,6 +134,56 @@ refuse inconsistent native evidence or output aliases of the raster. These tests
 use the existing local macOS and Linux `--batch --script` lanes without a display;
 they do not exercise the editor UI. Run `pytest tests/import` with the same runtime
 configuration as other native owners.
+
+## Animation export
+
+`tests/export/test_e2e_animation_export.py` exercises the public GIF and PNG sequence
+Operations independently. Native fixtures check explicit and repeated Frames, one
+Tag direction traversal without repeat expansion, full Canvas, occurrence naming,
+PNG Color Mode and alpha, per-Frame Indexed Palettes with Linked Cels, supported
+profiles, GIF duration truncation, infinite looping, and allowed native color loss.
+The accepted representation matrix is documented in the [usage guide](usage.md#export).
+Unknown profiles, unsupported representation combinations and GIF Frames below
+10 ms are refused before publication. ICC-to-sRGB GIF conversion remains conditional
+on the actual runtime's separately observed Color Profile capability; macOS evidence
+does not remove the Linux conversion Capability Gap.
+
+The native `opaque red → fully transparent → opaque green` GIF regression retains
+a bounded macOS arm64 Aseprite 1.3.18.5-dev / API 41 observation: the blank occurrence
+can contain residual opaque pixels. Independent per-Frame alpha verification rejects
+that staged output and preserves any existing final destination. This verifies refusal
+for the observed encoding path, not a limitation across all releases or a repaired GIF.
+Future accepted requirements and reliable native evidence can extend this boundary.
+
+`test_unit_animation_decoders.py` separately verifies encoded PNG samples, Palette,
+profile and transparency facts and GIF blocks, color tables, disposal, timing and
+loop observations, including malformed bytes. Real filesystem tests in
+`tests/delivery/test_integration_artifact_set.py` check complete-set preflight, exact
+regular-file staging, digest tampering, Source alias refusal and allocation cleanup.
+Failure injection after one replacement checks every ordered publication state;
+an exception after a final write reports the current path as `indeterminate`.
+Published files are retained and no successful Artifact set is returned.
+
+PNG ICC tests cover both admitted identities in RGB and Indexed modes. Aseprite's
+`none` backend leaves the loaded ICC display name empty, which libpng rejects as an
+empty iCCP keyword. Export assigns a nonempty label to the private PNG container's
+profile copy. This changes neither the Source nor the ICC payload; independent
+decoding still requires exact ICC bytes. The converter capability is unrelated to
+this encoding label.
+
+`tests/export/test_e2e_wizard_animation_export.py` reuses the retained v2 Sources and
+delivery PNGs. It exports all 193 retained outputs: 32 Frames each for Scene,
+Background, Wizard, Gem, Burst and Projectile, plus the single Target Frame.
+Ten additional Gem and Projectile occurrences check repeated and nonmonotonic
+playback around blank Frames, scale pulses and emission. The tests independently
+compare all 203 PNGs, filenames, playback, profiles and Source bytes. A separate
+five-occurrence Gem GIF checks binary alpha, duration, infinite looping and exact
+visible colors on that finite fixture. These are bounded `e2e` batch tests in
+`e2e and not slow`; they reuse the saved Sources without rebuilding the authoring
+recipe, running Godot, or claiming visual/play acceptance. Fetch the retained Git
+LFS assets first.
+Run `pytest tests/export tests/delivery` with the normal `SPA_TEST_ASEPRITE`
+configuration. Results apply to the actual tested runtime and platform.
 
 ## Verification tiers
 
@@ -260,6 +313,14 @@ Use a new output directory for each run. For complete installed-wheel CLI covera
 build the current wheel, install it with the locked runtime dependencies in a separate
 environment, and set `SPA_TEST_INSTALLED_CLI` to that environment's `bin/spa`. Otherwise
 the existing wheel-only cases report their environment skips.
+
+The [installed distribution record](evidence/issue-54-installed-distributions.md)
+defines the bounded macOS/Linux profiles, the isolated-wheel replay, and the
+remaining Linux evidence requirement. `scripts/verify_installed_cli.py` rejects
+editable/source-tree imports and checks all packaged Kernel resources. Both the
+distribution smoke action and the Linux native action reuse that verifier. The
+native wheel cases cover `info`, Plan creation/painting/inspection, PNG export
+and a typed failure; they run consumer calls outside the checkout.
 
 ### Shared native parallel execution
 
@@ -815,3 +876,72 @@ through the installed info/schema surface. No Convolution callable capability is
 inferred from a resource name or a small successful probe. The evidence record is
 [issue-39-native-filters.md](evidence/issue-39-native-filters.md). Batch/native-command
 parity and any local windowed comparison are reported separately there.
+
+
+## Tileset atlas and normalized map export
+
+`tests/export/test_e2e_tileset_export.py` exercises `spa export tileset` with a real
+Aseprite process. It verifies complete Tileset coverage, unused keyed Tiles, Tile 0,
+explicit-column layout and padding, Cel-local regions and placement flags, exact RGB
+and Grayscale channels, and Indexed Frame-based Palette selection. The Indexed fixture
+has two Palette Changes, a nonzero Transparent Color Index, duplicate and unused
+entries, and partial alpha. A 257-color RGB Tile guards against implicit quantization.
+The accepted Profile matrix includes None and sRGB in all three modes, and the fixed
+linear-sRGB/Display P3 ICC files in RGB/Indexed. Grayscale with these ICC files and
+other Profiles are refused before publication. Tests independently decode PNG and JSON
+and check Source bytes after execution.
+
+Fast integration tests corrupt staged outputs and inject publication failures through
+the Kernel/File boundaries. They verify that missing, malformed or inconsistent pairs
+never publish, and that failure after the image publishes reports both path states
+without rollback or cleanup. The native suite uses batch scripting and requires no
+windowed UI. Evidence applies to the runtime on which it was executed; these tests do
+not establish a separate Aseprite version matrix.
+
+```sh
+uv run --frozen --group test pytest tests/export -m "not e2e"
+SPA_TEST_ASEPRITE=/absolute/path/to/aseprite \
+  uv run --frozen --group test pytest tests/export/test_e2e_tileset_export.py -x -vv --tb=short -rs
+```
+
+
+## Caller-owned Lua
+
+Issue #51 tests the separate installed `spa script run` path. Contract tests cover
+all Execution Kind / Determinism pairings in both model validation and JSON Schema.
+Installed discovery reports `script-run` / `caller-defined`, while request and Plan
+tests prevent caller source or printed JSON from becoming an Ordinary Core Operation.
+
+Controlled process tests cover timeout (including early closure of both output
+streams), the 65,536-byte per-stream guard, nonzero exit, exact UTF-8 materialization,
+and typed failures. Real batch E2E covers native Lua and syntax errors, unchanged
+BOM rejection, file bytes and CRLF preservation, script-relative `require`, explicit
+parameters, binary-to-text replacement, and declared file facts. These are batch
+tests, with no windowed UI requirement or claim. Current macOS and Linux profiles
+run them through the existing `e2e and not slow` selection; one profile's evidence
+does not establish the other.
+
+```sh
+uv run --frozen --group test pytest tests/script tests/contracts/test_unit_determinism.py -m "not e2e"
+SPA_TEST_ASEPRITE=/absolute/path/to/aseprite \
+  uv run --frozen --group test pytest tests/script -m e2e -x -vv --tb=short
+```
+
+## MCP Access Projection
+
+`tests/mcp/` uses real stdio clients pinned separately to `2026-07-28` and the
+SDK legacy `2025-11-25` path. Controlled CLI subprocesses test wire projection,
+diagnostics and cleanup. The native tests compare every tool schema with the
+installed Manifest, then create, inspect, validate and export through real
+Aseprite. They decode ImageContent and compare bytes, digest and pixels; ordinary
+fast tests cover removed/changed Artifact files and distinguish projection failure
+from a completed Operation.
+
+```sh
+SPA_TEST_ASEPRITE=/absolute/path/to/aseprite \
+  uv run --frozen --group test pytest tests/mcp -q
+```
+
+The test dependency group includes the optional MCP SDK. Routine CI still runs
+`not e2e`; the installed native paths join the existing `e2e and not slow` selection.
+No new workflow, example rebuild or automatic native trigger is added.

@@ -22,7 +22,7 @@ this view instead of treating it as another decision authority.
 > application, native Snapshot composition (`spa paint composite`), native Line,
 > Rectangle, Ellipse, Contour, and Blur Paint operations, native Brightness/Contrast,
 > frozen raster preparation with RGBA/Indexed PNG delivery, verified RGB
-> PNG Image Export, animation audit, Frame comparison, and continuity Preview
+> PNG Image Export, verified PNG/JSON Sprite Sheets, animation audit, Frame comparison, and continuity Preview
 > export. The module
 > ownership below includes both this delivered vertical slice and planned work. Feature
 > issues own delivery status, while the installed Surface Manifest reports the callable
@@ -55,7 +55,7 @@ flowchart TB
 
     subgraph SPA[Sprite Automation Bounded Context]
         direction TB
-        Access["Access Projection<br/>Agent Skill · planned MCP Adapter · spa CLI"]
+        Access["Access Projection<br/>Agent Skill · MCP Adapter · spa CLI"]
         Access --> App[Application use cases]
         App --> Core[Core and Supporting domain responsibilities]
         App --> Runtime["Aseprite Runtime<br/>Integration"]
@@ -94,7 +94,7 @@ discover
 
 The create/edit and inspect/validate steps repeat as the agent refines an asset.
 
-The `spa` CLI is the first Open Host Service. The Agent Skill and planned initial Model
+The `spa` CLI is the first Open Host Service. The Agent Skill and Model
 Context Protocol (MCP) adapter project the installed CLI surface instead of defining
 parallel behavior. The current delivery plan does not include a standalone REST API or
 remote HTTP service. HTTP is not excluded as a future transport: a validated functional
@@ -245,7 +245,7 @@ flowchart TB
 
 Solid arrows show permitted source dependency and inward invocation direction. CLI and
 MCP are sibling adapters to the same Descriptor-projected Application contract; neither
-has a source dependency on the other. In the planned initial runtime path, MCP reaches that
+has a source dependency on the other. In the initial runtime path, MCP reaches that
 contract through the installed CLI subprocess shown below. Within Application, Dispatch
 invokes the selected use case, Plan coordinates Domain behavior, and Commit uses
 inner-owned ports. Within Outbound, each adapter depends on the applicable inner-owned
@@ -301,7 +301,7 @@ Sprite creation and inspection slice extends that same stack.
 | Ordinary Core Operations | Packaged Lua handlers | Core Operation Semantics and native mapping executed through Aseprite. The current package contains a fixed runtime probe, shared capability observations, Sprite creation, inspection, native flattening, resize and crop, Layer addressing and mutation, Frame inspection, authoring, and editing, Cel inspection, lifecycle, placement, and native relationships, Cel-targeted Image resize, crop, canvas-resize, flip, and quarter-turn rotation, canonical Image reads and replacement, Tag inspection and authoring, exact Pixel Patch, native Snapshot composition, native Line, Rectangle, Ellipse, Contour, and Blur Paint, animation audit, Frame comparison, continuity Preview, Export Image, and Operation Plan handlers. Sprite copy uses the File Adapter for byte preservation and the packaged inspection handler for verification. |
 | Aseprite integration | External `aseprite --batch --script` | Native document, Tool, Filter, color, and export behavior. |
 | Private transport | Versioned JSON request and response files | Data exchange through `--script-param`, separate from diagnostics. |
-| Agent access | Version-matched Agent Skill and planned local stdio MCP Adapter with CLI subprocess invocation | Guidance and equivalent tool projection from the installed surface. |
+| Agent access | Agent Skill distribution through the Skills CLI and local stdio MCP Adapter with CLI subprocess invocation | Self-contained guidance and equivalent tool projection from the installed surface. |
 
 These choices can change when implementation or distribution evidence requires it.
 The Bounded Context, Published Language, and behavior authority do not depend on one
@@ -486,13 +486,54 @@ filesystem mechanics; the PNG Artifact Verifier decodes bytes independently.
 Each caller invokes its own native handler and validates its own native facts model.
 It supplies its expected-facts verdict to `verify`, performs any remaining domain
 postconditions, then explicitly calls `publish`. Result models and Artifact roles
-remain with their callers. Export Image's separate invalid-alpha-bounds postcondition
-still follows common Artifact checks; Animation Preview retains that check as an
-Artifact verification failure. The scope adds no native invocation or rendering.
+remain with their callers. Export Image verifies the decoded Color Mode, stored
+content, complete Palette, and exact ICC identity before publication. All callers
+compare native alpha observations against independently decoded pixels. The scope
+adds no native invocation or rendering.
 Selection Preview and other Artifact formats retain their existing paths.
+Static Image Export extends its existing Descriptor through `export_contracts`,
+`export`, and `export_verification`. Its private Lua pipeline resolves one Frame,
+Canvas/Rectangle/effective Slice Key, and shared Layer Composition. It then composes
+existing Color Profile, Palette import/quantization, Color Mode, and Background
+owners in the order defined by ADR-0094. These owners retain their rules and refusals.
+The derived Sprite retains effective Background context for native PNG encoding;
+`Image:saveAs` alone would lose that context. Source snapshots are compared and editor
+state is restored before returning. Palette-file input preparation is shared with Palette
+Import; the independent decoder checks the native imported entries. No second
+color engine, configurable pipeline, or new Plan Step is introduced.
+Sprite Sheet export uses the existing Layer Composition and Color Profile owners to
+prepare native per-Frame samples before Aseprite performs layout and encoding.
+`spa.delivery.sheet_verification` compares independently decoded PNG/JSON against
+those samples for every logical Frame, including shared physical rectangles.
+The Delivery use case gates publication on complete-pair verification.
+`sheet_publication` owns the fixed pair and auxiliary staging paths,
+image-then-metadata order, and partial-publication facts. File mechanics remain with
+the same inner-owned Artifact Files port.
 The same distinction applies when a domain-specific observation produces an Artifact:
 the observed concept retains its semantic owner. No duplicate exporter or verifier is
 introduced by the strategic classification.
+
+GIF and PNG sequence have separate Operation Descriptors and runtime gates under
+Asset Delivery. `spa.delivery.animation` owns their staging lifecycle, request/Kernel/
+decoded comparisons, and Result projection; `animation_contracts.py` contains their
+request, observation, and Result DTOs. Both reuse existing Frame/Tag addressing,
+Layer Composition, and Color Profile owners. `composition.resolve` supplies shared
+selection facts for preflight and rendering instead of a separate exporter selector.
+The fixed `kernel/delivery/animation_export_support.lua` resolves playback and the
+complete destination names, then renders and encodes through native Aseprite.
+`animation_gif.lua` builds a private RGB timeline for native GIF encoding; PNG retains
+Source Color Mode, per-Frame Effective Palette, and effective Background context.
+These temporary Sprites do not mutate the Source.
+
+The inner-owned `ArtifactSets` port separates file mechanics from semantic verification.
+`LocalArtifactSets` reuses `LocalArtifactFiles` for path normalization, Source identity,
+byte reads, digest binding and publication. It preflights the complete bounded
+set, allocates separate output and evidence directories, enumerates the actual output
+set, and publishes in resolved order. `adapters/sequence_png.py` and `adapters/gif.py`
+independently decode typed format facts through `contracts/encoded_animation.py`.
+The Application compares those observations with native composition, timing, profile,
+Palette and cross-file expectations before passing the verified digests to publication.
+No decoder defines expected Sprite semantics or repairs encoded bytes.
 
 Image Get, Tile Get, and Tilemap Get share `spa.delivery.snapshot_publication` for
 their single JSON Snapshot Artifact. Its `staged_snapshot` scope owns destination
@@ -536,8 +577,10 @@ callable Operations.
 ```text
 src/spa/
   __init__.py
-  bootstrap.py            # composition and installed entry point
+  bootstrap.py            # CLI composition and installed entry point
+  mcp_bootstrap.py         # optional MCP stdio composition
   access/
+    mcp/                  # Manifest tool projection, CLI subprocesses, PNG content
     cli.py                # Descriptor-derived command projection
   application/
     dispatch.py           # dispatch and outcome classification
@@ -549,6 +592,8 @@ src/spa/
     public.py, operation.py, ports.py
     mutation.py           # Source/Target identity and Target Commit contracts
     artifact.py           # shared publication/verification failure details
+    artifact_set.py       # bounded destination staging and per-path publication states
+    encoded_animation.py  # independent PNG/GIF observed format facts
     snapshot.py           # explicit destination for complete JSON Snapshot transport
     digest.py             # one shared native evidence digest binding
     raster.py, rounding.py # shared values and their native bindings
@@ -573,12 +618,21 @@ src/spa/
     contracts.py          # explicit Preparation Specification, geometry, and reproduction facts
     raster.py             # frozen input admission, native composition, verified Artifact publication
   delivery/
-    export.py             # Export Image contract, native invocation, and result
+    export.py             # Static export composition and verified publication
+    export_contracts.py   # Explicit static PNG choices and native facts
+    export_verification.py # Bind decoded PNG to native samples and export choices
+    animation.py          # GIF/PNG sequence lifecycles and semantic comparisons
+    animation_contracts.py # animation export request, observation, and Result DTOs
+    sheet.py, sheet_contracts.py # Sprite Sheet use case and explicit pair contract
+    sheet_verification.py # independent sheet evidence comparisons for every logical Frame
+    sheet_publication.py  # fixed pair staging, auxiliary cleanup, and publication outcomes
     palette.py            # verified Palette file export and explicit generation composition
     png_publication.py    # staged PNG verification/publication for Export, Preview, Preparation
   adapters/
     aseprite/             # process, resource discovery, and transport
     files.py, png.py       # filesystem mechanics and export PNG verification
+    artifact_set.py        # complete set preflight, staging, ordered publication
+    sequence_png.py, gif.py # independent encoded animation observations
     png_input.py           # independent encoded PNG input facts and pixels
     icc.py                # ICC byte validation and digest, without color transforms
     palette_file.py       # independent GPL/Indexed PNG observations, not a color engine
@@ -592,7 +646,7 @@ src/spa/
     tile/                 # Tileset identity, topology, validation, complete Tile Regions
     color/                # Palette semantics, native Color Mode and Color Profile operations
     preparation/          # fixed composition of existing Raster and Color owners
-    delivery/             # native Image Export
+    delivery/             # native Image, Sheet, Tileset, GIF and PNG sequence Export
     runtime/              # runtime and capability probes
       fixtures/           # real native probe inputs
     plan/                 # single-Sprite Plan execution
@@ -904,7 +958,15 @@ application-composed capability can order packaged semantic entry points through
 own fixed handler without redefining their semantics. `script run` uses a separate caller-script
 path. SPA registration, identity resolution, and Ordinary Core Operation dispatch cannot
 use that path to replace, override, rewrite, proxy, or bypass an existing Ordinary Core
-Operation.
+Operation. The Application-owned `script.py` use case calls the inner-owned
+`CallerScriptInvoker` port in `contracts/caller_script.py`; the Aseprite Adapter
+owns exact source transport and process observations. After successful invocation,
+Application obtains declared-path facts through the inner-owned `ScriptFileObserver`
+contract, implemented by the File Adapter in `adapters/files.py`. The caller-script
+invocation port does not use `PackagedHandler` or the Kernel response protocol. The
+caller cannot supply an Operation identity or execution metadata. Script output
+remains diagnostics under
+the validated `spa script run` result or registered failure.
 
 Every Descriptor declares Operation Determinism. `deterministic` and
 `native-stochastic` apply to `read`, `mutation`, and `export`; only `script-run` can
@@ -932,8 +994,8 @@ flowchart TB
     AppPath ~~~ Binding
     Binding ~~~ ScriptPath
     Manifest --> MCPTool[MCP tool projection]
-    SkillDocs[Version-matched Agent Skill] -. teaches .-> CLICommand
-    Manifest -. installed capability checks .-> SkillDocs
+    SkillDocs[Agent Skill guidance] -. teaches .-> CLICommand
+    Manifest -. read by the agent following Skill guidance .-> SkillDocs
 ```
 
 The installed Surface Manifest reports the callable Operations, schemas, execution
@@ -1050,14 +1112,29 @@ history, or cross-command recovery system.
 - The **CLI** is the first public execution channel for the public `spa` CLI
   JSON contract.
 - The **Agent Skill** teaches discovery and the edit-observe-verify-export loop for the
-  installed surface.
+  installed surface. The [SPA Skill](skills/spa/SKILL.md) contains the self-contained instructions that let the
+  consuming agent determine applicability from installed schemas and typed outcomes.
 - The **MCP Adapter** reads the Surface Manifest, invokes `spa`, and relays equivalent
   requests and outcomes.
 
-The planned initial MCP slice uses stdio between the MCP client and adapter. The adapter invokes
-the installed `spa` CLI as a subprocess; it does not require a REST or HTTP intermediary.
-MCP image and resource content is projected through MCP itself and does not require an
-HTTP file service.
+[ADR-0096](docs/adr/0096-agent-skill-delivery.md) delegates Skill discovery, installation,
+updates, and version management to the Skills CLI. SPA adds no `spa skill` command,
+wheel copy of the Skill, or external Skill-to-CLI compatibility checker. The Python
+package and native runtime keep their existing installation and execution checks.
+
+The MCP slice uses stdio through the optional `spa-mcp` bootstrap. It invokes the
+selected installed CLI for both schema discovery and calls. The SDK owns modern
+`2026-07-28` discovery and legacy `2025-11-25` initialization. The adapter adds no
+current-Sprite or cross-call session state. [ADR-0097](docs/adr/0097-mcp-cli-projection.md)
+records this boundary; [usage](docs/mcp.md) documents installation.
+
+`access/mcp/server.py` maps Manifest Operations to tools. `access/mcp/cli.py` owns
+JSON subprocess invocation and cancellation cleanup. `access/mcp/content.py` checks
+published outcome schemas and projects PNG Artifact bytes after size/digest/format
+verification. These owners have no source dependency on CLI execution internals,
+Application or Kernel modules. `mcp_bootstrap.py` selects the CLI/runtime and wires
+stdio. A projection failure preserves the completed CLI Result and reports its own
+diagnostic. The slice offers no resource browser or HTTP file service.
 
 MCP does not call the Lua Kernel directly and does not own schemas, failure meanings, or
 feature taxonomy. A later MCP Streamable HTTP transport or bounded HTTP resource adapter
@@ -1205,12 +1282,50 @@ Color Profile, Palette preparation, Color Mode, transparency or Background behav
 and File Format encoding. Other export families own their own feature contracts. Export
 never mutates the Source Sprite.
 
+For GIF and PNG sequence, explicit Frames retain occurrence order and duplicates;
+an exactly addressed Tag produces one direction traversal without expanding stored
+repeats or nested Tags. PNG names use one bounded native occurrence ordinal, and
+all occurrences share the full Canvas. Separate format comparisons preserve PNG
+native Color Mode, per-Frame Palette and Background-sensitive mask rules while GIF
+uses native RGB visual composition, lossy quantization, binary alpha, centisecond
+truncation and an infinite encoded loop. ICC-to-sRGB GIF conversion requires the
+Color Profile owner's observed runtime capability. An opaque-to-blank native GIF
+that fails independent alpha verification stays in staging and is not published.
+The current support matrix and limits are described in the [usage guide](docs/usage.md#export)
+and constrained by the installed Operation Descriptors; local native evidence is not
+a cross-platform or cross-release promise. These exports are not Plan Steps.
+
+`delivery/tileset.py` coordinates one Tileset atlas and normalized map pair.
+`tileset_contracts.py` defines its projection and validates complete Tile coverage,
+keyed placement correspondence, and explicit Grid mapping. Tile Authoring retains
+Tileset/Tile identity and canonical Tile Region Snapshot ownership; Delivery calls
+those Lua helpers directly. The native handler copies Tile Images with `BlendMode.SRC`
+into one atlas and uses the existing Image encoder with the selected Frame's Effective
+Palette. Color and Palette owns Profile restoration and exact ICC identity.
+The PNG adapter shares structural decoding across its existing input subset and the
+RGB/Grayscale/Indexed Artifact subset. Delivery compares decoded Tile regions with
+original native Tile Image digests and parses the separate JSON against native and
+request facts. The File Adapter publishes the validated finite pair in caller order
+and records partial publication; it has no Tile or PNG semantics.
+
+Sheet, Tileset, and PNG sequence export share `png_color_space()` in
+`kernel/delivery/export_image_support.lua`. It copies the native ColorSpace and
+uses the admitted ICC identity as the PNG iCCP keyword. Backend display names can
+be empty or invalid PNG keywords. This changes only the output label: it preserves
+the ICC payload and Source profile, performs no color conversion, and adds no Image
+copy. Each exporter retains its profile admission and independent byte/pixel checks;
+Color and Palette remains the owner of profile identity and conversion semantics.
+
 A successful result reports the complete declared output set. When an Export has
 several final paths, SPA publishes them in a deterministic order. A failure after a
 final path changed returns `partial_publication` with the known state of every declared
 destination and whether a published path replaced an existing file. SPA does not return
 a successful Artifact set, restore replaced files, remove published files, or promise
-filesystem atomicity or a general recovery mechanism. A hard interruption can leave
+filesystem atomicity or a general recovery mechanism. The shared failure contract in
+`contracts/artifact.py` uses `existed_before` for each destination's prior existence
+and requires `replaced_existing` when its state is `published`. The single failure
+registration serves Tileset, Sheet, GIF, and PNG sequence output.
+A hard interruption can leave
 the final state indeterminate; a later request observes existing paths through its
 normal explicit `if_exists` policy.
 
@@ -1284,6 +1399,7 @@ This map is navigation, not a second decision record.
 | --- | --- |
 | Strategic-context decisions and rationale; current model in `CONTEXT.md` | [ADR-0001](docs/adr/0001-single-sprite-automation-context.md), [ADR-0007](docs/adr/0007-demand-driven-nfrs.md), [ADR-0009](docs/adr/0009-command-groups-and-domain-modules.md), [ADR-0095](docs/adr/0095-asset-preparation-authoring-and-delivery.md) |
 | Operation contract, Plan, targets, limits, and outcomes | [ADR-0002](docs/adr/0002-operation-descriptor-authority.md), [ADR-0003](docs/adr/0003-operation-plan-boundary.md), [ADR-0006](docs/adr/0006-operation-targets-and-identity.md), [ADR-0008](docs/adr/0008-operation-owned-bounds.md), [ADR-0013](docs/adr/0013-result-and-failure-contract.md) |
+| Agent Skill distribution and self-contained guidance | [ADR-0096](docs/adr/0096-agent-skill-delivery.md) |
 | Kernel authority and mutation publication | [ADR-0010](docs/adr/0010-lua-operation-kernel-authority.md), [ADR-0014](docs/adr/0014-mutation-file-semantics.md) |
 | Document, animation, color, and selection semantics | [ADR-0021](docs/adr/0021-frame-numbering.md), [ADR-0024](docs/adr/0024-color-values-and-conversion.md), [ADR-0025](docs/adr/0025-coordinate-spaces-and-rectangles.md), [ADR-0028](docs/adr/0028-background-layer-and-cels.md), [ADR-0029](docs/adr/0029-selection-as-explicit-value.md), [ADR-0033](docs/adr/0033-tag-playback-semantics.md), [ADR-0035](docs/adr/0035-palette-time-semantics.md), [ADR-0039](docs/adr/0039-slice-model-and-addressing.md) |
 | Raster, Tile, Paint, and Filter semantics | [ADR-0018](docs/adr/0018-raster-authoring-boundary.md), [ADR-0041](docs/adr/0041-tileset-and-tile-identity.md), [ADR-0044](docs/adr/0044-tilemap-and-placement-semantics.md), [ADR-0047](docs/adr/0047-preserve-tile-meaning-across-tileset-lifecycle.md), [ADR-0051](docs/adr/0051-shared-image-resize-transform.md), [ADR-0057](docs/adr/0057-canonical-pixel-region-snapshot.md), [ADR-0060](docs/adr/0060-private-native-tool-invocation.md), [ADR-0066](docs/adr/0066-declare-native-stochastic-operations.md), [ADR-0074](docs/adr/0074-shared-native-filter-semantics.md) |

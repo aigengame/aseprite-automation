@@ -43,6 +43,8 @@ runs:
           "$RUNNER_TEMP/spa-runtime-requirements.txt"
         uv pip install --python "$RUNNER_TEMP/spa-e2e-wheel/bin/python" \
           --no-deps dist/*.whl
+        uv run --frozen python scripts/verify_installed_cli.py \
+          "$RUNNER_TEMP/spa-e2e-wheel/bin/spa"
         echo "SPA_TEST_INSTALLED_CLI=$RUNNER_TEMP/spa-e2e-wheel/bin/spa" >> "$GITHUB_ENV"
 
     - name: Run real Aseprite E2E tests

@@ -14,6 +14,11 @@ from typing import Any, Literal, cast, get_args
 
 from spa.adapters.aseprite.convolution import discover_convolution_resources
 from spa.adapters.aseprite.invocation import prepare_invocation
+from spa.contracts.caller_script import (
+    InlineScript,
+    ScriptInvocationResult,
+    ScriptRunRequest,
+)
 from spa.contracts.ports import (
     DiscoveryEvidence,
     HandlerEvidence,
@@ -22,6 +27,7 @@ from spa.contracts.ports import (
     PackagedHandler,
     PackagedResource,
     ProcessEvidence,
+    RequestIssue,
     ResourceEvidence,
     ResponseEvidence,
     RuntimeCompatibilityEvidence,
@@ -35,6 +41,7 @@ from spa.contracts.public import (
     RuntimeCapability,
     RuntimeCompatibilityDetails,
     RuntimeRequest,
+    ValidationIssue,
 )
 
 KERNEL_PROTOCOL_VERSION = 1
@@ -97,10 +104,16 @@ def _run(
     env: dict[str, str],
     timeout: float,
     canonical_executable: Path,
+    *,
+    working_directory: Path | None = None,
 ) -> tuple[int, Diagnostics]:
     try:
         process = subprocess.Popen(
-            command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=env,
+            cwd=working_directory,
         )
     except OSError as exc:
         raise RuntimeIssue(
@@ -142,7 +155,11 @@ def _run(
         if (timed_out or over_limit) and process.poll() is None:
             process.kill()
         try:
-            status = process.wait(timeout=2)
+            status = process.wait(
+                timeout=2
+                if timed_out or over_limit
+                else max(0, deadline - time.monotonic())
+            )
         except subprocess.TimeoutExpired:
             process.kill()
             status = process.wait()
@@ -262,7 +279,11 @@ def probe(
             str(script),
         ]
         status, diagnostics = _run(
-            command, prepared.environment, request.timeout_seconds, canonical
+            command,
+            prepared.environment,
+            request.timeout_seconds,
+            canonical,
+            working_directory=Path(work),
         )
         if not response_file.is_file():
             if status != 0:
@@ -389,6 +410,8 @@ def invoke(
     handler: PackagedHandler,
     payload: dict[str, Any],
     timeout_seconds: float,
+    *,
+    working_directory: Path | None = None,
 ) -> KernelInvocationResult:
     """Invoke one fixed packaged handler and return its private result object."""
     return _invoke_at(
@@ -397,6 +420,7 @@ def invoke(
         handler,
         payload,
         timeout_seconds,
+        working_directory=working_directory,
     )
 
 
@@ -426,6 +450,7 @@ def _invoke_at(
     timeout_seconds: float,
     *,
     with_capability_probe: bool = False,
+    working_directory: Path | None = None,
 ) -> KernelInvocationResult:
     handler_name = handler.name
     script = files("spa.kernel").joinpath(handler.package_path)
@@ -484,7 +509,11 @@ def _invoke_at(
             str(script),
         ]
         status, diagnostics = _run(
-            command, prepared.environment, timeout_seconds, canonical
+            command,
+            prepared.environment,
+            timeout_seconds,
+            canonical,
+            working_directory=working_directory,
         )
         if not response_file.is_file():
             if status != 0:
@@ -576,3 +605,76 @@ def _invoke_at(
                 ResponseEvidence(response_path=str(response_file)),
                 diagnostics,
             ) from exc
+
+
+def invoke_script(
+    observation: RuntimeObservation, request: ScriptRunRequest
+) -> ScriptInvocationResult:
+    """Run the caller's source without the packaged Kernel protocol or wrappers."""
+    canonical = Path(observation.canonical_path)
+    resource = Path(observation.resource_path)
+    try:
+        working_directory = Path(request.working_directory or Path.cwd()).absolute()
+        if not working_directory.is_dir():
+            raise RequestIssue(
+                [
+                    ValidationIssue(
+                        location=["working_directory"],
+                        code="directory_required",
+                        message="working_directory must be an existing directory",
+                    )
+                ]
+            )
+        script = None
+        if not isinstance(request.script, InlineScript):
+            script = working_directory / request.script.path
+            if not script.is_file() or not os.access(script, os.R_OK):
+                raise RequestIssue(
+                    [
+                        ValidationIssue(
+                            location=["script", "path"],
+                            code="readable_file_required",
+                            message="script.path must be a readable regular file",
+                        )
+                    ]
+                )
+        workspace = tempfile.TemporaryDirectory(prefix="spa-caller-script-")
+    except OSError as exc:
+        raise RuntimeIssue(
+            "launch_failed", str(exc), LaunchEvidence(executable=str(canonical))
+        ) from exc
+    with workspace as work:
+        try:
+            if isinstance(request.script, InlineScript):
+                script = Path(work) / "caller.lua"
+                script.write_bytes(request.script.code.encode("utf-8"))
+        except (OSError, UnicodeError) as exc:
+            raise RuntimeIssue(
+                "launch_failed", str(exc), LaunchEvidence(executable=str(canonical))
+            ) from exc
+        prepared = prepare_invocation(canonical, resource, Path(work))
+        arguments = [str(prepared.executable), "--batch"]
+        for name, value in request.parameters.items():
+            arguments.extend(("--script-param", f"{name}={value}"))
+        assert script is not None
+        arguments.extend(("--script", str(script)))
+        status, diagnostics = _run(
+            arguments,
+            prepared.environment,
+            request.timeout_seconds,
+            canonical,
+            working_directory=working_directory,
+        )
+        if status != 0:
+            raise RuntimeIssue(
+                "process_failed",
+                f"Caller script Aseprite process exited with status {status}",
+                ProcessEvidence(executable=str(canonical), exit_status=status),
+                diagnostics,
+            )
+        return ScriptInvocationResult(
+            executable=str(canonical),
+            working_directory=str(working_directory),
+            output_limit_bytes=OUTPUT_LIMIT_BYTES,
+            diagnostics=diagnostics,
+        )

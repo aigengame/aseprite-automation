@@ -8,9 +8,39 @@ from pathlib import Path
 import pytest
 from jsonschema import validate
 
-from tests.support import spa
+from tests.support import isolated_wheel_cli, spa
 
 pytestmark = pytest.mark.e2e
+
+
+def test_wheel_installed_info_discovers_real_runtime(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    installed_cli = isolated_wheel_cli(tmp_path, monkeypatch)
+    run = spa(
+        "info",
+        "--aseprite",
+        os.environ["SPA_TEST_ASEPRITE"],
+        executable=installed_cli,
+    )
+    assert run.returncode == 0, run.stdout + run.stderr
+    result = json.loads(run.stdout)
+    schema = json.loads(spa("info", "--schema", executable=installed_cli).stdout)
+    validate(result, schema["result_schema"])
+    assert result["status"] == "success"
+    assert result["runtime"]["resource_complete"] is True
+    assert result["runtime"]["canonical_path"] == str(
+        Path(os.environ["SPA_TEST_ASEPRITE"]).resolve()
+    )
+    assert result["runtime"]["verified_prerequisites"] == [
+        "aseprite_scripting",
+        "lua_file_io",
+        "aseprite_json",
+    ]
+    assert (
+        "aseprite_runtime_introspection" in result["runtime"]["verified_capabilities"]
+    )
+    assert all(gap["evidence"] for gap in result["capability_gaps"])
 
 
 def test_slice_authoring_capability_is_verified_by_native_roundtrip() -> None:
@@ -103,6 +133,9 @@ def test_info_reports_installed_runtime() -> None:
         "aseprite_tag_authoring",
         "aseprite_slice_authoring",
         "aseprite_export_image",
+        "aseprite_export_sequence",
+        "aseprite_export_gif",
+        "aseprite_export_sheet",
     ]
     if not conversion_available:
         expected_runtime.remove("aseprite_convert_color_profile")
@@ -111,6 +144,7 @@ def test_info_reports_installed_runtime() -> None:
         "spa info",
         "spa version",
         "spa schema",
+        "spa script run",
         "spa sprite create",
         "spa sprite get",
         "spa sprite copy",
@@ -201,6 +235,10 @@ def test_info_reports_installed_runtime() -> None:
         "spa sprite assign-color-profile",
         "spa sprite convert-color-profile",
         "spa export image",
+        "spa export gif",
+        "spa export sequence",
+        "spa export sheet",
+        "spa export tileset",
         "spa palette export",
         "spa animation audit",
         "spa animation compare",

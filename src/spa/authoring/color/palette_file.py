@@ -22,6 +22,7 @@ from spa.contracts.ports import (
     PackagedHandler,
     PackagedResource,
     PaletteFileError,
+    PaletteFileFacts,
     ResponseEvidence,
     RuntimeIssue,
 )
@@ -114,14 +115,15 @@ def reject_palette_file(invocation: KernelInvocationResult) -> None:
     raise OperationIssue("palette_file_failed", details.message, details)
 
 
-def import_palette(
-    request: PaletteImportRequest, services: OperationServices
-) -> PaletteImportResult:
+def read_palette_file(
+    palette_file: PaletteFileInput, services: OperationServices
+) -> tuple[bytes, PaletteFileFacts]:
+    """Freeze and independently decode the input before native interpretation."""
     files, decode = services.artifact_files, services.decode_palette_file
     assert files is not None and decode is not None, (
         "Palette import requires file services"
     )
-    path = request.palette_file.path
+    path = palette_file.path
     try:
         raw = files.read_input(Path(path))
     except RuntimeIssue as exc:
@@ -133,13 +135,21 @@ def import_palette(
             ),
         ) from exc
     try:
-        decoded = decode(raw, request.palette_file.format)
+        decoded = decode(raw, palette_file.format)
     except PaletteFileError as exc:
         raise OperationIssue(
             "palette_file_failed",
             "Palette file is invalid",
             PaletteFileDetails(path=path, reason="invalid", message=str(exc)),
         ) from exc
+    return raw, decoded
+
+
+def import_palette(
+    request: PaletteImportRequest, services: OperationServices
+) -> PaletteImportResult:
+    raw, decoded = read_palette_file(request.palette_file, services)
+    path = request.palette_file.path
     completion = prepare_mutation(
         services.target_files,
         Path(request.source_sprite_file),

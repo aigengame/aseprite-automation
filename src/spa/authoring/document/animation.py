@@ -549,7 +549,7 @@ def preview_animation(
             earlier_blend_mode=native.earlier_blend_mode,
             earlier_opacity=native.earlier_opacity,
             color_mode=native.color_mode,
-            color_profile=decoded.color_profile,
+            color_profile=native.color_profile,
             alpha_channel=AlphaChannelFacts(
                 present=decoded.alpha_channel_present,
                 minimum=decoded.alpha_min,

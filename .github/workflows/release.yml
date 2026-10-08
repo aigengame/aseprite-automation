@@ -208,13 +208,88 @@ jobs:
           overwrite: true
           retention-days: 30
 
+  publish-pypi:
+    name: Publish verified distributions to PyPI
+    # Fail the release tail explicitly when verification fails, so failed-only
+    # recovery retains the successful draft and the same release artifacts.
+    if: >-
+      always() && !cancelled() &&
+      github.event_name == 'push' &&
+      needs.cut-draft.outputs.release_created == 'true'
+    needs: [cut-draft, verify]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    environment:
+      name: pypi
+      url: https://pypi.org/p/aseprite-automation
+    env:
+      SPA_RELEASE_TAG: ${{ needs.cut-draft.outputs.tag_name }}
+    steps:
+      - name: Require an approved and verified release
+        env:
+          SPA_CUT_RESULT: ${{ needs.cut-draft.result }}
+          SPA_VERIFY_RESULT: ${{ needs.verify.result }}
+          SPA_RELEASE_CREATED: ${{ needs.cut-draft.outputs.release_created }}
+          SPA_RELEASE_SHA: ${{ needs.verify.outputs.release_sha }}
+        shell: bash
+        run: |
+          if [ "$GITHUB_REF" != refs/heads/main ] || \
+             [ "$GITHUB_EVENT_NAME" != push ] || \
+             [ "$SPA_RELEASE_CREATED" != true ] || \
+             [ "$SPA_CUT_RESULT" != success ] || \
+             [ "$SPA_VERIFY_RESULT" != success ] || \
+             [ -z "$SPA_RELEASE_TAG" ] || [ -z "$SPA_RELEASE_SHA" ]; then
+            echo "PyPI requires a reviewed main release with successful exact-SHA verification." >&2
+            echo "Failing explicitly so Re-run failed jobs resumes the release tail." >&2
+            exit 1
+          fi
+
+      - name: Check out only the reviewed release file verifier
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.verify.outputs.release_sha }}
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: scripts/release_distributions.py
+
+      - name: Download the exact-SHA distributions for PyPI
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-distributions-${{ needs.verify.outputs.release_sha }}
+          path: dist/
+
+      # The stdlib verifier reads archives as data. This job never installs SPA,
+      # imports package code, invokes the build backend, or runs project tests.
+      - name: Reject conflicting files before PyPI upload
+        run: python3 -I scripts/release_distributions.py dist --pypi-tag "$SPA_RELEASE_TAG" --allow-missing
+
+      # PyPA writes attestation sidecars into packages-dir. Keep the verified
+      # artifact pair separate for the post-upload check and GitHub publication.
+      - name: Prepare the PyPI upload workspace
+        run: |
+          mkdir pypi-upload
+          cp dist/*.whl dist/*.tar.gz pypi-upload/
+
+      - name: Upload the preserved distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
+        with:
+          packages-dir: pypi-upload/
+          skip-existing: true
+
+      - name: Require the complete matching PyPI release
+        run: python3 -I scripts/release_distributions.py dist --pypi-tag "$SPA_RELEASE_TAG"
+
   publish:
     name: Publish GitHub Release
     if: >-
       always() && !cancelled() &&
       github.event_name == 'push' &&
       needs.cut-draft.outputs.release_created == 'true'
-    needs: [cut-draft, verify]
+    needs: [cut-draft, verify, publish-pypi]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -225,11 +300,13 @@ jobs:
         env:
           SPA_CUT_RESULT: ${{ needs.cut-draft.result }}
           SPA_VERIFY_RESULT: ${{ needs.verify.result }}
+          SPA_PYPI_RESULT: ${{ needs.publish-pypi.result }}
         shell: bash
         run: |
           if [ "$SPA_CUT_RESULT" != "success" ] || \
-             [ "$SPA_VERIFY_RESULT" != "success" ]; then
-            echo "draft result: $SPA_CUT_RESULT; verification result: $SPA_VERIFY_RESULT" >&2
+             [ "$SPA_VERIFY_RESULT" != "success" ] || \
+             [ "$SPA_PYPI_RESULT" != "success" ]; then
+            echo "draft: $SPA_CUT_RESULT; verification: $SPA_VERIFY_RESULT; PyPI: $SPA_PYPI_RESULT" >&2
             echo "Failing explicitly so Re-run failed jobs resumes the release tail." >&2
             exit 1
           fi

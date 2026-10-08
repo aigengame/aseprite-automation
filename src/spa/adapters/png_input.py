@@ -8,7 +8,7 @@ from typing import Literal
 from PIL import Image, PngImagePlugin, UnidentifiedImageError
 
 from spa.adapters.icc import verify_icc
-from spa.contracts.ports import PngInputError, PngInputFacts
+from spa.contracts.ports import PngInputError, PngInputFacts, PngRasterFacts
 
 _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 _COLOR_CHUNKS = (b"sRGB", b"iCCP", b"gAMA", b"cHRM")
@@ -127,11 +127,17 @@ def _inflate(compressed: bytes, limit: int) -> bytes:
 
 
 def _verify_pixel_stream(
-    compressed: bytes, width: int, height: int, color_type: int, interlace: int
+    compressed: bytes,
+    width: int,
+    height: int,
+    color_type: int,
+    interlace: int,
+    *,
+    bit_depth: int = 8,
 ) -> None:
     # Validate the encoded stream that Pillow can tolerate truncating or extending.
     # Pillow still owns unfiltering, Adam7 reconstruction, and pixel decoding.
-    channels = {2: 3, 3: 1, 6: 4}[color_type]
+    channels = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}[color_type]
     passes = (
         ((0, 0, 1, 1),)
         if interlace == 0
@@ -150,7 +156,7 @@ def _verify_pixel_stream(
         pass_width = max(0, (width - x + dx - 1) // dx)
         pass_height = max(0, (height - y + dy - 1) // dy)
         if pass_width and pass_height:
-            rows.append((pass_width * channels + 1, pass_height))
+            rows.append(((pass_width * channels * bit_depth + 7) // 8 + 1, pass_height))
     expected = sum(row_size * count for row_size, count in rows)
     decoded = _inflate(compressed, expected)
     if len(decoded) != expected:
@@ -195,7 +201,9 @@ def _entries(
     return ()
 
 
-def decode_png_input(payload: bytes) -> PngInputFacts:
+def _decode_png[T: PngRasterFacts](
+    payload: bytes, allowed_types: tuple[int, ...], facts_type: type[T]
+) -> T:
     try:
         chunks = _encoded_chunks(payload)
         width, height, bit_depth, color_type, compression, filtering, interlace = (
@@ -203,14 +211,14 @@ def decode_png_input(payload: bytes) -> PngInputFacts:
         )
         if not 0 < width <= 0x7FFFFFFF or not 0 < height <= 0x7FFFFFFF:
             raise ValueError("Invalid PNG dimensions")
-        if bit_depth != 8 or color_type not in (2, 3, 6):
-            raise ValueError("PNG input requires 8-bit RGB, RGBA, or Indexed samples")
+        if bit_depth != 8 or color_type not in allowed_types:
+            raise ValueError("PNG representation is outside the requested 8-bit subset")
         if compression != 0 or filtering != 0 or interlace not in (0, 1):
             raise ValueError("Unsupported PNG encoding method")
         entries = _entries(chunks, color_type)
         profile, icc = _profile(chunks)
         with Image.open(BytesIO(payload)) as image:
-            expected_mode = {2: "RGB", 3: "P", 6: "RGBA"}[color_type]
+            expected_mode = {0: "L", 2: "RGB", 3: "P", 4: "LA", 6: "RGBA"}[color_type]
             if (
                 image.format != "PNG"
                 or image.mode != expected_mode
@@ -225,12 +233,20 @@ def decode_png_input(payload: bytes) -> PngInputFacts:
             if color_type == 3 and any(index >= len(entries) for index in stored):
                 raise ValueError("PNG pixel index exceeds PLTE")
             rgba = image.convert("RGBA").tobytes()
-            return PngInputFacts(
+            return facts_type(
                 width,
                 height,
-                "indexed" if color_type == 3 else "rgb",
+                "indexed"
+                if color_type == 3
+                else "grayscale"
+                if color_type in (0, 4)
+                else "rgb",
                 rgba,
-                stored if color_type == 3 else rgba,
+                stored
+                if color_type == 3
+                else image.convert("LA").tobytes()
+                if color_type in (0, 4)
+                else rgba,
                 entries,
                 profile,
                 icc,
@@ -246,3 +262,13 @@ def decode_png_input(payload: bytes) -> PngInputFacts:
         Image.DecompressionBombError,
     ) as exc:
         raise PngInputError(str(exc)) from exc
+
+
+def decode_png_input(payload: bytes) -> PngInputFacts:
+    """Keep the accepted external-input RGB/Indexed policy."""
+    return _decode_png(payload, (2, 3, 6), PngInputFacts)
+
+
+def decode_png_artifact(payload: bytes) -> PngRasterFacts:
+    """Decode preserved native RGB, Grayscale, or Indexed PNG output."""
+    return _decode_png(payload, (0, 2, 3, 4, 6), PngRasterFacts)

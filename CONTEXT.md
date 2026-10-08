@@ -34,7 +34,7 @@ Aseprite is the upstream language and behavior authority. SPA follows its object
 
 ### SPA Open Host Service
 
-The `spa` CLI first exposes the Sprite Automation Open Host Service and Published Language. The Agent Skill and planned initial MCP access project the installed CLI surface and do not maintain independent domain contracts. A later accepted transport remains an Access Projection over the same Published Language; it does not create another domain or Operation authority.
+The `spa` CLI first exposes the Sprite Automation Open Host Service and Published Language. The Agent Skill and MCP access project the installed CLI surface and do not maintain independent domain contracts. A later accepted transport remains an Access Projection over the same Published Language; it does not create another domain or Operation authority.
 
 ### Asset Pipeline downstream
 
@@ -432,6 +432,12 @@ application paths supported by one Filter. It is not a generic effect destinatio
 The Canvas Rectangle rendered by an Export Image Operation. It is distinct from a
 Selection Mask.
 
+**Sprite Sheet**
+A Delivery texture and ordered logical Frame metadata. Each selected Source Frame
+has one record; equivalent native output content can share a physical atlas rectangle
+without merging durations or Frame identity. The sheet Operation owns its selection,
+layout, trim and color contract, independently of static Export Image policy.
+
 **Layer Composition**
 The explicit Layer set and native stacking context used to render composited pixels
 for Image observation or an Export Operation. Aseprite remains the compositor.
@@ -680,8 +686,13 @@ A format-specific outbound adapter that independently decodes typed observed fac
 staged Artifact bytes. It does not define the expected domain result or publish files.
 
 **Agent Skill**
-Version-matched guidance that teaches agents how to discover and invoke the installed
-SPA Operation surface.
+Self-contained, self-describing guidance through which an agent discovers the installed
+SPA Operation surface, determines which instructions apply, and invokes supported
+Operations. Compatibility judgment belongs to these instructions and the agent that
+follows them, using installed schemas and typed outcomes. The Skill does not own an
+independent Operation contract. [ADR-0096](docs/adr/0096-agent-skill-delivery.md) assigns
+distribution and version management to the Skills CLI without an external
+Skill-to-CLI compatibility mechanism.
 
 **MCP Adapter**
 An inbound adapter that derives tools from the installed Surface Manifest and invokes
