@@ -615,6 +615,10 @@ Confirm the group's actual selected repository and full workflow ref, not only t
 counts shown in its settings page. Local regression tests cannot prove this GitHub
 scheduler boundary. Complete that deployment check before enabling native releases.
 
+The [deployment evidence](evidence/release-runner-deployment.md) records the live
+access checks and their limits. A queued job alone does not establish an access
+denial; compare it with the configured allowlist and a working allowed path.
+
 ### Restore the Aseprite runtime
 
 Repair the installation or service environment on the host, then rerun the original
