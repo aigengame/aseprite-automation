@@ -9,16 +9,109 @@ on:
       matrix:
         type: string
         required: true
+      release-id:
+        description: Release ID returned by this run's draft job; empty for manual verification.
+        type: string
+        default: ""
 
 permissions:
   contents: read
 
 jobs:
+  admission:
+    name: Admit the exact Release target
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    outputs:
+      target: ${{ steps.admit.outputs.target }}
+    steps:
+      - name: Validate the caller and release commit before scheduling
+        id: admit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SPA_NATIVE_TARGET_JSON: ${{ inputs.target }}
+          SPA_RELEASE_ID: ${{ inputs.release-id }}
+        run: |
+          python3 - <<'PY'
+          """Admit one trusted Release target before GitHub schedules private native jobs."""
+
+          import json
+          import os
+          import re
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          REPOSITORY = "aigengame/aseprite-automation"
+          RELEASE_WORKFLOW = f"{REPOSITORY}/.github/workflows/release.yml@refs/heads/main"
+
+
+          def github(path: str) -> dict:
+              return json.loads(
+                  subprocess.check_output(
+                      ["gh", "api", f"repos/{REPOSITORY}/{path}"], text=True, timeout=30
+                  )
+              )
+
+
+          def admit() -> dict:
+              if (
+                  os.environ["GITHUB_REPOSITORY"] != REPOSITORY
+                  or os.environ["GITHUB_WORKFLOW_REF"] != RELEASE_WORKFLOW
+                  or os.environ["GITHUB_REF"] != "refs/heads/main"
+                  or os.environ["GITHUB_EVENT_NAME"] not in {"push", "workflow_dispatch"}
+              ):
+                  raise ValueError("Only the main Release workflow may use the native runner")
+              target = json.loads(os.environ["SPA_NATIVE_TARGET_JSON"])
+              sha = target.get("sha", "")
+              if target != {"kind": "release", "sha": sha} or not re.fullmatch(
+                  r"[0-9a-f]{40}", sha
+              ):
+                  raise ValueError("Expected a release target with a full commit SHA")
+              event_sha = os.environ["GITHUB_SHA"]
+              if not re.fullmatch(r"[0-9a-f]{40}", event_sha):
+                  raise ValueError("Expected a full event commit SHA")
+              if os.environ["GITHUB_EVENT_NAME"] == "workflow_dispatch":
+                  if sha != event_sha:
+                      raise ValueError("Manual verification must use the original event commit")
+              else:
+                  release_id = os.environ["SPA_RELEASE_ID"]
+                  if not re.fullmatch(r"[1-9][0-9]*", release_id):
+                      raise ValueError("An automatic Release requires its draft Release ID")
+                  release = github(f"releases/{release_id}")
+                  if release["id"] != int(release_id) or release["target_commitish"] != sha:
+                      raise ValueError("Release target does not match its Release record")
+                  if github(f"compare/{sha}...{event_sha}")["status"] not in {
+                      "ahead",
+                      "identical",
+                  }:
+                      raise ValueError("Release target is outside the original main history")
+              return target
+
+
+          def main() -> int:
+              try:
+                  target = admit()
+                  with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
+                      output.write(f"target={json.dumps(target, separators=(',', ':'))}\n")
+              except (KeyError, TypeError, ValueError, OSError, subprocess.SubprocessError) as error:
+                  print(f"Native release admission failed: {error}", file=sys.stderr)
+                  return 1
+              return 0
+
+
+          if __name__ == "__main__":
+              sys.exit(main())
+          PY
+
   shard:
     name: Native shard ${{ matrix.shard_index }}
-    runs-on: ubuntu-24.04
-    # Caller preparation (3) + parallel shards (34) + aggregation (3) = 40.
-    timeout-minutes: 34
+    needs: admission
+    runs-on:
+      group: spa-release
+      labels: [self-hosted, linux]
+    # Preparation (3) + admission (3) + parallel shards (31) + aggregation (3) = 40.
+    timeout-minutes: 31
     strategy:
       fail-fast: true
       matrix: ${{ fromJSON(inputs.matrix) }}
@@ -26,14 +119,14 @@ jobs:
       - name: Check out the exact native target
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: ${{ fromJSON(inputs.target).sha }}
+          ref: ${{ fromJSON(needs.admission.outputs.target).sha }}
           lfs: true
           persist-credentials: false
 
       - name: Run the shared native shard
         uses: ./.github/actions/run-linux-aseprite-e2e
         with:
-          target: ${{ inputs.target }}
+          target: ${{ needs.admission.outputs.target }}
           shard-index: ${{ matrix.shard_index }}
           shards: ${{ matrix.shards }}
           workers: ${{ matrix.workers }}
@@ -44,9 +137,9 @@ jobs:
         with:
           name: native-e2e-${{ github.run_id }}-shard-${{ matrix.shard_index }}
           path: |
-            ${{ runner.temp }}/spa-native-e2e/
-            !${{ runner.temp }}/spa-native-e2e/shard-*/tmp/**
-            !${{ runner.temp }}/spa-native-e2e/shard-*/cache/**
+            ${{ runner.temp }}/spa-native-e2e/shard-*/result.json
+            ${{ runner.temp }}/spa-native-e2e/shard-*/pytest.json
+            ${{ runner.temp }}/spa-native-e2e/shard-*/junit.xml
           if-no-files-found: warn
           overwrite: true
           retention-days: 14

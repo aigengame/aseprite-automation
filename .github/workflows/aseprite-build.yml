@@ -1,43 +1,19 @@
 name: Build Aseprite
-run-name: Build Aseprite from ${{ github.ref_name }}
+run-name: Aseprite is provisioned outside GitHub Actions
 
 on:
   workflow_dispatch:
 
-permissions:
-  contents: read
-
-concurrency:
-  group: aseprite-build-${{ github.ref }}
-  cancel-in-progress: false
+permissions: {}
 
 jobs:
   build-aseprite:
-    name: Build Aseprite (manual maintenance)
+    name: Require host provisioning
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 1
     steps:
-      - name: Check out the selected build recipe
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-
-      - name: Prepare and verify the Aseprite binary
-        uses: ./.github/actions/aseprite-runtime
-        with:
-          build-if-missing: "true"
-
-      - name: Explain cache scope and recovery
-        shell: bash
+      - name: Explain the runtime boundary
         run: |
-          {
-            echo "### Aseprite maintenance complete"
-            echo "- Build recipe commit: \`$(git rev-parse HEAD)\`"
-            echo "- Run ref: \`$GITHUB_REF\`"
-            if [ "$GITHUB_REF" = "refs/heads/main" ]; then
-              echo "- Stable runtime: main cache is available to other branches."
-            else
-              echo "- Provisional runtime: verify that the failed run can read this cache ref."
-              echo "- Same-branch push and manual runs can also consume it; main cannot."
-              echo "- After promotion, run Build Aseprite on main to prepare the stable runtime."
-            fi
-            echo "- Re-run the original failed verification; this maintenance run is not SPA test evidence."
-          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::error::Aseprite builds and binary caches are no longer provided by this workflow."
+          echo "Provision Aseprite privately on the Release runner. See docs/testing.md#release-runner-setup."
+          exit 1

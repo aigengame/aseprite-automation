@@ -18,19 +18,12 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Set up Python
-      uses: ./.github/actions/setup-python-env
-
     - name: Set up real Aseprite
       id: aseprite
       uses: ./.github/actions/aseprite-runtime
 
-    - name: Verify the headless batch environment
-      shell: bash
-      run: |
-        test -z "${DISPLAY:-}"
-        test -z "${WAYLAND_DISPLAY:-}"
-        "$SPA_TEST_ASEPRITE" --batch --version
+    - name: Set up Python
+      uses: ./.github/actions/setup-python-env
 
     - name: Install the wheel-only SPA CLI for handler evidence
       shell: bash
