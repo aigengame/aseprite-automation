@@ -10,14 +10,6 @@ on:
         description: "Shard count override; empty uses SPA_E2E_SHARDS or the shared default"
         type: string
         default: ""
-      workers:
-        description: "Workers: one count or comma-separated counts per shard; empty uses SPA_E2E_WORKERS"
-        type: string
-        default: ""
-      runner-labels:
-        description: "One routing label per shard, comma-separated; empty uses SPA_E2E_RUNNER_LABELS"
-        type: string
-        default: ""
 
 permissions:
   contents: read
@@ -112,8 +104,6 @@ jobs:
         id: configuration
         env:
           SPA_E2E_SHARDS: ${{ inputs.shards || vars.SPA_E2E_SHARDS }}
-          SPA_E2E_WORKERS: ${{ inputs.workers || vars.SPA_E2E_WORKERS }}
-          SPA_E2E_RUNNER_LABELS: ${{ inputs.runner-labels || vars.SPA_E2E_RUNNER_LABELS }}
         run: |
           matrix="$(python3 scripts/native_e2e.py matrix)"
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"

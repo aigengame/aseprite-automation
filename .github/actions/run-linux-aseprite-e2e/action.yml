@@ -12,9 +12,6 @@ inputs:
   shards:
     description: Resolved total shard count.
     required: true
-  workers:
-    description: Resolved pytest workers per shard.
-    required: true
   target:
     description: Immutable source-target JSON resolved by the caller.
     required: true
@@ -53,7 +50,6 @@ runs:
       env:
         SPA_E2E_SHARD_INDEX: ${{ inputs.shard-index }}
         SPA_E2E_SHARDS: ${{ inputs.shards }}
-        SPA_E2E_WORKERS: ${{ inputs.workers }}
         SPA_NATIVE_TARGET_JSON: ${{ inputs.target }}
       run: |
         printf '%s\n' "$SPA_NATIVE_TARGET_JSON" > "$RUNNER_TEMP/spa-native-target.json"
@@ -72,7 +68,8 @@ runs:
           echo "- Commit: \`${tested_sha}\`"
           echo "- Trigger: \`${GITHUB_EVENT_NAME}\`"
           echo "- Selection: \`e2e and not slow\`; complete example rebuilds are local opt-in checks"
-          echo "- Shard: ${{ inputs.shard-index }}; total shards: ${{ inputs.shards }}; workers per shard: ${{ inputs.workers }}"
+          workers="$(jq -r .workers "$RUNNER_TEMP/spa-native-e2e/shard-${{ inputs.shard-index }}/result.json")"
+          echo "- Shard: ${{ inputs.shard-index }}; total shards: ${{ inputs.shards }}; workers on this runner: $workers"
           echo "- Executable: \`${{ steps.aseprite.outputs.executable }}\`"
           echo "- Aseprite: \`${{ steps.aseprite.outputs.version }}\`"
           echo "- Display: \`DISPLAY\` and \`WAYLAND_DISPLAY\` absent"

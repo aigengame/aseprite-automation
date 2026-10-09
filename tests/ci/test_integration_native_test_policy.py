@@ -131,6 +131,22 @@ def run_step(directory: Path, env: dict[str, str]) -> subprocess.CompletedProces
     )
 
 
+def test_native_step_uses_the_execution_hosts_worker_configuration(controlled_suite):
+    directory, env = controlled_suite
+    env["SPA_E2E_WORKERS"] = "3"
+    write_test(
+        directory,
+        "test_host_workers.py",
+        "@pytest.mark.parametrize('value', range(6))\n"
+        "def test_native(value):\n    assert value >= 0\n",
+    )
+    result = run_step(directory, env)
+    assert result.returncode == 0, result.stdout + result.stderr
+    report = json.loads((directory / "spa-native-e2e/shard-0/result.json").read_text())
+    assert report["workers"] == 3
+    assert len(report["outcomes"]) == 6
+
+
 def test_passing_negative_tests_do_not_stop_the_shared_native_step(controlled_suite):
     directory, env = controlled_suite
     write_test(

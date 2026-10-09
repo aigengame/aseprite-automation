@@ -298,7 +298,7 @@ def test_workflow_configuration_uses_shared_parameters(
     if success:
         value = Path(env["GITHUB_OUTPUT"]).read_text().removeprefix("matrix=")
         assert json.loads(value)["include"] == [
-            {"shard_index": 0, "shards": 3, "workers": 1},
-            {"shard_index": 1, "shards": 3, "workers": 1},
-            {"shard_index": 2, "shards": 3, "workers": 1},
+            {"shard_index": 0, "shards": 3},
+            {"shard_index": 1, "shards": 3},
+            {"shard_index": 2, "shards": 3},
         ]

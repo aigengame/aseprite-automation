@@ -109,7 +109,7 @@ jobs:
     needs: admission
     runs-on:
       group: spa-release
-      labels: ${{ matrix.runner_labels || fromJSON('["self-hosted","linux"]') }}
+      labels: [self-hosted, linux]
     # Preparation (1) + admission (1) + parallel shards (35) + aggregation (3) = 40.
     timeout-minutes: 35
     strategy:
@@ -139,7 +139,6 @@ jobs:
           target: ${{ needs.admission.outputs.target }}
           shard-index: ${{ matrix.shard_index }}
           shards: ${{ matrix.shards }}
-          workers: ${{ matrix.workers }}
 
       - name: Preserve shard evidence
         if: always()

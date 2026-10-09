@@ -27,8 +27,7 @@ runs:
       run: |
         printf '%s\n' "$SPA_NATIVE_TARGET_JSON" > "$RUNNER_TEMP/spa-native-target.json"
         SPA_E2E_SHARDS="$(jq -r '.include[0].shards' <<< "$SPA_E2E_MATRIX")"
-        SPA_E2E_WORKERS="$(jq -r '.include | sort_by(.shard_index) | map(.workers | tostring) | join(",")' <<< "$SPA_E2E_MATRIX")"
-        export SPA_E2E_SHARDS SPA_E2E_WORKERS
+        export SPA_E2E_SHARDS
         python3 scripts/native_e2e.py verify \
           --target-file "$RUNNER_TEMP/spa-native-target.json" \
           --output-dir "$RUNNER_TEMP/spa-native-e2e" | tee -a "$GITHUB_STEP_SUMMARY"
