@@ -5,20 +5,32 @@ recorded on 2026-10-07. The macOS checks passed. Validation of the current revis
 on the selected Linux runner remains outstanding. This record does not certify
 other platforms, later Aseprite releases, or public distribution of Aseprite.
 
+## Policy update — 2026-10-09
+
+[ADR-0098](../adr/0098-release-only-private-native-runner.md) supersedes the former
+GitHub-hosted Linux build/cache profile and standalone PR Native E2E procedure.
+The current Linux path is trusted Release verification on a privately provisioned
+runner. Its host facts and installed-wheel results remain unverified; the macOS
+results and historical Linux receipts below retain their original dates and SHAs.
+[Runner setup](../testing.md#release-runner-setup),
+[host repair](../testing.md#restore-the-aseprite-runtime) and the
+[release guide](../releasing.md) own the current operating procedures.
+
 ## Selected profiles
 
 | Profile | Aseprite acquisition | SPA installation | Current evidence |
 | --- | --- | --- | --- |
 | Local macOS 27.0.1 (26A434), Apple silicon arm64 | Caller-supplied `Aseprite-v1.3.18.5.app` | SPA 0.2.0 wheel, isolated CPython 3.13.13 environment with locked runtime dependencies | Passed the checks below |
-| Existing GitHub `ubuntu-24.04` Linux X64 runner | Existing manual build/cache workflow; source release 1.3.18.5 and pinned build recipe | The existing native action builds and installs a separate wheel environment | Pending a run of the current revision; older success is historical evidence only |
+| Private Release-only Linux runner in `spa-release` | Administrator-provisioned Aseprite outside checkout and cache paths, selected by `SPA_TEST_ASEPRITE` | The existing native action builds and installs a separate wheel environment for the admitted SHA | Pending deployment and execution; record actual OS, architecture, binary provenance and runtime results |
 
-The Linux source archive SHA-256 is
+The superseded Linux profile selected on 2026-10-06 used GitHub `ubuntu-24.04`
+X64, source release 1.3.18.5 and source archive SHA-256
 `04b0a84617efb3107d380c352ebb0af9eb2633ff4c1a8bfcb671d2a437247d5d`.
-[The runtime action](../../.github/actions/aseprite-runtime/action.yml) owns the
-pinned source and cache identity, including the build recipe hash. Its job summary
-records the actual runner image, architecture, cache key, executable and reported
-version. A cache miss follows the existing separate manual-build recovery path.
-No build selector, trigger, budget or recovery policy changes for this issue.
+Its runtime action then owned the pinned source/cache identity and manual-build
+recovery. These are historical provenance facts, not the current acquisition
+procedure. The current runtime action probes a host-supplied executable and does
+not build, download or cache Aseprite. No Linux host profile is certified by this
+policy update.
 
 ## macOS package and source
 
@@ -133,11 +145,17 @@ steps, so no merge SHA was resolved and no native shard executed. This attempt
 was made for PR head `e05516272a97d46a3d1a54d139970a01a052ebc3`. Zero executed
 steps provide no package or runtime verification.
 
-After that external block is resolved, run the existing Native E2E workflow for
-this PR's merge result. Record its target SHA, actual runner/runtime facts,
-package/resource verification and installed tracer outcomes before completing
-#54. Recheck the source revision if it changes; a newer green job cannot be
-inferred from an older result.
+After [PR #198](https://github.com/aigengame/aseprite-automation/pull/198) merges,
+follow the setup procedure above: first validate
+allowed/denied scheduling without Aseprite, then provision the host runtime and
+run main Release verification for its admitted exact SHA. Manual Release runs
+verify the original event SHA without publishing. Record the actual runner/runtime
+facts, package/resource verification, installed tracer outcomes and Capability
+Gaps for that revision. Missing or unusable Aseprite requires host repair, followed
+by the original Release jobs; the retired builder and standalone PR workflow cannot
+supply this evidence. This is deployment validation, not a new gate before the
+code PR can merge. #54's owner-requested closure did not establish a Linux pass;
+earlier results do not prove a later revision or a different host profile.
 
 ## Separate delivery evidence
 
@@ -150,8 +168,9 @@ inferred from an older result.
 - [#53 MCP evidence](issue-53-mcp.md) owns optional MCP installation, protocol
   and real-client checks. The base CLI wheel test does not replace it.
 - [#126](https://github.com/aigengame/aseprite-automation/issues/126) owns the
-  public-repository Aseprite binary distribution decision. Private CI cache use
-  here is not public distribution approval.
+  public-repository Aseprite binary distribution decision. The historical private
+  CI cache use recorded here is not public distribution approval; the current
+  Release path does not cache or upload the runtime.
 - [#189](https://github.com/aigengame/aseprite-automation/issues/189) owns PyPI
   publication. These local wheel checks do not publish a package or prove an
   installation from PyPI.

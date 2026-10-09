@@ -24,7 +24,7 @@ with Source and an existing Target preserved.
 | Directory | Behavior owner |
 | --- | --- |
 | `tests/application/` | Application orchestration, including compatibility checks before Operation execution. |
-| `tests/ci/` | CI target selection, native test execution policy, and pre-merge evidence checks. |
+| `tests/ci/` | Release admission, native test execution policy, and shard evidence checks. |
 | `tests/cli/` | Access Projection through the installed CLI and its in-process projections. |
 | `tests/color_mode/` | Conditional Color Mode choices, native mapping/Dithering, complete Sprite and Plan conversion evidence. |
 | `tests/contracts/` | Shared Published Language rules, including Failure Code registration and Operation Descriptor constraints. |
@@ -323,8 +323,9 @@ environment, and set `SPA_TEST_INSTALLED_CLI` to that environment's `bin/spa`. O
 the existing wheel-only cases report their environment skips.
 
 The [installed distribution record](evidence/issue-54-installed-distributions.md)
-defines the bounded macOS/Linux profiles, the isolated-wheel replay, and the
-remaining Linux evidence requirement. `scripts/verify_installed_cli.py` rejects
+records the tested macOS profile, the isolated-wheel replay, and the remaining
+Linux evidence for the Release-only runner. Its earlier Linux build/cache profile
+is historical. `scripts/verify_installed_cli.py` rejects
 editable/source-tree imports and checks all packaged Kernel resources. Both the
 distribution smoke action and the Linux native action reuse that verifier. The
 native wheel cases cover `info`, Plan creation/painting/inspection, PNG export
@@ -333,7 +334,7 @@ and a typed failure; they run consumer calls outside the checkout.
 ### Shared native parallel execution
 
 `scripts/native_e2e.py` owns selection, configuration, partitioning, execution, and
-report validation for local, Native E2E, and Release callers. Its initial defaults
+report validation for local and Release execution. Its initial defaults
 are **2 shards × 2 pytest workers per shard**. Local execution starts the shards on
 one machine; `.github/workflows/native-e2e-shards.yml` places the same shards on
 separate Linux runners. Each shard uses xdist's `load` scheduler. Pytest collects the
@@ -353,10 +354,9 @@ SPA_TEST_ASEPRITE=/path/to/aseprite \
   --shards 3 --workers 1 --output-dir /tmp/spa-native-e2e-002
 ```
 
-Native E2E and Release dispatches expose optional `shards` and `workers` inputs.
+Release dispatches expose optional `shards` and `workers` inputs.
 They override repository variables `SPA_E2E_SHARDS` and `SPA_E2E_WORKERS`; unset
-values reach the same Python defaults. Scheduled and automatic release runs use
-those repository variables. The workflow generates its matrix from this resolved
+values reach the same Python defaults. Automatic release runs use those repository variables. The workflow generates its matrix from this resolved
 configuration. Resource changes require no new matrix lists or test policy.
 
 The runner isolates shard workspaces and retains the existing per-invocation native
@@ -471,86 +471,42 @@ A failure in any job fails routine CI. These three job names can be required che
 when branch protection is available. Their success does **not** establish Linux
 native execution. There is no maintenance selector or skipped native job in CI.
 
-### Native E2E before merge
+### Release-only native execution
 
-`.github/workflows/native-e2e.yml` owns explicit pre-merge Linux verification and
-weekly main regression. Target preparation precedes the shared shard matrix, followed
-by one unconditional **Linux real Aseprite E2E** aggregate job. It fails if preparation
-or any shard did not succeed, then audits the complete original collection and reports.
-The main entry below applies after the workflow reaches main. After review and
-local checks converge, run it once for the PR:
+Only `.github/workflows/release.yml` from `refs/heads/main` can admit jobs to the
+private `spa-release` runner group. Routine PR CI remains on GitHub-hosted runners.
+PR events, other caller workflows, forks, schedules and non-main dispatches cannot
+use this native path. The retained `native-e2e.yml` workflow remains disabled; its
+old PR/main target resolver is not an admission route to the Release runners.
 
-```sh
-gh workflow run native-e2e.yml --ref main -f pr=125
-```
+The reusable `native-e2e-shards.yml` first runs admission on a GitHub-hosted runner.
+Its inline code checks GitHub's caller repository, workflow file/ref, event and
+branch before any target checkout. It accepts only `kind=release` and a full SHA.
+For an automatic release, it reads the Release ID returned by this run's draft job,
+requires that record's `target_commitish` to equal the target SHA, and checks that commit against the
+original main event's history. It never looks up the latest release or current main
+head. Manual Release verification uses the original event SHA and does not publish.
+A rejection fails admission and prevents all self-hosted jobs from being scheduled.
 
-In the Actions UI, use **Native E2E → Run workflow**, select main, and enter the PR
-number. The workflow resolves the open PR's current base SHA, head SHA and merge
-SHA, checks out that exact merge result, and verifies both Git parents before
-runtime setup. A conflict, unavailable preview or API failure fails the job.
-After native tests, it rechecks the PR and fails if its base, head, merge or open
-state changed. The summary and artifacts retain the target, original outcomes, and
-per-shard JUnit evidence.
-The suite rejects missing/zero/all-skipped execution. An artifact alone is not a
-passing result: the workflow and its native job must both succeed.
-
-Immediately before merging, the person or agent doing the merge must compare the
-recorded target with the current PR:
-
-```sh
-gh api repos/aigengame/aseprite-automation/pulls/125 \
-  --jq '{state, base_ref: .base.ref, base: .base.sha, head: .head.sha, merge: .merge_commit_sha}'
-```
-
-Require an open PR and an exact match of base ref, base SHA, head SHA and merge
-SHA to the successful run, plus the normal review and routine CI checks. Link the
-run in the PR. A later head/base update invalidates this evidence; repeat target
-preparation and all shards as described in
-[recovery](#restore-the-aseprite-runtime), or dispatch a new run. Do not enable
-delayed auto-merge with stale native evidence. An unrun,
-cancelled, failed or skipped native job cannot admit merge.
-
-This is an explicit merge-process gate. GitHub associates a manual workflow with
-its dispatched ref; the green check is **not automatically a required check on
-the PR merge SHA**. Do not configure that manual check as though it enforced PR
-freshness. The summary's tested target, not the workflow's dispatch SHA, identifies
-coverage. See [GitHub event semantics](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows).
-No status publisher, registry or alternate merge service is introduced.
-
-Leave the PR input empty for a manual main regression:
-
-```sh
-gh workflow run native-e2e.yml --ref main
-```
-
-This mode rejects any ref other than main and tests its event SHA. The weekly run
-uses the same mode, Sunday 19:23 UTC (Monday 03:23 Asia/Shanghai), on the default
-branch main. Schedules can be delayed. There is no daily native run or dev schedule;
-a normal main push runs only routine CI. A main regression never replaces the PR
-merge-result check or exact-release-SHA gate.
-
-Before promotion, the dev entry also requires GitHub workflow registration.
-Having the YAML file on dev alone is not sufficient: confirm that
-`gh workflow list --all` lists Native E2E and that
-`gh workflow view native-e2e.yml --ref dev --yaml` returns its definition.
-Only then use `gh workflow run native-e2e.yml --ref dev -f pr=125`, with a cache
-visible from dev. A registration result or an accepted dispatch is not a native
-test pass. Keep pre-merge acceptance open until the current target finishes
-successfully. The bounded #125 rollout is recorded in the
-[capacity evidence](evidence/issue-107-ci-capacity.md#native-workflow-registration--2026-09-29).
-This provisional entry is not stable-main rollout evidence.
+The native jobs depend on admission. They load CI actions from the admitted caller's
+original workflow commit, then check out the validated test target in `native-target/`.
+Python dependencies, the wheel, test collection and execution use that target directory.
+This prevents an older Release's local actions from restoring the retired cache path;
+CI tooling and tested source have separate owners and checkouts.
+The final hosted aggregate requires quality and every shard to succeed, then audits
+complete exact-SHA reports. Failed, skipped, cancelled, empty, stale or incomplete
+evidence cannot authorize publication. GitHub-hosted jobs retain release credentials;
+the native runner receives only read access to repository contents.
 
 ### Complete example rebuilds
 
 | Trigger | Real-runtime selection |
 | --- | --- |
 | Routine PR update, main push, or manual CI | None; source, fast-test and distribution checks only. |
-| Explicit pre-merge Native E2E | `e2e and not slow` at the current PR merge result. |
-| Weekly or manual Native E2E on main | `e2e and not slow` at the event's main SHA. |
-| Release verification | `e2e and not slow` at the exact release SHA before publication. |
+| Automatic or main-dispatched Release verification | `e2e and not slow` at the exact release SHA; manual runs do not publish. |
 
 The shared `scripts/native_e2e.py` owns the native selection. The Linux action
-prepares the runtime and wheel, then calls it for one shard. This retains the
+checks the host-provisioned runtime and prepares the wheel, then calls it for one shard. This retains the
 project and wheel-installed CLI paths, real
 `--batch --script` probe, both small wizard probes, hidden-pixel regressions and
 all other native assertions. The owner removed both complete example rebuilds
@@ -583,14 +539,14 @@ inspect changed composite YAML and run its shell/behavior checks. The regression
 suite executes the actual workflow/action shell with real Git and controlled GitHub
 responses. It covers stale PR targets, merge-parent mismatches, main-only routing,
 API failures, Release PR head convergence and metadata checks. These tests do not
-establish hosted cache visibility, token permissions or Linux native execution.
+establish runner-group enforcement, token permissions or Linux native execution.
 
 Run affected native tests locally before requesting Linux verification. For CI
 infrastructure, resolve syntax, shell and branch/dispatch logic locally first.
 Use a small hosted probe only for a remaining platform-specific hypothesis, then
 one final native run when the change has converged. Do not run the whole suite on
-every diagnostic push. For an unchanged target, rerun only failed jobs; a changed
-PR target requires fresh preparation and all shards. macOS results remain
+every diagnostic push. For an unchanged Release target, rerun only failed jobs; a changed
+source requires a new run and a complete shard set. macOS results remain
 macOS evidence. `act` can help with shell/container checks, but does not reproduce
 all GitHub permissions, concurrency or timeout behavior; see its
 [unsupported features](https://nektosact.com/not_supported.html).
@@ -600,124 +556,80 @@ all GitHub permissions, concurrency or timeout behavior; see its
 The owner limits remain **20 minutes for routine CI**, **40 minutes for full
 manual/periodic verification**, and **40 minutes for Release verification**.
 GitHub's native job timeouts enforce the allocation. The three parallel routine jobs
-retain their smaller 10-minute limits. Native E2E allocates **3 minutes preparation
-+ 34 minutes for each concurrent shard + 3 minutes aggregation = 40 minutes**.
-Release uses the same allocation, with its 10-minute quality/package job running
-alongside the shards: `3 + max(34, 10) + 3 = 40`. All job steps count, including
-checkout, setup, tests, package checks where present and uploads. There is no
-compilation deduction, larger outer timeout, or second clock. Parallel jobs reduce
-elapsed time but Actions usage sums their durations; sharding does not promise
-lower monthly minutes.
+retain their smaller 10-minute limits. Release verification allocates **3 minutes
+preparation + 3 minutes hosted admission + 31 minutes per concurrent shard + 3 minutes
+aggregation = 40 minutes**. Its 10-minute quality/package job runs alongside admission
+and the shards. All job steps count, including checkout, setup, tests and uploads.
+There is no compilation deduction, larger outer timeout, or second clock. Parallel
+jobs reduce elapsed time but runner capacity still bounds concurrency.
 
 These are running-job limits, not queue-time or whole-pipeline latency promises.
 Release has separate draft and publication jobs. A verification overrun prevents
-publication. The separate Build Aseprite maintenance job has a 40-minute limit.
-The [issue #107 evidence](evidence/issue-107-ci-capacity.md) records measurements
-and superseded experiments.
+publication. The [issue #107 evidence](evidence/issue-107-ci-capacity.md) records
+historical measurements and superseded cache experiments.
+
+### Release runner setup
+
+Use an organization runner group named `spa-release` with these settings:
+
+- Selected repository: `aigengame/aseprite-automation`; allow this public repository.
+- Selected workflow only:
+  `aigengame/aseprite-automation/.github/workflows/native-e2e-shards.yml@refs/heads/main`.
+- Linux runners in this group, carrying the `self-hosted` and `linux` labels.
+  Labels route jobs; the group's repository/workflow restrictions control access.
+
+Protect main and review changes to workflows, actions, scripts and tested code.
+Admission trusts reviewed main code: it cannot make malicious code merged by a
+maintainer safe. Do not grant this group to all workflows or PR refs. The group
+restriction is an external prerequisite, not something a YAML label can enforce.
+See GitHub's [runner-group access documentation](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/manage-access).
+
+Provision the runner as a dedicated, non-root account on a Linux host with Git,
+Git LFS, Python 3, Bash and the runtime's shared libraries. The account needs a
+writable workspace and outbound access for Actions, repository/LFS checkout and
+locked Python dependencies. The action installs uv and managed Python 3.13; it
+neither runs sudo nor installs operating-system libraries.
+
+Install Aseprite privately outside the checkout, runner temporary directory and
+cache paths. Set `SPA_TEST_ASEPRITE` in each runner service's environment to the
+absolute executable path. The action requires no display, checks `--batch --version`
+and a real `--batch --script` result before installing SPA or starting tests. A
+missing or unusable runtime fails without a download, build or cache fallback.
+Aseprite installation, libraries and upgrades remain host administration tasks.
+
+The workflow uploads only native `result.json`, `pytest.json` and `junit.xml`
+reports. It never uploads or caches Aseprite. The retained `aseprite-build.yml`
+now fails with provisioning instructions even if manually re-enabled.
+Python dependency caching is separate and does not contain the native installation.
+
+Each runner service executes one shard job at a time. Two simultaneous shards need
+two eligible runner services with separate installation/work directories, possibly
+on one host with sufficient CPU and memory. Start with the shared configurable
+2 × 2 configuration, then size it from measurements on the actual VPS. One runner
+will queue the shards; the parallel time allocation assumes enough execution slots.
+
+Before adding Aseprite, register the runner in this group and validate access with
+harmless jobs: the allowed reusable workflow from main must route correctly, while
+a PR/fork, another workflow and a dev dispatch must not reach the private runner.
+Confirm the group's actual selected repository and full workflow ref, not only the
+counts shown in its settings page. Local regression tests cannot prove this GitHub
+scheduler boundary. Complete that deployment check before enabling native releases.
 
 ### Restore the Aseprite runtime
 
-Native E2E and Release only
-restore an exact Aseprite cache entry. A miss fails before native dependency
-installation or compilation and identifies the required key. It does not skip the
-native gate or report success. A restored binary must still pass the executable,
-resource, version, and real `--batch --script` checks before SPA's E2E suite runs.
-
-To recover:
-
-1. Open **Actions → Build Aseprite → Run workflow** and select the recipe branch.
-   Use **main for the stable runtime**. The separate `aseprite-build.yml` runs
-   only **Build Aseprite (manual maintenance)** with its own 40-minute native job
-   timeout. It validates the pinned source checksum, builds if the exact cache is
-   missing, checks the real batch/script path, and saves the verified tree.
-2. Confirm that the job succeeded for the key reported by the failed verification.
-3. Open the **original failed run** and choose the recovery action for its target:
-
-   | Target | Recovery action |
-   | --- | --- |
-   | Target preparation itself failed | **Re-run failed jobs** includes preparation, so it resolves the target before running its dependents. |
-   | Main or Release | **Re-run failed jobs**. Retain the original event/release SHA. |
-   | PR with the same recorded base ref, base SHA, head SHA, and merge SHA | **Re-run failed jobs**. Reuse successful shards only for that same target and configuration. |
-   | PR with a changed target, or no confirmed match | Re-run the **Resolve native target and configuration** job, including when it previously succeeded. GitHub also reruns its dependent jobs: all shards and the final aggregate. Inspect the new target record. |
-
-A PR must remain open and mergeable. Any commit, including a documentation-only
-commit, changes the head SHA; an updated base or a different target branch also
-invalidates the earlier target. Changes to the PR title, body, comments, or labels
-do not change the tested source identity.
-
-Failed-only recovery does not rerun successful preparation. It cannot refresh a
-changed PR target. Re-running preparation keeps one target for the complete shard
-set; do not combine reports from different targets. GitHub retains the original
-workflow revision, dispatch ref, and inputs on this job retry. Use a new dispatch
-when those need to change. See GitHub's
-[job retry semantics](https://docs.github.com/en/rest/actions/workflow-runs#re-run-a-job-from-a-workflow-run).
-
-A successful maintenance job does not substitute for SPA tests or for
-exact-release-SHA verification.
-
-CLI equivalent for the stable runtime:
+Repair the installation or service environment on the host, then rerun the original
+failed Release jobs. Keep its original event, release target and shard configuration;
+successful shard reports can be reused only for that same target and configuration.
+The aggregate still requires a complete set. A host repair is not SPA test evidence.
 
 ```sh
-gh workflow run aseprite-build.yml --ref main
-# After the build succeeds, for Main/Release or an unchanged PR target:
-gh run rerun <failed-run-id> --failed
+gh run rerun <failed-release-run-id> --failed
 ```
 
-For a changed PR target, find the preparation job's database ID and rerun it:
-
-```sh
-gh run view <failed-run-id> --json jobs \
-  --jq '.jobs[] | select(.name == "Resolve native target and configuration") | .databaseId'
-gh run rerun <failed-run-id> --job <prepare-job-id>
-```
-
-In the Actions UI, use the re-run control for that preparation job, rather than
-the run-level **Re-run failed jobs** control. This restarts the full dependent
-shard set without a separate scheduling mechanism.
-
-A stable cache is prepared on `main`, which is readable from the other branches.
-Cache visibility follows the workflow event/ref, not a later checkout of a PR
-merge commit. For a provisional recipe change, first deliver the independent
-builder and shared runtime action to the integration branch (normally `dev`),
-then run:
-
-```sh
-gh workflow run aseprite-build.yml --ref dev
-# After the build succeeds for the missing key, if the PR target is unchanged:
-gh run rerun <failed-run-id> --failed
-```
-
-If the PR target changed during the build, rerun preparation as described above.
-
-Dispatch provisional Native E2E from that same integration ref with the PR number.
-Switch the consumer only after the matching cache is ready. After normal promotion,
-prepare the stable cache on main. This order needs no early promotion of unrelated development work.
-
-In the recorded #121 experiment, the PR cache token granted access to its merge
-ref, dev, and main, but omitted the head branch. That run missed the exact cache
-which the branch-push control restored, with matching key, version, and path. See
-the [scope diagnosis](evidence/issue-107-ci-capacity.md#cache-scope-diagnosis--2026-09-28).
-This establishes the recovery procedure for the observed #121 runs, not a universal
-PR restriction. GitHub's cache reference also documents access to the current
-feature branch. Verify visibility for the actual consumer; for this rollout,
-the matching dev cache recovered #121. New manual consumers follow their dispatch
-ref, so a PR checkout alone does not grant access to a dev cache. Main cannot
-consume a dev or feature-branch cache.
-
-The Actions UI needs the workflow on the default branch for normal discovery.
-During #107 rollout, a registered workflow was also successfully dispatched by CLI
-on a non-default branch. The temporary registration trigger is removed from the
-final tree; the builder is manual-only. If an older failed run needs a different
-recipe, prepare its exact key on a ref visible to that run; a newer binary is not
-a substitute. GitHub documents cache scope in
-[GitHub's branch restrictions](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching#restrictions-for-accessing-a-cache).
-
-The maintenance workflow has its own concurrency group and only its build job.
-It emits no SPA verification checks and must not replace them in branch protection
-or release gates. CI always runs its three routine verification jobs. Maintenance never
-publishes a SPA release. If a restored entry fails the native probe, inspect and
-remove that exact invalid cache entry before manually rebuilding; Actions caches
-are immutable.
+Do not resolve current main or a newer Release during recovery. Do not rerun all jobs
+and ask release-please to create the same draft again. Workflows predating this
+runner migration retain their old execution code; they are not a route to restore
+binary builds or caches. Reconcile such a pending release with the owner.
 
 ## Platform and display requirements
 
@@ -747,28 +659,14 @@ available through the example's `verify` command, with retained local evidence.
 The test does not start Godot. The example's separate Godot tests and local
 windowed/package evidence are documented beside it and are not claimed by Linux CI.
 
-The manual maintenance job builds the official source release and verifies the archive
-against the version and SHA-256 authority in `.github/actions/aseprite-runtime/action.yml`. It
-uses the runner's Clang 18 toolchain, Release configuration with `-O1 -DNDEBUG`,
-and two build processes. This profile prioritizes compilation time for functional
-verification; it does not certify Aseprite's optimized runtime performance.
-The recipe enables scripting with Aseprite's `LAF_BACKEND=none`. Normal verification
-checks that both `DISPLAY` and `WAYLAND_DISPLAY` are absent, builds and installs the current wheel in a separate
-environment on each shard, and runs the shared real-runtime entry point. Each shard
-writes its own JUnit and original-ID report. The aggregate checks the full selection
-as described above, including missing/zero/all-skipped execution. The job summary
-records the tested commit, trigger, executable, Aseprite
-version, selected scope, display state, and exercised path. A macOS-only skip remains
-visible and does not invalidate the Linux batch evidence while other E2E tests execute.
-
-The setup action shares the cache key and probe between maintenance and verification.
-The key includes Ubuntu 24.04, runner architecture, Aseprite version, source checksum,
-and the content of `scripts/build_aseprite.sh`. That script owns the build recipe;
-changes to workflow routing, setup messages, or tests do not invalidate the binary.
-The maintenance job is the only caller that enables building and saving a missing
-entry. Normal verification restores the executable and data files and repeats the
-native checks. GitHub can remove entries after seven days without access or earlier
-under the repository cache limit; use the manual recovery above when this happens.
+The Release host supplies Aseprite and its runtime libraries. Verification checks
+that both `DISPLAY` and `WAYLAND_DISPLAY` are absent, installs the current wheel in a
+separate environment on each shard, and runs the shared real-runtime entry point.
+Each shard writes JUnit and original-ID reports. The aggregate checks the full
+selection, including missing/zero/all-skipped execution. The job summary records
+the tested commit, trigger, executable, Aseprite version, selected scope, display
+state and exercised path. A macOS-only skip remains visible and does not invalidate
+Linux batch evidence while other E2E tests execute.
 
 The Linux real Aseprite job is also part of release verification. A release workflow
 always reruns the required native suite, excluding complete example rebuilds, at the exact release commit

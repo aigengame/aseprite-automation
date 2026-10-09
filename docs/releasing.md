@@ -30,9 +30,9 @@ tracks the initial setup and production installation evidence.
 The `Release` workflow runs on pushes to `main`. On an ordinary push, release-please
 creates or updates the reviewable Release PR, refreshes its lockfile, and explicitly
 dispatches routine CI for the resulting head. Review the complete change and its
-three routine jobs, then run [pre-merge Native E2E](testing.md#native-e2e-before-merge)
-for its current merge result. Maintenance does not dispatch the costly native suite
-on each generated PR update.
+three routine jobs. Native verification runs only after the reviewed code reaches
+main, through the Release admission gate. PR updates cannot schedule the private
+Aseprite runners.
 
 After lockfile maintenance, the action waits for the PR API to report the local
 Release PR commit before dispatch. It makes at most ten reads, two seconds apart,
@@ -50,30 +50,32 @@ prevents a tagless draft from regenerating old release history.
 ## Verification environments
 
 Local real-runtime evidence normally uses the installed macOS Aseprite application.
-CI and release verification use Linux and restore the manually prepared binary from
-the official source version pinned in `.github/actions/aseprite-runtime/action.yml`,
-with scripting enabled and the non-graphical backend. The Linux gate requires
-`DISPLAY` and `WAYLAND_DISPLAY` to be absent, exercises the real `--batch --script`
-probe, and rejects zero or all-skipped E2E execution.
-Release verification selects `e2e and not slow` at the exact release SHA. It retains
-the real native suite and small wizard probes; complete example rebuilds are local
-opt-in checks. A routine CI or weekly result cannot replace release verification.
+Release verification uses Linux runners in the restricted `spa-release` group,
+with Aseprite privately provisioned on the host. It requires `DISPLAY` and
+`WAYLAND_DISPLAY` to be absent, exercises real `--batch --script`, and rejects zero
+or all-skipped E2E execution. Routine CI remains GitHub-hosted and does not need
+Aseprite. Neither path builds, downloads or caches the Aseprite binary.
 
-Verification uses the shared native shard runner and one final aggregate gate at
-the exact release SHA. Source quality, fast tests, metadata, and distribution checks
-run alongside the native shards; the aggregate requires all of them to succeed.
-Native E2E and Release share resource configuration and the **40-minute allocation**
-documented in [verification time limits](testing.md#verification-time-limits), including
-preparation, setup, tests, uploads, and aggregation. They do not compile Aseprite
-or subtract time. A missing or invalid binary fails the gate and prevents publication.
-Run the separate **Build Aseprite** workflow as described in
-[manual Aseprite recovery](testing.md#restore-the-aseprite-runtime), then
-re-run the original failed Release run to preserve its exact SHA and release tail.
-A maintenance success does not authorize publication. Draft creation and publication
-remain separate from the verification allocation.
+The shared reusable workflow admits only this repository's `release.yml` from main,
+for push or manual events. Its hosted admission checks the full release SHA against
+the current run's Release record and original main event history; manual verification uses the
+original event SHA. No caller-supplied target is checked out in admission. Only the
+validated target output can reach the private runner. See
+[Release runner setup](testing.md#release-runner-setup) for the runner-group access
+restriction that must accompany these checks.
 
-The [issue #107 capacity measurements](evidence/issue-107-ci-capacity.md) retain
-historical experiments separately from the current cache-only verification policy.
+Verification selects `e2e and not slow` at the exact release SHA using the same
+configurable shard runner as local execution. It keeps small wizard probes and
+excludes complete example rebuilds. Quality, fast tests, metadata and distribution
+checks run on GitHub-hosted runners; the final hosted gate requires all checks and
+complete exact-SHA shard evidence before publication.
+
+The **40-minute verification allocation** includes hosted preparation/admission,
+private shard execution and hosted aggregation, as specified in
+[verification time limits](testing.md#verification-time-limits). No compilation time
+is deducted. A missing runtime fails the gate. Repair it on the host and
+[rerun the original failed Release jobs](testing.md#restore-the-aseprite-runtime).
+Draft creation and publication remain separate from that verification allocation.
 
 These results answer different platform questions. Linux headless success does not
 cover the macOS bundle or restricted-agent launch path. Neither environment currently
@@ -93,11 +95,10 @@ The original draft belongs to commit
 `4db66c94cdb13c68780fdaa42e9666010bd33e3e` and
 [Release run 37270734204](https://github.com/aigengame/aseprite-automation/actions/runs/37270734204).
 Its package build passed, but native verification failed on a process timeout.
-Completing that original GitHub-only run is a possible recovery path, subject to
-the owner's decision in #189 and successful verification of its original SHA and
-preserved files. Do not bypass the tag gate or attach new code to the old version.
-If the owner abandons the draft instead, agree on the release-ledger reconciliation
-before creating the next Release PR. Then let release-please select the new version.
+That historical workflow uses the retired binary-cache path and must not be resumed
+on the private runner. Reconcile its draft and release-ledger state with the owner
+before expecting a new Release PR. Do not bypass the tag gate or attach new code to
+the old version. Then let release-please select the new version.
 
 ### Configure account access
 
@@ -151,18 +152,19 @@ the replacement; old artifacts cannot be relabeled as the corrected output.
 
 ## Prepare and publish a release
 
-1. Merge ordinary changes after routine CI, review and current-merge Native E2E pass.
+1. Merge ordinary changes after review and routine CI.
 2. Review the Release PR. Confirm that its version, changelog, manifest, project
-   metadata, and lockfile agree, its routine CI passes, and pre-merge Native E2E
-   passed for the current base/head/merge target.
-3. Before the first public release, select the Release PR branch on the Actions page
-   and manually run `Release`. A manual run is verification-only: it exercises source
-   checks, fast tests, the Linux real Aseprite E2E gate, package build, metadata checks,
-   and the installed-wheel smoke test without creating a draft, tag, or release.
+   metadata and lockfile agree and its routine CI passes.
+3. To verify main without publishing, select **main** in **Actions → Release → Run
+   workflow**. A manual run checks that event's exact commit, including the native
+   suite and wheel installation, without creating a draft or publishing. Dispatches
+   from PR branches or dev are rejected.
 4. Merge the Release PR. The resulting `main` push creates the draft and reports its
-   exact commit. All read-only verification jobs check out that commit. The quality
+   exact commit. All read-only verification jobs test that commit. The quality
    job validates the reviewed release metadata and builds the wheel and sdist once;
    each native shard also prepares an isolated wheel installation for its CLI tests.
+   Native execution actions come from the trusted workflow commit, with the exact
+   release source in a separate directory; historical actions cannot select caches.
    The final aggregate requires every quality gate and every selected native case.
    The PyPI job downloads those artifacts, checks any existing index files against
    their version, size and SHA-256, and uploads the missing files with Trusted
@@ -175,7 +177,7 @@ release evidence.
 
 ## Permissions and artifacts
 
-The verification jobs have read-only repository permission. They run project code,
+The verification jobs have read-only repository permission and no publishing credentials. They run project code,
 native Aseprite, tests, and the build backend. The quality job stores the exact-SHA
 distributions as a run-scoped artifact, and the aggregate audits the native reports.
 The draft-cutting job has only repository release and pull request permissions and
@@ -202,7 +204,7 @@ extra archive contents, unresolved LFS pointers and unexpected distribution file
 It does not package the Aseprite program, runtime caches, examples or workspace
 configuration. Publishing a wheel and sdist makes their contents public even while
 the GitHub repository is private.
-Repository visibility and Aseprite binary-cache compliance remain with
+Aseprite distribution-risk follow-up remains with
 [issue #126](https://github.com/aigengame/aseprite-automation/issues/126).
 
 A draft/tag can already exist when verification fails. No PyPI upload or public
@@ -211,8 +213,9 @@ validation, package checks, or installed CLI verification.
 
 ## Recovery
 
-- When a manual non-publishing verification fails, fix the Release PR branch and run
-  the verification again on its new head.
+- When manual verification needs a source change, merge the reviewed fix through
+  routine CI, then dispatch a new Release verification from main. A new source
+  requires new evidence; do not reinterpret the old run as testing the fix.
 - When Release PR maintenance fails after release-please creates or updates the PR,
   use **Re-run failed jobs**. The maintenance action resolves the existing open
   Release PR, regenerates and validates its lockfile, verifies its remote head, and

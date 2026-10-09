@@ -35,6 +35,7 @@ jobs:
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       release_sha: ${{ steps.release.outputs.sha }}
+      release_id: ${{ steps.release.outputs.id }}
       tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
       - name: Require a main branch dispatch
@@ -78,6 +79,10 @@ jobs:
           SPA_EVENT_NAME: ${{ github.event_name }}
         shell: bash
         run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "Release verification must run from main" >&2
+            exit 1
+          fi
           if [ "$SPA_EVENT_NAME" = "workflow_dispatch" ]; then
             release_sha="$GITHUB_SHA"
           else
@@ -110,11 +115,12 @@ jobs:
 
   shards:
     if: ${{ always() && needs.prepare.result == 'success' }}
-    needs: prepare
+    needs: [prepare, cut-draft]
     uses: ./.github/workflows/native-e2e-shards.yml
     with:
       target: ${{ needs.prepare.outputs.target }}
       matrix: ${{ needs.prepare.outputs.matrix }}
+      release-id: ${{ needs.cut-draft.outputs.release_id }}
 
   quality:
     name: Verify release source and distributions

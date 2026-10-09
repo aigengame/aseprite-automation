@@ -1,6 +1,12 @@
 name: Set up the locked Python environment
 description: Install the project Python and synchronize every locked dependency group.
 
+inputs:
+  working-directory:
+    description: Source directory containing the project and its lockfile.
+    required: false
+    default: .
+
 runs:
   using: composite
   steps:
@@ -9,7 +15,7 @@ runs:
       with:
         version: 0.11.19
         enable-cache: true
-        cache-dependency-glob: uv.lock
+        cache-dependency-glob: ${{ inputs.working-directory }}/uv.lock
 
     - name: Install Python
       shell: bash
@@ -17,4 +23,5 @@ runs:
 
     - name: Synchronize the locked environment
       shell: bash
+      working-directory: ${{ inputs.working-directory }}
       run: uv sync --frozen --all-groups
