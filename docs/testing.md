@@ -487,7 +487,11 @@ original main event's history. It never looks up the latest release or current m
 head. Manual Release verification uses the original event SHA and does not publish.
 A rejection fails admission and prevents all self-hosted jobs from being scheduled.
 
-The native jobs depend on admission and check out its validated target output.
+The native jobs depend on admission. They load CI actions from the admitted caller's
+original workflow commit, then check out the validated test target in `native-target/`.
+Python dependencies, the wheel, test collection and execution use that target directory.
+This prevents an older Release's local actions from restoring the retired cache path;
+CI tooling and tested source have separate owners and checkouts.
 The final hosted aggregate requires quality and every shard to succeed, then audits
 complete exact-SHA reports. Failed, skipped, cancelled, empty, stale or incomplete
 evidence cannot authorize publication. GitHub-hosted jobs retain release credentials;

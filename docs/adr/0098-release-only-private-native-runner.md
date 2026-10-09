@@ -26,7 +26,10 @@ runner for trusted Releases. Routine PR CI remains GitHub-hosted.
   accepts only the original event SHA. Neither recovery nor admission selects the
   current main head or latest release. Drafts need no existing Git tag; the pinned
   release-please action forwards the created Release ID.
-- Native jobs use the admitted target output. A host-provisioned executable must
+- Native jobs load execution actions from the admitted caller's original workflow
+  commit and use the admitted target in a separate source directory. The target
+  owns its dependencies, wheel and tests; it cannot select an older runtime setup
+  action. A host-provisioned executable must
   pass the batch/script probe; no GitHub build, native download or binary cache
   fallback is permitted. Reports contain test evidence, not runtime installations.
 - The existing shared `scripts/native_e2e.py` owns the local/Linux selection,

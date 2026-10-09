@@ -2,6 +2,10 @@ name: Run Linux real Aseprite E2E
 description: Run the SPA batch scripting path without a graphical display.
 
 inputs:
+  source-directory:
+    description: Checked-out test source, separate from the trusted workflow actions.
+    required: false
+    default: .
   shard-index:
     description: Zero-based shard index from the shared runner matrix.
     required: true
@@ -24,9 +28,12 @@ runs:
 
     - name: Set up Python
       uses: ./.github/actions/setup-python-env
+      with:
+        working-directory: ${{ inputs.source-directory }}
 
     - name: Install the wheel-only SPA CLI for handler evidence
       shell: bash
+      working-directory: ${{ inputs.source-directory }}
       run: |
         uv build
         uv export --frozen --no-dev --no-emit-project \
@@ -42,6 +49,7 @@ runs:
 
     - name: Run real Aseprite E2E tests
       shell: bash
+      working-directory: ${{ inputs.source-directory }}
       env:
         SPA_E2E_SHARD_INDEX: ${{ inputs.shard-index }}
         SPA_E2E_SHARDS: ${{ inputs.shards }}
@@ -56,6 +64,7 @@ runs:
 
     - name: Record Linux real-runtime evidence
       shell: bash
+      working-directory: ${{ inputs.source-directory }}
       run: |
         tested_sha="$(git rev-parse HEAD)"
         {

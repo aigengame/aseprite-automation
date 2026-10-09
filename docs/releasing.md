@@ -160,9 +160,11 @@ the replacement; old artifacts cannot be relabeled as the corrected output.
    suite and wheel installation, without creating a draft or publishing. Dispatches
    from PR branches or dev are rejected.
 4. Merge the Release PR. The resulting `main` push creates the draft and reports its
-   exact commit. All read-only verification jobs check out that commit. The quality
+   exact commit. All read-only verification jobs test that commit. The quality
    job validates the reviewed release metadata and builds the wheel and sdist once;
    each native shard also prepares an isolated wheel installation for its CLI tests.
+   Native execution actions come from the trusted workflow commit, with the exact
+   release source in a separate directory; historical actions cannot select caches.
    The final aggregate requires every quality gate and every selected native case.
    The PyPI job downloads those artifacts, checks any existing index files against
    their version, size and SHA-256, and uploads the missing files with Trusted

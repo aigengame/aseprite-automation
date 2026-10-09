@@ -141,3 +141,17 @@ def test_api_failure_cannot_admit_a_release(admission, tmp_path: Path) -> None:
     result = run(admission)
     assert result.returncode != 0
     assert not Path(admission["GITHUB_OUTPUT"]).exists()
+
+
+def test_old_release_actions_cannot_replace_the_trusted_execution_tools() -> None:
+    workflow = WORKFLOW.read_text()
+    shard = workflow.split("  shard:\n", 1)[1]
+    trusted = shard.split("      - name: Check out trusted execution tools\n", 1)[1]
+    assert "ref: ${{ github.workflow_sha }}" in trusted.split("      - name:", 1)[0]
+    target = shard.split("      - name: Check out the exact native target\n", 1)[1]
+    checkout = target.split("      - name:", 1)[0]
+    assert "path: native-target" in checkout
+    assert "ref: ${{ fromJSON(needs.admission.outputs.target).sha }}" in checkout
+    assert "uses: ./.github/actions/run-linux-aseprite-e2e" in target
+    assert "source-directory: native-target" in target
+    assert "./native-target/.github/actions/" not in shard

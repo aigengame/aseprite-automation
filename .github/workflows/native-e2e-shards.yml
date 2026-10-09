@@ -116,16 +116,26 @@ jobs:
       fail-fast: true
       matrix: ${{ fromJSON(inputs.matrix) }}
     steps:
+      - name: Check out trusted execution tools
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          # The admitted caller is this repository's main Release workflow.
+          # Keep its actions separate from an older release's tested source.
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+
       - name: Check out the exact native target
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ fromJSON(needs.admission.outputs.target).sha }}
+          path: native-target
           lfs: true
           persist-credentials: false
 
       - name: Run the shared native shard
         uses: ./.github/actions/run-linux-aseprite-e2e
         with:
+          source-directory: native-target
           target: ${{ needs.admission.outputs.target }}
           shard-index: ${{ matrix.shard_index }}
           shards: ${{ matrix.shards }}
