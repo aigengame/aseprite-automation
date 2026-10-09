@@ -19,14 +19,43 @@ SELECTION = "e2e and not slow"
 @dataclass(frozen=True)
 class Configuration:
     shards: int = 2
-    workers: int = 2
+    workers: tuple[int, ...] = (2,)
 
     def __post_init__(self) -> None:
-        if self.shards < 1 or self.workers < 1:
+        if self.shards < 1 or any(value < 1 for value in self.workers):
             raise ValueError("shards and workers must be positive integers")
+        if len(self.workers) not in (1, self.shards):
+            raise ValueError("workers must be one count or one count per shard")
+
+    def workers_for(self, index: int) -> int:
+        return self.workers[0] if len(self.workers) == 1 else self.workers[index]
 
     def command_args(self) -> list[str]:
-        return ["--shards", str(self.shards), "--workers", str(self.workers)]
+        return [
+            "--shards",
+            str(self.shards),
+            "--workers",
+            ",".join(str(value) for value in self.workers),
+        ]
+
+
+def matrix(config: Configuration, runner_labels: str) -> dict:
+    labels = (
+        [value.strip() for value in runner_labels.split(",")] if runner_labels else []
+    )
+    if labels and (len(labels) != config.shards or not all(labels)):
+        raise ValueError("runner labels must contain one nonempty label per shard")
+    records = []
+    for index in range(config.shards):
+        record = {
+            "shard_index": index,
+            "shards": config.shards,
+            "workers": config.workers_for(index),
+        }
+        if labels:
+            record["runner_labels"] = ["self-hosted", "linux", labels[index]]
+        records.append(record)
+    return {"include": records}
 
 
 def source_target(path: Path | None) -> dict:
@@ -46,11 +75,14 @@ def check_report(path: Path, config: Configuration, target: dict) -> dict:
     )
     if total == 0:
         raise ValueError("native shard reported no tests")
+    index = report["shard_index"]
+    if not 0 <= index < config.shards:
+        raise ValueError(f"invalid shard index: {path}")
     if report["target"] != target or any(
         report[key] != value
         for key, value in (
             ("shards", config.shards),
-            ("workers", config.workers),
+            ("workers", config.workers_for(index)),
             ("selection", SELECTION),
             ("exit_code", 0),
         )
@@ -59,9 +91,6 @@ def check_report(path: Path, config: Configuration, target: dict) -> dict:
     collection = report["collection"]
     if not collection or sorted(set(collection)) != collection:
         raise ValueError(f"invalid full collection: {path}")
-    index = report["shard_index"]
-    if not 0 <= index < config.shards:
-        raise ValueError(f"invalid shard index: {path}")
     outcomes = report["outcomes"]
     if Counter(o["nodeid"] for o in outcomes) != Counter(
         collection[index :: config.shards]
@@ -104,6 +133,7 @@ def run_shard(output: Path, config: Configuration, index: int, target: dict) -> 
         raise ValueError("shard index must be in [0, shards)")
     directory = output / f"shard-{index}"
     directory.mkdir(parents=True, exist_ok=False)
+    worker_count = config.workers_for(index)
     env = {
         **os.environ,
         "SPA_E2E_SHARDS": str(config.shards),
@@ -121,7 +151,7 @@ def run_shard(output: Path, config: Configuration, index: int, target: dict) -> 
         "-p",
         "native_e2e_plugin",
         "-n",
-        str(config.workers),
+        str(worker_count),
         "--dist=load",
         "--max-worker-restart=0",
         "-m",
@@ -138,7 +168,7 @@ def run_shard(output: Path, config: Configuration, index: int, target: dict) -> 
         str(directory / "junit.xml"),
     ]
     print(
-        f"Native E2E shard {index + 1}/{config.shards}, workers={config.workers}",
+        f"Native E2E shard {index + 1}/{config.shards}, workers={worker_count}",
         flush=True,
     )
     started = time.monotonic()
@@ -146,7 +176,7 @@ def run_shard(output: Path, config: Configuration, index: int, target: dict) -> 
     observed = json.loads((directory / "pytest.json").read_text())
     workers = observed["workers"]
     if (
-        len(workers) != config.workers
+        len(workers) != worker_count
         or not workers
         or any(w != workers[0] for w in workers)
     ):
@@ -159,7 +189,7 @@ def run_shard(output: Path, config: Configuration, index: int, target: dict) -> 
     report = {
         "target": target,
         "shards": config.shards,
-        "workers": config.workers,
+        "workers": worker_count,
         "shard_index": index,
         "selection": SELECTION,
         "exit_code": result.returncode or observed["exit_code"],
@@ -257,30 +287,24 @@ def main() -> int:
     )
     parser.add_argument(
         "--workers",
-        type=int,
-        default=os.environ.get("SPA_E2E_WORKERS") or Configuration.workers,
+        default=os.environ.get("SPA_E2E_WORKERS") or str(Configuration.workers[0]),
+        help="One positive count for every shard, or comma-separated counts by shard index",
+    )
+    parser.add_argument(
+        "--runner-labels",
+        default=os.environ.get("SPA_E2E_RUNNER_LABELS", ""),
+        help="Matrix routing only: one additional runner label per shard, comma-separated",
     )
     parser.add_argument("--shard-index", type=int)
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--target-file", type=Path)
     args = parser.parse_args()
     try:
-        config = Configuration(args.shards, args.workers)
+        config = Configuration(
+            args.shards, tuple(int(value) for value in args.workers.split(","))
+        )
         if args.command == "matrix":
-            print(
-                json.dumps(
-                    {
-                        "include": [
-                            {
-                                "shard_index": index,
-                                "shards": config.shards,
-                                "workers": config.workers,
-                            }
-                            for index in range(config.shards)
-                        ]
-                    }
-                )
-            )
+            print(json.dumps(matrix(config, args.runner_labels)))
             return 0
         if args.output_dir is None:
             parser.error("run and verify require --output-dir")

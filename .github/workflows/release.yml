@@ -11,7 +11,11 @@ on:
         type: string
         default: ""
       workers:
-        description: "Workers per shard override; empty uses SPA_E2E_WORKERS or the shared default"
+        description: "Workers: one count or comma-separated counts per shard; empty uses SPA_E2E_WORKERS"
+        type: string
+        default: ""
+      runner-labels:
+        description: "One routing label per shard, comma-separated; empty uses SPA_E2E_RUNNER_LABELS"
         type: string
         default: ""
 
@@ -64,7 +68,7 @@ jobs:
         needs.cut-draft.outputs.release_created == 'true'))
     needs: cut-draft
     runs-on: ubuntu-24.04
-    timeout-minutes: 3
+    timeout-minutes: 1
     outputs:
       release_sha: ${{ steps.target.outputs.release_sha }}
       target: ${{ steps.target.outputs.target }}
@@ -109,6 +113,7 @@ jobs:
         env:
           SPA_E2E_SHARDS: ${{ inputs.shards || vars.SPA_E2E_SHARDS }}
           SPA_E2E_WORKERS: ${{ inputs.workers || vars.SPA_E2E_WORKERS }}
+          SPA_E2E_RUNNER_LABELS: ${{ inputs.runner-labels || vars.SPA_E2E_RUNNER_LABELS }}
         run: |
           matrix="$(python3 scripts/native_e2e.py matrix)"
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"

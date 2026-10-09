@@ -343,7 +343,11 @@ by its ordinal modulo the shard count. No file lists or timing database are need
 
 Override resources with `--shards N --workers N`, or `SPA_E2E_SHARDS` and
 `SPA_E2E_WORKERS`. Explicit arguments take precedence; empty environment values use
-the shared defaults. Counts must be positive integers. Distributed callers also
+the shared defaults. Counts must be positive integers. `--workers 2,3` assigns two
+workers to shard 0 and three to shard 1; one count applies to every shard, while a
+list must contain exactly one count per shard. The same configuration drives local
+execution, the CI matrix, and each report's worker-count validation. Counts are not
+derived from CPU architecture. Distributed callers also
 provide `--shard-index I`, where `0 <= I < N`. `matrix` emits the resolved CI matrix;
 `verify` audits all reports without rerunning tests. Each subcommand accepts the
 same resource options. For example:
@@ -354,10 +358,20 @@ SPA_TEST_ASEPRITE=/path/to/aseprite \
   --shards 3 --workers 1 --output-dir /tmp/spa-native-e2e-002
 ```
 
-Release dispatches expose optional `shards` and `workers` inputs.
+Release dispatches expose optional `shards`, `workers`, and `runner-labels` inputs.
 They override repository variables `SPA_E2E_SHARDS` and `SPA_E2E_WORKERS`; unset
-values reach the same Python defaults. Automatic release runs use those repository variables. The workflow generates its matrix from this resolved
-configuration. Resource changes require no new matrix lists or test policy.
+values reach the same Python defaults. Automatic release runs use those repository
+variables. The workflow generates its matrix from this resolved configuration.
+
+For runners with different capacities, configure `SPA_E2E_RUNNER_LABELS` (or the
+dispatch input) with one additional runner label per shard, for example
+`spa-native-a,spa-native-b`. The `matrix` command also accepts `--runner-labels`.
+The labels route jobs within the existing private group, in addition to the
+`self-hosted` and `linux` labels. Provision these labels on the intended runners
+before dispatch. Without routing labels, any matching runner in the group can take
+either shard; worker counts still come only from the explicit resource configuration.
+Routing labels and worker counts are independent of architecture and host names.
+When changing the shard count, also adjust any per-shard worker and label lists.
 
 The runner isolates shard workspaces and retains the existing per-invocation native
 user folders. It records original IDs and outcomes, JUnit, target identity, resource
@@ -556,10 +570,12 @@ all GitHub permissions, concurrency or timeout behavior; see its
 The owner limits remain **20 minutes for routine CI**, **40 minutes for full
 manual/periodic verification**, and **40 minutes for Release verification**.
 GitHub's native job timeouts enforce the allocation. The three parallel routine jobs
-retain their smaller 10-minute limits. Release verification allocates **3 minutes
-preparation + 3 minutes hosted admission + 31 minutes per concurrent shard + 3 minutes
+retain their smaller 10-minute limits. Release verification allocates **1 minute
+preparation + 1 minute hosted admission + 35 minutes per concurrent shard + 3 minutes
 aggregation = 40 minutes**. Its 10-minute quality/package job runs alongside admission
 and the shards. All job steps count, including checkout, setup, tests and uploads.
+The allocation leaves more time for native execution; unused time from other jobs
+does not extend a shard's limit.
 There is no compilation deduction, larger outer timeout, or second clock. Parallel
 jobs reduce elapsed time but runner capacity still bounds concurrency.
 

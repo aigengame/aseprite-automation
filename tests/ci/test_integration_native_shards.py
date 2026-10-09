@@ -80,6 +80,24 @@ def test_shared_runner_covers_the_selected_suite_once(suite: Path) -> None:
     assert "selected=6 passed=6 skipped=0" in result.stdout
 
 
+def test_each_shard_uses_its_worker_count_and_verifies_the_complete_suite(
+    suite: Path,
+) -> None:
+    output = suite / "results"
+    result = run(suite, "run", "--workers", "2,3", "--output-dir", str(output))
+    assert result.returncode == 0, result.stdout + result.stderr
+    reports = [
+        json.loads(p.read_text()) for p in sorted(output.glob("shard-*/result.json"))
+    ]
+    assert [r["workers"] for r in reports] == [2, 3]
+    assert "selected=6 passed=6 skipped=0" in result.stdout
+    result = run(suite, "verify", "--workers", "2,3", "--output-dir", str(output))
+    assert result.returncode == 0, result.stdout + result.stderr
+    result = run(suite, "verify", "--workers", "3,2", "--output-dir", str(output))
+    assert result.returncode != 0
+    assert "failed or mismatched native report" in result.stderr
+
+
 @pytest.mark.parametrize("changed_target", [False, True])
 def test_retry_reuses_completed_shards_only_for_the_same_target(
     suite: Path, changed_target: bool
@@ -122,12 +140,14 @@ def test_retry_reuses_completed_shards_only_for_the_same_target(
     assert "selected=6 passed=6 skipped=0" in result.stdout
 
 
+@pytest.mark.parametrize("workers", ["2", "2,3"])
 def test_aggregate_action_checks_reports_and_preserves_failure_through_tee(
     suite: Path,
+    workers: str,
 ) -> None:
     runner_temp = suite / "runner"
     output = runner_temp / "spa-native-e2e"
-    result = run(suite, "run", "--output-dir", str(output))
+    result = run(suite, "run", "--workers", workers, "--output-dir", str(output))
     assert result.returncode == 0, result.stdout + result.stderr
     (suite / "scripts").mkdir()
     for name in ("native_e2e.py", "verify_pytest_execution.py"):
@@ -140,7 +160,7 @@ def test_aggregate_action_checks_reports_and_preserves_failure_through_tee(
         "RUNNER_TEMP": str(runner_temp),
         "GITHUB_STEP_SUMMARY": str(runner_temp / "summary"),
         "SPA_NATIVE_TARGET_JSON": (output / "target.json").read_text(),
-        "SPA_E2E_MATRIX": run(suite, "matrix").stdout,
+        "SPA_E2E_MATRIX": run(suite, "matrix", "--workers", workers).stdout,
     }
     for missing in (False, True):
         if missing:
@@ -176,6 +196,34 @@ def test_configuration_drives_matrix_and_nondefault_execution(suite: Path) -> No
     assert result.returncode == 0, result.stdout + result.stderr
     assert "selected=6 passed=6 skipped=0" in result.stdout
     assert len(list(output.glob("shard-*/result.json"))) == 3
+
+
+def test_matrix_routes_worker_counts_by_configured_runner_label(suite: Path) -> None:
+    result = run(
+        suite,
+        "matrix",
+        "--workers",
+        "2,3",
+        "--runner-labels",
+        "spa-native-a,spa-native-b",
+    )
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == {
+        "include": [
+            {
+                "shard_index": 0,
+                "shards": 2,
+                "workers": 2,
+                "runner_labels": ["self-hosted", "linux", "spa-native-a"],
+            },
+            {
+                "shard_index": 1,
+                "shards": 2,
+                "workers": 3,
+                "runner_labels": ["self-hosted", "linux", "spa-native-b"],
+            },
+        ]
+    }
 
 
 def test_first_failure_stops_sibling_shards_but_preserves_its_report(
@@ -217,7 +265,13 @@ def test_first_failure_stops_sibling_shards_but_preserves_its_report(
     [
         ("--shards", "0"),
         ("--workers", "-1"),
+        ("--workers", "2,0"),
+        ("--workers", "2,3,4"),
+        ("--workers", "2,"),
+        ("--workers", "2,invalid"),
         ("--shards", "bad"),
+        ("--runner-labels", "spa-native-a"),
+        ("--runner-labels", "spa-native-a,"),
     ],
 )
 def test_invalid_configuration_is_rejected_before_execution(suite: Path, args) -> None:
@@ -320,9 +374,37 @@ def test_all_skipped_suite_and_reused_output_cannot_pass(suite: Path) -> None:
 def test_environment_configuration_has_one_default_and_explicit_overrides(
     suite: Path,
 ) -> None:
-    env = {**os.environ, "SPA_E2E_SHARDS": "3", "SPA_E2E_WORKERS": "1"}
+    env = {
+        **os.environ,
+        "SPA_E2E_SHARDS": "3",
+        "SPA_E2E_WORKERS": "1,2,3",
+        "SPA_E2E_RUNNER_LABELS": "spa-native-a,spa-native-b,spa-native-c",
+    }
+    resolved = subprocess.run(
+        [sys.executable, str(RUNNER), "matrix"],
+        cwd=suite,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    records = json.loads(resolved.stdout)["include"]
+    assert [r["workers"] for r in records] == [1, 2, 3]
+    assert [r["runner_labels"][-1] for r in records] == [
+        "spa-native-a",
+        "spa-native-b",
+        "spa-native-c",
+    ]
     result = subprocess.run(
-        [sys.executable, str(RUNNER), "matrix", "--workers", "4"],
+        [
+            sys.executable,
+            str(RUNNER),
+            "matrix",
+            "--workers",
+            "4",
+            "--runner-labels",
+            "spa-native-c,spa-native-b,spa-native-a",
+        ],
         cwd=suite,
         env=env,
         capture_output=True,
@@ -332,6 +414,7 @@ def test_environment_configuration_has_one_default_and_explicit_overrides(
     records = json.loads(result.stdout)["include"]
     assert len(records) == 3
     assert all(r["shards"] == 3 and r["workers"] == 4 for r in records)
+    assert records[0]["runner_labels"][-1] == "spa-native-c"
 
 
 def test_ambient_pytest_options_cannot_reduce_the_full_suite(suite: Path) -> None:
