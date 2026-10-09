@@ -29,6 +29,7 @@ def test_manifest_is_projected_from_command_descriptors() -> None:
         "spa info",
         "spa version",
         "spa schema",
+        "spa script run",
         "spa sprite create",
         "spa sprite get",
         "spa sprite copy",
