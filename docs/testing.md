@@ -323,8 +323,9 @@ environment, and set `SPA_TEST_INSTALLED_CLI` to that environment's `bin/spa`. O
 the existing wheel-only cases report their environment skips.
 
 The [installed distribution record](evidence/issue-54-installed-distributions.md)
-defines the bounded macOS/Linux profiles, the isolated-wheel replay, and the
-remaining Linux evidence requirement. `scripts/verify_installed_cli.py` rejects
+records the tested macOS profile, the isolated-wheel replay, and the remaining
+Linux evidence for the Release-only runner. Its earlier Linux build/cache profile
+is historical. `scripts/verify_installed_cli.py` rejects
 editable/source-tree imports and checks all packaged Kernel resources. Both the
 distribution smoke action and the Linux native action reuse that verifier. The
 native wheel cases cover `info`, Plan creation/painting/inspection, PNG export

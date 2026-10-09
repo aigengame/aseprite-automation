@@ -1,6 +1,32 @@
 # Linux CI capacity — issue #107
 
-## Current acceptance
+## Current acceptance — 2026-10-09
+
+The owner's Release-only decision supersedes the PR/weekly native entry,
+GitHub Aseprite caches and manual-builder recovery recorded below.
+[ADR-0098](../adr/0098-release-only-private-native-runner.md) records that decision;
+the [testing guide](../testing.md#release-only-native-execution) owns current
+execution and time limits, and the [release guide](../releasing.md) owns publication.
+Routine CI remains GitHub-hosted. Native Release verification uses a privately
+provisioned Linux runtime and retains the complete exact-SHA evidence requirement.
+
+After [PR #198](https://github.com/aigengame/aseprite-automation/pull/198) merges,
+validate the runner group's allowed/denied scheduling
+without Aseprite, then provision the runtime and obtain actual Linux Release
+evidence. Follow [runner setup](../testing.md#release-runner-setup) and
+[host repair](../testing.md#restore-the-aseprite-runtime), not the retired builder.
+Record the tested SHA, host/runtime provenance, installed-wheel checks, shard
+outcomes and job durations against the 40-minute verification allocation. Live
+main Release PR maintenance also remains part of #107's outstanding acceptance.
+These deployment checks do not add a pre-merge gate to the code PR.
+
+#107 remains open until its current live acceptance is verified. Earlier Linux
+passes, local checks and group creation do not establish the new runner's access,
+execution or capacity. The dated sections below preserve historical measurements,
+SHAs, failed-to-start receipts and then-applicable procedures; they are not current
+operating instructions.
+
+## Historical acceptance — 2026-09-29 (superseded)
 
 The owner decision on 2026-09-29 reduces native execution frequency. Routine CI
 now has source, fast-test and distribution jobs only. Independent `native-e2e.yml`
