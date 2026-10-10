@@ -1,6 +1,6 @@
 # SPA — Aseprite Automation for AI Agents
 
-![SPA: concept artwork becomes editable pixel art layers and animation frames](https://raw.githubusercontent.com/aigengame/aseprite-automation/6d5f107600153d85ccd2e0531092418578311296/docs/assets/hero-layered-pixel-workbench.png)
+![SPA: a wizard drinks coffee in a spa and conjures layered pixel art](https://raw.githubusercontent.com/aigengame/aseprite-automation/52febf44ac9f33005b0ec4eca1432c312ba2cc93/docs/assets/hero-wizard-spa-calm-garden.png)
 
 **Create, edit, validate, and export pixel art and sprite animations with AI agents.**
 
@@ -12,6 +12,8 @@ Keep editable `.aseprite` sources and deliver PNGs, GIFs, sprite sheets, and til
 [![Python 3.13+](https://img.shields.io/badge/Python-3.13%2B-blue)](https://www.python.org/)
 [![CLI · Agent Skill · MCP](https://img.shields.io/badge/access-CLI%20%C2%B7%20Agent%20Skill%20%C2%B7%20MCP-7057ff)](#choose-your-integration)
 
+**Read this in:** English · [简体中文](https://github.com/aigengame/aseprite-automation/blob/main/docs/README.zh-CN.md)
+
 [Quick start](#quick-start) · [Usage guide](https://github.com/aigengame/aseprite-automation/blob/main/docs/usage.md) ·
 [Examples](#examples) · [MCP setup](https://github.com/aigengame/aseprite-automation/blob/main/docs/mcp.md)
 
@@ -19,13 +21,15 @@ Keep editable `.aseprite` sources and deliver PNGs, GIFs, sprite sheets, and til
 
 Tell your AI agent:
 
-> Read the SPA Skill, check my installed SPA and Aseprite, and create a small pixel art
-> animation. Keep the editable `.aseprite` source, validate its frames and timing,
-> export a sprite sheet, and show me the result before calling it done.
+> Install the SPA CLI with `uv tool install --python 3.13 aseprite-automation`,
+> and install its Agent Skill with
+> `npx skills add aigengame/aseprite-automation --skill spa -g`.
+> Then read the skill, follow it to configure SPA for my Aseprite installation,
+> and verify the setup with `spa info`.
 
-New to SPA? Follow [Installation](#installation), then
-[install the Skill](#agent-skill) for your agent. The same work can also use the CLI
-directly or an MCP client.
+A separate Aseprite installation is required. See [Installation](#installation)
+and [Agent Skill](#agent-skill) for prerequisites and setup options. You can also
+use the CLI directly or connect an [MCP client](#mcp).
 
 ## Contents
 
@@ -197,6 +201,8 @@ From your consuming project, install the Skill with the
 ```sh
 npx skills add aigengame/aseprite-automation --skill spa
 ```
+
+Add `-g` to install for your user across projects, as in the TL;DR above.
 
 For a local development checkout, use:
 

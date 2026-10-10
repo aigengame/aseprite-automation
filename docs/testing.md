@@ -24,7 +24,7 @@ with Source and an existing Target preserved.
 | Directory | Behavior owner |
 | --- | --- |
 | `tests/application/` | Application orchestration, including compatibility checks before Operation execution. |
-| `tests/ci/` | Release admission, native test execution policy, and shard evidence checks. |
+| `tests/ci/` | README translation freshness, Release admission, native test execution policy, and shard evidence checks. |
 | `tests/cli/` | Access Projection through the installed CLI and its in-process projections. |
 | `tests/color_mode/` | Conditional Color Mode choices, native mapping/Dithering, complete Sprite and Plan conversion evidence. |
 | `tests/contracts/` | Shared Published Language rules, including Failure Code registration and Operation Descriptor constraints. |
@@ -134,6 +134,35 @@ refuse inconsistent native evidence or output aliases of the raster. These tests
 use the existing local macOS and Linux `--batch --script` lanes without a display;
 they do not exercise the editor UI. Run `pytest tests/import` with the same runtime
 configuration as other native owners.
+
+## README translations
+
+The English `README.md` is authoritative. Translations live in
+`docs/README.<locale>.md`, beginning with Simplified Chinese (`zh-CN`). Update and
+review every translation in the same change as its English source. Preserve the
+commands, examples, links and support boundaries; write idiomatically for the
+target language. Keep navigation working when translating headings, using explicit
+anchors for the English fragment names where needed.
+
+After reviewing the translations, record the current English revision:
+
+```sh
+uv run python scripts/update_readme_i18n.py
+uv run python scripts/update_readme_i18n.py --check
+```
+
+The script discovers `docs/README.*.md` and stamps a leading SHA-256 marker in each
+file. Only line endings are normalized before hashing English content. `--check`
+does not modify files: a missing or stale marker, or a missing required Chinese
+README, fails the check. New locales join the check automatically; add links to
+them in the language selectors too.
+
+`tests/ci/test_integration_readme_i18n.py` runs the same check against the repository
+in the existing Fast tests job, and verifies failure and refresh behavior with
+temporary files. The hash detects an unacknowledged English revision; it cannot
+judge translation accuracy or prove that prose was reviewed. Do not refresh markers
+as a substitute for reviewing and updating translations. This follows
+[godot-agent's README sync workflow](https://github.com/aigengame/godot-agent/blob/94ed02142b989d51d4cc036b6f993b219bea3049/scripts/update_readme_i18n.py).
 
 ## Animation export
 
