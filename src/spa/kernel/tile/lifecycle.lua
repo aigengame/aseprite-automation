@@ -395,6 +395,12 @@ function module.prepare(sprite, payload, uuids)
 end
 
 local function reorder(sprite, context)
+  -- Preparation already validated all Keys and the complete permutation. Track
+  -- current positions by final index without rereading every native Tile Key.
+  local positions = {}
+  for old, final in pairs(context.mapping) do
+    positions[final] = old
+  end
   local previous_layer = app.activeLayer
   app.activeSprite = sprite
   local active
@@ -420,12 +426,17 @@ local function reorder(sprite, context)
     active = temporary
   end
   app.activeLayer = active
-  for final, key in ipairs(context.desired_keys) do
-    local current = assert(exact_key(context.tileset, key))
+  for final = 1, #context.desired_keys do
+    local current = positions[final]
     if current ~= final then
       assert(current > final, "Reorder disturbed its completed prefix")
       app.range.tiles = { current }
       assert(app.command.MoveTiles { before = final }, "native Tile reorder failed")
+      -- MoveTiles inserts before final, shifting the intervening Tiles right.
+      for pending = final + 1, #context.desired_keys do
+        if positions[pending] < current then positions[pending] = positions[pending] + 1 end
+      end
+      positions[final] = final
     end
   end
   if temporary ~= nil then sprite:deleteLayer(temporary) end
