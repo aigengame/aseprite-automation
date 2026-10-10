@@ -1,6 +1,6 @@
 # SPA — Aseprite Automation for AI Agents
 
-![SPA: concept artwork becomes editable pixel art layers and animation frames](https://raw.githubusercontent.com/aigengame/aseprite-automation/6d5f107600153d85ccd2e0531092418578311296/docs/assets/hero-layered-pixel-workbench.png)
+![SPA: a wizard drinks coffee in a spa and conjures layered pixel art](https://raw.githubusercontent.com/aigengame/aseprite-automation/52febf44ac9f33005b0ec4eca1432c312ba2cc93/docs/assets/hero-wizard-spa-calm-garden.png)
 
 **Create, edit, validate, and export pixel art and sprite animations with AI agents.**
 
