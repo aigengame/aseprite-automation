@@ -27,8 +27,8 @@ def script_runtime(tmp_path: Path, body: str) -> Path:
         "import os, sys, time\nfrom pathlib import Path\n" + body + "\n",
         encoding="utf-8",
     )
-    # Keep the protocol stub independent of Python startup so short caller
-    # deadlines exercise the intended process, including on a loaded test host.
+    # Keep the protocol stub independent of Python startup. The caller process
+    # can still time out before it produces any output.
     return fake_aseprite(
         tmp_path,
         f"""probe_request=
