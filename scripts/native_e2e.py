@@ -18,7 +18,7 @@ SELECTION = "e2e and not slow"
 
 @dataclass(frozen=True)
 class Configuration:
-    shards: int = 2
+    shards: int = 8
     workers: int = 2
 
     def __post_init__(self) -> None:

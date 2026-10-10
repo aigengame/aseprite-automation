@@ -279,7 +279,7 @@ def test_release_aggregate_requires_quality_and_every_shard(
 
 
 @pytest.mark.parametrize(
-    "shards,workers,success", [("3", "1", True), ("0", "1", False)]
+    "shards,workers,success", [("", "", True), ("3", "1", True), ("0", "1", False)]
 )
 @pytest.mark.parametrize("workflow", [WORKFLOW, WORKFLOW.with_name("release.yml")])
 def test_workflow_configuration_uses_shared_parameters(
@@ -297,8 +297,7 @@ def test_workflow_configuration_uses_shared_parameters(
     assert (result.returncode == 0) == success, result.stderr
     if success:
         value = Path(env["GITHUB_OUTPUT"]).read_text().removeprefix("matrix=")
+        count = int(shards) if shards else 8
         assert json.loads(value)["include"] == [
-            {"shard_index": 0, "shards": 3},
-            {"shard_index": 1, "shards": 3},
-            {"shard_index": 2, "shards": 3},
+            {"shard_index": index, "shards": count} for index in range(count)
         ]
