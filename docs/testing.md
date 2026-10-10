@@ -334,11 +334,13 @@ and a typed failure; they run consumer calls outside the checkout.
 ### Shared native parallel execution
 
 `scripts/native_e2e.py` owns selection, configuration, partitioning, execution, and
-report validation for local and Release execution. Its initial defaults
-are **2 shards × 2 pytest workers per shard**. Local execution starts the shards on
-one machine; `.github/workflows/native-e2e-shards.yml` places the same shards on
-separate Linux runners. Each shard uses xdist's `load` scheduler. Pytest collects the
-full `e2e and not slow` selection, sorts the original node IDs, and assigns each ID
+report validation for local and Release execution. The shared default is **8 shards**;
+worker count comes from each execution host and defaults to **2** when unset.
+Local execution starts all shards on one machine; use fewer shards or workers when
+that exceeds local capacity. `.github/workflows/native-e2e-shards.yml` submits the
+same shards to GitHub's native queue for eligible Linux runners. Each shard uses
+xdist's `load` scheduler. Pytest collects the full `e2e and not slow` selection,
+sorts the original node IDs, and assigns each ID
 by its ordinal modulo the shard count. No file lists or timing database are needed.
 
 The shard count (`--shards N` or `SPA_E2E_SHARDS`) defines the test partition.
@@ -358,10 +360,11 @@ SPA_TEST_ASEPRITE=/path/to/aseprite \
 ```
 
 Release dispatches expose an optional `shards` input, which overrides repository
-variable `SPA_E2E_SHARDS`; automatic runs use that variable. Each runner service
-supplies its own `SPA_E2E_WORKERS` environment value. A repository variable does not
-set or override worker capacity. For example, two runner services can set two and
-three workers, respectively, while either runner may receive either of two shards.
+variable `SPA_E2E_SHARDS`; automatic runs use that variable when set. Leave it unset
+to follow the shared default instead of maintaining a second default. Each runner
+service supplies its own `SPA_E2E_WORKERS` environment value. A repository variable
+does not set or override worker capacity. An eligible runner can receive any shard
+and take another when it finishes.
 The existing private group and generic `self-hosted` / `linux` labels determine
 eligible runners; no per-shard routing labels or CPU architecture rules are needed.
 
@@ -565,17 +568,19 @@ The owner limits remain **20 minutes for routine CI**, **40 minutes for full
 manual/periodic verification**, and **40 minutes for Release verification**.
 GitHub's native job timeouts enforce the allocation. The three parallel routine jobs
 retain their smaller 10-minute limits. Release verification allocates **1 minute
-preparation + 1 minute hosted admission + 35 minutes per concurrent shard + 3 minutes
-aggregation = 40 minutes**. Its 10-minute quality/package job runs alongside admission
+preparation + 1 minute hosted admission + a 35-minute shard job limit + 3 minutes
+aggregation**. Its 10-minute quality/package job runs alongside admission
 and the shards. All job steps count, including checkout, setup, tests and uploads.
 Unused allocations do not transfer between jobs.
 There is no compilation deduction, larger outer timeout, or second clock. Parallel
 jobs reduce elapsed time but runner capacity still bounds concurrency.
 
-These are running-job limits, not queue-time or whole-pipeline latency promises.
-Release has separate draft and publication jobs. A verification overrun prevents
-publication. The [issue #107 evidence](evidence/issue-107-ci-capacity.md) records
-historical measurements and superseded cache experiments.
+With more shards than runners, multiple jobs run in sequence on each runner. The job
+limits do not add up to a workflow-wide timeout; measure the complete verification,
+including queued jobs, against the unchanged 40-minute budget.
+Release has separate draft and publication jobs. A failed or timed-out verification
+job prevents publication. The [issue #107 evidence](evidence/issue-107-ci-capacity.md)
+records historical measurements and superseded cache experiments.
 
 ### Release runner setup
 
@@ -611,11 +616,24 @@ reports. It never uploads or caches Aseprite. The retained `aseprite-build.yml`
 now fails with provisioning instructions even if manually re-enabled.
 Python dependency caching is separate and does not contain the native installation.
 
-Each runner service executes one shard job at a time. Two simultaneous shards need
-two eligible runner services with separate installation/work directories, possibly
-on one host with sufficient CPU and memory. Start with the shared configurable
-2 × 2 configuration, then size it from measurements on the actual VPS. One runner
-will queue the shards; the parallel time allocation assumes enough execution slots.
+Each runner service executes one shard job at a time, with its own worker count,
+and takes queued shards through GitHub's native queue. Do not bind shard indices or
+worker counts to architectures or runner labels.
+More eligible services can take queued jobs without a new scheduler.
+
+At main commit `2daa7f36cfa550313562c80bb539ca827b678be0`, the same complete selection
+produced 2,376 passed and 11 skipped in each measured configuration:
+
+| Shards | Complete verification | Preparation summed across jobs |
+| --- | --- | --- |
+| [4](https://github.com/aigengame/aseprite-automation/actions/runs/38019562706) | 34:03 | 100.3 s |
+| [6](https://github.com/aigengame/aseprite-automation/actions/runs/38021643557) | 34:42 | 130.4 s |
+| [8](https://github.com/aigengame/aseprite-automation/actions/runs/38023909556) | 32:14 | 164.6 s |
+
+Eight shards reduced elapsed time by 5.3% versus four and 7.1% versus six, while
+remaining inside the 40-minute budget. Preparation is included in elapsed time;
+its sum measures resource use across concurrent jobs. These are single sequential
+trials, not a guaranteed speedup or job distribution. Keep both counts configurable.
 
 Before adding Aseprite, register the runner in this group and validate access with
 harmless jobs: the allowed reusable workflow from main must route correctly, while

@@ -53,18 +53,24 @@ tests do not prove GitHub runner-group enforcement or Linux execution. Trusted-m
 admission does not protect against malicious code approved into main or a compromised
 runner host.
 
-The verification allocation remains 40 minutes: preparation 1, admission 1, concurrent
-shards 35, aggregation 3. The owner approved this reallocation after a shard was
-cancelled at 31 minutes while preparation and admission used only seconds. Each job
+The verification budget remains 40 minutes. Job limits remain preparation 1,
+admission 1, each shard 35, and aggregation 3 minutes. The owner approved these limits
+after a shard was cancelled at 31 minutes while preparation and admission used only
+seconds. Each job
 keeps its native GitHub timeout; unused allocations do not transfer between jobs.
-Quality runs alongside admission and shards. Queue latency
-is outside GitHub job timeouts; enough runner slots are needed for concurrent shards.
+Quality runs alongside admission and shards. Queue latency is outside GitHub job
+timeouts. With more shards than available runners, jobs also run in sequence; measure
+complete verification, including queues, against the 40-minute budget. Per-job
+limits do not constitute a workflow-wide timeout.
 Shards describe test partitioning. Each execution host supplies its worker count
 through `SPA_E2E_WORKERS`; local `run --workers` can override it. The scheduler can
 assign any shard to either runner. No architecture rules, per-shard worker maps, or
 per-runner routing labels bind these settings together. Aggregate verification
 checks reported worker counts against pytest evidence while requiring complete
 exact-SHA test coverage across all shards.
+The shared default is eight shards after the owner-approved 4/6/8-shard comparison.
+Runner services retain their independent worker settings and take queued jobs
+through GitHub. This changes partition granularity, not scheduling policy.
 Operational setup and recovery are documented in [the testing guide](../testing.md#release-runner-setup).
 
 ## References

@@ -110,7 +110,7 @@ jobs:
     runs-on:
       group: spa-release
       labels: [self-hosted, linux]
-    # Preparation (1) + admission (1) + parallel shards (35) + aggregation (3) = 40.
+    # Per-job guard; the 40-minute verification budget also includes matrix queueing.
     timeout-minutes: 35
     strategy:
       fail-fast: true
