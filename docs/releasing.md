@@ -185,9 +185,17 @@ release evidence.
 
 ## Permissions and artifacts
 
-The verification jobs have read-only repository permission and no publishing credentials. They run project code,
-native Aseprite, tests, and the build backend. The quality job stores the exact-SHA
-distributions as a run-scoped artifact, and the aggregate audits the native reports.
+The native test, quality, package-build and aggregation jobs have read-only
+repository permission and no publishing credentials. The quality job stores the
+exact-SHA distributions as a run-scoped artifact, and the aggregate audits the
+native reports.
+
+The hosted admission job needs `contents: write` to read an unpublished Release
+draft; GitHub exposes drafts only to callers with push access. The reusable-workflow
+caller permits that access, while the self-hosted shard job explicitly requests
+`contents: read`. Admission runs only trusted inline validation, with no checkout
+or project code execution; it does not modify the Release.
+
 The draft-cutting job has only repository release and pull request permissions and
 runs no checked-out project code. Only the PyPI upload job has `id-token: write`,
 scoped by the `pypi` Environment and Trusted Publisher binding. It checks out only
@@ -233,6 +241,11 @@ validation, package checks, or installed CLI verification.
   deliberately marked failed too, so failed shards/quality checks, aggregation, and
   publication resume while the successful draft job remains fixed. The aggregate
   still requires a complete set of reports for the same target and configuration.
+  This applies to transient failures or repairs outside workflow code. A rerun
+  retains the original workflow revision, including its token permissions. A
+  workflow-code fix needs a new run and a recovery decision for the existing draft;
+  merging the fix does not repair the old run. Do not move the draft to a different
+  source commit or use evidence for another SHA.
 - When draft creation fails before a release exists, use **Re-run failed jobs** after a
   transient GitHub failure.
 - When PyPI setup, OIDC exchange or upload fails, correct the setup and use
