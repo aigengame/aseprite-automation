@@ -1,17 +1,17 @@
 # Use SPA through MCP
 
-After the first PyPI release is available, install the optional MCP extra:
+Install the optional MCP extra from [PyPI](https://pypi.org/project/aseprite-automation/):
 
 ```sh
-uv tool install 'aseprite-automation[mcp]'
+uv tool install --python 3.13 'aseprite-automation[mcp]'
 spa-mcp --help
 ```
 
 Use `uv tool upgrade aseprite-automation` to update that installation. Configure the
 client with the absolute `spa-mcp` path reported by your shell (`command -v spa-mcp`
-on macOS/Linux). [Issue #189](https://github.com/aigengame/aseprite-automation/issues/189)
-tracks the first production upload; until then, use a checkout that provides the
-`mcp` extra. From its root:
+on macOS/Linux).
+
+For source development, install the extra from the checkout root:
 
 ```sh
 uv sync --extra mcp
