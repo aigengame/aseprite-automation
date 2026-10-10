@@ -651,16 +651,29 @@ def test_tile_count_limit_includes_empty_and_append_result(
     assert set(tmp_path.iterdir()) == {source, target}
 
 
-@pytest.mark.parametrize("order", ["reverse", "mixed"])
+@pytest.mark.parametrize("order", ["original", "reverse", "mixed"])
 def test_reorder_permutations_at_tile_count_limit(
     tmp_path: Path, runtime, order: str
 ) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    fixture(source, runtime, script="lifecycle_limits.lua", tile_count=4096)
+    placements = [1, 2, 2048, 4095]
+    fixture(
+        source,
+        runtime,
+        script="lifecycle.lua",
+        tile_count=4096,
+        placements=json.dumps(placements),
+    )
     original = source.read_bytes()
     target.write_bytes(b"previous target")
-    keys = [f"tile-{index}" for index in range(1, 4096)]
-    requested = keys[::-1] if order == "reverse" else keys[::2] + keys[1::2]
+    indexes = list(range(1, 4096))
+    requested_indexes = {
+        "original": indexes,
+        "reverse": indexes[::-1],
+        "mixed": indexes[::2] + indexes[1::2],
+    }[order]
+    keys = [f"tile-{index}" for index in indexes]
+    requested = [f"tile-{index}" for index in requested_indexes]
     code, result = run(
         "tileset",
         "tile",
@@ -681,6 +694,17 @@ def test_reorder_permutations_at_tile_count_limit(
         ],
     ]
     assert result["persisted_reopen_verified"] is True
+    fixture(
+        target,
+        runtime,
+        script="verify_lifecycle.lua",
+        tile_count=4096,
+        order=json.dumps(requested_indexes),
+        cells=json.dumps(
+            [expected_indexes[f"tile-{index}"] | 0xE0000000 for index in placements]
+            + [0xE0000000]
+        ),
+    )
     assert source.read_bytes() == original
     assert set(tmp_path.iterdir()) == {source, target}
 

@@ -3,21 +3,22 @@ local sprite = assert(app.open(app.params.source))
 local tileset = sprite.tilesets[1]
 local expected = json.decode(app.params.order)
 assert(#tileset == #expected + 1)
+assert(tileset:tile(0).image:getPixel(0, 0) == 0)
 for index, old in ipairs(expected) do
   old = math.tointeger(old)
   local tile = tileset:tile(index)
-  local key = ({ "a", "b", "c", "d" })[old]
+  local key = app.params.tile_count and "tile-" .. old or ({ "a", "b", "c", "d" })[old]
   assert(tile.properties("aigengame.spa").tile_key == key)
   assert(tile.properties("aigengame.spa").other == "retained-" .. old)
   assert(tile.data == "data-" .. old)
-  assert(tile.color.red == 20 + old)
+  assert(tile.color.red == (20 + old) % 256)
   assert(tile.properties.note == "default-" .. old)
   assert(tile.properties("example").large == 9007199254740993 + old)
   assert(tile.properties("example").point.y == -old)
-  assert(tile.properties("example").binary == string.char(255, 254, old))
+  assert(tile.properties("example").binary == string.char(255, 254, (old - 1) % 255 + 1))
   assert(tile.image.width == 2 and tile.image.height == 3)
   for pixel in tile.image:pixels() do
-    assert(pixel() == app.pixelColor.rgba(10 + old, 30, 40, 255))
+    assert(pixel() == app.pixelColor.rgba((10 + old) % 256, 30 + old // 256, 40, 255))
   end
 end
 local orphan = sprite.tilesets[2]
