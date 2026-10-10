@@ -2,6 +2,10 @@
 
 ## [0.3.0](https://github.com/aigengame/aseprite-automation/compare/v0.2.0...v0.3.0) (2026-10-05)
 
+> Withdrawn before publication. Native verification did not pass. The historical
+> tag retains the original reviewed commit; no GitHub Release or PyPI upload was
+> published. See [release reconciliation](docs/releasing.md#withdrawn-pre-pypi-release).
+
 
 ### Features
 

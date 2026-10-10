@@ -6,7 +6,7 @@ the same files to the GitHub Release. Aseprite is supplied separately.
 
 The first PyPI upload starts with a new reviewed Release after this implementation
 and its MIT declaration reach `main`. Release-please selects the version. Historical
-versions are not backfilled; the existing `v0.3.0` GitHub draft is not reused for newer
+versions are not backfilled; the withdrawn `v0.3.0` version is not reused for newer
 code. Until that first upload passes, local package checks demonstrate readiness,
 not a completed PyPI release. [Issue #189](https://github.com/aigengame/aseprite-automation/issues/189)
 tracks the initial setup and production installation evidence.
@@ -19,7 +19,8 @@ tracks the initial setup and production installation evidence.
   GitHub About and Topics mirror the project description and keywords. When editing
   those fields, synchronize the repository settings from the same values.
 - `release-please-config.json` defines versioning, changelog sections, and tag shape;
-  `.release-please-manifest.json` is its released-version ledger.
+  `.release-please-manifest.json` records its version baseline. A version or tag
+  alone does not prove publication; check the GitHub Release and PyPI files.
 - `.github/actions/maintain-release-pr/action.yml` projects the selected version into
   the generated `uv.lock` by running `uv lock` on the Release PR branch.
 - The Release PR owns the coordinated `pyproject.toml`, manifest, `uv.lock`, and
@@ -84,21 +85,28 @@ commands and skip policy.
 
 ## Configure the first PyPI publisher
 
-### Reconcile the pending GitHub release
+### Withdrawn pre-PyPI release
 
-Before expecting a new Release PR, resolve the pending pre-PyPI release with the
-owner. On 2026-10-07, `main` recorded version `0.3.0`, but its GitHub draft had no
-`v0.3.0` tag. The existing maintenance gate therefore returned `ready=false`.
-Merging this implementation or running manual verification does not clear that gate.
+On 2026-10-10, the owner authorized reconciliation of the empty `v0.3.0` draft
+and its version baseline. The unpublished draft was removed. The annotated
+`v0.3.0` tag retains the original reviewed Release PR #111 commit,
+`4db66c94cdb13c68780fdaa42e9666010bd33e3e`.
+The tag states **withdrawn before publication**: in
+[Release run 37270734204](https://github.com/aigengame/aseprite-automation/actions/runs/37270734204),
+the package build passed, but native verification failed on a process timeout.
+No GitHub Release or PyPI package was published for this version. The tag records
+historical source; successful release verification remains unproven for that commit.
 
-The original draft belongs to commit
-`4db66c94cdb13c68780fdaa42e9666010bd33e3e` and
-[Release run 37270734204](https://github.com/aigengame/aseprite-automation/actions/runs/37270734204).
-Its package build passed, but native verification failed on a process timeout.
-That historical workflow uses the retired binary-cache path and must not be resumed
-on the private runner. Reconcile its draft and release-ledger state with the owner
-before expecting a new Release PR. Do not bypass the tag gate or attach new code to
-the old version. Then let release-please select the new version.
+At reconciliation, `main` still recorded `0.3.0` in the manifest, project version
+and lockfile. Release-please generated
+[Release PR #205](https://github.com/aigengame/aseprite-automation/pull/205) for `0.4.0`.
+Its
+[native tag fallback](https://github.com/googleapis/release-please/blob/v17.3.0/docs/troubleshooting.md#how-does-release-please-determine-the-previous-release)
+used the original commit as its comparison boundary without a version override.
+At reconciliation, the latest published GitHub release was still `v0.2.0`.
+Do not move the withdrawn tag to newer code, restore #111's pending label, or resume
+its historical workflow, which uses the retired binary-cache path. The next reviewed
+Release follows the current verification and publication workflow.
 
 ### Configure account access
 
