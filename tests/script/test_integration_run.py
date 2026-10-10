@@ -13,12 +13,10 @@ from tests.support import spa
 pytestmark = pytest.mark.skipif(os.name == "nt", reason="POSIX process fixture")
 
 
-def test_timeout_remains_in_force_after_both_output_streams_close(
+def test_timeout_is_reported_without_requiring_process_output(
     tmp_path: Path,
 ) -> None:
-    binary = script_runtime(
-        tmp_path, "os.write(1, b'started'); os.close(1); os.close(2); time.sleep(1.2)"
-    )
+    binary = script_runtime(tmp_path, "time.sleep(10)")
     run = spa(
         "script",
         "run",
@@ -33,10 +31,15 @@ def test_timeout_remains_in_force_after_both_output_streams_close(
         ),
     )
     result = json.loads(run.stdout)
-    assert result["diagnostics"]["stdout"] == "started", result
     assert run.returncode == 1, result
+    assert result["operation"] == "spa script run", result
     assert result["code"] == "process_timeout", result
+    assert result["diagnostics"]["stdout"] == "", result
+    assert result["diagnostics"]["stderr"] == "", result
     assert result["diagnostics"]["exit_status"] is not None
+    assert result["details"]["exit_status"] == result["diagnostics"]["exit_status"]
+    schema = json.loads(spa("script", "run", "--schema").stdout)
+    Draft202012Validator(schema["failure_schema"]).validate(result)
 
 
 @pytest.mark.parametrize(
@@ -44,14 +47,14 @@ def test_timeout_remains_in_force_after_both_output_streams_close(
     [
         ("print('before failure'); sys.exit(9)", "process_failed", "before failure\n"),
         ("os.write(1, b'x' * 65537)", "output_limit_exceeded", "x" * 65536),
-        ("os.write(1, b'started'); time.sleep(10)", "process_timeout", "started"),
     ],
+    ids=["nonzero-exit", "output-limit"],
 )
 def test_script_process_failures_use_registered_schema_and_keep_diagnostics(
     tmp_path, body, code, output
 ) -> None:
     binary = script_runtime(tmp_path, body)
-    request = {"script": {"kind": "inline", "code": ""}, "timeout_seconds": 0.8}
+    request = {"script": {"kind": "inline", "code": ""}}
     run = spa(
         "script", "run", "--aseprite", str(binary), "--input-json", json.dumps(request)
     )

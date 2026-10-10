@@ -302,11 +302,18 @@ Pytest rejects unregistered markers. The root e2e gate also rejects a selected e
 test when `SPA_TEST_ASEPRITE` is absent, is not a file, or is not executable. A missing
 runtime therefore cannot produce an all-skipped successful e2e run.
 
-Run the fast unit and integration tiers with:
+Run the fast unit and integration tiers with two pytest workers by default:
 
 ```sh
-uv run --frozen --group test pytest -m "not e2e"
+uv run --frozen --group test pytest -m "not e2e" \
+  -n "${SPA_FAST_TEST_WORKERS:-2}" --dist=load --max-worker-restart=0
 ```
+
+Set `SPA_FAST_TEST_WORKERS` to change the local worker count; `0` runs serially for
+diagnosis. Routine CI uses the same arguments in one job and reads the optional
+GitHub repository variable `SPA_FAST_TEST_WORKERS`, with a default of `2`. Each
+selected test runs once. Worker crashes fail the run, with automatic worker restart
+disabled.
 
 Run the complete routine real-runtime selection, including the small wizard probes,
 through the same entry point used by Native E2E and Release:
@@ -475,7 +482,7 @@ with `--frozen`. They do not set up Aseprite or run native E2E.
 | Job | Required evidence |
 | --- | --- |
 | Source quality | Ruff lint and formatting, Pyright for production source, and Luacheck plus StyLua for all tracked Lua. |
-| Fast tests | Unit and integration tests selected with `-m "not e2e"`. |
+| Fast tests | Unit and integration tests selected with `-m "not e2e"`, in one job with two pytest workers by default. |
 | Build and smoke test distributions | One sdist and wheel, valid package metadata, and a successful `spa version` from a wheel-only environment populated from locked runtime dependencies. |
 
 A failure in any job fails routine CI. These three job names can be required checks
@@ -845,9 +852,13 @@ all Execution Kind / Determinism pairings in both model validation and JSON Sche
 Installed discovery reports `script-run` / `caller-defined`, while request and Plan
 tests prevent caller source or printed JSON from becoming an Ordinary Core Operation.
 
-Controlled process tests cover timeout (including early closure of both output
-streams), the 65,536-byte per-stream guard, nonzero exit, exact UTF-8 materialization,
-and typed failures. Real batch E2E covers native Lua and syntax errors, unchanged
+Controlled process tests cover timeout, the 65,536-byte per-stream guard, nonzero
+exit, exact UTF-8 materialization, and typed failures. The CLI timeout case permits
+a process to reach its deadline before producing output. A separate invocation
+test uses real pipes with controlled time and process completion to verify that
+early closure of both output streams preserves the remaining deadline and captured
+diagnostics. These tests verify execution guards without assuming a host startup
+speed. Real batch E2E covers native Lua and syntax errors, unchanged
 BOM rejection, file bytes and CRLF preservation, script-relative `require`, explicit
 parameters, binary-to-text replacement, and declared file facts. These are batch
 tests, with no windowed UI requirement or claim. Current macOS and Linux profiles
