@@ -1,4 +1,4 @@
-<!-- spa-readme-i18n: source=README.md sha256=0638ece1ec9cf8435f51dd540cc93ef3b6a8a8ffcc607a83e2bbf8a75cfb34ee -->
+<!-- spa-readme-i18n: source=README.md sha256=9462d6832958a9d6a238418ddba2949fa8f772a23feb28e7cb62223486336cbf -->
 
 # SPA — 面向 AI 智能体的 Aseprite 自动化工具
 
@@ -272,9 +272,6 @@ SPA 负责动画制作与导出，imagegen 提供 v2 的初始画作，
 [架构说明](https://github.com/aigengame/aseprite-automation/blob/main/ARCHITECTURE.md)和
 [领域模型](https://github.com/aigengame/aseprite-automation/blob/main/CONTEXT.md)开始了解项目。
 产品与实现决策的依据见[权威矩阵](https://github.com/aigengame/aseprite-automation/blob/main/AUTHORITY_MATRIX.md)。
-
-英文 `README.md` 是权威版本。修改英文内容时，请在同一次变更中同步译文；
-操作方式见[翻译同步指南](https://github.com/aigengame/aseprite-automation/blob/main/docs/testing.md#readme-translations)。
 
 SPA 自有代码和文档采用 [MIT 许可证](https://github.com/aigengame/aseprite-automation/blob/main/LICENSE)。
 随包分发的第三方资源遵循各自的[许可声明](https://github.com/aigengame/aseprite-automation/blob/main/THIRD_PARTY_NOTICES.md)。

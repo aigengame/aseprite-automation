@@ -267,9 +267,6 @@ Start with [testing](https://github.com/aigengame/aseprite-automation/blob/main/
 and the [domain model](https://github.com/aigengame/aseprite-automation/blob/main/CONTEXT.md).
 The [authority matrix](https://github.com/aigengame/aseprite-automation/blob/main/AUTHORITY_MATRIX.md) routes product and implementation decisions.
 
-The English `README.md` is authoritative. Update its translations in the same change;
-see the [translation sync guide](https://github.com/aigengame/aseprite-automation/blob/main/docs/testing.md#readme-translations).
-
 SPA-owned code and documentation use the
 [MIT license](https://github.com/aigengame/aseprite-automation/blob/main/LICENSE).
 Bundled third-party resources have their own

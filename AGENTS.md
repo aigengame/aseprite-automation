@@ -8,13 +8,6 @@ Name every environment variable defined by SPA with the `SPA_` prefix. Preserve
 the names of variables defined by Aseprite, the operating system, or external tools
 when integrating with them; for example, `ASEPRITE_USER_FOLDER` and `PATH`.
 
-## README translations
-
-English `README.md` is authoritative. When editing it, review and update every
-`docs/README.<locale>.md` in the same change. Translate naturally for each locale,
-then refresh and check the source hash as described in
-[the translation sync guide](docs/testing.md#readme-translations).
-
 ## Agent skills
 
 ### State and pitfalls
