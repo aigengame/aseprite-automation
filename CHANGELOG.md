@@ -1,5 +1,49 @@
 # Changelog
 
+## [0.4.0](https://github.com/aigengame/aseprite-automation/compare/v0.3.0...v0.4.0) (2026-10-10)
+
+
+### ⚠ BREAKING CHANGES
+
+* **delivery:** export image requires explicit area, layer composition, and composition color mode choices; resolved area and composition facts are structured objects.
+
+### Features
+
+* **delivery:** add verified sprite sheet export path ([17313a6](https://github.com/aigengame/aseprite-automation/commit/17313a66c45d14979191706a1b46d9b3f62b2e3d))
+* **delivery:** encode native Tileset atlases with keyed map metadata ([c9e81ab](https://github.com/aigengame/aseprite-automation/commit/c9e81ab252dffa64d9f36cda4185554c9ba63d0e))
+* **delivery:** expand static PNG export controls ([#185](https://github.com/aigengame/aseprite-automation/issues/185)) ([aee970d](https://github.com/aigengame/aseprite-automation/commit/aee970dfd6f1be3ecd8818dfe4efda8ce445242c))
+* **delivery:** export verified native Sprite Sheets ([ee18c71](https://github.com/aigengame/aseprite-automation/commit/ee18c7189629800336eedf4467c252aa944b17e3))
+* **delivery:** export verified Tileset atlases and map data ([26cd1de](https://github.com/aigengame/aseprite-automation/commit/26cd1de664329c228a170cb349f3954834db5103))
+* **delivery:** publish bounded Artifact sets with partial failure states ([5ba868b](https://github.com/aigengame/aseprite-automation/commit/5ba868b51d15d91bd16e79e5a52b06109c2bbe1d))
+* **delivery:** verify and publish Tileset atlas and map pairs ([51114be](https://github.com/aigengame/aseprite-automation/commit/51114bebe13c155bcfbce82d859bf2bc9d7ccb12))
+* **delivery:** verify sprite sheet composition and metadata ([865e1f9](https://github.com/aigengame/aseprite-automation/commit/865e1f97179eed232912af7faf4929d0461d9e01))
+* **export:** add verified GIF and PNG sequence delivery ([fd44478](https://github.com/aigengame/aseprite-automation/commit/fd444781bffcb1ba646ce05478552c866e8759a7))
+* **export:** decode GIF and sequence PNG artifacts independently ([cb621e6](https://github.com/aigengame/aseprite-automation/commit/cb621e6903dede226075503ab21f64d8bc80edad))
+* **export:** deliver verified RGB PNG sequence tracer ([e5ea1ba](https://github.com/aigengame/aseprite-automation/commit/e5ea1ba5be124b83eb796d179d5538f1e9037ed9))
+* **export:** verify Tag playback and native GIF and PNG representations ([356fab9](https://github.com/aigengame/aseprite-automation/commit/356fab9e9fc6142be9cc2a96c5393fd52a48300f))
+* **mcp:** expose schema-derived stdio tools and PNG content ([#188](https://github.com/aigengame/aseprite-automation/issues/188)) ([7fabeab](https://github.com/aigengame/aseprite-automation/commit/7fabeabd45d6450e752cfeebb95035e398aca72a))
+* **release:** publish SPA to PyPI as sprite-automation ([#191](https://github.com/aigengame/aseprite-automation/issues/191)) ([49998d6](https://github.com/aigengame/aseprite-automation/commit/49998d68367c7be2913f63b1b7140fb341273d87))
+* **script:** run exact caller-owned Lua outside core operations ([#184](https://github.com/aigengame/aseprite-automation/issues/184)) ([ec7fd14](https://github.com/aigengame/aseprite-automation/commit/ec7fd148d1957cfde22485950d01e152fd68bcb3))
+
+
+### Bug Fixes
+
+* **color:** replace bundled Apple P3 with a redistributable reference ([#195](https://github.com/aigengame/aseprite-automation/issues/195)) ([f93dcb0](https://github.com/aigengame/aseprite-automation/commit/f93dcb0bb8f7380e2c4cf6a2f4db8053628fd1a4))
+* **contracts:** require replacement facts for published artifacts ([9ddaa6e](https://github.com/aigengame/aseprite-automation/commit/9ddaa6e99296e350a46392e606789bda734190d9)), closes [#50](https://github.com/aigengame/aseprite-automation/issues/50)
+* **delivery:** clean sprite sheet staging after native interruption ([0bd12a5](https://github.com/aigengame/aseprite-automation/commit/0bd12a534f0868f31175a9ca348cce2499f3f41d))
+* **delivery:** name native ICC copies before PNG encoding ([3a78a00](https://github.com/aigengame/aseprite-automation/commit/3a78a00aaf4a4ffac8756326b02b0ba6bc53ff9d))
+* **delivery:** report the allowed atlas dimension range ([7a31a75](https://github.com/aigengame/aseprite-automation/commit/7a31a75f990eb090be14d991d711026cc6dd0e2c)), closes [#50](https://github.com/aigengame/aseprite-automation/issues/50)
+* **delivery:** supply missing ICC names before atlas encoding ([245e364](https://github.com/aigengame/aseprite-automation/commit/245e364ee948f6aa2a1f76e49ae7eb9cd37ba420))
+* **export:** close publication and consumer review gaps ([ba06afa](https://github.com/aigengame/aseprite-automation/commit/ba06afacd202e9a7ccc17b4ea0d5a765441f5fbc))
+* **export:** keep sequence directories outside native formatting ([03a635d](https://github.com/aigengame/aseprite-automation/commit/03a635d14cf02f9cfeb6b53d0f19952829b08954))
+* **export:** name private ICC profiles for headless PNG encoding ([a0edd12](https://github.com/aigengame/aseprite-automation/commit/a0edd12ef1a6ca417529867e600e77e9038f43d3))
+* **export:** validate resolved playback and native destination expansion ([e62eed4](https://github.com/aigengame/aseprite-automation/commit/e62eed4b894a66c6e22bb5211634b1c28065f996))
+
+
+### Performance Improvements
+
+* **tile:** avoid repeated native Key scans during reorder ([#203](https://github.com/aigengame/aseprite-automation/issues/203)) ([2daa7f3](https://github.com/aigengame/aseprite-automation/commit/2daa7f36cfa550313562c80bb539ca827b678be0)), closes [#202](https://github.com/aigengame/aseprite-automation/issues/202)
+
 ## [0.3.0](https://github.com/aigengame/aseprite-automation/compare/v0.2.0...v0.3.0) (2026-10-05)
 
 > Withdrawn before publication. Native verification did not pass. The historical
