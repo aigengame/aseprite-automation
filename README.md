@@ -7,11 +7,13 @@
 SPA brings Aseprite to your agent workflows through a CLI, Agent Skill, or MCP server.
 Keep editable `.aseprite` sources and deliver PNGs, GIFs, sprite sheets, and tile assets.
 
+[![CI](https://github.com/aigengame/aseprite-automation/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/aigengame/aseprite-automation/actions/workflows/ci.yml?query=branch%3Amain+event%3Apush)
+[![PyPI version](https://img.shields.io/pypi/v/aseprite-automation.svg)](https://pypi.org/project/aseprite-automation/)
 [![Python 3.13+](https://img.shields.io/badge/Python-3.13%2B-blue)](https://www.python.org/)
 [![CLI · Agent Skill · MCP](https://img.shields.io/badge/access-CLI%20%C2%B7%20Agent%20Skill%20%C2%B7%20MCP-7057ff)](#choose-your-integration)
 
-[Quick start](#quick-start) · [Usage guide](https://github.com/aigengame/aseprite-automation/blob/dev/docs/usage.md) ·
-[Examples](#examples) · [MCP setup](https://github.com/aigengame/aseprite-automation/blob/dev/docs/mcp.md)
+[Quick start](#quick-start) · [Usage guide](https://github.com/aigengame/aseprite-automation/blob/main/docs/usage.md) ·
+[Examples](#examples) · [MCP setup](https://github.com/aigengame/aseprite-automation/blob/main/docs/mcp.md)
 
 ## TL;DR
 
@@ -64,9 +66,9 @@ part of your workflow.
 | Deliver assets to a game | PNG images, GIFs, PNG sequences, sprite sheets with JSON, and tileset/map exports | `export` |
 | Automate a sequence of edits | Supported edits to one sprite, checked before one final save | `plan check`, `plan run` |
 
-This overview describes the development version. Use `spa --help` and each command's
-`--schema` for your installation. `spa info` checks your Aseprite runtime;
-`spa schema` also reports unavailable native capabilities.
+Use `spa --help` and each command's `--schema` for your installation.
+`spa info` checks your Aseprite runtime; `spa schema` also reports unavailable
+native capabilities.
 
 ## Installation
 
@@ -74,9 +76,24 @@ You need **Python 3.13+**, [uv](https://docs.astral.sh/uv/getting-started/instal
 and a separate [Aseprite installation](https://www.aseprite.org/). SPA does not bundle
 the Aseprite executable.
 
-The upcoming PyPI package is **`aseprite-automation`**; the command is **`spa`**.
-The [first PyPI publication](https://github.com/aigengame/aseprite-automation/issues/189)
-is pending. For the current development version, use the source install below.
+The [PyPI package](https://pypi.org/project/aseprite-automation/) is
+**`aseprite-automation`**; the command is **`spa`**.
+
+### Install from PyPI
+
+```sh
+uv tool install --python 3.13 aseprite-automation
+spa version
+```
+
+Update an existing installation with `uv tool upgrade aseprite-automation`.
+For MCP, install the optional extra:
+`uv tool install --python 3.13 'aseprite-automation[mcp]'`.
+If `spa` is not on `PATH`, run `uv tool update-shell` and open a new shell.
+
+You can also install a wheel from a
+[GitHub Release](https://github.com/aigengame/aseprite-automation/releases) with
+`uv tool install --python 3.13 /absolute/path/to/the-wheel.whl`.
 
 ### Install the current development version
 
@@ -91,26 +108,10 @@ uv tool install --python 3.13 .
 spa version
 ```
 
-You can also install a wheel from a
-[GitHub Release](https://github.com/aigengame/aseprite-automation/releases) with
-`uv tool install /absolute/path/to/the-wheel.whl`. Published releases may provide
-fewer capabilities than the current development version.
-
-The repository is currently private, so cloning requires access. Git LFS retrieves
-the native probe fixtures and example assets. If `spa` is not on `PATH`, run
-`uv tool update-shell` and open a new shell.
-
-### PyPI installation after the first publication
-
-```sh
-uv tool install aseprite-automation
-spa version
-uv tool upgrade aseprite-automation
-```
-
-For MCP, install the optional extra: `uv tool install 'aseprite-automation[mcp]'`.
+Git LFS retrieves the native probe fixtures and example assets. The development
+branch may include capabilities that are not in the latest release.
 For source development, use `uv sync` and `uv run spa`; see the
-[usage guide](https://github.com/aigengame/aseprite-automation/blob/dev/docs/usage.md).
+[usage guide](https://github.com/aigengame/aseprite-automation/blob/main/docs/usage.md).
 
 ## Quick start
 
@@ -176,7 +177,7 @@ Commands return JSON by default; add `--human` for readable output. For validati
 check `valid`, `checks`, and `findings`: `status: success` means the check ran.
 Visual quality still needs a look at the exported image.
 
-Continue with the [usage guide](https://github.com/aigengame/aseprite-automation/blob/dev/docs/usage.md)
+Continue with the [usage guide](https://github.com/aigengame/aseprite-automation/blob/main/docs/usage.md)
 for animation, import, paint, color, tile, and export recipes. Use `--help` and
 `--schema` to discover fields without guessing.
 
@@ -185,23 +186,22 @@ for animation, import, paint, color, tile, and export recipes. Use `--help` and
 | Access path | Best for | Entry point |
 | --- | --- | --- |
 | **CLI** | Agents that run shell commands, scripts, and asset pipelines | `spa --help` |
-| **Agent Skill** | Agents that need reusable guidance for the create–verify–export loop | [SPA Skill](https://github.com/aigengame/aseprite-automation/blob/dev/skills/spa/SKILL.md) |
-| **MCP** | Clients that discover and call tools, with exported PNGs shown as image content | [MCP setup](https://github.com/aigengame/aseprite-automation/blob/dev/docs/mcp.md) |
+| **Agent Skill** | Agents that need reusable guidance for the create–verify–export loop | [SPA Skill](https://github.com/aigengame/aseprite-automation/blob/main/skills/spa/SKILL.md) |
+| **MCP** | Clients that discover and call tools, with exported PNGs shown as image content | [MCP setup](https://github.com/aigengame/aseprite-automation/blob/main/docs/mcp.md) |
 
 ### Agent Skill
 
 From your consuming project, install the Skill with the
 [Skills CLI](https://github.com/vercel-labs/skills). Node/npm is required.
-For the current development version, point it at your SPA checkout:
-
-```sh
-npx skills add /absolute/path/to/aseprite-automation --skill spa
-```
-
-Once the Skill is on the repository's default branch, the equivalent source is:
 
 ```sh
 npx skills add aigengame/aseprite-automation --skill spa
+```
+
+For a local development checkout, use:
+
+```sh
+npx skills add /absolute/path/to/aseprite-automation --skill spa
 ```
 
 The Skills CLI manages installation and updates. The Skill reads the installed
@@ -210,16 +210,16 @@ separate compatibility or version manager.
 
 ### MCP
 
-From the current source checkout, install with `uv sync --extra mcp`, then configure
-your client to launch that checkout's `.venv/bin/spa-mcp`. Follow
-[MCP setup](https://github.com/aigengame/aseprite-automation/blob/dev/docs/mcp.md) for the stdio configuration.
+Install the optional `mcp` extra as shown in [Installation](#installation), then
+configure your client to launch the installed `spa-mcp` executable. Follow
+[MCP setup](https://github.com/aigengame/aseprite-automation/blob/main/docs/mcp.md) for the stdio configuration.
 
 Normal CLI use does not need the MCP extra. The MCP server uses the same operations
 and results; it does not keep an active sprite between calls.
 
 ## Examples
 
-[![Animated pixel art wizard casting a spell, exported through SPA](https://raw.githubusercontent.com/aigengame/aseprite-automation/1ca5e1f4cd7587cf351ddcd1a16122f47d3f8ba0/examples/wizard_cast_v2/evidence/scene-loop.webp)](https://github.com/aigengame/aseprite-automation/blob/dev/examples/wizard_cast_v2/README.md)
+[![Animated pixel art wizard casting a spell, exported through SPA](https://raw.githubusercontent.com/aigengame/aseprite-automation/1ca5e1f4cd7587cf351ddcd1a16122f47d3f8ba0/examples/wizard_cast_v2/evidence/scene-loop.webp)](https://github.com/aigengame/aseprite-automation/blob/main/examples/wizard_cast_v2/README.md)
 
 *Moonlit Spell Practice v2: imagegen artwork, Python motion assembly, and SPA animation
 and export. This preview uses exported PNG frames; the example also includes a playable
@@ -231,8 +231,8 @@ target, complete a round, and replay.
 
 | Example | Workflow | What to inspect |
 | --- | --- | --- |
-| [Wizard v1](https://github.com/aigengame/aseprite-automation/blob/dev/examples/wizard_cast/README.md) | Procedural pixel and pose sampling → SPA → Godot | A 128×96 scene, a 32-frame loop, reusable components, and a playable consumer |
-| [Wizard v2](https://github.com/aigengame/aseprite-automation/blob/dev/examples/wizard_cast_v2/README.md) | imagegen concepts and key poses → preparation and motion assembly → SPA → Godot | A 384×288 scene, seven editable `.aseprite` assets, exported PNG components, and a playable consumer |
+| [Wizard v1](https://github.com/aigengame/aseprite-automation/blob/main/examples/wizard_cast/README.md) | Procedural pixel and pose sampling → SPA → Godot | A 128×96 scene, a 32-frame loop, reusable components, and a playable consumer |
+| [Wizard v2](https://github.com/aigengame/aseprite-automation/blob/main/examples/wizard_cast_v2/README.md) | imagegen concepts and key poses → preparation and motion assembly → SPA → Godot | A 384×288 scene, seven editable `.aseprite` assets, exported PNG components, and a playable consumer |
 
 SPA authors and exports the animation; imagegen supplies v2's initial artwork.
 [gda](https://github.com/aigengame/godot-agent) handles Godot verification.
@@ -240,30 +240,29 @@ Each example records its preparation choices, validation evidence, and dogfoodin
 
 You can inspect the committed assets or open the Godot project without rebuilding
 all assets. Full rebuilds are optional local checks; see each example's instructions
-and [testing guide](https://github.com/aigengame/aseprite-automation/blob/dev/docs/testing.md).
+and [testing guide](https://github.com/aigengame/aseprite-automation/blob/main/docs/testing.md).
 
 ## Documentation and support
 
-- [Usage guide](https://github.com/aigengame/aseprite-automation/blob/dev/docs/usage.md) — recipes, runtime configuration, output handling, and current limits.
-- [Sprite sheet export](https://github.com/aigengame/aseprite-automation/blob/dev/docs/sprite-sheets.md) — layouts, trimming, colors, and metadata.
-- [MCP setup](https://github.com/aigengame/aseprite-automation/blob/dev/docs/mcp.md) — installation and client configuration.
+- [Usage guide](https://github.com/aigengame/aseprite-automation/blob/main/docs/usage.md) — recipes, runtime configuration, output handling, and current limits.
+- [Sprite sheet export](https://github.com/aigengame/aseprite-automation/blob/main/docs/sprite-sheets.md) — layouts, trimming, colors, and metadata.
+- [MCP setup](https://github.com/aigengame/aseprite-automation/blob/main/docs/mcp.md) — installation and client configuration.
 - [Issues](https://github.com/aigengame/aseprite-automation/issues) — report a problem or request a capability.
 - [Milestones](https://github.com/aigengame/aseprite-automation/milestones) — planned work and delivery progress.
 - [Aseprite documentation](https://www.aseprite.org/docs/) — the editor, file formats, and native behavior.
 
 When reporting a problem, include `spa version`, `spa info`, a minimal request,
 and the returned error. Attach a small reproducible asset when you can share it.
-Repository documentation and media require access while the repository is private.
 
 ## Contributing
 
-Start with [testing](https://github.com/aigengame/aseprite-automation/blob/dev/docs/testing.md),
-[architecture](https://github.com/aigengame/aseprite-automation/blob/dev/ARCHITECTURE.md),
-and the [domain model](https://github.com/aigengame/aseprite-automation/blob/dev/CONTEXT.md).
-The [authority matrix](https://github.com/aigengame/aseprite-automation/blob/dev/AUTHORITY_MATRIX.md) routes product and implementation decisions.
+Start with [testing](https://github.com/aigengame/aseprite-automation/blob/main/docs/testing.md),
+[architecture](https://github.com/aigengame/aseprite-automation/blob/main/ARCHITECTURE.md),
+and the [domain model](https://github.com/aigengame/aseprite-automation/blob/main/CONTEXT.md).
+The [authority matrix](https://github.com/aigengame/aseprite-automation/blob/main/AUTHORITY_MATRIX.md) routes product and implementation decisions.
 
 SPA-owned code and documentation use the
-[MIT license](https://github.com/aigengame/aseprite-automation/blob/dev/LICENSE).
+[MIT license](https://github.com/aigengame/aseprite-automation/blob/main/LICENSE).
 Bundled third-party resources have their own
 [notices](https://github.com/aigengame/aseprite-automation/blob/main/THIRD_PARTY_NOTICES.md).
 Aseprite is a separate product with its own [license](https://www.aseprite.org/faq/#is-aseprite-free).
