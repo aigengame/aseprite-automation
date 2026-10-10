@@ -10,15 +10,20 @@ app.command.NewLayer { tilemap = true, ask = false, gridBounds = Rectangle(0, 0,
 local layer, tileset = app.activeLayer, app.activeLayer.tileset
 layer.name, tileset.name, tileset.baseIndex =
   "map", "terrain", tonumber(app.params.base_index or "37")
-for index, key in ipairs({ "a", "b", "c", "d" }) do
+for index = 1, tonumber(app.params.tile_count or "5") - 1 do
+  local key = app.params.tile_count and "tile-" .. index or ({ "a", "b", "c", "d" })[index]
   local tile = sprite:newTile(tileset)
-  tile.image:clear(mode == ColorMode.RGB and app.pixelColor.rgba(10 + index, 30, 40, 255) or index)
+  tile.image:clear(
+    mode == ColorMode.RGB and app.pixelColor.rgba((10 + index) % 256, 30 + index // 256, 40, 255)
+      or index
+  )
   tile.data = "data-" .. index
-  tile.color = Color { r = 20 + index, g = 30, b = 40, a = 255 }
+  tile.color = Color { r = (20 + index) % 256, g = 30, b = 40, a = 255 }
   tile.properties.note = "default-" .. index
   tile.properties("example").large = 9007199254740993 + index
   tile.properties("example").point = Point(index, -index)
-  tile.properties("example").binary = string.char(255, 254, index)
+  -- Native string properties truncate at NUL; keep the opaque bytes nonzero.
+  tile.properties("example").binary = string.char(255, 254, (index - 1) % 255 + 1)
   tile.properties("aigengame.spa").other = "retained-" .. index
   if app.params.unkeyed ~= tostring(index) then
     tile.properties("aigengame.spa").tile_key = app.params.duplicate == tostring(index) and "a"
@@ -26,8 +31,9 @@ for index, key in ipairs({ "a", "b", "c", "d" }) do
   end
 end
 local image = Image(5, 1, ColorMode.TILEMAP)
-for x = 0, 3 do
-  image:putPixel(x, 0, (x + 1) | 0xe0000000)
+local placements = json.decode(app.params.placements or "[1,2,3,4]")
+for x, index in ipairs(placements) do
+  image:putPixel(x - 1, 0, math.tointeger(index) | 0xe0000000)
 end
 image:putPixel(4, 0, 0xe0000000)
 if app.params.unused then image:putPixel(tonumber(app.params.unused) - 1, 0, 0) end

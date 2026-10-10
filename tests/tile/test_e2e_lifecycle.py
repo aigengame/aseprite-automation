@@ -113,8 +113,22 @@ def test_remove_maps_all_linked_and_shared_placements(
     assert source.read_bytes() == original
 
 
+@pytest.mark.parametrize(
+    "keys,order,mapping,changed",
+    [
+        pytest.param(
+            ["a", "b", "c", "d"], [1, 2, 3, 4], [0, 1, 2, 3, 4], 0, id="original"
+        ),
+        pytest.param(
+            ["d", "c", "b", "a"], [4, 3, 2, 1], [0, 4, 3, 2, 1], 4, id="reverse"
+        ),
+        pytest.param(
+            ["d", "b", "a", "c"], [4, 2, 1, 3], [0, 3, 2, 4, 1], 3, id="mixed"
+        ),
+    ],
+)
 def test_reorder_preserves_keys_images_flags_and_native_properties(
-    tmp_path: Path, runtime
+    tmp_path: Path, runtime, keys: list, order: list, mapping: list, changed: int
 ) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "reordered.aseprite"
     fixture(source, runtime, script="lifecycle.lua")
@@ -124,17 +138,19 @@ def test_reorder_preserves_keys_images_flags_and_native_properties(
         "tile",
         "reorder",
         **files(source, target),
-        tile_keys=["d", "b", "a", "c"],
+        tile_keys=keys,
     )
     assert code == 0, result
-    assert [item["new_index"] for item in result["index_mapping"]] == [0, 3, 2, 4, 1]
-    assert [item["changed_cells"] for item in result["affected_cels"]] == [3, 3, 3]
+    assert [item["new_index"] for item in result["index_mapping"]] == mapping
+    assert [item["changed_cells"] for item in result["affected_cels"]] == (
+        [changed] * 3 if changed else []
+    )
     fixture(
         target,
         runtime,
         script="verify_lifecycle.lua",
-        order=json.dumps([4, 2, 1, 3]),
-        cells=json.dumps([index | 0xE0000000 for index in [3, 2, 4, 1, 0]]),
+        order=json.dumps(order),
+        cells=json.dumps([index | 0xE0000000 for index in [*mapping[1:], 0]]),
     )
     assert source.read_bytes() == original
 
@@ -631,6 +647,64 @@ def test_tile_count_limit_includes_empty_and_append_result(
             "maximum": 4096,
         }
         assert target.read_bytes() == b"previous target"
+    assert source.read_bytes() == original
+    assert set(tmp_path.iterdir()) == {source, target}
+
+
+@pytest.mark.parametrize("order", ["original", "reverse", "mixed"])
+def test_reorder_permutations_at_tile_count_limit(
+    tmp_path: Path, runtime, order: str
+) -> None:
+    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
+    placements = [1, 2, 2048, 4095]
+    fixture(
+        source,
+        runtime,
+        script="lifecycle.lua",
+        tile_count=4096,
+        placements=json.dumps(placements),
+    )
+    original = source.read_bytes()
+    target.write_bytes(b"previous target")
+    indexes = list(range(1, 4096))
+    requested_indexes = {
+        "original": indexes,
+        "reverse": indexes[::-1],
+        "mixed": indexes[::2] + indexes[1::2],
+    }[order]
+    keys = [f"tile-{index}" for index in indexes]
+    requested = [f"tile-{index}" for index in requested_indexes]
+    code, result = run(
+        "tileset",
+        "tile",
+        "reorder",
+        **files(source, target, overwrite=True),
+        tile_keys=requested,
+        timeout_seconds=60,
+    )
+    assert code == 0, result
+    assert result["tileset"]["tile_count"] == 4096
+    assert [tile["tile_key"] for tile in result["tiles"]] == [None, *requested]
+    expected_indexes = {key: index for index, key in enumerate(requested, start=1)}
+    assert result["index_mapping"] == [
+        {"old_index": 0, "new_index": 0, "tile_key": None},
+        *[
+            {"old_index": index, "new_index": expected_indexes[key], "tile_key": key}
+            for index, key in enumerate(keys, start=1)
+        ],
+    ]
+    assert result["persisted_reopen_verified"] is True
+    fixture(
+        target,
+        runtime,
+        script="verify_lifecycle.lua",
+        tile_count=4096,
+        order=json.dumps(requested_indexes),
+        cells=json.dumps(
+            [expected_indexes[f"tile-{index}"] | 0xE0000000 for index in placements]
+            + [0xE0000000]
+        ),
+    )
     assert source.read_bytes() == original
     assert set(tmp_path.iterdir()) == {source, target}
 
