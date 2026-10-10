@@ -19,4 +19,5 @@
 
 # README images use raw.githubusercontent.com and must contain image bytes.
 /docs/assets/hero-layered-pixel-workbench.png -filter -diff -merge -text
+/docs/assets/hero-wizard-spa-calm-garden.png -filter -diff -merge -text
 /examples/wizard_cast_v2/evidence/scene-loop.webp -filter -diff -merge -text
