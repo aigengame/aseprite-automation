@@ -21,7 +21,7 @@ jobs:
   admission:
     name: Admit the exact Release target
     runs-on: ubuntu-24.04
-    timeout-minutes: 3
+    timeout-minutes: 1
     outputs:
       target: ${{ steps.admit.outputs.target }}
     steps:
@@ -110,8 +110,8 @@ jobs:
     runs-on:
       group: spa-release
       labels: [self-hosted, linux]
-    # Preparation (3) + admission (3) + parallel shards (31) + aggregation (3) = 40.
-    timeout-minutes: 31
+    # Preparation (1) + admission (1) + parallel shards (35) + aggregation (3) = 40.
+    timeout-minutes: 35
     strategy:
       fail-fast: true
       matrix: ${{ fromJSON(inputs.matrix) }}
@@ -139,7 +139,6 @@ jobs:
           target: ${{ needs.admission.outputs.target }}
           shard-index: ${{ matrix.shard_index }}
           shards: ${{ matrix.shards }}
-          workers: ${{ matrix.workers }}
 
       - name: Preserve shard evidence
         if: always()

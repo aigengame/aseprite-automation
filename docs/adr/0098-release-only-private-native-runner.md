@@ -53,9 +53,18 @@ tests do not prove GitHub runner-group enforcement or Linux execution. Trusted-m
 admission does not protect against malicious code approved into main or a compromised
 runner host.
 
-The verification allocation remains 40 minutes: preparation 3, admission 3, concurrent
-shards 31, aggregation 3. Quality runs alongside admission and shards. Queue latency
+The verification allocation remains 40 minutes: preparation 1, admission 1, concurrent
+shards 35, aggregation 3. The owner approved this reallocation after a shard was
+cancelled at 31 minutes while preparation and admission used only seconds. Each job
+keeps its native GitHub timeout; unused allocations do not transfer between jobs.
+Quality runs alongside admission and shards. Queue latency
 is outside GitHub job timeouts; enough runner slots are needed for concurrent shards.
+Shards describe test partitioning. Each execution host supplies its worker count
+through `SPA_E2E_WORKERS`; local `run --workers` can override it. The scheduler can
+assign any shard to either runner. No architecture rules, per-shard worker maps, or
+per-runner routing labels bind these settings together. Aggregate verification
+checks reported worker counts against pytest evidence while requiring complete
+exact-SHA test coverage across all shards.
 Operational setup and recovery are documented in [the testing guide](../testing.md#release-runner-setup).
 
 ## References

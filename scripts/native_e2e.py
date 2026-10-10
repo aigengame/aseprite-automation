@@ -50,12 +50,20 @@ def check_report(path: Path, config: Configuration, target: dict) -> dict:
         report[key] != value
         for key, value in (
             ("shards", config.shards),
-            ("workers", config.workers),
             ("selection", SELECTION),
             ("exit_code", 0),
         )
     ):
         raise ValueError(f"failed or mismatched native report: {path}")
+    observed = json.loads(path.with_name("pytest.json").read_text())
+    if (
+        type(report["workers"]) is not int
+        or report["workers"] < 1
+        or len(observed["workers"]) != report["workers"]
+    ):
+        raise ValueError(
+            f"native worker count does not match execution evidence: {path}"
+        )
     collection = report["collection"]
     if not collection or sorted(set(collection)) != collection:
         raise ValueError(f"invalid full collection: {path}")
@@ -258,14 +266,23 @@ def main() -> int:
     parser.add_argument(
         "--workers",
         type=int,
-        default=os.environ.get("SPA_E2E_WORKERS") or Configuration.workers,
+        help="Run only: override SPA_E2E_WORKERS from this execution host",
     )
     parser.add_argument("--shard-index", type=int)
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--target-file", type=Path)
     args = parser.parse_args()
     try:
-        config = Configuration(args.shards, args.workers)
+        workers = Configuration.workers
+        if args.command == "run":
+            workers = (
+                args.workers
+                if args.workers is not None
+                else int(os.environ.get("SPA_E2E_WORKERS") or Configuration.workers)
+            )
+        elif args.workers is not None:
+            parser.error("--workers only applies to run")
+        config = Configuration(args.shards, workers)
         if args.command == "matrix":
             print(
                 json.dumps(
@@ -274,7 +291,6 @@ def main() -> int:
                             {
                                 "shard_index": index,
                                 "shards": config.shards,
-                                "workers": config.workers,
                             }
                             for index in range(config.shards)
                         ]

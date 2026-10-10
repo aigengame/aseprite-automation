@@ -12,10 +12,6 @@ on:
         description: "Shard count override; empty uses SPA_E2E_SHARDS or the shared default"
         type: string
         default: ""
-      workers:
-        description: "Workers per shard override; empty uses SPA_E2E_WORKERS or the shared default"
-        type: string
-        default: ""
   schedule:
     # Default branch (main), Monday 03:23 Asia/Shanghai.
     - cron: "23 19 * * 0"
@@ -106,7 +102,6 @@ jobs:
         id: configuration
         env:
           SPA_E2E_SHARDS: ${{ inputs.shards || vars.SPA_E2E_SHARDS }}
-          SPA_E2E_WORKERS: ${{ inputs.workers || vars.SPA_E2E_WORKERS }}
         run: |
           matrix="$(python3 scripts/native_e2e.py matrix)"
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"

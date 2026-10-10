@@ -10,10 +10,6 @@ on:
         description: "Shard count override; empty uses SPA_E2E_SHARDS or the shared default"
         type: string
         default: ""
-      workers:
-        description: "Workers per shard override; empty uses SPA_E2E_WORKERS or the shared default"
-        type: string
-        default: ""
 
 permissions:
   contents: read
@@ -64,7 +60,7 @@ jobs:
         needs.cut-draft.outputs.release_created == 'true'))
     needs: cut-draft
     runs-on: ubuntu-24.04
-    timeout-minutes: 3
+    timeout-minutes: 1
     outputs:
       release_sha: ${{ steps.target.outputs.release_sha }}
       target: ${{ steps.target.outputs.target }}
@@ -108,7 +104,6 @@ jobs:
         id: configuration
         env:
           SPA_E2E_SHARDS: ${{ inputs.shards || vars.SPA_E2E_SHARDS }}
-          SPA_E2E_WORKERS: ${{ inputs.workers || vars.SPA_E2E_WORKERS }}
         run: |
           matrix="$(python3 scripts/native_e2e.py matrix)"
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"

@@ -80,6 +80,32 @@ def test_shared_runner_covers_the_selected_suite_once(suite: Path) -> None:
     assert "selected=6 passed=6 skipped=0" in result.stdout
 
 
+@pytest.mark.parametrize("worker_counts", [(2, 3), (3, 2)])
+def test_shards_verify_with_independent_runner_worker_counts(
+    suite: Path, worker_counts: tuple[int, int]
+) -> None:
+    output = suite / "results"
+    for index, workers in enumerate(worker_counts):
+        result = run(
+            suite,
+            "run",
+            "--shard-index",
+            str(index),
+            "--workers",
+            str(workers),
+            "--output-dir",
+            str(output),
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+    reports = [
+        json.loads(p.read_text()) for p in sorted(output.glob("shard-*/result.json"))
+    ]
+    assert [r["workers"] for r in reports] == list(worker_counts)
+    result = run(suite, "verify", "--output-dir", str(output))
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "selected=6 passed=6 skipped=0" in result.stdout
+
+
 @pytest.mark.parametrize("changed_target", [False, True])
 def test_retry_reuses_completed_shards_only_for_the_same_target(
     suite: Path, changed_target: bool
@@ -109,7 +135,7 @@ def test_retry_reuses_completed_shards_only_for_the_same_target(
         )
     result = run(suite, *args, "--shard-index", "1")
     assert result.returncode == 0, result.stdout + result.stderr
-    verify_args = ("verify", "--workers", "1", "--output-dir", str(output))
+    verify_args = ("verify", "--output-dir", str(output))
     result = run(suite, *verify_args)
     assert (result.returncode != 0) == changed_target, result.stdout + result.stderr
     if changed_target:
@@ -122,13 +148,25 @@ def test_retry_reuses_completed_shards_only_for_the_same_target(
     assert "selected=6 passed=6 skipped=0" in result.stdout
 
 
+@pytest.mark.parametrize("worker_counts", [(2, 2), (2, 3), (3, 2)])
 def test_aggregate_action_checks_reports_and_preserves_failure_through_tee(
     suite: Path,
+    worker_counts: tuple[int, int],
 ) -> None:
     runner_temp = suite / "runner"
     output = runner_temp / "spa-native-e2e"
-    result = run(suite, "run", "--output-dir", str(output))
-    assert result.returncode == 0, result.stdout + result.stderr
+    for index, workers in enumerate(worker_counts):
+        result = run(
+            suite,
+            "run",
+            "--shard-index",
+            str(index),
+            "--workers",
+            str(workers),
+            "--output-dir",
+            str(output),
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
     (suite / "scripts").mkdir()
     for name in ("native_e2e.py", "verify_pytest_execution.py"):
         shutil.copyfile(ROOT / "scripts" / name, suite / "scripts" / name)
@@ -139,7 +177,9 @@ def test_aggregate_action_checks_reports_and_preserves_failure_through_tee(
         "PATH": str(Path(sys.executable).parent) + os.pathsep + os.environ["PATH"],
         "RUNNER_TEMP": str(runner_temp),
         "GITHUB_STEP_SUMMARY": str(runner_temp / "summary"),
-        "SPA_NATIVE_TARGET_JSON": (output / "target.json").read_text(),
+        "SPA_NATIVE_TARGET_JSON": json.dumps(
+            json.loads((output / "shard-0/result.json").read_text())["target"]
+        ),
         "SPA_E2E_MATRIX": run(suite, "matrix").stdout,
     }
     for missing in (False, True):
@@ -160,13 +200,13 @@ def test_aggregate_action_checks_reports_and_preserves_failure_through_tee(
 
 
 def test_configuration_drives_matrix_and_nondefault_execution(suite: Path) -> None:
-    matrix = run(suite, "matrix", "--shards", "3", "--workers", "1")
+    matrix = run(suite, "matrix", "--shards", "3")
     assert matrix.returncode == 0, matrix.stderr
     assert json.loads(matrix.stdout) == {
         "include": [
-            {"shard_index": 0, "shards": 3, "workers": 1},
-            {"shard_index": 1, "shards": 3, "workers": 1},
-            {"shard_index": 2, "shards": 3, "workers": 1},
+            {"shard_index": 0, "shards": 3},
+            {"shard_index": 1, "shards": 3},
+            {"shard_index": 2, "shards": 3},
         ]
     }
     output = suite / "results"
@@ -246,6 +286,8 @@ def test_invalid_shard_index_is_rejected(suite: Path, index: str) -> None:
         "collection",
         "cancelled",
         "missing-junit",
+        "worker-count",
+        "missing-worker-evidence",
     ],
 )
 def test_aggregate_rejects_incomplete_or_mismatched_evidence(
@@ -260,6 +302,8 @@ def test_aggregate_rejects_incomplete_or_mismatched_evidence(
         path.unlink()
     elif damage == "missing-junit":
         path.with_name("junit.xml").unlink()
+    elif damage == "missing-worker-evidence":
+        path.with_name("pytest.json").unlink()
     else:
         if damage == "duplicate-shard":
             report["shard_index"] = 0
@@ -273,6 +317,8 @@ def test_aggregate_rejects_incomplete_or_mismatched_evidence(
             report["collection"][0] = "test_cases.py::test_native[-1]"
         elif damage == "cancelled":
             report["exit_code"] = 130
+        elif damage == "worker-count":
+            report["workers"] += 1
         path.write_text(json.dumps(report))
     result = run(suite, "verify", "--output-dir", str(output))
     assert result.returncode != 0, result.stdout
@@ -320,9 +366,9 @@ def test_all_skipped_suite_and_reused_output_cannot_pass(suite: Path) -> None:
 def test_environment_configuration_has_one_default_and_explicit_overrides(
     suite: Path,
 ) -> None:
-    env = {**os.environ, "SPA_E2E_SHARDS": "3", "SPA_E2E_WORKERS": "1"}
+    env = {**os.environ, "SPA_E2E_SHARDS": "3", "SPA_E2E_WORKERS": "invalid"}
     result = subprocess.run(
-        [sys.executable, str(RUNNER), "matrix", "--workers", "4"],
+        [sys.executable, str(RUNNER), "matrix"],
         cwd=suite,
         env=env,
         capture_output=True,
@@ -331,7 +377,27 @@ def test_environment_configuration_has_one_default_and_explicit_overrides(
     )
     records = json.loads(result.stdout)["include"]
     assert len(records) == 3
-    assert all(r["shards"] == 3 and r["workers"] == 4 for r in records)
+    assert all(r["shards"] == 3 and "workers" not in r for r in records)
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(RUNNER),
+            "run",
+            "--shards",
+            "1",
+            "--workers",
+            "1",
+            "--output-dir",
+            str(suite / "results"),
+        ],
+        cwd=suite,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    report = json.loads((suite / "results/shard-0/result.json").read_text())
+    assert report["workers"] == 1
 
 
 def test_ambient_pytest_options_cannot_reduce_the_full_suite(suite: Path) -> None:

@@ -341,12 +341,15 @@ separate Linux runners. Each shard uses xdist's `load` scheduler. Pytest collect
 full `e2e and not slow` selection, sorts the original node IDs, and assigns each ID
 by its ordinal modulo the shard count. No file lists or timing database are needed.
 
-Override resources with `--shards N --workers N`, or `SPA_E2E_SHARDS` and
-`SPA_E2E_WORKERS`. Explicit arguments take precedence; empty environment values use
-the shared defaults. Counts must be positive integers. Distributed callers also
-provide `--shard-index I`, where `0 <= I < N`. `matrix` emits the resolved CI matrix;
-`verify` audits all reports without rerunning tests. Each subcommand accepts the
-same resource options. For example:
+The shard count (`--shards N` or `SPA_E2E_SHARDS`) defines the test partition.
+Worker count is local execution capacity: `run --workers N` overrides the executing
+host's `SPA_E2E_WORKERS`, which otherwise defaults to two. Explicit arguments take
+precedence; empty environment values use the shared defaults. Counts must be
+positive integers. A runner can execute any shard with its own worker count; neither
+the matrix nor aggregate verification assigns counts to hosts or architectures.
+Distributed callers also provide `--shard-index I`, where `0 <= I < N`. `matrix`
+emits only shard indices and the total shard count; `verify` audits all reports
+without rerunning tests. `--workers` applies only to `run`. For example:
 
 ```sh
 SPA_TEST_ASEPRITE=/path/to/aseprite \
@@ -354,14 +357,19 @@ SPA_TEST_ASEPRITE=/path/to/aseprite \
   --shards 3 --workers 1 --output-dir /tmp/spa-native-e2e-002
 ```
 
-Release dispatches expose optional `shards` and `workers` inputs.
-They override repository variables `SPA_E2E_SHARDS` and `SPA_E2E_WORKERS`; unset
-values reach the same Python defaults. Automatic release runs use those repository variables. The workflow generates its matrix from this resolved
-configuration. Resource changes require no new matrix lists or test policy.
+Release dispatches expose an optional `shards` input, which overrides repository
+variable `SPA_E2E_SHARDS`; automatic runs use that variable. Each runner service
+supplies its own `SPA_E2E_WORKERS` environment value. A repository variable does not
+set or override worker capacity. For example, two runner services can set two and
+three workers, respectively, while either runner may receive either of two shards.
+The existing private group and generic `self-hosted` / `linux` labels determine
+eligible runners; no per-shard routing labels or CPU architecture rules are needed.
 
 The runner isolates shard workspaces and retains the existing per-invocation native
 user folders. It records original IDs and outcomes, JUnit, target identity, resource
-configuration, and elapsed shard time. Every worker must collect the same suite and
+configuration, and elapsed shard time. Each report's actual worker count is checked
+against its pytest execution evidence, independently of other runners' counts.
+Every worker must collect the same suite and
 assigned shard. Success requires every shard, one outcome per selected ID, identical
 full collections and targets, successful pytest exits, and nonempty JUnit reports.
 A shard may contain only documented platform skips; the complete selection must
@@ -556,10 +564,11 @@ all GitHub permissions, concurrency or timeout behavior; see its
 The owner limits remain **20 minutes for routine CI**, **40 minutes for full
 manual/periodic verification**, and **40 minutes for Release verification**.
 GitHub's native job timeouts enforce the allocation. The three parallel routine jobs
-retain their smaller 10-minute limits. Release verification allocates **3 minutes
-preparation + 3 minutes hosted admission + 31 minutes per concurrent shard + 3 minutes
+retain their smaller 10-minute limits. Release verification allocates **1 minute
+preparation + 1 minute hosted admission + 35 minutes per concurrent shard + 3 minutes
 aggregation = 40 minutes**. Its 10-minute quality/package job runs alongside admission
 and the shards. All job steps count, including checkout, setup, tests and uploads.
+Unused allocations do not transfer between jobs.
 There is no compilation deduction, larger outer timeout, or second clock. Parallel
 jobs reduce elapsed time but runner capacity still bounds concurrency.
 
