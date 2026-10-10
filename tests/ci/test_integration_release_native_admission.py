@@ -143,6 +143,33 @@ def test_api_failure_cannot_admit_a_release(admission, tmp_path: Path) -> None:
     assert not Path(admission["GITHUB_OUTPUT"]).exists()
 
 
+def test_draft_access_is_confined_to_hosted_admission() -> None:
+    # GitHub requires push access to read drafts. The caller sets the permission
+    # ceiling; only hosted admission consumes it, without checking out project code.
+    release = (ROOT / ".github/workflows/release.yml").read_text()
+    caller = release.split("\n  shards:\n", 1)[1].split("\n  quality:\n", 1)[0]
+    assert "\n    permissions:\n      contents: write\n" in caller
+
+    workflow = WORKFLOW.read_text()
+    assert "\npermissions:\n  contents: read\n" in workflow.split("\njobs:\n")[0]
+    hosted = workflow.split("\n  admission:\n", 1)[1].split("\n  shard:\n", 1)[0]
+    assert "\n    permissions:\n      contents: write\n" in hosted
+    assert "runs-on: ubuntu-24.04" in hosted
+    assert "uses:" not in hosted  # No checkout or action executes with this token.
+
+    native = workflow.split("\n  shard:\n", 1)[1]
+    assert "\n    permissions:\n      contents: read\n" in native
+    assert "\npermissions:\n  contents: read\n" in release.split("\njobs:\n")[0]
+    for job, following in (
+        ("prepare", "shards"),
+        ("quality", "verify"),
+        ("verify", "publish-pypi"),
+    ):
+        body = release.split(f"\n  {job}:\n", 1)[1].split(f"\n  {following}:\n", 1)[0]
+        # Test/build jobs retain the read-only default.
+        assert "permissions:" not in body
+
+
 def test_old_release_actions_cannot_replace_the_trusted_execution_tools() -> None:
     workflow = WORKFLOW.read_text()
     shard = workflow.split("  shard:\n", 1)[1]

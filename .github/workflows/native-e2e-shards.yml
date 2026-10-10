@@ -22,6 +22,9 @@ jobs:
     name: Admit the exact Release target
     runs-on: ubuntu-24.04
     timeout-minutes: 1
+    # GitHub exposes unpublished drafts only to callers with push access.
+    permissions:
+      contents: write
     outputs:
       target: ${{ steps.admit.outputs.target }}
     steps:
@@ -107,6 +110,8 @@ jobs:
   shard:
     name: Native shard ${{ matrix.shard_index }}
     needs: admission
+    permissions:
+      contents: read
     runs-on:
       group: spa-release
       labels: [self-hosted, linux]

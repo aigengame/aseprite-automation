@@ -26,6 +26,13 @@ runner for trusted Releases. Routine PR CI remains GitHub-hosted.
   accepts only the original event SHA. Neither recovery nor admission selects the
   current main head or latest release. Drafts need no existing Git tag; the pinned
   release-please action forwards the created Release ID.
+- Reading an unpublished draft requires push access. Within the reusable workflow,
+  only hosted admission requests `contents: write`, within the Release caller's
+  permission ceiling. It runs trusted
+  inline validation without a checkout and makes no API writes. Self-hosted shards
+  explicitly request `contents: read`; project tests and builds receive no added
+  authority. Failed-job reruns retain the original workflow permissions, so a
+  workflow fix requires a new run, not a retry of the old definition.
 - Native jobs load execution actions from the admitted caller's original workflow
   commit and use the admitted target in a separate source directory. The target
   owns its dependencies, wheel and tests; it cannot select an older runtime setup
@@ -77,5 +84,6 @@ Operational setup and recovery are documented in [the testing guide](../testing.
 
 - [Distribution-risk follow-up #126](https://github.com/aigengame/aseprite-automation/issues/126)
 - [GitHub reusable workflow context](https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations#github-context)
+- [GitHub draft Release access](https://docs.github.com/en/rest/releases/releases#list-releases)
 - [GitHub runner-group access](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/manage-access)
 - [GitHub rerun semantics](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs)

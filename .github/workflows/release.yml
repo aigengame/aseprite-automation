@@ -111,6 +111,10 @@ jobs:
   shards:
     if: ${{ always() && needs.prepare.result == 'success' }}
     needs: [prepare, cut-draft]
+    # Permit the hosted admission job to read the unpublished Release draft.
+    # The reusable workflow keeps native execution explicitly read-only.
+    permissions:
+      contents: write
     uses: ./.github/workflows/native-e2e-shards.yml
     with:
       target: ${{ needs.prepare.outputs.target }}
