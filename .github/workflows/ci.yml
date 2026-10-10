@@ -48,7 +48,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
-      SPA_FAST_TEST_WORKERS: ${{ vars.SPA_FAST_TEST_WORKERS || '2' }}
+      SPA_FAST_TEST_WORKERS: ${{ vars.SPA_FAST_TEST_WORKERS || '4' }}
     steps:
       - name: Check out the tested commit
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6

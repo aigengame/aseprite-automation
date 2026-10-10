@@ -302,16 +302,16 @@ Pytest rejects unregistered markers. The root e2e gate also rejects a selected e
 test when `SPA_TEST_ASEPRITE` is absent, is not a file, or is not executable. A missing
 runtime therefore cannot produce an all-skipped successful e2e run.
 
-Run the fast unit and integration tiers with two pytest workers by default:
+Run the fast unit and integration tiers with four pytest workers by default:
 
 ```sh
 uv run --frozen --group test pytest -m "not e2e" \
-  -n "${SPA_FAST_TEST_WORKERS:-2}" --dist=load --max-worker-restart=0
+  -n "${SPA_FAST_TEST_WORKERS:-4}" --dist=load --max-worker-restart=0
 ```
 
 Set `SPA_FAST_TEST_WORKERS` to change the local worker count; `0` runs serially for
 diagnosis. Routine CI uses the same arguments in one job and reads the optional
-GitHub repository variable `SPA_FAST_TEST_WORKERS`, with a default of `2`. Each
+GitHub repository variable `SPA_FAST_TEST_WORKERS`, with a default of `4`. Each
 selected test runs once. Worker crashes fail the run, with automatic worker restart
 disabled.
 
@@ -482,7 +482,7 @@ with `--frozen`. They do not set up Aseprite or run native E2E.
 | Job | Required evidence |
 | --- | --- |
 | Source quality | Ruff lint and formatting, Pyright for production source, and Luacheck plus StyLua for all tracked Lua. |
-| Fast tests | Unit and integration tests selected with `-m "not e2e"`, in one job with two pytest workers by default. |
+| Fast tests | Unit and integration tests selected with `-m "not e2e"`, in one job with four pytest workers by default. |
 | Build and smoke test distributions | One sdist and wheel, valid package metadata, and a successful `spa version` from a wheel-only environment populated from locked runtime dependencies. |
 
 A failure in any job fails routine CI. These three job names can be required checks
