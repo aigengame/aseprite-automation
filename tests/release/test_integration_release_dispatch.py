@@ -2,6 +2,7 @@
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import textwrap
@@ -26,6 +27,11 @@ def dispatch_environment(
     """Control GitHub responses, uv and waits; keep fetch, checkout and push real."""
     tools = tmp_path / "bin"
     tools.mkdir()
+    # The action needs Bash and Git; the fake gh must not require external jq.
+    for name in ("bash", "git"):
+        executable = shutil.which(name)
+        assert executable is not None
+        (tools / name).symlink_to(executable)
     responses = tmp_path / "heads.json"
     responses.write_text(json.dumps(heads))
     calls = tmp_path / "calls.jsonl"
@@ -54,12 +60,19 @@ def dispatch_environment(
         "        sys.exit('CI lookup failed')\n"
         "    filters = dict(args[i + 1].split('=', 1) "
         "for i, value in enumerate(args) if value == '-f')\n"
+        "    assert set(filters) == {'head_sha', 'event', 'branch', 'per_page'}\n"
+        "    assert filters['per_page'] == '1'\n"
+        # gh embeds its query engine. Validate the request and return its one
+        # supported projection without adding an executable dependency here.
+        "    assert args[args.index('--jq') + 1] == "
+        '\'.workflow_runs[0] | select(.status == "completed" '
+        'and .conclusion == "success") | .html_url\'\n'
         "    runs = [run for run in runs if all(run[field] == filters[key] "
         "for key, field in [('head_sha', 'head_sha'), ('event', 'event'), "
         "('branch', 'head_branch')])]\n"
-        "    response = json.dumps({'workflow_runs': runs[:int(filters['per_page'])]})\n"
-        "    subprocess.run(['jq', '-r', args[args.index('--jq') + 1]], "
-        "input=response, text=True, check=True)\n"
+        "    if (runs and runs[0]['status'] == 'completed' "
+        "and runs[0]['conclusion'] == 'success'):\n"
+        "        print(runs[0]['html_url'])\n"
         "elif args[:2] != ['workflow', 'run']:\n"
         "    sys.exit(2)\n"
     )
@@ -81,7 +94,7 @@ def dispatch_environment(
     uv.chmod(0o755)
     return {
         **os.environ,
-        "PATH": f"{tools}{os.pathsep}{os.environ['PATH']}",
+        "PATH": str(tools),
         "SPA_TEST_GH_HEADS": str(responses),
         "SPA_TEST_GH_CALLS": str(calls),
         "SPA_TEST_GH_REMOTE": str(remote),
@@ -203,7 +216,7 @@ def test_maintenance_dispatches_only_when_the_pushed_head_matches(
     ]
     assert len([call for call in calls if call[:2] == ["pr", "view"]]) == expected_reads
     dispatched = [call for call in calls if call[:2] == ["workflow", "run"]]
-    assert bool(dispatched) == dispatches
+    assert bool(dispatched) == dispatches, result.stderr
     summary = (tmp_path / "summary.md").read_text()
     if dispatches:
         assert result.returncode == 0, result.stderr
