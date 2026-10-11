@@ -1,6 +1,6 @@
 # SPA — Aseprite Automation for AI Agents
 
-![SPA: a wizard drinks coffee in a spa and conjures layered pixel art](https://raw.githubusercontent.com/aigengame/aseprite-automation/52febf44ac9f33005b0ec4eca1432c312ba2cc93/docs/assets/hero-wizard-spa-calm-garden.png)
+![SPA: Sun Wukong relaxes in a spa while memories of Havoc in Heaven become pixel art layers and animation frames](https://raw.githubusercontent.com/aigengame/aseprite-automation/2eec52707c2de90127e47f0a8a7d384967bfdd82/docs/assets/hero-wukong-spa-heaven.png)
 
 **Create, edit, validate, and export pixel art and sprite animations with AI agents.**
 

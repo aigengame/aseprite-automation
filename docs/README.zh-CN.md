@@ -1,8 +1,8 @@
-<!-- spa-readme-i18n: source=README.md sha256=77ae557e1ce5c11c9e596547f5dc679e8830cab595ae55f8eab28c45927047a7 -->
+<!-- spa-readme-i18n: source=README.md sha256=2c9f8c5e6852d9aab1b152d03bce255fbed9b9e1ffa8226499de891a8ea6ba21 -->
 
 # SPA — 面向 AI 智能体的 Aseprite 自动化工具
 
-![SPA：巫师泡汤喝咖啡，用魔法生成分层像素画](https://raw.githubusercontent.com/aigengame/aseprite-automation/52febf44ac9f33005b0ec4eca1432c312ba2cc93/docs/assets/hero-wizard-spa-calm-garden.png)
+![SPA：悟空泡汤，回忆中的大闹天宫化为像素图层与动画帧](https://raw.githubusercontent.com/aigengame/aseprite-automation/2eec52707c2de90127e47f0a8a7d384967bfdd82/docs/assets/hero-wukong-spa-heaven.png)
 
 **让 AI 智能体参与像素画和精灵动画的创作、编辑、验证与导出。**
 
