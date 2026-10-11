@@ -7,7 +7,7 @@
 SPA brings Aseprite to your agent workflows through a CLI, Agent Skill, or MCP server.
 Keep editable `.aseprite` sources and deliver PNGs, GIFs, sprite sheets, and tile assets.
 
-[![CI](https://github.com/aigengame/aseprite-automation/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/aigengame/aseprite-automation/actions/workflows/ci.yml?query=branch%3Amain+event%3Apush)
+[![PR CI](https://github.com/aigengame/aseprite-automation/actions/workflows/ci.yml/badge.svg?event=pull_request)](https://github.com/aigengame/aseprite-automation/actions/workflows/ci.yml?query=event%3Apull_request)
 [![PyPI version](https://img.shields.io/pypi/v/aseprite-automation.svg)](https://pypi.org/project/aseprite-automation/)
 [![Python 3.13+](https://img.shields.io/badge/Python-3.13%2B-blue)](https://www.python.org/)
 [![CLI · Agent Skill · MCP](https://img.shields.io/badge/access-CLI%20%C2%B7%20Agent%20Skill%20%C2%B7%20MCP-7057ff)](#choose-your-integration)

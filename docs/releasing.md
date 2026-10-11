@@ -30,16 +30,24 @@ tracks the initial setup and production installation evidence.
 
 The `Release` workflow runs on pushes to `main`. On an ordinary push, release-please
 creates or updates the reviewable Release PR, refreshes its lockfile, and explicitly
-dispatches routine CI for the resulting head. Review the complete change and its
-three routine jobs. Native verification runs only after the reviewed code reaches
-main, through the Release admission gate. PR updates cannot schedule the private
-Aseprite runners.
+dispatches routine CI for the resulting head when it needs verification. Review
+the complete change and its three routine jobs. Native verification runs only after
+the reviewed code reaches main, through the Release admission gate. PR updates
+cannot schedule the private Aseprite runners.
 
 After lockfile maintenance, the action waits for the PR API to report the local
 Release PR commit before dispatch. It makes at most ten reads, two seconds apart,
 and reports expected and observed SHAs on a mismatch. A persistent mismatch fails
-maintenance without dispatch; a GitHub CLI error also fails the job. The action's
-shell step owns this check and dispatch directly.
+maintenance without dispatch; a GitHub CLI error also fails the job. It then checks
+the latest `ci.yml` manual run for that Release branch and exact SHA. A completed,
+successful run is reused and linked in the job summary. Missing or unsuccessful
+results trigger CI; an older success cannot hide a later failure. PR-event runs
+are not reused because they test a temporary merge rather than the head directly.
+The action's shell step owns this check and dispatch directly.
+
+Routine CI does not rerun automatically after a merge to main. The independent
+Release workflow still runs on main pushes and verifies the actual release SHA
+before publication. Reusing Release PR CI never replaces that verification.
 
 Merging the Release PR is the publication approval. Its `main` push makes
 release-please create a draft for the reviewed version. The workflow verifies the

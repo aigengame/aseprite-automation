@@ -3,8 +3,6 @@ run-name: CI from ${{ github.ref_name }} (${{ github.event_name }})
 
 on:
   pull_request:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
