@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/aigengame/aseprite-automation/compare/v0.4.0...v0.4.1) (2026-10-11)
+
+
+### Bug Fixes
+
+* **ci:** allow hosted admission to read Release drafts ([#207](https://github.com/aigengame/aseprite-automation/issues/207)) ([3ee9973](https://github.com/aigengame/aseprite-automation/commit/3ee9973f5bcbbd093711ebe4ed5b4755bffcca87))
+
 ## [0.4.0](https://github.com/aigengame/aseprite-automation/compare/v0.3.0...v0.4.0) (2026-10-10)
 
 
