@@ -503,10 +503,13 @@ behavior. Use the real-runtime E2E tier for that evidence.
 
 ## CI gates
 
-`.github/workflows/ci.yml` runs on every pull request, every push to `main`, and
-manual dispatch. Release maintenance also dispatches it for the resulting Release
-PR head. These routine jobs use Python 3.13, uv 0.11.19, and the committed `uv.lock`
-with `--frozen`. They do not set up Aseprite or run native E2E.
+`.github/workflows/ci.yml` runs on every pull request and manual dispatch. PR runs
+test GitHub's temporary merge result. The main ruleset requires the three checks
+below and an up-to-date branch before merging; a main push does not repeat routine
+CI. Release maintenance also dispatches CI for its resulting PR head unless the
+latest manual CI run for that same branch and SHA already passed. These routine
+jobs use Python 3.13, uv 0.11.19, and the committed `uv.lock` with `--frozen`. They
+do not set up Aseprite or run native E2E.
 
 | Job | Required evidence |
 | --- | --- |
@@ -549,7 +552,7 @@ the native runner receives only read access to repository contents.
 
 | Trigger | Real-runtime selection |
 | --- | --- |
-| Routine PR update, main push, or manual CI | None; source, fast-test and distribution checks only. |
+| Routine PR update or manual CI | None; source, fast-test and distribution checks only. |
 | Automatic or main-dispatched Release verification | `e2e and not slow` at the exact release SHA; manual runs do not publish. |
 
 The shared `scripts/native_e2e.py` owns the native selection. The Linux action

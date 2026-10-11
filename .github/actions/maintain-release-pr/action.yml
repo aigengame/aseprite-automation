@@ -97,5 +97,18 @@ runs:
           echo "Release PR head did not converge; CI was not dispatched." >&2
           exit 1
         fi
+
+        # Manual CI tests this head directly; PR runs test a temporary merge.
+        # Inspect the latest run, so an older success cannot hide a later failure.
+        successful_run="$(gh api --method GET \
+          "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs" \
+          -f event=workflow_dispatch -f branch="$SPA_RELEASE_BRANCH" \
+          -f head_sha="$expected_sha" -f per_page=1 \
+          --jq '.workflow_runs[0] | select(.status == "completed" and .conclusion == "success") | .html_url')"
+        if [ -n "$successful_run" ]; then
+          echo "Reused successful CI for exact head \`${expected_sha}\`: ${successful_run}" \
+            >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+        fi
         gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "$SPA_RELEASE_BRANCH"
         echo "Dispatched CI for exact head \`${expected_sha}\`." >> "$GITHUB_STEP_SUMMARY"

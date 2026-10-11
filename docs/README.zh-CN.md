@@ -1,4 +1,4 @@
-<!-- spa-readme-i18n: source=README.md sha256=d510b67325741ae7b685fda400687db5862b72ef29863bad09e1b8c9df6848f1 -->
+<!-- spa-readme-i18n: source=README.md sha256=77ae557e1ce5c11c9e596547f5dc679e8830cab595ae55f8eab28c45927047a7 -->
 
 # SPA — 面向 AI 智能体的 Aseprite 自动化工具
 
@@ -9,7 +9,7 @@
 SPA 通过 CLI、Agent Skill 和 MCP 服务，将 Aseprite 接入智能体工作流。
 保留可继续编辑的 `.aseprite` 源文件，同时交付 PNG、GIF、精灵图集和瓦片素材。
 
-[![CI](https://github.com/aigengame/aseprite-automation/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/aigengame/aseprite-automation/actions/workflows/ci.yml?query=branch%3Amain+event%3Apush)
+[![PR CI](https://github.com/aigengame/aseprite-automation/actions/workflows/ci.yml/badge.svg?event=pull_request)](https://github.com/aigengame/aseprite-automation/actions/workflows/ci.yml?query=event%3Apull_request)
 [![PyPI 版本](https://img.shields.io/pypi/v/aseprite-automation.svg)](https://pypi.org/project/aseprite-automation/)
 [![Python 3.13+](https://img.shields.io/badge/Python-3.13%2B-blue)](https://www.python.org/)
 [![CLI · Agent Skill · MCP](https://img.shields.io/badge/access-CLI%20%C2%B7%20Agent%20Skill%20%C2%B7%20MCP-7057ff)](#choose-your-integration)
