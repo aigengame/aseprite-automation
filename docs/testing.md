@@ -346,6 +346,11 @@ and the actual MCP `Cli`-to-SPA child boundary. These tests use strict raw-byte
 readback, preserve original Unicode field locations, and need no Aseprite. The
 normal helper readback is tested separately from the entry producer.
 
+The CLI module also compares literal JSON fields received through argv and stdin,
+including variable-like strings, through the same real entries. It preserves
+the complete typed failure and validates it against each entry's installed schema.
+The existing runtime discovery tests retain original requested and searched paths.
+
 Select a candidate wheel with `SPA_TEST_INSTALLED_CLI` to include the isolated
 installed entries. Set it to the candidate installation's `spa` executable.
 Wheel consumers run outside the checkout. Run the same entry regression modules
@@ -359,6 +364,8 @@ The regressions verify the source-owned UTF-8 policy without relying on the host
 locale or a global encoding override. Full MCP wire/native delivery remains a
 separate runtime-dependent check. Measured host setup, execution restrictions
 and results are recorded in [issue #235 validation](evidence/issue-235-utf8-entries.md).
+Literal-input and discovery results are recorded in
+[issue #226 validation](evidence/issue-226-literal-cli-input.md).
 
 Run the fast unit and integration tiers with four pytest workers by default:
 

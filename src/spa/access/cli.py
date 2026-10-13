@@ -178,7 +178,9 @@ def run_cli(app: typer.Typer, failure_codes: Mapping[str, FailureCodeSpec]) -> N
     """Installed entry point: keep Click usage errors on the same failure channel."""
     command = typer.main.get_command(app)
     try:
-        exit_code = command.main(prog_name="spa", standalone_mode=False)
+        exit_code = command.main(
+            prog_name="spa", standalone_mode=False, windows_expand_args=False
+        )
         if isinstance(exit_code, int):
             raise SystemExit(exit_code)
     except typer.exceptions.TyperException as exc:

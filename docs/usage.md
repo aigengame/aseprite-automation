@@ -96,6 +96,11 @@ Commands emit JSON by default. `--human` renders the same outcome for reading.
 `--input-json -` reads one complete JSON request object from stdin; a literal
 `--input-json` value is available for short invocations.
 
+SPA parses the received JSON literally. Strings such as `$NAME` and `%NAME%`
+are request data. Quote argv payloads for your shell or use stdin to supply the
+intended JSON. Runtime executable discovery retains its own home-directory
+expansion; discovery failures report the original requested and searched paths.
+
 ```sh
 uv run spa info --input-json '{"aseprite":"/path/to/Aseprite.app/Contents/MacOS/aseprite"}'
 printf '%s\n' '{"aseprite":"/path/to/Aseprite.app/Contents/MacOS/aseprite"}' | uv run spa info --input-json -

@@ -62,6 +62,44 @@ def utf8_cli(request, tmp_path, monkeypatch) -> list[str]:
     return cli_entry_command(request.param, tmp_path, monkeypatch)
 
 
+@pytest.mark.parametrize(
+    "field", ["%SPA_TEST_LITERAL_VALUE%", "$SPA_TEST_LITERAL_VALUE"]
+)
+def test_installed_cli_preserves_literal_json_fields(
+    utf8_cli: list[str], field: str
+) -> None:
+    request = json.dumps({field: 1})
+    environment = os.environ | {"SPA_TEST_LITERAL_VALUE": "expanded-field"}
+    failures = []
+    for argument in (request, "-"):
+        run = subprocess.run(
+            [*utf8_cli, "version", "--input-json", argument],
+            input=request.encode("utf-8") if argument == "-" else None,
+            env=environment,
+            capture_output=True,
+            check=False,
+            timeout=10,
+        )
+        assert run.returncode == 2
+        assert run.stderr == b""
+        failure = json.loads(run.stdout.decode("utf-8"))
+        assert failure["code"] == "invalid_request"
+        assert failure["details"]["errors"][0]["location"] == [field]
+        assert failure["details"]["errors"][0]["code"] == "extra_forbidden"
+        failures.append(failure)
+    assert failures[0] == failures[1]
+    schema_run = subprocess.run(
+        [*utf8_cli, "version", "--schema"],
+        capture_output=True,
+        check=False,
+        timeout=10,
+    )
+    assert schema_run.returncode == 0
+    assert schema_run.stderr == b""
+    schema = json.loads(schema_run.stdout.decode("utf-8"))
+    validate(failures[0], schema["failure_schema"])
+
+
 @pytest.mark.parametrize("field", ["中文", "中文🚀"])
 @pytest.mark.parametrize("input_form", ["raw-stdin", "escaped-stdin", "argv"])
 def test_installed_cli_preserves_utf8_field_locations(
