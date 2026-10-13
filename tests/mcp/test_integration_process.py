@@ -11,7 +11,7 @@ import anyio
 import pytest
 
 from spa.access.mcp.cli import Cli
-from tests.support import isolated_wheel_cli
+from tests.support import cli_entry_command, isolated_wheel_cli
 
 
 @pytest.fixture(params=["console", "main", "wheel"])
@@ -49,20 +49,7 @@ def test_mcp_entry_early_usage_is_utf8(mcp_entry: list[str]) -> None:
 
 @pytest.mark.parametrize("entry", ["console", "main", "wheel"])
 def test_actual_spa_child_preserves_unicode_failure(entry, tmp_path, monkeypatch):
-    if entry == "main":
-        command = [
-            sys.executable,
-            "-X",
-            "utf8=0",
-            "-c",
-            "from spa.bootstrap import main; main()",
-        ]
-    elif entry == "wheel":
-        command = [isolated_wheel_cli(tmp_path, monkeypatch)]
-    else:
-        executable = shutil.which("spa")
-        assert executable, "run tests in an installed SPA environment"
-        command = [executable]
+    command = cli_entry_command(entry, tmp_path, monkeypatch)
 
     async def exercise():
         outcome = await Cli(command, os.environ.copy()).invoke(

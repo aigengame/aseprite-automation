@@ -6,6 +6,7 @@ import shlex
 import shutil
 import struct
 import subprocess
+import sys
 from importlib.resources import files
 from pathlib import Path
 from typing import Any
@@ -101,6 +102,25 @@ def isolated_wheel_cli(work_directory: Path, monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.chdir(work_directory)
     monkeypatch.delenv("PYTHONPATH", raising=False)
     return selected
+
+
+def cli_entry_command(
+    kind: str, work_directory: Path, monkeypatch: pytest.MonkeyPatch
+) -> list[str]:
+    """Select the real CLI entries shared by UTF-8 and MCP-child regressions."""
+    if kind == "main":
+        return [
+            sys.executable,
+            "-X",
+            "utf8=0",
+            "-c",
+            "from spa.bootstrap import main; main()",
+        ]
+    if kind == "wheel":
+        return [isolated_wheel_cli(work_directory, monkeypatch)]
+    executable = shutil.which("spa")
+    assert executable, "run tests in an installed SPA environment"
+    return [executable]
 
 
 def fake_aseprite(tmp_path: Path, body: str) -> Path:

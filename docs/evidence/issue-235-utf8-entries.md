@@ -41,6 +41,10 @@ readback, import side effects and existing ASCII contracts. The three unchanged
 skips are one POSIX fixture (#227) and two cancellation observations (#233).
 They are not Windows capability passes.
 
+After the test-only entry selector was shared in existing test support, the
+affected modules were replayed: **42 passed / 3 skipped**. Production code is
+unchanged from the complete checkpoint candidate below.
+
 The candidate wheel is installed through ordinary `uv tool install` with locked
 runtime dependencies and the MCP extra. Its consumers run outside the checkout.
 Wheel SHA-256:

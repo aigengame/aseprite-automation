@@ -2,7 +2,6 @@
 
 import json
 import os
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -13,7 +12,7 @@ from jsonschema import Draft202012Validator, validate
 from spa.application.failure_registry import FAILURE_CODES
 from spa.application.surface import ACCESS_FAILURE_CODES
 from spa.contracts.public import failure_schema
-from tests.support import fake_probe_response, isolated_wheel_cli, spa
+from tests.support import cli_entry_command, fake_probe_response, spa
 
 
 def test_version_is_an_installed_structured_operation() -> None:
@@ -60,19 +59,7 @@ def test_installed_cli_reads_json_request_from_stdin() -> None:
 
 @pytest.fixture(params=["console", "main", "wheel"])
 def utf8_cli(request, tmp_path, monkeypatch) -> list[str]:
-    if request.param == "main":
-        return [
-            sys.executable,
-            "-X",
-            "utf8=0",
-            "-c",
-            "from spa.bootstrap import main; main()",
-        ]
-    if request.param == "wheel":
-        return [isolated_wheel_cli(tmp_path, monkeypatch)]
-    executable = shutil.which("spa")
-    assert executable, "run tests in an installed SPA environment"
-    return [executable]
+    return cli_entry_command(request.param, tmp_path, monkeypatch)
 
 
 @pytest.mark.parametrize("field", ["中文", "中文🚀"])
