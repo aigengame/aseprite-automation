@@ -2,13 +2,79 @@
 
 import json
 import os
+import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 import anyio
 import pytest
 
 from spa.access.mcp.cli import Cli
+from tests.support import isolated_wheel_cli
+
+
+@pytest.fixture(params=["console", "main", "wheel"])
+def mcp_entry(request, tmp_path, monkeypatch) -> list[str]:
+    if request.param == "main":
+        return [
+            sys.executable,
+            "-X",
+            "utf8=0",
+            "-c",
+            "from spa.mcp_bootstrap import main; main()",
+        ]
+    if request.param == "wheel":
+        cli = Path(isolated_wheel_cli(tmp_path, monkeypatch))
+        executable = cli.with_name("spa-mcp.exe" if os.name == "nt" else "spa-mcp")
+        assert executable.is_file(), "install the candidate wheel with its MCP extra"
+        return [str(executable)]
+    executable = shutil.which("spa-mcp")
+    assert executable, "run tests in an installed SPA MCP environment"
+    return [executable]
+
+
+def test_mcp_entry_early_usage_is_utf8(mcp_entry: list[str]) -> None:
+    result = subprocess.run(
+        [*mcp_entry, "--未知🚀"],
+        input=b"",
+        capture_output=True,
+        check=False,
+        timeout=10,
+    )
+    assert result.returncode == 2
+    assert result.stdout == b""
+    assert "--未知🚀" in result.stderr.decode("utf-8")
+
+
+@pytest.mark.parametrize("entry", ["console", "main", "wheel"])
+def test_actual_spa_child_preserves_unicode_failure(entry, tmp_path, monkeypatch):
+    if entry == "main":
+        command = [
+            sys.executable,
+            "-X",
+            "utf8=0",
+            "-c",
+            "from spa.bootstrap import main; main()",
+        ]
+    elif entry == "wheel":
+        command = [isolated_wheel_cli(tmp_path, monkeypatch)]
+    else:
+        executable = shutil.which("spa")
+        assert executable, "run tests in an installed SPA environment"
+        command = [executable]
+
+    async def exercise():
+        outcome = await Cli(command, os.environ.copy()).invoke(
+            "spa version", {"中文🚀": 1}
+        )
+        assert outcome.exit_status == 2
+        assert outcome.stderr == ""
+        assert outcome.payload["code"] == "invalid_request"
+        assert outcome.payload["details"]["errors"][0]["location"] == ["中文🚀"]
+        assert outcome.payload["details"]["errors"][0]["code"] == "extra_forbidden"
+
+    anyio.run(exercise)
 
 
 def test_missing_cli_fails_startup_visibly_without_protocol_stdout(tmp_path):

@@ -85,6 +85,7 @@ def spa(
     return subprocess.run(
         [selected, *args],
         text=True,
+        encoding="utf-8",
         capture_output=True,
         check=False,
         env=env,
