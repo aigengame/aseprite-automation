@@ -537,6 +537,13 @@ byte reads, digest binding and publication. It preflights the complete bounded
 set, allocates separate output and evidence directories, enumerates the actual output
 set, and publishes in resolved order. `adapters/sequence_png.py` and `adapters/gif.py`
 independently decode typed format facts through `contracts/encoded_animation.py`.
+The PNG entry points in `adapters/png_input.py` and `adapters/sequence_png.py` use
+`adapters/png_decoding.py` for complete structural validation and stored/RGBA pixel
+interpretation. That Module retains independent byte checks alongside Pillow's pixel
+decoding. Each entry point owns its representation subset, observed-facts projection,
+and typed error translation: Input admits 8-bit RGB/Indexed, Artifact also admits
+8-bit Grayscale, and Sequence additionally admits 1/2/4-bit Indexed. Palette order,
+unused entries, hidden RGB, ICC bytes, and sRGB intent remain observed encoded facts.
 The Application compares those observations with native composition, timing, profile,
 Palette and cross-file expectations before passing the verified digests to publication.
 No decoder defines expected Sprite semantics or repairs encoded bytes.
@@ -639,7 +646,8 @@ src/spa/
     files.py, png.py       # filesystem mechanics and export PNG verification
     artifact_set.py        # complete set preflight, staging, ordered publication
     sequence_png.py, gif.py # independent encoded animation observations
-    png_input.py           # independent encoded PNG input facts and pixels
+    png_input.py           # Input/Artifact representation policy, facts and errors
+    png_decoding.py        # complete shared PNG structure and pixel interpretation
     icc.py                # ICC byte validation and digest, without color transforms
     palette_file.py       # independent GPL/Indexed PNG observations, not a color engine
   kernel/                 # fixed native semantic handlers and shared owners
