@@ -1,4 +1,4 @@
-"""Native evidence gates standalone Cel and Motion Target Commit and cleanup."""
+"""Native evidence gates standalone mutation Target Commit and cleanup."""
 
 import hashlib
 import json
@@ -15,7 +15,7 @@ from tests.motion.test_e2e_motion import curves, fixture
 pytestmark = pytest.mark.e2e
 
 
-@pytest.mark.parametrize("operation", ["cel set", "motion apply"])
+@pytest.mark.parametrize("operation", ["cel set", "motion apply", "tag add"])
 @pytest.mark.parametrize("in_place", [False, True])
 @pytest.mark.parametrize(
     "case",
@@ -37,14 +37,20 @@ def test_standalone_completion_gates_commit_and_cleans_staging(
     if not in_place:
         target.write_bytes(b"existing Target")
     before_source, before_target = source.read_bytes(), target.read_bytes()
-    inputs = (
-        curves()
-        if operation == "motion apply"
-        else {
+    inputs = {
+        "motion apply": curves(),
+        "tag add": {
+            "name": "new",
+            "from_frame": 1,
+            "to_frame": 2,
+            "direction": "forward",
+            "repeats": 0,
+        },
+        "cel set": {
             "target": {"layer": {"layer_path": [1]}, "frame_number": 1},
             "opacity": 42,
-        }
-    )
+        },
+    }[operation]
     request = {
         "aseprite": os.environ["SPA_TEST_ASEPRITE"],
         "source_sprite_file": str(source),
@@ -107,7 +113,7 @@ def test_standalone_completion_gates_commit_and_cleans_staging(
             if case == "identity":
                 assert outcome["message"] == (
                     "Source/Target publication identity changed before Target Commit"
-                    if operation == "cel set"
+                    if operation in ("cel set", "tag add")
                     else "Source/Target identity changed before Target Commit"
                 )
     if not in_place:

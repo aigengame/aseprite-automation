@@ -15,6 +15,18 @@ DESTINATION = {"layer": {"layer_path": [2]}, "frame_number": 2}
 @pytest.mark.parametrize(
     ("operation", "options"),
     [
+        (
+            "tag add",
+            {
+                "name": "new",
+                "from_frame": 1,
+                "to_frame": 1,
+                "direction": "forward",
+                "repeats": 0,
+            },
+        ),
+        ("tag set", {"target": {"tag_index": 1}, "properties": {"name": "new"}}),
+        ("tag remove", {"target": {"tag_index": 1}}),
         ("cel set", {"target": ADDRESS, "opacity": 42}),
         ("cel copy", {"source": ADDRESS, "destination": DESTINATION}),
         ("cel link", {"source": ADDRESS, "destination": DESTINATION}),

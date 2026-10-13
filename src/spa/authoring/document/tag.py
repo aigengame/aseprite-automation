@@ -5,6 +5,7 @@ from typing import Literal
 
 from pydantic import Field, ValidationError, field_validator, model_validator
 
+from spa.application.mutation import prepare_mutation
 from spa.authoring.document.sprite import (
     SPRITE_GET_HANDLER,
     SPRITE_INSPECTION_RESOURCES,
@@ -18,7 +19,6 @@ from spa.contracts.digest import DIGEST_RESOURCE
 from spa.contracts.mutation import (
     TargetCommit,
     require_overwrite_for_in_place,
-    source_target_identity_issue,
     validate_native_sprite_path,
 )
 from spa.contracts.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
@@ -29,10 +29,8 @@ from spa.contracts.ports import (
     PackagedHandler,
     PackagedResource,
     PostconditionEvidence,
-    RequestIssue,
     ResponseEvidence,
     RuntimeIssue,
-    TargetCommitEvidence,
 )
 from spa.contracts.public import (
     FailureCodeSpec,
@@ -355,32 +353,43 @@ def _mutate(
 ) -> TagAddResult | TagSetResult | TagRemoveResult:
     source = Path(request.source_sprite_file)
     target = Path(request.target_sprite_file)
-    identity_issue = source_target_identity_issue(
-        services.target_files, source, target, request.in_place
+    completion = prepare_mutation(
+        services.target_files,
+        source,
+        target,
+        in_place=request.in_place,
+        overwrite=request.overwrite,
+        identity_change_message="Source/Target publication identity changed before Target Commit",
     )
-    if identity_issue is not None:
-        raise RequestIssue([identity_issue])
     observation = services.probe_runtime(request)
-    staged = services.target_files.staged_path(target)
-    payload: dict[str, object] = {
-        "operation": operation,
-        "source_sprite_file": request.source_sprite_file,
-        "staged_sprite_file": str(staged),
-    }
-    address = request.target if isinstance(request, _AddressedMutationRequest) else None
-    if address is not None:
-        payload["target"] = address.model_dump(exclude_none=True)
-    if isinstance(request, TagAddRequest):
-        payload["properties"] = request.model_dump(
-            mode="json",
-            include={"name", "from_frame", "to_frame", "direction", "repeats", "color"},
-            exclude_none=True,
+    with completion as mutation:
+        payload: dict[str, object] = {
+            "operation": operation,
+            "source_sprite_file": request.source_sprite_file,
+            "staged_sprite_file": str(mutation.staged_sprite_file),
+        }
+        address = (
+            request.target if isinstance(request, _AddressedMutationRequest) else None
         )
-    elif isinstance(request, TagSetRequest):
-        payload["properties"] = request.properties.model_dump(
-            mode="json", exclude_unset=True
-        )
-    try:
+        if address is not None:
+            payload["target"] = address.model_dump(exclude_none=True)
+        if isinstance(request, TagAddRequest):
+            payload["properties"] = request.model_dump(
+                mode="json",
+                include={
+                    "name",
+                    "from_frame",
+                    "to_frame",
+                    "direction",
+                    "repeats",
+                    "color",
+                },
+                exclude_none=True,
+            )
+        elif isinstance(request, TagSetRequest):
+            payload["properties"] = request.properties.model_dump(
+                mode="json", exclude_unset=True
+            )
         invocation = services.invoke_kernel(
             observation, TAG_MUTATE_HANDLER, payload, request.timeout_seconds
         )
@@ -420,24 +429,9 @@ def _mutate(
                 ),
                 invocation.diagnostics,
             ) from exc
-        identity_issue = source_target_identity_issue(
-            services.target_files, source, target, request.in_place
-        )
-        if identity_issue is not None:
-            raise RuntimeIssue(
-                "target_commit_failed",
-                "Source/Target publication identity changed before Target Commit",
-                TargetCommitEvidence(str(target), "source_target_identity_changed"),
-            )
-        committed = services.target_files.commit(
-            staged, target, overwrite=request.overwrite
-        )
+        committed = mutation.commit()
         fields = {
-            "target_commit": TargetCommit(
-                target_sprite_file=committed.target_sprite_file,
-                byte_size=committed.byte_size,
-                sha256=committed.sha256,
-            ),
+            "target_commit": committed,
             "persisted_reopen_verified": True,
             "tags": tags,
         }
@@ -446,8 +440,6 @@ def _mutate(
         if operation == "set":
             return TagSetResult(tag=selected, **fields)
         return TagRemoveResult(removed_tag=selected, **fields)
-    finally:
-        services.target_files.discard(staged)
 
 
 def add_tag(request: TagAddRequest, services: OperationServices) -> TagAddResult:

@@ -75,6 +75,8 @@ def observed_invoke(observation, handler, payload, timeout):
     elif case == "postcondition":
         if handler.name == "motion_apply":
             result.payload["cels"][0]["after"]["opacity"] = 1
+        elif handler.name == "tag_mutate":
+            result.payload["tag"]["tag_index"] = 999
         else:
             result.payload["cel"]["frame_number"] = 2
     return result
