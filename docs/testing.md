@@ -54,6 +54,18 @@ the narrowest ownership directory that uses it. Move a helper to `tests/support.
 only when more than one ownership area needs it. Each directory is a Python package,
 so different owners can safely use the same focused file name later.
 
+Controlled process fixtures use `tests/console_program.py` to install a small
+Python console program with the repository's existing uv build backend. Run the
+normal locked environment sync first; fixture builds then run offline. These
+programs use source-owned UTF-8 and LF text streams, retain literal arguments and
+executable/resource identity, and produce real response, echo and declared files.
+The direct producer tests in `tests/runtime/test_integration_controlled_program.py`
+verify these effects before SPA's native capture path is involved. A passing
+producer check does not establish that the transport-dependent business test
+passes. Ordinary file observations and Unix FIFO observations have separate test
+parameters; only the FIFO parameter requires `os.mkfifo`. Both retain real symlink
+preconditions and the original file assertions.
+
 Native Paint #26 has separate Line, Rectangle, and Ellipse runtime gates. Its
 real-runtime suite compares saved pixels with direct `app.useTool` references for
 all four color-paint Inks at opacity 0, 128, and 255. It also covers native Brush
