@@ -136,7 +136,7 @@ def _verify_pixel_stream(
     bit_depth: int = 8,
 ) -> None:
     # Validate the encoded stream that Pillow can tolerate truncating or extending.
-    # Pillow still owns unfiltering, Adam7 reconstruction, and pixel decoding.
+    # Pillow validates filters and owns unfiltering and Adam7 pixel reconstruction.
     channels = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}[color_type]
     passes = (
         ((0, 0, 1, 1),)
@@ -161,12 +161,6 @@ def _verify_pixel_stream(
     decoded = _inflate(compressed, expected)
     if len(decoded) != expected:
         raise ValueError("PNG pixel stream size disagrees with IHDR")
-    offset = 0
-    for row_size, count in rows:
-        for _ in range(count):
-            if decoded[offset] > 4:
-                raise ValueError("Invalid PNG scanline filter")
-            offset += row_size
 
 
 def _entries(
