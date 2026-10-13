@@ -2,6 +2,8 @@
 
 import json
 import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -10,7 +12,7 @@ from jsonschema import Draft202012Validator, validate
 from spa.application.failure_registry import FAILURE_CODES
 from spa.application.surface import ACCESS_FAILURE_CODES
 from spa.contracts.public import failure_schema
-from tests.support import fake_probe_response, spa
+from tests.support import cli_entry_command, fake_probe_response, spa
 
 
 def test_version_is_an_installed_structured_operation() -> None:
@@ -55,6 +57,83 @@ def test_installed_cli_reads_json_request_from_stdin() -> None:
     assert json.loads(invalid.stdout)["code"] == "invalid_request"
 
 
+@pytest.fixture(params=["console", "main", "wheel"])
+def utf8_cli(request, tmp_path, monkeypatch) -> list[str]:
+    return cli_entry_command(request.param, tmp_path, monkeypatch)
+
+
+@pytest.mark.parametrize("field", ["中文", "中文🚀"])
+@pytest.mark.parametrize("input_form", ["raw-stdin", "escaped-stdin", "argv"])
+def test_installed_cli_preserves_utf8_field_locations(
+    utf8_cli: list[str], field: str, input_form: str
+) -> None:
+    request = json.dumps({field: 1}, ensure_ascii=input_form == "escaped-stdin")
+    argument = request if input_form == "argv" else "-"
+    run = subprocess.run(
+        [*utf8_cli, "version", "--input-json", argument],
+        input=request.encode("utf-8") if input_form != "argv" else None,
+        capture_output=True,
+        check=False,
+        timeout=10,
+    )
+    assert run.returncode == 2
+    assert run.stderr == b""
+    failure = json.loads(run.stdout.decode("utf-8"))
+    assert failure["code"] == "invalid_request"
+    assert failure["details"]["errors"][0]["location"] == [field]
+    assert failure["details"]["errors"][0]["code"] == "extra_forbidden"
+    schema_run = subprocess.run(
+        [*utf8_cli, "version", "--schema"],
+        capture_output=True,
+        check=False,
+        timeout=10,
+    )
+    assert schema_run.returncode == 0
+    assert schema_run.stderr == b""
+    schema = json.loads(schema_run.stdout.decode("utf-8"))
+    validate(failure, schema["failure_schema"])
+
+
+def test_cli_unicode_usage_failure_is_utf8(utf8_cli: list[str]) -> None:
+    run = subprocess.run(
+        [*utf8_cli, "不存在🚀"],
+        capture_output=True,
+        check=False,
+        timeout=10,
+    )
+    assert run.returncode == 2
+    assert run.stderr == b""
+    failure = json.loads(run.stdout.decode("utf-8"))
+    assert failure["operation"] == "spa"
+    assert failure["code"] == "invalid_request"
+    error = failure["details"]["errors"][0]
+    assert error["code"] == "cli_usage"
+    assert "不存在🚀" in error["message"]
+
+
+@pytest.mark.parametrize("module", ["spa.bootstrap", "spa.mcp_bootstrap"])
+def test_importing_process_entry_does_not_reconfigure_stdio(module: str) -> None:
+    program = f"""
+import sys
+before = [(id(stream), stream.encoding, stream.errors)
+          for stream in (sys.stdin, sys.stdout, sys.stderr)]
+__import__({module!r})
+after = [(id(stream), stream.encoding, stream.errors)
+         for stream in (sys.stdin, sys.stdout, sys.stderr)]
+assert before == after
+if {module!r} == 'spa.mcp_bootstrap':
+    assert 'spa.access.cli' not in sys.modules
+    assert 'spa.application.dispatch' not in sys.modules
+"""
+    run = subprocess.run(
+        [sys.executable, "-X", "utf8=0", "-c", program],
+        capture_output=True,
+        check=False,
+        timeout=10,
+    )
+    assert run.returncode == 0, run.stderr
+
+
 def test_invalid_request_uses_typed_failure_contract() -> None:
     schema = json.loads(spa("version", "--schema").stdout)
     run = spa("version", "--input-json", '{"unexpected": 1}', "--json")
@@ -65,6 +144,15 @@ def test_invalid_request_uses_typed_failure_contract() -> None:
     assert failure["code"] == "invalid_request"
     assert failure["details"]["kind"] == "invalid_request"
     assert failure["details"]["errors"][0]["location"] == ["unexpected"]
+
+
+def test_spa_helper_reads_unicode_typed_failure_as_utf8() -> None:
+    run = spa("version", "--input-json", json.dumps({"中文🚀": 1}))
+    assert run.returncode == 2
+    assert run.stderr == ""
+    failure = json.loads(run.stdout)
+    assert failure["details"]["errors"][0]["location"] == ["中文🚀"]
+    assert failure["details"]["errors"][0]["code"] == "extra_forbidden"
 
 
 def test_invalid_argv_is_on_the_same_failure_channel() -> None:

@@ -5,8 +5,11 @@ import json
 import os
 import sys
 
+from spa.entry_point import configure_stdio
+
 
 def main() -> None:
+    configure_stdio()
     parser = argparse.ArgumentParser(
         description="Expose the installed SPA surface over MCP stdio."
     )

@@ -201,6 +201,7 @@ def observed_cli(
             json.dumps(request),
         ],
         text=True,
+        encoding="utf-8",
         capture_output=True,
         check=False,
     )

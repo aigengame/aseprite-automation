@@ -331,6 +331,35 @@ Pytest rejects unregistered markers. The root e2e gate also rejects a selected e
 test when `SPA_TEST_ASEPRITE` is absent, is not a file, or is not executable. A missing
 runtime therefore cannot produce an all-skipped successful e2e run.
 
+### CLI and MCP text entries
+
+The CLI and optional MCP entries configure stdin, stdout and stderr as UTF-8
+before parsing requests, help or early errors. Importing an entry module has no
+stream side effect. The existing stream error policies are retained. SPA-owned
+subprocess readers, including `tests.support.spa`, read and write UTF-8 explicitly;
+this does not change external native diagnostics or copied asset byte contracts.
+
+`tests/cli/test_integration_commands.py` checks raw UTF-8 and ASCII-escaped JSON
+stdin, Unicode argv, typed failures and usage errors through real console and
+`main()` entries. `tests/mcp/test_integration_process.py` checks early MCP stderr
+and the actual MCP `Cli`-to-SPA child boundary. These tests use strict raw-byte
+readback, preserve original Unicode field locations, and need no Aseprite. The
+normal helper readback is tested separately from the entry producer.
+
+Select a candidate wheel with `SPA_TEST_INSTALLED_CLI` to include the isolated
+installed entries. Set it to the candidate installation's `spa` executable.
+Wheel consumers run outside the checkout. Run the same entry regression modules
+on each supported platform:
+
+```text
+uv run --frozen --group test --extra mcp pytest tests/cli/test_integration_commands.py tests/mcp/test_integration_process.py
+```
+
+The regressions verify the source-owned UTF-8 policy without relying on the host
+locale or a global encoding override. Full MCP wire/native delivery remains a
+separate runtime-dependent check. Measured host setup, execution restrictions
+and results are recorded in [issue #235 validation](evidence/issue-235-utf8-entries.md).
+
 Run the fast unit and integration tiers with four pytest workers by default:
 
 ```sh
@@ -355,8 +384,8 @@ SPA_TEST_ASEPRITE=/path/to/aseprite \
 
 Use a new output directory for each run. For complete installed-wheel CLI coverage,
 build the current wheel, install it with the locked runtime dependencies in a separate
-environment, and set `SPA_TEST_INSTALLED_CLI` to that environment's `bin/spa`. Otherwise
-the existing wheel-only cases report their environment skips.
+environment, and set `SPA_TEST_INSTALLED_CLI` to its installed `spa` executable.
+Otherwise the existing wheel-only cases report their environment skips.
 
 The [installed distribution record](evidence/issue-54-installed-distributions.md)
 records the tested macOS profile, the isolated-wheel replay, and the remaining

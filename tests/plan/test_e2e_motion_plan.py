@@ -190,6 +190,7 @@ def test_motion_plan_uses_one_process_and_gates_publication(
             ),
         ],
         text=True,
+        encoding="utf-8",
         capture_output=True,
         check=False,
     )
