@@ -2,7 +2,6 @@
 
 import hashlib
 import os
-import shlex
 import shutil
 import struct
 import subprocess
@@ -22,6 +21,7 @@ from spa.contracts.ports import (
     TargetCommitObservation,
 )
 from spa.contracts.public import RuntimeCapability
+from tests.console_program import console_program
 
 
 def icc_fixture_path(identity: str) -> Path:
@@ -135,24 +135,25 @@ def fake_aseprite(tmp_path: Path, body: str) -> Path:
     return binary
 
 
+def controlled_aseprite(tmp_path: Path, body: str) -> Path:
+    """Create a console process with the existing executable/resource identity."""
+    binary = console_program(tmp_path, body)
+    resource = binary.parent.parent / "Resources/data/gui.xml"
+    resource.parent.mkdir(parents=True)
+    resource.write_text("<gui/>", encoding="utf-8")
+    return binary
+
+
 def fake_probe_response(tmp_path: Path, response: str) -> Path:
     """Create a controlled Aseprite transport that returns one probe response."""
-    quoted_response = shlex.quote(response)
-    return fake_aseprite(
+    return controlled_aseprite(
         tmp_path,
         f"""
-request=
-response_file=
-echo_file=
-for argument in "$@"; do
-  case "$argument" in
-    request=*) request=${{argument#request=}};;
-    response=*) response_file=${{argument#response=}};;
-    echo=*) echo_file=${{argument#echo=}};;
-  esac
-done
-cp "$request" "$echo_file"
-printf '%s' {quoted_response} > "$response_file"
+import sys
+from pathlib import Path
+parameters = dict(argument.split('=', 1) for argument in sys.argv[1:] if '=' in argument)
+Path(parameters['echo']).write_bytes(Path(parameters['request']).read_bytes())
+Path(parameters['response']).write_text({response!r}, encoding='utf-8')
 """,
     )
 
