@@ -23,6 +23,10 @@ is CP936, Python UTF-8 mode is 0, and `PYTHONUTF8`/`PYTHONIOENCODING` are absent
 Existing `main()` child probes use `-X utf8=0`; no suite-wide encoding switch,
 `chcp`, Bash or WSL is used.
 
+The PowerShell execution and Bash/WSL exclusion above describe this Windows
+audit's provenance. The shared [testing guide](../testing.md#cli-and-mcp-text-entries)
+owns the platform-neutral entry regression command and configuration meaning.
+
 | TDD slice | Before its repair | After its repair |
 | --- | --- | --- |
 | Real CLI raw UTF-8 `中文` / `中文🚀` stdin | Both lose the field location and produce an unrelated rejection | Both preserve the original extra-field location and `extra_forbidden` |
