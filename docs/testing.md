@@ -331,6 +331,37 @@ Pytest rejects unregistered markers. The root e2e gate also rejects a selected e
 test when `SPA_TEST_ASEPRITE` is absent, is not a file, or is not executable. A missing
 runtime therefore cannot produce an all-skipped successful e2e run.
 
+### CLI and MCP text entries
+
+The CLI and optional MCP entries configure stdin, stdout and stderr as UTF-8
+before parsing requests, help or early errors. Importing an entry module has no
+stream side effect. The existing stream error policies are retained. SPA-owned
+subprocess readers, including `tests.support.spa`, read and write UTF-8 explicitly;
+this does not change external native diagnostics or copied asset byte contracts.
+
+`tests/cli/test_integration_commands.py` checks raw UTF-8 and ASCII-escaped JSON
+stdin, Unicode argv, typed failures and usage errors through real console and
+`main()` entries. `tests/mcp/test_integration_process.py` checks early MCP stderr
+and the actual MCP `Cli`-to-SPA child boundary. These tests use strict raw-byte
+readback, preserve original Unicode field locations, and need no Aseprite. The
+normal helper readback is tested separately from the entry producer.
+
+Select a candidate wheel with `SPA_TEST_INSTALLED_CLI` to include the isolated
+installed entries. Wheel consumers run outside the checkout. On Windows, use
+the installed `Scripts/spa.exe` path and native PowerShell; use `bin/spa` on
+macOS/Linux. For example, after the ordinary candidate wheel installation:
+
+```powershell
+$env:SPA_TEST_INSTALLED_CLI = 'C:\tools\spa-candidate\Scripts\spa.exe'
+uv run --frozen --group test --extra mcp pytest tests/cli/test_integration_commands.py tests/mcp/test_integration_process.py
+```
+
+No Bash/WSL invocation, global Python encoding switch or `chcp` setup is needed.
+The supported `main()` probes disable Python UTF-8 mode in that child to check
+the source-owned policy. Record the host locale and UTF-8 mode for console/wheel
+evidence; a Windows result does not establish Unix parity. Full MCP wire/native
+delivery remains a separate runtime-dependent check.
+
 Run the fast unit and integration tiers with four pytest workers by default:
 
 ```sh
