@@ -64,7 +64,7 @@ def test_successful_direct_fixture_still_passes(
 @pytest.mark.parametrize(
     ("termination", "status", "description"),
     [
-        pytest.param("sys.exit(13)", 13, "exit status 13", id="ordinary-exit"),
+        pytest.param("sys.exit(13)", 13, "exited with status 13", id="ordinary-exit"),
         pytest.param(
             "os.kill(os.getpid(), signal.SIGTERM)",
             -signal.SIGTERM,

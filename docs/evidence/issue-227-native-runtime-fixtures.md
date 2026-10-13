@@ -123,6 +123,17 @@ does not claim complete Windows support or windowed Aseprite coverage.
 
 ## Retained records
 
+The first Linux CI run at `d7ef0a6` reports **2 failed / 2,074 passed / 15 skipped**.
+Both failures are new ordinary-exit report descriptions: the direct fixture helper
+says `exit status 13`, while SPA's existing probe diagnostic says
+`exited with status 13`. The ordinary report parameter is corrected to assert the
+actual SPA description; exit status, both streams, UTF-8 XML and original Unix
+signal assertions are retained. A native Windows replay of the complete producer
+and diagnostic families reports **5 passed / 3 failed / 4 skipped** across 12
+nodes. The three ordinary probe-report cases still fail at #230. This follow-up
+does not rewrite the first full checkpoint above; later exact-head validation is
+recorded in the PR and task runtime records.
+
 Raw TDD captures, generated producers, direct-effect checks, the current issue
 snapshot, full collection/JUnit/console/launch reports, outcome transitions and
 the complete prior-node mapping are under `.runtime/issue-227/`. The checkpoint
