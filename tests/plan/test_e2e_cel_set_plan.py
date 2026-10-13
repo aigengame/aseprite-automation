@@ -410,6 +410,7 @@ def test_cel_plan_has_one_native_invocation_and_gates_target_commit(
             request,
         ],
         text=True,
+        encoding="utf-8",
         capture_output=True,
         check=False,
     )
