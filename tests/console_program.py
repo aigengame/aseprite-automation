@@ -15,6 +15,9 @@ def console_program(tmp_path: Path, body: str, name: str = "aseprite") -> Path:
     root = tmp_path / "console-program"
     source = root / "src/spa_test_program"
     source.mkdir(parents=True)
+    suffix = ".exe" if os.name == "nt" else ""
+    # uv strips the Windows suffix from argv[0]; fixtures retain launcher identity.
+    identity = "    sys.argv[0] += '.exe'\n" if suffix else ""
     build = tomllib.loads(
         (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text(
             encoding="utf-8"
@@ -31,8 +34,9 @@ def console_program(tmp_path: Path, body: str, name: str = "aseprite") -> Path:
     (source / "__init__.py").write_text(
         "def main():\n"
         "    import sys\n"
-        "    for stream in (sys.stdin, sys.stdout, sys.stderr):\n"
-        "        stream.reconfigure(encoding='utf-8', errors=stream.errors)\n"
+        + identity
+        + "    for stream in (sys.stdin, sys.stdout, sys.stderr):\n"
+        "        stream.reconfigure(encoding='utf-8', errors=stream.errors, newline='\\n')\n"
         + textwrap.indent(textwrap.dedent(body), "    ")
         + "\n",
         encoding="utf-8",
@@ -59,7 +63,7 @@ def console_program(tmp_path: Path, body: str, name: str = "aseprite") -> Path:
         run = subprocess.run(command, capture_output=True, timeout=30, check=False)
         assert run.returncode == 0, (command, run.stdout, run.stderr)
     scripts = environment / ("Scripts" if os.name == "nt" else "bin")
-    installed = scripts / (name + (".exe" if os.name == "nt" else ""))
+    installed = scripts / (name + suffix)
     binary = tmp_path / "Aseprite.app/Contents/MacOS" / installed.name
     binary.parent.mkdir(parents=True)
     shutil.copy2(installed, binary)

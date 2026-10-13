@@ -10,8 +10,6 @@ from jsonschema import Draft202012Validator
 from tests.script.support import script_runtime
 from tests.support import spa
 
-pytestmark = pytest.mark.skipif(os.name == "nt", reason="POSIX process fixture")
-
 
 def test_timeout_is_reported_without_requiring_process_output(
     tmp_path: Path,
@@ -203,14 +201,28 @@ def test_ordinary_operation_cannot_accept_a_caller_replacement(extra) -> None:
 
 
 @pytest.mark.parametrize("exit_status", [0, 7])
+@pytest.mark.parametrize(
+    "include_fifo",
+    [
+        pytest.param(False, id="ordinary"),
+        pytest.param(
+            True,
+            id="unix-fifo",
+            marks=pytest.mark.skipif(
+                not hasattr(os, "mkfifo"), reason="Unix FIFO fixture"
+            ),
+        ),
+    ],
+)
 def test_declared_file_observations_follow_only_successful_execution(
-    tmp_path, exit_status
+    tmp_path, exit_status, include_fifo
 ) -> None:
     (tmp_path / "normal.bin").write_bytes(b"before")
     (tmp_path / "link.bin").symlink_to("normal.bin")
     (tmp_path / "dangling.bin").symlink_to("missing.bin")
     (tmp_path / "directory").mkdir()
-    os.mkfifo(tmp_path / "pipe")
+    if include_fifo:
+        os.mkfifo(tmp_path / "pipe")
     binary = script_runtime(
         tmp_path,
         f'Path("normal.bin").write_bytes(b"after-run"); sys.exit({exit_status})',
@@ -230,7 +242,7 @@ def test_declared_file_observations_follow_only_successful_execution(
                     "link.bin",
                     "dangling.bin",
                     "directory",
-                    "pipe",
+                    *(["pipe"] if include_fifo else []),
                     "normal.bin/child",
                 ],
             }
@@ -269,12 +281,18 @@ def test_declared_file_observations_follow_only_successful_execution(
             "size_bytes": None,
             "error": None,
         },
-        {
-            "path": str(tmp_path / "pipe"),
-            "kind": "other",
-            "size_bytes": None,
-            "error": None,
-        },
+        *(
+            [
+                {
+                    "path": str(tmp_path / "pipe"),
+                    "kind": "other",
+                    "size_bytes": None,
+                    "error": None,
+                }
+            ]
+            if include_fifo
+            else []
+        ),
     ]
     unavailable = result["files"][-1]
     assert unavailable["path"] == str(tmp_path / "normal.bin/child")

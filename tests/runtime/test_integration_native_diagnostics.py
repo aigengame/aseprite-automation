@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from tests.frame.test_e2e_frame import _run_fixture
-from tests.support import controlled_aseprite, fake_aseprite
+from tests.support import controlled_aseprite
 
 
 @pytest.mark.parametrize(
@@ -61,11 +61,26 @@ def test_successful_direct_fixture_still_passes(
 
 
 @pytest.mark.parametrize("phase", ["call", "setup", "expected"])
+@pytest.mark.parametrize(
+    ("termination", "status", "description"),
+    [
+        pytest.param("sys.exit(13)", 13, "exit status 13", id="ordinary-exit"),
+        pytest.param(
+            "os.kill(os.getpid(), signal.SIGTERM)",
+            -signal.SIGTERM,
+            "SIGTERM",
+            id="unix-signal",
+            marks=pytest.mark.skipif(os.name == "nt", reason="POSIX signal fixture"),
+        ),
+    ],
+)
 def test_probe_failure_evidence_reaches_pytest_reports(
-    tmp_path: Path, phase: str
+    tmp_path: Path, phase: str, termination: str, status: int, description: str
 ) -> None:
-    binary = fake_aseprite(
-        tmp_path, "echo 'probe stdout'\necho 'probe stderr' >&2\nkill -TERM $$\n"
+    binary = controlled_aseprite(
+        tmp_path,
+        "import os, signal, sys\nprint('probe stdout', flush=True)\n"
+        f"print('probe stderr', file=sys.stderr, flush=True)\n{termination}\n",
     )
     test_file = tmp_path / "test_probe.py"
     action = {
@@ -125,8 +140,8 @@ def test_probe_failure_evidence_reaches_pytest_reports(
         return
     assert result.returncode == 1, transcript
     assert len(cases) == 1
-    for evidence in (transcript, report.read_text()):
-        assert '"exit_status": -15' in evidence
-        assert "SIGTERM" in evidence
+    for evidence in (transcript, report.read_text(encoding="utf-8")):
+        assert f'"exit_status": {status}' in evidence
+        assert description in evidence
         assert "probe stdout" in evidence
         assert "probe stderr" in evidence

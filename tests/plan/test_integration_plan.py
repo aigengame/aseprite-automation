@@ -2,13 +2,12 @@
 
 import json
 import os
-import shlex
 from importlib.resources import files
 from pathlib import Path
 
 import pytest
 
-from tests.support import fake_aseprite, spa
+from tests.support import controlled_aseprite, spa
 
 
 def _one_frame_inspection() -> dict[str, object]:
@@ -589,15 +588,20 @@ def test_plan_step_validation_reports_index_after_one_process(tmp_path: Path) ->
         ),
         encoding="utf-8",
     )
-    fake = fake_aseprite(
+    fake = controlled_aseprite(
         tmp_path,
-        f"""
-response_file=
-for argument in "$@"; do
-  case "$argument" in response=*) response_file=${{argument#response=}};; esac
-done
-printf '1\\n' >> {shlex.quote(str(count_file))}
-cp {shlex.quote(str(response_file))} "$response_file"
+        r"""import sys
+from pathlib import Path
+parameters = dict(argument.split('=', 1) for argument in sys.argv[1:] if '=' in argument)
+"""
+        + "with Path("
+        + repr(str(count_file))
+        + r""").open('a', encoding='utf-8', newline='\n') as counter:
+    counter.write('1\n')
+"""
+        + "Path(parameters['response']).write_bytes(Path("
+        + repr(str(response_file))
+        + r""").read_bytes())
 """,
     )
     run = spa(
@@ -671,14 +675,15 @@ def test_plan_frame_inspection_rejects_incomplete_step_facts(
         ),
         encoding="utf-8",
     )
-    fake = fake_aseprite(
+    fake = controlled_aseprite(
         tmp_path,
-        f"""
-response_file=
-for argument in "$@"; do
-  case "$argument" in response=*) response_file=${{argument#response=}};; esac
-done
-cp {shlex.quote(str(response_file))} "$response_file"
+        r"""import sys
+from pathlib import Path
+parameters = dict(argument.split('=', 1) for argument in sys.argv[1:] if '=' in argument)
+"""
+        + "Path(parameters['response']).write_bytes(Path("
+        + repr(str(response_file))
+        + r""").read_bytes())
 """,
     )
     run = spa(
@@ -728,14 +733,15 @@ def test_plan_create_postcondition_failure_identifies_step(tmp_path: Path) -> No
         ),
         encoding="utf-8",
     )
-    fake = fake_aseprite(
+    fake = controlled_aseprite(
         tmp_path,
-        f"""
-response_file=
-for argument in "$@"; do
-  case "$argument" in response=*) response_file=${{argument#response=}};; esac
-done
-cp {shlex.quote(str(response_file))} "$response_file"
+        r"""import sys
+from pathlib import Path
+parameters = dict(argument.split('=', 1) for argument in sys.argv[1:] if '=' in argument)
+"""
+        + "Path(parameters['response']).write_bytes(Path("
+        + repr(str(response_file))
+        + r""").read_bytes())
 """,
     )
     run = spa(
@@ -793,14 +799,15 @@ def test_plan_runtime_capability_failure_is_typed_before_steps(tmp_path: Path) -
         ),
         encoding="utf-8",
     )
-    fake = fake_aseprite(
+    fake = controlled_aseprite(
         tmp_path,
-        f"""
-response_file=
-for argument in "$@"; do
-  case "$argument" in response=*) response_file=${{argument#response=}};; esac
-done
-cp {shlex.quote(str(response_file))} "$response_file"
+        r"""import sys
+from pathlib import Path
+parameters = dict(argument.split('=', 1) for argument in sys.argv[1:] if '=' in argument)
+"""
+        + "Path(parameters['response']).write_bytes(Path("
+        + repr(str(response_file))
+        + r""").read_bytes())
 """,
     )
     run = spa(
