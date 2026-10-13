@@ -77,6 +77,8 @@ def observed_invoke(observation, handler, payload, timeout):
             result.payload["cels"][0]["after"]["opacity"] = 1
         elif handler.name == "tag_mutate":
             result.payload["tag"]["tag_index"] = 999
+        elif handler.name == "frame_mutate":
+            result.payload["sprite"]["frames"][0]["duration_ms"] = 1
         else:
             result.payload["cel"]["frame_number"] = 2
     return result

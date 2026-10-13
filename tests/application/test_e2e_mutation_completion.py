@@ -15,7 +15,9 @@ from tests.motion.test_e2e_motion import curves, fixture
 pytestmark = pytest.mark.e2e
 
 
-@pytest.mark.parametrize("operation", ["cel set", "motion apply", "tag add"])
+@pytest.mark.parametrize(
+    "operation", ["cel set", "motion apply", "tag add", "frame set", "cel remove"]
+)
 @pytest.mark.parametrize("in_place", [False, True])
 @pytest.mark.parametrize(
     "case",
@@ -50,6 +52,8 @@ def test_standalone_completion_gates_commit_and_cleans_staging(
             "target": {"layer": {"layer_path": [1]}, "frame_number": 1},
             "opacity": 42,
         },
+        "frame set": {"frame_number": 1, "duration_ms": 321},
+        "cel remove": {"target": {"layer": {"layer_path": [1]}, "frame_number": 1}},
     }[operation]
     request = {
         "aseprite": os.environ["SPA_TEST_ASEPRITE"],
@@ -113,14 +117,17 @@ def test_standalone_completion_gates_commit_and_cleans_staging(
             if case == "identity":
                 assert outcome["message"] == (
                     "Source/Target publication identity changed before Target Commit"
-                    if operation in ("cel set", "tag add")
+                    if operation != "motion apply"
                     else "Source/Target identity changed before Target Commit"
                 )
     if not in_place:
         assert source.read_bytes() == before_source
-    expected_events = ["probe"]
+    # Frame has no earlier capability-enrichment probe at the CLI boundary.
+    expected_events = ["identity", "probe"] if operation == "frame set" else ["probe"]
     if case != "probe":
-        expected_events.extend(["identity", "stage", "invoke"])
+        if operation != "frame set":
+            expected_events.append("identity")
+        expected_events.extend(["stage", "invoke"])
         if case in ("success", "identity", "commit"):
             expected_events.append("identity")
         if case in ("success", "commit"):

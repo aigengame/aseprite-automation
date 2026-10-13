@@ -27,6 +27,8 @@ DESTINATION = {"layer": {"layer_path": [2]}, "frame_number": 2}
         ),
         ("tag set", {"target": {"tag_index": 1}, "properties": {"name": "new"}}),
         ("tag remove", {"target": {"tag_index": 1}}),
+        ("frame set", {"frame_number": 1, "duration_ms": 321}),
+        ("cel remove", {"target": ADDRESS}),
         ("cel set", {"target": ADDRESS, "opacity": 42}),
         ("cel copy", {"source": ADDRESS, "destination": DESTINATION}),
         ("cel link", {"source": ADDRESS, "destination": DESTINATION}),
