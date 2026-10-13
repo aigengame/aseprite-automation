@@ -174,6 +174,14 @@ def _entries(
 ) -> tuple[tuple[int, int, int, int], ...]:
     palette = chunks.get(b"PLTE")
     alpha = chunks.get(b"tRNS")
+    if color_type in (0, 4):
+        if palette is not None:
+            raise ValueError("Grayscale PNG cannot contain PLTE")
+        if alpha is not None and (
+            color_type != 0 or len(alpha) != 2 or struct.unpack(">H", alpha)[0] > 255
+        ):
+            raise ValueError("Invalid Grayscale PNG tRNS")
+        return ()
     if palette is not None and (not palette or len(palette) % 3 or len(palette) > 768):
         raise ValueError("Invalid PNG PLTE")
     if color_type == 3:

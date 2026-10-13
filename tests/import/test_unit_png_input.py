@@ -7,7 +7,9 @@ from importlib.resources import files
 import pytest
 from PIL import ImageCms
 
-from spa.adapters.png_input import decode_png_input
+from spa.adapters.png_input import decode_png_artifact, decode_png_input
+from spa.adapters.sequence_png import decode_sequence_png
+from spa.contracts.encoded_animation import AnimationDecodeError
 from spa.contracts.ports import PngInputError
 
 
@@ -68,6 +70,22 @@ def test_rgb_transparency_preserves_complete_hidden_color() -> None:
     )
 
     assert facts.rgba_bytes == bytes((11, 22, 33, 0, 44, 55, 66, 255))
+
+
+@pytest.mark.parametrize("decode", [decode_png_artifact, decode_sequence_png])
+@pytest.mark.parametrize("transparent", [False, True])
+def test_grayscale_output_observes_trns_without_losing_hidden_sample(
+    decode, transparent: bool
+) -> None:
+    # PNG section 11.3.1.1 defines a two-byte transparent sample for type 0.
+    before = ((b"tRNS", b"\x00\x25"),) if transparent else ()
+    facts = decode(_png(b"\x00\x25", color_type=0, before=before))
+
+    alpha = 0 if transparent else 255
+    assert facts.color_mode == "grayscale" and facts.color_type == 0
+    assert facts.rgba_bytes == bytes((37, 37, 37, alpha))
+    assert facts.stored_bytes == bytes((37, alpha))
+    assert facts.entries == ()
 
 
 def test_indexed_preserves_indexes_entries_and_partial_alpha() -> None:
@@ -136,6 +154,20 @@ def test_invalid_palette_or_undefined_used_index_is_rejected(
         before += ((b"tRNS", alpha),)
     with pytest.raises(PngInputError):
         decode_png_input(_png(b"\x00" + pixels, color_type=3, before=before))
+
+
+@pytest.mark.parametrize(
+    "decode,error",
+    [(decode_png_artifact, PngInputError), (decode_sequence_png, AnimationDecodeError)],
+)
+@pytest.mark.parametrize("color_type", [0, 4])
+def test_grayscale_output_rejects_forbidden_palette(decode, error, color_type) -> None:
+    # PNG section 11.2.2 forbids PLTE for both Grayscale representations.
+    pixels = b"\x00\x25" if color_type == 0 else b"\x00\x25\xff"
+    payload = _png(pixels, color_type=color_type, before=((b"PLTE", b"\x01\x02\x03"),))
+
+    with pytest.raises(error, match="Grayscale PNG cannot contain PLTE"):
+        decode(payload)
 
 
 @pytest.mark.parametrize("name", ["linear_srgb", "display_p3_cc0"])
