@@ -6,6 +6,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field, ValidationError, field_validator, model_validator
 
+from spa.application.mutation import prepare_mutation
 from spa.authoring.document.cel_contracts import (
     CelAddress,
     CelState,
@@ -28,7 +29,6 @@ from spa.contracts.digest import DIGEST_RESOURCE
 from spa.contracts.mutation import (
     TargetCommit,
     require_overwrite_for_in_place,
-    source_target_identity_issue,
     validate_native_sprite_path,
 )
 from spa.contracts.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
@@ -37,10 +37,8 @@ from spa.contracts.ports import (
     OperationServices,
     PackagedHandler,
     PackagedResource,
-    RequestIssue,
     ResponseEvidence,
     RuntimeIssue,
-    TargetCommitEvidence,
 )
 from spa.contracts.public import (
     CapabilityGap,
@@ -258,11 +256,14 @@ def composite_paint(
     request: PaintCompositeRequest, services: OperationServices
 ) -> PaintCompositeResult:
     source, target = Path(request.source_sprite_file), Path(request.target_sprite_file)
-    issue = source_target_identity_issue(
-        services.target_files, source, target, request.in_place
+    completion = prepare_mutation(
+        services.target_files,
+        source,
+        target,
+        in_place=request.in_place,
+        overwrite=request.overwrite,
+        identity_change_message="Source/Target identity changed",
     )
-    if issue is not None:
-        raise RequestIssue([issue])
     if isinstance(request.input, InlineSnapshot):
         value = request.input.snapshot
     else:
@@ -319,8 +320,7 @@ def composite_paint(
             gap.evidence,
             CompositeCapabilityDetails(gap=gap),
         )
-    staged = services.target_files.staged_path(target)
-    try:
+    with completion as mutation:
         payload = request.model_dump(
             mode="json",
             exclude_none=True,
@@ -333,7 +333,7 @@ def composite_paint(
                 "input",
             },
         )
-        payload["staged_sprite_file"] = str(staged)
+        payload["staged_sprite_file"] = str(mutation.staged_sprite_file)
         payload["input"] = {
             "kind": request.input.kind,
             "snapshot": value.model_dump(mode="json"),
@@ -422,30 +422,11 @@ def composite_paint(
             evidence.sprite,
             invocation,
         )
-        if (
-            source_target_identity_issue(
-                services.target_files, source, target, request.in_place
-            )
-            is not None
-        ):
-            raise RuntimeIssue(
-                "target_commit_failed",
-                "Source/Target identity changed",
-                TargetCommitEvidence(str(target), "source_target_identity_changed"),
-            )
-        committed = services.target_files.commit(
-            staged, target, overwrite=request.overwrite
-        )
+        committed = mutation.commit()
         return PaintCompositeResult(
             **evidence.model_dump(),
-            target_commit=TargetCommit(
-                target_sprite_file=committed.target_sprite_file,
-                byte_size=committed.byte_size,
-                sha256=committed.sha256,
-            ),
+            target_commit=committed,
         )
-    finally:
-        services.target_files.discard(staged)
 
 
 COMPOSITE_OPERATIONS = (

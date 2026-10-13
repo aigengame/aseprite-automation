@@ -6,6 +6,7 @@ from typing import Annotated, Literal, Self, cast
 
 from pydantic import Field, ValidationError, field_validator, model_validator
 
+from spa.application.mutation import prepare_mutation
 from spa.authoring.color.palette import EFFECTIVE_PALETTE_RESOURCE
 from spa.authoring.document.cel_contracts import (
     CelAddress,
@@ -27,7 +28,6 @@ from spa.contracts.digest import DIGEST_RESOURCE
 from spa.contracts.mutation import (
     TargetCommit,
     require_overwrite_for_in_place,
-    source_target_identity_issue,
     validate_native_sprite_path,
 )
 from spa.contracts.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
@@ -37,10 +37,8 @@ from spa.contracts.ports import (
     PackagedHandler,
     PackagedResource,
     PostconditionEvidence,
-    RequestIssue,
     ResponseEvidence,
     RuntimeIssue,
-    TargetCommitEvidence,
 )
 from spa.contracts.public import (
     FailureCodeSpec,
@@ -366,18 +364,20 @@ def _orient_image(
     operation = "flip" if isinstance(request, ImageFlipRequest) else "rotate"
     source = Path(request.source_sprite_file)
     target_file = Path(request.target_sprite_file)
-    identity_issue = source_target_identity_issue(
-        services.target_files, source, target_file, request.in_place
+    completion = prepare_mutation(
+        services.target_files,
+        source,
+        target_file,
+        in_place=request.in_place,
+        overwrite=request.overwrite,
+        identity_change_message="Source/Target publication identity changed before Target Commit",
     )
-    if identity_issue is not None:
-        raise RequestIssue([identity_issue])
     observation = services.probe_runtime(request)
-    staged = services.target_files.staged_path(target_file)
-    try:
+    with completion as mutation:
         payload: dict[str, object] = {
             "operation": operation,
             "source_sprite_file": request.source_sprite_file,
-            "staged_sprite_file": str(staged),
+            "staged_sprite_file": str(mutation.staged_sprite_file),
             "target": request.target.model_dump(mode="json", exclude_none=True),
         }
         if isinstance(request, ImageFlipRequest):
@@ -471,37 +471,16 @@ def _orient_image(
                 ),
                 invocation.diagnostics,
             )
-        if (
-            source_target_identity_issue(
-                services.target_files, source, target_file, request.in_place
-            )
-            is not None
-        ):
-            raise RuntimeIssue(
-                "target_commit_failed",
-                "Source/Target publication identity changed before Target Commit",
-                TargetCommitEvidence(
-                    str(target_file), "source_target_identity_changed"
-                ),
-            )
-        committed = services.target_files.commit(
-            staged, target_file, overwrite=request.overwrite
-        )
+        committed = mutation.commit()
         fields = {
             **evidence.model_dump(),
-            "target_commit": TargetCommit(
-                target_sprite_file=committed.target_sprite_file,
-                byte_size=committed.byte_size,
-                sha256=committed.sha256,
-            ),
+            "target_commit": committed,
         }
         return (
             ImageFlipResult.model_validate(fields)
             if isinstance(request, ImageFlipRequest)
             else ImageRotateResult.model_validate(fields)
         )
-    finally:
-        services.target_files.discard(staged)
 
 
 def flip_image(
@@ -642,14 +621,16 @@ def _mutate_image[Evidence: _ImageMutationEvidence, Result: _ImageMutationEviden
         Path(request.source_sprite_file),
         Path(request.target_sprite_file),
     )
-    issue = source_target_identity_issue(
-        services.target_files, source, target_file, request.in_place
+    completion = prepare_mutation(
+        services.target_files,
+        source,
+        target_file,
+        in_place=request.in_place,
+        overwrite=request.overwrite,
+        identity_change_message="Source/Target publication identity changed before Target Commit",
     )
-    if issue is not None:
-        raise RequestIssue([issue])
     observation = services.probe_runtime(request)
-    staged = services.target_files.staged_path(target_file)
-    try:
+    with completion as mutation:
         payload = request.model_dump(
             mode="json",
             exclude_none=True,
@@ -661,7 +642,7 @@ def _mutate_image[Evidence: _ImageMutationEvidence, Result: _ImageMutationEviden
                 "overwrite",
             },
         )
-        payload["staged_sprite_file"] = str(staged)
+        payload["staged_sprite_file"] = str(mutation.staged_sprite_file)
         invocation = services.invoke_kernel(
             observation, handler, payload, request.timeout_seconds
         )
@@ -716,34 +697,13 @@ def _mutate_image[Evidence: _ImageMutationEvidence, Result: _ImageMutationEviden
                 ),
                 invocation.diagnostics,
             )
-        if (
-            source_target_identity_issue(
-                services.target_files, source, target_file, request.in_place
-            )
-            is not None
-        ):
-            raise RuntimeIssue(
-                "target_commit_failed",
-                "Source/Target publication identity changed before Target Commit",
-                TargetCommitEvidence(
-                    str(target_file), "source_target_identity_changed"
-                ),
-            )
-        committed = services.target_files.commit(
-            staged, target_file, overwrite=request.overwrite
-        )
+        committed = mutation.commit()
         return result_type.model_validate(
             {
                 **evidence.model_dump(),
-                "target_commit": TargetCommit(
-                    target_sprite_file=committed.target_sprite_file,
-                    byte_size=committed.byte_size,
-                    sha256=committed.sha256,
-                ),
+                "target_commit": committed,
             }
         )
-    finally:
-        services.target_files.discard(staged)
 
 
 IMAGE_CROP_FAILURE_CODES = (

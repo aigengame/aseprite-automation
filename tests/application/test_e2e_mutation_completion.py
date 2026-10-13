@@ -16,7 +16,19 @@ pytestmark = pytest.mark.e2e
 
 
 @pytest.mark.parametrize(
-    "operation", ["cel set", "motion apply", "tag add", "frame set", "cel remove"]
+    "operation",
+    [
+        "cel set",
+        "motion apply",
+        "tag add",
+        "frame set",
+        "cel remove",
+        "layer set",
+        "image flip",
+        "image resize",
+        "image replace",
+        "paint composite",
+    ],
 )
 @pytest.mark.parametrize("in_place", [False, True])
 @pytest.mark.parametrize(
@@ -39,6 +51,30 @@ def test_standalone_completion_gates_commit_and_cleans_staging(
     if not in_place:
         target.write_bytes(b"existing Target")
     before_source, before_target = source.read_bytes(), target.read_bytes()
+    address = {"layer": {"layer_path": [1]}, "frame_number": 1}
+    image_input = {
+        "kind": "inline",
+        "snapshot": {
+            "coordinate_space": "image-pixel",
+            "color_mode": "rgb",
+            "rectangle": {"x": 0, "y": 0, "width": 9, "height": 12},
+            "rows": [
+                [
+                    {
+                        "length": 9,
+                        "color": {
+                            "kind": "rgba",
+                            "red": 210,
+                            "green": 50,
+                            "blue": 20,
+                            "alpha": 255,
+                        },
+                    }
+                ]
+                for _ in range(12)
+            ],
+        },
+    }
     inputs = {
         "motion apply": curves(),
         "tag add": {
@@ -48,12 +84,26 @@ def test_standalone_completion_gates_commit_and_cleans_staging(
             "direction": "forward",
             "repeats": 0,
         },
-        "cel set": {
-            "target": {"layer": {"layer_path": [1]}, "frame_number": 1},
-            "opacity": 42,
-        },
+        "cel set": {"target": address, "opacity": 42},
         "frame set": {"frame_number": 1, "duration_ms": 321},
-        "cel remove": {"target": {"layer": {"layer_path": [1]}, "frame_number": 1}},
+        "cel remove": {"target": address},
+        "layer set": {"target": address["layer"], "properties": {"opacity": 128}},
+        "image flip": {"target": address, "axis": "horizontal"},
+        "image resize": {
+            "target": address,
+            "width": 5,
+            "height": 6,
+            "method": "nearest-neighbor",
+            "position_policy": {"kind": "keep"},
+        },
+        "image replace": {"target": address, "input": image_input},
+        "paint composite": {
+            "target": address,
+            "input": image_input,
+            "position": {"x": 0, "y": 0},
+            "opacity": 255,
+            "blend_mode": "normal",
+        },
     }[operation]
     request = {
         "aseprite": os.environ["SPA_TEST_ASEPRITE"],
@@ -115,17 +165,21 @@ def test_standalone_completion_gates_commit_and_cleans_staging(
                 else "replace_failed"
             )
             if case == "identity":
-                assert outcome["message"] == (
-                    "Source/Target publication identity changed before Target Commit"
-                    if operation != "motion apply"
-                    else "Source/Target identity changed before Target Commit"
+                assert outcome["message"] == {
+                    "motion apply": "Source/Target identity changed before Target Commit",
+                    "image replace": "Source/Target identity changed",
+                    "paint composite": "Source/Target identity changed",
+                }.get(
+                    operation,
+                    "Source/Target publication identity changed before Target Commit",
                 )
     if not in_place:
         assert source.read_bytes() == before_source
-    # Frame has no earlier capability-enrichment probe at the CLI boundary.
-    expected_events = ["identity", "probe"] if operation == "frame set" else ["probe"]
+    # These Operations have no capability-enrichment probe at the CLI boundary.
+    preflight_first = operation in ("frame set", "paint composite")
+    expected_events = ["identity", "probe"] if preflight_first else ["probe"]
     if case != "probe":
-        if operation != "frame set":
+        if not preflight_first:
             expected_events.append("identity")
         expected_events.extend(["stage", "invoke"])
         if case in ("success", "identity", "commit"):

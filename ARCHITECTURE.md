@@ -376,15 +376,21 @@ snapshot and comparison functions; Plan Steps use live semantic entry points and
 the Plan handler saves and verifies once at the end. This first migration does not
 change Frame/Tag normalization or expand native persistence support.
 
-For standalone Cel set/copy/link/unlink and Motion Apply, Application's
-`mutation.prepare_mutation` checks Source/Target identity before the caller's runtime
-probe. Entering its scope allocates the staged Sprite path; leaving it always discards
-that path. The caller owns native invocation, typed evidence validation, and its
+Application's standalone Mutation Completion Module (`mutation.prepare_mutation`)
+checks Source/Target identity before the caller's runtime probe. Layer edits and
+conversions, Frame and Cel lifecycle, Tag mutations, Image transforms and Replace,
+and Paint Composite reuse it alongside the existing Cel relationship, Motion,
+Slice, Color, Filter, Tile, and Image Import callers.
+Entering its scope allocates the staged Sprite path; leaving it always discards
+that path. Callers enter after their existing input and capability gates. Each caller
+owns native invocation, typed evidence validation, and its
 operation-specific postconditions, then explicitly requests `commit`. Completion
 rechecks publication identity, publishes through `TargetFiles`, and returns the
 existing Target Commit facts. A staged file or a normal scope exit never implies
 success or publication. This scope does not participate in Plan finalization, which
 retains one final Target Commit and no per-Step persistence.
+Sprite creation, Artifact publication, and mutation paths without a commit-time
+identity recheck retain their separate completion paths.
 
 The delivered `spa.authoring.raster.image` slice owns Cel-targeted Image resize, crop,
 canvas-resize, flip, and quarter-turn rotation with explicit placement policies.

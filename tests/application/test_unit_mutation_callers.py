@@ -29,6 +29,32 @@ DESTINATION = {"layer": {"layer_path": [2]}, "frame_number": 2}
         ("tag remove", {"target": {"tag_index": 1}}),
         ("frame set", {"frame_number": 1, "duration_ms": 321}),
         ("cel remove", {"target": ADDRESS}),
+        ("layer set", {"target": ADDRESS["layer"], "properties": {"opacity": 128}}),
+        ("image flip", {"target": ADDRESS, "axis": "horizontal"}),
+        (
+            "image resize",
+            {
+                "target": ADDRESS,
+                "width": 5,
+                "height": 6,
+                "method": "nearest-neighbor",
+                "position_policy": {"kind": "keep"},
+            },
+        ),
+        (
+            "image replace",
+            {"target": ADDRESS, "input": {"kind": "artifact", "path": "unused.json"}},
+        ),
+        (
+            "paint composite",
+            {
+                "target": ADDRESS,
+                "input": {"kind": "artifact", "path": "unused.json"},
+                "position": {"x": 0, "y": 0},
+                "opacity": 255,
+                "blend_mode": "normal",
+            },
+        ),
         ("cel set", {"target": ADDRESS, "opacity": 42}),
         ("cel copy", {"source": ADDRESS, "destination": DESTINATION}),
         ("cel link", {"source": ADDRESS, "destination": DESTINATION}),

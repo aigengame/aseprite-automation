@@ -5,6 +5,7 @@ from typing import Literal
 
 from pydantic import Field, ValidationError, field_validator, model_validator
 
+from spa.application.mutation import prepare_mutation
 from spa.authoring.color.palette import EFFECTIVE_PALETTE_RESOURCE
 from spa.authoring.document.sprite import (
     SPRITE_INSPECTION_RESOURCES,
@@ -51,7 +52,6 @@ from spa.contracts.ports import (
     ResponseEvidence,
     RuntimeCompatibilityEvidence,
     RuntimeIssue,
-    TargetCommitEvidence,
 )
 from spa.contracts.public import (
     PublicModel,
@@ -813,28 +813,32 @@ def _mutate_layer(
 ):
     target_file = Path(request.target_sprite_file)
     source_file = Path(request.source_sprite_file)
-    identity_issue = source_target_identity_issue(
-        services.target_files, source_file, target_file, request.in_place
+    completion = prepare_mutation(
+        services.target_files,
+        source_file,
+        target_file,
+        in_place=request.in_place,
+        overwrite=request.overwrite,
+        identity_change_message="Source/Target publication identity changed before Target Commit",
     )
-    if identity_issue is not None:
-        raise RequestIssue([identity_issue])
     observation = services.probe_runtime(request)
-    staged_file = services.target_files.staged_path(target_file)
-    payload: dict[str, object] = {
-        "operation": operation,
-        "source_sprite_file": request.source_sprite_file,
-        "staged_sprite_file": str(staged_file),
-        "target": request.target.model_dump(mode="json", exclude_none=True),
-    }
-    if isinstance(request, LayerSetRequest):
-        payload["properties"] = request.properties.model_dump(
-            mode="json", exclude_unset=True
-        )
-    if isinstance(request, LayerMoveRequest):
-        payload["stack_index"] = request.stack_index
-    if isinstance(request, LayerConvertToBackgroundRequest):
-        payload["background_color"] = request.background_color.model_dump(mode="json")
-    try:
+    with completion as mutation:
+        payload: dict[str, object] = {
+            "operation": operation,
+            "source_sprite_file": request.source_sprite_file,
+            "staged_sprite_file": str(mutation.staged_sprite_file),
+            "target": request.target.model_dump(mode="json", exclude_none=True),
+        }
+        if isinstance(request, LayerSetRequest):
+            payload["properties"] = request.properties.model_dump(
+                mode="json", exclude_unset=True
+            )
+        if isinstance(request, LayerMoveRequest):
+            payload["stack_index"] = request.stack_index
+        if isinstance(request, LayerConvertToBackgroundRequest):
+            payload["background_color"] = request.background_color.model_dump(
+                mode="json"
+            )
         invocation = services.invoke_kernel(
             observation, LAYER_MUTATE_HANDLER, payload, request.timeout_seconds
         )
@@ -989,28 +993,9 @@ def _mutate_layer(
             "convert-to-background": LayerConvertToBackgroundResult,
             "convert-from-background": LayerConvertFromBackgroundResult,
         }
-        identity_issue = source_target_identity_issue(
-            services.target_files, source_file, target_file, request.in_place
-        )
-        if identity_issue is not None:
-            raise RuntimeIssue(
-                "target_commit_failed",
-                "Source/Target publication identity changed before Target Commit",
-                TargetCommitEvidence(
-                    str(target_file), "source_target_identity_changed"
-                ),
-            )
-        committed = services.target_files.commit(
-            staged_file, target_file, overwrite=request.overwrite
-        )
-        fields["target_commit"] = TargetCommit(
-            target_sprite_file=committed.target_sprite_file,
-            byte_size=committed.byte_size,
-            sha256=committed.sha256,
-        )
+        committed = mutation.commit()
+        fields["target_commit"] = committed
         return result_types[operation].model_validate(fields)
-    finally:
-        services.target_files.discard(staged_file)
 
 
 def set_layer(request: LayerSetRequest, services: OperationServices) -> LayerSetResult:
