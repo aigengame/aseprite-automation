@@ -18,6 +18,7 @@ from spa.authoring.raster.paint import PAINT_APPLY_HANDLER
 from spa.contracts.ports import HandlerEvidence, RuntimeIssue
 from spa.contracts.public import RuntimeRequest
 from tests.support import inject_palette_change, process_diagnostics, spa
+from tests.windows_permissions import symlink_creation_permission
 
 pytestmark = pytest.mark.e2e
 
@@ -618,7 +619,11 @@ def test_apply_accepts_in_place_paths_to_the_same_publication_entry(
     real_dir = tmp_path / "real"
     real_dir.mkdir()
     alias_dir = tmp_path / "alias"
-    alias_dir.symlink_to(real_dir, target_is_directory=True)
+    if os.name == "nt":
+        with symlink_creation_permission():
+            alias_dir.symlink_to(real_dir, target_is_directory=True)
+    else:
+        alias_dir.symlink_to(real_dir, target_is_directory=True)
     target = real_dir / "sprite.aseprite"
     source = alias_dir / "sprite.aseprite"
     _create(target)

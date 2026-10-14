@@ -1,5 +1,6 @@
 """Malformed Kernel observations and failed staging must not publish a Slice edit."""
 
+import os
 from copy import deepcopy
 from dataclasses import replace
 from pathlib import Path
@@ -11,6 +12,7 @@ from spa.authoring.document.slice import SliceSetRequest, set_slice
 from spa.contracts.ports import KernelInvocationResult, RuntimeIssue
 from spa.contracts.public import Diagnostics
 from tests.support import operation_services, runtime_observation
+from tests.windows_permissions import symlink_creation_permission
 
 
 def response():
@@ -52,7 +54,11 @@ def staging(tmp_path, evidence, *, crash=False, redirect=False):
             raise RuntimeError("interrupted")
         if redirect:
             source.unlink()
-            source.symlink_to(target)
+            if os.name == "nt":
+                with symlink_creation_permission():
+                    source.symlink_to(target)
+            else:
+                source.symlink_to(target)
         return KernelInvocationResult(evidence, "/response.json", Diagnostics())
 
     services = replace(

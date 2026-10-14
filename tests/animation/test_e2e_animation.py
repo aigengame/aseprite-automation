@@ -14,7 +14,10 @@ from PIL import Image
 
 from spa.adapters.aseprite.invocation import prepare_invocation
 from tests.support import process_diagnostics, spa
-from tests.windows_permissions import deny_directory_listing
+from tests.windows_permissions import (
+    deny_directory_listing,
+    symlink_creation_permission,
+)
 
 pytestmark = pytest.mark.e2e
 
@@ -298,7 +301,11 @@ def test_preview_rejects_destination_traversed_by_source_alias(tmp_path: Path) -
     destination = tmp_path / "preview.png"
     shutil.copyfile(native_source, destination)
     source = tmp_path / "linked.aseprite"
-    source.symlink_to(destination)
+    if os.name == "nt":
+        with symlink_creation_permission():
+            source.symlink_to(destination)
+    else:
+        source.symlink_to(destination)
     original = hashlib.sha256(source.read_bytes()).hexdigest()
 
     code, failure = _run(

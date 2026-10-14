@@ -8,7 +8,10 @@ import pytest
 
 from spa.adapters.files import LocalArtifactFiles, LocalTargetFiles
 from spa.contracts.mutation import source_target_identity_issue
-from tests.windows_permissions import deny_directory_listing
+from tests.windows_permissions import (
+    deny_directory_listing,
+    symlink_creation_permission,
+)
 
 
 def test_case_variant_names_identify_one_existing_publication_entry(
@@ -47,7 +50,11 @@ def test_case_variant_source_alias_traverses_target_entry(tmp_path: Path) -> Non
     if not spelling.exists():
         pytest.skip("requires a case-insensitive filesystem")
     source = tmp_path / "alias.aseprite"
-    source.symlink_to(spelling)
+    if os.name == "nt":
+        with symlink_creation_permission():
+            source.symlink_to(spelling)
+    else:
+        source.symlink_to(spelling)
 
     files = LocalTargetFiles()
     assert not files.same_publication_entry(source, target)
