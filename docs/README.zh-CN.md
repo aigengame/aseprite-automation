@@ -1,13 +1,16 @@
-<!-- spa-readme-i18n: source=README.md sha256=2c9f8c5e6852d9aab1b152d03bce255fbed9b9e1ffa8226499de891a8ea6ba21 -->
+<!-- spa-readme-i18n: source=README.md sha256=8f306cc696d4c2c92c7e55ba66073a095afe5bee15861eff059171c34d62a579 -->
 
 # SPA — 面向 AI 智能体的 Aseprite 自动化工具
+
+**简洁易用。稳健可靠。契合构想。**
 
 ![SPA：悟空泡温泉，回忆中的大闹天宫化为像素图层与动画帧](https://raw.githubusercontent.com/aigengame/aseprite-automation/2eec52707c2de90127e47f0a8a7d384967bfdd82/docs/assets/hero-wukong-spa-heaven.png)
 
 **让 AI 智能体参与像素画和精灵动画的创作、编辑、验证与导出。**
 
 SPA 通过 CLI、Agent Skill 和 MCP 服务，将 Aseprite 接入智能体工作流。
-保留可继续编辑的 `.aseprite` 源文件，同时交付 PNG、GIF、精灵图集和瓦片素材。
+保留可继续编辑的 Aseprite 源文件（`.aseprite`），同时交付游戏所需的 PNG、GIF、
+精灵图集和瓦片素材。
 
 [![PR CI](https://github.com/aigengame/aseprite-automation/actions/workflows/ci.yml/badge.svg?event=pull_request)](https://github.com/aigengame/aseprite-automation/actions/workflows/ci.yml?query=event%3Apull_request)
 [![PyPI 版本](https://img.shields.io/pypi/v/aseprite-automation.svg)](https://pypi.org/project/aseprite-automation/)
@@ -22,7 +25,7 @@ SPA 通过 CLI、Agent Skill 和 MCP 服务，将 Aseprite 接入智能体工作
 <a id="tldr"></a>
 ## 一句话开始
 
-把下面这段话交给你的 AI 智能体：
+只需把下面这段话交给你的 AI 智能体：
 
 > 用 `uv tool install --python 3.13 aseprite-automation` 安装 SPA CLI，
 > 再用 `npx skills add aigengame/aseprite-automation --skill spa -g` 安装它的 Agent Skill。
@@ -46,6 +49,8 @@ SPA 通过 CLI、Agent Skill 和 MCP 服务，将 Aseprite 接入智能体工作
 
 <a id="why-spa"></a>
 ## 为什么选择 SPA？
+
+**简洁易用，稳健可靠，让精灵素材契合创作构想。**
 
 - **素材随时可改。** 使用 Aseprite 原生的图层、帧、Cel 和 Tag 制作素材，
   同时保留源文件与游戏所需的导出文件，方便后续修改。

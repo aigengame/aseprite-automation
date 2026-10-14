@@ -1,11 +1,14 @@
 # SPA — Aseprite Automation for AI Agents
 
+**Simple. Stable. Congruent.**
+
 ![SPA: Sun Wukong relaxes in a spa while memories of Havoc in Heaven become pixel art layers and animation frames](https://raw.githubusercontent.com/aigengame/aseprite-automation/2eec52707c2de90127e47f0a8a7d384967bfdd82/docs/assets/hero-wukong-spa-heaven.png)
 
-**Create, edit, validate, and export pixel art and sprite animations with AI agents.**
+**Create, edit, verify, and export pixel art and sprite animations with AI agents.**
 
 SPA brings Aseprite to your agent workflows through a CLI, Agent Skill, or MCP server.
-Keep editable `.aseprite` sources and deliver PNGs, GIFs, sprite sheets, and tile assets.
+Keep editable Aseprite source files (`.aseprite`) alongside PNGs,
+GIFs, sprite sheets, and tile assets for your game.
 
 [![PR CI](https://github.com/aigengame/aseprite-automation/actions/workflows/ci.yml/badge.svg?event=pull_request)](https://github.com/aigengame/aseprite-automation/actions/workflows/ci.yml?query=event%3Apull_request)
 [![PyPI version](https://img.shields.io/pypi/v/aseprite-automation.svg)](https://pypi.org/project/aseprite-automation/)
@@ -19,7 +22,7 @@ Keep editable `.aseprite` sources and deliver PNGs, GIFs, sprite sheets, and til
 
 ## TL;DR
 
-Tell your AI agent:
+Just tell your AI agent:
 
 > Install the SPA CLI with `uv tool install --python 3.13 aseprite-automation`,
 > and install its Agent Skill with
@@ -43,6 +46,8 @@ use the CLI directly or connect an [MCP client](#mcp).
 - [Contributing](#contributing)
 
 ## Why SPA?
+
+**Simple to use. Stable in practice. Congruent with your creative vision.**
 
 - **Keep your assets editable.** Work with native Aseprite layers, frames, cels, and
   tags. Retain the source for later revisions alongside exports for your game.
