@@ -517,6 +517,43 @@ def test_failure_schema_refuses_unknown_and_duplicate_applicability() -> None:
         registered_failure_schema(("invalid_request", "invalid_request"), "spa")
 
 
+def test_failure_schema_shares_envelope_and_preserves_code_details_associations() -> (
+    None
+):
+    schema = registered_failure_schema(
+        ("invalid_request", "process_failed"), "spa info"
+    )
+    Draft202012Validator.check_schema(schema)
+    assert schema["properties"]["operation"] == {"const": "spa info"}
+    assert "message" in schema["properties"]
+    assert all("message" not in branch["properties"] for branch in schema["oneOf"])
+    validator = Draft202012Validator(schema)
+    request_failure = {
+        "status": "failure",
+        "operation": "spa info",
+        "code": "invalid_request",
+        "category": "input",
+        "message": "Invalid request",
+        "details": {"kind": "invalid_request", "errors": []},
+    }
+    process_failure = request_failure | {
+        "code": "process_failed",
+        "category": "execution",
+        "details": {"kind": "process", "executable": "/aseprite", "exit_status": 1},
+    }
+    for valid in (request_failure, process_failure):
+        validator.validate(valid)
+        for key in ("status", "operation", "code", "category", "message", "details"):
+            assert not validator.is_valid({k: v for k, v in valid.items() if k != key})
+        assert not validator.is_valid(valid | {"operation": "spa version"})
+        assert not validator.is_valid(valid | {"extra": True})
+    assert not validator.is_valid(request_failure | {"category": "execution"})
+    assert not validator.is_valid(
+        request_failure | {"details": process_failure["details"]}
+    )
+    assert not validator.is_valid(process_failure | {"code": "process_start_failed"})
+
+
 def test_failure_schema_rejects_wrong_code_category_details_and_missing_fields() -> (
     None
 ):

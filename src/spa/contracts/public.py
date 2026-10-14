@@ -2,7 +2,6 @@
 
 import re
 from collections.abc import Mapping
-from copy import deepcopy
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, Literal, Self, get_args
@@ -14,6 +13,8 @@ from pydantic import (
     SerializeAsAny,
     model_validator,
 )
+
+from spa.contracts.schema import CompactJsonSchema
 
 
 class PublicModel(BaseModel):
@@ -215,7 +216,6 @@ class OperationSchema(PublicModel):
     execution_kind: ExecutionKind
     determinism: OperationDeterminism
     side_effects: list[str]
-    minimum_aseprite_version: str | None
     requires_runtime: bool
     plan_eligible: bool = False
     runtime_requirements: RuntimeRequirements | None
@@ -476,34 +476,41 @@ def failure_schema(
     unknown = set(codes) - failure_codes.keys()
     if unknown:
         raise ValueError(f"Unknown Failure Code in schema: {sorted(unknown)}")
-    base = FailureEnvelope.model_json_schema()
+    base = FailureEnvelope.model_json_schema(schema_generator=CompactJsonSchema)
     definitions = base.pop("$defs", {})
+    definitions.pop(PublicModel.__name__, None)
     base["required"] = list(dict.fromkeys([*base["required"], "status"]))
+    base["properties"]["operation"] = {"const": operation}
+    base["properties"]["details"] = {"type": "object"}
     branches = []
     for code in codes:
         spec = failure_codes[code]
         details_schema = spec.details_type.model_json_schema(
-            ref_template="#/$defs/{model}"
+            ref_template="#/$defs/{model}", schema_generator=CompactJsonSchema
         )
         definitions.update(details_schema.pop("$defs", {}))
         definitions[spec.details_type.__name__] = details_schema
-        branch = deepcopy(base)
-        branch["properties"]["operation"] = {"const": operation}
-        branch["properties"]["code"] = {"const": code}
-        branch["properties"]["category"] = {"const": spec.category}
-        branch["properties"]["details"] = {
-            "allOf": [
-                {"$ref": f"#/$defs/{spec.details_type.__name__}"},
-                {
-                    "type": "object",
-                    "properties": {"kind": {"const": spec.details_kind}},
-                    "required": ["kind"],
-                },
-            ]
-        }
-        branches.append(branch)
+        branches.append(
+            {
+                "properties": {
+                    "code": {"const": code},
+                    "category": {"const": spec.category},
+                    "details": {
+                        "allOf": [
+                            {"$ref": f"#/$defs/{spec.details_type.__name__}"},
+                            {
+                                "type": "object",
+                                "properties": {"kind": {"const": spec.details_kind}},
+                                "required": ["kind"],
+                            },
+                        ]
+                    },
+                }
+            }
+        )
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
+        **base,
         "$defs": definitions,
         "oneOf": branches,
     }
