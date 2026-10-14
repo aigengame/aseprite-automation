@@ -98,10 +98,8 @@ def palette_lifecycle_gaps(aseprite_version: str) -> list[CapabilityGap]:
             capability=f"spa palette {operation}",
             aseprite_version=aseprite_version,
             evidence=(
-                "Aseprite 1.3.18.5 has no public non-interactive Lua seam to add/remove "
-                "Palette Changes: Palette.frame/frameNumber are read-only and Sprite has "
-                "no newPalette/deletePalette. Entry edits target existing changes. "
-                "A later public seam needs a successful save/close/reopen probe before admission."
+                "Not callable. Baseline Aseprite 1.3.18.5 has no public Lua path to "
+                "add/remove Palette Changes; entry edits target existing changes."
             ),
         )
         for operation in ("add", "remove")

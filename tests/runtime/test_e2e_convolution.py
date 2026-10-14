@@ -41,7 +41,8 @@ def test_installed_convolution_reports_sources_defaults_and_native_evidence():
     services = operation_services(lambda _: observation)
     info = info_result(request, services)
     schema = schema_result(request, services)
-    assert info.runtime.convolution == schema.runtime.convolution == facts
+    assert "convolution" not in info.runtime.model_dump()
+    assert info.runtime == schema.runtime
     assert "spa filter convolution-matrix" not in info.supported_capabilities
     assert not any(
         operation.operation == "spa filter convolution-matrix"

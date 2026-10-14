@@ -142,8 +142,6 @@ class ConvolutionDiscovery(PublicModel):
 
 class RuntimeFacts(PublicModel):
     selection_source: Literal["explicit", "environment", "path"]
-    requested_path: str | None
-    discovered_path: str
     canonical_path: str
     resource_complete: bool
     resource_path: str
@@ -152,7 +150,6 @@ class RuntimeFacts(PublicModel):
     lua_version: str
     verified_prerequisites: list[ProbePrerequisite]
     verified_capabilities: list[RuntimeCapability]
-    convolution: ConvolutionDiscovery | None = None
 
 
 class CapabilityGap(PublicModel):

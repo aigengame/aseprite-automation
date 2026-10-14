@@ -103,7 +103,7 @@ from spa.contracts.operation import (
     RUNTIME_FAILURE_CODES,
     OperationDescriptor,
 )
-from spa.contracts.ports import OperationServices
+from spa.contracts.ports import OperationServices, RuntimeObservation
 from spa.contracts.public import (
     CapabilityGap,
     InfoResult,
@@ -179,7 +179,9 @@ KERNEL_RUNTIME_REQUIREMENTS = RuntimeRequirements(
 )
 
 
-def _runtime_supports(descriptor: OperationDescriptor, runtime: RuntimeFacts) -> bool:
+def _runtime_supports(
+    descriptor: OperationDescriptor, runtime: RuntimeObservation
+) -> bool:
     requirements = descriptor.runtime_requirements
     return requirements is None or (
         runtime.lua_version == requirements.lua_language
@@ -191,7 +193,7 @@ def _runtime_supports(descriptor: OperationDescriptor, runtime: RuntimeFacts) ->
     )
 
 
-def _surface(runtime: RuntimeFacts) -> tuple[list[str], list[CapabilityGap]]:
+def _surface(runtime: RuntimeObservation) -> tuple[list[str], list[CapabilityGap]]:
     supported: list[str] = []
     gaps: list[CapabilityGap] = []
     for descriptor in OPERATIONS:
@@ -305,8 +307,6 @@ def info_result(request: RuntimeRequest, services: OperationServices) -> InfoRes
     observation = services.probe_runtime(request)
     facts = RuntimeFacts(
         selection_source=observation.selection_source,
-        requested_path=observation.requested_path,
-        discovered_path=observation.discovered_path,
         canonical_path=observation.canonical_path,
         resource_complete=True,
         resource_path=observation.resource_path,
@@ -315,9 +315,8 @@ def info_result(request: RuntimeRequest, services: OperationServices) -> InfoRes
         lua_version=observation.lua_version,
         verified_prerequisites=list(observation.verified_prerequisites),
         verified_capabilities=list(observation.verified_capabilities),
-        convolution=observation.convolution,
     )
-    supported, gaps = _surface(facts)
+    supported, gaps = _surface(observation)
     return InfoResult(
         spa_version=version("aseprite-automation"),
         runtime=facts,
@@ -343,17 +342,28 @@ def schema_result(request: RuntimeRequest, services: OperationServices) -> Schem
     )
 
 
+def _render_info(result: InfoResult) -> str:
+    runtime = result.runtime
+    return "\n".join(
+        [
+            f"Aseprite {runtime.aseprite_version} (API {runtime.api_version}, {runtime.lua_version})",
+            f"SPA {result.spa_version}",
+            f"Executable: {runtime.canonical_path} ({runtime.selection_source})",
+            f"Resources: {'complete' if runtime.resource_complete else 'incomplete'} at {runtime.resource_path}",
+            f"Callable Operations: {len(result.supported_capabilities)}; use spa schema --human for descriptions.",
+            f"Capability Gaps: {len(result.capability_gaps)}",
+            *(f"- {gap.capability}: {gap.evidence}" for gap in result.capability_gaps),
+        ]
+    )
+
+
 META_OPERATIONS = (
     OperationDescriptor(
         "info",
         RuntimeRequest,
         InfoResult,
         info_result,
-        lambda r: (
-            f"Aseprite {r.runtime.aseprite_version} "
-            f"(API {r.runtime.api_version}, {r.runtime.lua_version}) "
-            f"at {r.runtime.canonical_path}"
-        ),
+        _render_info,
         KERNEL_RUNTIME_REQUIREMENTS,
         RUNTIME_FAILURE_CODES,
         help_summary="Report the selected Aseprite runtime, available Operations, and Capability Gaps.",
@@ -373,7 +383,9 @@ META_OPERATIONS = (
         RuntimeRequest,
         SchemaResult,
         schema_result,
-        lambda r: "\n".join(item.operation for item in r.operations),
+        lambda r: "\n".join(
+            f"{item.operation}: {item.help_summary}" for item in r.operations
+        ),
         KERNEL_RUNTIME_REQUIREMENTS,
         RUNTIME_FAILURE_CODES,
         help_summary="Describe callable Operations and their machine contracts for the selected runtime.",

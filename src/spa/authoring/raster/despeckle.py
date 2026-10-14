@@ -171,7 +171,7 @@ def despeckle_capability_gaps(version: str) -> list[CapabilityGap]:
         CapabilityGap(
             capability="spa filter despeckle: Indexed components without Green",
             aseprite_version=version,
-            evidence="This slice requires Green in Indexed component sets. Native 1.3.18.5 corrupts preserved Green in the excluded sets (issue #39); SPA does not add Channels or substitute Index processing. A later native fix needs focused acceptance before this boundary is extended.",
+            evidence="Indexed component sets require Green. Baseline Aseprite 1.3.18.5 corrupts preserved Green when excluded (issue #39); no implicit Channel change or Index substitution.",
         ),
     ]
 

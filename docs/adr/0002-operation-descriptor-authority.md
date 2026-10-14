@@ -20,6 +20,15 @@ models own field descriptions and constraints. CLI Access owns root and Command
 Group introductions; group identity and hierarchy still derive from Operation
 paths. Presentation text does not register capabilities.
 
+Published schemas use Pydantic's generation hooks to omit automatic titles that
+repeat field or model names. Authored descriptions, useful titles, defaults,
+examples, and constraints remain. Each entry publishes its Request once in
+`request_schema`; `invocation_schema` owns CLI bindings and stdin guidance.
+Failure schemas share the Envelope fields and use standard JSON Schema `oneOf`
+branches to bind each Code to its Category and typed Details. Each schema retains
+its local definitions and works with a standard validator. There is no separate
+schema registry or reference-resolution protocol.
+
 Bare `spa`, `spa --help`, and `spa help` show the same root help and exit zero.
 `spa help <command path>` navigates the generated command tree and renders the
 target's help without executing an Operation or probing Aseprite. Unknown paths
@@ -53,6 +62,13 @@ discovery declares the complete Plan Step repertoire supported only when all eli
 Step requirements are observed. An individual Plan can use a subset and is checked
 against its selected Step requirements plus final Sprite inspection. Aseprite product
 version remains provenance and does not replace runtime observations.
+
+Discovery derives availability and Capability Gaps from the complete internal
+Runtime Observation. Its public Runtime Facts contain the canonical executable,
+selection source, resource status, versions, prerequisites, and capabilities.
+Resolution intermediates and raw Convolution probe payloads remain internal;
+the public Gap reports the relevant decision and reason. Recorded baseline
+evidence is identified separately from observations of the selected runtime.
 
 The current real-integration baseline is Aseprite 1.3.18.5. For other releases,
 SPA follows [Aseprite's native scripting compatibility policy](https://github.com/aseprite/api/blob/main/Changes.md)

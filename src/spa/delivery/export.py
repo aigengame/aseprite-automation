@@ -1,5 +1,6 @@
 """Static Image Export: native composition and color, verified PNG publication."""
 
+from collections.abc import Sequence
 from pathlib import Path
 
 from pydantic import ValidationError
@@ -130,7 +131,7 @@ EXPORT_HANDLER = PackagedHandler(
 
 
 def export_image_capability_gaps(
-    aseprite_version: str, verified_capabilities: list[RuntimeCapability]
+    aseprite_version: str, verified_capabilities: Sequence[RuntimeCapability]
 ) -> list[CapabilityGap]:
     return [
         CapabilityGap(

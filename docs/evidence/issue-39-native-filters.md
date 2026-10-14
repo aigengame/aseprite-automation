@@ -36,7 +36,9 @@ Native `ConvolutionMatrix` probes begin with RGBA `(10,20,30,40)`:
 | `brightness` | Alpha | `(18,28,38,48)` |
 | unknown probe name | Red | `(10,20,30,40)` with command success |
 
-`RuntimeFacts.convolution.probes` retains these requested/observed comparisons.
+The internal `RuntimeObservation.convolution.probes` retains these
+requested/observed comparisons. Public discovery reports the relevant Capability
+Gap without the raw probe payload.
 The Surface Manifest reports an installed Capability Gap and no callable
 Descriptor. The native command declares Channels without applying them to its
 Filter manager. Resource defaults are discovery facts, not substitute requested

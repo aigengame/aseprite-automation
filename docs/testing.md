@@ -843,8 +843,9 @@ prove rollback after native mutation and restoration of the previous editor site
 
 `tests/runtime/test_unit_convolution.py` checks bounded declaration scanning,
 lookup paths, duplicates, defaults and incomplete input reporting.
-`tests/runtime/test_e2e_convolution.py` checks discovery and retained native probes
-through the installed info/schema surface. No Convolution callable capability is
+`tests/runtime/test_e2e_convolution.py` checks internal native observations and the
+concise Gap projected through info/schema. Raw probe pixels are not public
+discovery fields. No Convolution callable capability is
 inferred from a resource name or a small successful probe. The evidence record is
 [issue-39-native-filters.md](evidence/issue-39-native-filters.md). Batch/native-command
 parity and any local windowed comparison are reported separately there.

@@ -328,8 +328,8 @@ def test_symlinked_executable_resolves_to_resource_complete_bundle(
     run = spa("info", "--aseprite", str(link))
     assert run.returncode == 0, run.stdout
     runtime = json.loads(run.stdout)["runtime"]
-    assert runtime["requested_path"] == str(link)
-    assert runtime["discovered_path"] == str(link)
+    assert runtime["selection_source"] == "explicit"
+    assert runtime["resource_complete"] is True
     assert runtime["canonical_path"] == str(
         Path(os.environ["SPA_TEST_ASEPRITE"]).resolve()
     )

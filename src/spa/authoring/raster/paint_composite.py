@@ -185,10 +185,7 @@ def composite_capability_gaps(
         CapabilityGap(
             capability=f"spa paint composite: grayscale {mode}",
             aseprite_version=aseprite_version,
-            evidence=(
-                f"Not exposed by SPA. Verified with Aseprite 1.3.18.5: {reason}; "
-                "no replacement blender is used."
-            ),
+            evidence=(f"Not exposed. Baseline Aseprite 1.3.18.5: {reason}."),
         )
         for mode, reason in GRAYSCALE_GAPS.items()
     ] + [

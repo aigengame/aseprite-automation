@@ -85,6 +85,12 @@ process or Kernel failure channel. A Lua-language or API-version mismatch, or a
 capability required by the selected Operation but absent from the observation, returns
 `runtime_incompatible` before the Operation executes.
 
+`runtime.canonical_path` identifies the resolved executable;
+`runtime.selection_source` reports `explicit`, `environment`, or `path` selection.
+Resource status and Capability Gaps explain setup and current restrictions without
+dumping raw probe pixels. Use `spa info --human` for readable setup and Gap details;
+use `spa schema --human` for the callable command catalog with purpose descriptions.
+
 Aseprite 1.3.18.5 is the current real-integration baseline, not a version allowlist.
 Other releases follow Aseprite's native compatibility policy. SPA makes no additional
 cross-version guarantee and runs no release-by-release compatibility test matrix.
@@ -93,6 +99,15 @@ cross-version guarantee and runs no release-by-release compatibility test matrix
 operation is selected. Each operation entry has its applicable `failure_schema`.
 Aggregate discovery probes Aseprite; each command's `--schema` is available without
 a runtime.
+
+Each entry retains Request, success Result, Failure, invocation, and execution
+contracts. `request_schema` owns the input shape; `invocation_schema.x-cli-flags`
+maps CLI options and `input_json` documents stdin use. The former duplicate
+`invocation_schema.properties.argv` and always-null `minimum_aseprite_version`
+are removed. Use `runtime_requirements` for actual Lua/API/capability requirements.
+Failure schemas share common Envelope fields and keep Code/Category/Details
+associations in standard `oneOf` branches. Consumers should validate the whole
+schema, including its local `$defs`, with a Draft 2020-12 validator.
 
 For CLI use of a binary inside a macOS `.app`, SPA prepares a temporary launch
 path and links the installed `data` resources without changing the app or
@@ -990,15 +1005,14 @@ Index. Edge sampling follows Aseprite: `none` disables wrapping, but native
 1.3.18.5 can deviate from ideal edge repetition for wide windows; SPA preserves
 that observed output instead of repairing the native algorithm. See [#39 native evidence](evidence/issue-39-native-filters.md).
 
-Convolution Matrix has no callable Descriptor. `spa info` and `spa schema` expose
-`runtime.convolution`: bounded Resource declarations, source paths, duplicate
-names, declared default Channels, scan completeness/notes, and requested versus
-observed native probe pixels. These are discovery facts, not proof that each
-Resource is usable. Coefficients, divisor, and bias remain opaque. On the current
-native baseline, Red and Alpha requests change the same RGBA components and an
-unknown Resource succeeds as a no-op. The Surface Manifest reports this Capability
-Gap. A later runtime still needs the full #39 acceptance gate before a callable
-Convolution Operation can be delivered.
+Convolution Matrix has no callable Descriptor. `spa info` and `spa schema` report
+its Capability Gap and any observed changes to unrequested Channels. The former
+`runtime.convolution` inventory and pixel payloads are no longer public discovery
+fields; the Runtime Observation and native tests retain them. On the 1.3.18.5
+baseline, Red and Alpha requests change the same RGBA components and an unknown
+Resource succeeds as a no-op. Resource defaults alone cannot establish support.
+See [native evidence](evidence/issue-39-native-filters.md). Future support requires
+the full #39 acceptance gate, not only a successful probe.
 
 ## Palettes
 

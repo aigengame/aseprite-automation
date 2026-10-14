@@ -467,7 +467,7 @@ def slice_capability_gaps(version: str) -> list[CapabilityGap]:
         CapabilityGap(
             capability="spa slice key add/set/remove",
             aseprite_version=version,
-            evidence="No installed arbitrary Slice Key mutation descriptors. The 1.3.18.5 public Lua getters expose the first Key and setters target native Frame 0. A public non-interactive multi-Key save/reopen path needs acceptance before extending this surface (issue #40).",
+            evidence="Not callable. Baseline Aseprite 1.3.18.5 Lua getters expose the first Key and setters target native Frame 0 (issue #40).",
         ),
         CapabilityGap(
             capability="spa slice set: multi-Key or later-starting geometry",
@@ -477,7 +477,7 @@ def slice_capability_gaps(version: str) -> list[CapabilityGap]:
         CapabilityGap(
             capability="spa slice set: clearing pivot",
             aseprite_version=version,
-            evidence="Public Lua pivot=nil stores Point(0,0) on 1.3.18.5; clearing is not exposed. Omit pivot to preserve it. A later native clearing path needs save/reopen acceptance.",
+            evidence="Clearing is not exposed: baseline Aseprite 1.3.18.5 stores Point(0,0) for pivot=nil. Omit pivot to preserve it.",
         ),
     ]
 

@@ -2,7 +2,7 @@
 
 from spa.application.plan import ELIGIBLE_OPERATIONS, PLAN_DISCOVERY_REQUIREMENTS
 from spa.application.surface import _surface
-from spa.contracts.public import RuntimeFacts
+from tests.support import runtime_observation
 
 
 def test_plan_discovery_requires_every_current_eligible_step_capability() -> None:
@@ -13,21 +13,9 @@ def test_plan_discovery_requires_every_current_eligible_step_capability() -> Non
     }
     assert set(PLAN_DISCOVERY_REQUIREMENTS.required_capabilities) == expected
 
-    runtime = RuntimeFacts(
-        selection_source="explicit",
-        requested_path="/aseprite",
-        discovered_path="/aseprite",
-        canonical_path="/aseprite",
-        resource_complete=True,
-        resource_path="/resources",
-        aseprite_version="test",
-        api_version=41,
-        lua_version="Lua 5.4",
-        verified_prerequisites=["aseprite_scripting", "lua_file_io", "aseprite_json"],
-        verified_capabilities=[
-            "aseprite_runtime_introspection",
-            "aseprite_sprite_inspection",
-        ],
+    runtime = runtime_observation(
+        "aseprite_runtime_introspection",
+        "aseprite_sprite_inspection",
     )
     supported, gaps = _surface(runtime)
 

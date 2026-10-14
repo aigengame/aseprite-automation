@@ -12,10 +12,8 @@ def convolution_capability_gap(
     version: str, discovery: ConvolutionDiscovery | None
 ) -> CapabilityGap:
     evidence = (
-        "No callable Descriptor: the complete Convolution acceptance gate has not "
-        "passed. Runtime convolution facts report bounded source declarations and "
-        "requested versus observed native Channels; resource defaults never grant "
-        "Channel support."
+        "Not callable: native Convolution Channel support has not passed acceptance. "
+        "Resource defaults do not establish support."
     )
     if discovery:
         for probe in discovery.probes:
