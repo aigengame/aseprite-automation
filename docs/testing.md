@@ -331,6 +331,22 @@ Pytest rejects unregistered markers. The root e2e gate also rejects a selected e
 test when `SPA_TEST_ASEPRITE` is absent, is not a file, or is not executable. A missing
 runtime therefore cannot produce an all-skipped successful e2e run.
 
+### Local prerequisites
+
+Use the locked `uv run --frozen --group test` environment and its installed `spa`
+command. Set `SPA_TEST_ASEPRITE` to the real local runtime. Use a writable temporary
+root; when the default pytest root is unavailable, select a new owned directory
+with `--basetemp`. Pytest can remove a previous directory at that path.
+
+Alias tests need permission to create real file and directory symlinks. An
+unavailable prerequisite is not a product failure or a pass. Unlistable-directory
+tests retain POSIX permissions on macOS/Linux; their private Windows fixture uses
+`powershell.exe` to deny only directory listing and restores the temporary access
+rules. It does not change host policy. The caller-supplied ICC identity and the
+separate wheel consumer configuration remain as documented in this file.
+See [#232 Windows observations](evidence/issue-232-windows-prerequisites.md)
+for the measured prerequisites and remaining blocks.
+
 ### CLI and MCP text entries
 
 The CLI and optional MCP entries configure stdin, stdout and stderr as UTF-8

@@ -6,6 +6,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+from contextlib import ExitStack
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,7 @@ from PIL import Image
 
 from spa.adapters.aseprite.invocation import prepare_invocation
 from tests.support import process_diagnostics, spa
+from tests.windows_permissions import deny_directory_listing
 
 pytestmark = pytest.mark.e2e
 
@@ -326,8 +328,12 @@ def test_preview_reports_unverifiable_source_destination_identity(
     destination = private / "preview.png"
     os.link(source, destination)
     original = hashlib.sha256(source.read_bytes()).hexdigest()
-    private.chmod(0o333)
-    try:
+    with ExitStack() as permissions:
+        if os.name == "nt":
+            permissions.enter_context(deny_directory_listing(private))
+        else:
+            private.chmod(0o333)
+            permissions.callback(private.chmod, 0o700)
         try:
             os.listdir(private)
         except PermissionError:
@@ -348,8 +354,6 @@ def test_preview_reports_unverifiable_source_destination_identity(
                 }
             ),
         )
-    finally:
-        private.chmod(0o700)
 
     assert run.returncode != 0 and run.stdout
     failure = json.loads(run.stdout)
