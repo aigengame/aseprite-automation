@@ -22,6 +22,8 @@ privilege; the Developer Mode registry flag is absent. No host setting or
 privilege was changed. The owner must select an approved process or host before
 the genuine symlink families can be accepted. Bash-launcher-only symlinks remain
 #229's harness scope.
+The [Win32 symlink API](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-createsymboliclinkw)
+documents Developer Mode as a prerequisite for its unprivileged creation flag.
 
 `chmod(0o333)` leaves a Windows directory listable. A directory-only ACL that
 denies the current user `ListDirectory`, with no child inheritance, produces
@@ -30,6 +32,8 @@ The Windows-only fixture uses this observed condition. Independent normal-body
 and exceptional-body probes confirm restored access rules and inheritance
 protection, a listable directory and unchanged Source bytes. Windows normalizes
 the DACL auto-inheritance flag; byte-identical SDDL is not claimed.
+The [Windows rights reference](https://learn.microsoft.com/en-us/dotnet/api/system.security.accesscontrol.filesystemrights)
+defines `ListDirectory` separately from the other access rights.
 
 The unit fixture's case-only filenames are already equal as Windows Paths, so
 they bypass directory enumeration. Its Windows branch now creates two distinct
@@ -71,10 +75,73 @@ Raw reports, owned probes and the caller input stay under the ignored
 `.runtime/issue-232/` directory. Public records omit hostnames, user names,
 absolute local paths and security identities.
 
+## Complete non-slow checkpoint
+
+Source `15369aede47fc31ef3a4ad55ae0d35875b8af377` selected all 4,470 existing
+non-slow nodes with four native pytest workers. All worker collections agree,
+and every selected node has exactly one JUnit outcome. The two slow rebuilds
+were deselected. Exit status is 1; this is a failure checkpoint, not acceptance.
+
+| Tier | Passed | Failed | Setup errors | Skipped | Total |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Unit | 1,139 | 13 | 40 | 0 | 1,192 |
+| Integration | 657 | 136 | 51 | 47 | 891 |
+| E2E | 52 | 1,285 | 1,049 | 1 | 2,387 |
+| Total | **1,848** | **1,434** | **1,140** | **48** | **4,470** |
+
+The existing denial-unit case passes. The existing preview and Apple-profile
+preservation cases are failures, with no prerequisite skip. Static export still
+fails before its directory observation at native capture. These are reached
+boundaries, not predictions about later domain assertions.
+
+There are 132 WinError 1314 observations: 121 genuine filesystem prerequisites
+remain #232 scope; the 11 Bash-launcher-only cases remain #229 scope. There are
+2,187 nodes with capture WinError 10038 evidence. Counts overlap and are not
+independent defects or promised post-fix passes. Native execution/cleanup remains
+#230 scope. The 63 explicit excluded-shell attempts are refused before process
+creation by audit-only hooks in the project and candidate-wheel Python
+environments; their harness failures remain #229 scope. The hooks were removed
+after the run. This is not an OS-wide process security claim.
+
+The 48 remaining skip reasons are retained, not reclassified as passes:
+
+| Existing reason | Nodes |
+| --- | ---: |
+| POSIX process fixture | 26 |
+| POSIX executable fixture | 10 |
+| POSIX shell fixture | 4 |
+| POSIX signal fixture | 2 |
+| Process-group cleanup on supported macOS/Linux hosts | 2 |
+| macOS bundle launch strategy | 2 |
+| POSIX pipe fixture | 1 |
+| Installed Aseprite in a macOS agent sandbox | 1 |
+
+Fixture labels do not establish platform applicability. Existing milestone
+issues own the Windows observations and true POSIX/macOS-only classification;
+#234 retains the final applicable-test gate. No new skip was added here.
+
+The candidate wheel was built from the same source and installed with locked
+runtime/MCP dependencies into a separate uv environment. The existing installed
+CLI verifier passed outside the checkout and matched all 145 Kernel resource
+hashes. This does not establish native wheel effects. The selected paths were
+local inputs, not repository defaults. No survivor whose Aseprite command line
+contained the owned checkpoint root was observed after the run; this bounded
+harness observation is not production cleanup acceptance.
+
+- JUnit SHA-256: `bafa81c08c742339d91aa885a5e9146f9d85b0482c21ad6bd0c6476c2c3832ab`.
+- Candidate wheel SHA-256: `0e9f1256aaaf2ba9c4d46fa70e369ba7dffd0bc7bb6c0ca6b57d0f56294262aa`.
+- Raw XML, per-node outcomes, matching worker inventories, launch trace and hashes
+  remain in `.runtime/issue-232/checkpoint/`; the installed verifier log and
+  ACL-lifecycle evidence remain alongside that directory.
+
+Earlier 4,470-node and closed-PR #242 results remain separate histories. The
+closed branch's additional test splits were not merged into this candidate.
+
 ## Remaining acceptance
 
 #232 remains open while the approved symlink prerequisite and its focused
 family evidence are missing. #234 owns complete applicable-suite green,
 isolated-wheel/native effects and the separately documented windowed checks.
-The non-slow checkpoint for this slice is recorded below when available;
-earlier milestone counts remain separate historical observations.
+The checkpoint satisfies the requirement to record all existing non-slow
+outcomes; it does not satisfy complete-suite acceptance or the outstanding
+real-symlink requirement.
