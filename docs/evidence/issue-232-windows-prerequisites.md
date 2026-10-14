@@ -160,8 +160,8 @@ also cover ordinary publication, failure order and cleanup:
 
 An ignored-copy experiment changes only the initial Source fixture to the
 ordinary original file, selects those 78 nodes, and forbids symlink creation.
-All 78 pass on the unchanged ordinary Windows token. Original tracked tests
-and their file hashes remain unchanged. The full 4,470-node checkpoint above
+All 78 pass on the unchanged ordinary Windows token. At that experiment the
+original tracked tests and their file hashes were unchanged. The 4,470-node checkpoint above
 is unchanged; these experimental passes are not added to it.
 
 The 13 excluded alias witnesses comprise five successful caller observations,
@@ -170,14 +170,12 @@ real symlink observations. The counterfactual does not establish alias reading,
 retarget detection, original-target preservation or Aseprite reading an alias.
 The other 30 non-Bash observations have not been reclassified by this experiment.
 
-The bounded recovery proposal is to give the ordinary Windows publication
-observations ordinary Source inputs, preserve explicit real alias witnesses
-and their Source/Target/cleanup assertions, and leave working POSIX fixtures
-in place. This changes Windows input coverage, so it needs owner alignment
-before implementation. No test-input change has been delivered yet. Do not
-replace symlinks with hardlinks, label their shared semantics Unix-only, add
-blanket skips, introduce a permission broker, or impose a host setting to turn
-this experiment into an apparent pass.
+The ordinary-Source proposal was not selected after the owner's gda reference.
+The current increment retains all original Source alias inputs and assertions.
+The experiment is a necessity investigation, not a coverage replacement. Do not
+replace symlinks with hardlinks, label shared semantics Unix-only, add blanket
+skips, introduce a permission broker, or impose a host setting to turn this
+experiment into an apparent pass.
 
 Raw counterfactual XML, original-node mapping and hashes are retained in
 `.runtime/issue-232/ordinary-source-counterfactual/`. Independent review traced
@@ -185,11 +183,53 @@ the fixtures to the PNG publication baseline (#142/#138) and Snapshot
 publication work (#180/#179); it confirms the evidence limit and the need to
 preserve alias coverage during any split.
 
+## gda boundary adopted in the first increment
+
+The [gda helper](https://github.com/aigengame/godot-agent/blob/43d973b4ccf1e5193a48d6819d61cbbe7cb93022/tests/support.py#L649-L658)
+only skips the current case for Windows WinError 1314; other creation errors
+remain errors. Its [#1157 classification](https://github.com/aigengame/godot-agent/issues/1157)
+uses junctions only for equivalent directory identity/ownership observations.
+Its [#1182 temporary-process record](https://github.com/aigengame/godot-agent/issues/1182#issuecomment-6108581494)
+reports 12 ordinary skips separately from 12 passes under an explicitly approved
+temporary administrator process. That approval does not authorize a SPA process.
+
+SPA's first increment follows those boundaries:
+
+- One existing Convolution directory-alias test uses a Windows-private junction
+  fixture through `powershell.exe`. The actual junction is checked with
+  `is_junction()` and `samefile()`. The original repeated-resource load,
+  canonical Source paths and duplicate-name assertions all pass. No symlink-type,
+  relative-target, retarget, cycle, deletion or `link/..` equivalence is claimed.
+  The POSIX symlink setup stays in place.
+- The two shared publication fixtures retain every original Source symlink
+  input. Only their Windows branch wraps the existing Python creation call in
+  a private permission observation. A genuine 1314 becomes a current-case
+  prerequisite skip; any other `OSError` is raised. This does not supply another
+  creator, intercept a product API, skip a whole module or migrate POSIX callers.
+- Focused ordinary-process results: **94 = 3 passed / 91 prerequisite skipped**.
+  The passes are the directory-alias case, the existing denial-unit case and the
+  existing ordinary Tilemap summary. The 91 cases do not reach their functional
+  assertions. They are unavailable observations, not fixed or accepted outcomes.
+- The PowerShell invocation adjustment also passed real normal-body and
+  exceptional-body ACL restoration witnesses. No host policy was changed.
+
+The remaining genuine alias sites have not received this permission handling
+yet. The next bounded evidence run can use the 121 existing non-Bash observation
+nodes from the frozen checkpoint, in a temporary approved Windows process.
+It must preserve any downstream native or fixture failure, use fresh owned
+outputs, and report ordinary and elevated receipts separately. No whole-suite
+elevation or persistent Developer Mode/registry/privilege-policy change follows.
+
+The [gda #1199 record](https://github.com/aigengame/godot-agent/pull/1199#issuecomment-6158833540)
+still has three permission skips in an ordinary process at its measured revision.
+A temporary successful witness never grants the next ordinary process rights.
+
 ## Remaining acceptance
 
-#232 remains open while fixture necessity and the retained real alias evidence
-are unresolved. There is no pending approval to enable Developer Mode; the next
-decision is the bounded Windows fixture-input split. #234 owns complete applicable-suite green,
+#232 remains open while the retained real alias evidence and remaining fixture
+sites are unresolved. There is no pending approval to enable Developer Mode or
+replace the 78 inputs. A temporary elevated witness needs separate explicit
+approval. #234 owns complete applicable-suite green,
 isolated-wheel/native effects and the separately documented windowed checks.
 The checkpoint satisfies the requirement to record all existing non-slow
 outcomes; it does not satisfy complete-suite acceptance or the outstanding

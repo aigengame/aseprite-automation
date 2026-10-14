@@ -1,11 +1,13 @@
 """Convolution Resource declarations, independent of native filter execution."""
 
 import json
+import os
 from pathlib import Path
 
 import pytest
 
 from spa.adapters.aseprite.convolution import discover_convolution_resources
+from tests.windows_permissions import directory_junction
 
 
 def _write(path: Path, text: str) -> Path:
@@ -286,7 +288,12 @@ def test_alias_search_paths_retain_native_duplicate_loads(tmp_path: Path) -> Non
     source = _write(executable.parent / "data/convmatr.def", _stock("alias"))
     config = tmp_path / "config"
     (config / "aseprite").mkdir(parents=True)
-    (config / "aseprite/data").symlink_to(source.parent, target_is_directory=True)
+    alias = config / "aseprite/data"
+    if os.name == "nt":
+        directory_junction(alias, source.parent)
+        assert alias.is_junction() and alias.samefile(source.parent)
+    else:
+        alias.symlink_to(source.parent, target_is_directory=True)
     result = discover_convolution_resources(
         executable, {"XDG_CONFIG_HOME": str(config)}, platform="linux"
     )
