@@ -1098,7 +1098,7 @@ SPRITE_OPERATIONS = (
         ),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
-        help_summary="Flatten a Sprite's visible Layers into one Layer.",
+        help_summary="Flatten a Sprite's Layers, including hidden Layers, into one Layer.",
     ),
     OperationDescriptor(
         "sprite resize",
