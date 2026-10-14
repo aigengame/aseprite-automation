@@ -5,6 +5,7 @@ import json
 import os
 import shutil
 import struct
+from contextlib import ExitStack
 from copy import deepcopy
 from pathlib import Path
 
@@ -15,6 +16,7 @@ from PIL import Image, ImageCms
 from tests.export.support import export_image_request as _request
 from tests.export.support import source_sprite as _source
 from tests.support import isolated_wheel_cli, spa
+from tests.windows_permissions import deny_directory_listing
 
 pytestmark = pytest.mark.e2e
 
@@ -101,8 +103,12 @@ def test_export_reports_unverifiable_source_destination_identity(
     destination = private / "image.png"
     os.link(source, destination)
     original = hashlib.sha256(source.read_bytes()).hexdigest()
-    private.chmod(0o333)
-    try:
+    with ExitStack() as permissions:
+        if os.name == "nt":
+            permissions.enter_context(deny_directory_listing(private))
+        else:
+            private.chmod(0o333)
+            permissions.callback(private.chmod, 0o700)
         try:
             os.listdir(private)
         except PermissionError:
@@ -115,8 +121,6 @@ def test_export_reports_unverifiable_source_destination_identity(
             "--input-json",
             json.dumps(_request(source, destination, if_exists="replace")),
         )
-    finally:
-        private.chmod(0o700)
 
     assert run.returncode != 0 and run.stdout
     failure = json.loads(run.stdout)

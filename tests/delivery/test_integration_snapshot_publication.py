@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -23,6 +24,7 @@ from spa.contracts.ports import (
 )
 from spa.contracts.public import Diagnostics
 from tests.support import runtime_observation
+from tests.windows_permissions import symlink_creation_permission
 
 DIAGNOSTICS = Diagnostics(exit_status=0, stderr="native observation")
 
@@ -59,7 +61,11 @@ def caller(request, tmp_path):
     original = tmp_path / "original.aseprite"
     original.write_bytes(b"source bytes")
     source = tmp_path / "source.aseprite"
-    source.symlink_to(original)
+    if os.name == "nt":
+        with symlink_creation_permission():
+            source.symlink_to(original)
+    else:
+        source.symlink_to(original)
     destination = tmp_path / "snapshot.json"
     destination.write_bytes(b"previous artifact")
     fields = {

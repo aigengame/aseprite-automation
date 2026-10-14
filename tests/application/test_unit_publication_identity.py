@@ -1,12 +1,17 @@
 """File observations used by Source/Target publication intent."""
 
 import os
+from contextlib import ExitStack
 from pathlib import Path
 
 import pytest
 
 from spa.adapters.files import LocalArtifactFiles, LocalTargetFiles
 from spa.contracts.mutation import source_target_identity_issue
+from tests.windows_permissions import (
+    deny_directory_listing,
+    symlink_creation_permission,
+)
 
 
 def test_case_variant_names_identify_one_existing_publication_entry(
@@ -45,7 +50,11 @@ def test_case_variant_source_alias_traverses_target_entry(tmp_path: Path) -> Non
     if not spelling.exists():
         pytest.skip("requires a case-insensitive filesystem")
     source = tmp_path / "alias.aseprite"
-    source.symlink_to(spelling)
+    if os.name == "nt":
+        with symlink_creation_permission():
+            source.symlink_to(spelling)
+    else:
+        source.symlink_to(spelling)
 
     files = LocalTargetFiles()
     assert not files.same_publication_entry(source, target)
@@ -61,12 +70,17 @@ def test_unobservable_entries_reject_both_in_place_intents(tmp_path: Path) -> No
     parent.mkdir()
     source = parent / "Sprite.aseprite"
     source.write_bytes(b"source")
-    target = parent / "sprite.aseprite"
+    # Windows Path equality folds case before directory entries are observed.
+    target = parent / ("target.aseprite" if os.name == "nt" else "sprite.aseprite")
     if not target.exists():
         os.link(source, target)
 
-    parent.chmod(0o333)
-    try:
+    with ExitStack() as permissions:
+        if os.name == "nt":
+            permissions.enter_context(deny_directory_listing(parent))
+        else:
+            parent.chmod(0o333)
+            permissions.callback(parent.chmod, 0o700)
         try:
             os.listdir(parent)
         except PermissionError:
@@ -79,5 +93,3 @@ def test_unobservable_entries_reject_both_in_place_intents(tmp_path: Path) -> No
             )
             assert issue is not None
             assert issue.location == ["source_sprite_file"]
-    finally:
-        parent.chmod(0o700)
