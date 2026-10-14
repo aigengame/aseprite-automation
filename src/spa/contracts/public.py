@@ -211,6 +211,7 @@ class OperationSchema(PublicModel):
         }
     )
     operation: str
+    help_summary: str = Field(min_length=1)
     execution_kind: ExecutionKind
     determinism: OperationDeterminism
     side_effects: list[str]

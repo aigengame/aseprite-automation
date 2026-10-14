@@ -472,6 +472,6 @@ PREPARATION_OPERATIONS = (
         execution_kind="export",
         side_effects=("publishes one verified Prepared Raster PNG",),
         probe_before_execute=False,
-        help_summary="Prepare a frozen RGB/RGBA PNG with explicit geometry, anchors, palette, and sRGB output. ICC input requires native Color Profile conversion.",
+        help_summary="Prepare an external raster image as a frozen PNG for Sprite authoring.",
     ),
 )

@@ -578,6 +578,7 @@ IMAGE_SNAPSHOT_OPERATIONS = (
         side_effects=(
             "publishes a JSON Snapshot only when snapshot_destination is declared",
         ),
+        help_summary="Read a Cel Image or Layer composition as a Pixel Region Snapshot.",
     ),
     OperationDescriptor(
         "image replace",
@@ -598,5 +599,6 @@ IMAGE_SNAPSHOT_OPERATIONS = (
         ),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Replace a Cel Image from a Pixel Region Snapshot.",
     ),
 )

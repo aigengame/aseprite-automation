@@ -53,6 +53,6 @@ SCRIPT_OPERATIONS = (
         execution_kind="script-run",
         determinism="caller-defined",
         side_effects=("caller-defined",),
-        help_summary="Run exact caller-owned Lua; success reports process facts only.",
+        help_summary="Run caller-owned Lua and report process outcomes and declared files.",
     ),
 )

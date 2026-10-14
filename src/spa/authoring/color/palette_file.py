@@ -245,5 +245,6 @@ PALETTE_FILE_OPERATIONS = (
         ),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Import a GPL or Indexed PNG Palette into a Sprite.",
     ),
 )

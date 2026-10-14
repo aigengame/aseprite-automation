@@ -60,7 +60,9 @@ Restart after changing the installed SPA or default runtime to refresh discovery
 
 Tools come from the installed Surface Manifest. For example, `spa sprite create`
 becomes `sprite_create` and `spa export image` becomes `export_image`. Use each
-published input schema to supply the complete Operation Request. No current Sprite
+tool's description to choose an Operation; it projects the same Descriptor purpose
+text as CLI help. Use the published input schema to supply the complete Operation
+Request. No current Sprite
 or workflow state carries across calls. The `schema` tool exposes applicable
 Failure schemas and Capability Gaps.
 

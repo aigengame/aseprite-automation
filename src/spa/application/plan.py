@@ -1314,6 +1314,7 @@ PLAN_OPERATIONS = (
         lambda result: f"Plan accepted: {result.step_count} Steps",
         None,
         ("invalid_request", "color_profile_file_failed", "resource_incomplete"),
+        help_summary="Validate an Operation Plan without starting Aseprite.",
     ),
     OperationDescriptor(
         "plan run",
@@ -1348,5 +1349,6 @@ PLAN_OPERATIONS = (
         execution_kind="mutation",
         side_effects=("publishes one Target Sprite File for a mutating Plan",),
         probe_before_execute=False,
+        help_summary="Execute an Operation Plan and publish its verified target Sprite.",
     ),
 )

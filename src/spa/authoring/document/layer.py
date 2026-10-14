@@ -1053,6 +1053,7 @@ LAYER_OPERATIONS = (
         lambda result: f"{result.sprite_file}: {len(result.layers)} root Layers",
         LAYER_REQUIREMENTS,
         RUNTIME_FAILURE_CODES,
+        help_summary="List a Sprite's Layers and hierarchy.",
     ),
     OperationDescriptor(
         "layer get",
@@ -1064,6 +1065,7 @@ LAYER_OPERATIONS = (
         ),
         LAYER_REQUIREMENTS,
         LAYER_GET_FAILURE_CODES,
+        help_summary="Inspect one Layer's properties and hierarchy position.",
     ),
     OperationDescriptor(
         "layer add",
@@ -1077,6 +1079,7 @@ LAYER_OPERATIONS = (
         LAYER_ADD_FAILURE_CODES,
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Add an Image Layer, Group, or Tilemap Layer.",
     ),
     OperationDescriptor(
         "layer set",
@@ -1088,6 +1091,7 @@ LAYER_OPERATIONS = (
         LAYER_MUTATION_FAILURE_CODES,
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Change a Layer's name, visibility, opacity, or other declared properties.",
     ),
     OperationDescriptor(
         "layer move",
@@ -1099,6 +1103,7 @@ LAYER_OPERATIONS = (
         LAYER_MOVE_FAILURE_CODES,
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Move a Layer within its stack.",
     ),
     OperationDescriptor(
         "layer remove",
@@ -1110,6 +1115,7 @@ LAYER_OPERATIONS = (
         LAYER_MUTATION_FAILURE_CODES,
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Remove a Layer and its contained content.",
     ),
     OperationDescriptor(
         "layer merge",
@@ -1121,6 +1127,7 @@ LAYER_OPERATIONS = (
         LAYER_MUTATION_FAILURE_CODES,
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Merge a Layer down into the Layer below it.",
     ),
     OperationDescriptor(
         "layer convert-to-background",
@@ -1132,6 +1139,7 @@ LAYER_OPERATIONS = (
         LAYER_CONVERSION_FAILURE_CODES,
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Convert an ordinary Image Layer to an opaque Background Layer.",
     ),
     OperationDescriptor(
         "layer convert-from-background",
@@ -1143,5 +1151,6 @@ LAYER_OPERATIONS = (
         LAYER_CONVERSION_FAILURE_CODES,
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Convert a Background Layer to an ordinary transparent Image Layer.",
     ),
 )

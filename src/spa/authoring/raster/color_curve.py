@@ -95,5 +95,6 @@ COLOR_CURVE_OPERATIONS = (
         ),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Adjust selected pixel Channels with a native linear color curve.",
     ),
 )

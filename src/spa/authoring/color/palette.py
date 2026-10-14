@@ -667,6 +667,7 @@ PALETTE_OPERATIONS = (
         ),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Reorder Palette entries with an explicit scope and index mapping.",
     ),
     OperationDescriptor(
         "palette remap",
@@ -685,6 +686,7 @@ PALETTE_OPERATIONS = (
         (*RUNTIME_FAILURE_CODES, "palette_transform_rejected", "target_commit_failed"),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Remap stored pixel indexes without changing Palette entries.",
     ),
     OperationDescriptor(
         "palette resize",
@@ -708,6 +710,7 @@ PALETTE_OPERATIONS = (
         ),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Resize a Palette with explicit entries for added colors.",
     ),
     OperationDescriptor(
         "palette list",
@@ -717,6 +720,7 @@ PALETTE_OPERATIONS = (
         lambda result: f"{len(result.palette_changes)} Palette Changes",
         PALETTE_READ_REQUIREMENTS,
         RUNTIME_FAILURE_CODES,
+        help_summary="List a Sprite's Palettes and their Frame ranges.",
     ),
     OperationDescriptor(
         "palette get",
@@ -728,6 +732,7 @@ PALETTE_OPERATIONS = (
         ),
         PALETTE_READ_REQUIREMENTS,
         (*RUNTIME_FAILURE_CODES, "palette_frame_out_of_bounds"),
+        help_summary="Read the effective Palette for a Frame.",
     ),
     OperationDescriptor(
         "palette set",
@@ -744,5 +749,6 @@ PALETTE_OPERATIONS = (
         ),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Set colors at explicit Palette indexes.",
     ),
 )

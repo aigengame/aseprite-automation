@@ -569,6 +569,7 @@ ANIMATION_EXPORT_OPERATIONS = (
         ),
         execution_kind="export",
         side_effects=("publishes one verified animated GIF",),
+        help_summary="Export an animation as an infinitely looping GIF.",
     ),
     OperationDescriptor(
         "export sequence",
@@ -586,5 +587,6 @@ ANIMATION_EXPORT_OPERATIONS = (
         ),
         execution_kind="export",
         side_effects=("publishes a complete ordered PNG sequence",),
+        help_summary="Export an animation as a numbered PNG sequence.",
     ),
 )

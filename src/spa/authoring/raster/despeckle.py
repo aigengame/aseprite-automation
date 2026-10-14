@@ -191,5 +191,6 @@ DESPECKLE_OPERATIONS = (
         ),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Reduce pixel noise with the native median filter.",
     ),
 )

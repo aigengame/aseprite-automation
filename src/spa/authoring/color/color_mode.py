@@ -567,5 +567,6 @@ COLOR_MODE_OPERATIONS = (
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
         plan_eligible=True,
+        help_summary="Convert a Sprite between RGB, Grayscale, and Indexed modes.",
     ),
 )

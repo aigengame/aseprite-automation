@@ -815,6 +815,7 @@ IMAGE_OPERATIONS = (
         ),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Resize a Cel Image with an explicit resampling method.",
     ),
     *IMAGE_SNAPSHOT_OPERATIONS,
     OperationDescriptor(
@@ -835,6 +836,7 @@ IMAGE_OPERATIONS = (
         ),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Crop a Cel Image to an explicit rectangle.",
     ),
     OperationDescriptor(
         "image canvas-resize",
@@ -854,6 +856,7 @@ IMAGE_OPERATIONS = (
         ),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Change a Cel Image's bounds with explicit offset and fill.",
     ),
     OperationDescriptor(
         "image flip",
@@ -872,6 +875,7 @@ IMAGE_OPERATIONS = (
         ),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Flip a Cel Image horizontally or vertically.",
     ),
     OperationDescriptor(
         "image rotate",
@@ -891,5 +895,6 @@ IMAGE_OPERATIONS = (
         ),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Rotate a Cel Image by an explicit angle.",
     ),
 )

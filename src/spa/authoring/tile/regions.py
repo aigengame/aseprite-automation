@@ -566,6 +566,7 @@ TILE_REGION_OPERATIONS = (
         TILE_REGION_FAILURE_CODES,
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Replace a Tile Cell rectangle; omitted Cells become empty.",
     ),
     OperationDescriptor(
         "tilemap patch",
@@ -577,6 +578,7 @@ TILE_REGION_OPERATIONS = (
         TILE_REGION_FAILURE_CODES,
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Change only the explicitly supplied Tile Cells.",
     ),
     OperationDescriptor(
         "tilemap fill",
@@ -588,5 +590,6 @@ TILE_REGION_OPERATIONS = (
         TILE_REGION_FAILURE_CODES,
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Fill a Tile Cell rectangle with one placement.",
     ),
 )

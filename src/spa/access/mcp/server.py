@@ -41,7 +41,7 @@ async def build_server(cli: Cli) -> Server:
             tools.append(
                 Tool(
                     name=name,
-                    description=operation,
+                    description=entry["help_summary"],
                     input_schema=entry["request_schema"],
                     output_schema=entry["result_schema"],
                     _meta={

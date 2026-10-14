@@ -539,6 +539,7 @@ CEL_OPERATIONS = (
             *LAYER_ADDRESS_FAILURE_CODES,
             "cel_frame_out_of_bounds",
         ),
+        help_summary="List a Layer's Cels within a Frame range.",
     ),
     OperationDescriptor(
         "cel get",
@@ -552,6 +553,7 @@ CEL_OPERATIONS = (
             *LAYER_ADDRESS_FAILURE_CODES,
             "cel_frame_out_of_bounds",
         ),
+        help_summary="Inspect one Cel's Image metadata, position, and properties.",
     ),
     OperationDescriptor(
         "cel add",
@@ -572,10 +574,7 @@ CEL_OPERATIONS = (
         side_effects=("publishes the declared Target Sprite File",),
         plan_eligible=True,
         help_summary=(
-            "Create an independent Cel at an absent Layer/Frame intersection. "
-            "Ordinary Transparent Layers accept optional raster image_size; "
-            "Tilemap Layers require tilemap_size in Tile Cells. "
-            "The two sizes are mutually exclusive. Use --schema for bounds and results."
+            "Create an independent raster or Tilemap Cel in an empty Layer/Frame slot."
         ),
     ),
     OperationDescriptor(
@@ -597,6 +596,7 @@ CEL_OPERATIONS = (
         ),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Clear a Cel's content while retaining the Cel.",
     ),
     OperationDescriptor(
         "cel remove",
@@ -615,5 +615,6 @@ CEL_OPERATIONS = (
         ),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Remove a Cel from its Layer/Frame slot.",
     ),
 )

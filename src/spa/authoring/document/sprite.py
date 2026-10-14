@@ -1056,6 +1056,7 @@ SPRITE_OPERATIONS = (
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
         plan_eligible=True,
+        help_summary="Create a Sprite with explicit dimensions, Color Mode, and initial Layer.",
     ),
     OperationDescriptor(
         "sprite get",
@@ -1069,6 +1070,7 @@ SPRITE_OPERATIONS = (
         SPRITE_GET_REQUIREMENTS,
         RUNTIME_FAILURE_CODES,
         plan_eligible=True,
+        help_summary="Inspect a Sprite's metadata and selected document structures.",
     ),
     OperationDescriptor(
         "sprite copy",
@@ -1080,6 +1082,7 @@ SPRITE_OPERATIONS = (
         (*RUNTIME_FAILURE_CODES, "target_commit_failed", "sprite_copy_staging_failed"),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Copy a Sprite document to another file.",
     ),
     OperationDescriptor(
         "sprite flatten",
@@ -1095,6 +1098,7 @@ SPRITE_OPERATIONS = (
         ),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Flatten a Sprite's visible Layers into one Layer.",
     ),
     OperationDescriptor(
         "sprite resize",
@@ -1110,6 +1114,7 @@ SPRITE_OPERATIONS = (
         ),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Resize the Sprite Canvas and its content.",
     ),
     OperationDescriptor(
         "sprite crop",
@@ -1126,6 +1131,7 @@ SPRITE_OPERATIONS = (
         ),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Crop a Sprite to an explicit Canvas rectangle.",
     ),
     OperationDescriptor(
         "sprite validate",
@@ -1135,5 +1141,6 @@ SPRITE_OPERATIONS = (
         lambda result: f"{result.sprite_file}: {len(result.findings)} findings",
         SPRITE_GET_REQUIREMENTS,
         RUNTIME_FAILURE_CODES,
+        help_summary="Check a Sprite against expected document properties.",
     ),
 )

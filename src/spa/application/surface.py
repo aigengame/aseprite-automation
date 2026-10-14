@@ -356,6 +356,7 @@ META_OPERATIONS = (
         ),
         KERNEL_RUNTIME_REQUIREMENTS,
         RUNTIME_FAILURE_CODES,
+        help_summary="Report the selected Aseprite runtime, available Operations, and Capability Gaps.",
     ),
     OperationDescriptor(
         "version",
@@ -365,6 +366,7 @@ META_OPERATIONS = (
         lambda r: f"SPA {r.spa_version}",
         None,
         ("invalid_request",),
+        help_summary="Report the installed SPA version.",
     ),
     OperationDescriptor(
         "schema",
@@ -374,6 +376,7 @@ META_OPERATIONS = (
         lambda r: "\n".join(item.operation for item in r.operations),
         KERNEL_RUNTIME_REQUIREMENTS,
         RUNTIME_FAILURE_CODES,
+        help_summary="Describe callable Operations and their machine contracts for the selected runtime.",
     ),
 )
 

@@ -450,5 +450,6 @@ COMPOSITE_OPERATIONS = (
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
         probe_before_execute=False,
+        help_summary="Composite a pixel snapshot or Cel Image onto a target Cel Image.",
     ),
 )

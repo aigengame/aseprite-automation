@@ -32,6 +32,7 @@ def cli(tmp_path):
         "operations": [
             {
                 "operation": "spa echo",
+                "help_summary": "Echo a JSON value without changing its content.",
                 "execution_kind": "read",
                 "side_effects": [],
                 "request_schema": request,
@@ -94,6 +95,7 @@ def test_stdio_projects_manifest_and_preserves_request_and_result(cli, mode, pro
             assert [tool.name for tool in listed.tools] == ["echo"]
             tool = listed.tools[0]
             entry = manifest["operations"][0]
+            assert tool.description == entry["help_summary"]
             assert tool.input_schema == entry["request_schema"]
             assert tool.output_schema == entry["result_schema"]
             assert tool.meta["spa"]["execution_kind"] == "read"

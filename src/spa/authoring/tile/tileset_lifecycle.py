@@ -613,6 +613,7 @@ TILESET_LIFECYCLE_OPERATIONS = (
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
         plan_eligible=True,
+        help_summary="Remove a Tileset that no Layer uses.",
     ),
     OperationDescriptor(
         "layer set-tileset",
@@ -625,5 +626,6 @@ TILESET_LIFECYCLE_OPERATIONS = (
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
         plan_eligible=True,
+        help_summary="Rebind a Tilemap Layer to a Tileset with an explicit Tile mapping.",
     ),
 )

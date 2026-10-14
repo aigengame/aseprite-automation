@@ -243,5 +243,6 @@ QUANTIZATION_OPERATIONS = (
         ),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Generate a Palette with native color quantization.",
     ),
 )

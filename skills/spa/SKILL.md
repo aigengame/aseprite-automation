@@ -16,8 +16,9 @@ installing this skill does not install either executable.
   `--aseprite PATH` on an operation, such as `spa info --aseprite PATH`.
 - Run `spa version` to identify the installed CLI and `spa info` to check
   the selected Aseprite runtime. Keep the same runtime for related calls.
-- Use `spa --help` for command groups, `spa <group> --help` for commands,
-  and `spa <group> <command> --help` for usage. Read that command's
+- Run `spa` or `spa help` for the command overview. Use `spa help <command path>`
+  for a group or command, such as `spa help tileset tile add`; the target's
+  `--help` shows the same text. Help does not start Aseprite. Read that command's
   `--schema` for request fields, results, and failures. Use `spa schema`
   when you need the full installed surface and declared Capability Gaps.
 - Follow the installed help and schemas when they differ from an example.
@@ -35,7 +36,8 @@ spa sprite create --input-json - < create.json
 
 Read the JSON `status` and the operation's result fields. On failure, use
 the top-level `code` and `details`; use `message` and `diagnostics` for
-explanation. `--human` is an optional readable view of the same outcome.
+explanation. Add `--human` after the command for a readable view, such as
+`spa info --human`. `--json` takes precedence when both output flags are set.
 
 ## Create, edit, and verify
 

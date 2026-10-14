@@ -478,6 +478,7 @@ PROFILE_OPERATIONS = (
         plan_eligible=True,
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Assign a Color Profile without converting pixel colors.",
     ),
     OperationDescriptor(
         "sprite convert-color-profile",
@@ -502,5 +503,6 @@ PROFILE_OPERATIONS = (
         plan_eligible=True,
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Convert pixel colors to a target Color Profile.",
     ),
 )

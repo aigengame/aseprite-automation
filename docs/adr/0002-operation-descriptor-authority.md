@@ -14,6 +14,18 @@ do not maintain parallel capability registries. CLI failures before a Descriptor
 be selected use the shared public Failure Code registration under ADR-0013, not a
 synthetic Operation.
 
+Each Descriptor's `help_summary` owns the Operation's purpose description. CLI
+help, the Surface Manifest, and MCP tools project that text. Request and Result
+models own field descriptions and constraints. CLI Access owns root and Command
+Group introductions; group identity and hierarchy still derive from Operation
+paths. Presentation text does not register capabilities.
+
+Bare `spa`, `spa --help`, and `spa help` show the same root help and exit zero.
+`spa help <command path>` navigates the generated command tree and renders the
+target's help without executing an Operation or probing Aseprite. Unknown paths
+and excess path components use the existing Access-level Failure Envelope.
+`help` is CLI navigation, not an Operation or MCP tool.
+
 Descriptors own registration, public shapes, Published Language metadata, and
 statically decidable contract invariants, not native behavior. Python contract types
 implement and validate those Descriptor-owned shapes; they are not a second contract
