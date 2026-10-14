@@ -6,7 +6,9 @@ This slice starts from milestone #9 integration commit
 `08711223425709bbe5357164707c5d5c2b3f8fc6`. The first increment supplies three
 existing unlistable-directory fixtures. The next increment adds a proven
 directory-junction witness and case-local Windows symlink-permission reporting
-to two existing Source fixtures. Production code, working POSIX fixtures,
+to two existing Source fixtures. The last increment applies the same reporting
+at the remaining creation sites demonstrated by 29 non-Bash nodes, in 13
+existing test files. Production code, working POSIX fixtures,
 Source alias inputs and supported ICC identities are unchanged. Slow tests are
 excluded. The checkpoints below have separate candidate identities.
 
@@ -216,8 +218,8 @@ SPA's first increment follows those boundaries:
 - The PowerShell invocation adjustment also passed real normal-body and
   exceptional-body ACL restoration witnesses. No host policy was changed.
 
-The remaining genuine alias sites have not received this permission handling
-yet. The next bounded evidence run can use the 121 existing non-Bash observation
+At this first increment, the remaining genuine alias sites had not received
+this permission handling. The bounded evidence run can use the 121 existing non-Bash observation
 nodes from the frozen checkpoint, in a temporary approved Windows process.
 It must preserve any downstream native or fixture failure, use fresh owned
 outputs, and report ordinary and elevated receipts separately. No whole-suite
@@ -277,24 +279,114 @@ Independent sol Standards and Spec reviews of `91369fc` against `bcc8156`
 report no actionable defect or scope expansion. They retain the incomplete
 alias evidence and unadapted sites as incomplete acceptance.
 
-A prepared, unexecuted temporary-process runner selects the original 121
-non-Bash observation nodes: the 91 retained Source-fixture cases, the 29 other
-symlink observations and the junction case as a control. This is an evidence
-selection, not a claim that every selected contract needs a symlink. It pins the
-test revision, excludes slow and Bash-launcher nodes, probes real file and
-directory symlinks first, uses new owned outputs, and records any subsequent
-native or fixture failure. Its execution requires explicit owner approval;
-preparing the runner does not authorize UAC. It changes no Developer Mode,
-registry or privilege policy. Ordinary-process and temporary elevated-process
-receipts must remain distinct.
+## Approved temporary-process witness
+
+The owner explicitly approved one temporary UAC validation process for the
+frozen test revision `91369fc`. Its selection is the original 121 non-Bash
+observation nodes: the 91 retained Source-fixture cases, the 29 other symlink
+observations and the junction case as a control. This is an evidence selection,
+not a claim that every selected contract needs a symlink. No slow node or
+Bash-launcher node is included. The process first creates real file and
+directory symlinks and checks their types, identity and unchanged Source bytes.
+Both probes succeed. The unchanged existing tests then report:
+
+| Tier | Passed | Failed | Setup errors | Skipped | Total |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Unit | 53 | 0 | 0 | 0 | 53 |
+| Integration | 61 | 0 | 0 | 0 | 61 |
+| E2E | 0 | 7 | 0 | 0 | 7 |
+| Total | **114** | **7** | **0** | **0** | **121** |
+
+Exit status is 1; elapsed driver time is 20.02 seconds. Every selected node has
+one outcome, and none reports WinError 1314. These results are separate from
+the ordinary-process full checkpoint; do not add 114 passes to its totals.
+
+| Existing failed node | First visible boundary | Existing owner |
+| --- | --- | --- |
+| Animation `test_preview_rejects_destination_traversed_by_source_alias` | Runtime probe capture WinError 10038, then cleanup WinError 32 | #230 |
+| Paint `test_apply_accepts_in_place_paths_to_the_same_publication_entry` | Initial Source creation CLI exits 1 with empty stdout; alias assertion not reached | #230 diagnosis/rerun |
+| Runtime `test_symlinked_executable_resolves_to_resource_complete_bundle` | `spa info` exits 1 with empty stdout | #230 diagnosis/rerun |
+| Selection `test_artifact_input_alias_is_not_replaced[absolute-symlink-export]` | CLI stdout cannot be read as JSON | #230 diagnosis/rerun |
+| Selection `test_artifact_input_alias_is_not_replaced[absolute-symlink-preview]` | CLI stdout cannot be read as JSON | #230 diagnosis/rerun |
+| Selection `test_artifact_input_alias_is_not_replaced[tilde-symlink-export]` | After real symlink creation, home-relative input construction raises cross-volume `ValueError` before SPA | #243 |
+| Selection `test_artifact_input_alias_is_not_replaced[tilde-symlink-preview]` | Same existing input-construction boundary | #243 |
+
+The last two cases share #243's existing `relpath(source, Path.home())` fixture
+with the two direct-input cases. Include all four evidenced home-relative
+variants in that correction; introduce no product path feature. Keep real
+symlink provisioning under #232 and file-preservation/refusal assertions intact.
+The four native-entry failures without complete stderr are not all diagnosed
+as WinError 10038; follow their actual next boundary during #230 work.
+
+Independent sol Spec review confirms these boundaries and existing ownership.
+No new issue or production mechanism follows from the witness. The temporary
+process has exited. A subsequent ordinary-token file/directory probe again
+reports WinError 1314; its original bytes remain unchanged. The ordinary token
+is not administrative, the Developer Mode flag remains absent, and no Aseprite
+survivor with the owned witness root or unobservable Aseprite command line is
+observed. No Developer Mode, registry or privilege policy was changed. This
+does not grant future ordinary processes permission or establish #234 acceptance.
+
+- Witness JUnit SHA-256: `a493b196f31aaa0fb119974e6ee8cb4064f022cad815b60a1a125ebec6ef26fe`.
+- Frozen node-list SHA-256: `0d580ceb37ce0eab45895837638707ae78141655f39c1ca849736a57ce24d555`.
+- The local manifest, receipt, XML, per-node outcomes and launch trace remain in
+  the single ignored `.runtime/issue-232/temporary-witness-*/` output. The
+  post-witness ordinary probe and bounded process check remain alongside it.
+
+## Latest ordinary-process fixture checkpoint
+
+Source `68eb2da7c5ce468a60870783cb2af4c36087ada3` adds Windows-private
+permission observations only at the remaining demonstrated creation sites.
+The original POSIX calls and all input, retarget, type, byte-preservation and
+CLI assertions remain. No further junction or product mechanism is added.
+
+The ordinary 121-node selection now reports **1 passed / 120 WinError 1314
+prerequisite skips**. The pass is the existing junction control. Ruff check
+and formatting pass for all 13 changed files; diff checks pass. Static AST
+comparison confirms unchanged existing POSIX execution bodies, excluding
+imports; macOS/Linux were not executed here. Independent sol Standards and
+Spec reviews report no actionable defect or scope expansion.
+
+The complete ordinary-process checkpoint again reconciles all four worker
+inventories and one outcome per selected node. Exit status is 1, driver time
+358.43 seconds, and the two slow rebuilds are deselected.
+
+| Tier | Passed | Failed | Setup errors | Skipped | Total |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Unit | 1,140 | 0 | 0 | 52 | 1,192 |
+| Integration | 657 | 126 | 0 | 108 | 891 |
+| E2E | 52 | 1,278 | 1,049 | 8 | 2,387 |
+| Total | **1,849** | **1,404** | **1,049** | **168** | **4,470** |
+
+Compared with `91369fc`, the 29 demonstrated failures become current-case
+permission skips. There is no new functional pass. All 120 genuine symlink
+observations remain unavailable under this ordinary token; the other 48 skips
+retain their recorded reasons. The 11 remaining WinError 1314 failures are
+obsolete Bash-launcher fixtures under #229. Retain the separately recorded
+114 passes and seven failures from the earlier approved `91369fc` witness;
+it is not an elevated execution of this newer test revision.
+
+The existing candidate wheel is reused for this tests-only increment: source
+package contents and locked dependencies are unchanged. Its verified 145-resource
+receipt is not a new native wheel-effect pass. Raw XML, exact outcomes,
+matching collections, launch trace, node evidence and cleanup receipt remain in
+`.runtime/issue-232/permission-checkpoint/`.
+Capture WinError 10038 remains at 2,187 overlapping nodes; the 63 excluded-shell
+attempts remain refused and owned by #229. Audit registrations were removed,
+and the bounded post-run process query finds no owned Aseprite survivor or
+unobservable Aseprite command line.
+
+- JUnit SHA-256: `b8f1ffadf842b67af0a128e5148d5209ce70c9b9854d4eddc7536dfe36892f77`.
 
 ## Remaining acceptance
 
-#232 remains open while the retained real alias evidence and remaining fixture
-sites are unresolved. There is no pending approval to enable Developer Mode or
-replace the 78 inputs. A temporary elevated witness needs separate explicit
-approval. #234 owns complete applicable-suite green,
+#232 remains open while retained real E2E alias effects await the #230/#243
+reruns and integrated acceptance. The demonstrated creation sites now have
+case-local reporting; this does not supply the ordinary token with permission.
+The one approved temporary witness is finished; no host-setting or further
+elevation approval is pending. There is no proposal to replace the 78 inputs.
+#234 owns complete applicable-suite green,
 isolated-wheel/native effects and the separately documented windowed checks.
 The checkpoint satisfies the requirement to record all existing non-slow
 outcomes; it does not satisfy complete-suite acceptance or the outstanding
-real-symlink requirement.
+real E2E alias-effect requirement.
