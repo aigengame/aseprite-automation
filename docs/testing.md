@@ -338,7 +338,9 @@ command. Set `SPA_TEST_ASEPRITE` to the real local runtime. Use a writable tempo
 root; when the default pytest root is unavailable, select a new owned directory
 with `--basetemp`. Pytest can remove a previous directory at that path.
 
-Alias tests need permission to create real file and directory symlinks. An
+Tests that create real file and directory symlinks need the corresponding
+filesystem permission. This is a prerequisite of those observations, not a
+configuration requirement for every developer host or ordinary Source test. An
 unavailable prerequisite is not a product failure or a pass. Unlistable-directory
 tests retain POSIX permissions on macOS/Linux; their private Windows fixture uses
 `powershell.exe` to deny only directory listing and restores the temporary access

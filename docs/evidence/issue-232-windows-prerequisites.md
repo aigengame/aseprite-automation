@@ -19,9 +19,10 @@ Ordinary-token probes both inside and outside the tool sandbox cannot create
 file or directory symlinks: Python reports WinError 1314. PowerShell reports
 `NewItemSymbolicLinkElevationRequired`. The observed token has no symlink
 privilege; the Developer Mode registry flag is absent. No host setting or
-privilege was changed. The owner must select an approved process or host before
-the genuine symlink families can be accepted. Bash-launcher-only symlinks remain
-#229's harness scope.
+privilege was changed. This records the selected process's creation capability;
+it does not establish a Developer Mode requirement for every developer host.
+Classify the fixture dependency before selecting an acceptance environment for
+the actual alias observations. Bash-launcher-only symlinks remain #229 scope.
 The [Win32 symlink API](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-createsymboliclinkw)
 documents Developer Mode as a prerequisite for its unprivileged creation flag.
 
@@ -94,8 +95,10 @@ preservation cases are failures, with no prerequisite skip. Static export still
 fails before its directory observation at native capture. These are reached
 boundaries, not predictions about later domain assertions.
 
-There are 132 WinError 1314 observations: 121 genuine filesystem prerequisites
-remain #232 scope; the 11 Bash-launcher-only cases remain #229 scope. There are
+There are 132 WinError 1314 observations: 121 non-Bash filesystem setup
+observations remain #232 scope; the 11 Bash-launcher-only cases remain #229 scope.
+The 121 count does not establish 121 independently necessary alias contracts.
+There are
 2,187 nodes with capture WinError 10038 evidence. Counts overlap and are not
 independent defects or promised post-fix passes. Native execution/cleanup remains
 #230 scope. The 63 explicit excluded-shell attempts are refused before process
@@ -137,10 +140,56 @@ harness observation is not production cleanup acceptance.
 Earlier 4,470-node and closed-PR #242 results remain separate histories. The
 closed branch's additional test splits were not merged into this candidate.
 
+## Fixture dependency review - 2026-10-14
+
+The owner challenged the recommendation to enable Developer Mode. That
+recommendation is withdrawn. No host change was approved or made. Developer
+Mode is an OS permission option, not a SPA runtime or general development
+prerequisite. A test environment that must create genuine symlinks still needs
+the corresponding Windows capability; changing a Python fixture cannot remove
+that OS restriction.
+
+Two common Source-symlink fixtures cause 91 setup observations. Their inputs
+also cover ordinary publication, failure order and cleanup:
+
+| Existing module | Observations | Ordinary-contract counterfactual | Retained alias witnesses |
+| --- | ---: | ---: | ---: |
+| `tests/delivery/test_unit_png_callers.py` | 40 | 36 | 4 |
+| `tests/delivery/test_integration_snapshot_publication.py` | 51 | 42 | 9 |
+| Total | 91 | **78** | **13** |
+
+An ignored-copy experiment changes only the initial Source fixture to the
+ordinary original file, selects those 78 nodes, and forbids symlink creation.
+All 78 pass on the unchanged ordinary Windows token. Original tracked tests
+and their file hashes remain unchanged. The full 4,470-node checkpoint above
+is unchanged; these experimental passes are not added to it.
+
+The 13 excluded alias witnesses comprise five successful caller observations,
+five Source-retarget failures and three pre-native alias refusals. They remain
+real symlink observations. The counterfactual does not establish alias reading,
+retarget detection, original-target preservation or Aseprite reading an alias.
+The other 30 non-Bash observations have not been reclassified by this experiment.
+
+The bounded recovery proposal is to give the ordinary Windows publication
+observations ordinary Source inputs, preserve explicit real alias witnesses
+and their Source/Target/cleanup assertions, and leave working POSIX fixtures
+in place. This changes Windows input coverage, so it needs owner alignment
+before implementation. No test-input change has been delivered yet. Do not
+replace symlinks with hardlinks, label their shared semantics Unix-only, add
+blanket skips, introduce a permission broker, or impose a host setting to turn
+this experiment into an apparent pass.
+
+Raw counterfactual XML, original-node mapping and hashes are retained in
+`.runtime/issue-232/ordinary-source-counterfactual/`. Independent review traced
+the fixtures to the PNG publication baseline (#142/#138) and Snapshot
+publication work (#180/#179); it confirms the evidence limit and the need to
+preserve alias coverage during any split.
+
 ## Remaining acceptance
 
-#232 remains open while the approved symlink prerequisite and its focused
-family evidence are missing. #234 owns complete applicable-suite green,
+#232 remains open while fixture necessity and the retained real alias evidence
+are unresolved. There is no pending approval to enable Developer Mode; the next
+decision is the bounded Windows fixture-input split. #234 owns complete applicable-suite green,
 isolated-wheel/native effects and the separately documented windowed checks.
 The checkpoint satisfies the requirement to record all existing non-slow
 outcomes; it does not satisfy complete-suite acceptance or the outstanding
