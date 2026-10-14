@@ -3,10 +3,12 @@
 ## Scope and candidate
 
 This slice starts from milestone #9 integration commit
-`08711223425709bbe5357164707c5d5c2b3f8fc6`. It changes only three existing
-unlistable-directory fixtures and the testing notes. Production code, the
-working POSIX permission path, symlink assertions and supported ICC identities
-are unchanged. Slow tests are excluded.
+`08711223425709bbe5357164707c5d5c2b3f8fc6`. The first increment supplies three
+existing unlistable-directory fixtures. The next increment adds a proven
+directory-junction witness and case-local Windows symlink-permission reporting
+to two existing Source fixtures. Production code, working POSIX fixtures,
+Source alias inputs and supported ICC identities are unchanged. Slow tests are
+excluded. The checkpoints below have separate candidate identities.
 
 ## Direct observations on 2026-10-14
 
@@ -76,7 +78,7 @@ Raw reports, owned probes and the caller input stay under the ignored
 `.runtime/issue-232/` directory. Public records omit hostnames, user names,
 absolute local paths and security identities.
 
-## Complete non-slow checkpoint
+## Initial complete non-slow checkpoint
 
 Source `15369aede47fc31ef3a4ad55ae0d35875b8af377` selected all 4,470 existing
 non-slow nodes with four native pytest workers. All worker collections agree,
@@ -121,7 +123,8 @@ The 48 remaining skip reasons are retained, not reclassified as passes:
 
 Fixture labels do not establish platform applicability. Existing milestone
 issues own the Windows observations and true POSIX/macOS-only classification;
-#234 retains the final applicable-test gate. No new skip was added here.
+#234 retains the final applicable-test gate. No new skip was added in this
+initial candidate.
 
 The candidate wheel was built from the same source and installed with locked
 runtime/MCP dependencies into a separate uv environment. The existing installed
@@ -223,6 +226,67 @@ elevation or persistent Developer Mode/registry/privilege-policy change follows.
 The [gda #1199 record](https://github.com/aigengame/godot-agent/pull/1199#issuecomment-6158833540)
 still has three permission skips in an ordinary process at its measured revision.
 A temporary successful witness never grants the next ordinary process rights.
+
+## Complete non-slow checkpoint after the gda increment
+
+Source `91369fcdee5e4b9cedaee60d071948d0a6429cef` selected the same 4,470
+existing non-slow nodes. All four native worker inventories agree; every node
+has exactly one JUnit outcome. Two slow rebuilds were deselected. Exit status
+is 1. Elapsed driver time is 347.6 seconds.
+
+| Tier | Passed | Failed | Setup errors | Skipped | Total |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Unit | 1,140 | 12 | 0 | 40 | 1,192 |
+| Integration | 657 | 136 | 0 | 98 | 891 |
+| E2E | 52 | 1,285 | 1,049 | 1 | 2,387 |
+| Total | **1,849** | **1,433** | **1,049** | **139** | **4,470** |
+
+Compared with candidate `15369ae`, the proven directory-junction case accounts
+for one additional pass and one fewer failure. The 91 Source-fixture setup
+errors become explicit WinError 1314 prerequisite skips. Those cases still do
+not reach functional assertions; no 91-case repair is claimed. The other 48
+skip reasons remain as recorded in the initial checkpoint. The counterfactual
+78 passes are not included in either checkpoint.
+
+There are 131 WinError 1314 observations: the 91 explicit skips plus 40 remaining
+failures. Of the latter, 29 are non-Bash nodes whose genuine symlink sites have
+not received case-local permission reporting yet; the other 11 obsolete
+Bash-launcher nodes remain #229 scope. Capture WinError 10038 still appears in
+2,187 nodes. Audit-only hooks refuse 63 excluded-shell attempts at the inspected
+project and candidate-wheel Python call points. These counts overlap and do not
+predict post-fix passes. No excluded shell is supplied as a fallback.
+
+The candidate wheel was rebuilt and installed into a fresh locked uv consumer.
+Its bytes match the initial wheel because this increment changes tests and
+documentation. The existing installed-CLI verifier passes outside the checkout
+and matches all 145 Kernel resource hashes when run outside the tool filesystem
+sandbox under the ordinary Windows token. The sandbox attempt fails at the uv
+launcher path gate and is retained separately; it is not counted as a native
+Windows product failure. Audit-hook registrations were removed from both Python
+environments. No Aseprite survivor whose command line contains the owned
+checkpoint root was observed. These bounded harness checks do not establish
+production cleanup or native wheel effects.
+
+- JUnit SHA-256: `0df5732cf0458597bd7f419236c2b33df0a60ecad39b981a914ca199502ef77a`.
+- Candidate wheel SHA-256: `0e9f1256aaaf2ba9c4d46fa70e369ba7dffd0bc7bb6c0ca6b57d0f56294262aa`.
+- Raw XML, per-node outcomes, matching worker inventories, node evidence and
+  launch trace remain in `.runtime/issue-232/gda-checkpoint/`. The installed
+  verifier logs and real ACL-lifecycle receipts remain alongside that directory.
+
+Independent sol Standards and Spec reviews of `91369fc` against `bcc8156`
+report no actionable defect or scope expansion. They retain the incomplete
+alias evidence and unadapted sites as incomplete acceptance.
+
+A prepared, unexecuted temporary-process runner selects the original 121
+non-Bash observation nodes: the 91 retained Source-fixture cases, the 29 other
+symlink observations and the junction case as a control. This is an evidence
+selection, not a claim that every selected contract needs a symlink. It pins the
+test revision, excludes slow and Bash-launcher nodes, probes real file and
+directory symlinks first, uses new owned outputs, and records any subsequent
+native or fixture failure. Its execution requires explicit owner approval;
+preparing the runner does not authorize UAC. It changes no Developer Mode,
+registry or privilege policy. Ordinary-process and temporary elevated-process
+receipts must remain distinct.
 
 ## Remaining acceptance
 
