@@ -871,10 +871,11 @@ is introduced.
 Convolution is discovery-only in this slice. The Runtime Integration adapter scans
 bounded declaration metadata at the prepared invocation's native resource paths.
 It never computes coefficients or decides that a declaration is callable. The
-Kernel records direct requested/observed Channel probes, and `RuntimeFacts`
-transports both observations. Raster Authoring provides the Convolution gap evidence;
-the installed Surface Manifest reports the applicable Capability Gap. No descriptor,
-custom convolution engine, or general resource registry is added.
+Kernel records direct requested/observed Channel probes. The internal
+`RuntimeObservation` carries declarations and probes; public `RuntimeFacts` omit
+these raw payloads. Raster Authoring derives the Convolution gap evidence from the
+observations, and the installed Surface Manifest reports the applicable Capability
+Gap. No descriptor, custom convolution engine, or general resource registry is added.
 
 Native text rasterization is also discovery-only under issue #47. Raster Authoring
 owns the retained Capability Gap evidence; `surface.py` projects it through
