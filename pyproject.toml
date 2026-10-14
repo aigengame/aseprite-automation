@@ -9,7 +9,7 @@ source-include = ["THIRD_PARTY_NOTICES.md"]
 [project]
 name = "aseprite-automation"
 version = "0.4.0"
-description = "Aseprite automation for AI agents. Create, edit, verify, and export pixel art, sprite animations, and tilesets through a CLI, Agent Skill, or MCP server."
+description = "Aseprite automation for AI agents. Simple. Stable. Congruent. Create, edit, verify, and export pixel art and sprite animations via CLI, Agent Skill, or MCP server."
 readme = "README.md"
 license = "MIT AND CC0-1.0"
 license-files = ["LICENSE", "LICENSES/CC0-1.0.txt"]
