@@ -2,7 +2,7 @@
 
 # SPA — 面向 AI 智能体的 Aseprite 自动化工具
 
-**Simple. Stable. Congruent.**
+**简洁易用。稳健可靠。契合构想。**
 
 ![SPA：悟空泡温泉，回忆中的大闹天宫化为像素图层与动画帧](https://raw.githubusercontent.com/aigengame/aseprite-automation/2eec52707c2de90127e47f0a8a7d384967bfdd82/docs/assets/hero-wukong-spa-heaven.png)
 
