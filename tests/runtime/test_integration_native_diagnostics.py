@@ -11,6 +11,7 @@ import pytest
 
 from tests.frame.test_e2e_frame import _run_fixture
 from tests.support import fake_aseprite
+from tests.windows_executable import windows_aseprite
 
 
 @pytest.mark.parametrize(
@@ -50,7 +51,10 @@ def test_direct_fixture_retains_exit_status_and_both_output_streams(
 def test_successful_direct_fixture_still_passes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    binary = fake_aseprite(tmp_path, "echo 'expected native result'\nexit 0\n")
+    if os.name == "nt":
+        binary = windows_aseprite(tmp_path, "print('expected native result')")
+    else:
+        binary = fake_aseprite(tmp_path, "echo 'expected native result'\nexit 0\n")
     monkeypatch.setenv("SPA_TEST_ASEPRITE", str(binary))
     _run_fixture("controlled.lua")
 
