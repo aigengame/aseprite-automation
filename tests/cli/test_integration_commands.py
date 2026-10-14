@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 from jsonschema import Draft202012Validator, validate
+from rich.text import Text
 
 from spa.application.failure_registry import FAILURE_CODES
 from spa.application.surface import ACCESS_FAILURE_CODES
@@ -107,7 +108,7 @@ def test_bare_invocation_shows_root_help_without_a_runtime(tmp_path) -> None:
     assert help_run.returncode == 0
     assert "Usage:" in help_run.stdout
     assert run.stdout == help_run.stdout
-    assert "spa info --human" in " ".join(run.stdout.split())
+    assert "spa info --human" in " ".join(Text.from_ansi(run.stdout).plain.split())
 
 
 def test_human_output_projects_the_same_version_result() -> None:
@@ -137,7 +138,7 @@ def test_help_navigation_matches_command_help_without_a_runtime(
     assert navigated.stdout == direct.stdout
     assert (
         f"Usage: spa{' ' if command_path else ''}{' '.join(command_path)} "
-        in direct.stdout
+        in Text.from_ansi(direct.stdout).plain
     )
 
 
