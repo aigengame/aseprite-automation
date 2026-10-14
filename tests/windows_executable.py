@@ -12,7 +12,11 @@ def windows_aseprite(tmp_path: Path, body: str) -> Path:
     source = tmp_path / "windows-script"
     source.mkdir(parents=True)
     (source / "aseprite.py").write_text(
-        "#!python\n" + body + "\n", encoding="utf-8", newline="\n"
+        "#!python\nimport sys\n"
+        "sys.stdout.reconfigure(encoding='utf-8', newline='\\n')\n"
+        "sys.stderr.reconfigure(encoding='utf-8', newline='\\n')\n" + body + "\n",
+        encoding="utf-8",
+        newline="\n",
     )
     directory = tmp_path / "Aseprite.app" / "Contents" / "MacOS"
     maker = ScriptMaker(str(source), str(directory))

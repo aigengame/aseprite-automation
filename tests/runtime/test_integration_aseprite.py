@@ -18,6 +18,7 @@ from spa.application.surface import OPERATIONS
 from spa.contracts.ports import PackagedHandler, RuntimeObservation
 from spa.contracts.public import RuntimeRequest
 from tests.support import fake_aseprite, fake_probe_response, operation_services, spa
+from tests.windows_executable import windows_aseprite
 
 
 def test_missing_runtime_has_structured_environment_failure() -> None:
@@ -30,7 +31,13 @@ def test_missing_runtime_has_structured_environment_failure() -> None:
 
 
 def test_spa_prefixed_executable_environment_selects_runtime(tmp_path: Path) -> None:
-    binary = fake_aseprite(tmp_path, 'echo "environment-selected"\nexit 13\n')
+    if os.name == "nt":
+        binary = windows_aseprite(
+            tmp_path,
+            "import os, sys, time\nfrom pathlib import Path\nprint('environment-selected'); sys.exit(13)",
+        )
+    else:
+        binary = fake_aseprite(tmp_path, 'echo "environment-selected"\nexit 13\n')
     environment = os.environ.copy()
     environment["SPA_ASEPRITE_EXECUTABLE"] = str(binary)
     environment["ASEPRITE_EXECUTABLE"] = "/no/such/aseprite"
@@ -88,7 +95,13 @@ def test_unexpandable_executable_path_uses_structured_discovery_failure(
 
 
 def test_stdin_json_selects_the_installed_runtime(tmp_path: Path) -> None:
-    binary = fake_aseprite(tmp_path, 'echo "stdin-selected"\nexit 13\n')
+    if os.name == "nt":
+        binary = windows_aseprite(
+            tmp_path,
+            "import os, sys, time\nfrom pathlib import Path\nprint('stdin-selected'); sys.exit(13)",
+        )
+    else:
+        binary = fake_aseprite(tmp_path, 'echo "stdin-selected"\nexit 13\n')
     run = spa(
         "info",
         "--input-json",
@@ -102,9 +115,21 @@ def test_stdin_json_selects_the_installed_runtime(tmp_path: Path) -> None:
 
 
 def _fake_truncated_response_executable(tmp_path: Path, exit_status: int) -> Path:
-    return fake_aseprite(
-        tmp_path,
-        f"""
+    if os.name == "nt":
+        return windows_aseprite(
+            tmp_path,
+            (
+                "import os, sys, time\n"
+                "from pathlib import Path\n"
+                "arguments = dict(arg.split('=', 1) for arg in sys.argv[1:] if '=' in arg)\n"
+                "Path(arguments['response']).write_text('{\"kernel_protocol_version\":1,', encoding='utf-8')\n"
+            )
+            + f"sys.exit({exit_status})",
+        )
+    else:
+        return fake_aseprite(
+            tmp_path,
+            f"""
 response=
 for argument in "$@"; do
   case "$argument" in response=*) response=${{argument#response=}};; esac
@@ -112,11 +137,14 @@ done
 printf '{{"kernel_protocol_version":1,' > "$response"
 exit {exit_status}
 """,
-    )
+        )
 
 
 def test_exit_zero_without_kernel_response_is_failure(tmp_path: Path) -> None:
-    binary = fake_aseprite(tmp_path, "exit 0\n")
+    if os.name == "nt":
+        binary = windows_aseprite(tmp_path, "pass")
+    else:
+        binary = fake_aseprite(tmp_path, "exit 0\n")
     run = spa("info", "--aseprite", str(binary), "--json")
     assert run.returncode == 1
     failure = json.loads(run.stdout)
@@ -130,7 +158,17 @@ def test_exit_zero_without_kernel_response_is_failure(tmp_path: Path) -> None:
 def test_process_exit_before_kernel_response_is_execution_failure(
     tmp_path: Path,
 ) -> None:
-    binary = fake_aseprite(tmp_path, 'echo "startup failed" >&2\nexit 13\n')
+    if os.name == "nt":
+        binary = windows_aseprite(
+            tmp_path,
+            (
+                "import os, sys, time\n"
+                "from pathlib import Path\n"
+                "print('startup failed', file=sys.stderr); sys.exit(13)"
+            ),
+        )
+    else:
+        binary = fake_aseprite(tmp_path, 'echo "startup failed" >&2\nexit 13\n')
     run = spa("info", "--aseprite", str(binary), "--json")
     assert run.returncode == 1
     failure = json.loads(run.stdout)
@@ -186,16 +224,27 @@ def test_zero_exit_with_truncated_kernel_response_is_kernel_protocol_failure(
 def test_other_kernel_protocol_version_is_rejected_without_negotiation(
     tmp_path: Path, private_version: str
 ) -> None:
-    binary = fake_aseprite(
-        tmp_path,
-        """
+    if os.name == "nt":
+        binary = windows_aseprite(
+            tmp_path,
+            (
+                "import os, sys, time\n"
+                "from pathlib import Path\n"
+                "arguments = dict(arg.split('=', 1) for arg in sys.argv[1:] if '=' in arg)\n"
+            )
+            + f'Path(arguments[\'response\']).write_text(\'{{"kernel_protocol_version":{private_version},"status":"ok","aseprite_version":"test","api_version":1}}\', encoding=\'utf-8\')',
+        )
+    else:
+        binary = fake_aseprite(
+            tmp_path,
+            """
 response=
 for argument in "$@"; do
   case "$argument" in response=*) response=${argument#response=};; esac
 done
 printf '{"kernel_protocol_version":%s,"status":"ok","aseprite_version":"test","api_version":1}' 'PRIVATE_VERSION' > "$response"
 """.replace("PRIVATE_VERSION", private_version),
-    )
+        )
     run = spa("info", "--aseprite", str(binary), "--json")
     assert run.returncode == 1
     failure = json.loads(run.stdout)
@@ -266,9 +315,21 @@ def test_probe_preserves_absent_optional_runtime_capability(tmp_path: Path) -> N
 
 def test_adapter_passes_only_resources_declared_by_the_handler(tmp_path: Path) -> None:
     recorded = tmp_path / "arguments.txt"
-    binary = fake_aseprite(
-        tmp_path,
-        f"""
+    if os.name == "nt":
+        binary = windows_aseprite(
+            tmp_path,
+            (
+                "import os, sys, time\n"
+                "from pathlib import Path\n"
+                "arguments = dict(arg.split('=', 1) for arg in sys.argv[1:] if '=' in arg)\n"
+            )
+            + f"Path({str(recorded)!r}).write_text('\\n'.join(sys.argv[1:]) + '\\n', encoding='utf-8')\n"
+            + 'Path(arguments[\'response\']).write_text(\'{"kernel_protocol_version":1,"status":"ok","result":{}}\', encoding=\'utf-8\')',
+        )
+    else:
+        binary = fake_aseprite(
+            tmp_path,
+            f"""
 response=
 for argument in "$@"; do
   printf '%s\n' "$argument" >> {shlex.quote(str(recorded))}
@@ -276,7 +337,7 @@ for argument in "$@"; do
 done
 printf '%s' '{{"kernel_protocol_version":1,"status":"ok","result":{{}}}}' > "$response"
 """,
-    )
+        )
     observation = RuntimeObservation(
         selection_source="explicit",
         requested_path=str(binary),
@@ -370,9 +431,21 @@ def test_incompatible_runtime_fails_with_observed_requirements(
 
 
 def test_json_echo_rejects_boolean_number_swap(tmp_path: Path) -> None:
-    binary = fake_aseprite(
-        tmp_path,
-        """
+    if os.name == "nt":
+        binary = windows_aseprite(
+            tmp_path,
+            (
+                "import os, sys, time\n"
+                "from pathlib import Path\n"
+                "arguments = dict(arg.split('=', 1) for arg in sys.argv[1:] if '=' in arg)\n"
+                'Path(arguments[\'echo\']).write_text(\'{"kernel_protocol_version":1,"echo":{"nullable":null,"nested":[{"value":null},[true,null,{"flag":1}]]}}\', encoding=\'utf-8\')\n'
+                'Path(arguments[\'response\']).write_text(\'{"kernel_protocol_version":1,"status":"ok","aseprite_version":"test","api_version":1}\', encoding=\'utf-8\')'
+            ),
+        )
+    else:
+        binary = fake_aseprite(
+            tmp_path,
+            """
 response=
 echo=
 for argument in "$@"; do
@@ -384,7 +457,7 @@ done
 printf '{"kernel_protocol_version":1,"echo":{"nullable":null,"nested":[{"value":null},[true,null,{"flag":1}]]}}' > "$echo"
 printf '{"kernel_protocol_version":1,"status":"ok","aseprite_version":"test","api_version":1}' > "$response"
 """,
-    )
+        )
     run = spa("info", "--aseprite", str(binary), "--json")
     assert run.returncode == 1
     failure = json.loads(run.stdout)
@@ -393,9 +466,20 @@ printf '{"kernel_protocol_version":1,"status":"ok","aseprite_version":"test","ap
 
 
 def test_exit_zero_with_kernel_error_is_execution_failure(tmp_path: Path) -> None:
-    binary = fake_aseprite(
-        tmp_path,
-        """
+    if os.name == "nt":
+        binary = windows_aseprite(
+            tmp_path,
+            (
+                "import os, sys, time\n"
+                "from pathlib import Path\n"
+                "arguments = dict(arg.split('=', 1) for arg in sys.argv[1:] if '=' in arg)\n"
+                'Path(arguments[\'response\']).write_text(\'{"kernel_protocol_version":1,"status":"error","message":"semantic failure"}\', encoding=\'utf-8\')'
+            ),
+        )
+    else:
+        binary = fake_aseprite(
+            tmp_path,
+            """
 response=
 for argument in "$@"; do
   case "$argument" in response=*) response=${argument#response=};; esac
@@ -403,7 +487,7 @@ done
 printf '{"kernel_protocol_version":1,"status":"error","message":"semantic failure"}' > "$response"
 exit 0
 """,
-    )
+        )
     run = spa("info", "--aseprite", str(binary))
     assert run.returncode == 1
     failure = json.loads(run.stdout)
@@ -415,7 +499,19 @@ exit 0
 
 
 def test_runtime_uses_an_isolated_user_folder(tmp_path: Path) -> None:
-    binary = fake_aseprite(tmp_path, 'printf "%s" "$ASEPRITE_USER_FOLDER"\nexit 0\n')
+    if os.name == "nt":
+        binary = windows_aseprite(
+            tmp_path,
+            (
+                "import os, sys, time\n"
+                "from pathlib import Path\n"
+                "sys.stdout.write(os.environ['ASEPRITE_USER_FOLDER'])"
+            ),
+        )
+    else:
+        binary = fake_aseprite(
+            tmp_path, 'printf "%s" "$ASEPRITE_USER_FOLDER"\nexit 0\n'
+        )
     run = spa("info", "--aseprite", str(binary))
     failure = json.loads(run.stdout)
     assert failure["code"] == "kernel_response_missing"
@@ -425,24 +521,47 @@ def test_runtime_uses_an_isolated_user_folder(tmp_path: Path) -> None:
 
 
 def test_isolated_user_folder_is_writable_before_launch(tmp_path: Path) -> None:
-    binary = fake_aseprite(
-        tmp_path,
-        'printf "ready" > "$ASEPRITE_USER_FOLDER/startup-check" || exit 17\n',
-    )
+    if os.name == "nt":
+        binary = windows_aseprite(
+            tmp_path,
+            (
+                "import os, sys, time\n"
+                "from pathlib import Path\n"
+                "try:\n"
+                "    (Path(os.environ['ASEPRITE_USER_FOLDER']) / 'startup-check').write_text('ready', encoding='utf-8')\n"
+                "except OSError:\n"
+                "    sys.exit(17)"
+            ),
+        )
+    else:
+        binary = fake_aseprite(
+            tmp_path,
+            'printf "ready" > "$ASEPRITE_USER_FOLDER/startup-check" || exit 17\n',
+        )
     run = spa("info", "--aseprite", str(binary), "--json")
     failure = json.loads(run.stdout)
     assert failure["code"] == "kernel_response_missing"
     assert failure["diagnostics"]["exit_status"] == 0
 
 
-@pytest.mark.skipif(os.name == "nt", reason="POSIX shell fixture")
 def test_app_bundle_cli_launch_is_scoped_to_macos(tmp_path: Path) -> None:
-    binary = fake_aseprite(
-        tmp_path,
-        'printf "%s\\n" "$0"\n'
-        'if test -f "$(dirname "$0")/data/gui.xml"; then echo data-present; '
-        "else echo data-absent; fi\n",
-    )
+    if os.name == "nt":
+        binary = windows_aseprite(
+            tmp_path,
+            (
+                "import os, sys, time\n"
+                "from pathlib import Path\n"
+                "print(sys.argv[0])\n"
+                "print('data-present' if (Path(sys.argv[0]).parent / 'data/gui.xml').is_file() else 'data-absent')"
+            ),
+        )
+    else:
+        binary = fake_aseprite(
+            tmp_path,
+            'printf "%s\\n" "$0"\n'
+            'if test -f "$(dirname "$0")/data/gui.xml"; then echo data-present; '
+            "else echo data-absent; fi\n",
+        )
     run = spa("info", "--aseprite", str(binary), "--json")
     failure = json.loads(run.stdout)
     assert failure["code"] == "kernel_response_missing"
@@ -561,13 +680,25 @@ def test_unwritable_bundle_link_has_typed_start_failure(
 
 
 def test_timeout_and_output_bound_are_typed(tmp_path: Path) -> None:
-    timeout_binary = fake_aseprite(tmp_path / "timeout", "exec sleep 3\n")
+    if os.name == "nt":
+        timeout_binary = windows_aseprite(
+            tmp_path / "timeout",
+            "import os, sys, time\nfrom pathlib import Path\ntime.sleep(3)",
+        )
+    else:
+        timeout_binary = fake_aseprite(tmp_path / "timeout", "exec sleep 3\n")
     timed = spa("info", "--aseprite", str(timeout_binary), "--timeout-seconds", "0.1")
     assert timed.returncode == 1
     timed_failure = json.loads(timed.stdout)
     assert timed_failure["code"] == "process_timeout"
     assert timed_failure["details"]["executable"] == str(timeout_binary.resolve())
-    output_binary = fake_aseprite(tmp_path / "output", "yes x | head -c 70000\n")
+    if os.name == "nt":
+        output_binary = windows_aseprite(
+            tmp_path / "output",
+            "import os, sys, time\nfrom pathlib import Path\nos.write(1, b'x' * 70000)",
+        )
+    else:
+        output_binary = fake_aseprite(tmp_path / "output", "yes x | head -c 70000\n")
     overflow = spa("info", "--aseprite", str(output_binary))
     assert overflow.returncode == 1
     failure = json.loads(overflow.stdout)

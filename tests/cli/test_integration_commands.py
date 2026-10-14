@@ -248,7 +248,6 @@ def test_human_output_projects_the_same_version_result() -> None:
     )
 
 
-@pytest.mark.skipif(os.name == "nt", reason="POSIX shell fixture")
 def test_installed_manifest_exposes_access_failures_without_real_aseprite(
     tmp_path: Path,
 ) -> None:
