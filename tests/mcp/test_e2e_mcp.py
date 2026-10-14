@@ -27,6 +27,10 @@ def test_installed_mcp_workflow_matches_cli_and_delivers_png(tmp_path):
     assert manifest_run.returncode == 0, manifest_run.stdout
     manifest = json.loads(manifest_run.stdout)
     entries = {entry["operation"]: entry for entry in manifest["operations"]}
+    tools = {
+        name.removeprefix("spa ").replace(" ", "_").replace("-", "_"): entry
+        for name, entry in entries.items()
+    }
     source = tmp_path / "mcp.aseprite"
     destination = tmp_path / "mcp.png"
 
@@ -43,7 +47,8 @@ def test_installed_mcp_workflow_matches_cli_and_delivers_png(tmp_path):
             listed = await client.list_tools()
             assert len(listed.tools) == len(entries)
             for tool in listed.tools:
-                entry = entries[tool.description]
+                entry = tools[tool.name]
+                assert tool.description == entry["help_summary"]
                 assert tool.input_schema == entry["request_schema"]
                 assert tool.output_schema == entry["result_schema"]
 

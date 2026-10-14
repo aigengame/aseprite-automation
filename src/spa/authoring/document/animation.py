@@ -584,6 +584,7 @@ ANIMATION_OPERATIONS = (
             *LAYER_ADDRESS_FAILURE_CODES,
             "audit_limit_exceeded",
         ),
+        help_summary="Check an animation for required Cels, duration bounds, and overlaps.",
     ),
     OperationDescriptor(
         "animation compare",
@@ -593,6 +594,7 @@ ANIMATION_OPERATIONS = (
         lambda result: f"{result.differing_pixels} differing pixels",
         RENDER_REQUIREMENTS,
         RUNTIME_FAILURE_CODES,
+        help_summary="Compare the rendered pixels of two Frames.",
     ),
     OperationDescriptor(
         "animation preview",
@@ -604,5 +606,6 @@ ANIMATION_OPERATIONS = (
         (*RUNTIME_FAILURE_CODES, *(spec.code for spec in EXPORT_FAILURE_CODE_SPECS)),
         execution_kind="export",
         side_effects=("publishes one verified PNG Preview Artifact",),
+        help_summary="Export a two-Frame comparison preview.",
     ),
 )

@@ -413,5 +413,6 @@ IMAGE_IMPORT_OPERATIONS = (
         ),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Import a compatible PNG into an empty Cel slot.",
     ),
 )

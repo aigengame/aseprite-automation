@@ -306,5 +306,6 @@ PALETTE_EXPORT_OPERATIONS = (
         ),
         execution_kind="export",
         side_effects=("publishes one verified Palette Artifact",),
+        help_summary="Export a Palette as GPL or Indexed PNG.",
     ),
 )

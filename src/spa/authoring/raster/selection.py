@@ -622,6 +622,7 @@ SELECTION_OPERATIONS = (
         lambda r: f"{r.pixel_count} selected pixels",
         SELECTION_REQUIREMENTS,
         SELECTION_FAILURE_CODES,
+        help_summary="Create a Selection mask from a geometric shape.",
     ),
     OperationDescriptor(
         "selection combine",
@@ -631,6 +632,7 @@ SELECTION_OPERATIONS = (
         lambda r: f"{r.pixel_count} selected pixels",
         SELECTION_REQUIREMENTS,
         SELECTION_FAILURE_CODES,
+        help_summary="Combine two Selection masks with an explicit set operation.",
     ),
     OperationDescriptor(
         "selection invert",
@@ -640,6 +642,7 @@ SELECTION_OPERATIONS = (
         lambda r: f"{r.pixel_count} selected pixels",
         SELECTION_REQUIREMENTS,
         SELECTION_FAILURE_CODES,
+        help_summary="Invert a Selection within an explicit Canvas.",
     ),
     OperationDescriptor(
         "selection grow",
@@ -649,6 +652,7 @@ SELECTION_OPERATIONS = (
         lambda r: f"{r.pixel_count} selected pixels",
         SELECTION_REQUIREMENTS,
         SELECTION_FAILURE_CODES,
+        help_summary="Expand a Selection mask by a chosen radius and shape.",
     ),
     OperationDescriptor(
         "selection shrink",
@@ -658,6 +662,7 @@ SELECTION_OPERATIONS = (
         lambda r: f"{r.pixel_count} selected pixels",
         SELECTION_REQUIREMENTS,
         SELECTION_FAILURE_CODES,
+        help_summary="Contract a Selection mask by a chosen radius and shape.",
     ),
     OperationDescriptor(
         "selection transform",
@@ -667,6 +672,7 @@ SELECTION_OPERATIONS = (
         lambda r: f"{r.pixel_count} selected pixels",
         SELECTION_REQUIREMENTS,
         SELECTION_FAILURE_CODES,
+        help_summary="Transform a Selection mask within an explicit Canvas.",
     ),
     OperationDescriptor(
         "selection validate",
@@ -676,6 +682,7 @@ SELECTION_OPERATIONS = (
         lambda r: "valid Selection" if r.valid else f"{len(r.findings)} Findings",
         SELECTION_REQUIREMENTS,
         SELECTION_FAILURE_CODES,
+        help_summary="Check a Selection mask against Canvas bounds.",
     ),
     OperationDescriptor(
         "selection export",
@@ -687,6 +694,7 @@ SELECTION_OPERATIONS = (
         SELECTION_ARTIFACT_FAILURE_CODES,
         execution_kind="export",
         side_effects=("publishes one verified Selection Artifact",),
+        help_summary="Export a Selection mask as JSON.",
     ),
     OperationDescriptor(
         "selection preview",
@@ -698,5 +706,6 @@ SELECTION_OPERATIONS = (
         SELECTION_ARTIFACT_FAILURE_CODES,
         execution_kind="export",
         side_effects=("publishes one verified Selection Artifact",),
+        help_summary="Render a Selection mask on an explicit Canvas as a PNG preview.",
     ),
 )

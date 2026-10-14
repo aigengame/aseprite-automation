@@ -41,6 +41,22 @@ use `spa` directly. Both forms occur in the examples below. Replace executable
 and asset paths with your own paths; commands that edit existing assets require
 the described Layers, Frames, Cels, Palettes, or Tags to exist.
 
+### Command help
+
+Run `spa`, `spa --help`, or `spa help` to see the same command overview. These
+commands exit zero and do not need Aseprite. Navigate a group or a nested command
+with `help`; it shows the same text as that command's `--help`:
+
+```sh
+spa help sprite
+spa help sprite create
+spa help tileset tile add
+```
+
+Help describes each command's purpose. Use its `--schema` for complete request
+fields, results, and failures. The descriptions in CLI help, the Surface Manifest,
+and MCP tools come from the same Operation Descriptors.
+
 ### Runtime discovery
 
 ```sh
@@ -92,7 +108,9 @@ MCP extra and stdio client configuration, see [Use SPA through MCP](mcp.md).
 
 ## Read results and publish files
 
-Commands emit JSON by default. `--human` renders the same outcome for reading.
+Operations emit JSON by default. Put `--human` after the command for readable
+output, for example `spa info --human`. If both `--json` and `--human` are set,
+`--json` takes precedence. Help remains text.
 `--input-json -` reads one complete JSON request object from stdin; a literal
 `--input-json` value is available for short invocations.
 

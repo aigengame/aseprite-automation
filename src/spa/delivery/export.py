@@ -367,9 +367,7 @@ EXPORT_OPERATIONS = (
         side_effects=("publishes one verified PNG Image Artifact",),
         probe_before_execute=False,
         help_summary=(
-            "Export one Frame: select Canvas/Rectangle/Slice and visible/include Layers, "
-            "compose in preserve/rgb mode, then apply Profile, Palette preparation, "
-            "Color Mode, and transparency choices before verified PNG publication."
+            "Export one Frame or region to PNG with explicit composition and color choices."
         ),
     ),
 )

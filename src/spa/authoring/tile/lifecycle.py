@@ -724,6 +724,7 @@ TILE_LIFECYCLE_OPERATIONS = (
         TILE_MUTATION_FAILURE_CODES,
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Append a Tile with an explicit Key and complete Image.",
     ),
     OperationDescriptor(
         "tileset tile assign-key",
@@ -735,6 +736,7 @@ TILE_LIFECYCLE_OPERATIONS = (
         TILE_MUTATION_FAILURE_CODES,
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Assign a missing Key to an existing Tile.",
     ),
     OperationDescriptor(
         "tileset tile remove",
@@ -746,6 +748,7 @@ TILE_LIFECYCLE_OPERATIONS = (
         TILE_MUTATION_FAILURE_CODES,
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Remove a Tile with an explicit policy for existing placements.",
     ),
     OperationDescriptor(
         "tileset tile reorder",
@@ -757,5 +760,6 @@ TILE_LIFECYCLE_OPERATIONS = (
         TILE_MUTATION_FAILURE_CODES,
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Reorder Tiles by Key while preserving Tilemap references.",
     ),
 )

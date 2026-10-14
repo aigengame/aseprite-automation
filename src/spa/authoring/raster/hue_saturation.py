@@ -234,5 +234,6 @@ HUE_SATURATION_OPERATIONS = (
         ),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Adjust hue, saturation, lightness or value, and alpha.",
     ),
 )

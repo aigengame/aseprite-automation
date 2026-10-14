@@ -1,7 +1,7 @@
 """Shared Operation Descriptor mechanics at the application-contract boundary."""
 
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import get_args
 
 from pydantic import BaseModel
@@ -58,7 +58,7 @@ class OperationDescriptor[RequestT: BaseModel, ResultT: BaseModel]:
     side_effects: tuple[str, ...] = ()
     plan_eligible: bool = False
     probe_before_execute: bool = True
-    help_summary: str | None = None
+    help_summary: str = field(kw_only=True)
 
     def __post_init__(self) -> None:
         validate_operation_determinism(self.execution_kind, self.determinism)
@@ -102,6 +102,7 @@ class OperationDescriptor[RequestT: BaseModel, ResultT: BaseModel]:
         command = f"spa {self.name}"
         return OperationSchema(
             operation=command,
+            help_summary=self.help_summary,
             execution_kind=self.execution_kind,
             determinism=self.determinism,
             side_effects=list(self.side_effects),

@@ -471,6 +471,7 @@ TAG_OPERATIONS = (
         lambda result: f"{len(result.tags)} Tags",
         TAG_READ_REQUIREMENTS,
         RUNTIME_FAILURE_CODES,
+        help_summary="List animation Tags and their Frame ranges.",
     ),
     OperationDescriptor(
         "tag get",
@@ -480,6 +481,7 @@ TAG_OPERATIONS = (
         lambda result: f"Tag {result.tag.tag_index}: {result.tag.name}",
         TAG_READ_REQUIREMENTS,
         (*RUNTIME_FAILURE_CODES, "tag_missing", "tag_ambiguous"),
+        help_summary="Inspect one animation Tag.",
     ),
     OperationDescriptor(
         "tag add",
@@ -491,6 +493,7 @@ TAG_OPERATIONS = (
         (*RUNTIME_FAILURE_CODES, "tag_range_out_of_bounds", "target_commit_failed"),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Add an animation Tag over a Frame range.",
     ),
     OperationDescriptor(
         "tag set",
@@ -508,6 +511,7 @@ TAG_OPERATIONS = (
         ),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Change an animation Tag's range and playback properties.",
     ),
     OperationDescriptor(
         "tag remove",
@@ -524,5 +528,6 @@ TAG_OPERATIONS = (
         ),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Remove an animation Tag.",
     ),
 )

@@ -339,6 +339,7 @@ INVERT_OUTLINE_OPERATIONS = (
         ),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Invert selected pixel Channels or Palette indexes.",
     ),
     OperationDescriptor(
         "filter outline",
@@ -361,6 +362,7 @@ INVERT_OUTLINE_OPERATIONS = (
         ),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Add a native outline to selected Cel Images.",
     ),
 )
 

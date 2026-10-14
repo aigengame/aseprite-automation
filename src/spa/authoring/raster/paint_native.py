@@ -670,6 +670,7 @@ NATIVE_PAINT_OPERATIONS = (
         NATIVE_PAINT_FAILURE_CODES,
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Fill pixels from a seed using native color matching.",
     ),
     OperationDescriptor(
         "paint eraser",
@@ -685,6 +686,7 @@ NATIVE_PAINT_OPERATIONS = (
         NATIVE_PAINT_FAILURE_CODES,
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Erase pixels along a path with a native brush.",
     ),
     OperationDescriptor(
         "paint pencil",
@@ -700,6 +702,7 @@ NATIVE_PAINT_OPERATIONS = (
         NATIVE_PAINT_FAILURE_CODES,
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Draw a path with the native Pencil tool.",
     ),
     OperationDescriptor(
         "paint line",
@@ -715,6 +718,7 @@ NATIVE_PAINT_OPERATIONS = (
         NATIVE_PAINT_FAILURE_CODES,
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Draw a straight line with a native brush.",
     ),
     OperationDescriptor(
         "paint rectangle",
@@ -730,6 +734,7 @@ NATIVE_PAINT_OPERATIONS = (
         NATIVE_PAINT_FAILURE_CODES,
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Draw a filled or outlined rectangle.",
     ),
     OperationDescriptor(
         "paint ellipse",
@@ -745,6 +750,7 @@ NATIVE_PAINT_OPERATIONS = (
         NATIVE_PAINT_FAILURE_CODES,
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Draw a filled or outlined ellipse.",
     ),
     OperationDescriptor(
         "paint contour",
@@ -760,6 +766,7 @@ NATIVE_PAINT_OPERATIONS = (
         NATIVE_PAINT_FAILURE_CODES,
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Draw a filled contour from a path.",
     ),
     OperationDescriptor(
         "paint blur",
@@ -775,6 +782,7 @@ NATIVE_PAINT_OPERATIONS = (
         NATIVE_PAINT_FAILURE_CODES,
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Blur pixels along a brush path.",
     ),
 )
 

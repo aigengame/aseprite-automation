@@ -24,3 +24,22 @@ def test_advertised_cli_flags_match_the_actual_typer_commands() -> None:
         assert (
             actual == descriptor.schema(FAILURE_CODES).invocation_schema["x-cli-flags"]
         )
+
+
+def test_command_descriptions_project_the_descriptor_and_groups_have_introductions() -> (
+    None
+):
+    def unused_probe(_):
+        raise AssertionError("help must not probe the runtime")
+
+    root = get_command(build_app(operation_services(unused_probe), FAILURE_CODES))
+    assert root.help
+    for descriptor in OPERATIONS:
+        assert descriptor.help_summary
+        assert not descriptor.help_summary.startswith("Run spa ")
+        command = root
+        for part in descriptor.name.split():
+            assert command.help
+            command = command.commands[part]
+        assert command.help == descriptor.help_summary
+        assert descriptor.schema(FAILURE_CODES).help_summary == descriptor.help_summary

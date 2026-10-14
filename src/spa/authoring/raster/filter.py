@@ -785,5 +785,6 @@ FILTER_OPERATIONS = (
         ),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Adjust brightness and contrast on selected pixels or Palette entries.",
     ),
 )

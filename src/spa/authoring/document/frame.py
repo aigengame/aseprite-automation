@@ -693,6 +693,7 @@ FRAME_OPERATIONS = (
         FRAME_READ_REQUIREMENTS,
         RUNTIME_FAILURE_CODES,
         plan_eligible=True,
+        help_summary="List animation Frames and their durations.",
     ),
     OperationDescriptor(
         "frame get",
@@ -705,6 +706,7 @@ FRAME_OPERATIONS = (
         FRAME_READ_REQUIREMENTS,
         RUNTIME_FAILURE_CODES,
         plan_eligible=True,
+        help_summary="Read one Frame's number and duration.",
     ),
     OperationDescriptor(
         "frame add",
@@ -718,6 +720,7 @@ FRAME_OPERATIONS = (
         side_effects=("publishes the declared Target Sprite File",),
         plan_eligible=True,
         probe_before_execute=False,
+        help_summary="Insert a Frame with an explicit duration.",
     ),
     OperationDescriptor(
         "frame duplicate",
@@ -731,6 +734,7 @@ FRAME_OPERATIONS = (
         side_effects=("publishes the declared Target Sprite File",),
         plan_eligible=True,
         probe_before_execute=False,
+        help_summary="Duplicate a Frame with copied or linked Cels.",
     ),
     OperationDescriptor(
         "frame set",
@@ -743,6 +747,7 @@ FRAME_OPERATIONS = (
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
         probe_before_execute=False,
+        help_summary="Set a Frame's duration.",
     ),
     OperationDescriptor(
         "frame move",
@@ -755,6 +760,7 @@ FRAME_OPERATIONS = (
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
         probe_before_execute=False,
+        help_summary="Move a Frame to another timeline position.",
     ),
     OperationDescriptor(
         "frame remove",
@@ -767,5 +773,6 @@ FRAME_OPERATIONS = (
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
         probe_before_execute=False,
+        help_summary="Remove a Frame and its Cels.",
     ),
 )

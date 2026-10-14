@@ -164,5 +164,6 @@ REPLACE_COLOR_OPERATIONS = (
         ),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Replace matching pixel colors or Palette indexes within a tolerance.",
     ),
 )

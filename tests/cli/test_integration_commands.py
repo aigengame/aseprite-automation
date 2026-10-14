@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 from jsonschema import Draft202012Validator, validate
+from rich.text import Text
 
 from spa.application.failure_registry import FAILURE_CODES
 from spa.application.surface import ACCESS_FAILURE_CODES
@@ -98,18 +99,16 @@ def test_incomplete_or_unknown_nested_command_uses_access_failure(
     validate(failure, failure_schema(ACCESS_FAILURE_CODES, "spa", FAILURE_CODES))
 
 
-def test_bare_invocation_emits_only_registered_access_failure() -> None:
-    run = spa()
-    assert run.returncode == 2
+def test_bare_invocation_shows_root_help_without_a_runtime(tmp_path) -> None:
+    environment = {**os.environ, "SPA_ASEPRITE_EXECUTABLE": str(tmp_path / "missing")}
+    run = spa(env=environment)
+    assert run.returncode == 0
     assert run.stderr == ""
-    failure = json.loads(run.stdout)
-    validate(failure, failure_schema(ACCESS_FAILURE_CODES, "spa", FAILURE_CODES))
-    assert failure["operation"] == "spa"
-    assert failure["code"] == "invalid_request"
-
-    help_run = spa("--help")
+    help_run = spa("--help", env=environment)
     assert help_run.returncode == 0
     assert "Usage:" in help_run.stdout
+    assert run.stdout == help_run.stdout
+    assert "spa info --human" in " ".join(Text.from_ansi(run.stdout).plain.split())
 
 
 def test_human_output_projects_the_same_version_result() -> None:
@@ -120,6 +119,39 @@ def test_human_output_projects_the_same_version_result() -> None:
     assert (
         json.loads(spa("version", "--human", "--json").stdout)["spa_version"] == version
     )
+    assert (
+        json.loads(spa("version", "--json", "--human").stdout)["spa_version"] == version
+    )
+
+
+@pytest.mark.parametrize(
+    "command_path", [(), ("sprite",), ("sprite", "create"), ("tileset", "tile", "add")]
+)
+def test_help_navigation_matches_command_help_without_a_runtime(
+    command_path, tmp_path
+) -> None:
+    environment = {**os.environ, "SPA_ASEPRITE_EXECUTABLE": str(tmp_path / "missing")}
+    navigated = spa("help", *command_path, env=environment)
+    direct = spa(*command_path, "--help", env=environment)
+    assert navigated.returncode == direct.returncode == 0
+    assert navigated.stderr == direct.stderr == ""
+    assert navigated.stdout == direct.stdout
+    assert (
+        f"Usage: spa{' ' if command_path else ''}{' '.join(command_path)} "
+        in Text.from_ansi(direct.stdout).plain
+    )
+
+
+@pytest.mark.parametrize(
+    "command_path", [("unknown",), ("sprite", "unknown"), ("sprite", "create", "extra")]
+)
+def test_help_rejects_unknown_paths_through_access_failure(command_path) -> None:
+    run = spa("help", *command_path)
+    assert run.returncode == 2
+    assert run.stderr == ""
+    failure = json.loads(run.stdout)
+    validate(failure, failure_schema(ACCESS_FAILURE_CODES, "spa", FAILURE_CODES))
+    assert failure["code"] == "invalid_request"
 
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX shell fixture")
@@ -160,3 +192,8 @@ def test_installed_manifest_exposes_access_failures_without_real_aseprite(
     }
     assert "aseprite_sprite_create" in gaps["spa sprite create"]
     assert "aseprite_sprite_inspection" in gaps["spa sprite get"]
+    human = spa(
+        "info", "--human", env={**os.environ, "SPA_ASEPRITE_EXECUTABLE": str(binary)}
+    )
+    assert human.returncode == 0, human.stdout
+    assert human.stdout.startswith("Aseprite test (API 41, Lua 5.4)")

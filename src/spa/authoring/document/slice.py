@@ -491,6 +491,7 @@ SLICE_OPERATIONS = (
         lambda result: f"{len(result.slices)} Slices",
         SLICE_READ_REQUIREMENTS,
         RUNTIME_FAILURE_CODES,
+        help_summary="List Slices and their bounds.",
     ),
     OperationDescriptor(
         "slice get",
@@ -500,6 +501,7 @@ SLICE_OPERATIONS = (
         lambda result: f"Slice {result.slice.slice_index}: {result.slice.name}",
         SLICE_READ_REQUIREMENTS,
         (*RUNTIME_FAILURE_CODES, "slice_missing", "slice_ambiguous"),
+        help_summary="Inspect one Slice's bounds, center, and pivot.",
     ),
     OperationDescriptor(
         "slice add",
@@ -511,6 +513,7 @@ SLICE_OPERATIONS = (
         (*RUNTIME_FAILURE_CODES, "target_commit_failed"),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Add a Slice with explicit bounds and optional center and pivot.",
     ),
     OperationDescriptor(
         "slice set",
@@ -526,6 +529,7 @@ SLICE_OPERATIONS = (
         ),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Change a Slice's bounds or properties.",
     ),
     OperationDescriptor(
         "slice remove",
@@ -542,5 +546,6 @@ SLICE_OPERATIONS = (
         ),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Remove a Slice.",
     ),
 )

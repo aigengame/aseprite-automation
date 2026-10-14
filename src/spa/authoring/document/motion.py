@@ -341,5 +341,6 @@ MOTION_OPERATIONS = (
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
         plan_eligible=True,
+        help_summary="Apply position offsets and opacity across a Layer's Frames.",
     ),
 )

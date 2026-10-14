@@ -534,6 +534,7 @@ TILE_OPERATIONS = (
         lambda result: f"{len(result.tilesets)} Tilesets",
         TILE_REQUIREMENTS,
         RUNTIME_FAILURE_CODES,
+        help_summary="List a Sprite's Tilesets and their Grids.",
     ),
     OperationDescriptor(
         "tileset get",
@@ -543,6 +544,7 @@ TILE_OPERATIONS = (
         lambda result: f"{len(result.tiles)} Tiles",
         TILE_REQUIREMENTS,
         _FAILURES,
+        help_summary="Inspect a Tileset's Grid, Tiles, and selected properties.",
     ),
     OperationDescriptor(
         "tileset tile get",
@@ -553,6 +555,7 @@ TILE_OPERATIONS = (
         TILE_REQUIREMENTS,
         _FAILURES,
         side_effects=("optionally publishes a JSON Snapshot Artifact",),
+        help_summary="Read one Tile's Image and selected properties.",
     ),
     OperationDescriptor(
         "tileset validate",
@@ -562,6 +565,7 @@ TILE_OPERATIONS = (
         lambda result: f"{len(result.findings)} Findings",
         TILE_REQUIREMENTS,
         _FAILURES,
+        help_summary="Check a Tileset's identity, Tile Keys, and references.",
     ),
     OperationDescriptor(
         "tilemap list",
@@ -571,6 +575,7 @@ TILE_OPERATIONS = (
         lambda result: f"{len(result.cels)} existing Tilemap Cels",
         TILE_REQUIREMENTS,
         _FAILURES,
+        help_summary="List Tilemap Layers and their Tileset bindings.",
     ),
     OperationDescriptor(
         "tilemap get",
@@ -581,6 +586,7 @@ TILE_OPERATIONS = (
         TILE_REQUIREMENTS,
         _FAILURES,
         side_effects=("optionally publishes a JSON Snapshot Artifact",),
+        help_summary="Read Tile placements within a Cel's Tile Cell rectangle.",
     ),
     OperationDescriptor(
         "tilemap validate",
@@ -590,5 +596,6 @@ TILE_OPERATIONS = (
         lambda result: f"{len(result.findings)} Findings",
         TILE_REQUIREMENTS,
         _FAILURES,
+        help_summary="Check a Tilemap Cel's Tile references and placements.",
     ),
 )

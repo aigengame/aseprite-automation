@@ -363,5 +363,6 @@ TILESET_EXPORT_OPERATIONS = (
         ),
         execution_kind="export",
         side_effects=("publishes a verified Tileset PNG and normalized map JSON pair",),
+        help_summary="Export a Tileset atlas and Tilemap region as PNG and JSON.",
     ),
 )
