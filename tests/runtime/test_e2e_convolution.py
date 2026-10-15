@@ -35,7 +35,7 @@ def test_installed_convolution_reports_sources_defaults_and_native_evidence():
         p.command_completed and p.before_rgba == [10, 20, 30, 40] for p in probes
     )
     assert all(p.after_rgba == p.reopened_rgba for p in probes)
-    # Evidence identity 1.3.18.5: both flags ignored, unknown resource silently no-op.
+    # Baseline Aseprite ignores both flags; an unknown resource is a silent no-op.
     assert probes[0].after_rgba == probes[1].after_rgba == [18, 28, 38, 48]
     assert probes[2].after_rgba == probes[2].before_rgba
     services = operation_services(lambda _: observation)
@@ -54,4 +54,4 @@ def test_installed_convolution_reports_sources_defaults_and_native_evidence():
         if gap.capability == "spa filter convolution-matrix"
     )
     assert gap.aseprite_version == observation.aseprite_version
-    assert "changed unrequested components" in gap.reason
+    assert gap.reason == "SPA does not provide Convolution Matrix filtering."

@@ -873,9 +873,10 @@ bounded declaration metadata at the prepared invocation's native resource paths.
 It never computes coefficients or decides that a declaration is callable. The
 Kernel records direct requested/observed Channel probes. The internal
 `RuntimeObservation` carries declarations and probes; public `RuntimeFacts` omit
-these raw payloads. Raster Authoring owns the Convolution Gap reason and uses
-observations to assess the current execution boundary. The installed Surface Manifest
-reports the applicable Capability Gap. No descriptor, custom convolution engine, or general resource registry is added.
+these raw payloads. Raster Authoring owns the Convolution Gap reason. The installed
+Surface Manifest reports that SPA does not provide this capability; internal
+observations remain available for maintenance. No descriptor, custom convolution
+engine, or general resource registry is added.
 
 Native text rasterization is also discovery-only. Raster Authoring owns its public
 Capability Gap reason; `surface.py` projects it through `info` and `schema` without

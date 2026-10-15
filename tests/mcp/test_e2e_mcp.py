@@ -14,6 +14,7 @@ from mcp import Client, StdioServerParameters
 from PIL import Image
 
 from tests.export.support import export_image_request
+from tests.image.support import image_fixture
 from tests.support import spa
 
 pytestmark = pytest.mark.e2e
@@ -124,19 +125,8 @@ def test_installed_mcp_workflow_matches_cli_and_delivers_png(tmp_path):
                     for y in range(2)
                     for x in range(3)
                 ] == [(17, 34, 51, 255)] * 6
-            grayscale = tmp_path / "grayscale.aseprite"
+            grayscale = image_fixture(tmp_path, "grayscale")
             refused_target = tmp_path / "refused.aseprite"
-            await call(
-                "sprite_create",
-                {
-                    "target_sprite_file": str(grayscale),
-                    "width": 1,
-                    "height": 1,
-                    "color_mode": "grayscale",
-                    "overwrite": False,
-                    "initial_layer": {"kind": "transparent"},
-                },
-            )
             original = grayscale.read_bytes()
             refused = await client.call_tool(
                 "paint_composite",

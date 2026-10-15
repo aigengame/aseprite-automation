@@ -288,6 +288,9 @@ OUTLINE_HANDLER = PackagedHandler(
     "raster/filter/outline_run.lua",
     (*FILTER_SHARED_RESOURCES, RASTER_COLOR_RESOURCE, OUTLINE_RESOURCE),
 )
+_INDEXED_COMPONENT_OUTLINE_REASON = (
+    "Indexed component Outline is unavailable. Use explicit Index Channels instead."
+)
 
 
 def invert_color(
@@ -310,7 +313,10 @@ def outline(request: OutlineRequest, services: OperationServices) -> OutlineResu
         request,
         services,
         OUTLINE_HANDLER,
-        lambda _: request.parameters(),
+        lambda _: {
+            **request.parameters(),
+            "indexed_component_reason": _INDEXED_COMPONENT_OUTLINE_REASON,
+        },
         OutlineEvidence,
         lambda evidence: evidence.matches_outline(request),
     )
@@ -379,6 +385,6 @@ def invert_outline_capability_gaps(aseprite_version: str) -> list[CapabilityGap]
         CapabilityGap(
             capability="spa filter outline: Indexed component Channels",
             aseprite_version=aseprite_version,
-            reason="Indexed component Outline is unavailable. Use explicit Index Channels instead.",
+            reason=_INDEXED_COMPONENT_OUTLINE_REASON,
         )
     ]

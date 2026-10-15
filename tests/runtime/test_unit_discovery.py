@@ -84,7 +84,7 @@ def test_capability_guidance_uses_reason_in_both_discovery_contracts():
             assert gap["aseprite_version"] == observation.aseprite_version
 
 
-def test_public_runtime_omits_probe_payloads_without_losing_their_gap_decisions():
+def test_public_runtime_omits_probe_payloads_while_retaining_internal_observations():
     observation = replace(
         runtime_observation("aseprite_runtime_introspection"),
         convolution=ConvolutionDiscovery(
@@ -118,13 +118,15 @@ def test_public_runtime_omits_probe_payloads_without_losing_their_gap_decisions(
     assert public["verified_capabilities"] == list(observation.verified_capabilities)
     assert public["verified_prerequisites"] == list(observation.verified_prerequisites)
     assert [item.operation for item in schema.operations] == info.supported_capabilities
+    assert observation.convolution is not None
+    assert observation.convolution.probes[0].after_rgba == [18, 28, 38, 48]
     for result in (info, schema):
         gap = next(
             gap
             for gap in result.capability_gaps
             if gap.capability == "spa filter convolution-matrix"
         )
-        assert "selected runtime changed unrequested components" in gap.reason
+        assert gap.reason == "SPA does not provide Convolution Matrix filtering."
         assert gap.aseprite_version == observation.aseprite_version
         assert any(
             gap.capability == "spa sprite create"

@@ -258,9 +258,7 @@ def _surface(runtime: RuntimeObservation) -> tuple[list[str], list[CapabilityGap
         if gap.capability not in registered
     )
     gaps.extend(palette_lifecycle_gaps(runtime.aseprite_version))
-    gaps.append(
-        convolution_capability_gap(runtime.aseprite_version, runtime.convolution)
-    )
+    gaps.append(convolution_capability_gap(runtime.aseprite_version))
     gaps.append(text_capability_gap(runtime.aseprite_version))
     gaps.extend(
         filter_capability_gaps(

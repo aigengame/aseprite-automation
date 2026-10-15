@@ -430,6 +430,14 @@ def test_indexed_outline_components_gap_before_mutation(tmp_path, runtime):
     assert result["message"] == result["details"]["reason"]
     assert "Use explicit Index Channels" in result["message"]
     assert "Baseline" not in result["message"]
+    code, info = run("info")
+    assert code == 0, info
+    gap = next(
+        gap
+        for gap in info["capability_gaps"]
+        if gap["capability"] == "spa filter outline: Indexed component Channels"
+    )
+    assert result["message"] == gap["reason"]
     assert source.read_bytes() == before and not target.exists()
 
 
