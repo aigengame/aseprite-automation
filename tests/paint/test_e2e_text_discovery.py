@@ -31,9 +31,9 @@ def test_native_text_gap_is_visible_without_a_callable_operation() -> None:
     gap = gaps[0]
     assert gap in schema.capability_gaps
     assert gap.aseprite_version == info.runtime.aseprite_version
-    for fact in ("macOS", "1.3.18.5-dev", "PasteText", "fillText", "save/reopen"):
-        assert fact in gap.evidence
-    assert "not retested" in gap.evidence
+    assert "SPA does not provide text rasterization" in gap.reason
+    assert "Import prepared raster text" in gap.reason
+    assert "evidence" not in gap.model_dump()
     assert not any("text" in name.split() for name in info.supported_capabilities)
     assert not any("text" in item.operation.split() for item in schema.operations)
     for command in (("text",), ("paint", "text")):

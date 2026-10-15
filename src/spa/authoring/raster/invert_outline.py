@@ -372,13 +372,13 @@ def invert_outline_capability_gaps(aseprite_version: str) -> list[CapabilityGap]
         CapabilityGap(
             capability=f"spa filter {operation}: Tilemap pixels",
             aseprite_version=aseprite_version,
-            evidence="Resolved Tilemap pixel targets are refused before mutation; ordinary Image Layers remain supported.",
+            reason="Resolved Tilemap pixel targets are refused before mutation; ordinary Image Layers remain supported.",
         )
         for operation in ("invert-color", "outline")
     ] + [
         CapabilityGap(
             capability="spa filter outline: Indexed component Channels",
             aseprite_version=aseprite_version,
-            evidence="On tested baseline Aseprite 1.3.18.5, Indexed component Outline produced no outline while stored Index Channels produced a four-pixel cross. Component execution is refused before mutation; use the explicit Index branch.",
+            reason="Indexed component Outline is unavailable. Use explicit Index Channels instead.",
         )
     ]

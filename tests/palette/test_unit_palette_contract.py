@@ -66,7 +66,7 @@ def test_entry_edit_capability_is_required_only_for_set() -> None:
     gap = next(
         gap for gap in result.capability_gaps if gap.capability == "spa palette set"
     )
-    assert "aseprite_palette_entries" in gap.evidence
+    assert "aseprite_palette_entries" in gap.reason
 
 
 @pytest.mark.parametrize(

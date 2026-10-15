@@ -655,8 +655,8 @@ def filter_capability_gaps(
             CapabilityGap(
                 capability="spa filter brightness-contrast: Manual Tilemap pixels",
                 aseprite_version=aseprite_version,
-                evidence=(
-                    "The selected runtime did not pass the Manual Tilemap Filter probe. "
+                reason=(
+                    "Manual Tilemap filtering is unavailable in the selected runtime. "
                     "Requests with actual Tilemap pixel targets are refused before mutation. "
                     "Ordinary Image and Indexed Palette-only application remain independent."
                 ),
@@ -667,7 +667,7 @@ def filter_capability_gaps(
             CapabilityGap(
                 capability="spa filter hue-saturation: Tilemap pixels",
                 aseprite_version=aseprite_version,
-                evidence=(
+                reason=(
                     "Hue/Saturation currently rejects resolved Tilemap pixel targets. "
                     "Ordinary Image and Indexed Palette-only applications remain supported."
                 ),
@@ -680,7 +680,7 @@ def filter_capability_gaps(
             CapabilityGap(
                 capability=f"spa filter {name}: Tilemap pixels",
                 aseprite_version=aseprite_version,
-                evidence=(
+                reason=(
                     "This Filter currently rejects resolved Tilemap pixel targets before mutation. "
                     "Ordinary Image Layers in documents with unrelated Tilemaps remain supported."
                 ),

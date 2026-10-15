@@ -225,7 +225,9 @@ def test_composite_refuses_grayscale_modes_with_different_native_meaning(
     gap = result["details"]["gap"]
     assert blend_mode in gap["capability"]
     assert gap["aseprite_version"]
-    assert gap["evidence"]
+    assert result["message"] == gap["reason"]
+    assert "evidence" not in gap
+    assert "unavailable" in gap["reason"]
     validate(
         result,
         json.loads(spa("paint", "composite", "--schema").stdout)["failure_schema"],

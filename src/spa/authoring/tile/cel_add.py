@@ -46,7 +46,7 @@ def tilemap_creation_gaps(
         CapabilityGap(
             capability="spa cel add: Tilemap Cel creation",
             aseprite_version=version,
-            evidence="The selected runtime did not pass empty Tilemap Cel save/reopen. "
+            reason="Tilemap Cel creation is unavailable in the selected runtime. "
             "Requests with tilemap_size require this capability; ordinary Cel creation is independent.",
         )
     ]

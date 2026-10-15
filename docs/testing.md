@@ -76,7 +76,7 @@ effect pixels across four Tiled Modes, three opacities, both algorithms, and all
 three Color Modes, including offset linked Cels and Frame-varying Palettes. A
 same-process fixture verifies ambient state and file preservation after success,
 bounds rejection, an injected failure after native invocation, and failed reopen.
-Discovery tests require the version-specific Gradient Capability Gap and callable
+Discovery tests require the caller-oriented Gradient Capability Gap reason and callable
 Contour/Blur without invoking Gradient's unsafe headless Context Bar path. This
 delivery combination follows issue #28; it does not establish a callable Gradient.
 
@@ -316,13 +316,11 @@ one native invocation and Target Commit, and rejected incomplete/contradictory
 evidence. [Motion measurements](evidence/issue-104-motion-performance.md) retain
 the real persisted verification path; visual continuity remains a human check.
 
-The initial evidence profiles use local macOS Aseprite 1.3.18.5-dev and the pinned
-Linux CI Aseprite 1.3.18.5 source release. Both expose `_VERSION == "Lua 5.4"` and
-`app.apiVersion == 41`; the macOS build's vendored Lua 5.4.6 records source provenance,
-not a patch-level compatibility rule. The E2E assertion pins this evidence family while
-the runtime compatibility decision continues to use the Descriptor's observed language
-and API requirements.
-This pin verifies the current baseline and selected host execution profiles; it does
+The Baseline Aseprite definition is `SPA_BASELINE_ASEPRITE_VESION` in
+`src/spa/__init__.py`. The selected macOS and Linux execution profiles expose
+`_VERSION == "Lua 5.4"` and `app.apiVersion == 41`. The E2E assertion checks the
+Baseline Aseprite family while runtime admission uses the Descriptor's observed
+language and API requirements. This check does
 not certify each later Aseprite release. Do not require an additional version test
 solely because another native release exists. An observed defect or newly accepted
 requirement warrants a targeted check of the affected Operation.
@@ -844,7 +842,7 @@ prove rollback after native mutation and restoration of the previous editor site
 `tests/runtime/test_unit_convolution.py` checks bounded declaration scanning,
 lookup paths, duplicates, defaults and incomplete input reporting.
 `tests/runtime/test_e2e_convolution.py` checks internal native observations and the
-concise Gap projected through info/schema. Raw probe pixels are not public
+feature-owned Gap reason projected through info/schema. Raw probe pixels are not public
 discovery fields. No Convolution callable capability is
 inferred from a resource name or a small successful probe. The evidence record is
 [issue-39-native-filters.md](evidence/issue-39-native-filters.md). Batch/native-command

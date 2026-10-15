@@ -223,7 +223,7 @@ def _surface(runtime: RuntimeObservation) -> tuple[list[str], list[CapabilityGap
             CapabilityGap(
                 capability=command,
                 aseprite_version=runtime.aseprite_version,
-                evidence="; ".join(evidence),
+                reason="; ".join(evidence),
             )
         )
     if "spa palette export" in supported:
@@ -283,7 +283,7 @@ def _surface(runtime: RuntimeObservation) -> tuple[list[str], list[CapabilityGap
             CapabilityGap(
                 capability="spa layer add: tilemap",
                 aseprite_version=runtime.aseprite_version,
-                evidence="The selected runtime did not verify native Tilemap Layer creation, shared Tileset binding, temporary Tileset removal, and save/reopen persistence.",
+                reason="Tilemap Layer creation is unavailable in the selected runtime. Ordinary Image Layer creation remains supported.",
             )
         )
     if "spa cel add" in supported:
@@ -352,7 +352,7 @@ def _render_info(result: InfoResult) -> str:
             f"Resources: {'complete' if runtime.resource_complete else 'incomplete'} at {runtime.resource_path}",
             f"Callable Operations: {len(result.supported_capabilities)}; use spa schema --human for descriptions.",
             f"Capability Gaps: {len(result.capability_gaps)}",
-            *(f"- {gap.capability}: {gap.evidence}" for gap in result.capability_gaps),
+            *(f"- {gap.capability}: {gap.reason}" for gap in result.capability_gaps),
         ]
     )
 

@@ -166,8 +166,7 @@ Aseprite's red, green, blue, and Alpha Channel pixel representation.
 
 **Grayscale**
 Aseprite's gray plus Alpha Channel pixel representation. `ColorMode.GRAY` is the
-canonical Lua enum member; Aseprite v1.3.18.5 also exposes the deprecated
-`ColorMode.GRAYSCALE` alias.
+canonical Lua enum member. SPA uses this canonical spelling.
 
 **Indexed**
 Aseprite's Palette Index pixel representation. Indexed transparency uses Palette data
@@ -541,17 +540,15 @@ the caller's script repeatability or randomness source. All other Execution Kind
 prohibit that value.
 
 **Capability Gap**
-A structured, versioned, evidence-backed diagnostic that SPA cannot faithfully
-expose an assessed capability under its declared support boundary. The selected
-Aseprite version identifies the installation. Evidence for a bounded native-behavior
-refusal identifies the tested baseline; evidence from a selected-runtime observation
-describes that installation's probe or rejection. Baseline evidence does not claim
-every behavior was retested on that installation. A delivered Operation's bounded
-refusal can follow Aseprite's native compatibility policy. The assessed capability can
-also be unimplemented and have no Descriptor; its Gap projection can be limited to the
-recorded investigation scope. Lack of investigation alone does not establish a Gap.
-Absence of a Gap proves neither support nor native behavior on another release. A Gap
-can be reopened by new evidence.
+A structured diagnostic that identifies an assessed capability which SPA does not
+provide or a request restriction within its current support boundary. Its public
+`reason` states the unavailable behavior and, where useful, an existing alternative.
+The owning feature supplies that reason for discovery and applicable failures.
+The selected Aseprite version identifies the installation; it does not certify native
+behavior on other releases. Internal observations and tests support admission and
+maintenance decisions without becoming public research narrative. A Gap does not
+register an Operation or promise future delivery. Lack of investigation alone does
+not establish a Gap, and absence of a Gap does not establish support.
 
 #### Mutation and validation
 

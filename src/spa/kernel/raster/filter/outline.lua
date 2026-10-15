@@ -37,7 +37,7 @@ end
 function module.apply(sprite, payload, uuids)
   if payload.color_mode == "indexed" and payload.channels.kind == "components" then
     return support.reject(
-      "Indexed component Outline is unavailable (native baseline 1.3.18.5)",
+      "Indexed component Outline is unavailable. Use explicit Index Channels instead.",
       true
     )
   end

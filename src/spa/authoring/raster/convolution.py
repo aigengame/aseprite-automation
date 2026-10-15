@@ -11,10 +11,7 @@ CONVOLUTION_PROBE_RESOURCE = PackagedResource(
 def convolution_capability_gap(
     version: str, discovery: ConvolutionDiscovery | None
 ) -> CapabilityGap:
-    evidence = (
-        "Not callable: native Convolution Channel support has not passed acceptance. "
-        "Resource defaults do not establish support."
-    )
+    reason = "SPA does not provide Convolution Matrix filtering."
     if discovery:
         for probe in discovery.probes:
             if probe.resource_name != "brightness" or not probe.command_completed:
@@ -27,13 +24,10 @@ def convolution_capability_gap(
                 )
                 if index != selected
             ):
-                evidence += (
-                    " The selected runtime changed unrequested components in the "
-                    f"{probe.requested_channel} probe."
-                )
+                reason += " The selected runtime changed unrequested components."
                 break
     return CapabilityGap(
         capability="spa filter convolution-matrix",
         aseprite_version=version,
-        evidence=evidence,
+        reason=reason,
     )

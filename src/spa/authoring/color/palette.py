@@ -90,16 +90,14 @@ PALETTE_PROBE_RESOURCES = (
 
 
 def palette_lifecycle_gaps(aseprite_version: str) -> list[CapabilityGap]:
-    """Report bounded native lifecycle evidence without registering unsupported commands."""
-    if aseprite_version.partition("-")[0] != "1.3.18.5":
-        return []
+    """Describe unavailable Palette lifecycle operations without registering them."""
     return [
         CapabilityGap(
             capability=f"spa palette {operation}",
             aseprite_version=aseprite_version,
-            evidence=(
-                "Not callable. Baseline Aseprite 1.3.18.5 has no public Lua path to "
-                "add/remove Palette Changes; entry edits target existing changes."
+            reason=(
+                "SPA does not provide Palette Change add/remove operations; "
+                "entry edits target existing changes."
             ),
         )
         for operation in ("add", "remove")

@@ -54,4 +54,4 @@ def test_installed_convolution_reports_sources_defaults_and_native_evidence():
         if gap.capability == "spa filter convolution-matrix"
     )
     assert gap.aseprite_version == observation.aseprite_version
-    assert "changed unrequested components" in gap.evidence
+    assert "changed unrequested components" in gap.reason

@@ -427,6 +427,9 @@ def test_indexed_outline_components_gap_before_mutation(tmp_path, runtime):
         ),
     )
     assert code != 0 and result["code"] == "filter_unsupported_document", result
+    assert result["message"] == result["details"]["reason"]
+    assert "Use explicit Index Channels" in result["message"]
+    assert "Baseline" not in result["message"]
     assert source.read_bytes() == before and not target.exists()
 
 

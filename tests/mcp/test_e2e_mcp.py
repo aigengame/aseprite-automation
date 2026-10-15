@@ -124,6 +124,62 @@ def test_installed_mcp_workflow_matches_cli_and_delivers_png(tmp_path):
                     for y in range(2)
                     for x in range(3)
                 ] == [(17, 34, 51, 255)] * 6
+            grayscale = tmp_path / "grayscale.aseprite"
+            refused_target = tmp_path / "refused.aseprite"
+            await call(
+                "sprite_create",
+                {
+                    "target_sprite_file": str(grayscale),
+                    "width": 1,
+                    "height": 1,
+                    "color_mode": "grayscale",
+                    "overwrite": False,
+                    "initial_layer": {"kind": "transparent"},
+                },
+            )
+            original = grayscale.read_bytes()
+            refused = await client.call_tool(
+                "paint_composite",
+                {
+                    "source_sprite_file": str(grayscale),
+                    "target_sprite_file": str(refused_target),
+                    "in_place": False,
+                    "overwrite": False,
+                    "target": {"layer": {"layer_path": [1]}, "frame_number": 1},
+                    "input": {
+                        "kind": "inline",
+                        "snapshot": {
+                            "coordinate_space": "image-pixel",
+                            "color_mode": "grayscale",
+                            "rectangle": {"x": 0, "y": 0, "width": 1, "height": 1},
+                            "rows": [
+                                [
+                                    {
+                                        "length": 1,
+                                        "color": {
+                                            "kind": "grayscale",
+                                            "gray": 90,
+                                            "alpha": 255,
+                                        },
+                                    }
+                                ]
+                            ],
+                        },
+                    },
+                    "position": {"x": 0, "y": 0},
+                    "opacity": 255,
+                    "blend_mode": "hue",
+                },
+            )
+            assert refused.is_error and refused.structured_content is None
+            failure = json.loads(refused.content[0].text)
+            validate(failure, entries["spa paint composite"]["failure_schema"])
+            assert failure["code"] == "paint_composite_unsupported"
+            gap = failure["details"]["gap"]
+            assert gap in manifest["capability_gaps"]
+            assert failure["message"] == gap["reason"]
+            assert "evidence" not in gap
+            assert grayscale.read_bytes() == original and not refused_target.exists()
             bad = await client.call_tool("version", {"unexpected": True})
             assert bad.is_error and bad.structured_content is None
             validate(

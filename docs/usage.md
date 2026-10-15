@@ -79,7 +79,7 @@ uv run spa info
 ```
 
 `spa info` reports the selected Aseprite version, `app.apiVersion`, embedded Lua
-language version, fixed scripting, file I/O, and JSON probe prerequisites, and
+language version, scripting, file I/O, and JSON prerequisites, and
 independently observed runtime capabilities. A prerequisite failure uses the typed
 process or Kernel failure channel. A Lua-language or API-version mismatch, or a
 capability required by the selected Operation but absent from the observation, returns
@@ -87,13 +87,14 @@ capability required by the selected Operation but absent from the observation, r
 
 `runtime.canonical_path` identifies the resolved executable;
 `runtime.selection_source` reports `explicit`, `environment`, or `path` selection.
-Resource status and Capability Gaps explain setup and current restrictions without
-dumping raw probe pixels. Use `spa info --human` for readable setup and Gap details;
+Resource status and Capability Gaps explain setup and current restrictions.
+Use `spa info --human` for readable setup and Gap details;
 use `spa schema --human` for the callable command catalog with purpose descriptions.
 
-Aseprite 1.3.18.5 is the current real-integration baseline, not a version allowlist.
-Other releases follow Aseprite's native compatibility policy. SPA makes no additional
-cross-version guarantee and runs no release-by-release compatibility test matrix.
+Capability Gaps use `reason` to explain current availability, request restrictions,
+and useful alternatives. A refusal based on a Gap uses the same reason in its
+message and `details.gap.reason`. Use the selected runtime facts and each Operation's
+requirements to check whether that Operation is available.
 
 `spa schema` also includes `access_failure_schema` for CLI failures before an
 operation is selected. Each operation entry has its applicable `failure_schema`.
@@ -111,11 +112,8 @@ schema, including its local `$defs`, with a Draft 2020-12 validator.
 
 For CLI use of a binary inside a macOS `.app`, SPA prepares a temporary launch
 path and links the installed `data` resources without changing the app or
-leaving the caller's sandbox. The restricted macOS profile and its opt-in
-real-Aseprite test are specified in
-[issue #61](https://github.com/aigengame/aseprite-automation/issues/61). Linux CI
-does not certify that macOS profile, and other restricted environments remain
-unverified.
+leaving the caller's sandbox. Other restricted environments may need separate
+setup verification.
 
 For native verification and platform evidence, see [Testing](testing.md).
 For agent guidance, see the [SPA Skill](../skills/spa/SKILL.md). For the optional
@@ -374,7 +372,7 @@ starts with packed Empty Tile 0 in every Cell, without transform flags, even whe
 the Sprite's Transparent Color Index is nonzero. Position `(0, 0)`, opacity 255,
 and z-index 0 match ordinary creation. The Tilemap may extend beyond the Canvas.
 
-`tilemap_creation` reports #41 Tilemap/Tileset facts (Cell size, binding, Grid,
+`tilemap_creation` reports Tilemap/Tileset facts (Cell size, binding, Grid,
 and Canvas coverage) and verified empty Cells; shared `cel.image_bounds` remains
 `null`. Use `tilemap get` to observe the persisted Cells. Standalone and Plan use
 the same construction path. Each add Step verifies its initial state; later valid
@@ -527,13 +525,11 @@ requires the complete Image bounds and the same Color Mode, ignores editor Selec
 and preserves Cel geometry and native sharing. It supports regular Transparent,
 Background, and Reference Images; Background colors must remain opaque. The native
 file is saved and reopened before Target Commit, and any preservation failure blocks
-publication. Under [#20's current scope](https://github.com/aigengame/aseprite-automation/issues/20),
-replacement excludes Source documents with any Group whose opacity is not `255` or
+publication. Replacement currently excludes Source documents with any Group whose opacity is not `255` or
 Blend Mode is not `NORMAL`. This includes hidden Groups and Groups outside the target
-Cel's ancestry, even for an unchanged Snapshot. Aseprite 1.3.18.5 batch saving loses
-these properties; replacement refuses publication and leaves Source and any existing
-Target unchanged. Image Get remains available under its own contract.
-[#117](https://github.com/aigengame/aseprite-automation/issues/117) tracks native save support.
+Cel's ancestry, even for an unchanged Snapshot. Replacement refuses publication
+and leaves Source and any existing Target unchanged. Image Get remains available
+under its own contract.
 
 ### Crop and resize the Image Canvas
 
@@ -672,19 +668,16 @@ Cels. The result reports applied/skipped coverage, changed stored pixels, digest
 and every affected Cel after save/reopen verification. Pixels included by coverage
 can be unchanged; native alpha-zero RGB values are not normalized by SPA.
 
-The verified Aseprite 1.3.18.5 baseline supports all 19 published modes for RGB.
-Grayscale excludes `hue`, `saturation`, `color`, `luminosity`, and `addition`:
-those native combinations select Normal or Exclusion instead. Indexed accepts only
+SPA supports all 19 published Composite modes for RGB.
+Grayscale excludes `hue`, `saturation`, `color`, `luminosity`, and `addition`.
+Use another published mode for Grayscale. Indexed accepts only
 `normal` at `opacity: 255`, using native index overlay with the Sprite's Transparent
 Color Index. Supply `palette_frame_number` equal to `target.frame_number`; the result
-reports that Frame's Effective Palette. An isolated temporary Sprite provides the
-correct native Palette basis. Source indexes and the mask must exist in that Palette;
-output indexes must exist in every affected Cel Frame's Palette. Other Indexed
+reports that Frame's Effective Palette. Source indexes and the mask must exist in
+that Palette; output indexes must exist in every affected Cel Frame's Palette. Other Indexed
 combinations return typed Capability Gaps. `spa info` and `spa schema` expose these
-gaps and omit the Indexed capability if its native probe fails. Composite is a
-standalone mutation; it is not an Operation Plan Step.
-These exclusions are the delivered SPA support boundary based on the 1.3.18.5
-evidence, not a claim of separate mode-matrix tests on every Aseprite release.
+gaps and report whether Indexed Composite is available on the selected runtime.
+Composite is a standalone mutation; it is not an Operation Plan Step.
 
 ```sh
 uv run spa paint composite --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"composited.aseprite","in_place":false,"overwrite":false,"target":{"layer":{"layer_path":[1]},"frame_number":1},"input":{"kind":"artifact","path":"snapshot.json"},"position":{"x":0,"y":0},"opacity":127,"blend_mode":"normal"}'
@@ -754,9 +747,7 @@ mapped through the target Cel position and must be inside that Canvas. Image
 clipping and optional Selection then filter the matched pixels for writing.
 Selection does not limit flood traversal: if only the two endpoints of five
 connected same-color pixels are selected, filling from the first endpoint writes
-both endpoints. These current policies follow [issue #27](https://github.com/aigengame/aseprite-automation/issues/27);
-future requirements can add explicit alternatives. See the
-[native validation evidence](evidence/issue-27-native-paint.md).
+both endpoints.
 
 ### Contour and Blur
 
@@ -777,11 +768,8 @@ include the Effective Palette facts for the affected Frames.
 
 ### Unavailable Paint branches
 
-`spa paint gradient` is absent from the callable Surface Manifest. On Aseprite
-1.3.18.5, Gradient Type and Dithering Matrix depend on the GUI Context Bar and
-cannot be supplied through a faithful headless `app.useTool` route. `spa info`
-and `spa schema` report this version-specific Capability Gap. Other runtimes stay
-unverified until a complete route passes the gate in [#28](https://github.com/aigengame/aseprite-automation/issues/28).
+SPA does not provide Gradient paint. `spa info` and `spa schema` report this
+Capability Gap. Use the available Paint Operations for their supported gestures.
 Contour Paint Dynamics, pressure, velocity, and tilt are also reported as a
 Capability Gap and are outside its request schema.
 
@@ -849,11 +837,8 @@ than once across distinct target Cel Images; this is not a once-per-Tile contrac
 Indexed Palette-only application can use a private Tilemap-only anchor and verifies
 that ordinary Images, Tilemap placement Images, and all Tile Images remain unchanged.
 A Palette basis Frame without a usable anchor produces `filter_unsupported_document`.
-These are the delivery boundaries of
-[issue #35](https://github.com/aigengame/aseprite-automation/issues/35) and
-[issue #152](https://github.com/aigengame/aseprite-automation/issues/152).
 Installed discovery reports the selected runtime's Manual Tilemap Capability Gap
-when that native probe does not pass. Hue/Saturation retains its separate boundary below.
+when the selected runtime does not provide it. Hue/Saturation retains its separate boundary below.
 
 Results include effective Selection, Channels, Palette basis and indexes,
 requested intersections, existing targets, exclusions, unique Image observations,
@@ -902,7 +887,7 @@ Palette basis Frame, including for zero Alpha. SPA chooses an available suitable
 anchor; otherwise it reports `filter_unsupported_document`. This current boundary
 avoids Aseprite silently removing the Alpha flag and can be extended when a future
 requirement and native evidence justify another execution path.
-Tilemap pixel targets are outside the current #36 delivery and reject the whole
+Tilemap pixel targets are currently unavailable and reject the whole
 operation; Palette-only can use a non-mutating Tilemap anchor. These current
 boundaries can be extended by later feature requirements.
 
@@ -912,8 +897,7 @@ including linked Cels outside the requested range. Hue/Saturation results add
 means native deletion); an Image deleted with its Cels has
 `after_content_digest: null`. Live and saved/reopened state must agree before
 Target Commit. Use `spa filter hue-saturation --schema` for the full contract;
-its independent runtime gate verifies all four HSL/HSV modes through the packaged
-native command path. See [#36 native evidence](evidence/issue-36-hue-saturation.md).
+all four HSL/HSV modes require the corresponding runtime capability.
 
 ### Invert Color and Outline
 
@@ -958,14 +942,13 @@ Non-tiled edges use native clamping; tiled axes wrap at Canvas edges. RGB/Gray
 mixed targets use a selected non-Background color anchor; Background-only targets
 retain native opaque color projection. Indexed Outline requires valid Palette
 Index Color Values and exclusive Index Channels. Indexed component Outline is
-reported as a Capability Gap based on Aseprite 1.3.18.5 evidence.
+unavailable; use exclusive Index Channels for Indexed Outline.
 
 Both operations refuse any resolved Tilemap target and Background Alpha before
 mutation, including `all` and mixed requests. Ordinary targets in documents with
 unrelated Tilemaps remain usable. Results preserve Palette facts and report native
 Image changes, linked Cel effects, bounds or deletion, and verified save/reopen
-observations. Use each command's `--schema` for its installed contract. See
-[#38 native evidence](evidence/issue-38-invert-outline.md).
+observations. Use each command's `--schema` for its installed contract.
 
 ### Despeckle and Convolution discovery
 
@@ -994,25 +977,18 @@ spa filter despeckle --input-json '{
 
 RGB accepts nonempty RGBA subsets; Grayscale accepts Gray/Alpha subsets. Indexed
 requires `palette_frame_number` and either `channels: {"kind":"index"}` or
-component Channels that include Green. Native 1.3.18.5 corrupts preserved Green
-in the other component sets; this slice refuses them instead of adding Channels.
-Resolved Tilemap pixels and Background Alpha also refuse before mutation. These
-current boundaries can be extended by accepted requirements and native evidence.
+component Channels that include Green. Requests without Green are refused; include
+Green or use Index Channels. Resolved Tilemap pixels and Background Alpha also
+refuse before mutation.
 Results report the native window anchor, sample count, actual changed Images and
 Cel bounds, and verified save/reopen. A 1×1 window still invokes Aseprite: Indexed
 component processing can remap duplicate Palette colors to a different stored
-Index. Edge sampling follows Aseprite: `none` disables wrapping, but native
-1.3.18.5 can deviate from ideal edge repetition for wide windows; SPA preserves
-that observed output instead of repairing the native algorithm. See [#39 native evidence](evidence/issue-39-native-filters.md).
+Index. Edge sampling follows Aseprite: `none` disables wrapping and does not
+promise ideal edge repetition for wide windows.
 
-Convolution Matrix has no callable Descriptor. `spa info` and `spa schema` report
-its Capability Gap and any observed changes to unrequested Channels. The former
-`runtime.convolution` inventory and pixel payloads are no longer public discovery
-fields; the Runtime Observation and native tests retain them. On the 1.3.18.5
-baseline, Red and Alpha requests change the same RGBA components and an unknown
-Resource succeeds as a no-op. Resource defaults alone cannot establish support.
-See [native evidence](evidence/issue-39-native-filters.md). Future support requires
-the full #39 acceptance gate, not only a successful probe.
+SPA does not provide Convolution Matrix execution. `spa info` and `spa schema`
+report this Capability Gap. Use the available Filter Operations for their supported
+effects.
 
 ## Palettes
 
@@ -1041,11 +1017,9 @@ in RGB, Grayscale, and Indexed documents. They reject publication if native
 behavior changes the global Transparent Color Index, removes an adjacent equal
 Palette Change, or changes other document content. Same-value edits are allowed
 when those invariants hold. No hidden remap or Palette Change creation occurs.
-On the tested Aseprite 1.3.18.5 baseline, `spa info` reports add/remove as native
-lifecycle Capability Gaps: public Lua has no change-point creation/deletion seam.
-These gaps do not indicate executable discovery failure and do not register
-callable commands. A future public seam needs save/close/reopen evidence before
-admission; the current boundary does not prevent that extension.
+SPA does not provide Palette Change add/remove. These Capability Gaps do not
+indicate executable discovery failure and do not register callable commands.
+Use the existing Palette Entry operations to edit an existing Palette Change.
 
 ### Resize, remap, and reorder
 
@@ -1107,11 +1081,10 @@ and Indexed transparency facts. Indexed candidates that change the global mask
 or leave invalid stored indexes are refused; callers must explicitly remap first.
 Any native candidate above `max_colors` is also refused. Import and quantization
 publish a Sprite only if save/reopen retains the complete Palette timeline.
-On the tested Aseprite 1.3.18.5-dev runtime, Octree can return three Entries for a
-one-color request, and small fully opaque Grayscale Palettes can expand to 256
-Entries on save/reopen. These cases return `palette_quantization_rejected` or
-`palette_persistence_failed`; SPA does not change the requested algorithm, add
-colors, or patch the native file to make them pass.
+A native candidate that exceeds the requested size returns
+`palette_quantization_rejected`; a Palette that changes on save/reopen returns
+`palette_persistence_failed`. Choose another supported request when quantization
+is refused. A persistence failure does not publish the Target.
 
 `spa palette export` produces a verified **Palette Artifact**, from either an
 Effective Palette or an explicit quantization request on a disposable Sprite.
@@ -1160,9 +1133,8 @@ The same `conversion` input is available in a `sprite change-color-mode` Plan St
 
 RGB Map Algorithm accepts `default`, `rgb5a3`, or `octree`. Color Best Fit Criteria
 accepts `default`, `rgb`, `linearizedRGB`, `ciexyz`, or `cielab`. These are explicit
-native choices; omission and inapplicable fields are rejected. On the verified
-Aseprite baseline, native RGB Map `default` resolves to `octree`. Existing Effective
-Palettes supply conversion; this operation does not generate a Palette.
+native choices; omission and inapplicable fields are rejected. Results report the
+effective native RGB Map algorithm. Existing Effective Palettes supply conversion; this operation does not generate a Palette.
 
 Dithering is one of `{algorithm: "none"}`, `{algorithm: "ordered"}`, `{algorithm: "old"}`,
 or `{algorithm: "error-diffusion", dithering_factor: 0.5}`. Error Diffusion requires a
@@ -1222,7 +1194,7 @@ complete input hashes: `linear_srgb`, `display_p3_cc0`, and the existing caller-
 `display_p3`. Any path containing the admitted bytes works. Other encodings or metadata
 changes, even with the same profile name, are outside this Convert set. The two P3
 files are not equivalent identities, and conversion between them is not admitted.
-The CC0 reference verifies #103's canonical sRGB preparation path. Built-in sRGB is
+The CC0 reference supports canonical sRGB preparation. Built-in sRGB is
 not an arbitrary sRGB ICC file. The set can expand with accepted demand and evidence.
 
 An unlisted Source ICC returns `color_profile_source_unsupported`. An unlisted target
@@ -1237,16 +1209,14 @@ byte size, SHA-256, native name, and equality with the effective Sprite profile.
 Results distinguish `source_profile`, `requested_profile`, and `effective_profile`;
 `profile_changed` is independent of content changes. Each Cel Image, Palette Change,
 and Tileset Tile has before/after content digests and a `changed` flag. Palette
-observations also list changed Entry indexes. On the tested 1.3.18.5 runtime, native
-Convert leaves Tileset pixels unchanged; this is reported explicitly. See the
-[profile evidence](evidence/issue-34-color-profile.md) for Color Mode behavior
-and the batch loader's treatment of encoded None. Supported same-profile requests
-and content-dependent no-ops are valid; changed-pixel counts do not determine success.
+observations also list changed Entry indexes. Tileset observations explicitly
+report whether stored pixels changed. Supported same-profile requests and
+content-dependent no-ops are valid; changed-pixel counts do not determine success.
 PNG Export reuses these native Profile operations through its explicit
 `color_profile` choice on a private derived Sprite.
-Conversion requires a probed native converter. The current Linux CI build uses
-`LAF_BACKEND=none`; it is expected to report a conversion Capability Gap and reject
-Convert, while retaining Assign. Native conversion is verified on the macOS bundle.
+Conversion requires the selected runtime's native converter capability. If discovery
+reports that conversion is unavailable, Convert is refused. Use Assign only when
+you intend to change profile interpretation without converting stored values.
 
 ```sh
 uv run spa sprite assign-color-profile --input-json '{"aseprite":"/path/to/aseprite","source_sprite_file":"sprite.aseprite","target_sprite_file":"untagged.aseprite","in_place":false,"overwrite":false,"profile":{"kind":"none"}}'
@@ -1345,8 +1315,7 @@ meaning. The target Palette remains unchanged.
 Encoded None, sRGB, or an exact supported ICC (`linear_srgb`, `display_p3`, `display_p3_cc0`) must
 match the destination Profile. Unsupported or conflicting metadata fails, including
 standalone gAMA/cHRM definitions. Input loading does not infer sRGB for an untagged
-PNG or convert its channels. See the [import evidence](evidence/issue-46-raster-import.md)
-for the supported metadata combinations and native counterexamples.
+PNG or convert its channels.
 
 An occupied Cel, including a Linked Cel, is refused. Positions use the existing
 signed 16-bit Cel bounds; negative or off-Canvas placement preserves the entire
@@ -1363,10 +1332,9 @@ is not eligible for an Operation Plan.
 
 ### Text rasterization
 
-Native text rasterization has an evidence-backed Capability Gap in `spa info`
-and `spa schema`, with no callable text command. The
-[bounded investigation](evidence/issue-47-native-text.md) records the tested macOS
-baseline, blank native output, and evidence limits.
+SPA does not provide text rasterization. `spa info` and `spa schema` report this
+Capability Gap, with no callable text command. Rasterize text externally, then
+use Raster Import to bring the explicit image into the Sprite.
 
 ## Operation Plans
 
@@ -1452,7 +1420,7 @@ Profile, Palette, alpha range, and Artifact size/digest. `spa info` reports unav
 optional native branches; a missing Profile converter does not disable preserve
 exports. The destination remains one `.png` path with `if_exists: fail | replace`.
 Failures retain an existing destination and remove staged files. This operation is
-not a Plan Step. See [ADR-0094](adr/0094-export-image-semantics-and-operation-order.md).
+not a Plan Step.
 
 ### PNG sequences and GIF
 
@@ -1501,11 +1469,8 @@ down to 10 ms units and reported alongside Source durations. The encoded loop co
 `repeats=0`, whose playback meaning remains unspecified. None and sRGB need no profile
 conversion; supported ICC uses the independently gated Color Profile converter.
 
-Independent decoders check every staged occurrence before any publication. A known
-opaque-to-blank GIF path on macOS arm64 Aseprite 1.3.18.5-dev / API 41 retained opaque
-pixels; when decoded alpha violates the declared rule, SPA refuses publication.
-That evidence does not establish a limitation or successful conversion on every
-platform or release. See [the export test policy](testing.md#animation-export).
+Independent decoders check every staged occurrence before any publication.
+If decoded alpha violates the declared rule, SPA refuses publication.
 
 Both Operations allow at most 1024 Frame occurrences, 1,048,576 Canvas pixels, and
 16,777,216 total occurrence pixels. Empty, colliding, unsupported, or incomplete output
@@ -1607,8 +1572,8 @@ Native file type tags, namespace enumeration, and metadata reconstruction are
 outside this inspection subset. It can expand when a later authoring need and
 native evidence establish the scope.
 
-The observation follows native getter behavior. On the verified Aseprite baseline,
-Tile 0's Properties getter exposes Tileset properties. Those values remain visible
+The observation follows native getter behavior. Tile 0's Properties getter can
+expose Tileset properties. Those values remain visible
 as returned by the API; Tile 0 still has no SPA Tile Key.
 
 `spa tilemap list` reports all Tilemap bindings, the complete Frame count, and every
@@ -1740,8 +1705,7 @@ spa layer set-tileset --input-json '{"source_sprite_file":"map.aseprite","target
 ```
 
 Current boundaries can change with accepted needs and verified native capability.
-Scoped `tileset resize` remains deferred in #175; it is not a callable Operation.
-See [native lifecycle evidence](evidence/issue-45-tileset-lifecycle.md).
+SPA does not currently provide `tileset resize`.
 
 ### Tilemap region writes
 

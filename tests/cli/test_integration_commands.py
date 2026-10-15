@@ -187,9 +187,7 @@ def test_installed_manifest_exposes_access_failures_without_real_aseprite(
         for item in manifest["operations"]
         if item is not script
     )
-    gaps = {
-        item["capability"]: item["evidence"] for item in manifest["capability_gaps"]
-    }
+    gaps = {item["capability"]: item["reason"] for item in manifest["capability_gaps"]}
     assert "aseprite_sprite_create" in gaps["spa sprite create"]
     assert "aseprite_sprite_inspection" in gaps["spa sprite get"]
     human = spa(

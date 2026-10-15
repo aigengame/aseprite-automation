@@ -775,7 +775,7 @@ def test_conversion_discovery_matches_runtime_and_missing_converter_refuses_publ
         for item in manifest["capability_gaps"]
         if item["capability"] == "spa sprite convert-color-profile"
     )
-    assert "aseprite_convert_color_profile" in gap["evidence"]
+    assert "aseprite_convert_color_profile" in gap["reason"]
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
     _native(runtime, source, action="create")
     original = source.read_bytes()

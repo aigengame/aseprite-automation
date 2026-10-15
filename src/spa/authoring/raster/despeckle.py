@@ -166,12 +166,12 @@ def despeckle_capability_gaps(version: str) -> list[CapabilityGap]:
         CapabilityGap(
             capability="spa filter despeckle: Tilemap pixels",
             aseprite_version=version,
-            evidence="Despeckle rejects resolved Tilemap pixel targets before mutation; ordinary Image targets remain independent.",
+            reason="Despeckle rejects resolved Tilemap pixel targets before mutation; ordinary Image targets remain independent.",
         ),
         CapabilityGap(
             capability="spa filter despeckle: Indexed components without Green",
             aseprite_version=version,
-            evidence="Indexed component sets require Green. Baseline Aseprite 1.3.18.5 corrupts preserved Green when excluded (issue #39); no implicit Channel change or Index substitution.",
+            reason="Indexed component sets must include Green. SPA does not change the requested Channels or substitute Index processing.",
         ),
     ]
 
