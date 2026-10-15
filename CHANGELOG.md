@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.5.0](https://github.com/aigengame/aseprite-automation/compare/v0.4.0...v0.5.0) (2026-10-15)
+
+
+### ⚠ BREAKING CHANGES
+
+* **discovery:** Discovery no longer emits minimum_aseprite_version or invocation_schema.properties.argv. Read request_schema and runtime_requirements directly.
+
+### Bug Fixes
+
+* **ci:** allow hosted admission to read Release drafts ([#207](https://github.com/aigengame/aseprite-automation/issues/207)) ([3ee9973](https://github.com/aigengame/aseprite-automation/commit/3ee9973f5bcbbd093711ebe4ed5b4755bffcca87))
+* **cli:** explain commands and add help navigation ([#249](https://github.com/aigengame/aseprite-automation/issues/249)) ([8776602](https://github.com/aigengame/aseprite-automation/commit/8776602ebde13404f22f41c9987443bdeb84de19))
+
+
+### Code Refactoring
+
+* **discovery:** compact machine contracts and runtime facts ([#250](https://github.com/aigengame/aseprite-automation/issues/250)) ([026a6bc](https://github.com/aigengame/aseprite-automation/commit/026a6bcf783f85626201743843025002f33c2e82))
+
 ## [0.4.0](https://github.com/aigengame/aseprite-automation/compare/v0.3.0...v0.4.0) (2026-10-10)
 
 
