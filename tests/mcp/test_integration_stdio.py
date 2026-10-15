@@ -10,6 +10,8 @@ import anyio
 import pytest
 from mcp import Client, StdioServerParameters
 
+from tests.support import process_diagnostics
+
 
 @pytest.fixture
 def cli(tmp_path):
@@ -106,9 +108,11 @@ def test_windows_cli_fixture_executes_requests_and_retains_diagnostics(cli):
         check=False,
         timeout=10,
     )
-    assert discovery.returncode == 0, (discovery.stdout, discovery.stderr)
-    assert discovery.stderr == b""
-    assert json.loads(discovery.stdout.decode("utf-8")) == manifest
+    assert discovery.returncode == 0, process_diagnostics(discovery)
+    assert discovery.stderr == b"", process_diagnostics(discovery)
+    assert json.loads(discovery.stdout.decode("utf-8")) == manifest, (
+        process_diagnostics(discovery)
+    )
 
     request = {"value": {"unicode": "像素", "nested": [1, False, None]}}
     called = subprocess.run(
@@ -118,13 +122,15 @@ def test_windows_cli_fixture_executes_requests_and_retains_diagnostics(cli):
         check=False,
         timeout=10,
     )
-    assert called.returncode == 2, (called.stdout, called.stderr)
+    assert called.returncode == 2, process_diagnostics(called)
     assert json.loads(called.stdout.decode("utf-8")) == {
         "status": "success",
         "operation": "spa echo",
         "value": request["value"],
-    }
-    assert called.stderr.decode("utf-8").strip() == "fixture warning"
+    }, process_diagnostics(called)
+    assert called.stderr.decode("utf-8").strip() == "fixture warning", (
+        process_diagnostics(called)
+    )
 
 
 @pytest.mark.parametrize(
