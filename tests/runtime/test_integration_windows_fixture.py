@@ -7,7 +7,7 @@ import subprocess
 import pytest
 
 from tests.script.support import script_runtime
-from tests.support import fake_probe_response
+from tests.support import fake_probe_response, process_diagnostics
 from tests.windows_executable import windows_aseprite
 
 pytestmark = pytest.mark.skipif(os.name != "nt", reason="private Windows fixture")
@@ -31,9 +31,9 @@ def test_windows_entry_preserves_arguments_streams_and_file_effects(tmp_path, st
         timeout=10,
         check=False,
     )
-    assert run.returncode == status
-    assert run.stdout == b"output\r\n"
-    assert run.stderr == b"diagnostic\n"
+    assert run.returncode == status, process_diagnostics(run)
+    assert run.stdout == b"output\r\n", process_diagnostics(run)
+    assert run.stderr == b"diagnostic\n", process_diagnostics(run)
     assert (
         json.loads((tmp_path / "arguments.json").read_text(encoding="utf-8"))
         == arguments
@@ -51,7 +51,9 @@ def test_windows_probe_fixture_copies_request_bytes_and_response(tmp_path):
         timeout=10,
         check=False,
     )
-    assert (run.returncode, run.stdout, run.stderr) == (0, b"", b"")
+    assert (run.returncode, run.stdout, run.stderr) == (0, b"", b""), (
+        process_diagnostics(run)
+    )
     assert echo.read_bytes() == request.read_bytes()
     assert result.read_bytes() == response.encode("utf-8")
 
@@ -77,7 +79,9 @@ def test_windows_script_fixture_keeps_probe_separate_from_caller(tmp_path):
         timeout=10,
         check=False,
     )
-    assert (probe.returncode, probe.stdout, probe.stderr) == (0, b"", b"")
+    assert (probe.returncode, probe.stdout, probe.stderr) == (0, b"", b""), (
+        process_diagnostics(probe)
+    )
     assert echo.read_bytes() == request.read_bytes()
     assert json.loads(result.read_text(encoding="utf-8"))["api_version"] == 41
     assert not (tmp_path / "effect").exists()
@@ -90,5 +94,7 @@ def test_windows_script_fixture_keeps_probe_separate_from_caller(tmp_path):
         timeout=10,
         check=False,
     )
-    assert (caller.returncode, caller.stdout, caller.stderr) == (7, b"", b"")
+    assert (caller.returncode, caller.stdout, caller.stderr) == (7, b"", b""), (
+        process_diagnostics(caller)
+    )
     assert (tmp_path / "effect").read_bytes() == source.read_bytes()
