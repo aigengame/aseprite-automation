@@ -140,6 +140,10 @@ DESPECKLE_REQUIREMENTS = RuntimeRequirements(
     minimum_api_version=41,
     required_capabilities=["aseprite_sprite_inspection", "aseprite_filter_despeckle"],
 )
+_INDEXED_COMPONENT_DESPECKLE_REASON = (
+    "Indexed component sets must include Green. SPA does not change the requested "
+    "Channels or substitute Index processing."
+)
 
 
 def despeckle(
@@ -154,6 +158,7 @@ def despeckle(
             "width": request.width,
             "height": request.height,
             "tiled_mode": request.tiled_mode,
+            "indexed_component_reason": _INDEXED_COMPONENT_DESPECKLE_REASON,
         },
         DespeckleEvidence,
         lambda evidence: evidence.matches(request),
@@ -166,12 +171,12 @@ def despeckle_capability_gaps(version: str) -> list[CapabilityGap]:
         CapabilityGap(
             capability="spa filter despeckle: Tilemap pixels",
             aseprite_version=version,
-            evidence="Despeckle rejects resolved Tilemap pixel targets before mutation; ordinary Image targets remain independent.",
+            reason="Despeckle rejects resolved Tilemap pixel targets before mutation; ordinary Image targets remain independent.",
         ),
         CapabilityGap(
             capability="spa filter despeckle: Indexed components without Green",
             aseprite_version=version,
-            evidence="This slice requires Green in Indexed component sets. Native 1.3.18.5 corrupts preserved Green in the excluded sets (issue #39); SPA does not add Channels or substitute Index processing. A later native fix needs focused acceptance before this boundary is extended.",
+            reason=_INDEXED_COMPONENT_DESPECKLE_REASON,
         ),
     ]
 
@@ -191,5 +196,6 @@ DESPECKLE_OPERATIONS = (
         ),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Reduce pixel noise with the native median filter.",
     ),
 )

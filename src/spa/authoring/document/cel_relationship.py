@@ -371,6 +371,7 @@ CEL_RELATIONSHIP_OPERATIONS = (
         execution_kind="mutation",
         plan_eligible=True,
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Set a Cel's position, opacity, or Z-index.",
     ),
     OperationDescriptor(
         "cel copy",
@@ -382,6 +383,7 @@ CEL_RELATIONSHIP_OPERATIONS = (
         (*_CEL_MUTATION_FAILURE_CODES, "cel_already_exists"),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Copy a Cel to another Layer/Frame slot with an independent Image.",
     ),
     OperationDescriptor(
         "cel link",
@@ -393,6 +395,7 @@ CEL_RELATIONSHIP_OPERATIONS = (
         (*_CEL_MUTATION_FAILURE_CODES, "cel_already_exists"),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Link a destination Cel to a source Cel's Image.",
     ),
     OperationDescriptor(
         "cel unlink",
@@ -404,5 +407,6 @@ CEL_RELATIONSHIP_OPERATIONS = (
         _CEL_MUTATION_FAILURE_CODES,
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Make a linked Cel's Image independent.",
     ),
 )

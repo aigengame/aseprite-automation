@@ -5,6 +5,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field, ValidationError, field_validator, model_validator
 
+from spa.application.mutation import prepare_mutation
 from spa.authoring.color.palette import EFFECTIVE_PALETTE_RESOURCE
 from spa.authoring.document.cel_contracts import (
     CEL_SUPPORT_RESOURCE,
@@ -29,7 +30,6 @@ from spa.contracts.digest import DIGEST_RESOURCE
 from spa.contracts.mutation import (
     TargetCommit,
     require_overwrite_for_in_place,
-    source_target_identity_issue,
     validate_native_sprite_path,
 )
 from spa.contracts.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
@@ -39,10 +39,8 @@ from spa.contracts.ports import (
     OperationServices,
     PackagedHandler,
     PackagedResource,
-    RequestIssue,
     ResponseEvidence,
     RuntimeIssue,
-    TargetCommitEvidence,
 )
 from spa.contracts.public import (
     FailureCodeSpec,
@@ -478,11 +476,14 @@ def replace_image(
     request: ImageReplaceRequest, services: OperationServices
 ) -> ImageReplaceResult:
     source, target = Path(request.source_sprite_file), Path(request.target_sprite_file)
-    issue = source_target_identity_issue(
-        services.target_files, source, target, request.in_place
+    completion = prepare_mutation(
+        services.target_files,
+        source,
+        target,
+        in_place=request.in_place,
+        overwrite=request.overwrite,
+        identity_change_message="Source/Target identity changed",
     )
-    if issue is not None:
-        raise RequestIssue([issue])
     if isinstance(request.input, InlineSnapshot):
         value = request.input.snapshot
     else:
@@ -498,14 +499,13 @@ def replace_image(
                 SnapshotDetails(reason=str(exc)),
             ) from exc
     observation = services.probe_runtime(request)
-    staged = services.target_files.staged_path(target)
-    try:
+    with completion as mutation:
         invocation = services.invoke_kernel(
             observation,
             IMAGE_REPLACE_HANDLER,
             {
                 "source_sprite_file": str(source),
-                "staged_sprite_file": str(staged),
+                "staged_sprite_file": str(mutation.staged_sprite_file),
                 "target": request.target.model_dump(mode="json", exclude_none=True),
                 "input": {
                     "kind": request.input.kind,
@@ -550,30 +550,11 @@ def replace_image(
             evidence.sprite,
             invocation,
         )
-        if (
-            source_target_identity_issue(
-                services.target_files, source, target, request.in_place
-            )
-            is not None
-        ):
-            raise RuntimeIssue(
-                "target_commit_failed",
-                "Source/Target identity changed",
-                TargetCommitEvidence(str(target), "source_target_identity_changed"),
-            )
-        committed = services.target_files.commit(
-            staged, target, overwrite=request.overwrite
-        )
+        committed = mutation.commit()
         return ImageReplaceResult(
             **evidence.model_dump(),
-            target_commit=TargetCommit(
-                target_sprite_file=committed.target_sprite_file,
-                byte_size=committed.byte_size,
-                sha256=committed.sha256,
-            ),
+            target_commit=committed,
         )
-    finally:
-        services.target_files.discard(staged)
 
 
 IMAGE_SNAPSHOT_OPERATIONS = (
@@ -597,6 +578,7 @@ IMAGE_SNAPSHOT_OPERATIONS = (
         side_effects=(
             "publishes a JSON Snapshot only when snapshot_destination is declared",
         ),
+        help_summary="Read a Cel Image or Layer composition as a Pixel Region Snapshot.",
     ),
     OperationDescriptor(
         "image replace",
@@ -617,5 +599,6 @@ IMAGE_SNAPSHOT_OPERATIONS = (
         ),
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
+        help_summary="Replace a Cel Image from a Pixel Region Snapshot.",
     ),
 )

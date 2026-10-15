@@ -5,6 +5,7 @@ from typing import Any, Literal
 
 from pydantic import Field, ValidationError, field_validator, model_validator
 
+from spa.application.mutation import prepare_mutation
 from spa.authoring.color.palette import EFFECTIVE_PALETTE_RESOURCE
 from spa.authoring.document.sprite import (
     INSPECTION_SECTIONS,
@@ -20,7 +21,6 @@ from spa.authoring.document.sprite import (
 from spa.contracts.digest import DIGEST_RESOURCE
 from spa.contracts.mutation import (
     TargetCommit,
-    source_target_identity_issue,
     validate_native_sprite_path,
 )
 from spa.contracts.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
@@ -33,7 +33,6 @@ from spa.contracts.ports import (
     RequestIssue,
     ResponseEvidence,
     RuntimeIssue,
-    TargetCommitEvidence,
 )
 from spa.contracts.public import (
     PublicModel,
@@ -517,30 +516,29 @@ def _mutate(
     | FrameRemoveResult
 ):
     target = Path(request.target_sprite_file)
-    identity_issue = source_target_identity_issue(
+    completion = prepare_mutation(
         services.target_files,
         Path(request.source_sprite_file),
         target,
-        request.in_place,
+        in_place=request.in_place,
+        overwrite=request.overwrite,
+        identity_change_message="Source/Target publication identity changed before Target Commit",
     )
-    if identity_issue is not None:
-        raise RequestIssue([identity_issue])
     observation = services.probe_runtime(request)
-    staged = services.target_files.staged_path(target)
-    input_fields = {
-        "add": FrameAddInput,
-        "duplicate": FrameDuplicateInput,
-        "set": FrameSetInput,
-        "move": FrameMoveInput,
-        "remove": FrameRemoveInput,
-    }[operation].model_fields
-    payload = {
-        "operation": operation,
-        "source_sprite_file": request.source_sprite_file,
-        "staged_sprite_file": str(staged),
-        "input": request.model_dump(mode="json", include=set(input_fields)),
-    }
-    try:
+    with completion as mutation:
+        input_fields = {
+            "add": FrameAddInput,
+            "duplicate": FrameDuplicateInput,
+            "set": FrameSetInput,
+            "move": FrameMoveInput,
+            "remove": FrameRemoveInput,
+        }[operation].model_fields
+        payload = {
+            "operation": operation,
+            "source_sprite_file": request.source_sprite_file,
+            "staged_sprite_file": str(mutation.staged_sprite_file),
+            "input": request.model_dump(mode="json", include=set(input_fields)),
+        }
         invocation = services.invoke_kernel(
             observation, FRAME_MUTATE_HANDLER, payload, request.timeout_seconds
         )
@@ -632,29 +630,11 @@ def _mutate(
                     ),
                     invocation.diagnostics,
                 )
-        identity_issue = source_target_identity_issue(
-            services.target_files,
-            Path(request.source_sprite_file),
-            target,
-            request.in_place,
-        )
-        if identity_issue is not None:
-            raise RuntimeIssue(
-                "target_commit_failed",
-                "Source/Target publication identity changed before Target Commit",
-                TargetCommitEvidence(str(target), "source_target_identity_changed"),
-            )
-        committed = services.target_files.commit(
-            staged, target, overwrite=request.overwrite
-        )
+        committed = mutation.commit()
         result = {
             **evidence.model_dump(),
             "sprite": sprite,
-            "target_commit": TargetCommit(
-                target_sprite_file=committed.target_sprite_file,
-                byte_size=committed.byte_size,
-                sha256=committed.sha256,
-            ),
+            "target_commit": committed,
         }
         if operation == "add":
             return FrameAddResult.model_validate(result)
@@ -665,8 +645,6 @@ def _mutate(
         if operation == "move":
             return FrameMoveResult.model_validate(result)
         return FrameRemoveResult.model_validate(result)
-    finally:
-        services.target_files.discard(staged)
 
 
 def add_frame(request: FrameAddRequest, services: OperationServices) -> FrameAddResult:
@@ -715,6 +693,7 @@ FRAME_OPERATIONS = (
         FRAME_READ_REQUIREMENTS,
         RUNTIME_FAILURE_CODES,
         plan_eligible=True,
+        help_summary="List animation Frames and their durations.",
     ),
     OperationDescriptor(
         "frame get",
@@ -727,6 +706,7 @@ FRAME_OPERATIONS = (
         FRAME_READ_REQUIREMENTS,
         RUNTIME_FAILURE_CODES,
         plan_eligible=True,
+        help_summary="Read one Frame's number and duration.",
     ),
     OperationDescriptor(
         "frame add",
@@ -740,6 +720,7 @@ FRAME_OPERATIONS = (
         side_effects=("publishes the declared Target Sprite File",),
         plan_eligible=True,
         probe_before_execute=False,
+        help_summary="Insert a Frame with an explicit duration.",
     ),
     OperationDescriptor(
         "frame duplicate",
@@ -753,6 +734,7 @@ FRAME_OPERATIONS = (
         side_effects=("publishes the declared Target Sprite File",),
         plan_eligible=True,
         probe_before_execute=False,
+        help_summary="Duplicate a Frame with copied or linked Cels.",
     ),
     OperationDescriptor(
         "frame set",
@@ -765,6 +747,7 @@ FRAME_OPERATIONS = (
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
         probe_before_execute=False,
+        help_summary="Set a Frame's duration.",
     ),
     OperationDescriptor(
         "frame move",
@@ -777,6 +760,7 @@ FRAME_OPERATIONS = (
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
         probe_before_execute=False,
+        help_summary="Move a Frame to another timeline position.",
     ),
     OperationDescriptor(
         "frame remove",
@@ -789,5 +773,6 @@ FRAME_OPERATIONS = (
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
         probe_before_execute=False,
+        help_summary="Remove a Frame and its Cels.",
     ),
 )

@@ -1,16 +1,9 @@
-# Native Fill, Pencil, and Eraser evidence
+# Native Fill, Pencil, and Eraser maintenance note
 
-## Scope and environment
+The Baseline Aseprite definition is `SPA_BASELINE_ASEPRITE_VESION` in
+`src/spa/__init__.py`. It is a maintenance reference, not a compatibility guarantee.
 
-This record supports [issue #27](https://github.com/aigengame/aseprite-automation/issues/27).
-The issue owns the approved feature contract. ADR-0018 and ADR-0060 retain the
-native algorithm and private Tool boundary; this slice does not change them.
-
-The local runtime is macOS Aseprite `1.3.18.5-dev`, API 41. Source inspection used
-upstream commit `375989a61c3425cd4e8cdedfcfcca4bdfef7e1d9` (tag `v1.3.18.5`).
-The binary's exact build provenance is not established by that source checkout.
-Linux remains a separate verification environment. Each installation admits the
-operations and gesture algorithms through its own packaged native probes.
+Native capability checks admit each Tool and gesture algorithm independently.
 
 ## Findings that shaped the adapter
 
@@ -18,12 +11,12 @@ operations and gesture algorithms through its own packaged native probes.
 | --- | --- |
 | Paint Bucket and Magic Wand use the same native flood-fill point shape (`data/gui.xml`, `src/app/tools/point_shapes.h`). | Observe matching with Magic Wand before painting. This retains requested coverage when the paint color already matches or opacity produces no change. The Fill tests compare coverage, changed counts, and saved pixels with independent native calls. |
 | Enlarging the temporary Canvas enlarges the Fill domain. A `Sprite(source)` copy resets the Grid bounds. | Keep the original Canvas and copy the saved `gridBounds` explicitly. Tests cover small offset Cels, outside-Canvas seeds, clipping, and shifted Grid origins. |
-| An active native Selection constrains flood traversal. | The owner approved shared SPA Selection Application after matching. The two-endpoint Selection counterexample verifies this deliberate difference. The issue keeps future explicit policies open. |
+| An active native Selection constrains flood traversal. | SPA applies shared Selection Application after matching. The two-endpoint Selection counterexample verifies this deliberate difference. The issue keeps future explicit policies open. |
 | Refer To, Stop at Grid, and Pixel Connectivity are Tool preferences. `NEVER=0`, `ALWAYS=2`; `IF_VISIBLE=1` depends on GUI state. | Set matching preferences for both native tools and restore them. Public input has an explicit boolean Grid policy. Perturbed-preference tests cover success and failure. |
-| Freehand Algorithm values are Regular 0, Pixel-perfect 1, Dots 2 (`src/app/tools/freehand_algorithm.h`). Dots is not promised by the 1.3.18.5 public scripting documentation. | Verify each algorithm independently. Ordered, reversed, repeated, one-point, corner, and straight gestures are compared with direct native calls. A straight Dots gesture marks its endpoints instead of promising every interpolated pixel. |
+| Freehand Algorithm values are Regular 0, Pixel-perfect 1, Dots 2 (`src/app/tools/freehand_algorithm.h`). Dots requires its own runtime capability check. | Verify each algorithm independently. Ordered, reversed, repeated, one-point, corner, and straight gestures are compared with direct native calls. A straight Dots gesture marks its endpoints instead of promising every interpolated pixel. |
 | `app.useTool` consumes the points as one press/move/release sequence (`src/app/script/app_object.cpp`). | Pass one dense ordered sequence. Do not resample or normalize it. Results retain exact order and multiplicity. |
 | Eraser uses left-button erasure and right-button `replace_fg_with_bg` (`data/gui.xml`). Background erasure consumes the editor background-color preference, not only the supplied `bgColor` argument. | Keep explicit discriminated behaviors. Set and restore `app.bgColor` for the native call. Test both behaviors in RGB, Grayscale, and Indexed, on Transparent and Background Layers. |
-| Native effect Inks have distinct opacity semantics. For example, RGB alpha erasure at opacity 128 leaves alpha 127; Indexed erasure need not have that result. | Report requested opacity as Eraser's effective opacity and preserve native pixels. Fill/Pencil retain the #26 `simple` and `copy-color` effective-opacity rule. Test 0, 128, and 255 instead of adding a blending algorithm. |
+| Native effect Inks have distinct opacity semantics. For example, RGB alpha erasure at opacity 128 leaves alpha 127; Indexed erasure need not have that result. | Report requested opacity as Eraser's effective opacity and preserve native pixels. Fill/Pencil retain their `simple` and `copy-color` effective-opacity rule. Test 0, 128, and 255 instead of adding a blending algorithm. |
 | A Sprite can persist `Palette(2)` with Transparent Color Index 7. Native Eraser writes index 7 and preserves it after reopening. | Treat native transparent output as a Sprite mask fact. Do not require a corresponding Palette Entry before or after erasure. Explicit Color Values and Background pixels retain Effective Palette validation. |
 
 ## Durable verification

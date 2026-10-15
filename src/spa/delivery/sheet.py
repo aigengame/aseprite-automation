@@ -184,6 +184,6 @@ SHEET_OPERATIONS = (
         execution_kind="export",
         side_effects=("publishes a verified PNG texture then JSON Array metadata",),
         probe_before_execute=False,
-        help_summary="Export a native Sprite Sheet with one metadata record per selected Frame.",
+        help_summary="Export a PNG Sprite Sheet and JSON metadata for selected Frames.",
     ),
 )

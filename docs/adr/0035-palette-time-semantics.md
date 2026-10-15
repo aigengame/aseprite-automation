@@ -39,9 +39,12 @@ different effects on Images, Frames, and linked Cels.
 - Growth supplies every new Entry value. Shrink does not clamp, choose nearest
   colors, or leave invalid indexes; unsupported removal fails until an explicit
   remap makes it valid.
-- Runtime-specific Palette Change lifecycle availability is reported through
-  the installed Surface Manifest and Capability Gaps, not simulated with
-  private APIs or file patching.
+- SPA does not provide Palette Change add/remove. The native public Lua API does
+  not supply the required change-point creation/deletion seam in Baseline Aseprite.
+  Its shared definition is `SPA_BASELINE_ASEPRITE_VESION` in `src/spa/__init__.py`.
+  The Palette feature owns public Gap reasons that direct callers to existing
+  Entry operations. SPA does not simulate lifecycle edits with private APIs or
+  file patching. A future accepted extension requires native persistence checks.
 
 ## Consequences
 

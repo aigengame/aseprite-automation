@@ -6,6 +6,7 @@ from typing import Any
 
 import typer
 
+from spa.access.help import GROUP_HELP, ROOT_EPILOG, ROOT_HELP, root_help, show_help
 from spa.application.dispatch import dispatch
 from spa.application.surface import OPERATIONS
 from spa.contracts.operation import ACCESS_FAILURE_CODES, OperationDescriptor
@@ -150,7 +151,7 @@ def _command(
 
         command = pure_command
     command.__name__ = descriptor.name.rsplit(" ", 1)[-1]
-    command.__doc__ = descriptor.help_summary or f"Run spa {descriptor.name}."
+    command.__doc__ = descriptor.help_summary
     return command
 
 
@@ -158,14 +159,27 @@ def build_app(
     dependencies: OperationServices,
     failure_codes: Mapping[str, FailureCodeSpec],
 ) -> typer.Typer:
-    app = typer.Typer(name="spa", no_args_is_help=False, add_completion=False)
+    app = typer.Typer(
+        name="spa",
+        no_args_is_help=False,
+        add_completion=False,
+        help=ROOT_HELP,
+        epilog=ROOT_EPILOG,
+    )
+
+    app.callback(invoke_without_command=True)(root_help)
+    app.command(name="help")(show_help)
     groups: dict[tuple[str, ...], typer.Typer] = {(): app}
     for operation in OPERATIONS:
         path = tuple(operation.name.split())
         for depth in range(1, len(path)):
             prefix = path[:depth]
             if prefix not in groups:
-                group = typer.Typer(no_args_is_help=False, add_completion=False)
+                group = typer.Typer(
+                    no_args_is_help=False,
+                    add_completion=False,
+                    help=GROUP_HELP[" ".join(prefix)],
+                )
                 groups[prefix[:-1]].add_typer(group, name=prefix[-1])
                 groups[prefix] = group
         groups[path[:-1]].command(name=path[-1])(

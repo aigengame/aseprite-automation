@@ -99,7 +99,7 @@ def test_a_rectangle_capability_gap_keeps_line_and_ellipse_callable() -> None:
     gap = next(
         gap for gap in result.capability_gaps if gap.capability == "spa paint rectangle"
     )
-    assert "aseprite_paint_rectangle" in gap.evidence
+    assert "aseprite_paint_rectangle" in gap.reason
 
 
 def test_contour_schema_preserves_gestures_and_refuses_unowned_options() -> None:
@@ -144,8 +144,8 @@ def test_gradient_gap_does_not_hide_verified_contour_or_blur() -> None:
     assert {"spa paint contour", "spa paint blur"} <= available
     assert "spa paint gradient" not in available
     gaps = {gap.capability: gap for gap in result.capability_gaps}
-    assert "Gradient Type" in gaps["spa paint gradient"].evidence
-    assert "Dithering Matrix" in gaps["spa paint gradient"].evidence
+    assert "Gradient Type" in gaps["spa paint gradient"].reason
+    assert "Dithering Matrix" in gaps["spa paint gradient"].reason
     assert (
         gaps["spa paint contour: Paint Dynamics"].aseprite_version
         == result.runtime.aseprite_version

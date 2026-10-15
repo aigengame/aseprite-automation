@@ -376,15 +376,21 @@ snapshot and comparison functions; Plan Steps use live semantic entry points and
 the Plan handler saves and verifies once at the end. This first migration does not
 change Frame/Tag normalization or expand native persistence support.
 
-For standalone Cel set/copy/link/unlink and Motion Apply, Application's
-`mutation.prepare_mutation` checks Source/Target identity before the caller's runtime
-probe. Entering its scope allocates the staged Sprite path; leaving it always discards
-that path. The caller owns native invocation, typed evidence validation, and its
+Application's standalone Mutation Completion Module (`mutation.prepare_mutation`)
+checks Source/Target identity before the caller's runtime probe. Layer edits and
+conversions, Frame and Cel lifecycle, Tag mutations, Image transforms and Replace,
+and Paint Composite reuse it alongside the existing Cel relationship, Motion,
+Slice, Color, Filter, Tile, and Image Import callers.
+Entering its scope allocates the staged Sprite path; leaving it always discards
+that path. Callers enter after their existing input and capability gates. Each caller
+owns native invocation, typed evidence validation, and its
 operation-specific postconditions, then explicitly requests `commit`. Completion
 rechecks publication identity, publishes through `TargetFiles`, and returns the
 existing Target Commit facts. A staged file or a normal scope exit never implies
 success or publication. This scope does not participate in Plan finalization, which
 retains one final Target Commit and no per-Step persistence.
+Sprite creation, Artifact publication, and mutation paths without a commit-time
+identity recheck retain their separate completion paths.
 
 The delivered `spa.authoring.raster.image` slice owns Cel-targeted Image resize, crop,
 canvas-resize, flip, and quarter-turn rotation with explicit placement policies.
@@ -531,6 +537,13 @@ byte reads, digest binding and publication. It preflights the complete bounded
 set, allocates separate output and evidence directories, enumerates the actual output
 set, and publishes in resolved order. `adapters/sequence_png.py` and `adapters/gif.py`
 independently decode typed format facts through `contracts/encoded_animation.py`.
+The PNG entry points in `adapters/png_input.py` and `adapters/sequence_png.py` use
+`adapters/png_decoding.py` for complete structural validation and stored/RGBA pixel
+interpretation. That Module retains independent byte checks alongside Pillow's pixel
+decoding. Each entry point owns its representation subset, observed-facts projection,
+and typed error translation: Input admits 8-bit RGB/Indexed, Artifact also admits
+8-bit Grayscale, and Sequence additionally admits 1/2/4-bit Indexed. Palette order,
+unused entries, hidden RGB, ICC bytes, and sRGB intent remain observed encoded facts.
 The Application compares those observations with native composition, timing, profile,
 Palette and cross-file expectations before passing the verified digests to publication.
 No decoder defines expected Sprite semantics or repairs encoded bytes.
@@ -633,7 +646,8 @@ src/spa/
     files.py, png.py       # filesystem mechanics and export PNG verification
     artifact_set.py        # complete set preflight, staging, ordered publication
     sequence_png.py, gif.py # independent encoded animation observations
-    png_input.py           # independent encoded PNG input facts and pixels
+    png_input.py           # Input/Artifact representation policy, facts and errors
+    png_decoding.py        # complete shared PNG structure and pixel interpretation
     icc.py                # ICC byte validation and digest, without color transforms
     palette_file.py       # independent GPL/Indexed PNG observations, not a color engine
   kernel/                 # fixed native semantic handlers and shared owners
@@ -857,17 +871,18 @@ is introduced.
 Convolution is discovery-only in this slice. The Runtime Integration adapter scans
 bounded declaration metadata at the prepared invocation's native resource paths.
 It never computes coefficients or decides that a declaration is callable. The
-Kernel records direct requested/observed Channel probes, and `RuntimeFacts`
-transports both observations. Raster Authoring provides the Convolution gap evidence;
-the installed Surface Manifest reports the applicable Capability Gap. No descriptor,
-custom convolution engine, or general resource registry is added.
+Kernel records direct requested/observed Channel probes. The internal
+`RuntimeObservation` carries declarations and probes; public `RuntimeFacts` omit
+these raw payloads. Raster Authoring owns the Convolution Gap reason. The installed
+Surface Manifest reports that SPA does not provide this capability; internal
+observations remain available for maintenance. No descriptor, custom convolution
+engine, or general resource registry is added.
 
-Native text rasterization is also discovery-only under issue #47. Raster Authoring
-owns the retained Capability Gap evidence; `surface.py` projects it through
-`info` and `schema` without a text Descriptor or schema. The
-[bounded macOS investigation](docs/evidence/issue-47-native-text.md) is separate
-from selected-runtime identity. Text probes are manual evidence fixtures, not
-packaged discovery resources, so discovery never repeats the known crash.
+Native text rasterization is also discovery-only. Raster Authoring owns its public
+Capability Gap reason; `surface.py` projects it through `info` and `schema` without
+a text Descriptor or schema. The [maintenance note](docs/evidence/issue-47-native-text.md)
+explains the native font/theme dependency. Manual text fixtures are not packaged
+discovery resources, so discovery does not invoke the unsafe text path.
 
 Brightness/Contrast passes the concrete `filter_tiles.lua` module into the shared
 execution path. It owns Manual Tilemap admission, preserved placement/binding/Grid
@@ -910,8 +925,7 @@ pixels. Contour delegates the complete ordered gesture, including closure and fi
 to its native tool. The runtime gates independently verify Contour's two algorithms
 and Blur's four Tiled Modes. Gradient has no implemented Descriptor or callable
 handler while complete headless Gradient Type and Dithering Matrix control remains
-unverified; installed discovery reports the version-specific Capability Gap under
-issue #28's permitted delivery combination.
+unavailable in SPA; installed discovery reports the feature-owned Capability Gap reason.
 No new rasterizer or public generic Tool wrapper is introduced. The
 [issue #27 evidence](docs/evidence/issue-27-native-paint.md) records the native
 assumptions and their verification.
@@ -1184,7 +1198,8 @@ Descriptor's requirements, with typed evidence before Operation execution. The p
 Kernel Protocol continues to require an exact match with the one version co-packaged in
 the same pre-1.0 release.
 
-Aseprite 1.3.18.5 is the current real-integration baseline. SPA follows Aseprite's
+The Baseline Aseprite definition is `SPA_BASELINE_ASEPRITE_VESION` in
+`src/spa/__init__.py`. SPA follows Aseprite's
 native version compatibility for other releases without an independent version
 allowlist, semantic guarantee, or per-release test matrix. The observed requirements
 above gate execution; they do not certify identical native pixels on every release.
@@ -1345,7 +1360,7 @@ normal explicit `if_exists` policy.
 | Inspection success is complete for its normalized scope. | Owning inspection Operation. | Kernel observation and Application limit handling. |
 | An Ordinary Core Operation with Execution Kind `mutation` is all-or-nothing for its resolved target set. | Mutation decision and owning Operation. | Kernel transaction, persisted native inspection, Staged Sprite File preparation, and Target Commit. |
 | Export success reports a complete verified Artifact set. | Export publication decision and feature contract. | Kernel native export; Artifact Verifier decoding; Application semantic comparison; File Adapter publication. |
-| Capability Gaps remain visible and versioned. | Installed Surface Manifest for installed Capability Gaps; feature issue for planned candidate-gap handling and evidence requirements. | Aseprite Adapter collection of runtime observations; tests and evidence artifacts retain executed proof; Surface Manifest generation reports installed Gaps. |
+| Capability Gaps report current restrictions through one feature-owned reason. | Installed Surface Manifest for installed Capability Gaps; feature issue for planned candidate-gap handling and evidence requirements. | Aseprite Adapter collection of runtime observations; tests and evidence artifacts retain executed proof; Surface Manifest generation reports installed Gaps. |
 
 ## Failure, bounds, and trust
 

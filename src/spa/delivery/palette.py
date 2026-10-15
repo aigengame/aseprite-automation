@@ -1,5 +1,6 @@
 """Publish independently verified GPL or Indexed PNG Palette Artifacts."""
 
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Annotated, Literal
 
@@ -123,7 +124,7 @@ PALETTE_EXPORT_HANDLER = PackagedHandler(
 
 
 def palette_export_capability_gaps(
-    aseprite_version: str, verified_capabilities: list[RuntimeCapability]
+    aseprite_version: str, verified_capabilities: Sequence[RuntimeCapability]
 ) -> list[CapabilityGap]:
     if "aseprite_palette_quantization" in verified_capabilities:
         return []
@@ -131,7 +132,7 @@ def palette_export_capability_gaps(
         CapabilityGap(
             capability="spa palette export: color-quantization",
             aseprite_version=aseprite_version,
-            evidence="Native Palette quantization was not observed; Effective Palette export remains available",
+            reason="Native Palette quantization was not observed; Effective Palette export remains available",
         )
     ]
 
@@ -306,5 +307,6 @@ PALETTE_EXPORT_OPERATIONS = (
         ),
         execution_kind="export",
         side_effects=("publishes one verified Palette Artifact",),
+        help_summary="Export a Palette as GPL or Indexed PNG.",
     ),
 )

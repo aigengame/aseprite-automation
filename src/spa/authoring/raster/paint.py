@@ -321,5 +321,6 @@ PAINT_OPERATIONS = (
         side_effects=("publishes the declared Target Sprite File",),
         plan_eligible=True,
         probe_before_execute=False,
+        help_summary="Apply an explicit Pixel Patch to a Cel Image.",
     ),
 )

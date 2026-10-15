@@ -1098,7 +1098,7 @@ local function observes_native_paint(tool, algorithm, tiled)
       assert(result.requested_opacity == 255 and result.effective_opacity == 255)
       sprite = assert(app.open(output))
       local pixel = sprite.layers[1]:cel(1).image:getPixel(0, 0)
-      -- Independent 1.3.18.5 native oracle: one red corner on opaque blue.
+      -- Baseline Aseprite native oracle: one red corner on opaque blue.
       -- These include native source-area expansion and tiled edge sampling.
       local expected = ({
         none = app.pixelColor.rgba(113, 0, 141, 255),

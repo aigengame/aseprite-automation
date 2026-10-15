@@ -24,10 +24,10 @@ milestones, and durable authorities; it does not own product or system knowledge
 | [Accepted ADRs](docs/adr/) | Consequential cross-feature decisions, their rationale and trade-offs, and durable invariants. | The canonical current strategic model, product backlog, exhaustive feature fields, test matrices, probe logs, delivery status, or shipped support. | Evaluate change against the PRD and current domain model; constrain feature issues and implementation. An accepted strategic-model change updates `CONTEXT.md` in the same change. |
 | [Feature issues](https://github.com/aigengame/aseprite-automation/issues) | Exact planned vertical-slice scope, feature contract, acceptance, dependencies, priority, evidence requirements, provenance links, curated evidence summaries, and delivery status. | Executed verification assertions or results, cross-feature architecture, milestone membership rules, or installed-runtime truth. | Refine PRD requirements under `CONTEXT.md` and accepted ADRs; direct delivery and identify required evidence. |
 | [Milestones](https://github.com/aigengame/aseprite-automation/milestones) | Phase outcomes and issue membership. | Feature contracts, implicit dependency order, architecture, or implementation truth. | Group issues; explicit issue dependencies remain authoritative for order. |
-| Operation Descriptor | Implemented public Operation identity, request/result/failure schemas, metadata, presentation bindings, and execution binding. | Executable native behavior, candidate territory, or installed-environment facts. | Implements an accepted issue contract and supplies public projections and the installed Surface Manifest. |
+| Operation Descriptor | Implemented public Operation identity, purpose description (`help_summary`), request/result/failure schemas, metadata, presentation bindings, and execution binding. | Executable native behavior, candidate territory, or installed-environment facts. | Implements an accepted issue contract and supplies public projections and the installed Surface Manifest. |
 | Implementation | Executable behavior. For an Ordinary Core Operation, its fixed packaged Lua handler is the sole executable Core Operation Semantics authority. Application code owns application-use-case orchestration without duplicating those semantics. | Product intent, planned scope, or independent public-contract definitions. | Implements issues and Descriptors under accepted ADR constraints. |
 | Tests and evidence | Executed verification assertions, observations, measurements, and retained results about contracts, behavior, integration, packaging, and regressions. | Product meaning, evidence requirements, executable behavior, or an independently editable contract. | Verify the applicable issue, Descriptor, implementation, and native claim; supply results that issues can link to and summarize. |
-| Installed Surface Manifest | Callable Operations, schemas, execution metadata, version constraints, and applicable Capability Gaps, including assessed capabilities without a Descriptor, for one installed SPA and Aseprite combination. | Roadmap, priority, design rationale, historical evidence, candidate inventory, or investigation status. | Is generated from installed Descriptors, the shared Failure Code registration for Access-level failure projection, observed runtime facts, and native Gap evidence with its tested baseline. |
+| Installed Surface Manifest | Callable Operations, schemas, execution metadata, version constraints, and applicable Capability Gaps, including assessed capabilities without a Descriptor, for one installed SPA and Aseprite combination. | Roadmap, priority, design rationale, historical evidence, candidate inventory, or investigation status. | Is generated from installed Descriptors, the shared Failure Code registration for Access-level failure projection, observed runtime facts, and feature-owned Capability Gap reasons. |
 
 Ordinary Core Operation and Core Operation Semantics name the packaged execution
 category defined in `CONTEXT.md` and ADR-0010. Their authority applies to native
@@ -190,19 +190,21 @@ contract. Only Descriptors supply callable Operation entries in the installed Su
 Manifest. A Capability Gap can report an evidence-backed native limitation that
 prevents an assessed capability from having a Descriptor. That diagnostic record does
 not register an Operation or promise its future delivery. An unpublished candidate's
-Gap projection can be limited to the scope of its recorded investigation. Candidate
+Gap describes the current SPA support boundary. Candidate
 inventory and investigation status remain in the feature issue. An absent candidate
 Gap neither establishes callability nor asserts a native-behavior result on another
 release.
 
-A Capability Gap reports evidenced unavailability within the applicable SPA support
-boundary. Its selected Aseprite version identifies the installation. Evidence for a
-bounded native-behavior refusal identifies the tested baseline; evidence from a
-selected-runtime observation describes that installation's probe or rejection.
-Baseline evidence does not assert a separate native test on every release. A
-delivered Operation's documented refusal can remain in the Manifest under
-Aseprite's native compatibility policy. This projection rule adds no SPA version
-certification matrix.
+A Capability Gap reports current SPA unavailability or a request restriction.
+Its feature owner supplies one caller-oriented `reason`; discovery, human output,
+MCP, and applicable failure messages and nested details reuse that source. The
+selected Aseprite version remains an installation fact. Internal research,
+Baseline Aseprite attribution, probe data, and implementation references belong in
+ordinary comments or concise maintenance documentation, not public explanations.
+The shared Baseline Aseprite definition is `SPA_BASELINE_ASEPRITE_VESION` in
+`src/spa/__init__.py`. This definition adds no compatibility guarantee or version
+certification matrix. Execution requirements and observations continue to govern
+admission.
 
 ## Maintenance rules
 

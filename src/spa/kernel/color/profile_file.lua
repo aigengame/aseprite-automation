@@ -1,6 +1,6 @@
 -- Read encoded profile identity; Aseprite remains the color engine.
 local module = {}
--- Aseprite 1.3.18.5 saves None by omitting the Color Profile chunk, but
+-- Baseline Aseprite saves None by omitting the Color Profile chunk, but
 -- app.open() assigns sRGB to that old-file form. Read only this file fact.
 function module.declared_profile(source_file)
   local file = assert(io.open(source_file, "rb"), "could not read Source Sprite File")

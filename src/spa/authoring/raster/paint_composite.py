@@ -6,6 +6,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field, ValidationError, field_validator, model_validator
 
+from spa.application.mutation import prepare_mutation
 from spa.authoring.document.cel_contracts import (
     CelAddress,
     CelState,
@@ -28,7 +29,6 @@ from spa.contracts.digest import DIGEST_RESOURCE
 from spa.contracts.mutation import (
     TargetCommit,
     require_overwrite_for_in_place,
-    source_target_identity_issue,
     validate_native_sprite_path,
 )
 from spa.contracts.operation import RUNTIME_FAILURE_CODES, OperationDescriptor
@@ -37,10 +37,8 @@ from spa.contracts.ports import (
     OperationServices,
     PackagedHandler,
     PackagedResource,
-    RequestIssue,
     ResponseEvidence,
     RuntimeIssue,
-    TargetCommitEvidence,
 )
 from spa.contracts.public import (
     CapabilityGap,
@@ -169,15 +167,9 @@ class CompositeCapabilityDetails(PublicModel):
     gap: CapabilityGap
 
 
-# These modes do not have the requested native Grayscale meaning in the verified
-# Aseprite 1.3.18.5 baseline. Keep this support boundary with the Paint Operation.
-GRAYSCALE_GAPS = {
-    "hue": "Native Grayscale Hue maps to Normal",
-    "saturation": "Native Grayscale Saturation maps to Normal",
-    "color": "Native Grayscale Color maps to Normal",
-    "luminosity": "Native Grayscale Luminosity maps to Normal",
-    "addition": "Native Grayscale Addition selects Exclusion in Image:drawImage",
-}
+# Baseline Aseprite maps these Grayscale modes to other operations: the first
+# four use Normal and Addition uses Exclusion. Keep the refusal with Paint.
+GRAYSCALE_GAPS = ("hue", "saturation", "color", "luminosity", "addition")
 
 
 def composite_capability_gaps(
@@ -187,20 +179,16 @@ def composite_capability_gaps(
         CapabilityGap(
             capability=f"spa paint composite: grayscale {mode}",
             aseprite_version=aseprite_version,
-            evidence=(
-                f"Not exposed by SPA. Verified with Aseprite 1.3.18.5: {reason}; "
-                "no replacement blender is used."
-            ),
+            reason=f"Grayscale {mode} compositing is unavailable. Use a supported Blend Mode or explicitly convert to RGB.",
         )
-        for mode, reason in GRAYSCALE_GAPS.items()
+        for mode in GRAYSCALE_GAPS
     ] + [
         CapabilityGap(
             capability="spa paint composite: indexed blend-mode/opacity",
             aseprite_version=aseprite_version,
-            evidence=(
-                "Only normal with opacity=255 is supported. In the Aseprite "
-                "1.3.18.5 baseline, native Indexed overlay selects indexes and "
-                "ignores other BlendMode/opacity values."
+            reason=(
+                "Indexed compositing supports only normal with opacity=255. "
+                "Explicitly convert to RGB for other Blend Modes or opacity values."
             ),
         )
     ]
@@ -209,7 +197,7 @@ def composite_capability_gaps(
             CapabilityGap(
                 capability="spa paint composite: indexed",
                 aseprite_version=aseprite_version,
-                evidence="The isolated Palette-correct native Indexed route was not observed by the runtime probe.",
+                reason="Indexed compositing is unavailable in the selected runtime.",
             )
         )
     return gaps
@@ -258,11 +246,14 @@ def composite_paint(
     request: PaintCompositeRequest, services: OperationServices
 ) -> PaintCompositeResult:
     source, target = Path(request.source_sprite_file), Path(request.target_sprite_file)
-    issue = source_target_identity_issue(
-        services.target_files, source, target, request.in_place
+    completion = prepare_mutation(
+        services.target_files,
+        source,
+        target,
+        in_place=request.in_place,
+        overwrite=request.overwrite,
+        identity_change_message="Source/Target identity changed",
     )
-    if issue is not None:
-        raise RequestIssue([issue])
     if isinstance(request.input, InlineSnapshot):
         value = request.input.snapshot
     else:
@@ -316,11 +307,10 @@ def composite_paint(
         )
         raise OperationIssue(
             "paint_composite_unsupported",
-            gap.evidence,
+            gap.reason,
             CompositeCapabilityDetails(gap=gap),
         )
-    staged = services.target_files.staged_path(target)
-    try:
+    with completion as mutation:
         payload = request.model_dump(
             mode="json",
             exclude_none=True,
@@ -333,7 +323,7 @@ def composite_paint(
                 "input",
             },
         )
-        payload["staged_sprite_file"] = str(staged)
+        payload["staged_sprite_file"] = str(mutation.staged_sprite_file)
         payload["input"] = {
             "kind": request.input.kind,
             "snapshot": value.model_dump(mode="json"),
@@ -354,7 +344,7 @@ def composite_paint(
                     gap=CapabilityGap(
                         capability=f"spa paint composite: {value.color_mode} {request.blend_mode}",
                         aseprite_version=observation.aseprite_version,
-                        evidence=rejected["message"],
+                        reason=rejected["message"],
                     )
                 )
             else:
@@ -422,30 +412,11 @@ def composite_paint(
             evidence.sprite,
             invocation,
         )
-        if (
-            source_target_identity_issue(
-                services.target_files, source, target, request.in_place
-            )
-            is not None
-        ):
-            raise RuntimeIssue(
-                "target_commit_failed",
-                "Source/Target identity changed",
-                TargetCommitEvidence(str(target), "source_target_identity_changed"),
-            )
-        committed = services.target_files.commit(
-            staged, target, overwrite=request.overwrite
-        )
+        committed = mutation.commit()
         return PaintCompositeResult(
             **evidence.model_dump(),
-            target_commit=TargetCommit(
-                target_sprite_file=committed.target_sprite_file,
-                byte_size=committed.byte_size,
-                sha256=committed.sha256,
-            ),
+            target_commit=committed,
         )
-    finally:
-        services.target_files.discard(staged)
 
 
 COMPOSITE_OPERATIONS = (
@@ -469,5 +440,6 @@ COMPOSITE_OPERATIONS = (
         execution_kind="mutation",
         side_effects=("publishes the declared Target Sprite File",),
         probe_before_execute=False,
+        help_summary="Composite a pixel snapshot or Cel Image onto a target Cel Image.",
     ),
 )
