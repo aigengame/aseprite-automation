@@ -137,6 +137,16 @@ def fake_aseprite(tmp_path: Path, body: str) -> Path:
 
 def fake_probe_response(tmp_path: Path, response: str) -> Path:
     """Create a controlled Aseprite transport that returns one probe response."""
+    if os.name == "nt":
+        from tests.windows_executable import windows_aseprite
+
+        return windows_aseprite(
+            tmp_path,
+            "import sys\nfrom pathlib import Path\n"
+            "arguments = dict(arg.split('=', 1) for arg in sys.argv[1:] if '=' in arg)\n"
+            "Path(arguments['echo']).write_bytes(Path(arguments['request']).read_bytes())\n"
+            f"Path(arguments['response']).write_text({response!r}, encoding='utf-8')\n",
+        )
     quoted_response = shlex.quote(response)
     return fake_aseprite(
         tmp_path,
