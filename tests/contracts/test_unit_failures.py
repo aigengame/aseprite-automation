@@ -84,6 +84,7 @@ from spa.contracts.ports import (
 )
 from spa.contracts.public import (
     CapabilityGap,
+    Diagnostics,
     FailureEnvelope,
     KernelExecutionDetails,
     KernelProtocolDetail,
@@ -319,14 +320,14 @@ def test_each_registered_code_has_a_constrained_public_schema() -> None:
             gap=CapabilityGap(
                 capability="spa paint composite: grayscale addition",
                 aseprite_version="1.3.18.5-dev",
-                evidence="Native Addition selects Exclusion",
+                reason="Native Addition selects Exclusion",
             )
         ),
         PaintCapabilityDetails: PaintCapabilityDetails(
             gap=CapabilityGap(
                 capability="shading Ink",
                 aseprite_version="1.3.18.5",
-                evidence="explicit Shade configuration unavailable",
+                reason="explicit Shade configuration unavailable",
             )
         ),
         SelectionDetails: SelectionDetails(reason="coverage outside Canvas Rectangle"),
@@ -515,6 +516,43 @@ def test_failure_schema_refuses_unknown_and_duplicate_applicability() -> None:
         registered_failure_schema(("not_registered",), "spa")
     with pytest.raises(ValueError, match="unique"):
         registered_failure_schema(("invalid_request", "invalid_request"), "spa")
+
+
+def test_failure_schema_shares_envelope_and_preserves_code_details_associations() -> (
+    None
+):
+    schema = registered_failure_schema(
+        ("invalid_request", "process_failed"), "spa info"
+    )
+    Draft202012Validator.check_schema(schema)
+    assert schema["properties"]["operation"] == {"const": "spa info"}
+    assert "message" in schema["properties"]
+    assert all("message" not in branch["properties"] for branch in schema["oneOf"])
+    validator = Draft202012Validator(schema)
+    request_failure = {
+        "status": "failure",
+        "operation": "spa info",
+        "code": "invalid_request",
+        "category": "input",
+        "message": "Invalid request",
+        "details": {"kind": "invalid_request", "errors": []},
+    }
+    process_failure = request_failure | {
+        "code": "process_failed",
+        "category": "execution",
+        "details": {"kind": "process", "executable": "/aseprite", "exit_status": 1},
+    }
+    for valid in (request_failure, process_failure):
+        validator.validate(valid)
+        for key in ("status", "operation", "code", "category", "message", "details"):
+            assert not validator.is_valid({k: v for k, v in valid.items() if k != key})
+        assert not validator.is_valid(valid | {"operation": "spa version"})
+        assert not validator.is_valid(valid | {"extra": True})
+    assert not validator.is_valid(request_failure | {"category": "execution"})
+    assert not validator.is_valid(
+        request_failure | {"details": process_failure["details"]}
+    )
+    assert not validator.is_valid(process_failure | {"code": "process_start_failed"})
 
 
 def test_failure_schema_rejects_wrong_code_category_details_and_missing_fields() -> (
@@ -749,6 +787,34 @@ def test_every_runtime_issue_kind_classifies_to_a_registered_failure(
     )
     assert outcome.code == expected_code
     assert outcome.category == FAILURE_CODES[expected_code].category
+    Draft202012Validator(info.schema(FAILURE_CODES).failure_schema).validate(
+        outcome.model_dump(mode="json")
+    )
+
+
+def test_current_failure_facts_survive_public_guidance_cleanup() -> None:
+    info = next(descriptor for descriptor in OPERATIONS if descriptor.name == "info")
+    executable = "/caller/issue #251/aseprite"
+    diagnostics = Diagnostics(
+        stdout="Caller output: see docs/ADR-1234.md",
+        stderr="Caller script says probe failed",
+        exit_status=13,
+    )
+    outcome = _runtime_failure(
+        info,
+        RuntimeIssue(
+            "process_failed",
+            "Aseprite exited with status 13",
+            ProcessEvidence(executable=executable, exit_status=13),
+            diagnostics,
+        ),
+        FAILURE_CODES,
+    )
+    assert outcome.message == "Aseprite exited with status 13"
+    assert outcome.details == ProcessDetails(executable=executable, exit_status=13)
+    assert outcome.diagnostics == diagnostics
+    assert outcome.code == "process_failed" and outcome.category == "execution"
+    assert "evidence" not in outcome.model_dump()
     Draft202012Validator(info.schema(FAILURE_CODES).failure_schema).validate(
         outcome.model_dump(mode="json")
     )

@@ -1,16 +1,19 @@
-"""Selected runtime identity does not turn retained text evidence into a new probe."""
+"""Text guidance describes SPA availability and preserves selected runtime identity."""
 
 from dataclasses import replace
 
 import pytest
 
+from spa import SPA_BASELINE_ASEPRITE_VESION
 from spa.application.surface import info_result, schema_result
 from spa.contracts.public import RuntimeRequest
 from tests.support import operation_services, runtime_observation
 
 
-@pytest.mark.parametrize("selected_version", ["1.3.18.5-dev", "1.3.19"])
-def test_text_gap_separates_investigation_baseline_from_selected_runtime(
+@pytest.mark.parametrize(
+    "selected_version", [SPA_BASELINE_ASEPRITE_VESION, "test-runtime"]
+)
+def test_text_gap_reports_availability_without_research_narrative(
     selected_version: str,
 ) -> None:
     observation = replace(
@@ -27,8 +30,7 @@ def test_text_gap_separates_investigation_baseline_from_selected_runtime(
     )
     assert gap in schema.capability_gaps
     assert gap.aseprite_version == selected_version
-    assert "macOS Aseprite 1.3.18.5-dev" in gap.evidence
-    assert "not retested" in gap.evidence
-    assert "do not establish Linux behavior" in gap.evidence
+    assert "SPA does not provide text rasterization" in gap.reason
+    assert "Import prepared raster text" in gap.reason
     assert "spa paint line" in info.supported_capabilities
     assert not any("text" in item.operation.split() for item in schema.operations)

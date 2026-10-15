@@ -467,17 +467,17 @@ def slice_capability_gaps(version: str) -> list[CapabilityGap]:
         CapabilityGap(
             capability="spa slice key add/set/remove",
             aseprite_version=version,
-            evidence="No installed arbitrary Slice Key mutation descriptors. The 1.3.18.5 public Lua getters expose the first Key and setters target native Frame 0. A public non-interactive multi-Key save/reopen path needs acceptance before extending this surface (issue #40).",
+            reason="SPA does not provide Slice Key add, set, or remove operations. Geometry edits require one explicit Key at Frame 1.",
         ),
         CapabilityGap(
             capability="spa slice set: multi-Key or later-starting geometry",
             aseprite_version=version,
-            evidence="Bounds, center, and pivot changes require exactly one explicit Key at Frame 1. Rename, user data, and whole-Slice removal preserve complete Keys.",
+            reason="Bounds, center, and pivot changes require exactly one explicit Key at Frame 1. Rename, user data, and whole-Slice removal preserve complete Keys.",
         ),
         CapabilityGap(
             capability="spa slice set: clearing pivot",
             aseprite_version=version,
-            evidence="Public Lua pivot=nil stores Point(0,0) on 1.3.18.5; clearing is not exposed. Omit pivot to preserve it. A later native clearing path needs save/reopen acceptance.",
+            reason="Clearing a Slice pivot is unavailable. Omit pivot to preserve it.",
         ),
     ]
 

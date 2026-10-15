@@ -187,9 +187,7 @@ def test_installed_manifest_exposes_access_failures_without_real_aseprite(
         for item in manifest["operations"]
         if item is not script
     )
-    gaps = {
-        item["capability"]: item["evidence"] for item in manifest["capability_gaps"]
-    }
+    gaps = {item["capability"]: item["reason"] for item in manifest["capability_gaps"]}
     assert "aseprite_sprite_create" in gaps["spa sprite create"]
     assert "aseprite_sprite_inspection" in gaps["spa sprite get"]
     human = spa(
@@ -197,3 +195,15 @@ def test_installed_manifest_exposes_access_failures_without_real_aseprite(
     )
     assert human.returncode == 0, human.stdout
     assert human.stdout.startswith("Aseprite test (API 41, Lua 5.4)")
+    assert f"SPA {manifest['spa_version']}" in human.stdout
+    assert f"Executable: {binary.resolve()} (environment)" in human.stdout
+    assert "Resources: complete" in human.stdout
+    assert "Callable Operations: 5" in human.stdout
+    assert "spa schema --human" in human.stdout
+    assert "spa sprite create: missing observed capabilities" in human.stdout
+    catalog = spa("schema", "--aseprite", str(binary), "--human")
+    assert catalog.returncode == 0, catalog.stdout
+    assert catalog.stdout.splitlines() == [
+        f"{item['operation']}: {item['help_summary']}"
+        for item in manifest["operations"]
+    ]

@@ -1,16 +1,11 @@
-# Invert Color and Outline native evidence
+# Invert Color and Outline maintenance note
 
 Scope and acceptance belong to [issue #38](https://github.com/aigengame/aseprite-automation/issues/38).
 The implemented Descriptors supply request, result, failure, and installed capability
-schemas. This record explains native evidence and how to reproduce it.
+schemas. This note explains current implementation constraints and test entry points.
 
-## Baseline
-
-- Aseprite 1.3.18.5-dev, API 41, macOS 27.0 arm64.
-- Source baseline: `aseprite/aseprite` commit
-  `375989a61c3425cd4e8cdedfcfcca4bdfef7e1d9`.
-- Real `--batch --script` calls use SPA's prepared invocation environment.
-  These results do not constitute windowed UI validation.
+The Baseline Aseprite definition is `SPA_BASELINE_ASEPRITE_VESION` in
+`src/spa/__init__.py`. It is a maintenance reference, not a compatibility guarantee.
 
 ## Native observations
 
@@ -22,9 +17,9 @@ schemas. This record explains native evidence and how to reproduce it.
 | Outline Matrix | `src/filters/neighboring_pixels.h` traverses top-left first; `outline_filter.cpp` starts with bit 1. The editor displays reversed bit order. Public neighbor names follow sampled Image positions, verified with an asymmetric spatial witness. |
 | Outline edges | Native sampling clamps non-tiled axes and wraps tiled axes. A corner fixture produces four distinct results for `none`, `x`, `y`, and `both`. Selection limits candidate writes while neighbors outside Selection remain visible. |
 | Outline colors | RGB/Gray candidates classify by zero Alpha or exact background color. Indexed candidates use exact background Index; native neighbor lookup also observes Palette Alpha. The command projects colors through its active Layer once. Mixed RGB/Gray targets use a selected non-Background anchor; Background-only calls retain native opaque projection. Tests compare both target orders and the Background-only case with a direct native oracle. |
-| Indexed component Outline | Remains unavailable under the owner-approved baseline gap. SPA refuses it before mutation rather than interpreting it as Index processing. |
+| Indexed component Outline | Remains unavailable in SPA. SPA refuses it before mutation rather than interpreting it as Index processing. |
 | Native writeback | Actual persisted Images and Cel bounds/absence are compared with independently invoked native commands. Pixel-only execution preserves Palette facts; unrelated Tilemaps are checked separately. |
-| Empty Selection | The native empty Mask means unrestricted pixels. SPA supplies two selected pixels outside the Canvas, at `(width, 0)` and `(0, height)`, so its bounds start at the Canvas origin and no Canvas pixel is selected. A prior negative-X sentinel made `FilterManagerImpl::applyStep()` lock fewer Mask pixels than the Filter row consumed. Linux exposed an unintended Invert change; macOS reproduced it at widths 8, 16, and 32. The origin-aligned Mask preserves native invocation and Palette application, without changing processed-Image reporting. |
+| Empty Selection | The native empty Mask means unrestricted pixels. SPA supplies two selected pixels outside the Canvas, at `(width, 0)` and `(0, height)`, so its bounds start at the Canvas origin and no Canvas pixel is selected. A negative-X sentinel can make `FilterManagerImpl::applyStep()` lock fewer Mask pixels than the Filter row consumes. The origin-aligned Mask preserves native invocation and Palette application, without changing processed-Image reporting. |
 | Result transport | Aseprite's `json_class.cpp` decodes nested objects as userdata and encodes borrowed userdata as null. Results construct ordinary Lua values; Color Values reuse the existing Raster helper. |
 
 ## Automated evidence

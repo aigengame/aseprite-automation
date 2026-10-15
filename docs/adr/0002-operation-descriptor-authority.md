@@ -20,6 +20,15 @@ models own field descriptions and constraints. CLI Access owns root and Command
 Group introductions; group identity and hierarchy still derive from Operation
 paths. Presentation text does not register capabilities.
 
+Published schemas use Pydantic's generation hooks to omit automatic titles that
+repeat field or model names. Authored descriptions, useful titles, defaults,
+examples, and constraints remain. Each entry publishes its Request once in
+`request_schema`; `invocation_schema` owns CLI bindings and stdin guidance.
+Failure schemas share the Envelope fields and use standard JSON Schema `oneOf`
+branches to bind each Code to its Category and typed Details. Each schema retains
+its local definitions and works with a standard validator. There is no separate
+schema registry or reference-resolution protocol.
+
 Bare `spa`, `spa --help`, and `spa help` show the same root help and exit zero.
 `spa help <command path>` navigates the generated command tree and renders the
 target's help without executing an Operation or probing Aseprite. Unknown paths
@@ -54,7 +63,18 @@ Step requirements are observed. An individual Plan can use a subset and is check
 against its selected Step requirements plus final Sprite inspection. Aseprite product
 version remains provenance and does not replace runtime observations.
 
-The current real-integration baseline is Aseprite 1.3.18.5. For other releases,
+Discovery derives availability and Capability Gaps from the complete internal
+Runtime Observation. Its public Runtime Facts contain the canonical executable,
+selection source, resource status, versions, prerequisites, and capabilities.
+Resolution intermediates and raw Convolution probe payloads remain internal;
+the public Gap reports the current restriction and useful next action through its
+feature-owned `reason`. Discovery, human output, MCP, and applicable failure messages
+and nested details reuse that reason. Public help and schema descriptions follow the
+same boundary: internal research, Baseline Aseprite attribution, raw probes, and
+implementation references remain in ordinary comments or maintenance documentation.
+
+The Baseline Aseprite definition is `SPA_BASELINE_ASEPRITE_VESION` in
+`src/spa/__init__.py`. For other releases,
 SPA follows [Aseprite's native scripting compatibility policy](https://github.com/aseprite/api/blob/main/Changes.md)
 under [PRD #1](https://github.com/aigengame/aseprite-automation/issues/1)
 and [issue #132](https://github.com/aigengame/aseprite-automation/issues/132).

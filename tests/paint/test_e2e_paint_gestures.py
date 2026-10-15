@@ -368,4 +368,4 @@ def test_gradient_gap_is_reported_without_corrupting_runtime_discovery() -> None
         if gap["capability"] == "spa paint gradient"
     )
     assert gap["aseprite_version"] == result["runtime"]["aseprite_version"]
-    assert "Gradient Type" in gap["evidence"] and "Dithering Matrix" in gap["evidence"]
+    assert "Gradient Type" in gap["reason"] and "Dithering Matrix" in gap["reason"]

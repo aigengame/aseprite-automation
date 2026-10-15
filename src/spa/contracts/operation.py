@@ -17,6 +17,7 @@ from spa.contracts.public import (
     failure_schema,
     validate_operation_determinism,
 )
+from spa.contracts.schema import CompactJsonSchema
 
 COMMON_CLI_FLAGS = {
     "input_json": "--input-json",
@@ -106,12 +107,15 @@ class OperationDescriptor[RequestT: BaseModel, ResultT: BaseModel]:
             execution_kind=self.execution_kind,
             determinism=self.determinism,
             side_effects=list(self.side_effects),
-            minimum_aseprite_version=None,
             requires_runtime=self.requires_runtime,
             plan_eligible=self.plan_eligible,
             runtime_requirements=self.runtime_requirements,
-            request_schema=self.request_type.model_json_schema(),
-            result_schema=self.result_type.model_json_schema(),
+            request_schema=self.request_type.model_json_schema(
+                schema_generator=CompactJsonSchema
+            ),
+            result_schema=self.result_type.model_json_schema(
+                schema_generator=CompactJsonSchema
+            ),
             failure_schema=failure_schema(self.failure_codes, command, failure_codes),
             invocation_schema={
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -120,9 +124,8 @@ class OperationDescriptor[RequestT: BaseModel, ResultT: BaseModel]:
                     "command": {"const": command},
                     "input_json": {
                         "type": "string",
-                        "description": "Inline JSON object or '-' to read one object from stdin.",
+                        "description": "JSON object matching request_schema, or '-' to read that object from stdin.",
                     },
-                    "argv": self.request_type.model_json_schema(),
                     "schema": {"type": "boolean"},
                     "json_output": {"type": "boolean"},
                     "human": {"type": "boolean"},

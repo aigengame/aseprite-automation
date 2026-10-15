@@ -2,7 +2,7 @@
 local module = {}
 local palettes = dofile(app.params.effective_palette)
 
--- Match Aseprite 1.3.18.5 Palette::findBestfit with the Sprite's transparent
+-- Match Baseline Aseprite Palette::findBestfit with the Sprite's transparent
 -- index as mask. Native Indexed resize instead derives its mask from RGBA-zero
 -- Palette entries, which can be a different index.
 local function bestfit(r, g, b, a, entries, palette_size, transparent_index)

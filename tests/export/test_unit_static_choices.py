@@ -185,7 +185,7 @@ def test_unavailable_optional_behavior_is_discoverable_and_refused_before_kernel
     info = info_result(RuntimeRequest(), services)
     assert "spa export image" in info.supported_capabilities
     assert any(
-        gap.capability.startswith("spa export image:") and capability in gap.evidence
+        gap.capability.startswith("spa export image:") and capability in gap.reason
         for gap in info.capability_gaps
     )
 

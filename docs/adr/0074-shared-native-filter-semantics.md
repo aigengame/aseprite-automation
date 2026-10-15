@@ -136,7 +136,7 @@ installed Capability Gaps.
   consistent across Filters while each Filter keeps a strict operation-specific schema.
 - Palette-only, pixel-only, and combined mutations cannot be confused in requests or
   results.
-- Native defects remain visible as versioned Capability Gaps rather than motivating
+- Current restrictions remain visible through feature-owned Capability Gap reasons rather than motivating
   silent partial support or a duplicate image-processing implementation.
 
 ## Rejected alternatives

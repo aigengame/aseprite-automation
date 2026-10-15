@@ -167,15 +167,9 @@ class CompositeCapabilityDetails(PublicModel):
     gap: CapabilityGap
 
 
-# These modes do not have the requested native Grayscale meaning in the verified
-# Aseprite 1.3.18.5 baseline. Keep this support boundary with the Paint Operation.
-GRAYSCALE_GAPS = {
-    "hue": "Native Grayscale Hue maps to Normal",
-    "saturation": "Native Grayscale Saturation maps to Normal",
-    "color": "Native Grayscale Color maps to Normal",
-    "luminosity": "Native Grayscale Luminosity maps to Normal",
-    "addition": "Native Grayscale Addition selects Exclusion in Image:drawImage",
-}
+# Baseline Aseprite maps these Grayscale modes to other operations: the first
+# four use Normal and Addition uses Exclusion. Keep the refusal with Paint.
+GRAYSCALE_GAPS = ("hue", "saturation", "color", "luminosity", "addition")
 
 
 def composite_capability_gaps(
@@ -185,20 +179,16 @@ def composite_capability_gaps(
         CapabilityGap(
             capability=f"spa paint composite: grayscale {mode}",
             aseprite_version=aseprite_version,
-            evidence=(
-                f"Not exposed by SPA. Verified with Aseprite 1.3.18.5: {reason}; "
-                "no replacement blender is used."
-            ),
+            reason=f"Grayscale {mode} compositing is unavailable. Use a supported Blend Mode or explicitly convert to RGB.",
         )
-        for mode, reason in GRAYSCALE_GAPS.items()
+        for mode in GRAYSCALE_GAPS
     ] + [
         CapabilityGap(
             capability="spa paint composite: indexed blend-mode/opacity",
             aseprite_version=aseprite_version,
-            evidence=(
-                "Only normal with opacity=255 is supported. In the Aseprite "
-                "1.3.18.5 baseline, native Indexed overlay selects indexes and "
-                "ignores other BlendMode/opacity values."
+            reason=(
+                "Indexed compositing supports only normal with opacity=255. "
+                "Explicitly convert to RGB for other Blend Modes or opacity values."
             ),
         )
     ]
@@ -207,7 +197,7 @@ def composite_capability_gaps(
             CapabilityGap(
                 capability="spa paint composite: indexed",
                 aseprite_version=aseprite_version,
-                evidence="The isolated Palette-correct native Indexed route was not observed by the runtime probe.",
+                reason="Indexed compositing is unavailable in the selected runtime.",
             )
         )
     return gaps
@@ -317,7 +307,7 @@ def composite_paint(
         )
         raise OperationIssue(
             "paint_composite_unsupported",
-            gap.evidence,
+            gap.reason,
             CompositeCapabilityDetails(gap=gap),
         )
     with completion as mutation:
@@ -354,7 +344,7 @@ def composite_paint(
                     gap=CapabilityGap(
                         capability=f"spa paint composite: {value.color_mode} {request.blend_mode}",
                         aseprite_version=observation.aseprite_version,
-                        evidence=rejected["message"],
+                        reason=rejected["message"],
                     )
                 )
             else:

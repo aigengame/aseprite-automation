@@ -1,11 +1,9 @@
-# Issue #40: complete Slice reads and bounded native authoring
+# Slice maintenance note
 
-## Authority and environment
+The Baseline Aseprite definition is `SPA_BASELINE_ASEPRITE_VESION` in
+`src/spa/__init__.py`. It is a maintenance reference, not a compatibility guarantee.
 
-Issue #40 owns delivery scope; ADR-0039 owns the Slice model and addressing.
-Local evidence uses macOS Aseprite `1.3.18.5-dev`, API 41, Lua 5.4. Native source
-inspection uses commit `375989a61c3425cd4e8cdedfcfcca4bdfef7e1d9`.
-Linux results belong to the exact PR CI run and are not inferred from macOS.
+ADR-0039 owns the Slice model and addressing.
 
 ## Observation and mutation boundaries
 
@@ -40,7 +38,7 @@ Later Key values rely on native export; public Lua does not provide a second
 complete Key collection for independent equality checks. SPA validates their
 shape, ordering, and timeline coverage without adding private file parsing.
 
-On this native version, Slice text containing a line feed is written into vendor
+In Baseline Aseprite, Slice text containing a line feed is written into vendor
 JSON without the required escape. The retained LF fixture proves that native
 export returns and SPA decoding rejects the malformed output. Reads and writes
 that encounter this defect fail; mutation failure preserves the Source and
