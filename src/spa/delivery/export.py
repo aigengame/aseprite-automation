@@ -137,7 +137,7 @@ def export_image_capability_gaps(
         CapabilityGap(
             capability=f"spa export image: {choice}",
             aseprite_version=aseprite_version,
-            evidence=f"{capability} was not observed; requests using this choice are refused",
+            reason=f"{capability} was not observed; requests using this choice are refused",
         )
         for choice, capability in (
             ("assign profile", "aseprite_assign_color_profile"),

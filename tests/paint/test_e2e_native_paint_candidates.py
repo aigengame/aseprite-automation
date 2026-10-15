@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from spa import SPA_BASELINE_ASEPRITE_VESION
 from spa.adapters.aseprite.aseprite import probe
 from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.application.surface import PROBE_RESOURCES
@@ -16,12 +17,12 @@ from tests.support import process_diagnostics, spa
 pytestmark = pytest.mark.e2e
 
 
-def test_aseprite_13185_native_paint_candidate_boundaries(tmp_path: Path) -> None:
+def test_baseline_native_paint_candidate_boundaries(tmp_path: Path) -> None:
     observation = probe(
         RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
     )
-    if observation.aseprite_version.partition("-")[0] != "1.3.18.5":
-        pytest.skip("Issue #29 source and candidate probes target Aseprite 1.3.18.5")
+    if observation.aseprite_version.partition("-")[0] != SPA_BASELINE_ASEPRITE_VESION:
+        pytest.skip("Native candidate checks use Baseline Aseprite")
     workspace = tmp_path / "runtime"
     workspace.mkdir()
     prepared = prepare_invocation(
@@ -82,13 +83,8 @@ def test_aseprite_13185_native_paint_candidate_boundaries(tmp_path: Path) -> Non
     assert all(
         gap["aseprite_version"] == observation.aseprite_version for gap in gaps.values()
     )
-    for tool, reason in (
-        ("spray", "random draw footprint"),
-        ("curve", "Four Points Controller"),
-        ("polygon", "Point-by-Point Controller"),
-        ("jumble", "zero-velocity Pointers"),
-    ):
-        assert reason in gaps[f"spa paint {tool}"]["evidence"]
+    for tool in ("spray", "curve", "polygon", "jumble"):
+        assert "SPA does not provide" in gaps[f"spa paint {tool}"]["reason"]
     assert all(gap in schema_result["capability_gaps"] for gap in gaps.values())
     assert candidates.isdisjoint(info_result["supported_capabilities"])
     assert candidates.isdisjoint(

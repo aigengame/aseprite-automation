@@ -132,7 +132,7 @@ def palette_export_capability_gaps(
         CapabilityGap(
             capability="spa palette export: color-quantization",
             aseprite_version=aseprite_version,
-            evidence="Native Palette quantization was not observed; Effective Palette export remains available",
+            reason="Native Palette quantization was not observed; Effective Palette export remains available",
         )
     ]
 

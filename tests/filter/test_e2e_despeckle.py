@@ -244,6 +244,15 @@ def test_defective_indexed_channels_refuse_without_publishing(tmp_path, runtime,
     )
     assert code != 0 and result["code"] == "filter_unsupported_document", result
     assert "Green" in result["message"]
+    assert result["message"] == result["details"]["reason"]
+    info_code, info = run("info")
+    assert info_code == 0, info
+    gap = next(
+        gap
+        for gap in info["capability_gaps"]
+        if gap["capability"] == "spa filter despeckle: Indexed components without Green"
+    )
+    assert result["message"] == gap["reason"]
     assert (
         source.read_bytes() == original
         and target.read_bytes() == b"keep existing target"

@@ -67,10 +67,14 @@ Discovery derives availability and Capability Gaps from the complete internal
 Runtime Observation. Its public Runtime Facts contain the canonical executable,
 selection source, resource status, versions, prerequisites, and capabilities.
 Resolution intermediates and raw Convolution probe payloads remain internal;
-the public Gap reports the relevant decision and reason. Recorded baseline
-evidence is identified separately from observations of the selected runtime.
+the public Gap reports the current restriction and useful next action through its
+feature-owned `reason`. Discovery, human output, MCP, and applicable failure messages
+and nested details reuse that reason. Public help and schema descriptions follow the
+same boundary: internal research, Baseline Aseprite attribution, raw probes, and
+implementation references remain in ordinary comments or maintenance documentation.
 
-The current real-integration baseline is Aseprite 1.3.18.5. For other releases,
+The Baseline Aseprite definition is `SPA_BASELINE_ASEPRITE_VESION` in
+`src/spa/__init__.py`. For other releases,
 SPA follows [Aseprite's native scripting compatibility policy](https://github.com/aseprite/api/blob/main/Changes.md)
 under [PRD #1](https://github.com/aigengame/aseprite-automation/issues/1)
 and [issue #132](https://github.com/aigengame/aseprite-automation/issues/132).

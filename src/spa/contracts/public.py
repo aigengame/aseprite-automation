@@ -155,7 +155,7 @@ class RuntimeFacts(PublicModel):
 class CapabilityGap(PublicModel):
     capability: str
     aseprite_version: str
-    evidence: str
+    reason: str
 
 
 class VersionResult(PublicModel):

@@ -154,9 +154,8 @@ def test_info_publishes_entry_edit_capability_and_explains_lifecycle_gaps() -> N
         gap = next(
             gap for gap in result["capability_gaps"] if gap["capability"] == command
         )
-        assert "public" in gap["evidence"]
-        assert "Baseline Aseprite 1.3.18.5" in gap["evidence"]
-        assert "entry edits target existing changes" in gap["evidence"]
+        assert "SPA does not provide Palette Change add/remove" in gap["reason"]
+        assert "entry edits target existing changes" in gap["reason"]
 
 
 @pytest.mark.parametrize(

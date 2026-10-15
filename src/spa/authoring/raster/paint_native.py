@@ -392,6 +392,14 @@ PAINT_BLUR_HANDLER = PackagedHandler(
 )
 
 
+_FREEHAND_GAP_REASON = (
+    "The requested Freehand Algorithm is unavailable in the selected runtime"
+)
+_SHADING_GAP_REASON = (
+    "SPA does not provide Shading Ink with explicit Shade configuration"
+)
+
+
 def native_paint_capability_gaps(
     version: str,
     capabilities: list[RuntimeCapability] | tuple[RuntimeCapability, ...],
@@ -409,42 +417,35 @@ def native_paint_capability_gaps(
                     CapabilityGap(
                         capability=f"{tool} {algorithm}",
                         aseprite_version=version,
-                        evidence="The installed native gesture did not pass its independent probe",
+                        reason=_FREEHAND_GAP_REASON,
                     )
                 )
-    for capability, evidence in (
+    for capability, reason in (
         (
             "Paint Dynamics",
-            "Native scripted pressure, velocity, tilt, and dynamic Brush inputs are not verified",
+            "SPA does not provide scripted pressure, velocity, tilt, or dynamic Brush inputs",
         ),
         (
             "Image Brush",
-            "Explicit native Image Brush mask and pattern semantics are not delivered",
+            "SPA does not provide Image Brush masks or patterns",
         ),
         (
             "shading Ink",
-            "Native Shade configuration cannot be supplied and restored explicitly",
+            _SHADING_GAP_REASON,
         ),
     ):
         gaps.append(
             CapabilityGap(
-                capability=capability, aseprite_version=version, evidence=evidence
+                capability=capability, aseprite_version=version, reason=reason
             )
         )
-    # No Gradient Descriptor is published until its complete native execution
-    # contract can be implemented. Calling the known 1.3.18.5 headless path can
-    # dereference a missing GUI Context Bar and corrupt the Kernel protocol.
-    gradient_evidence = (
-        "Aseprite 1.3.18.5 app.useTool reads Gradient Type and Dithering Matrix "
-        "from the GUI Context Bar; no faithful headless option control is available"
-        if version.removesuffix("-dev") == "1.3.18.5"
-        else "No verified headless native route supplies Gradient Type and Dithering Matrix"
-    )
+    # Baseline Aseprite reads Gradient options from the GUI Context Bar; a
+    # headless call can dereference that absent state. Do not invoke this path.
     gaps.append(
         CapabilityGap(
             capability="spa paint gradient",
             aseprite_version=version,
-            evidence=gradient_evidence,
+            reason="SPA does not provide Gradient painting with explicit Gradient Type and Dithering Matrix.",
         )
     )
     if contour_available:
@@ -452,7 +453,7 @@ def native_paint_capability_gaps(
             CapabilityGap(
                 capability="spa paint contour: Paint Dynamics",
                 aseprite_version=version,
-                evidence="Pressure, velocity, tilt, and Paint Dynamics have no explicit verified native gesture contract",
+                reason="Contour does not support pressure, velocity, tilt, or Paint Dynamics",
             )
         )
     return gaps
@@ -484,12 +485,12 @@ def _execute[ResultT: NativePaintResult](
         if capability not in observation.verified_capabilities:
             raise OperationIssue(
                 "paint_capability_gap",
-                "Requested native Freehand Algorithm is unavailable",
+                _FREEHAND_GAP_REASON,
                 PaintCapabilityDetails(
                     gap=CapabilityGap(
                         capability=f"{tool} {request.freehand_algorithm}",
                         aseprite_version=observation.aseprite_version,
-                        evidence="The installed native gesture did not pass its independent probe",
+                        reason=_FREEHAND_GAP_REASON,
                     )
                 ),
             )
@@ -517,12 +518,12 @@ def _execute[ResultT: NativePaintResult](
         ):
             raise OperationIssue(
                 "paint_capability_gap",
-                "Shading Ink needs explicit Shade configuration",
+                _SHADING_GAP_REASON,
                 PaintCapabilityDetails(
                     gap=CapabilityGap(
                         capability="shading Ink",
                         aseprite_version=observation.aseprite_version,
-                        evidence="Native Shade configuration cannot be supplied and restored explicitly",
+                        reason=_SHADING_GAP_REASON,
                     )
                 ),
             )
@@ -787,41 +788,23 @@ NATIVE_PAINT_OPERATIONS = (
 )
 
 
-_CANDIDATE_GAP_EVIDENCE = {
-    "spray": (
-        "Aseprite 1.3.18.5 accepts reset-aware Spray Width/Speed preferences, but "
-        "app.useTool returns no random draw footprint. A no-effect native stroke "
-        "cannot reveal its touched pixels, so complete coverage, bounds, and "
-        "Selection evidence remain unverified."
-    ),
-    "curve": (
-        "Aseprite 1.3.18.5 app.useTool supplies one press/move/release; the "
-        "Four Points Controller needs further phases. Distinct control-point "
-        "probes returned without painting pixels."
-    ),
-    "polygon": (
-        "Aseprite 1.3.18.5 app.useTool supplies one press/move/release; the "
-        "Point-by-Point Controller needs further presses to commit vertices and "
-        "complete. Distinct-vertex probes returned without painting pixels."
-    ),
-    "jumble": (
-        "Aseprite 1.3.18.5 app.useTool constructs zero-velocity Pointers; "
-        "native Jumble Ink uses Pointer speed and direction to sample pixels. "
-        "Stochastic pixel changes do not supply editor-equivalent Pointer behavior."
-    ),
+# These candidates have no callable Descriptor. Baseline Aseprite cannot supply
+# the requested gesture/footprint semantics; see the native Paint maintenance notes.
+_CANDIDATE_GAP_REASONS = {
+    "spray": "SPA does not provide Spray painting.",
+    "curve": "SPA does not provide curve painting. Use explicit Line segments instead.",
+    "polygon": "SPA does not provide polygon painting. Use explicit Line segments instead.",
+    "jumble": "SPA does not provide Jumble Ink.",
 }
 
 
 def native_paint_candidate_gaps(aseprite_version: str) -> list[CapabilityGap]:
-    """Project the recorded 1.3.18.5 candidate evidence, not version compatibility."""
-    # This condition scopes evidence reporting; it does not gate any Operation.
-    if aseprite_version.partition("-")[0] != "1.3.18.5":
-        return []
+    """Describe unavailable Paint operations without claiming native compatibility."""
     return [
         CapabilityGap(
             capability=f"spa paint {tool}",
             aseprite_version=aseprite_version,
-            evidence=finding,
+            reason=reason,
         )
-        for tool, finding in _CANDIDATE_GAP_EVIDENCE.items()
+        for tool, reason in _CANDIDATE_GAP_REASONS.items()
     ]

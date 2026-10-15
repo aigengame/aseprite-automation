@@ -5,20 +5,15 @@ from pathlib import Path
 
 import pytest
 
+from spa import SPA_BASELINE_ASEPRITE_VESION
 from tests.support import fake_probe_response, spa
 
 
 @pytest.mark.parametrize(
-    ("aseprite_version", "has_candidate_evidence"),
-    [
-        ("1.3.18.5", True),
-        ("1.3.18.5-dev", True),
-        ("1.3.19", False),
-        ("test-runtime", False),
-    ],
+    "aseprite_version", [SPA_BASELINE_ASEPRITE_VESION, "test-runtime"]
 )
-def test_native_paint_candidate_gaps_require_applicable_evidence(
-    tmp_path: Path, aseprite_version: str, has_candidate_evidence: bool
+def test_unavailable_paint_guidance_keeps_selected_runtime_identity(
+    tmp_path: Path, aseprite_version: str
 ) -> None:
     binary = fake_probe_response(
         tmp_path,
@@ -53,10 +48,10 @@ def test_native_paint_candidate_gaps_require_applicable_evidence(
         for gap in info_result["capability_gaps"]
         if gap["capability"] in expected
     }
-    assert set(gaps) == (expected if has_candidate_evidence else set())
+    assert set(gaps) == expected
     assert all(gap["aseprite_version"] == aseprite_version for gap in gaps.values())
-    assert all(gap["evidence"] for gap in gaps.values())
-    assert all("1.3.18.5" in gap["evidence"] for gap in gaps.values())
+    assert all(gap["reason"] for gap in gaps.values())
+    assert all("SPA does not provide" in gap["reason"] for gap in gaps.values())
     assert info_result["capability_gaps"] == manifest["capability_gaps"]
     supported = set(info_result["supported_capabilities"])
     assert expected.isdisjoint(supported)

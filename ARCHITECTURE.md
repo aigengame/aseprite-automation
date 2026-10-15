@@ -873,16 +873,16 @@ bounded declaration metadata at the prepared invocation's native resource paths.
 It never computes coefficients or decides that a declaration is callable. The
 Kernel records direct requested/observed Channel probes. The internal
 `RuntimeObservation` carries declarations and probes; public `RuntimeFacts` omit
-these raw payloads. Raster Authoring derives the Convolution gap evidence from the
-observations, and the installed Surface Manifest reports the applicable Capability
-Gap. No descriptor, custom convolution engine, or general resource registry is added.
+these raw payloads. Raster Authoring owns the Convolution Gap reason. The installed
+Surface Manifest reports that SPA does not provide this capability; internal
+observations remain available for maintenance. No descriptor, custom convolution
+engine, or general resource registry is added.
 
-Native text rasterization is also discovery-only under issue #47. Raster Authoring
-owns the retained Capability Gap evidence; `surface.py` projects it through
-`info` and `schema` without a text Descriptor or schema. The
-[bounded macOS investigation](docs/evidence/issue-47-native-text.md) is separate
-from selected-runtime identity. Text probes are manual evidence fixtures, not
-packaged discovery resources, so discovery never repeats the known crash.
+Native text rasterization is also discovery-only. Raster Authoring owns its public
+Capability Gap reason; `surface.py` projects it through `info` and `schema` without
+a text Descriptor or schema. The [maintenance note](docs/evidence/issue-47-native-text.md)
+explains the native font/theme dependency. Manual text fixtures are not packaged
+discovery resources, so discovery does not invoke the unsafe text path.
 
 Brightness/Contrast passes the concrete `filter_tiles.lua` module into the shared
 execution path. It owns Manual Tilemap admission, preserved placement/binding/Grid
@@ -925,8 +925,7 @@ pixels. Contour delegates the complete ordered gesture, including closure and fi
 to its native tool. The runtime gates independently verify Contour's two algorithms
 and Blur's four Tiled Modes. Gradient has no implemented Descriptor or callable
 handler while complete headless Gradient Type and Dithering Matrix control remains
-unverified; installed discovery reports the version-specific Capability Gap under
-issue #28's permitted delivery combination.
+unavailable in SPA; installed discovery reports the feature-owned Capability Gap reason.
 No new rasterizer or public generic Tool wrapper is introduced. The
 [issue #27 evidence](docs/evidence/issue-27-native-paint.md) records the native
 assumptions and their verification.
@@ -1199,7 +1198,8 @@ Descriptor's requirements, with typed evidence before Operation execution. The p
 Kernel Protocol continues to require an exact match with the one version co-packaged in
 the same pre-1.0 release.
 
-Aseprite 1.3.18.5 is the current real-integration baseline. SPA follows Aseprite's
+The Baseline Aseprite definition is `SPA_BASELINE_ASEPRITE_VESION` in
+`src/spa/__init__.py`. SPA follows Aseprite's
 native version compatibility for other releases without an independent version
 allowlist, semantic guarantee, or per-release test matrix. The observed requirements
 above gate execution; they do not certify identical native pixels on every release.
@@ -1360,7 +1360,7 @@ normal explicit `if_exists` policy.
 | Inspection success is complete for its normalized scope. | Owning inspection Operation. | Kernel observation and Application limit handling. |
 | An Ordinary Core Operation with Execution Kind `mutation` is all-or-nothing for its resolved target set. | Mutation decision and owning Operation. | Kernel transaction, persisted native inspection, Staged Sprite File preparation, and Target Commit. |
 | Export success reports a complete verified Artifact set. | Export publication decision and feature contract. | Kernel native export; Artifact Verifier decoding; Application semantic comparison; File Adapter publication. |
-| Capability Gaps remain visible and versioned. | Installed Surface Manifest for installed Capability Gaps; feature issue for planned candidate-gap handling and evidence requirements. | Aseprite Adapter collection of runtime observations; tests and evidence artifacts retain executed proof; Surface Manifest generation reports installed Gaps. |
+| Capability Gaps report current restrictions through one feature-owned reason. | Installed Surface Manifest for installed Capability Gaps; feature issue for planned candidate-gap handling and evidence requirements. | Aseprite Adapter collection of runtime observations; tests and evidence artifacts retain executed proof; Surface Manifest generation reports installed Gaps. |
 
 ## Failure, bounds, and trust
 

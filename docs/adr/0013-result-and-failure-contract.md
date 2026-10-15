@@ -47,6 +47,16 @@ usage failures such as an unknown command from that same registration, without
 inventing a Descriptor. Aggregate `spa schema` discovery separately publishes an
 Access-level failure schema for these applicable registered codes and their
 Category/Details associations; per-Operation schemas remain Descriptor projections.
+
+A Failure Envelope's `message` explains this invocation's failure. Its typed
+`details` retain facts needed for recovery, and `diagnostics` retain this invocation's
+process stdout, stderr, and exit status. `code` and `category` classify the failure.
+For a Capability Gap refusal, the feature-owned `gap.reason` supplies the message
+and the nested `details.gap.reason`; there is no `evidence` alias. Internal
+`RuntimeIssue.evidence` remains a typed carrier that Application maps into useful
+public details. This boundary removes research narrative without discarding runtime
+requirements, validation locations, or process diagnostics.
+
 The Application classifies private runtime evidence; packaged Lua handlers remain
 authoritative for native Core Operation failure conditions, which the Application
 validates and translates at the public boundary without reimplementing them. For a
