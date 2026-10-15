@@ -123,35 +123,43 @@ def _run(
         ) from exc
     assert process.stdout is not None and process.stderr is not None
     captured = {"stdout": bytearray(), "stderr": bytearray()}
-    streams = selectors.DefaultSelector()
-    streams.register(process.stdout, selectors.EVENT_READ, "stdout")
-    streams.register(process.stderr, selectors.EVENT_READ, "stderr")
+    streams = None
     deadline = time.monotonic() + timeout
     timed_out = False
     over_limit = False
     try:
-        while streams.get_map():
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                timed_out = True
-                break
-            for key, _ in streams.select(timeout=remaining):
-                fileobj = key.fileobj
-                file_descriptor = (
-                    fileobj if isinstance(fileobj, int) else fileobj.fileno()
-                )
-                chunk = os.read(file_descriptor, 8192)
-                if not chunk:
-                    streams.unregister(key.fileobj)
-                    continue
-                target = captured[key.data]
-                exceeds = len(target) + len(chunk) > OUTPUT_LIMIT_BYTES
-                target.extend(chunk[: max(0, OUTPUT_LIMIT_BYTES - len(target))])
-                if exceeds:
-                    over_limit = True
+        if os.name == "nt":
+            from spa.adapters.aseprite.windows_capture import capture
+
+            timed_out, over_limit = capture(
+                process, captured, deadline, OUTPUT_LIMIT_BYTES
+            )
+        else:
+            streams = selectors.DefaultSelector()
+            streams.register(process.stdout, selectors.EVENT_READ, "stdout")
+            streams.register(process.stderr, selectors.EVENT_READ, "stderr")
+            while streams.get_map():
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    timed_out = True
                     break
-            if over_limit:
-                break
+                for key, _ in streams.select(timeout=remaining):
+                    fileobj = key.fileobj
+                    file_descriptor = (
+                        fileobj if isinstance(fileobj, int) else fileobj.fileno()
+                    )
+                    chunk = os.read(file_descriptor, 8192)
+                    if not chunk:
+                        streams.unregister(key.fileobj)
+                        continue
+                    target = captured[key.data]
+                    exceeds = len(target) + len(chunk) > OUTPUT_LIMIT_BYTES
+                    target.extend(chunk[: max(0, OUTPUT_LIMIT_BYTES - len(target))])
+                    if exceeds:
+                        over_limit = True
+                        break
+                if over_limit:
+                    break
         if (timed_out or over_limit) and process.poll() is None:
             process.kill()
         try:
@@ -164,8 +172,14 @@ def _run(
             process.kill()
             status = process.wait()
             timed_out = True
+    except BaseException:
+        if process.poll() is None:
+            process.kill()
+        process.wait()
+        raise
     finally:
-        streams.close()
+        if streams is not None:
+            streams.close()
         process.stdout.close()
         process.stderr.close()
     diagnostics = Diagnostics(

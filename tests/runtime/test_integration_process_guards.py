@@ -3,6 +3,7 @@
 import os
 import signal
 import subprocess
+import sys
 from contextlib import ExitStack
 from dataclasses import replace
 from pathlib import Path
@@ -16,12 +17,30 @@ from spa.contracts.caller_script import ScriptRunRequest
 from spa.contracts.ports import RuntimeIssue
 from tests.support import fake_aseprite, runtime_observation
 
-pytestmark = pytest.mark.skipif(os.name == "nt", reason="POSIX pipe fixture")
-
 
 def test_closed_streams_keep_the_deadline_and_captured_diagnostics(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    if os.name == "nt":
+        with pytest.raises(RuntimeIssue) as observed:
+            aseprite._run(
+                [
+                    sys.executable,
+                    "-c",
+                    (
+                        "import os,time; time.sleep(.6); os.write(1,b'before timeout'); "
+                        "os.write(2,b'diagnostic'); os.close(1); os.close(2); time.sleep(1)"
+                    ),
+                ],
+                os.environ.copy(),
+                1,
+                Path(sys.executable),
+            )
+        assert observed.value.kind == "deadline"
+        assert observed.value.diagnostics.stdout == "before timeout"
+        assert observed.value.diagnostics.stderr == "diagnostic"
+        assert observed.value.diagnostics.exit_status is not None
+        return
     binary = fake_aseprite(tmp_path, "exit 0\n")
     observation = replace(
         runtime_observation(),
