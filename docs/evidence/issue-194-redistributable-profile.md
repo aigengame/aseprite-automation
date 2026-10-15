@@ -4,10 +4,9 @@
 
 [#194](https://github.com/aigengame/aseprite-automation/issues/194) replaces the
 distributed Apple ICC resource with the CC0 `DisplayP3-v4.icc` from Compact ICC
-Profiles. The [packaged notice](../../src/spa/kernel/color/profiles/NOTICE.txt) is
-the provenance record: it pins the upstream commit, original path, digest, and
-license. [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md) indexes the notice
-and distributed CC0 legal text. SPA-owned code and documentation remain MIT.
+Profiles. [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md) is the packaged
+provenance record: it pins the upstream commit, original path, digest, and license,
+and contains the complete CC0 legal text. SPA-owned code and documentation remain MIT.
 
 An admitted input does not need a distributed reference copy. The Color Profile
 owner's `identities.json` contains complete-byte hashes and permitted conversion

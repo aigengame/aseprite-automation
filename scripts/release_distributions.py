@@ -16,7 +16,6 @@ APPLE_DISPLAY_P3_SHA256 = (
     "0ff6958f98684c61f6bbdce1368ddeaf3873baf84545baba482e920d92a914c0"
 )
 APPLE_DISPLAY_P3_BYTES = 536
-PROFILE_NOTICE = "spa/kernel/color/profiles/NOTICE.txt"
 
 
 def reject_apple_profile(payload: bytes, filename: str) -> None:
@@ -132,10 +131,7 @@ def verify_contents(root: Path, directory: Path) -> dict[str, dict[str, bytes]]:
             path.suffix == ".py"
             or (
                 path.is_relative_to(root / "src/spa/kernel")
-                and (
-                    path.suffix in {".lua", ".aseprite", ".icc", ".json"}
-                    or path.relative_to(root / "src").as_posix() == PROFILE_NOTICE
-                )
+                and path.suffix in {".lua", ".aseprite", ".icc", ".json"}
             )
         )
     }
@@ -170,11 +166,7 @@ def verify_contents(root: Path, directory: Path) -> dict[str, dict[str, bytes]]:
             expected.update(
                 {
                     name: (root / name).read_bytes()
-                    for name in (
-                        "README.md",
-                        "pyproject.toml",
-                        "THIRD_PARTY_NOTICES.md",
-                    )
+                    for name in ("README.md", "pyproject.toml")
                 }
             )
         generated = (
