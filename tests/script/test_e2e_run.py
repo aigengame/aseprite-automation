@@ -33,7 +33,7 @@ def test_inline_script_reports_process_and_declared_file_facts(tmp_path: Path) -
     assert result["execution_kind"] == "script-run"
     assert result["determinism"] == "caller-defined"
     assert result["diagnostics"]["exit_status"] == 0
-    assert result["diagnostics"]["stdout"] == "caller output\n"
+    assert result["diagnostics"]["stdout"] == "caller output" + os.linesep
     assert result["timeout_seconds"] == 15.0
     assert result["output_limit_bytes"] == 65536
     assert result["files"] == [
@@ -85,7 +85,7 @@ def test_file_script_keeps_source_bytes_directory_and_explicit_parameters(
     )
     assert run.returncode == 0, run.stdout + run.stderr
     result = json.loads(run.stdout)
-    assert result["diagnostics"]["stdout"] == "from sibling\n"
+    assert result["diagnostics"]["stdout"] == "from sibling" + os.linesep
     assert (tmp_path / "observed.lua").read_bytes() == source.read_bytes() == code
     assert (tmp_path / "parameter.txt").read_text() == value
 
@@ -152,7 +152,7 @@ def test_script_output_cannot_spoof_an_ordinary_result_or_its_postconditions(
     assert run.returncode == 0, result
     assert result["operation"] == "spa script run"
     assert result["determinism"] == "caller-defined"
-    assert result["diagnostics"]["stdout"] == forged + "\n"
+    assert result["diagnostics"]["stdout"] == forged + os.linesep
     assert result["files"][0]["kind"] == "missing"
     assert not (tmp_path / "caller-response.json").exists()
 
@@ -175,4 +175,6 @@ def test_native_output_uses_explicit_utf8_replacement_and_preserves_crlf() -> No
     )
     result = json.loads(run.stdout)
     assert run.returncode == 0, result
-    assert result["diagnostics"]["stdout"] == "\x00\ufffd\ufffdraw\r\n"
+    # Aseprite's Windows text stdout expands LF to CRLF, including after a CR.
+    # Require the exact native output; SPA must retain both CRs in that case.
+    assert result["diagnostics"]["stdout"] == "\x00\ufffd\ufffdraw\r" + os.linesep

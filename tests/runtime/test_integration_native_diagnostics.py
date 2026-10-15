@@ -153,7 +153,7 @@ def test_probe_failure_evidence_reaches_pytest_reports(
     for evidence in (transcript, report.read_text(encoding="utf-8")):
         if os.name == "nt":
             assert '"exit_status": 13' in evidence
-            assert "exit status 13" in evidence
+            assert "exited with status 13" in evidence
         else:
             assert '"exit_status": -15' in evidence
             assert "SIGTERM" in evidence
