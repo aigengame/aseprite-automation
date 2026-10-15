@@ -4,6 +4,7 @@ import os
 import signal
 import subprocess
 import sys
+import time
 from contextlib import ExitStack
 from dataclasses import replace
 from pathlib import Path
@@ -22,24 +23,83 @@ def test_closed_streams_keep_the_deadline_and_captured_diagnostics(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     if os.name == "nt":
-        with pytest.raises(RuntimeIssue) as observed:
-            aseprite._run(
-                [
-                    sys.executable,
-                    "-c",
-                    (
-                        "import os,time; time.sleep(.6); os.write(1,b'before timeout'); "
-                        "os.write(2,b'diagnostic'); os.close(1); os.close(2); time.sleep(1)"
-                    ),
-                ],
-                os.environ.copy(),
-                1,
-                Path(sys.executable),
-            )
-        assert observed.value.kind == "deadline"
-        assert observed.value.diagnostics.stdout == "before timeout"
-        assert observed.value.diagnostics.stderr == "diagnostic"
-        assert observed.value.diagnostics.exit_status is not None
+        from spa.adapters.aseprite import windows_capture
+
+        children = []
+        waits = []
+        clock = 0.0
+        started = time.monotonic()
+        capture = windows_capture.capture
+
+        def monotonic():
+            assert time.monotonic() - started < 10, "child did not close its pipes"
+            return clock
+
+        def start(*args, **kwargs):
+            child = subprocess.Popen(*args, stdin=subprocess.PIPE, **kwargs)
+            children.append(child)
+            native_wait = child.wait
+
+            def wait(timeout=None):
+                waits.append(timeout)
+                return native_wait(timeout=timeout)
+
+            monkeypatch.setattr(child, "wait", wait)
+            return child
+
+        def capture_eof(*args):
+            nonlocal clock
+            result = capture(*args)
+            assert result == (False, False), "the live child must reach both EOFs"
+            clock = 0.75
+            return result
+
+        monkeypatch.setattr(aseprite, "time", SimpleNamespace(monotonic=monotonic))
+        monkeypatch.setattr(
+            windows_capture,
+            "time",
+            SimpleNamespace(monotonic=monotonic, sleep=time.sleep),
+        )
+        monkeypatch.setattr(windows_capture, "capture", capture_eof)
+        monkeypatch.setattr(
+            aseprite,
+            "subprocess",
+            SimpleNamespace(
+                Popen=start,
+                PIPE=subprocess.PIPE,
+                TimeoutExpired=subprocess.TimeoutExpired,
+            ),
+        )
+        try:
+            with pytest.raises(RuntimeIssue) as observed:
+                aseprite._run(
+                    [
+                        # A Windows venv redirector keeps pipe writers open.
+                        sys._base_executable,
+                        "-c",
+                        (
+                            "import os; os.write(1,b'before timeout'); "
+                            "os.write(2,b'diagnostic'); os.close(1); os.close(2); "
+                            "os.read(0,1)"
+                        ),
+                    ],
+                    os.environ.copy(),
+                    1,
+                    Path(sys._base_executable),
+                )
+            assert observed.value.kind == "deadline"
+            assert observed.value.diagnostics.stdout == "before timeout"
+            assert observed.value.diagnostics.stderr == "diagnostic"
+            assert waits == [0.25, None]
+            child = children[0]
+            assert child.poll() == observed.value.diagnostics.exit_status
+            assert child.stdout.closed and child.stderr.closed
+        finally:
+            for child in children:
+                if child.poll() is None:
+                    child.kill()
+                child.wait()
+                child.stdin.close()
         return
     binary = fake_aseprite(tmp_path, "exit 0\n")
     observation = replace(

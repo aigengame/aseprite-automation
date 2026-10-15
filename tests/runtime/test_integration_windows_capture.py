@@ -19,7 +19,7 @@ pytestmark = pytest.mark.skipif(os.name != "nt", reason="Windows pipe capture")
 def test_python_child_retains_status_and_both_utf8_streams() -> None:
     status, diagnostics = _run(
         [
-            sys.executable,
+            sys._base_executable,
             "-c",
             (
                 "import os; os.write(1, b'output\\r\\n\\xe5\\x80\\xbc'); "
@@ -28,7 +28,7 @@ def test_python_child_retains_status_and_both_utf8_streams() -> None:
         ],
         os.environ.copy(),
         5,
-        Path(sys.executable),
+        Path(sys._base_executable),
     )
     assert status == diagnostics.exit_status == 13
     assert diagnostics.stdout == "output\r\n值"
@@ -66,13 +66,13 @@ def owned_processes(monkeypatch):
 def test_each_pipe_accepts_exactly_65536_bytes(owned_processes) -> None:
     status, diagnostics = _run(
         [
-            sys.executable,
+            sys._base_executable,
             "-c",
             "import os; os.write(1,b'x'*65536); os.write(2,b'y'*65536)",
         ],
         os.environ.copy(),
         5,
-        Path(sys.executable),
+        Path(sys._base_executable),
     )
     assert status == diagnostics.exit_status == 0
     assert diagnostics.stdout == "x" * 65536
@@ -86,13 +86,13 @@ def test_output_overflow_is_bounded_and_child_is_reaped(descriptor, owned_proces
     with pytest.raises(RuntimeIssue) as observed:
         _run(
             [
-                sys.executable,
+                sys._base_executable,
                 "-c",
                 f"import os,time; os.write({descriptor},b'x'*65537); time.sleep(10)",
             ],
             os.environ.copy(),
             3,
-            Path(sys.executable),
+            Path(sys._base_executable),
         )
     issue = observed.value
     assert issue.kind == "output_overflow"
@@ -109,10 +109,10 @@ def test_silent_timeout_reaps_child_and_returns_bounded_diagnostics(owned_proces
     started = time.monotonic()
     with pytest.raises(RuntimeIssue) as observed:
         _run(
-            [sys.executable, "-c", "import time; time.sleep(10)"],
+            [sys._base_executable, "-c", "import time; time.sleep(10)"],
             os.environ.copy(),
             0.25,
-            Path(sys.executable),
+            Path(sys._base_executable),
         )
     assert time.monotonic() - started < 2
     issue = observed.value
@@ -146,10 +146,10 @@ def test_unexpected_capture_error_reaps_child_before_workspace_cleanup(
     workspace.mkdir()
     with pytest.raises(OSError, match="injected pipe failure"):
         _run(
-            [sys.executable, "-c", "import time; time.sleep(10)"],
+            [sys._base_executable, "-c", "import time; time.sleep(10)"],
             os.environ.copy(),
             3,
-            Path(sys.executable),
+            Path(sys._base_executable),
             working_directory=workspace,
         )
     assert len(owned_processes) == 1
