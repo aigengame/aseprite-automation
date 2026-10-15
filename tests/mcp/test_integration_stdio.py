@@ -2,12 +2,15 @@
 
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
 import anyio
 import pytest
 from mcp import Client, StdioServerParameters
+
+from tests.support import process_diagnostics
 
 
 @pytest.fixture
@@ -47,7 +50,7 @@ def cli(tmp_path):
 
     def write_cli(*, output=None, exit_status=0, stderr=""):
         program = tmp_path / "spa-fixture"
-        program.write_text(f"""#!{sys.executable}
+        script = f"""#!{sys.executable}
 import json, sys
 request = json.load(sys.stdin)
 if sys.argv[1] == 'schema':
@@ -61,7 +64,25 @@ else:
     if stderr:
         print(stderr, file=sys.stderr)
     sys.exit({exit_status})
-""")
+"""
+        if os.name == "nt":
+            from distlib.scripts import ScriptMaker
+
+            source = tmp_path / "windows-cli"
+            source.mkdir()
+            (source / "spa-fixture.py").write_text(
+                "#!python\nimport sys\n"
+                "for stream in (sys.stdin, sys.stdout, sys.stderr):\n"
+                "    stream.reconfigure(encoding='utf-8', errors=stream.errors)\n"
+                + script,
+                encoding="utf-8",
+                newline="\n",
+            )
+            maker = ScriptMaker(str(source), str(tmp_path))
+            maker.make("spa-fixture.py")
+            return program.with_suffix(".exe")
+
+        program.write_text(script)
         program.chmod(0o755)
         return program
 
@@ -73,6 +94,42 @@ def parameters(cli: Path, **env):
         command=sys.executable,
         args=["-c", "from spa.mcp_bootstrap import main; main()", "--spa", str(cli)],
         env={**os.environ, **env},
+    )
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows controlled CLI entry")
+def test_windows_cli_fixture_executes_requests_and_retains_diagnostics(cli):
+    write_cli, manifest = cli
+    program = write_cli(exit_status=2, stderr="fixture warning")
+    discovery = subprocess.run(
+        [str(program), "schema", "--input-json", "-", "--json"],
+        input=b"{}",
+        capture_output=True,
+        check=False,
+        timeout=10,
+    )
+    assert discovery.returncode == 0, process_diagnostics(discovery)
+    assert discovery.stderr == b"", process_diagnostics(discovery)
+    assert json.loads(discovery.stdout.decode("utf-8")) == manifest, (
+        process_diagnostics(discovery)
+    )
+
+    request = {"value": {"unicode": "像素", "nested": [1, False, None]}}
+    called = subprocess.run(
+        [str(program), "echo", "--input-json", "-", "--json"],
+        input=json.dumps(request, ensure_ascii=False).encode("utf-8"),
+        capture_output=True,
+        check=False,
+        timeout=10,
+    )
+    assert called.returncode == 2, process_diagnostics(called)
+    assert json.loads(called.stdout.decode("utf-8")) == {
+        "status": "success",
+        "operation": "spa echo",
+        "value": request["value"],
+    }, process_diagnostics(called)
+    assert called.stderr.decode("utf-8").strip() == "fixture warning", (
+        process_diagnostics(called)
     )
 
 
