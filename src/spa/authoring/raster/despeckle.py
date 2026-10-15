@@ -140,6 +140,10 @@ DESPECKLE_REQUIREMENTS = RuntimeRequirements(
     minimum_api_version=41,
     required_capabilities=["aseprite_sprite_inspection", "aseprite_filter_despeckle"],
 )
+_INDEXED_COMPONENT_DESPECKLE_REASON = (
+    "Indexed component sets must include Green. SPA does not change the requested "
+    "Channels or substitute Index processing."
+)
 
 
 def despeckle(
@@ -154,6 +158,7 @@ def despeckle(
             "width": request.width,
             "height": request.height,
             "tiled_mode": request.tiled_mode,
+            "indexed_component_reason": _INDEXED_COMPONENT_DESPECKLE_REASON,
         },
         DespeckleEvidence,
         lambda evidence: evidence.matches(request),
@@ -171,7 +176,7 @@ def despeckle_capability_gaps(version: str) -> list[CapabilityGap]:
         CapabilityGap(
             capability="spa filter despeckle: Indexed components without Green",
             aseprite_version=version,
-            reason="Indexed component sets must include Green. SPA does not change the requested Channels or substitute Index processing.",
+            reason=_INDEXED_COMPONENT_DESPECKLE_REASON,
         ),
     ]
 

@@ -11,10 +11,7 @@ function module.apply(sprite, payload, uuids)
       green = green or name == "green"
     end
     if not green then
-      return support.reject(
-        "This Despeckle slice requires Green in Indexed component Channels",
-        true
-      )
+      return support.reject(assert(payload.indexed_component_reason), true)
     end
   end
   local parameters = {}
