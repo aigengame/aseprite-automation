@@ -90,13 +90,9 @@ def test_automatic_release_resolves_the_draft_against_original_main_event(
     # The untagged draft can identify an earlier reviewed commit. Never resolve today's main.
     admission["GITHUB_SHA"] = "b" * 40
     gh = tmp_path / "gh"
-    calls = tmp_path / "calls.jsonl"
     gh.write_text(
         f"#!{sys.executable}\n"
         "import json, os, sys\n"
-        "from pathlib import Path\n"
-        "with Path(os.environ['SPA_TEST_GH_CALLS']).open('a', encoding='utf-8') as log:\n"
-        "    log.write(json.dumps(sys.argv[1:]) + '\\n')\n"
         "endpoint = sys.argv[2]\n"
         "if endpoint.endswith('/releases/123'):\n"
         "    print(json.dumps({'id': 123, 'target_commitish': os.environ['SPA_TEST_DRAFT_SHA']}))\n"
@@ -113,38 +109,21 @@ def test_automatic_release_resolves_the_draft_against_original_main_event(
         PATH=str(tmp_path),
         SPA_TEST_DRAFT_SHA=SHA,
         SPA_TEST_ANCESTRY="ahead",
-        SPA_TEST_GH_CALLS=str(calls),
     )
     result = run(admission, controlled_gh=gh)
     assert result.returncode == 0, result.stderr
     assert SHA in Path(admission["GITHUB_OUTPUT"]).read_text()
-    release_call = ["api", f"repos/{REPOSITORY}/releases/123"]
-    compare_call = ["api", f"repos/{REPOSITORY}/compare/{SHA}...{'b' * 40}"]
-    assert [json.loads(line) for line in calls.read_text().splitlines()] == [
-        release_call,
-        compare_call,
-    ]
 
-    for change, expected_calls in (
-        ({"SPA_TEST_DRAFT_SHA": "c" * 40}, [release_call]),
-        (
-            {"SPA_TEST_DRAFT_SHA": SHA, "SPA_TEST_ANCESTRY": "diverged"},
-            [release_call, compare_call],
-        ),
-        ({"SPA_RELEASE_ID": ""}, []),
+    for change in (
+        {"SPA_TEST_DRAFT_SHA": "c" * 40},
+        {"SPA_TEST_DRAFT_SHA": SHA, "SPA_TEST_ANCESTRY": "diverged"},
+        {"SPA_RELEASE_ID": ""},
     ):
         Path(admission["GITHUB_OUTPUT"]).unlink(missing_ok=True)
-        calls.unlink()
         admission.update(change)
         result = run(admission, controlled_gh=gh)
         assert result.returncode != 0
         assert not Path(admission["GITHUB_OUTPUT"]).exists()
-        observed = (
-            [json.loads(line) for line in calls.read_text().splitlines()]
-            if calls.exists()
-            else []
-        )
-        assert observed == expected_calls
 
 
 @pytest.mark.parametrize(

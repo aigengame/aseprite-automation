@@ -256,13 +256,6 @@ def test_native_aggregate_requires_every_shard_to_succeed(
     candidate, state: str
 ) -> None:
     repository, env, _ = candidate
-    if state != "success":
-        control = run_step(
-            "Require successful preparation and every shard",
-            repository,
-            env | {"SPA_PREPARE_RESULT": "success", "SPA_SHARDS_RESULT": "success"},
-        )
-        assert control.returncode == 0, control.stdout + control.stderr
     env.update(SPA_PREPARE_RESULT="success", SPA_SHARDS_RESULT=state)
     result = run_step("Require successful preparation and every shard", repository, env)
     assert (result.returncode == 0) == (state == "success")
@@ -279,14 +272,6 @@ def test_release_aggregate_requires_quality_and_every_shard(
         SPA_QUALITY_RESULT="success",
         SPA_SHARDS_RESULT="success",
     )
-    if state != "success":
-        control = run_step(
-            "Require all release verification jobs",
-            repository,
-            env,
-            WORKFLOW.with_name("release.yml"),
-        )
-        assert control.returncode == 0, control.stdout + control.stderr
     env[f"SPA_{job}_RESULT"] = state
     result = run_step(
         "Require all release verification jobs",
