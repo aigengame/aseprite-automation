@@ -30,8 +30,10 @@ The CLI receives complete JSON requests on stdin. It remains responsible for
 validation, native work and publication. MCP returns the unchanged success Result
 as structured content and JSON text, or the complete CLI Failure Envelope as JSON
 text with `isError`. Adapter failures have a distinct diagnostic shape and do not
-invent SPA failure codes. Process cancellation cleans up the CLI and its native
-child on the supported macOS/Linux hosts.
+invent SPA failure codes. Process cancellation cleans up the CLI and its owned
+native child on macOS, Linux and Windows. Windows establishes invocation ownership
+before the CLI can run, so cleanup still reaches a child whose parent has exited.
+Normal completion releases that ownership without acquiring kill-on-close behavior.
 
 Only schema-declared Result Artifact fields supply local image content. PNG bytes
 must match the returned size, digest and format before projection as ImageContent.
