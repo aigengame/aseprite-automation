@@ -1,7 +1,6 @@
 """Reject malformed Kernel evidence before a JSON Snapshot becomes visible."""
 
 import json
-import os
 import shlex
 from pathlib import Path
 
@@ -14,7 +13,6 @@ from spa.contracts.public import Diagnostics
 from tests.support import fake_aseprite, runtime_observation, spa
 
 
-@pytest.mark.skipif(os.name == "nt", reason="POSIX shell fixture")
 @pytest.mark.parametrize("address", ["tileset_name", "tile_key"])
 def test_nul_address_is_an_input_failure_before_native_invocation(
     tmp_path: Path, address: str
@@ -40,6 +38,7 @@ def test_nul_address_is_an_input_failure_before_native_invocation(
     assert failure["code"] == "invalid_request"
     assert failure["category"] == "input"
     assert failure["details"]["errors"][0]["location"] == location
+    assert failure["diagnostics"]["exit_status"] is None
     assert not marker.exists()
     assert source.read_bytes() == b"source must not be opened"
 
