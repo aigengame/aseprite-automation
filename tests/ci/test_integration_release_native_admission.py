@@ -31,7 +31,7 @@ def admission(tmp_path: Path) -> dict[str, str]:
     }
 
 
-def _windows_gh(tmp_path: Path, body: str) -> Path:
+def _windows_fake_gh(tmp_path: Path, body: str) -> Path:
     """Adapt only the directly selected gh fixtures to Windows native execution."""
     assert os.name == "nt"
     from distlib.scripts import ScriptMaker
@@ -108,7 +108,7 @@ def test_automatic_release_resolves_the_draft_against_original_main_event(
     )
     gh.chmod(0o755)
     if os.name == "nt":
-        gh = _windows_gh(tmp_path, gh.read_text(encoding="utf-8"))
+        gh = _windows_fake_gh(tmp_path, gh.read_text(encoding="utf-8"))
     admission.update(
         PATH=str(tmp_path),
         SPA_TEST_DRAFT_SHA=SHA,
@@ -178,7 +178,7 @@ def test_api_failure_cannot_admit_a_release(admission, tmp_path: Path) -> None:
     gh = tmp_path / "gh"
     calls = tmp_path / "calls.json"
     if os.name == "nt":
-        gh = _windows_gh(
+        gh = _windows_fake_gh(
             tmp_path,
             "import json, os, sys\nfrom pathlib import Path\n"
             "Path(os.environ['SPA_TEST_GH_CALLS']).write_text(json.dumps(sys.argv[1:]), encoding='utf-8')\n"
