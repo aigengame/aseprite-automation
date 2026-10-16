@@ -225,11 +225,10 @@ configuration. Results apply to the actual tested runtime and platform.
 ## Verification tiers
 
 Workflow tests distinguish portable Python rules from hosted Linux shell
-composition. Shared admission and runner tests use native Python; tests that
-execute Linux action Bash bodies are explicitly scoped off Windows. Such a skip
-does not verify the shell contract on Windows. Native report or archive tests
-cover only their own shared rules. See the [node mapping and scope evidence](evidence/issue-229-workflow-scope.md)
-for the retained pipeline, publication and GitHub workflow boundaries.
+composition. Shared admission and runner rules use native Python. Tests that
+execute Linux action Bash bodies are scoped off Windows; those skips are not
+passes. Native report or archive checks cover their own rules, not pipeline,
+publication or GitHub workflow effects.
 
 Frozen raster preparation #103 has fast public-dispatch tests for malformed input,
 geometry/Palette rules, reproduction mismatch, contradictory native/PNG evidence,
