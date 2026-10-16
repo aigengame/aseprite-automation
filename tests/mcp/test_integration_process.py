@@ -5,6 +5,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import anyio
@@ -111,35 +112,76 @@ def test_missing_runtime_fails_discovery_without_an_empty_tool_surface(tmp_path)
 
 
 @pytest.mark.skipif(
-    os.name != "posix", reason="process-group cleanup on supported macOS/Linux hosts"
+    os.name not in {"posix", "nt"}, reason="native process observation is unavailable"
 )
 @pytest.mark.parametrize("parent_exits", [False, True])
 def test_cancellation_stops_cli_and_its_native_child(tmp_path, parent_exits):
     marker = tmp_path / "child-pids.json"
+    pending_marker = marker.with_suffix(".tmp") if os.name == "nt" else marker
+    marker_ready = (
+        f"os.replace({str(pending_marker)!r}, {str(marker)!r})"
+        if os.name == "nt"
+        else ""
+    )
+    interpreter = sys._base_executable if os.name == "nt" else sys.executable
     program = tmp_path / "waiting-cli.py"
-    program.write_text(f"""
+    program.write_text(
+        f"""
 import json, os, subprocess, sys, time
 child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])
-with open({str(marker)!r}, 'w') as target:
+with open({str(pending_marker)!r}, 'w') as target:
     json.dump([os.getpid(), child.pid], target)
+{marker_ready}
 if not {parent_exits!r}:
     time.sleep(60)
-""")
+""",
+        encoding="utf-8",
+    )
 
     async def exercise():
+        async def windows_retired(pids):
+            observed = await anyio.run_process(
+                [
+                    "powershell.exe",
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-Command",
+                    (
+                        f"$active = @(Get-Process -Id {','.join(map(str, pids))} "
+                        "-ErrorAction SilentlyContinue | Where-Object { -not $_.HasExited }); "
+                        "if ($active) { exit 1 }"
+                    ),
+                ],
+                check=False,
+            )
+            assert observed.returncode in (0, 1), observed.stderr
+            return observed.returncode == 0
+
         async with anyio.create_task_group() as tasks:
             tasks.start_soon(
-                Cli([sys.executable, str(program)], os.environ.copy()).invoke,
+                Cli([interpreter, str(program)], os.environ.copy()).invoke,
                 "spa wait",
                 {},
             )
             with anyio.fail_after(5):
                 while not marker.exists():
                     await anyio.sleep(0.02)
+            if os.name == "nt" and parent_exits:
+                with anyio.fail_after(5):
+                    while not await windows_retired(json.loads(marker.read_text())[:1]):
+                        await anyio.sleep(0.02)
+            cancel_started = time.monotonic()
             tasks.cancel_scope.cancel()
+        if os.name == "nt":
+            assert time.monotonic() - cancel_started < 5, "CLI cancellation stalled"
         pids = json.loads(marker.read_text())
         with anyio.fail_after(5):
             while True:
+                if os.name == "nt":
+                    if await windows_retired(pids):
+                        break
+                    await anyio.sleep(0.02)
+                    continue
                 observed = await anyio.run_process(
                     ["ps", "-o", "stat=", "-p", ",".join(map(str, pids))], check=False
                 )
