@@ -383,7 +383,7 @@ def test_all_skipped_suite_and_reused_output_cannot_pass(suite: Path) -> None:
     assert "executed no tests" in result.stderr
     result = run(suite, "run", "--shards", "2", "--output-dir", str(output))
     assert result.returncode != 0
-    assert "File exists" in result.stderr
+    assert ("[WinError 183]" if os.name == "nt" else "File exists") in result.stderr
 
 
 def test_environment_configuration_has_one_default_and_explicit_overrides(
