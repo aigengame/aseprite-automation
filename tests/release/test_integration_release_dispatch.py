@@ -132,6 +132,10 @@ def dispatch_environment(
         pytest.param(["remote"], 1, False, False, None, id="ci-lookup-error"),
     ],
 )
+@pytest.mark.skipif(
+    os.name == "nt",
+    reason="Linux release-maintenance action executes Bash with real Git",
+)
 def test_maintenance_dispatches_only_when_the_pushed_head_matches(
     tmp_path: Path,
     heads: list[str],

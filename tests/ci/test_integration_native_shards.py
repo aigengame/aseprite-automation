@@ -152,6 +152,9 @@ def test_retry_reuses_completed_shards_only_for_the_same_target(
 
 
 @pytest.mark.parametrize("worker_counts", [(2, 2), (2, 4), (4, 2)])
+@pytest.mark.skipif(
+    os.name == "nt", reason="Linux action's Bash pipefail/tee and summary writes"
+)
 def test_aggregate_action_checks_reports_and_preserves_failure_through_tee(
     suite: Path,
     worker_counts: tuple[int, int],
@@ -269,6 +272,21 @@ def test_invalid_configuration_is_rejected_before_execution(suite: Path, args) -
     result = run(suite, "matrix", *args)
     assert result.returncode != 0
     assert not list(suite.glob("shard-*"))
+
+
+@pytest.mark.parametrize("command", ["run", "verify"])
+def test_target_sha_mismatch_is_rejected_before_execution(
+    suite: Path, command: str
+) -> None:
+    target = suite / "target.json"
+    target.write_text(json.dumps({"kind": "local", "sha": "f" * 40}), encoding="utf-8")
+    output = suite / "results"
+    result = run(
+        suite, command, "--target-file", str(target), "--output-dir", str(output)
+    )
+    assert result.returncode != 0
+    assert "native target SHA does not match the checked-out source" in result.stderr
+    assert not output.exists()
 
 
 @pytest.mark.parametrize("index", ["-1", "8"])
