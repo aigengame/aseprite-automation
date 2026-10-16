@@ -61,6 +61,28 @@ def run(suite: Path, *args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
+def assert_windows_owned_processes_stopped(suite: Path) -> None:
+    pids = json.loads((suite / "owned-pids.json").read_text())
+    result = subprocess.run(
+        [
+            "powershell.exe",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            (
+                f"$active = @(Get-Process -Id {','.join(map(str, pids))} "
+                "-ErrorAction SilentlyContinue | Where-Object { -not $_.HasExited }); "
+                "if ($active) { $active.Id; exit 1 }"
+            ),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 def test_shared_runner_covers_the_selected_suite_once(suite: Path) -> None:
     cases = suite / "test_cases.py"
     cases.write_text(cases.read_text().replace("range(6)", "range(16)"))
@@ -229,6 +251,14 @@ def test_configuration_drives_matrix_and_nondefault_execution(suite: Path) -> No
 def test_first_failure_stops_sibling_shards_but_preserves_its_report(
     suite: Path,
 ) -> None:
+    windows_child = (
+        "    import json, os, subprocess, sys\n"
+        "    child = subprocess.Popen([sys._base_executable, '-c', "
+        "'import time; time.sleep(60)'])\n"
+        "    Path('owned-pids.json').write_text(json.dumps([os.getpid(), child.pid]))\n"
+        if os.name == "nt"
+        else ""
+    )
     (suite / "test_cases.py").write_text(
         "import time\nfrom pathlib import Path\nimport pytest\n"
         "pytestmark = pytest.mark.e2e\n"
@@ -242,6 +272,7 @@ def test_first_failure_stops_sibling_shards_but_preserves_its_report(
         "    Path('failure-ready').touch()\n"
         "    assert False, 'primary failure evidence'\n"
         "def test_1_sibling():\n"
+        f"{windows_child}"
         "    Path('sibling-running').touch()\n    time.sleep(60)\n"
         "    Path('sibling-completed').touch()\n"
         "def test_2_primary_inflight():\n"
@@ -258,6 +289,80 @@ def test_first_failure_stops_sibling_shards_but_preserves_its_report(
     report = json.loads((output / "shard-0/result.json").read_text())
     assert report["exit_code"] != 0
     assert sorted(o["outcome"] for o in report["outcomes"]) == ["failed", "passed"]
+    if os.name == "nt":
+        assert_windows_owned_processes_stopped(suite)
+        (suite / "test_cases.py").write_text(
+            "import pytest\n@pytest.mark.e2e\ndef test_recovery():\n    pass\n"
+        )
+        recovery = run(
+            suite,
+            "run",
+            "--shards",
+            "1",
+            "--workers",
+            "1",
+            "--output-dir",
+            str(suite / "recovery"),
+        )
+        assert recovery.returncode == 0, recovery.stdout + recovery.stderr
+        assert "selected=1 passed=1 skipped=0" in recovery.stdout
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows owned-tree interruption cleanup")
+def test_windows_interruption_retires_owned_workers_and_children(suite: Path) -> None:
+    (suite / "test_cases.py").write_text(
+        "import json, os, subprocess, sys, time\n"
+        "from pathlib import Path\nimport pytest\n"
+        "@pytest.mark.e2e\n"
+        "def test_waiting_native():\n"
+        "    child = subprocess.Popen([sys._base_executable, '-c', "
+        "'import time; time.sleep(60)'])\n"
+        "    Path('owned-pids.json').write_text(json.dumps([os.getpid(), child.pid]))\n"
+        "    Path('native-ready').touch()\n"
+        "    time.sleep(60)\n"
+    )
+    interrupted = suite / "interrupted.py"
+    interrupted.write_text(
+        "import _thread, sys, threading, time\nfrom pathlib import Path\n"
+        f"sys.path.insert(0, {str(RUNNER.parent)!r})\n"
+        "from native_e2e import main\n"
+        "def interrupt():\n"
+        "    deadline = time.monotonic() + 10\n"
+        "    while not Path('native-ready').exists() and time.monotonic() < deadline:\n"
+        "        time.sleep(.01)\n"
+        "    _thread.interrupt_main()\n"
+        "threading.Thread(target=interrupt, daemon=True).start()\n"
+        "raise SystemExit(main())\n",
+        encoding="utf-8",
+    )
+    with subprocess.Popen(
+        [sys._base_executable, "-c", "import time; time.sleep(60)"]
+    ) as unowned:
+        try:
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(interrupted),
+                    "run",
+                    "--shards",
+                    "1",
+                    "--workers",
+                    "1",
+                    "--output-dir",
+                    str(suite / "results"),
+                ],
+                cwd=suite,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+            assert result.returncode == 130, result.stdout + result.stderr
+            assert_windows_owned_processes_stopped(suite)
+            assert unowned.poll() is None
+        finally:
+            unowned.kill()
+            unowned.wait(timeout=5)
 
 
 @pytest.mark.parametrize(
