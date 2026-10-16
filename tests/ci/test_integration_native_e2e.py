@@ -11,6 +11,10 @@ from pathlib import Path
 import pytest
 
 WORKFLOW = Path(__file__).resolve().parents[2] / ".github/workflows/native-e2e.yml"
+pytestmark = pytest.mark.skipif(
+    os.name == "nt",
+    reason="Executes the hosted Linux workflows' Bash steps, not the portable runner",
+)
 
 
 def run_step(
@@ -252,6 +256,13 @@ def test_native_aggregate_requires_every_shard_to_succeed(
     candidate, state: str
 ) -> None:
     repository, env, _ = candidate
+    if state != "success":
+        control = run_step(
+            "Require successful preparation and every shard",
+            repository,
+            env | {"SPA_PREPARE_RESULT": "success", "SPA_SHARDS_RESULT": "success"},
+        )
+        assert control.returncode == 0, control.stdout + control.stderr
     env.update(SPA_PREPARE_RESULT="success", SPA_SHARDS_RESULT=state)
     result = run_step("Require successful preparation and every shard", repository, env)
     assert (result.returncode == 0) == (state == "success")
@@ -268,6 +279,14 @@ def test_release_aggregate_requires_quality_and_every_shard(
         SPA_QUALITY_RESULT="success",
         SPA_SHARDS_RESULT="success",
     )
+    if state != "success":
+        control = run_step(
+            "Require all release verification jobs",
+            repository,
+            env,
+            WORKFLOW.with_name("release.yml"),
+        )
+        assert control.returncode == 0, control.stdout + control.stderr
     env[f"SPA_{job}_RESULT"] = state
     result = run_step(
         "Require all release verification jobs",
@@ -301,3 +320,5 @@ def test_workflow_configuration_uses_shared_parameters(
         assert json.loads(value)["include"] == [
             {"shard_index": index, "shards": count} for index in range(count)
         ]
+    else:
+        assert "shards and workers must be positive integers" in result.stderr

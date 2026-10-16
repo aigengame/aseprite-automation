@@ -1,5 +1,6 @@
 """Exercise the private runtime action's executable and scripting boundary."""
 
+import json
 import os
 import subprocess
 import sys
@@ -14,11 +15,16 @@ ACTION = (
 
 
 @pytest.mark.parametrize("runtime", ["missing", "version-only", "script", "crash"])
+@pytest.mark.skipif(
+    os.name == "nt", reason="Linux provisioning action's POSIX path and Bash probe"
+)
 def test_host_runtime_requires_a_working_batch_script(tmp_path: Path, runtime) -> None:
     executable = tmp_path / "aseprite"
     executable.write_text(
         f"#!{sys.executable}\n"
-        "import sys\nfrom pathlib import Path\n"
+        "import json, sys\nfrom pathlib import Path\n"
+        f"with Path({str(tmp_path / 'calls.jsonl')!r}).open('a', encoding='utf-8') as log:\n"
+        "    log.write(json.dumps(sys.argv[1:]) + '\\n')\n"
         "if '--version' in sys.argv:\n"
         "    print('Aseprite test runtime')\n"
         "    sys.exit(0)\n"
@@ -52,4 +58,17 @@ def test_host_runtime_requires_a_working_batch_script(tmp_path: Path, runtime) -
         assert f"executable={executable}" in (tmp_path / "outputs").read_text()
     else:
         assert not (tmp_path / "outputs").exists()
+    if runtime == "missing":
+        assert "Set SPA_TEST_ASEPRITE" in result.stdout
+        assert not (tmp_path / "calls.jsonl").exists()
+    else:
+        calls = [
+            json.loads(line)
+            for line in (tmp_path / "calls.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+        ]
+        assert calls[0] == ["--batch", "--version"]
+        assert calls[1][:2] == ["--batch", "--script-param"]
+        assert "--script" in calls[1]
     assert not list(tmp_path.glob("spa-aseprite-probe.*"))

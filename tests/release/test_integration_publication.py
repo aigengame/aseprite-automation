@@ -18,6 +18,10 @@ import pytest
 from scripts.release_distributions import verify_pypi
 
 WORKFLOW = Path(__file__).resolve().parents[2] / ".github/workflows/release.yml"
+pytestmark = pytest.mark.skipif(
+    os.name == "nt",
+    reason="Executes the Linux publication workflow's Bash guards and file/tool composition",
+)
 
 
 def run_step(name: str, directory: Path, environment: dict[str, str]):
@@ -84,6 +88,10 @@ def test_upload_requires_an_approved_exact_release(
         publish_environment() | {key: value},
     )
     assert result.returncode != 0
+    assert (
+        "PyPI requires a reviewed main release with successful exact-SHA verification"
+        in result.stderr
+    )
 
 
 def test_approved_release_can_publish(tmp_path: Path) -> None:
