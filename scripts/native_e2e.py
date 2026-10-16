@@ -183,6 +183,21 @@ def run_shard(output: Path, config: Configuration, index: int, target: dict) -> 
 
 def stop(children: list[subprocess.Popen]) -> None:
     running = [child for child in children if child.poll() is None]
+    if os.name == "nt":
+        # Retire owned shard trees before their inherited output pipes can linger.
+        deadline = time.monotonic() + 10
+        for child in running:
+            result = subprocess.run(
+                ["taskkill.exe", "/PID", str(child.pid), "/T", "/F"],
+                capture_output=True,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+                timeout=max(0, deadline - time.monotonic()),
+                check=False,
+            )
+            if result.returncode and child.poll() is None:
+                result.check_returncode()
+            child.wait(timeout=max(0, deadline - time.monotonic()))
+        return
     for child in running:
         signal_group(child, signal.SIGINT)
     deadline = time.monotonic() + 10

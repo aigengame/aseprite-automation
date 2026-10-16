@@ -503,8 +503,8 @@ failure tests that satisfy their assertions pass normally and do not stop the ru
 Within the failing shard, already-running tests can finish during xdist shutdown,
 and another native invocation can occur before workers stop. The failing test name is
 visible when its report arrives; the final traceback and JUnit report follow worker
-shutdown. Local execution cancels outstanding sibling shard process groups and
-cleans up their owned workers. The CI matrix uses fail-fast cancellation. Neither
+shutdown. Local execution cancels outstanding sibling shards and cleans up their
+owned workers and native children. The CI matrix uses fail-fast cancellation. Neither
 path monitors OS crash dialogs, and a cancelled sibling is not successful evidence.
 
 The existing Runtime Integration failure reports preserve the process exit status
