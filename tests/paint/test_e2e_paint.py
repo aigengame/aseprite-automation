@@ -682,9 +682,17 @@ def test_apply_rejects_source_alias_to_target_without_commit(
     target = real
     if through_target_symlink:
         target = tmp_path / "target.aseprite"
-        target.symlink_to(real)
+        if os.name == "nt":
+            with symlink_creation_permission():
+                target.symlink_to(real)
+        else:
+            target.symlink_to(real)
     source = tmp_path / "source.aseprite"
-    source.symlink_to(target)
+    if os.name == "nt":
+        with symlink_creation_permission():
+            source.symlink_to(target)
+    else:
+        source.symlink_to(target)
     before = source.read_bytes()
 
     for in_place in (False, True):
