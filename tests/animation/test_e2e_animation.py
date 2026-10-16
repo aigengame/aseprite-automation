@@ -59,7 +59,8 @@ def _run(command: str, request: dict[str, object]) -> tuple[int, dict]:
         "animation",
         command,
         "--input-json",
-        json.dumps({**request, "aseprite": os.environ["SPA_TEST_ASEPRITE"]}),
+        "-",
+        stdin=json.dumps({**request, "aseprite": os.environ["SPA_TEST_ASEPRITE"]}),
     )
     assert run.stdout, run.stderr
     return run.returncode, json.loads(run.stdout)
