@@ -24,7 +24,7 @@ from spa.contracts.ports import (
 from spa.contracts.public import Diagnostics
 from spa.delivery.export import ExportImageRequest, export_image
 from tests.support import runtime_observation
-from tests.windows_permissions import symlink_creation_permission
+from tests.host_permissions import symlink_creation_permission
 
 RGBA = bytes((1, 2, 3, 128))
 DIAGNOSTICS = Diagnostics(exit_status=0, stderr="native evidence")

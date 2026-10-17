@@ -21,7 +21,7 @@ from spa.contracts.public import Diagnostics
 from spa.delivery.tileset import export_tileset
 from spa.delivery.tileset_contracts import ExportTilesetRequest
 from tests.support import runtime_observation
-from tests.windows_permissions import symlink_creation_permission
+from tests.host_permissions import symlink_creation_permission
 
 
 def intent(root: Path, *, replace=False) -> ExportTilesetRequest:

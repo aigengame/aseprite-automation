@@ -12,7 +12,7 @@ from spa.authoring.document.slice import SliceSetRequest, set_slice
 from spa.contracts.ports import KernelInvocationResult, RuntimeIssue
 from spa.contracts.public import Diagnostics
 from tests.support import operation_services, runtime_observation
-from tests.windows_permissions import symlink_creation_permission
+from tests.host_permissions import symlink_creation_permission
 
 
 def response():

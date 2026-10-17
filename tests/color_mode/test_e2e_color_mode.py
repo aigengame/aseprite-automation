@@ -18,7 +18,7 @@ from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.application.surface import PROBE_RESOURCES
 from spa.contracts.public import RuntimeRequest
 from tests.support import inject_palette_change, process_diagnostics, spa
-from tests.windows_permissions import _powershell
+from tests.host_permissions import _powershell
 
 pytestmark = pytest.mark.e2e
 

@@ -18,7 +18,7 @@ from spa.authoring.raster.paint import PAINT_APPLY_HANDLER
 from spa.contracts.ports import HandlerEvidence, RuntimeIssue
 from spa.contracts.public import RuntimeRequest
 from tests.support import inject_palette_change, process_diagnostics, spa
-from tests.windows_permissions import symlink_creation_permission
+from tests.host_permissions import symlink_creation_permission
 
 pytestmark = pytest.mark.e2e
 

@@ -8,7 +8,7 @@ import pytest
 
 from spa.adapters.files import LocalArtifactFiles, LocalTargetFiles
 from spa.contracts.mutation import source_target_identity_issue
-from tests.windows_permissions import (
+from tests.host_permissions import (
     deny_directory_listing,
     symlink_creation_permission,
 )

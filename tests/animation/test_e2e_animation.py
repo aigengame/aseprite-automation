@@ -14,7 +14,7 @@ from PIL import Image
 
 from spa.adapters.aseprite.invocation import prepare_invocation
 from tests.support import process_diagnostics, spa
-from tests.windows_permissions import (
+from tests.host_permissions import (
     deny_directory_listing,
     symlink_creation_permission,
 )

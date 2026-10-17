@@ -16,7 +16,7 @@ from PIL import Image, ImageCms
 from tests.export.support import export_image_request as _request
 from tests.export.support import source_sprite as _source
 from tests.support import isolated_wheel_cli, spa
-from tests.windows_permissions import (
+from tests.host_permissions import (
     deny_directory_listing,
     symlink_creation_permission,
 )

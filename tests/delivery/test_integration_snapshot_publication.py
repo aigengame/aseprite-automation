@@ -24,7 +24,7 @@ from spa.contracts.ports import (
 )
 from spa.contracts.public import Diagnostics
 from tests.support import runtime_observation
-from tests.windows_permissions import symlink_creation_permission
+from tests.host_permissions import symlink_creation_permission
 
 DIAGNOSTICS = Diagnostics(exit_status=0, stderr="native observation")
 

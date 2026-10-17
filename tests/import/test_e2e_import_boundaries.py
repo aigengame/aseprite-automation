@@ -19,7 +19,7 @@ from spa.authoring.raster.image_import import IMAGE_IMPORT_OPERATIONS
 from spa.contracts.digest import fnv1a64
 from spa.contracts.ports import OperationServices, RuntimeIssue, TargetCommitEvidence
 from tests.support import process_diagnostics, spa
-from tests.windows_permissions import symlink_creation_permission
+from tests.host_permissions import symlink_creation_permission
 
 from .test_e2e_image_import import _create, _indexed
 from .test_e2e_image_import import runtime as runtime  # noqa: PLC0414

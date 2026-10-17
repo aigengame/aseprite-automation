@@ -27,7 +27,7 @@ from spa.contracts.public import Diagnostics
 from spa.preparation.raster import PREPARATION_OPERATIONS
 from tests.preparation.support import specification
 from tests.support import runtime_observation
-from tests.windows_permissions import symlink_creation_permission
+from tests.host_permissions import symlink_creation_permission
 
 DESCRIPTOR = PREPARATION_OPERATIONS[0]
 SOURCE_PIXELS = [

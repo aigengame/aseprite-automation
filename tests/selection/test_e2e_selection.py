@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from tests.support import spa
-from tests.windows_permissions import symlink_creation_permission
+from tests.host_permissions import symlink_creation_permission
 
 pytestmark = pytest.mark.e2e
 

@@ -9,7 +9,7 @@ from jsonschema import Draft202012Validator
 
 from tests.script.support import script_runtime
 from tests.support import spa
-from tests.windows_permissions import symlink_creation_permission
+from tests.host_permissions import symlink_creation_permission
 
 
 def test_timeout_is_reported_without_requiring_process_output(

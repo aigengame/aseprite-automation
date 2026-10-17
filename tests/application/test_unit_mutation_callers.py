@@ -8,7 +8,7 @@ import pytest
 from spa.adapters.files import LocalTargetFiles
 from spa.application.surface import OPERATIONS
 from spa.contracts.ports import OperationServices, RequestIssue
-from tests.windows_permissions import symlink_creation_permission
+from tests.host_permissions import symlink_creation_permission
 
 ADDRESS = {"layer": {"layer_path": [1]}, "frame_number": 1}
 DESTINATION = {"layer": {"layer_path": [2]}, "frame_number": 2}

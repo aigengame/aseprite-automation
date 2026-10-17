@@ -10,7 +10,7 @@ import pytest
 
 from tests.support import fake_aseprite, spa
 from tests.windows_executable import windows_aseprite
-from tests.windows_permissions import symlink_creation_permission
+from tests.host_permissions import symlink_creation_permission
 
 
 def _one_frame_inspection() -> dict[str, object]:

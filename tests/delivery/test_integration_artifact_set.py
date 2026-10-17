@@ -5,7 +5,7 @@ from pathlib import Path
 
 from spa.adapters.artifact_set import LocalArtifactSets
 from spa.contracts.artifact_set import ArtifactDestination
-from tests.windows_permissions import symlink_creation_permission
+from tests.host_permissions import symlink_creation_permission
 
 
 def test_verified_set_publishes_in_declared_order_and_discards_staging(

@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from spa.adapters.aseprite.convolution import discover_convolution_resources
-from tests.windows_permissions import directory_junction, symlink_creation_permission
+from tests.host_permissions import directory_junction, symlink_creation_permission
 
 
 def _write(path: Path, text: str) -> Path:
