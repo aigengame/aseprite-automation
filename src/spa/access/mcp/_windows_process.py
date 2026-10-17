@@ -6,8 +6,7 @@ if sys.platform == "win32":
     import asyncio
     import ctypes
     from ctypes import wintypes
-
-    import anyio
+    from typing import Any
 
     CREATE_SUSPENDED = 0x00000004
     PROCESS_SET_QUOTA_AND_TERMINATE = 0x0101
@@ -63,20 +62,27 @@ if sys.platform == "win32":
             raise ctypes.WinError(ctypes.get_last_error())
         return value
 
-    class InvocationJob:
+    class WindowsJob:
         """Retain ownership even when the selected CLI exits before its child."""
 
         def __init__(self):
             self.handle = _checked(_kernel32.CreateJobObjectW(None, None))
 
-        def attach_and_resume(self, pid: int) -> None:
-            process = _checked(
+        def start_options(self) -> dict[str, Any]:
+            # Establish ownership before the CLI can create a child or exit.
+            return {"creationflags": CREATE_SUSPENDED}
+
+        def acquire(self, process: asyncio.subprocess.Process) -> None:
+            pid = process.pid
+            process_handle = _checked(
                 _kernel32.OpenProcess(PROCESS_SET_QUOTA_AND_TERMINATE, False, pid)
             )
             try:
-                _checked(_kernel32.AssignProcessToJobObject(self.handle, process))
+                _checked(
+                    _kernel32.AssignProcessToJobObject(self.handle, process_handle)
+                )
             finally:
-                _checked(_kernel32.CloseHandle(process))
+                _checked(_kernel32.CloseHandle(process_handle))
             snapshot = _kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0)
             if snapshot == ctypes.c_void_p(-1).value:
                 raise ctypes.WinError(ctypes.get_last_error())
@@ -102,40 +108,9 @@ if sys.platform == "win32":
             finally:
                 _checked(_kernel32.CloseHandle(snapshot))
 
-        def terminate(self) -> None:
+        def terminate(self, process: asyncio.subprocess.Process) -> None:
             _checked(_kernel32.TerminateJobObject(self.handle, 1))
 
-        def close(self) -> None:
+        def release(self) -> None:
             # A completed invocation must not acquire kill-on-close semantics.
             _checked(_kernel32.CloseHandle(self.handle))
-
-    async def create_process(
-        command: list[str], environment: dict[str, str]
-    ) -> tuple[asyncio.subprocess.Process, InvocationJob]:
-        job = InvocationJob()
-        process = None
-        try:
-            # Establish ownership before the CLI can create a child or exit.
-            with anyio.CancelScope(shield=True):
-                process = await asyncio.create_subprocess_exec(
-                    *command,
-                    stdin=asyncio.subprocess.PIPE,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                    env=environment,
-                    creationflags=CREATE_SUSPENDED,
-                )
-                job.attach_and_resume(process.pid)
-            assert process is not None
-            return process, job
-        except BaseException:
-            with anyio.CancelScope(shield=True):
-                try:
-                    if process is not None:
-                        job.terminate()
-                        if process.returncode is None:
-                            process.kill()
-                        await process.wait()
-                finally:
-                    job.close()
-            raise

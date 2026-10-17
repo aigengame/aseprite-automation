@@ -1,14 +1,11 @@
-"""Run the selected CLI with explicit JSON requests."""
+"""Project MCP calls to the selected CLI as explicit JSON requests."""
 
-import asyncio
 import json
-import os
-import signal
 import sys
 from dataclasses import dataclass
 from typing import Any
 
-import anyio
+from .process import StartError, run
 
 
 @dataclass(frozen=True)
@@ -40,62 +37,32 @@ class Cli:
             "-",
             "--json",
         ]
-        windows_job = None
         try:
-            if sys.platform == "win32":
-                from ._windows_process import create_process
-
-                process, windows_job = await create_process(command, self.environment)
-            else:
-                process = await asyncio.create_subprocess_exec(
-                    *command,
-                    stdin=asyncio.subprocess.PIPE,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                    env=self.environment,
-                    start_new_session=os.name == "posix",
-                )
-        except OSError as exc:
+            completion = await run(
+                command, self.environment, json.dumps(arguments).encode()
+            )
+        except StartError as exc:
             raise AdapterError(
-                "Could not start SPA", command=command, reason=str(exc)
-            ) from exc
-        completed = False
-        try:
-            stdout, stderr = await process.communicate(json.dumps(arguments).encode())
-            completed = True
-        finally:
-            try:
-                if not completed:
-                    with anyio.CancelScope(shield=True):
-                        try:
-                            if os.name == "posix":
-                                os.killpg(process.pid, signal.SIGKILL)
-                            elif windows_job is not None:
-                                windows_job.terminate()
-                            elif process.returncode is None:
-                                process.kill()
-                        except ProcessLookupError:
-                            pass
-                        await process.wait()
-            finally:
-                if windows_job is not None:
-                    windows_job.close()
+                "Could not start SPA", command=command, reason=str(exc.error)
+            ) from exc.error
         diagnostics: dict[str, Any] = {
-            "stdout": stdout.decode("utf-8", errors="replace"),
-            "stderr": stderr.decode("utf-8", errors="replace"),
-            "exit_status": process.returncode,
+            "stdout": completion.stdout.decode("utf-8", errors="replace"),
+            "stderr": completion.stderr.decode("utf-8", errors="replace"),
+            "exit_status": completion.exit_status,
         }
         if diagnostics["stderr"]:
             print(diagnostics["stderr"], file=sys.stderr, end="")
         try:
-            payload = json.loads(stdout)
+            payload = json.loads(completion.stdout)
             if not isinstance(payload, dict):
                 raise TypeError("Expected a JSON object")
         except (ValueError, TypeError) as exc:
             raise AdapterError(
                 "SPA did not return a JSON object", **diagnostics
             ) from exc
-        assert process.returncode is not None
         return Outcome(
-            payload, diagnostics["stdout"], diagnostics["stderr"], process.returncode
+            payload,
+            diagnostics["stdout"],
+            diagnostics["stderr"],
+            completion.exit_status,
         )
