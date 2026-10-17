@@ -15,7 +15,10 @@ else:
 
 
 class Ownership(Protocol):
-    """Own every process that one CLI invocation starts."""
+    """Own every process that one CLI invocation starts.
+
+    A step raises OSError when the operating system rejects it.
+    """
 
     def start_options(self) -> dict[str, Any]:
         """Return the subprocess options that start the CLI under ownership."""
@@ -73,13 +76,22 @@ async def run(
     finally:
         try:
             if not completed:
-                with anyio.CancelScope(shield=True):
-                    owner.terminate(process)
-                    await process.wait()
+                await _retire(owner, process)
         finally:
             owner.release()
     assert process.returncode is not None
     return Completion(stdout, stderr, process.returncode)
+
+
+async def _retire(owner: Ownership, process: asyncio.subprocess.Process) -> None:
+    """Stop and wait for the owned tree without replacing the error in flight."""
+    with anyio.CancelScope(shield=True):
+        try:
+            owner.terminate(process)
+        except OSError:
+            if process.returncode is None:
+                process.kill()
+        await process.wait()
 
 
 async def _start(
