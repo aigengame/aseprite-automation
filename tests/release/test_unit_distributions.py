@@ -23,18 +23,15 @@ def distributions(tmp_path: Path) -> tuple[Path, Path]:
     (package / "kernel").mkdir()
     (package / "kernel/probe.lua").write_text("return true\n")
     (root / "LICENSE").write_text("MIT License\nCopyright (c) 2026 aigengame\n")
-    (root / "LICENSES").mkdir()
-    (root / "LICENSES/CC0-1.0.txt").write_text("CC0 fixture license\n")
-    (root / "THIRD_PARTY_NOTICES.md").write_text("# Third-party notices\n")
-    (package / "kernel/color/profiles").mkdir(parents=True)
-    (package / "kernel/color/profiles/NOTICE.txt").write_text(
-        "CC0 Display P3 reference\n"
+    (root / "THIRD_PARTY_NOTICES.md").write_text(
+        "# Third-party notices\n\nCC0 Display P3 reference\nCC0 fixture license\n"
     )
+    (package / "kernel/color/profiles").mkdir(parents=True)
     (package / "kernel/color/profiles/identities.json").write_text('{"profiles": []}\n')
     (root / "README.md").write_text("# SPA\n")
     (root / "pyproject.toml").write_text(
         '[project]\nname = "aseprite-automation"\nversion = "1.2.3"\nlicense = "MIT AND CC0-1.0"\n'
-        'license-files = ["LICENSE", "LICENSES/CC0-1.0.txt"]\n'
+        'license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]\n'
     )
     dist = tmp_path / "dist"
     dist.mkdir()
@@ -80,7 +77,7 @@ def write_distributions(
         content.update(
             {
                 name: (root / name).read_bytes()
-                for name in ("README.md", "pyproject.toml", "THIRD_PARTY_NOTICES.md")
+                for name in ("README.md", "pyproject.toml")
             }
         )
         content["PKG-INFO"] = metadata
@@ -316,18 +313,18 @@ def test_icc_structure_alone_does_not_reject_a_different_profile(distributions) 
     assert len(verify_contents(root, dist)) == 2
 
 
-@pytest.mark.parametrize("resource", ["identities.json", "NOTICE.txt"])
-def test_changed_profile_identity_or_notice_is_rejected(
-    distributions, resource
-) -> None:
+def test_changed_profile_identity_is_rejected(distributions) -> None:
     root, dist = distributions
-    (root / "src/spa/kernel/color/profiles" / resource).write_text("changed content\n")
+    (root / "src/spa/kernel/color/profiles/identities.json").write_text(
+        "changed content\n"
+    )
     with pytest.raises(ValueError, match="changed source file"):
         verify_contents(root, dist)
 
 
-def test_cc0_license_contents_must_match_source(distributions) -> None:
+@pytest.mark.parametrize("license_file", ["LICENSE", "THIRD_PARTY_NOTICES.md"])
+def test_license_contents_must_match_source(distributions, license_file) -> None:
     root, dist = distributions
-    (root / "LICENSES/CC0-1.0.txt").write_text("changed license\n")
+    (root / license_file).write_text("changed license\n")
     with pytest.raises(ValueError, match="changed source file"):
         verify_contents(root, dist)

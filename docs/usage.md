@@ -1192,7 +1192,7 @@ metadata and valid ICC files excluded from Convert, without transforming stored 
 
 The package includes [linear_srgb.icc](../src/spa/kernel/color/profiles/linear_srgb.icc)
 and [display_p3_cc0.icc](../src/spa/kernel/color/profiles/display_p3_cc0.icc).
-[Their notice](../src/spa/kernel/color/profiles/NOTICE.txt) records provenance and
+[Their notice](../THIRD_PARTY_NOTICES.md) records provenance and
 redistribution terms. Apple P3 bytes are not included, downloaded, or reconstructed.
 The [finite identity data](../src/spa/kernel/color/profiles/identities.json) pins the
 complete input hashes: `linear_srgb`, `display_p3_cc0`, and the existing caller-supplied
