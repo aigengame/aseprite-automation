@@ -10,15 +10,14 @@ from pathlib import Path
 import pytest
 
 from tests.frame.test_e2e_frame import _run_fixture
-from tests.support import fake_aseprite, python_aseprite
+from tests.support import exiting_aseprite
 
 
 @pytest.mark.parametrize(
-    ("termination", "status", "description"),
+    ("status", "description"),
     [
-        ("exit 13", 13, "exit status 13"),
+        (13, "exit status 13"),
         pytest.param(
-            "kill -TERM $$",
             -signal.SIGTERM,
             "SIGTERM",
             marks=pytest.mark.skipif(os.name == "nt", reason="POSIX signal fixture"),
@@ -28,24 +27,12 @@ from tests.support import fake_aseprite, python_aseprite
 def test_direct_fixture_retains_exit_status_and_both_output_streams(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    termination: str,
     status: int,
     description: str,
 ) -> None:
-    if os.name == "nt":
-        binary = python_aseprite(
-            tmp_path,
-            (
-                "import os, sys, time\n"
-                "from pathlib import Path\n"
-                "print('fixture stdout'); print('fixture stderr', file=sys.stderr); sys.exit(13)"
-            ),
-        )
-    else:
-        binary = fake_aseprite(
-            tmp_path,
-            f"echo 'fixture stdout'\necho 'fixture stderr' >&2\n{termination}\n",
-        )
+    binary = exiting_aseprite(
+        tmp_path, stdout="fixture stdout", stderr="fixture stderr", status=status
+    )
     monkeypatch.setenv("SPA_TEST_ASEPRITE", str(binary))
 
     with pytest.raises(AssertionError) as failure:
@@ -61,10 +48,7 @@ def test_direct_fixture_retains_exit_status_and_both_output_streams(
 def test_successful_direct_fixture_still_passes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    if os.name == "nt":
-        binary = python_aseprite(tmp_path, "print('expected native result')")
-    else:
-        binary = fake_aseprite(tmp_path, "echo 'expected native result'\nexit 0\n")
+    binary = exiting_aseprite(tmp_path, stdout="expected native result")
     monkeypatch.setenv("SPA_TEST_ASEPRITE", str(binary))
     _run_fixture("controlled.lua")
 
@@ -73,19 +57,13 @@ def test_successful_direct_fixture_still_passes(
 def test_probe_failure_evidence_reaches_pytest_reports(
     tmp_path: Path, phase: str
 ) -> None:
-    if os.name == "nt":
-        binary = python_aseprite(
-            tmp_path,
-            (
-                "import os, sys, time\n"
-                "from pathlib import Path\n"
-                "print('probe stdout'); print('probe stderr', file=sys.stderr); sys.exit(13)"
-            ),
-        )
-    else:
-        binary = fake_aseprite(
-            tmp_path, "echo 'probe stdout'\necho 'probe stderr' >&2\nkill -TERM $$\n"
-        )
+    # Windows has no signal termination, so its expected evidence is exit status 13.
+    binary = exiting_aseprite(
+        tmp_path,
+        stdout="probe stdout",
+        stderr="probe stderr",
+        status=13 if os.name == "nt" else -signal.SIGTERM,
+    )
     test_file = tmp_path / "test_probe.py"
     action = {
         "call": "    image_fixture(tmp_path)\n",

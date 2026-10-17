@@ -2,7 +2,6 @@
 
 import json
 import os
-import shlex
 import signal
 import sys
 from pathlib import Path
@@ -18,12 +17,67 @@ from spa.application.surface import OPERATIONS
 from spa.contracts.ports import PackagedHandler, RuntimeObservation
 from spa.contracts.public import RuntimeRequest
 from tests.support import (
+    controlled_aseprite,
+    exiting_aseprite,
     fake_aseprite,
     fake_probe_response,
     operation_services,
-    python_aseprite,
+    recording_aseprite,
+    responding_aseprite,
     spa,
 )
+
+
+def _printing_user_folder_aseprite(tmp_path: Path) -> Path:
+    return controlled_aseprite(
+        tmp_path,
+        shell='printf "%s" "$ASEPRITE_USER_FOLDER"\nexit 0\n',
+        python="sys.stdout.write(os.environ['ASEPRITE_USER_FOLDER'])",
+    )
+
+
+def _writing_user_folder_aseprite(tmp_path: Path) -> Path:
+    return controlled_aseprite(
+        tmp_path,
+        shell='printf "ready" > "$ASEPRITE_USER_FOLDER/startup-check" || exit 17\n',
+        python=(
+            "try:\n"
+            "    (Path(os.environ['ASEPRITE_USER_FOLDER']) / 'startup-check')"
+            ".write_text('ready', encoding='utf-8')\n"
+            "except OSError:\n"
+            "    sys.exit(17)"
+        ),
+    )
+
+
+def _printing_launch_path_aseprite(tmp_path: Path) -> Path:
+    return controlled_aseprite(
+        tmp_path,
+        shell=(
+            'printf "%s\\n" "$0"\n'
+            'if test -f "$(dirname "$0")/data/gui.xml"; then echo data-present; '
+            "else echo data-absent; fi\n"
+        ),
+        python=(
+            "print(sys.argv[0])\n"
+            "print('data-present' if (Path(sys.argv[0]).parent / 'data/gui.xml')"
+            ".is_file() else 'data-absent')"
+        ),
+    )
+
+
+def _sleeping_aseprite(tmp_path: Path, seconds: int) -> Path:
+    return controlled_aseprite(
+        tmp_path, shell=f"exec sleep {seconds}\n", python=f"time.sleep({seconds})"
+    )
+
+
+def _flooding_aseprite(tmp_path: Path, byte_count: int) -> Path:
+    return controlled_aseprite(
+        tmp_path,
+        shell=f"yes x | head -c {byte_count}\n",
+        python=f"os.write(1, b'x' * {byte_count})",
+    )
 
 
 def test_missing_runtime_has_structured_environment_failure() -> None:
@@ -36,13 +90,7 @@ def test_missing_runtime_has_structured_environment_failure() -> None:
 
 
 def test_spa_prefixed_executable_environment_selects_runtime(tmp_path: Path) -> None:
-    if os.name == "nt":
-        binary = python_aseprite(
-            tmp_path,
-            "import os, sys, time\nfrom pathlib import Path\nprint('environment-selected'); sys.exit(13)",
-        )
-    else:
-        binary = fake_aseprite(tmp_path, 'echo "environment-selected"\nexit 13\n')
+    binary = exiting_aseprite(tmp_path, stdout="environment-selected", status=13)
     environment = os.environ.copy()
     environment["SPA_ASEPRITE_EXECUTABLE"] = str(binary)
     environment["ASEPRITE_EXECUTABLE"] = "/no/such/aseprite"
@@ -100,13 +148,7 @@ def test_unexpandable_executable_path_uses_structured_discovery_failure(
 
 
 def test_stdin_json_selects_the_installed_runtime(tmp_path: Path) -> None:
-    if os.name == "nt":
-        binary = python_aseprite(
-            tmp_path,
-            "import os, sys, time\nfrom pathlib import Path\nprint('stdin-selected'); sys.exit(13)",
-        )
-    else:
-        binary = fake_aseprite(tmp_path, 'echo "stdin-selected"\nexit 13\n')
+    binary = exiting_aseprite(tmp_path, stdout="stdin-selected", status=13)
     run = spa(
         "info",
         "--input-json",
@@ -119,37 +161,8 @@ def test_stdin_json_selects_the_installed_runtime(tmp_path: Path) -> None:
     assert failure["diagnostics"]["stdout"].strip() == "stdin-selected"
 
 
-def _fake_truncated_response_executable(tmp_path: Path, exit_status: int) -> Path:
-    if os.name == "nt":
-        return python_aseprite(
-            tmp_path,
-            (
-                "import os, sys, time\n"
-                "from pathlib import Path\n"
-                "arguments = dict(arg.split('=', 1) for arg in sys.argv[1:] if '=' in arg)\n"
-                "Path(arguments['response']).write_text('{\"kernel_protocol_version\":1,', encoding='utf-8')\n"
-            )
-            + f"sys.exit({exit_status})",
-        )
-    else:
-        return fake_aseprite(
-            tmp_path,
-            f"""
-response=
-for argument in "$@"; do
-  case "$argument" in response=*) response=${{argument#response=}};; esac
-done
-printf '{{"kernel_protocol_version":1,' > "$response"
-exit {exit_status}
-""",
-        )
-
-
 def test_exit_zero_without_kernel_response_is_failure(tmp_path: Path) -> None:
-    if os.name == "nt":
-        binary = python_aseprite(tmp_path, "pass")
-    else:
-        binary = fake_aseprite(tmp_path, "exit 0\n")
+    binary = exiting_aseprite(tmp_path)
     run = spa("info", "--aseprite", str(binary), "--json")
     assert run.returncode == 1
     failure = json.loads(run.stdout)
@@ -163,17 +176,7 @@ def test_exit_zero_without_kernel_response_is_failure(tmp_path: Path) -> None:
 def test_process_exit_before_kernel_response_is_execution_failure(
     tmp_path: Path,
 ) -> None:
-    if os.name == "nt":
-        binary = python_aseprite(
-            tmp_path,
-            (
-                "import os, sys, time\n"
-                "from pathlib import Path\n"
-                "print('startup failed', file=sys.stderr); sys.exit(13)"
-            ),
-        )
-    else:
-        binary = fake_aseprite(tmp_path, 'echo "startup failed" >&2\nexit 13\n')
+    binary = exiting_aseprite(tmp_path, stderr="startup failed", status=13)
     run = spa("info", "--aseprite", str(binary), "--json")
     assert run.returncode == 1
     failure = json.loads(run.stdout)
@@ -187,8 +190,11 @@ def test_process_exit_before_kernel_response_is_execution_failure(
 def test_signal_terminated_process_is_reported_as_process_failure(
     tmp_path: Path,
 ) -> None:
-    binary = fake_aseprite(
-        tmp_path, "echo 'native stdout'\necho 'native stderr' >&2\nkill -TERM $$\n"
+    binary = exiting_aseprite(
+        tmp_path,
+        stdout="native stdout",
+        stderr="native stderr",
+        status=-signal.SIGTERM,
     )
     run = spa("info", "--aseprite", str(binary), "--json")
     failure = json.loads(run.stdout)
@@ -204,7 +210,7 @@ def test_signal_terminated_process_is_reported_as_process_failure(
 def test_nonzero_exit_with_truncated_kernel_response_is_process_failure(
     tmp_path: Path,
 ) -> None:
-    binary = _fake_truncated_response_executable(tmp_path, 13)
+    binary = responding_aseprite(tmp_path, '{"kernel_protocol_version":1,', status=13)
     run = spa("info", "--aseprite", str(binary), "--json")
     failure = json.loads(run.stdout)
     assert failure["code"] == "process_failed"
@@ -215,7 +221,7 @@ def test_nonzero_exit_with_truncated_kernel_response_is_process_failure(
 def test_zero_exit_with_truncated_kernel_response_is_kernel_protocol_failure(
     tmp_path: Path,
 ) -> None:
-    binary = _fake_truncated_response_executable(tmp_path, 0)
+    binary = responding_aseprite(tmp_path, '{"kernel_protocol_version":1,', status=0)
     run = spa("info", "--aseprite", str(binary), "--json")
     failure = json.loads(run.stdout)
     assert failure["code"] == "kernel_response_invalid"
@@ -229,27 +235,11 @@ def test_zero_exit_with_truncated_kernel_response_is_kernel_protocol_failure(
 def test_other_kernel_protocol_version_is_rejected_without_negotiation(
     tmp_path: Path, private_version: str
 ) -> None:
-    if os.name == "nt":
-        binary = python_aseprite(
-            tmp_path,
-            (
-                "import os, sys, time\n"
-                "from pathlib import Path\n"
-                "arguments = dict(arg.split('=', 1) for arg in sys.argv[1:] if '=' in arg)\n"
-            )
-            + f'Path(arguments[\'response\']).write_text(\'{{"kernel_protocol_version":{private_version},"status":"ok","aseprite_version":"test","api_version":1}}\', encoding=\'utf-8\')',
-        )
-    else:
-        binary = fake_aseprite(
-            tmp_path,
-            """
-response=
-for argument in "$@"; do
-  case "$argument" in response=*) response=${argument#response=};; esac
-done
-printf '{"kernel_protocol_version":%s,"status":"ok","aseprite_version":"test","api_version":1}' 'PRIVATE_VERSION' > "$response"
-""".replace("PRIVATE_VERSION", private_version),
-        )
+    binary = responding_aseprite(
+        tmp_path,
+        f'{{"kernel_protocol_version":{private_version},"status":"ok",'
+        '"aseprite_version":"test","api_version":1}',
+    )
     run = spa("info", "--aseprite", str(binary), "--json")
     assert run.returncode == 1
     failure = json.loads(run.stdout)
@@ -320,29 +310,9 @@ def test_probe_preserves_absent_optional_runtime_capability(tmp_path: Path) -> N
 
 def test_adapter_passes_only_resources_declared_by_the_handler(tmp_path: Path) -> None:
     recorded = tmp_path / "arguments.txt"
-    if os.name == "nt":
-        binary = python_aseprite(
-            tmp_path,
-            (
-                "import os, sys, time\n"
-                "from pathlib import Path\n"
-                "arguments = dict(arg.split('=', 1) for arg in sys.argv[1:] if '=' in arg)\n"
-            )
-            + f"Path({str(recorded)!r}).write_text('\\n'.join(sys.argv[1:]) + '\\n', encoding='utf-8')\n"
-            + 'Path(arguments[\'response\']).write_text(\'{"kernel_protocol_version":1,"status":"ok","result":{}}\', encoding=\'utf-8\')',
-        )
-    else:
-        binary = fake_aseprite(
-            tmp_path,
-            f"""
-response=
-for argument in "$@"; do
-  printf '%s\n' "$argument" >> {shlex.quote(str(recorded))}
-  case "$argument" in response=*) response=${{argument#response=}};; esac
-done
-printf '%s' '{{"kernel_protocol_version":1,"status":"ok","result":{{}}}}' > "$response"
-""",
-        )
+    binary = recording_aseprite(
+        tmp_path, recorded, '{"kernel_protocol_version":1,"status":"ok","result":{}}'
+    )
     observation = RuntimeObservation(
         selection_source="explicit",
         requested_path=str(binary),
@@ -367,7 +337,8 @@ printf '%s' '{{"kernel_protocol_version":1,"status":"ok","result":{{}}}}' > "$re
         1,
     )
 
-    arguments = recorded.read_text(encoding="utf-8").splitlines()
+    (invocation,) = recorded.read_text(encoding="utf-8").splitlines()
+    arguments = invocation.split("\t")
     script = Path(arguments[arguments.index("--script") + 1])
     assert script.as_posix().endswith("/document/sprite/sprite_get.lua")
     assert script.is_file()
@@ -436,33 +407,11 @@ def test_incompatible_runtime_fails_with_observed_requirements(
 
 
 def test_json_echo_rejects_boolean_number_swap(tmp_path: Path) -> None:
-    if os.name == "nt":
-        binary = python_aseprite(
-            tmp_path,
-            (
-                "import os, sys, time\n"
-                "from pathlib import Path\n"
-                "arguments = dict(arg.split('=', 1) for arg in sys.argv[1:] if '=' in arg)\n"
-                'Path(arguments[\'echo\']).write_text(\'{"kernel_protocol_version":1,"echo":{"nullable":null,"nested":[{"value":null},[true,null,{"flag":1}]]}}\', encoding=\'utf-8\')\n'
-                'Path(arguments[\'response\']).write_text(\'{"kernel_protocol_version":1,"status":"ok","aseprite_version":"test","api_version":1}\', encoding=\'utf-8\')'
-            ),
-        )
-    else:
-        binary = fake_aseprite(
-            tmp_path,
-            """
-response=
-echo=
-for argument in "$@"; do
-  case "$argument" in
-    response=*) response=${argument#response=};;
-    echo=*) echo=${argument#echo=};;
-  esac
-done
-printf '{"kernel_protocol_version":1,"echo":{"nullable":null,"nested":[{"value":null},[true,null,{"flag":1}]]}}' > "$echo"
-printf '{"kernel_protocol_version":1,"status":"ok","aseprite_version":"test","api_version":1}' > "$response"
-""",
-        )
+    binary = responding_aseprite(
+        tmp_path,
+        '{"kernel_protocol_version":1,"status":"ok","aseprite_version":"test","api_version":1}',
+        echo='{"kernel_protocol_version":1,"echo":{"nullable":null,"nested":[{"value":null},[true,null,{"flag":1}]]}}',
+    )
     run = spa("info", "--aseprite", str(binary), "--json")
     assert run.returncode == 1
     failure = json.loads(run.stdout)
@@ -471,28 +420,10 @@ printf '{"kernel_protocol_version":1,"status":"ok","aseprite_version":"test","ap
 
 
 def test_exit_zero_with_kernel_error_is_execution_failure(tmp_path: Path) -> None:
-    if os.name == "nt":
-        binary = python_aseprite(
-            tmp_path,
-            (
-                "import os, sys, time\n"
-                "from pathlib import Path\n"
-                "arguments = dict(arg.split('=', 1) for arg in sys.argv[1:] if '=' in arg)\n"
-                'Path(arguments[\'response\']).write_text(\'{"kernel_protocol_version":1,"status":"error","message":"semantic failure"}\', encoding=\'utf-8\')'
-            ),
-        )
-    else:
-        binary = fake_aseprite(
-            tmp_path,
-            """
-response=
-for argument in "$@"; do
-  case "$argument" in response=*) response=${argument#response=};; esac
-done
-printf '{"kernel_protocol_version":1,"status":"error","message":"semantic failure"}' > "$response"
-exit 0
-""",
-        )
+    binary = responding_aseprite(
+        tmp_path,
+        '{"kernel_protocol_version":1,"status":"error","message":"semantic failure"}',
+    )
     run = spa("info", "--aseprite", str(binary))
     assert run.returncode == 1
     failure = json.loads(run.stdout)
@@ -504,19 +435,7 @@ exit 0
 
 
 def test_runtime_uses_an_isolated_user_folder(tmp_path: Path) -> None:
-    if os.name == "nt":
-        binary = python_aseprite(
-            tmp_path,
-            (
-                "import os, sys, time\n"
-                "from pathlib import Path\n"
-                "sys.stdout.write(os.environ['ASEPRITE_USER_FOLDER'])"
-            ),
-        )
-    else:
-        binary = fake_aseprite(
-            tmp_path, 'printf "%s" "$ASEPRITE_USER_FOLDER"\nexit 0\n'
-        )
+    binary = _printing_user_folder_aseprite(tmp_path)
     run = spa("info", "--aseprite", str(binary))
     failure = json.loads(run.stdout)
     assert failure["code"] == "kernel_response_missing"
@@ -526,23 +445,7 @@ def test_runtime_uses_an_isolated_user_folder(tmp_path: Path) -> None:
 
 
 def test_isolated_user_folder_is_writable_before_launch(tmp_path: Path) -> None:
-    if os.name == "nt":
-        binary = python_aseprite(
-            tmp_path,
-            (
-                "import os, sys, time\n"
-                "from pathlib import Path\n"
-                "try:\n"
-                "    (Path(os.environ['ASEPRITE_USER_FOLDER']) / 'startup-check').write_text('ready', encoding='utf-8')\n"
-                "except OSError:\n"
-                "    sys.exit(17)"
-            ),
-        )
-    else:
-        binary = fake_aseprite(
-            tmp_path,
-            'printf "ready" > "$ASEPRITE_USER_FOLDER/startup-check" || exit 17\n',
-        )
+    binary = _writing_user_folder_aseprite(tmp_path)
     run = spa("info", "--aseprite", str(binary), "--json")
     failure = json.loads(run.stdout)
     assert failure["code"] == "kernel_response_missing"
@@ -550,23 +453,7 @@ def test_isolated_user_folder_is_writable_before_launch(tmp_path: Path) -> None:
 
 
 def test_app_bundle_cli_launch_is_scoped_to_macos(tmp_path: Path) -> None:
-    if os.name == "nt":
-        binary = python_aseprite(
-            tmp_path,
-            (
-                "import os, sys, time\n"
-                "from pathlib import Path\n"
-                "print(sys.argv[0])\n"
-                "print('data-present' if (Path(sys.argv[0]).parent / 'data/gui.xml').is_file() else 'data-absent')"
-            ),
-        )
-    else:
-        binary = fake_aseprite(
-            tmp_path,
-            'printf "%s\\n" "$0"\n'
-            'if test -f "$(dirname "$0")/data/gui.xml"; then echo data-present; '
-            "else echo data-absent; fi\n",
-        )
+    binary = _printing_launch_path_aseprite(tmp_path)
     run = spa("info", "--aseprite", str(binary), "--json")
     failure = json.loads(run.stdout)
     assert failure["code"] == "kernel_response_missing"
@@ -685,25 +572,13 @@ def test_unwritable_bundle_link_has_typed_start_failure(
 
 
 def test_timeout_and_output_bound_are_typed(tmp_path: Path) -> None:
-    if os.name == "nt":
-        timeout_binary = python_aseprite(
-            tmp_path / "timeout",
-            "import os, sys, time\nfrom pathlib import Path\ntime.sleep(3)",
-        )
-    else:
-        timeout_binary = fake_aseprite(tmp_path / "timeout", "exec sleep 3\n")
+    timeout_binary = _sleeping_aseprite(tmp_path / "timeout", 3)
     timed = spa("info", "--aseprite", str(timeout_binary), "--timeout-seconds", "0.1")
     assert timed.returncode == 1
     timed_failure = json.loads(timed.stdout)
     assert timed_failure["code"] == "process_timeout"
     assert timed_failure["details"]["executable"] == str(timeout_binary.resolve())
-    if os.name == "nt":
-        output_binary = python_aseprite(
-            tmp_path / "output",
-            "import os, sys, time\nfrom pathlib import Path\nos.write(1, b'x' * 70000)",
-        )
-    else:
-        output_binary = fake_aseprite(tmp_path / "output", "yes x | head -c 70000\n")
+    output_binary = _flooding_aseprite(tmp_path / "output", 70000)
     overflow = spa("info", "--aseprite", str(output_binary))
     assert overflow.returncode == 1
     failure = json.loads(overflow.stdout)

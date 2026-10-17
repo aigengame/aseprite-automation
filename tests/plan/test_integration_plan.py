@@ -2,14 +2,13 @@
 
 import json
 import os
-import shlex
 from importlib.resources import files
 from pathlib import Path
 
 import pytest
 
 from tests.host_permissions import symlink_creation_permission
-from tests.support import fake_aseprite, python_aseprite, spa
+from tests.support import recording_aseprite, responding_aseprite, spa
 
 
 def _one_frame_inspection() -> dict[str, object]:
@@ -566,54 +565,28 @@ def test_plan_check_rejects_known_creation_postcondition_conflicts(
 def test_plan_step_validation_reports_index_after_one_process(tmp_path: Path) -> None:
     source = tmp_path / "source.aseprite"
     source.write_bytes(b"controlled transport fixture")
-    count_file = tmp_path / "invocations.txt"
-    response_file = tmp_path / "response.json"
+    invocations = tmp_path / "invocations.txt"
     final_sprite = _one_frame_inspection()
     bad_step_sprite = final_sprite | {"frames": []}
-    response_file.write_text(
-        json.dumps(
-            {
-                "kernel_protocol_version": 1,
-                "status": "ok",
-                "result": {
-                    "steps": [
-                        {
-                            "operation": "sprite get",
-                            "result": {
-                                "sprite": bad_step_sprite,
-                            },
-                        }
-                    ],
-                    "final_sprite": final_sprite,
-                    "persisted_reopen_verified": False,
-                },
-            }
-        ),
-        encoding="utf-8",
+    response = json.dumps(
+        {
+            "kernel_protocol_version": 1,
+            "status": "ok",
+            "result": {
+                "steps": [
+                    {
+                        "operation": "sprite get",
+                        "result": {
+                            "sprite": bad_step_sprite,
+                        },
+                    }
+                ],
+                "final_sprite": final_sprite,
+                "persisted_reopen_verified": False,
+            },
+        }
     )
-    if os.name == "nt":
-        fake = python_aseprite(
-            tmp_path,
-            (
-                "import os, sys, time\n"
-                "from pathlib import Path\n"
-                "arguments = dict(arg.split('=', 1) for arg in sys.argv[1:] if '=' in arg)\n"
-            )
-            + f"with Path({str(count_file)!r}).open('a', encoding='utf-8') as stream: stream.write('1\\n')\n"
-            + f"Path(arguments['response']).write_bytes(Path({str(response_file)!r}).read_bytes())",
-        )
-    else:
-        fake = fake_aseprite(
-            tmp_path,
-            f"""
-response_file=
-for argument in "$@"; do
-  case "$argument" in response=*) response_file=${{argument#response=}};; esac
-done
-printf '1\\n' >> {shlex.quote(str(count_file))}
-cp {shlex.quote(str(response_file))} "$response_file"
-""",
-        )
+    fake = recording_aseprite(tmp_path, invocations, response)
     run = spa(
         "plan",
         "run",
@@ -638,7 +611,7 @@ cp {shlex.quote(str(response_file))} "$response_file"
     assert failure["code"] == "kernel_response_invalid"
     assert failure["details"]["failed_step"] == 1
     assert failure["details"]["failed_operation"] == "sprite get"
-    assert count_file.read_text(encoding="utf-8").splitlines() == ["1"]
+    assert len(invocations.read_text(encoding="utf-8").splitlines()) == 1
 
 
 @pytest.mark.parametrize(
@@ -665,47 +638,23 @@ def test_plan_frame_inspection_rejects_incomplete_step_facts(
 ) -> None:
     source = tmp_path / "source.aseprite"
     source.write_bytes(b"controlled transport fixture")
-    response_file = tmp_path / "response.json"
-    response_file.write_text(
-        json.dumps(
-            {
-                "kernel_protocol_version": 1,
-                "status": "ok",
-                "result": {
-                    "steps": [
-                        {
-                            "operation": operation,
-                            "result": step_result,
-                        }
-                    ],
-                    "final_sprite": _one_frame_inspection(),
-                    "persisted_reopen_verified": False,
-                },
-            }
-        ),
-        encoding="utf-8",
+    response = json.dumps(
+        {
+            "kernel_protocol_version": 1,
+            "status": "ok",
+            "result": {
+                "steps": [
+                    {
+                        "operation": operation,
+                        "result": step_result,
+                    }
+                ],
+                "final_sprite": _one_frame_inspection(),
+                "persisted_reopen_verified": False,
+            },
+        }
     )
-    if os.name == "nt":
-        fake = python_aseprite(
-            tmp_path,
-            (
-                "import os, sys, time\n"
-                "from pathlib import Path\n"
-                "arguments = dict(arg.split('=', 1) for arg in sys.argv[1:] if '=' in arg)\n"
-            )
-            + f"Path(arguments['response']).write_bytes(Path({str(response_file)!r}).read_bytes())",
-        )
-    else:
-        fake = fake_aseprite(
-            tmp_path,
-            f"""
-response_file=
-for argument in "$@"; do
-  case "$argument" in response=*) response_file=${{argument#response=}};; esac
-done
-cp {shlex.quote(str(response_file))} "$response_file"
-""",
-        )
+    fake = responding_aseprite(tmp_path, response)
     run = spa(
         "plan",
         "run",
@@ -729,51 +678,27 @@ cp {shlex.quote(str(response_file))} "$response_file"
 
 def test_plan_create_postcondition_failure_identifies_step(tmp_path: Path) -> None:
     target = tmp_path / "target.aseprite"
-    response_file = tmp_path / "create-response.json"
     final_sprite = _one_frame_inspection()
-    response_file.write_text(
-        json.dumps(
-            {
-                "kernel_protocol_version": 1,
-                "status": "ok",
-                "result": {
-                    "steps": [
-                        {
-                            "operation": "sprite create",
-                            "result": {
-                                "sprite": final_sprite,
-                                "initial_layer": {"kind": "transparent"},
-                            },
-                        }
-                    ],
-                    "final_sprite": final_sprite,
-                    "persisted_reopen_verified": True,
-                },
-            }
-        ),
-        encoding="utf-8",
+    response = json.dumps(
+        {
+            "kernel_protocol_version": 1,
+            "status": "ok",
+            "result": {
+                "steps": [
+                    {
+                        "operation": "sprite create",
+                        "result": {
+                            "sprite": final_sprite,
+                            "initial_layer": {"kind": "transparent"},
+                        },
+                    }
+                ],
+                "final_sprite": final_sprite,
+                "persisted_reopen_verified": True,
+            },
+        }
     )
-    if os.name == "nt":
-        fake = python_aseprite(
-            tmp_path,
-            (
-                "import os, sys, time\n"
-                "from pathlib import Path\n"
-                "arguments = dict(arg.split('=', 1) for arg in sys.argv[1:] if '=' in arg)\n"
-            )
-            + f"Path(arguments['response']).write_bytes(Path({str(response_file)!r}).read_bytes())",
-        )
-    else:
-        fake = fake_aseprite(
-            tmp_path,
-            f"""
-response_file=
-for argument in "$@"; do
-  case "$argument" in response=*) response_file=${{argument#response=}};; esac
-done
-cp {shlex.quote(str(response_file))} "$response_file"
-""",
-        )
+    fake = responding_aseprite(tmp_path, response)
     run = spa(
         "plan",
         "run",
@@ -809,47 +734,23 @@ cp {shlex.quote(str(response_file))} "$response_file"
 def test_plan_runtime_capability_failure_is_typed_before_steps(tmp_path: Path) -> None:
     source = tmp_path / "source.aseprite"
     source.write_bytes(b"controlled transport fixture")
-    response_file = tmp_path / "runtime-response.json"
-    response_file.write_text(
-        json.dumps(
-            {
-                "kernel_protocol_version": 1,
-                "status": "error",
-                "cause": "runtime_incompatible",
-                "message": "Plan runtime does not meet Step requirements",
-                "runtime_compatibility": {
-                    "aseprite_version": "test",
-                    "lua_version": "Lua 5.4",
-                    "api_version": 41,
-                    "required_lua_language": "Lua 5.4",
-                    "minimum_api_version": 41,
-                    "missing_capabilities": ["aseprite_sprite_inspection"],
-                },
-            }
-        ),
-        encoding="utf-8",
+    response = json.dumps(
+        {
+            "kernel_protocol_version": 1,
+            "status": "error",
+            "cause": "runtime_incompatible",
+            "message": "Plan runtime does not meet Step requirements",
+            "runtime_compatibility": {
+                "aseprite_version": "test",
+                "lua_version": "Lua 5.4",
+                "api_version": 41,
+                "required_lua_language": "Lua 5.4",
+                "minimum_api_version": 41,
+                "missing_capabilities": ["aseprite_sprite_inspection"],
+            },
+        }
     )
-    if os.name == "nt":
-        fake = python_aseprite(
-            tmp_path,
-            (
-                "import os, sys, time\n"
-                "from pathlib import Path\n"
-                "arguments = dict(arg.split('=', 1) for arg in sys.argv[1:] if '=' in arg)\n"
-            )
-            + f"Path(arguments['response']).write_bytes(Path({str(response_file)!r}).read_bytes())",
-        )
-    else:
-        fake = fake_aseprite(
-            tmp_path,
-            f"""
-response_file=
-for argument in "$@"; do
-  case "$argument" in response=*) response_file=${{argument#response=}};; esac
-done
-cp {shlex.quote(str(response_file))} "$response_file"
-""",
-        )
+    fake = responding_aseprite(tmp_path, response)
     run = spa(
         "plan",
         "run",

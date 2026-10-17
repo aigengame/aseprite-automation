@@ -72,10 +72,11 @@ def controlled_suite(tmp_path: Path) -> tuple[Path, dict[str, str]]:
     (tmp_path / "conftest.py").write_text(
         textwrap.dedent("""\
         import os
+        import signal
         import time
         from pathlib import Path
         import pytest
-        from tests.support import fake_aseprite, python_aseprite
+        from tests.support import exiting_aseprite
 
         @pytest.fixture
         def policy_dir():
@@ -92,12 +93,12 @@ def controlled_suite(tmp_path: Path) -> tuple[Path, dict[str, str]]:
 
         @pytest.fixture
         def native_failure(tmp_path, monkeypatch):
-            if os.name == "nt":
-                binary = python_aseprite(tmp_path,
-                    "print('native stdout'); print('native stderr', file=sys.stderr); sys.exit(13)")
-            else:
-                binary = fake_aseprite(tmp_path,
-                    "echo 'native stdout'\\necho 'native stderr' >&2\\nkill -TERM $$\\n")
+            binary = exiting_aseprite(
+                tmp_path,
+                stdout="native stdout",
+                stderr="native stderr",
+                status=13 if os.name == "nt" else -signal.SIGTERM,
+            )
             monkeypatch.setenv("SPA_TEST_ASEPRITE", str(binary))
             return binary
         """)
