@@ -346,10 +346,11 @@ Tests that create real file and directory symlinks need the corresponding
 filesystem permission. This is a prerequisite of those observations, not a
 configuration requirement for every developer host or ordinary Source test. An
 unavailable prerequisite is not a product failure or a pass. Unlistable-directory
-tests retain POSIX permissions on macOS/Linux; their private Windows fixture uses
-`powershell.exe` to deny only directory listing and restores the temporary access
-rules. It does not change host policy. The caller-supplied ICC identity and the
-separate wheel consumer configuration remain as documented in this file.
+and unreadable-file tests retain POSIX permissions on macOS/Linux; their private
+Windows fixtures use `powershell.exe` to deny only directory listing or file data
+reads and restore the temporary access rules. They do not change host policy.
+The caller-supplied ICC identity and separate wheel consumer configuration remain
+as documented in this file.
 See [#232 Windows observations](evidence/issue-232-windows-prerequisites.md)
 for the measured prerequisites and remaining blocks.
 

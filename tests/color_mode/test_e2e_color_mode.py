@@ -2,9 +2,12 @@
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
+from collections.abc import Iterator
+from contextlib import ExitStack, contextmanager
 from importlib.resources import files
 from pathlib import Path
 
@@ -15,8 +18,42 @@ from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.application.surface import PROBE_RESOURCES
 from spa.contracts.public import RuntimeRequest
 from tests.support import inject_palette_change, process_diagnostics, spa
+from tests.windows_permissions import _powershell
 
 pytestmark = pytest.mark.e2e
+
+
+@contextmanager
+def _deny_file_reading(file: Path) -> Iterator[None]:
+    """Deny reading only an owned test file; restore its access rules."""
+    assert os.name == "nt", "this fixture is private to Windows tests"
+    parameters = {"SPA_TEST_ACL_FILE": str(file)}
+    original = _powershell(
+        "(Get-Acl -LiteralPath $env:SPA_TEST_ACL_FILE)"
+        ".GetSecurityDescriptorSddlForm("
+        "[System.Security.AccessControl.AccessControlSections]::Access)",
+        parameters,
+    )
+    try:
+        _powershell(
+            "$acl = Get-Acl -LiteralPath $env:SPA_TEST_ACL_FILE; "
+            "$rule = [System.Security.AccessControl.FileSystemAccessRule]::new("
+            "[System.Security.Principal.WindowsIdentity]::GetCurrent().User, "
+            "[System.Security.AccessControl.FileSystemRights]::ReadData, "
+            "[System.Security.AccessControl.AccessControlType]::Deny); "
+            "$acl.AddAccessRule($rule); "
+            "Set-Acl -LiteralPath $env:SPA_TEST_ACL_FILE -AclObject $acl",
+            parameters,
+        )
+        yield
+    finally:
+        _powershell(
+            "$acl = Get-Acl -LiteralPath $env:SPA_TEST_ACL_FILE; "
+            "$acl.SetSecurityDescriptorSddlForm($env:SPA_TEST_ACL_SDDL, "
+            "[System.Security.AccessControl.AccessControlSections]::Access); "
+            "Set-Acl -LiteralPath $env:SPA_TEST_ACL_FILE -AclObject $acl",
+            {**parameters, "SPA_TEST_ACL_SDDL": original},
+        )
 
 
 def run(*command: str, **request: object) -> tuple[int, dict]:
@@ -613,41 +650,46 @@ def test_preflight_failure_preserves_existing_source_and_target(
         selected = {"kind": "file", "path": str(matrix)}
         if failure in {"invalid", "unreadable"}:
             matrix.write_bytes(b"not a native image")
-        if failure == "unreadable":
+        if failure == "unreadable" and os.name != "nt":
             matrix.chmod(0)
     conversion["target"]["dithering"] = {"algorithm": "ordered", "matrix": selected}
     if failure == "wrong-source":
         conversion = conversion_for("indexed", "rgb")
-    if via_plan:
-        code, result = run(
-            "plan",
-            "run",
-            plan={
-                "source_sprite_file": str(source),
-                "target_sprite_file": str(target),
-                "overwrite": True,
-                "steps": [
-                    {
-                        "operation": "frame add",
-                        "input": {"frame_number": 2, "duration_ms": 100},
-                    },
-                    {
-                        "operation": "sprite change-color-mode",
-                        "input": {"conversion": conversion},
-                    },
-                ],
-            },
-        )
-    else:
-        code, result = run(
-            "sprite",
-            "change-color-mode",
-            source_sprite_file=str(source),
-            target_sprite_file=str(target),
-            in_place=False,
-            overwrite=True,
-            conversion=conversion,
-        )
+    with ExitStack() as permissions:
+        if failure == "unreadable" and os.name == "nt":
+            permissions.enter_context(_deny_file_reading(matrix))
+            with pytest.raises(PermissionError):
+                matrix.read_bytes()
+        if via_plan:
+            code, result = run(
+                "plan",
+                "run",
+                plan={
+                    "source_sprite_file": str(source),
+                    "target_sprite_file": str(target),
+                    "overwrite": True,
+                    "steps": [
+                        {
+                            "operation": "frame add",
+                            "input": {"frame_number": 2, "duration_ms": 100},
+                        },
+                        {
+                            "operation": "sprite change-color-mode",
+                            "input": {"conversion": conversion},
+                        },
+                    ],
+                },
+            )
+        else:
+            code, result = run(
+                "sprite",
+                "change-color-mode",
+                source_sprite_file=str(source),
+                target_sprite_file=str(target),
+                in_place=False,
+                overwrite=True,
+                conversion=conversion,
+            )
     assert code != 0, result
     assert result["code"] == (
         "color_mode_mismatch"
@@ -679,7 +721,15 @@ def test_ambiguous_installed_matrix_is_rejected_before_publication(tmp_path, run
     data.mkdir()
     for child in Path(runtime.resource_path).parent.iterdir():
         if child.name != "extensions":
-            (data / child.name).symlink_to(child, target_is_directory=child.is_dir())
+            if os.name == "nt":
+                if child.is_dir():
+                    shutil.copytree(child, data / child.name)
+                else:
+                    shutil.copyfile(child, data / child.name)
+            else:
+                (data / child.name).symlink_to(
+                    child, target_is_directory=child.is_dir()
+                )
     for name in ("first", "second"):
         extension = data / "extensions" / name
         extension.mkdir(parents=True)

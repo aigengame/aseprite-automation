@@ -1,4 +1,4 @@
-"""Windows-only setup for existing unlistable-directory observations."""
+"""Windows-only setup for existing filesystem observations."""
 
 import os
 import subprocess
