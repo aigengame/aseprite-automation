@@ -1146,13 +1146,17 @@ selected installed CLI for both schema discovery and calls. The SDK owns modern
 current-Sprite or cross-call session state. [ADR-0097](docs/adr/0097-mcp-cli-projection.md)
 records this boundary; [usage](docs/mcp.md) documents installation.
 
-`access/mcp/server.py` maps Manifest Operations to tools. `access/mcp/cli.py` owns
-JSON subprocess invocation and cancellation cleanup. `access/mcp/content.py` checks
-published outcome schemas and projects PNG Artifact bytes after size/digest/format
-verification. These owners have no source dependency on CLI execution internals,
-Application or Kernel modules. `mcp_bootstrap.py` selects the CLI/runtime and wires
-stdio. A projection failure preserves the completed CLI Result and reports its own
-diagnostic. The slice offers no resource browser or HTTP file service.
+`access/mcp/server.py` maps Manifest Operations to tools. `access/mcp/cli.py` builds the
+CLI command, encodes the JSON request, and maps the result to an Outcome or an adapter
+error. `access/mcp/process.py` owns subprocess invocation and cancellation cleanup: it
+starts the CLI, sends the request, and collects the output. On cancellation, it stops
+the complete owned process tree and waits for it; a cleanup failure does not replace the
+original error. A POSIX process group and a Windows Job are its two ownership adapters.
+`access/mcp/content.py` checks published outcome schemas and projects PNG Artifact bytes
+after size/digest/format verification. These owners have no source dependency on CLI
+execution internals, Application or Kernel modules. `mcp_bootstrap.py` selects the
+CLI/runtime and wires stdio. A projection failure preserves the completed CLI Result and
+reports its own diagnostic. The slice offers no resource browser or HTTP file service.
 
 MCP does not call the Lua Kernel directly and does not own schemas, failure meanings, or
 feature taxonomy. A later MCP Streamable HTTP transport or bounded HTTP resource adapter

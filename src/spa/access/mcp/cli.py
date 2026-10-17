@@ -1,4 +1,4 @@
-"""Project MCP calls to the selected CLI as explicit JSON requests."""
+"""Call the selected CLI with explicit JSON requests and map its outcome."""
 
 import json
 import sys
@@ -25,11 +25,22 @@ class AdapterError(Exception):
 
 
 class Cli:
+    """Call one selected CLI for MCP tool requests.
+
+    This adapter builds the command, encodes the request and maps the result. The
+    process module starts the CLI and owns its process tree.
+    """
+
     def __init__(self, command: list[str], environment: dict[str, str]):
         self.command = command
         self.environment = environment
 
     async def invoke(self, operation: str, arguments: dict[str, Any]) -> Outcome:
+        """Run one Operation and return its Outcome.
+
+        Raise AdapterError when the CLI does not start or does not return a JSON
+        object.
+        """
         command = [
             *self.command,
             *operation.removeprefix("spa ").split(),
