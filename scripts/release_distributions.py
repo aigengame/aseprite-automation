@@ -3,7 +3,9 @@
 import argparse
 import hashlib
 import json
+import sys
 import tarfile
+import time
 import tomllib
 import urllib.error
 import urllib.parse
@@ -16,6 +18,8 @@ APPLE_DISPLAY_P3_SHA256 = (
     "0ff6958f98684c61f6bbdce1368ddeaf3873baf84545baba482e920d92a914c0"
 )
 APPLE_DISPLAY_P3_BYTES = 536
+PYPI_VISIBILITY_RETRIES = 6
+PYPI_VISIBILITY_INTERVAL_SECONDS = 10
 
 
 def reject_apple_profile(payload: bytes, filename: str) -> None:
@@ -82,41 +86,58 @@ def read_archives(directory: Path, version: str) -> dict[str, dict[str, bytes]]:
 
 
 def verify_pypi(
-    directory: Path, version: str, *, allow_missing: bool = False
+    directory: Path,
+    version: str,
+    *,
+    allow_missing: bool = False,
+    wait_for_visibility: bool = False,
 ) -> list[str]:
     archives = read_archives(directory, version)
     url = f"https://pypi.org/pypi/aseprite-automation/{urllib.parse.quote(version, safe='')}/json"
-    try:
-        with urllib.request.urlopen(url, timeout=20) as response:
-            release = json.load(response)
-    except urllib.error.HTTPError as error:
-        if error.code != 404:
-            raise
-        release = {
-            "info": {"name": "aseprite-automation", "version": version},
-            "urls": [],
-        }
-    if (
-        release["info"]["name"] != "aseprite-automation"
-        or release["info"]["version"] != version
-    ):
-        raise ValueError("PyPI release identity conflict")
-    remote = {entry["filename"]: entry for entry in release["urls"]}
-    if remote.keys() - archives.keys() or len(remote) != len(release["urls"]):
-        raise ValueError("PyPI release file set conflict")
-    for name, entry in remote.items():
-        payload = (directory / name).read_bytes()
+    retries = PYPI_VISIBILITY_RETRIES if wait_for_visibility else 0
+    for attempt in range(retries + 1):
+        try:
+            with urllib.request.urlopen(url, timeout=20) as response:
+                release = json.load(response)
+        except urllib.error.HTTPError as error:
+            if error.code != 404:
+                raise
+            release = {
+                "info": {"name": "aseprite-automation", "version": version},
+                "urls": [],
+            }
         if (
-            entry["size"] != len(payload)
-            or entry["digests"]["sha256"] != hashlib.sha256(payload).hexdigest()
+            release["info"]["name"] != "aseprite-automation"
+            or release["info"]["version"] != version
         ):
-            raise ValueError(
-                f"PyPI file conflict: {name}; preserve the existing release and investigate"
+            raise ValueError("PyPI release identity conflict")
+        if not isinstance(release["urls"], list):
+            raise TypeError("invalid PyPI release files: expected a list")
+        remote = {entry["filename"]: entry for entry in release["urls"]}
+        if remote.keys() - archives.keys() or len(remote) != len(release["urls"]):
+            raise ValueError("PyPI release file set conflict")
+        for name, entry in remote.items():
+            payload = (directory / name).read_bytes()
+            if (
+                entry["size"] != len(payload)
+                or entry["digests"]["sha256"] != hashlib.sha256(payload).hexdigest()
+            ):
+                raise ValueError(
+                    f"PyPI file conflict: {name}; preserve the existing release and investigate"
+                )
+        missing = sorted(archives.keys() - remote.keys())
+        if not missing or allow_missing:
+            return missing
+        # Upload acceptance does not establish immediate JSON API visibility.
+        # Wait only after all visible files pass the integrity checks above.
+        if attempt < retries:
+            print(
+                f"PyPI files not yet visible: {missing}; "
+                f"retry {attempt + 1}/{retries} in {PYPI_VISIBILITY_INTERVAL_SECONDS}s",
+                file=sys.stderr,
             )
-    missing = sorted(archives.keys() - remote.keys())
-    if missing and not allow_missing:
-        raise ValueError(f"PyPI release is missing files: {missing}")
-    return missing
+            time.sleep(PYPI_VISIBILITY_INTERVAL_SECONDS)
+    raise ValueError(f"PyPI release is missing files: {missing}")
 
 
 def verify_contents(root: Path, directory: Path) -> dict[str, dict[str, bytes]]:
@@ -199,10 +220,16 @@ def main() -> None:
     parser.add_argument(
         "--pypi-tag", help="Verify PyPI files for the reviewed v-prefixed tag"
     )
-    parser.add_argument(
+    pypi_mode = parser.add_mutually_exclusive_group()
+    pypi_mode.add_argument(
         "--allow-missing",
         action="store_true",
         help="Pre-upload check; matching partial uploads may resume",
+    )
+    pypi_mode.add_argument(
+        "--wait-for-visibility",
+        action="store_true",
+        help="Post-upload check; wait briefly for missing files to appear",
     )
     args = parser.parse_args()
     try:
@@ -210,12 +237,17 @@ def main() -> None:
             if not args.pypi_tag.startswith("v") or len(args.pypi_tag) < 2:
                 parser.error("--pypi-tag must be the reviewed v-prefixed release tag")
             missing = verify_pypi(
-                args.directory, args.pypi_tag[1:], allow_missing=args.allow_missing
+                args.directory,
+                args.pypi_tag[1:],
+                allow_missing=args.allow_missing,
+                wait_for_visibility=args.wait_for_visibility,
             )
             print(json.dumps({"tag": args.pypi_tag, "missing": missing}))
         else:
             if args.allow_missing:
                 parser.error("--allow-missing requires --pypi-tag")
+            if args.wait_for_visibility:
+                parser.error("--wait-for-visibility requires --pypi-tag")
             verify_contents(Path.cwd(), args.directory)
             print("verified public distribution contents")
         for path in sorted(args.directory.iterdir()):
@@ -225,6 +257,7 @@ def main() -> None:
                 )
     except (
         ValueError,
+        TypeError,
         KeyError,
         OSError,
         tarfile.TarError,

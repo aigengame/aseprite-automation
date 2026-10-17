@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.release_distributions import verify_pypi
+from scripts.release_distributions import main as verify_distributions
 
 WORKFLOW = Path(__file__).resolve().parents[2] / ".github/workflows/release.yml"
 pytestmark = pytest.mark.skipif(
@@ -101,8 +101,9 @@ def test_approved_release_can_publish(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
 
 
+@pytest.mark.parametrize("visibility_delay", [False, True])
 def test_attestations_do_not_contaminate_the_verified_release_pair(
-    tmp_path: Path, monkeypatch
+    tmp_path: Path, monkeypatch, visibility_delay: bool
 ) -> None:
     dist = tmp_path / "dist"
     dist.mkdir()
@@ -116,17 +117,28 @@ def test_attestations_do_not_contaminate_the_verified_release_pair(
         sdist.addfile(member, io.BytesIO(metadata))
     original = {path.name: path.read_bytes() for path in dist.iterdir()}
     remote_files = []
-    monkeypatch.setattr(
-        "urllib.request.urlopen",
-        lambda *a, **kw: io.BytesIO(
+    events = []
+
+    def query(*args, **kwargs):
+        nonlocal visibility_delay
+        events.append("query")
+        visible_files = remote_files
+        if remote_files and visibility_delay:
+            visibility_delay = False
+            visible_files = []
+        return io.BytesIO(
             json.dumps(
                 {
                     "info": {"name": "aseprite-automation", "version": "1.2.3"},
-                    "urls": remote_files,
+                    "urls": visible_files,
                 }
             ).encode()
-        ),
+        )
+
+    expected_events = ["query", "upload", "query"] + (
+        [10, "query"] if visibility_delay else []
     )
+    monkeypatch.setattr("urllib.request.urlopen", query)
 
     job = (
         WORKFLOW.read_text()
@@ -135,16 +147,18 @@ def test_attestations_do_not_contaminate_the_verified_release_pair(
     )
     for step in job.split("      - name: ")[1:]:
         if "run: python3 -I scripts/release_distributions.py" in step:
-            command = shlex.split(step.split("run: ", 1)[1].strip())
-            verify_pypi(
-                tmp_path / command[3],
-                "1.2.3",
-                allow_missing="--allow-missing" in command,
-            )
+            command = shlex.split(step.split("run: ", 1)[1].splitlines()[0])
+            command[3] = str(tmp_path / command[3])
+            command[command.index("--pypi-tag") + 1] = "v1.2.3"
+            monkeypatch.setattr(sys, "argv", command[2:])
+            with monkeypatch.context() as verifier:
+                verifier.setattr("time.sleep", lambda seconds: events.append(seconds))
+                verify_distributions()
         elif "run: |" in step:
             result = run_step(step.splitlines()[0], tmp_path, publish_environment())
             assert result.returncode == 0, result.stderr
         elif "uses: pypa/gh-action-pypi-publish@" in step:
+            events.append("upload")
             upload_dir = tmp_path / step.split("packages-dir: ", 1)[1].splitlines()[0]
             assert {p.name: p.read_bytes() for p in upload_dir.iterdir()} == original
             # The pinned PyPA action writes these sidecars next to the uploads.
@@ -161,6 +175,7 @@ def test_attestations_do_not_contaminate_the_verified_release_pair(
                 path.with_name(path.name + ".publish.attestation").write_text("{}")
 
     assert len(remote_files) == 2
+    assert events == expected_events
     assert {path.name: path.read_bytes() for path in dist.iterdir()} == original
 
 
