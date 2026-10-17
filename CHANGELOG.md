@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.2](https://github.com/aigengame/aseprite-automation/compare/v0.5.1...v0.5.2) (2026-10-17)
+
+
+### Bug Fixes
+
+* **release:** wait for PyPI file visibility ([#275](https://github.com/aigengame/aseprite-automation/issues/275)) ([58ec4b0](https://github.com/aigengame/aseprite-automation/commit/58ec4b04b14020766b38d3f0b19086f0351ae1dc))
+
 ## [0.5.1](https://github.com/aigengame/aseprite-automation/compare/v0.5.0...v0.5.1) (2026-10-17)
 
 
