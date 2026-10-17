@@ -1150,8 +1150,9 @@ records this boundary; [usage](docs/mcp.md) documents installation.
 CLI command, encodes the JSON request, and maps the result to an Outcome or an adapter
 error. `access/mcp/process.py` owns subprocess invocation and cancellation cleanup: it
 starts the CLI, sends the request, and collects the output. On cancellation, it stops
-the complete owned process tree and waits for it; a cleanup failure does not replace the
-original error. A POSIX process group and a Windows Job are its two ownership adapters.
+the owned process tree and waits for the CLI; if the terminate step fails, it kills only
+the CLI itself. A cleanup failure does not replace the original error. A POSIX process
+group and a Windows Job are its two ownership adapters.
 `access/mcp/content.py` checks published outcome schemas and projects PNG Artifact bytes
 after size/digest/format verification. These owners have no source dependency on CLI
 execution internals, Application or Kernel modules. `mcp_bootstrap.py` selects the

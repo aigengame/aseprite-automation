@@ -62,8 +62,9 @@ async def run(
 ) -> Completion:
     """Send one request to the CLI and return its complete output.
 
-    If the caller cancels before the CLI completes, stop the complete owned
-    process tree and wait for it before the cancellation continues.
+    If the caller cancels before the CLI completes, stop the owned process tree
+    and wait for the CLI before the cancellation continues. If the terminate step
+    fails, only the CLI itself is killed.
     """
     try:
         owner = ownership()
@@ -96,7 +97,8 @@ async def _retire(
         except OSError:
             owned = False
         if not owned and process.returncode is None:
-            process.kill()
+            with contextlib.suppress(OSError):
+                process.kill()
         await process.wait()
 
 
