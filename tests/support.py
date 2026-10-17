@@ -271,11 +271,13 @@ def fake_probe_response(
         f"Path(arguments['response']).write_text({response!r}, encoding='utf-8')\n"
     )
     if kernel_response is not None:
+        # Do not indent the shell branch: a quoted multi-line response would
+        # receive the indentation inside its quotes.
         shell = (
             'if test -n "$echo"; then\n'
-            + textwrap.indent(shell, "  ")
+            + shell
             + "else\n"
-            + f"  printf '%s' {shlex.quote(kernel_response)} > \"$response\"\n"
+            + f"printf '%s' {shlex.quote(kernel_response)} > \"$response\"\n"
             + "fi\n"
         )
         python = (
