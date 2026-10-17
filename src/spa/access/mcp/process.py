@@ -76,28 +76,33 @@ async def run(
     finally:
         try:
             if not completed:
-                await _retire(owner, process)
+                await _retire(owner, process, owned=True)
         finally:
             owner.release()
     assert process.returncode is not None
     return Completion(stdout, stderr, process.returncode)
 
 
-async def _retire(owner: Ownership, process: asyncio.subprocess.Process) -> None:
-    """Stop and wait for the owned tree without replacing the error in flight."""
+async def _retire(
+    owner: Ownership, process: asyncio.subprocess.Process, *, owned: bool
+) -> None:
+    """Stop and wait for the CLI without replacing the error in flight.
+
+    Kill the CLI directly when ownership does not cover it or terminate fails.
+    """
     with anyio.CancelScope(shield=True):
         try:
             owner.terminate(process)
         except OSError:
-            if process.returncode is None:
-                process.kill()
+            owned = False
+        if not owned and process.returncode is None:
+            process.kill()
         await process.wait()
 
 
 async def _start(
     owner: Ownership, command: list[str], environment: dict[str, str]
 ) -> asyncio.subprocess.Process:
-    process = None
     try:
         with anyio.CancelScope(shield=True):
             process = await asyncio.create_subprocess_exec(
@@ -108,17 +113,13 @@ async def _start(
                 env=environment,
                 **owner.start_options(),
             )
-            owner.acquire(process)
-        assert process is not None
-        return process
-    except BaseException:
-        with anyio.CancelScope(shield=True):
             try:
-                if process is not None:
-                    owner.terminate(process)
-                    if process.returncode is None:
-                        process.kill()
-                    await process.wait()
-            finally:
-                owner.release()
+                owner.acquire(process)
+            except BaseException:
+                # A failed acquisition can leave the started CLI outside ownership.
+                await _retire(owner, process, owned=False)
+                raise
+    except BaseException:
+        owner.release()
         raise
+    return process

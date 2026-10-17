@@ -9,8 +9,9 @@ import os
 import sys
 
 import anyio
+import pytest
 
-from spa.access.mcp.process import run
+from spa.access.mcp.process import StartError, run
 
 # One process: killing a Windows virtual-environment launcher directly would leave
 # its interpreter child running.
@@ -76,6 +77,18 @@ def test_cancellation_waits_for_cli_when_terminate_fails():
     async def exercise():
         owner = FailingOwnership("terminate")
         assert await cancel_after_start(owner)
+        assert owner.process is not None
+        assert owner.process.returncode is not None
+
+    anyio.run(exercise)
+
+
+def test_start_failure_kills_started_cli_when_terminate_fails():
+    async def exercise():
+        owner = FailingOwnership("acquire", "terminate")
+        with pytest.raises(StartError) as raised:
+            await run(SLEEPING_CLI, os.environ.copy(), b"", ownership=lambda: owner)
+        assert str(raised.value.error) == "acquire failed"
         assert owner.process is not None
         assert owner.process.returncode is not None
 
