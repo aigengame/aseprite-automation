@@ -64,39 +64,6 @@ def deny_directory_listing(directory: Path) -> Iterator[None]:
         )
 
 
-@contextmanager
-def deny_file_reading(file: Path) -> Iterator[None]:
-    """Deny reading only an owned test file; restore its access rules."""
-    assert os.name == "nt", "this fixture is private to Windows tests"
-    parameters = {"SPA_TEST_ACL_FILE": str(file)}
-    original = _powershell(
-        "(Get-Acl -LiteralPath $env:SPA_TEST_ACL_FILE)"
-        ".GetSecurityDescriptorSddlForm("
-        "[System.Security.AccessControl.AccessControlSections]::Access)",
-        parameters,
-    )
-    try:
-        _powershell(
-            "$acl = Get-Acl -LiteralPath $env:SPA_TEST_ACL_FILE; "
-            "$rule = [System.Security.AccessControl.FileSystemAccessRule]::new("
-            "[System.Security.Principal.WindowsIdentity]::GetCurrent().User, "
-            "[System.Security.AccessControl.FileSystemRights]::ReadData, "
-            "[System.Security.AccessControl.AccessControlType]::Deny); "
-            "$acl.AddAccessRule($rule); "
-            "Set-Acl -LiteralPath $env:SPA_TEST_ACL_FILE -AclObject $acl",
-            parameters,
-        )
-        yield
-    finally:
-        _powershell(
-            "$acl = Get-Acl -LiteralPath $env:SPA_TEST_ACL_FILE; "
-            "$acl.SetSecurityDescriptorSddlForm($env:SPA_TEST_ACL_SDDL, "
-            "[System.Security.AccessControl.AccessControlSections]::Access); "
-            "Set-Acl -LiteralPath $env:SPA_TEST_ACL_FILE -AclObject $acl",
-            {**parameters, "SPA_TEST_ACL_SDDL": original},
-        )
-
-
 def directory_junction(link: Path, target: Path) -> None:
     """Supply a junction only where directory alias observations are equivalent."""
     assert os.name == "nt", "this fixture is private to Windows tests"

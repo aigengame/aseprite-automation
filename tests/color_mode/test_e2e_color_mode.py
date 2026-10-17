@@ -6,7 +6,8 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from contextlib import ExitStack
+from collections.abc import Iterator
+from contextlib import ExitStack, contextmanager
 from importlib.resources import files
 from pathlib import Path
 
@@ -17,9 +18,42 @@ from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.application.surface import PROBE_RESOURCES
 from spa.contracts.public import RuntimeRequest
 from tests.support import inject_palette_change, process_diagnostics, spa
-from tests.windows_permissions import deny_file_reading
+from tests.windows_permissions import _powershell
 
 pytestmark = pytest.mark.e2e
+
+
+@contextmanager
+def _deny_file_reading(file: Path) -> Iterator[None]:
+    """Deny reading only an owned test file; restore its access rules."""
+    assert os.name == "nt", "this fixture is private to Windows tests"
+    parameters = {"SPA_TEST_ACL_FILE": str(file)}
+    original = _powershell(
+        "(Get-Acl -LiteralPath $env:SPA_TEST_ACL_FILE)"
+        ".GetSecurityDescriptorSddlForm("
+        "[System.Security.AccessControl.AccessControlSections]::Access)",
+        parameters,
+    )
+    try:
+        _powershell(
+            "$acl = Get-Acl -LiteralPath $env:SPA_TEST_ACL_FILE; "
+            "$rule = [System.Security.AccessControl.FileSystemAccessRule]::new("
+            "[System.Security.Principal.WindowsIdentity]::GetCurrent().User, "
+            "[System.Security.AccessControl.FileSystemRights]::ReadData, "
+            "[System.Security.AccessControl.AccessControlType]::Deny); "
+            "$acl.AddAccessRule($rule); "
+            "Set-Acl -LiteralPath $env:SPA_TEST_ACL_FILE -AclObject $acl",
+            parameters,
+        )
+        yield
+    finally:
+        _powershell(
+            "$acl = Get-Acl -LiteralPath $env:SPA_TEST_ACL_FILE; "
+            "$acl.SetSecurityDescriptorSddlForm($env:SPA_TEST_ACL_SDDL, "
+            "[System.Security.AccessControl.AccessControlSections]::Access); "
+            "Set-Acl -LiteralPath $env:SPA_TEST_ACL_FILE -AclObject $acl",
+            {**parameters, "SPA_TEST_ACL_SDDL": original},
+        )
 
 
 def run(*command: str, **request: object) -> tuple[int, dict]:
@@ -623,7 +657,7 @@ def test_preflight_failure_preserves_existing_source_and_target(
         conversion = conversion_for("indexed", "rgb")
     with ExitStack() as permissions:
         if failure == "unreadable" and os.name == "nt":
-            permissions.enter_context(deny_file_reading(matrix))
+            permissions.enter_context(_deny_file_reading(matrix))
             with pytest.raises(PermissionError):
                 matrix.read_bytes()
         if via_plan:
