@@ -140,25 +140,15 @@ def test_untrusted_caller_or_target_cannot_emit_an_admission(admission, change) 
 
 
 def test_api_failure_cannot_admit_a_release(admission, tmp_path: Path) -> None:
-    gh = tmp_path / "gh"
     calls = tmp_path / "calls.json"
-    if os.name == "nt":
-        gh = python_entry(
-            tmp_path,
-            "gh",
-            "import json, os, sys\nfrom pathlib import Path\n"
-            "Path(os.environ['SPA_TEST_GH_CALLS']).write_text(json.dumps(sys.argv[1:]), encoding='utf-8')\n"
-            "print('controlled gh API failure', file=sys.stderr)\n"
-            "sys.exit(1)\n",
-        )
-    else:
-        gh.write_text(
-            '#!/bin/sh\ntest "$#" -eq 2 || exit 2\n'
-            'printf \'["%s","%s"]\' "$1" "$2" > "$SPA_TEST_GH_CALLS"\n'
-            "echo 'controlled gh API failure' >&2\nexit 1\n",
-            encoding="utf-8",
-        )
-        gh.chmod(0o755)
+    gh = python_entry(
+        tmp_path,
+        "gh",
+        "import json, os, sys\nfrom pathlib import Path\n"
+        "Path(os.environ['SPA_TEST_GH_CALLS']).write_text(json.dumps(sys.argv[1:]), encoding='utf-8')\n"
+        "print('controlled gh API failure', file=sys.stderr)\n"
+        "sys.exit(1)\n",
+    )
     admission.update(
         PATH=str(tmp_path),
         GITHUB_EVENT_NAME="push",
