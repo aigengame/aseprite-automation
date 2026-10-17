@@ -266,9 +266,24 @@ validation, package checks, or installed CLI verification.
   are already public. Use **Re-run failed jobs** to resume GitHub publication;
   `gh release upload --clobber` reuses the same two artifacts. This is recovery,
   not rollback of the PyPI upload.
-- A PyPI lookup failure, or an upload not yet visible through its JSON API, fails
-  the publication tail. Retry failed jobs after the service recovers. The verifier
-  requires the complete matching pair before GitHub publication.
+- After upload, the verifier queries PyPI immediately. If the release returns
+  HTTP 404 or valid metadata still lacks expected files, it retries at most six
+  times, ten seconds apart. Each query checks identity, filenames, size and
+  SHA-256 before deciding to wait. Success stops the wait; conflicts, invalid
+  responses, other HTTP errors and network errors fail immediately. The upload
+  and its single pre-upload check are outside this loop.
+  The limit is seven queries and sixty seconds of deliberate waiting; request
+  time is additional. The existing request and publication job timeouts still
+  apply. If files remain missing, the error lists them and the publication tail
+  fails. Use **Re-run failed jobs** after the files become visible or the cause
+  is corrected. GitHub publication still requires the complete matching pair.
+  Upload success alone does not establish immediate JSON API visibility:
+  [v0.5.0](https://github.com/aigengame/aseprite-automation/actions/runs/38679388891/attempts/1)
+  and [v0.5.1](https://github.com/aigengame/aseprite-automation/actions/runs/39026290653/attempts/1)
+  both received HTTP 200 for both uploads, then reported missing files in the
+  immediate query. Later checks matched the preserved artifacts, and failed-job
+  recovery succeeded. Neither failure was a timeout; the service's cache or
+  propagation mechanism was not established.
 - Distribution artifacts are retained for 30 days. Recover within that window.
   If the original files are no longer available, stop and resolve the release with
   the owner; do not rebuild and assume that new bytes belong to an existing version.
