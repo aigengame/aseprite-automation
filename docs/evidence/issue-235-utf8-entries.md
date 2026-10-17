@@ -90,9 +90,8 @@ not a speculative whole-repository encoding rewrite.
 The owner excluded slow tests during this implementation. The earlier attempt
 that selected slow was stopped along with its owned processes, and is not used
 for acceptance totals. The original 2026-10-12 all-tests baseline remains intact.
-An audit-only project-venv launch guard refuses Bash/WSL before process creation;
-it neither supplies alternate tools nor represents an OS-wide process boundary.
-The guard is removed after the checkpoint.
+An audit-only launch guard in the project virtual environment refused Bash/WSL
+before process creation and was removed after the checkpoint.
 
 Raw TDD XML, focused XML, candidate distribution, launch metadata, full checkpoint
 XML/logs and identity reconciliation are retained locally under

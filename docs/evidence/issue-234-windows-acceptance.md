@@ -65,11 +65,11 @@ had already recorded this node's timeout and a separate pass. This is a recurren
 neither result establishes a cause or a repaired Operation.
 No timeout, test assertion, product source or performance contract is changed.
 This observation is not assigned to #230's deferred cleanup investigation.
-**#234 remains open.** The requested full statistics, GUI checks and support
-record are complete, but this valid full-run timeout has no established cause
-or accepted disposition. Separate successes do not satisfy a claim that the
-original full command passed. [Promotion PR #268](https://github.com/aigengame/aseprite-automation/pull/268)
-contains a proposed narrow corrective ticket for the maintainer's decision. It
+At the 2026-10-17 checkpoint, #234 remained open. The requested full statistics,
+GUI checks and support record were complete, but this valid full-run timeout had
+no established cause or accepted disposition. Separate successes do not establish
+that the original full command passed. [Promotion PR #268](https://github.com/aigengame/aseprite-automation/pull/268)
+included a proposed narrow corrective ticket for the maintainer's decision. It
 preserves the original request, Execution Guard and file-protection assertions;
 no performance mechanism or broader requirement follows from these measurements.
 
@@ -107,8 +107,8 @@ Registered project and selected installed-wheel Python launch sites recorded
 **23,456 events**, including **18,188 admitted subprocess attempts**,
 **zero denials** and **zero forbidden-shell targets**. Consequently no passing
 negative test in this recorded scope depends on an audit refusal. Temporary
-site registrations were removed. This is launch-site evidence, not OS-wide
-process monitoring. A bounded post-run query finds no Aseprite survivor under
+site registrations were removed. The records cover these registered Python
+launch sites. A bounded post-run query finds no Aseprite survivor under
 this observation's owned roots, no unobservable Aseprite command line and no
 remaining audit registration.
 

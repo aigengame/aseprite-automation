@@ -359,7 +359,7 @@ The caller-supplied ICC identity and separate wheel consumer configuration remai
 as documented in this file.
 See [#232 Windows observations](evidence/issue-232-windows-prerequisites.md)
 for historical prerequisite measurements and the
-[2026-10-17 Windows integration audit](evidence/issue-234-windows-acceptance.md)
+[Windows integration measurements (#234)](evidence/issue-234-windows-acceptance.md)
 for the full-suite/GUI results at `ad07fb4` and the separate packaging check at
 `bdaac25`. Neither measurement implies a new full-suite result at a later revision.
 
@@ -374,8 +374,8 @@ including `tests.support.spa`, read and write UTF-8 explicitly.
 stdin, Unicode argv, typed failures and usage errors through real console and
 `main()` entries. `tests/mcp/test_integration_process.py` checks early MCP stderr
 and the actual MCP `Cli`-to-SPA child boundary. These tests use strict raw-byte
-readback, preserve original Unicode field locations, and need no Aseprite. The
-normal helper readback is tested separately from the entry producer.
+readback, preserve original Unicode field locations, and need no Aseprite.
+UTF-8 decoding by `tests.support.spa` is tested separately from raw CLI output.
 
 The CLI module also compares literal JSON fields received through argv and stdin,
 including variable-like strings, through the same real entries. It preserves

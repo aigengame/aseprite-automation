@@ -121,7 +121,7 @@ independent defects or promised post-fix passes. Native execution/cleanup remain
 #230 scope. The 63 explicit excluded-shell attempts are refused before process
 creation by audit-only hooks in the project and candidate-wheel Python
 environments; their harness failures remain #229 scope. The hooks were removed
-after the run. This is not an OS-wide process security claim.
+after the run.
 
 The 48 remaining skip reasons are retained, not reclassified as passes:
 
@@ -395,7 +395,7 @@ unobservable Aseprite command line.
 
 The checkpoints above retain their original revisions and outcomes. Issue #232
 was completed through [PR #266](https://github.com/aigengame/aseprite-automation/pull/266).
-The [final Windows integration audit](issue-234-windows-acceptance.md) records
+The [Windows integration measurements (#234)](issue-234-windows-acceptance.md) record
 the integrated results, separate capable-process symlink witnesses, installed
 wheel evidence, and real windowed comparisons owned by #234.
 
