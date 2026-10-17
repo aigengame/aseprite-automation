@@ -17,8 +17,8 @@ from spa.application.surface import PROBE_RESOURCES
 from spa.authoring.raster.paint import PAINT_APPLY_HANDLER
 from spa.contracts.ports import HandlerEvidence, RuntimeIssue
 from spa.contracts.public import RuntimeRequest
-from tests.support import inject_palette_change, process_diagnostics, spa
 from tests.host_permissions import symlink_creation_permission
+from tests.support import inject_palette_change, process_diagnostics, spa
 
 pytestmark = pytest.mark.e2e
 
@@ -619,10 +619,7 @@ def test_apply_accepts_in_place_paths_to_the_same_publication_entry(
     real_dir = tmp_path / "real"
     real_dir.mkdir()
     alias_dir = tmp_path / "alias"
-    if os.name == "nt":
-        with symlink_creation_permission():
-            alias_dir.symlink_to(real_dir, target_is_directory=True)
-    else:
+    with symlink_creation_permission():
         alias_dir.symlink_to(real_dir, target_is_directory=True)
     target = real_dir / "sprite.aseprite"
     source = alias_dir / "sprite.aseprite"
@@ -682,16 +679,10 @@ def test_apply_rejects_source_alias_to_target_without_commit(
     target = real
     if through_target_symlink:
         target = tmp_path / "target.aseprite"
-        if os.name == "nt":
-            with symlink_creation_permission():
-                target.symlink_to(real)
-        else:
+        with symlink_creation_permission():
             target.symlink_to(real)
     source = tmp_path / "source.aseprite"
-    if os.name == "nt":
-        with symlink_creation_permission():
-            source.symlink_to(target)
-    else:
+    with symlink_creation_permission():
         source.symlink_to(target)
     before = source.read_bytes()
 

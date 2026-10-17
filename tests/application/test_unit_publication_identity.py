@@ -1,7 +1,6 @@
 """File observations used by Source/Target publication intent."""
 
 import os
-from contextlib import ExitStack
 from pathlib import Path
 
 import pytest
@@ -50,10 +49,7 @@ def test_case_variant_source_alias_traverses_target_entry(tmp_path: Path) -> Non
     if not spelling.exists():
         pytest.skip("requires a case-insensitive filesystem")
     source = tmp_path / "alias.aseprite"
-    if os.name == "nt":
-        with symlink_creation_permission():
-            source.symlink_to(spelling)
-    else:
+    with symlink_creation_permission():
         source.symlink_to(spelling)
 
     files = LocalTargetFiles()
@@ -75,18 +71,7 @@ def test_unobservable_entries_reject_both_in_place_intents(tmp_path: Path) -> No
     if not target.exists():
         os.link(source, target)
 
-    with ExitStack() as permissions:
-        if os.name == "nt":
-            permissions.enter_context(deny_directory_listing(parent))
-        else:
-            parent.chmod(0o333)
-            permissions.callback(parent.chmod, 0o700)
-        try:
-            os.listdir(parent)
-        except PermissionError:
-            pass
-        else:
-            pytest.skip("cannot reproduce an unlistable directory")
+    with deny_directory_listing(parent):
         for in_place in (False, True):
             issue = source_target_identity_issue(
                 LocalTargetFiles(), source, target, in_place

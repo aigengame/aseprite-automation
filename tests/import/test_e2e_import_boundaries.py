@@ -18,8 +18,8 @@ from spa.application.failure_registry import FAILURE_CODES
 from spa.authoring.raster.image_import import IMAGE_IMPORT_OPERATIONS
 from spa.contracts.digest import fnv1a64
 from spa.contracts.ports import OperationServices, RuntimeIssue, TargetCommitEvidence
-from tests.support import process_diagnostics, spa
 from tests.host_permissions import symlink_creation_permission
+from tests.support import process_diagnostics, spa
 
 from .test_e2e_image_import import _create, _indexed
 from .test_e2e_image_import import runtime as runtime  # noqa: PLC0414
@@ -256,11 +256,7 @@ def test_raster_alias_of_target_rejects_before_native(tmp_path, runtime, alias):
     else:
         raster.unlink()
         intermediate = tmp_path / "intermediate.png"
-        if os.name == "nt":
-            with symlink_creation_permission():
-                intermediate.symlink_to(target.name)
-                raster.symlink_to(intermediate.name)
-        else:
+        with symlink_creation_permission():
             intermediate.symlink_to(target.name)
             raster.symlink_to(intermediate.name)
     files = _ObservedTargetFiles()
@@ -293,10 +289,7 @@ def test_changed_raster_alias_before_commit_refuses_and_discards_native_stage(
             observed.payload
         )
         raster.rename(tmp_path / "preserved-input.png")
-        if os.name == "nt":
-            with symlink_creation_permission():
-                raster.symlink_to(target.name)
-        else:
+        with symlink_creation_permission():
             raster.symlink_to(target.name)
         return observed
 

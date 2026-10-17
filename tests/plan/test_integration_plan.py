@@ -8,9 +8,9 @@ from pathlib import Path
 
 import pytest
 
+from tests.host_permissions import symlink_creation_permission
 from tests.support import fake_aseprite, spa
 from tests.windows_executable import windows_aseprite
-from tests.host_permissions import symlink_creation_permission
 
 
 def _one_frame_inspection() -> dict[str, object]:
@@ -446,10 +446,7 @@ def test_plan_preflight_checks_source_aliases_against_target_entry(
     target = tmp_path / "real.aseprite"
     target.write_bytes(b"preflight only")
     alias = tmp_path / "alias.aseprite"
-    if os.name == "nt":
-        with symlink_creation_permission():
-            alias.symlink_to(target)
-    else:
+    with symlink_creation_permission():
         alias.symlink_to(target)
     plan = {
         "source_sprite_file": str(alias),

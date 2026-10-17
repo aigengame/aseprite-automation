@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from tests.support import spa
 from tests.host_permissions import symlink_creation_permission
+from tests.support import spa
 
 pytestmark = pytest.mark.e2e
 
@@ -528,10 +528,7 @@ def test_artifact_input_alias_is_not_replaced(
     entries = {target}
     if source_kind == "symlink":
         source = tmp_path / "input.json"
-        if os.name == "nt":
-            with symlink_creation_permission():
-                source.symlink_to(target)
-        else:
+        with symlink_creation_permission():
             source.symlink_to(target)
         entries.add(source)
     source_path = (

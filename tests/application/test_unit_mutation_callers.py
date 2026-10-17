@@ -1,6 +1,5 @@
 """Standalone completion retains Source alias refusal before native work."""
 
-import os
 from pathlib import Path
 
 import pytest
@@ -82,10 +81,7 @@ def test_source_alias_is_rejected_before_caller_probe_and_staging(
 ) -> None:
     target, source = tmp_path / "target.aseprite", tmp_path / "alias.aseprite"
     target.write_bytes(b"existing Target")
-    if os.name == "nt":
-        with symlink_creation_permission():
-            source.symlink_to(target)
-    else:
+    with symlink_creation_permission():
         source.symlink_to(target)
 
     def unexpected(*_args):

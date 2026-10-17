@@ -1,7 +1,6 @@
 """Behavioral baseline for both callers of staged PNG publication."""
 
 import hashlib
-import os
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -23,8 +22,8 @@ from spa.contracts.ports import (
 )
 from spa.contracts.public import Diagnostics
 from spa.delivery.export import ExportImageRequest, export_image
-from tests.support import runtime_observation
 from tests.host_permissions import symlink_creation_permission
+from tests.support import runtime_observation
 
 RGBA = bytes((1, 2, 3, 128))
 DIAGNOSTICS = Diagnostics(exit_status=0, stderr="native evidence")
@@ -72,10 +71,7 @@ def caller(request, tmp_path):
     original = tmp_path / "original.aseprite"
     original.write_bytes(b"source bytes")
     source = tmp_path / "source.aseprite"
-    if os.name == "nt":
-        with symlink_creation_permission():
-            source.symlink_to(original)
-    else:
+    with symlink_creation_permission():
         source.symlink_to(original)
     destination = tmp_path / "image.png"
     destination.write_bytes(b"existing destination")

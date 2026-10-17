@@ -5,7 +5,6 @@ import json
 import os
 import shutil
 import struct
-from contextlib import ExitStack
 from copy import deepcopy
 from pathlib import Path
 
@@ -15,11 +14,11 @@ from PIL import Image, ImageCms
 
 from tests.export.support import export_image_request as _request
 from tests.export.support import source_sprite as _source
-from tests.support import isolated_wheel_cli, spa
 from tests.host_permissions import (
     deny_directory_listing,
     symlink_creation_permission,
 )
+from tests.support import isolated_wheel_cli, spa
 
 pytestmark = pytest.mark.e2e
 
@@ -77,10 +76,7 @@ def test_export_rejects_destination_traversed_by_source_alias(tmp_path: Path) ->
     destination = tmp_path / "image.png"
     shutil.copyfile(native_source, destination)
     source = tmp_path / "linked.aseprite"
-    if os.name == "nt":
-        with symlink_creation_permission():
-            source.symlink_to(destination)
-    else:
+    with symlink_creation_permission():
         source.symlink_to(destination)
     original = hashlib.sha256(source.read_bytes()).hexdigest()
 
@@ -110,18 +106,7 @@ def test_export_reports_unverifiable_source_destination_identity(
     destination = private / "image.png"
     os.link(source, destination)
     original = hashlib.sha256(source.read_bytes()).hexdigest()
-    with ExitStack() as permissions:
-        if os.name == "nt":
-            permissions.enter_context(deny_directory_listing(private))
-        else:
-            private.chmod(0o333)
-            permissions.callback(private.chmod, 0o700)
-        try:
-            os.listdir(private)
-        except PermissionError:
-            pass
-        else:
-            pytest.skip("cannot reproduce an unlistable directory")
+    with deny_directory_listing(private):
         run = spa(
             "export",
             "image",
