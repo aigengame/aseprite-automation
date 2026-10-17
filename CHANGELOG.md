@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.5.1](https://github.com/aigengame/aseprite-automation/compare/v0.5.0...v0.5.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* **ci:** retire owned Windows native shard trees ([#263](https://github.com/aigengame/aseprite-automation/issues/263)) ([077bbf5](https://github.com/aigengame/aseprite-automation/commit/077bbf5b4fa1a673a9723d732e3afe55c8bac874)), closes [#231](https://github.com/aigengame/aseprite-automation/issues/231)
+* **color:** preserve Windows absolute dithering matrix paths ([#257](https://github.com/aigengame/aseprite-automation/issues/257)) ([4bcfa32](https://github.com/aigengame/aseprite-automation/commit/4bcfa32d209dfece3074fdaf0997e754065d0cb0))
+* **mcp:** retire owned Windows invocation children ([#264](https://github.com/aigengame/aseprite-automation/issues/264)) ([f265f3c](https://github.com/aigengame/aseprite-automation/commit/f265f3c59b57a0ad2981221d13f2761b0c846787)), closes [#233](https://github.com/aigengame/aseprite-automation/issues/233)
+
 ## [0.5.0](https://github.com/aigengame/aseprite-automation/compare/v0.4.0...v0.5.0) (2026-10-15)
 
 
