@@ -47,11 +47,8 @@ that same Python installation. `--spa /absolute/path/to/spa` explicitly selects
 another installed CLI; the adapter uses it for discovery and all calls. It never
 selects a second CLI implicitly through `PATH`.
 
-The `spa` and `spa-mcp` process entries use UTF-8 for stdin, stdout and stderr,
-including parameter errors before MCP startup. Send and read their text as UTF-8;
-no `PYTHONUTF8`, `PYTHONIOENCODING` or console code-page change is required.
-This policy applies to SPA-owned text, not to arbitrary external program output
-or copied asset bytes. Importing an entry module does not configure global streams.
+Send and read MCP text as UTF-8, including parameter errors before startup; see
+the shared [process text policy](usage.md#process-text-encoding).
 
 `--aseprite` sets the CLI's default `SPA_ASEPRITE_EXECUTABLE`. Without the flag,
 the existing environment and CLI discovery rules apply. A tool request may include

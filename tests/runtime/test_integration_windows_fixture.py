@@ -1,4 +1,4 @@
-"""Real producer witnesses, independent of SPA's pending Windows pipe capture."""
+"""Validate the Windows executable fixture independently of SPA's pipe capture."""
 
 import json
 import os

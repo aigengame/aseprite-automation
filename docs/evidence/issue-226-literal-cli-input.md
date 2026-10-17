@@ -1,5 +1,11 @@
 # Issue #226: literal CLI JSON and discovery evidence
 
+Historical measurements, 2026-10-13, from
+[PR #241](https://github.com/aigengame/aseprite-automation/pull/241), merged as
+`08711223425709bbe5357164707c5d5c2b3f8fc6`. Source IDs below identify pre-merge
+measurements, not reruns at the merged commit. Current delivery status belongs
+to [#226](https://github.com/aigengame/aseprite-automation/issues/226).
+
 [#226](https://github.com/aigengame/aseprite-automation/issues/226) preserves
 literal JSON received by SPA and the existing executable-discovery evidence.
 The development baseline is milestone integration commit
@@ -49,7 +55,8 @@ The complete CLI, MCP-process and runtime integration families report
 | MCP process | 8 | 0 | 2 |
 | Runtime integration | 9 | 21 | 4 |
 
-The runtime failures retain invalid POSIX producers and belong to #227.
+At that checkpoint, the runtime failures used invalid POSIX executable fixtures
+and were assigned to #227.
 The existing skips remain separately scoped; they are not Windows passes.
 After schema readback was made specific to each tested entry, the targeted
 eight-test replay passed again.
@@ -89,6 +96,7 @@ excludes slow; original all-tests evidence remains separate. JUnit SHA-256:
 
 Raw red/green and installed/family XML, strict discovery captures, candidate
 distribution, full checkpoint and identity analysis are retained under
-`.runtime/issue-226/`. This correction does not establish native Aseprite,
+`.runtime/issue-226/`. These raw files exist only on the measuring host.
+This correction does not establish native Aseprite,
 full MCP wire/cancellation or windowed Windows acceptance; those existing
 contracts retain their separate issue owners.

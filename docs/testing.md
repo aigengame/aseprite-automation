@@ -53,6 +53,10 @@ Add an ownership directory only when tests for that behavior exist. Keep a helpe
 the narrowest ownership directory that uses it. Move a helper to `tests/support.py`
 only when more than one ownership area needs it. Each directory is a Python package,
 so different owners can safely use the same focused file name later.
+The existing `tests/windows_executable.py` and `tests/windows_permissions.py`
+companions contain Windows-private launch and filesystem setup used by several
+owners. Keep their platform-specific setup there; a single-consumer fixture such
+as Color Mode's unreadable-file condition stays with its owning tests.
 
 Native Paint #26 has separate Line, Rectangle, and Ellipse runtime gates. Its
 real-runtime suite compares saved pixels with direct `app.useTool` references for
@@ -338,9 +342,11 @@ runtime therefore cannot produce an all-skipped successful e2e run.
 ### Local prerequisites
 
 Use the locked `uv run --frozen --group test` environment and its installed `spa`
-command. Set `SPA_TEST_ASEPRITE` to the real local runtime. Use a short, writable temporary
-root; when the default pytest root is unavailable, select a new owned directory
-with `--basetemp`. Pytest can remove a previous directory at that path.
+command. Set `SPA_TEST_ASEPRITE` to the real local runtime. Use a writable temporary
+root with room for nested test paths. In the recorded Windows run, a 262-character
+controlled-executable path failed with WinError 206; the unchanged test passed
+with a shorter root. When the default pytest root is unavailable, select a new
+owned directory with `--basetemp`. Pytest can remove a previous directory at that path.
 
 Tests that create real file and directory symlinks need the corresponding
 filesystem permission. This is a prerequisite of those observations, not a
@@ -353,16 +359,16 @@ The caller-supplied ICC identity and separate wheel consumer configuration remai
 as documented in this file.
 See [#232 Windows observations](evidence/issue-232-windows-prerequisites.md)
 for historical prerequisite measurements and the
-[final Windows integration audit](evidence/issue-234-windows-acceptance.md)
-for current results and measured support limits.
+[2026-10-17 Windows integration audit](evidence/issue-234-windows-acceptance.md)
+for the full-suite/GUI results at `ad07fb4` and the separate packaging check at
+`bdaac25`. Neither measurement implies a new full-suite result at a later revision.
 
 ### CLI and MCP text entries
 
-The CLI and optional MCP entries configure stdin, stdout and stderr as UTF-8
-before parsing requests, help or early errors. Importing an entry module has no
-stream side effect. The existing stream error policies are retained. SPA-owned
-subprocess readers, including `tests.support.spa`, read and write UTF-8 explicitly;
-this does not change external native diagnostics or copied asset byte contracts.
+The [process text policy](usage.md#process-text-encoding) applies to the CLI and
+optional MCP entries. Tests verify configuration before parsing, unchanged stream
+error policies and no stream side effects on import. SPA-owned subprocess readers,
+including `tests.support.spa`, read and write UTF-8 explicitly.
 
 `tests/cli/test_integration_commands.py` checks raw UTF-8 and ASCII-escaped JSON
 stdin, Unicode argv, typed failures and usage errors through real console and
@@ -379,7 +385,7 @@ The existing runtime discovery tests retain original requested and searched path
 Select a candidate wheel with `SPA_TEST_INSTALLED_CLI` to include the isolated
 installed entries. Set it to the candidate installation's `spa` executable.
 Wheel consumers run outside the checkout. Run the same entry regression modules
-on each supported platform:
+on macOS, Linux and Windows:
 
 ```text
 uv run --frozen --group test --extra mcp pytest tests/cli/test_integration_commands.py tests/mcp/test_integration_process.py
@@ -391,6 +397,8 @@ separate runtime-dependent check. Measured host setup, execution restrictions
 and results are recorded in [issue #235 validation](evidence/issue-235-utf8-entries.md).
 Literal-input and discovery results are recorded in
 [issue #226 validation](evidence/issue-226-literal-cli-input.md).
+
+### Routine verification commands
 
 Run the fast unit and integration tiers with four pytest workers by default:
 

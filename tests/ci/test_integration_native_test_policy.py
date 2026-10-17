@@ -127,6 +127,8 @@ def write_test(directory: Path, name: str, body: str) -> None:
 def _windows_runner_command(env: dict[str, str]) -> list[str]:
     """Observe the existing single-shard Python entry without a Linux shell wrapper."""
     assert os.name == "nt"
+    # Match the run arguments in ACTION's "Run real Aseprite E2E tests" step.
+    # scripts/native_e2e.py owns the CLI; shell composition is tested on Linux.
     target = Path(env["RUNNER_TEMP"]) / "spa-native-target.json"
     target.write_text(env["SPA_NATIVE_TARGET_JSON"], encoding="utf-8")
     return [

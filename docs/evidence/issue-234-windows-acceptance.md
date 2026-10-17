@@ -1,12 +1,14 @@
-# Final Windows integration observation (#234)
+# Windows integration measurements (#234)
 
 Observed on 2026-10-17 at integration source
 `ad07fb4a42b13cf78a572c634e376664cc130f2d`, after PR #266. The tree matches
 reviewed source `e9cde4bb5a6177eae70fa29a49f00c48a6675f17`.
+It was delivered through [PR #266](https://github.com/aigengame/aseprite-automation/pull/266).
+Current acceptance status belongs to [#234](https://github.com/aigengame/aseprite-automation/issues/234).
 
 ## Complete non-slow observation
 
-The ordinary-token run used native PowerShell 7.6.5, CPython 3.13.7
+The non-elevated Windows process used native PowerShell 7.6.5, CPython 3.13.7
 (`win32` / `nt`, UTF-8 mode 0), the locked uv test/MCP dependencies, and
 Windows Aseprite `1.3.18.5-dev`. No global Python encoding override was set.
 Native calls used direct subprocess arguments. Windows filesystem fixtures
@@ -49,46 +51,51 @@ a new long-path feature or belong to deferred #230.
 ### Existing Tile reorder timeout
 
 `tests/tile/test_e2e_lifecycle.py::test_reorder_permutations_at_tile_count_limit[reverse]`
-reaches its existing 60-second native Operation budget and reports
+reaches its existing 60-second process-timeout Execution Guard and reports
 `process_timeout`. Its retained Target is still `previous target`.
 The same unchanged node passes separately with one worker in **42.27 seconds**.
 The final limited run of the three original `original/reverse/mixed` parameters
 uses eight workers: **3 passed / 0 failed / 0 errors / 0 skipped**,
 **48.79 seconds** in the pytest console. The 42.27-second single-node duration
 also comes from the pytest console. Both observations retain the original
-60-second Operation budget. Further expansion stopped after these observations.
+60-second Execution Guard. Further expansion stopped after these observations.
 
-The earlier #225 investigation had already recorded this node's timeout and
-a separate pass. Neither result establishes a cause or a repaired Operation.
+The earlier [#225 investigation](https://github.com/aigengame/aseprite-automation/issues/225#issuecomment-6206323494)
+had already recorded this node's timeout and a separate pass. This is a recurrence;
+neither result establishes a cause or a repaired Operation.
 No timeout, test assertion, product source or performance contract is changed.
 This observation is not assigned to #230's deferred cleanup investigation.
 **#234 remains open.** The requested full statistics, GUI checks and support
 record are complete, but this valid full-run timeout has no established cause
 or accepted disposition. Separate successes do not satisfy a claim that the
-original full command passed. No new performance mechanism or broader requirement
-is proposed.
+original full command passed. [Promotion PR #268](https://github.com/aigengame/aseprite-automation/pull/268)
+contains a proposed narrow corrective ticket for the maintainer's decision. It
+preserves the original request, Execution Guard and file-protection assertions;
+no performance mechanism or broader requirement follows from these measurements.
 
 ### Skips and real prerequisites
 
 | Reason | Count | Disposition |
 | --- | ---: | --- |
-| Actual Windows symlink creation WinError 1314 | 149 | Missing ordinary-token capability; map the separate real witnesses below. |
+| Actual Windows symlink creation WinError 1314 | 149 | The non-elevated process lacks creation permission; compare the separate real-symlink runs below. |
 | Proven hosted Linux workflow shell scope | 70 | Existing Linux-only action/publication composition; no Windows CI requirement. |
 | Other genuine OS scope | 7 | Two macOS bundle cases, one macOS agent-sandbox case, two POSIX signals, two Unix FIFOs. |
 | **Total** | **226** | **Not functional passes.** |
 
-No skip is counted as a pass. The retained #232 capable-process evidence is
-separate: source `bbb181dfb2401fb33158cbb7866b86d97fed0671` ran exactly
+No skip is counted as a pass. The retained #232 runs used separately approved
+temporary administrator processes that could create real symlinks. Their evidence
+is separate: pre-merge source `bbb181dfb2401fb33158cbb7866b86d97fed0671` from
+[PR #266](https://github.com/aigengame/aseprite-automation/pull/266) ran exactly
 149 existing nodes, with **148 passed / 1 failed / 0 errors / 0 skipped**.
 That Script assertion was subsequently corrected, and the separately approved
 two-node run at `bdd88a6` reports **2 passed / 0 failed / 0 errors / 0 skipped**.
 These cohorts overlap and cannot be added to this full-run total.
-The 149 current permission-skip IDs match the fixed 149-node capable witness
-exactly, with no missing or additional IDs. The later two-node witness includes
+The 149 full-run permission-skip IDs match the fixed 149-node administrator run
+exactly, with no missing or additional IDs. The later two-node run includes
 the previously failed `ordinary-0` and overlapping `ordinary-7`; the original
-149-node receipt is still 148 passes and one failure, not rewritten as 149 passes.
+149-node result is still 148 passes and one failure, not rewritten as 149 passes.
 
-All temporary capable processes exited. The ordinary token still lacks
+All temporary administrator processes exited. The non-elevated process still lacks
 symlink-creation permission. No persistent Developer Mode, registry or host
 permission change is required or claimed. See the
 [#232 close-out](https://github.com/aigengame/aseprite-automation/issues/232#issuecomment-6228419105)
@@ -107,7 +114,7 @@ remaining audit registration.
 
 ## Existing delivery and native data evidence
 
-The existing non-editable `uv tool` wheel consumer was reverified outside
+At `ad07fb4`, the existing non-editable `uv tool` wheel consumer was reverified outside
 the checkout by `scripts/verify_installed_cli.py`: SPA 0.5.0 and all **145
 Kernel resources** pass. The selected wheel was built at `bbb181d`; production,
 package metadata and locked dependencies are unchanged through the measured
@@ -122,9 +129,29 @@ on every runtime.
 The ordinary installed CLI, isolated wheel consumer and controlled test
 executables remain distinct observations.
 
+### Packaging after merging main (2026-10-17)
+
+Integration `bdaac25120d149eb89c11d24236a7c69deff8ab9` includes main
+`ee2ea8f027bafdbed4f040c8288a1095b287e8b8` ([PR #258](https://github.com/aigengame/aseprite-automation/pull/258)).
+A separate native Windows PowerShell/Python check passed all **25 release
+distribution tests**, with eight workers, in **1.74 seconds**. Scoped Ruff and
+format checks, wheel/sdist builds, Twine and archive content/license checks passed.
+A fresh isolated, non-editable wheel consumer passed the existing installed-CLI
+verifier outside the checkout, including all **144 Kernel resources**.
+
+Main consolidated license notices and removed the redundant packaged `NOTICE.txt`.
+This explains the change from 145 resources above to 144; it does not change the
+historical package or full-suite counts. No full native suite or GUI comparison
+was rerun for this merge. The measured artifacts are:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Wheel at `bdaac25` | `a9fb4f3869547978170760062e74066622b4017cc3010292aa1f47125daf5b17` |
+| Source distribution at `bdaac25` | `460255eb474f9d7cbf4b3ec4abf77962d78f48d23868bf4e86225d75a2d12602` |
+
 ## Thirteen real windowed comparisons
 
-All **13 comparisons pass** with the same Windows Aseprite binary. Each real
+At `ad07fb4`, all **13 comparisons pass** with the same Windows Aseprite binary. Each real
 dialog was inspected and confirmed once with **OK**, without Apply. Thirteen
 screenshots and operator observations accompany the UI receipts. All Sources
 retain their hashes; saved outputs were closed, reopened and compared with
@@ -155,7 +182,7 @@ The [PR #259 native macOS observation](https://github.com/aigengame/aseprite-aut
 retains source `4acd2c8`: the complete Selection family is **81 passed /
 0 failed / 0 errors / 0 skipped** (67 native E2E and 14 unit), including all
 five original tilde variants. Selection test files are unchanged through
-`ad07fb4`. The #232 Windows capable witness separately passes all four
+`ad07fb4`. The separate #232 Windows administrator run passes all four
 absolute/tilde export/preview real-symlink parameters. These are recorded
 sources, not new macOS executions at this integration head.
 
@@ -171,8 +198,10 @@ an intermittent cleanup fix.
 Raw JUnit, matching collection inventories, every original-ID outcome, per-file
 statistics, launch records, the separate short-root result, and GUI manifests,
 Sources/outputs, receipts and screenshots remain in the ignored local
-`.runtime/issue-234-final-20261017/` evidence directory. Public prose omits
-hostnames, user/security identities and absolute host paths.
+`.runtime/issue-234-final-20261017/` evidence directory. The post-main-merge
+packaging logs remain in `.runtime/merge-main-after-267-20261017/`. These raw
+files exist only on the measuring host and are not repository artifacts. Public
+prose omits hostnames, user/security identities and absolute host paths.
 
 | Receipt | SHA-256 |
 | --- | --- |

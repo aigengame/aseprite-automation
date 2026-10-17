@@ -30,10 +30,16 @@ The CLI receives complete JSON requests on stdin. It remains responsible for
 validation, native work and publication. MCP returns the unchanged success Result
 as structured content and JSON text, or the complete CLI Failure Envelope as JSON
 text with `isError`. Adapter failures have a distinct diagnostic shape and do not
-invent SPA failure codes. Process cancellation cleans up the CLI and its owned
-native child on macOS, Linux and Windows. Windows establishes invocation ownership
-before the CLI can run, so cleanup still reaches a child whose parent has exited.
-Normal completion releases that ownership without acquiring kill-on-close behavior.
+invent SPA failure codes. Cancellation retires the selected CLI invocation through
+platform-specific process ownership. Windows establishes ownership before the CLI
+can run and retains it after the parent exits. Normal completion releases that
+ownership without acquiring kill-on-close behavior.
+
+[Issue #233](https://github.com/aigengame/aseprite-automation/issues/233) records
+the Windows evidence: controlled Python CLI/child processes, including cancellation
+after the parent exits. Those tests do not establish cancellation of an installed
+SPA/Aseprite pair or an isolated wheel. Feature issues and measured runtime results
+own those acceptance and support claims.
 
 Only schema-declared Result Artifact fields supply local image content. PNG bytes
 must match the returned size, digest and format before projection as ImageContent.

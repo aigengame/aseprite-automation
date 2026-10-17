@@ -1,5 +1,11 @@
 # Issue #235: source-owned UTF-8 process entries
 
+Historical measurements, 2026-10-13, from
+[PR #238](https://github.com/aigengame/aseprite-automation/pull/238), merged as
+`5448b37d6e937321980f90ff1e46013f3833e2e6`. Source IDs below identify pre-merge
+measurements, not reruns at the merged commit. Current delivery status belongs
+to [#235](https://github.com/aigengame/aseprite-automation/issues/235).
+
 [#235](https://github.com/aigengame/aseprite-automation/issues/235) corrects the CLI
 and optional MCP process entries and the affected SPA-owned test reader. Native
 Windows callers can send UTF-8 JSON and receive the existing Unicode field
@@ -31,12 +37,12 @@ owns the platform-neutral entry regression command and configuration meaning.
 | --- | --- | --- |
 | Real CLI raw UTF-8 `中文` / `中文🚀` stdin | Both lose the field location and produce an unrelated rejection | Both preserve the original extra-field location and `extra_forbidden` |
 | MCP early Unicode usage error | Original argument is not preserved in UTF-8 stderr | Original argument is preserved; exit 2 and empty stdout remain |
-| Existing SPA helper reads the real Unicode failure | GBK reader fails on producer UTF-8 output | Strict UTF-8 readback preserves the original field and failure |
+| Existing SPA helper reads the real Unicode failure | GBK reader fails on the CLI's UTF-8 output | Strict UTF-8 readback preserves the original field and failure |
 
 An initial sample was insufficient: its bytes could round-trip through GBK and
 appear correct at the final reader. The retained regression uses the actual
 previously failing audit inputs above, plus escaped stdin, argv and early errors.
-Raw producer assertions remain independent of the corrected text helper.
+Raw process-output assertions remain independent of the corrected text helper.
 
 The complete affected CLI/MCP process modules report **42 passed / 3 skipped**.
 These include real project console, supported `main()` and isolated candidate
@@ -90,7 +96,8 @@ The guard is removed after the checkpoint.
 
 Raw TDD XML, focused XML, candidate distribution, launch metadata, full checkpoint
 XML/logs and identity reconciliation are retained locally under
-`.runtime/issue-235/`. This evidence is an entry correction, not complete Windows
+`.runtime/issue-235/`. These raw files exist only on the measuring host.
+This evidence is an entry correction, not complete Windows
 runtime, full MCP wire or windowed capability acceptance. Those gates retain their
 existing issue owners. No Unicode-path workstream, code-page fallback framework,
 separate Windows installer, Windows CI or broad Core change is introduced.

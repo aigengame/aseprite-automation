@@ -1,5 +1,17 @@
 # Issue #232: real Windows filesystem and ICC prerequisites
 
+This historical record covers [PR #245](https://github.com/aigengame/aseprite-automation/pull/245),
+merged as `2063272b8caa1fca4cb1c3401db9ac9b2b38bb6e`, and later references
+[PR #266](https://github.com/aigengame/aseprite-automation/pull/266), merged as
+`ad07fb4a42b13cf78a572c634e376664cc130f2d`. Source IDs retain their pre-merge
+measurements. Current delivery status belongs to
+[#232](https://github.com/aigengame/aseprite-automation/issues/232).
+
+Here, an ordinary token means a non-elevated Windows process. A capable process
+means a separately approved temporary administrator process that can create real
+symlinks. A witness is an executed probe or test with its recorded result; its
+name does not establish a support promise.
+
 ## Scope and candidate
 
 This slice starts from milestone #9 integration commit
@@ -77,7 +89,8 @@ preservation must be rerun after the related runtime work.
 The default pytest temporary root is not listable in this process. Evidence uses
 new owned workspace directories instead of changing that root's permissions.
 Raw reports, owned probes and the caller input stay under the ignored
-`.runtime/issue-232/` directory. Public records omit hostnames, user names,
+`.runtime/issue-232/` directory. These raw files exist only on the measuring host.
+Public records omit hostnames, user names,
 absolute local paths and security identities.
 
 ## Initial complete non-slow checkpoint
@@ -275,7 +288,7 @@ production cleanup or native wheel effects.
   launch trace remain in `.runtime/issue-232/gda-checkpoint/`. The installed
   verifier logs and real ACL-lifecycle receipts remain alongside that directory.
 
-Independent sol Standards and Spec reviews of `91369fc` against `bcc8156`
+Independent Standards and Spec reviews of `91369fc` against `bcc8156`
 report no actionable defect or scope expansion. They retain the incomplete
 alias evidence and unadapted sites as incomplete acceptance.
 
@@ -318,7 +331,7 @@ symlink provisioning under #232 and file-preservation/refusal assertions intact.
 The four native-entry failures without complete stderr are not all diagnosed
 as WinError 10038; follow their actual next boundary during #230 work.
 
-Independent sol Spec review confirms these boundaries and existing ownership.
+Independent Spec review confirms these boundaries and existing ownership.
 No new issue or production mechanism follows from the witness. The temporary
 process has exited. A subsequent ordinary-token file/directory probe again
 reports WinError 1314; its original bytes remain unchanged. The ordinary token
@@ -344,7 +357,7 @@ The ordinary 121-node selection now reports **1 passed / 120 WinError 1314
 prerequisite skips**. The pass is the existing junction control. Ruff check
 and formatting pass for all 13 changed files; diff checks pass. Static AST
 comparison confirms unchanged existing POSIX execution bodies, excluding
-imports; macOS/Linux were not executed here. Independent sol Standards and
+imports; macOS/Linux were not executed here. Independent Standards and
 Spec reviews report no actionable defect or scope expansion.
 
 The complete ordinary-process checkpoint again reconciles all four worker
@@ -378,7 +391,7 @@ unobservable Aseprite command line.
 
 - JUnit SHA-256: `b8f1ffadf842b67af0a128e5148d5209ce70c9b9854d4eddc7536dfe36892f77`.
 
-## Current disposition
+## Disposition recorded on 2026-10-17
 
 The checkpoints above retain their original revisions and outcomes. Issue #232
 was completed through [PR #266](https://github.com/aigengame/aseprite-automation/pull/266).
