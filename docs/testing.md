@@ -338,7 +338,7 @@ runtime therefore cannot produce an all-skipped successful e2e run.
 ### Local prerequisites
 
 Use the locked `uv run --frozen --group test` environment and its installed `spa`
-command. Set `SPA_TEST_ASEPRITE` to the real local runtime. Use a writable temporary
+command. Set `SPA_TEST_ASEPRITE` to the real local runtime. Use a short, writable temporary
 root; when the default pytest root is unavailable, select a new owned directory
 with `--basetemp`. Pytest can remove a previous directory at that path.
 
@@ -352,7 +352,9 @@ reads and restore the temporary access rules. They do not change host policy.
 The caller-supplied ICC identity and separate wheel consumer configuration remain
 as documented in this file.
 See [#232 Windows observations](evidence/issue-232-windows-prerequisites.md)
-for the measured prerequisites and remaining blocks.
+for historical prerequisite measurements and the
+[final Windows integration audit](evidence/issue-234-windows-acceptance.md)
+for current results and measured support limits.
 
 ### CLI and MCP text entries
 
@@ -850,7 +852,8 @@ rollback, state-restoration, or broader parameter matrix tests.
 
 In Aseprite:
 
-1. Select **Tileset Mode: Manual**. Open **View → Run Command → Developer Console**.
+1. Select **Tileset Mode: Manual**. Open **View → Run Command**, enter
+   `@app.command.DeveloperConsole()`, and press Enter.
 2. For each case directory, execute `dofile("/absolute/new/evidence-dir/CASE/run.lua")`.
    Allow the generated Source/output/receipt file accesses when prompted. Full trust
    or changes to script security settings are unnecessary.
