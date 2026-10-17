@@ -10,8 +10,7 @@ from pathlib import Path
 import pytest
 
 from tests.frame.test_e2e_frame import _run_fixture
-from tests.support import fake_aseprite
-from tests.windows_executable import windows_aseprite
+from tests.support import fake_aseprite, python_aseprite
 
 
 @pytest.mark.parametrize(
@@ -34,7 +33,7 @@ def test_direct_fixture_retains_exit_status_and_both_output_streams(
     description: str,
 ) -> None:
     if os.name == "nt":
-        binary = windows_aseprite(
+        binary = python_aseprite(
             tmp_path,
             (
                 "import os, sys, time\n"
@@ -63,7 +62,7 @@ def test_successful_direct_fixture_still_passes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     if os.name == "nt":
-        binary = windows_aseprite(tmp_path, "print('expected native result')")
+        binary = python_aseprite(tmp_path, "print('expected native result')")
     else:
         binary = fake_aseprite(tmp_path, "echo 'expected native result'\nexit 0\n")
     monkeypatch.setenv("SPA_TEST_ASEPRITE", str(binary))
@@ -75,7 +74,7 @@ def test_probe_failure_evidence_reaches_pytest_reports(
     tmp_path: Path, phase: str
 ) -> None:
     if os.name == "nt":
-        binary = windows_aseprite(
+        binary = python_aseprite(
             tmp_path,
             (
                 "import os, sys, time\n"

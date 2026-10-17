@@ -17,8 +17,13 @@ from spa.application.failure_registry import FAILURE_CODES
 from spa.application.surface import OPERATIONS
 from spa.contracts.ports import PackagedHandler, RuntimeObservation
 from spa.contracts.public import RuntimeRequest
-from tests.support import fake_aseprite, fake_probe_response, operation_services, spa
-from tests.windows_executable import windows_aseprite
+from tests.support import (
+    fake_aseprite,
+    fake_probe_response,
+    operation_services,
+    python_aseprite,
+    spa,
+)
 
 
 def test_missing_runtime_has_structured_environment_failure() -> None:
@@ -32,7 +37,7 @@ def test_missing_runtime_has_structured_environment_failure() -> None:
 
 def test_spa_prefixed_executable_environment_selects_runtime(tmp_path: Path) -> None:
     if os.name == "nt":
-        binary = windows_aseprite(
+        binary = python_aseprite(
             tmp_path,
             "import os, sys, time\nfrom pathlib import Path\nprint('environment-selected'); sys.exit(13)",
         )
@@ -96,7 +101,7 @@ def test_unexpandable_executable_path_uses_structured_discovery_failure(
 
 def test_stdin_json_selects_the_installed_runtime(tmp_path: Path) -> None:
     if os.name == "nt":
-        binary = windows_aseprite(
+        binary = python_aseprite(
             tmp_path,
             "import os, sys, time\nfrom pathlib import Path\nprint('stdin-selected'); sys.exit(13)",
         )
@@ -116,7 +121,7 @@ def test_stdin_json_selects_the_installed_runtime(tmp_path: Path) -> None:
 
 def _fake_truncated_response_executable(tmp_path: Path, exit_status: int) -> Path:
     if os.name == "nt":
-        return windows_aseprite(
+        return python_aseprite(
             tmp_path,
             (
                 "import os, sys, time\n"
@@ -142,7 +147,7 @@ exit {exit_status}
 
 def test_exit_zero_without_kernel_response_is_failure(tmp_path: Path) -> None:
     if os.name == "nt":
-        binary = windows_aseprite(tmp_path, "pass")
+        binary = python_aseprite(tmp_path, "pass")
     else:
         binary = fake_aseprite(tmp_path, "exit 0\n")
     run = spa("info", "--aseprite", str(binary), "--json")
@@ -159,7 +164,7 @@ def test_process_exit_before_kernel_response_is_execution_failure(
     tmp_path: Path,
 ) -> None:
     if os.name == "nt":
-        binary = windows_aseprite(
+        binary = python_aseprite(
             tmp_path,
             (
                 "import os, sys, time\n"
@@ -225,7 +230,7 @@ def test_other_kernel_protocol_version_is_rejected_without_negotiation(
     tmp_path: Path, private_version: str
 ) -> None:
     if os.name == "nt":
-        binary = windows_aseprite(
+        binary = python_aseprite(
             tmp_path,
             (
                 "import os, sys, time\n"
@@ -316,7 +321,7 @@ def test_probe_preserves_absent_optional_runtime_capability(tmp_path: Path) -> N
 def test_adapter_passes_only_resources_declared_by_the_handler(tmp_path: Path) -> None:
     recorded = tmp_path / "arguments.txt"
     if os.name == "nt":
-        binary = windows_aseprite(
+        binary = python_aseprite(
             tmp_path,
             (
                 "import os, sys, time\n"
@@ -432,7 +437,7 @@ def test_incompatible_runtime_fails_with_observed_requirements(
 
 def test_json_echo_rejects_boolean_number_swap(tmp_path: Path) -> None:
     if os.name == "nt":
-        binary = windows_aseprite(
+        binary = python_aseprite(
             tmp_path,
             (
                 "import os, sys, time\n"
@@ -467,7 +472,7 @@ printf '{"kernel_protocol_version":1,"status":"ok","aseprite_version":"test","ap
 
 def test_exit_zero_with_kernel_error_is_execution_failure(tmp_path: Path) -> None:
     if os.name == "nt":
-        binary = windows_aseprite(
+        binary = python_aseprite(
             tmp_path,
             (
                 "import os, sys, time\n"
@@ -500,7 +505,7 @@ exit 0
 
 def test_runtime_uses_an_isolated_user_folder(tmp_path: Path) -> None:
     if os.name == "nt":
-        binary = windows_aseprite(
+        binary = python_aseprite(
             tmp_path,
             (
                 "import os, sys, time\n"
@@ -522,7 +527,7 @@ def test_runtime_uses_an_isolated_user_folder(tmp_path: Path) -> None:
 
 def test_isolated_user_folder_is_writable_before_launch(tmp_path: Path) -> None:
     if os.name == "nt":
-        binary = windows_aseprite(
+        binary = python_aseprite(
             tmp_path,
             (
                 "import os, sys, time\n"
@@ -546,7 +551,7 @@ def test_isolated_user_folder_is_writable_before_launch(tmp_path: Path) -> None:
 
 def test_app_bundle_cli_launch_is_scoped_to_macos(tmp_path: Path) -> None:
     if os.name == "nt":
-        binary = windows_aseprite(
+        binary = python_aseprite(
             tmp_path,
             (
                 "import os, sys, time\n"
@@ -681,7 +686,7 @@ def test_unwritable_bundle_link_has_typed_start_failure(
 
 def test_timeout_and_output_bound_are_typed(tmp_path: Path) -> None:
     if os.name == "nt":
-        timeout_binary = windows_aseprite(
+        timeout_binary = python_aseprite(
             tmp_path / "timeout",
             "import os, sys, time\nfrom pathlib import Path\ntime.sleep(3)",
         )
@@ -693,7 +698,7 @@ def test_timeout_and_output_bound_are_typed(tmp_path: Path) -> None:
     assert timed_failure["code"] == "process_timeout"
     assert timed_failure["details"]["executable"] == str(timeout_binary.resolve())
     if os.name == "nt":
-        output_binary = windows_aseprite(
+        output_binary = python_aseprite(
             tmp_path / "output",
             "import os, sys, time\nfrom pathlib import Path\nos.write(1, b'x' * 70000)",
         )

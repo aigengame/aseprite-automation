@@ -75,8 +75,7 @@ def controlled_suite(tmp_path: Path) -> tuple[Path, dict[str, str]]:
         import time
         from pathlib import Path
         import pytest
-        from tests.support import fake_aseprite
-        from tests.windows_executable import windows_aseprite
+        from tests.support import fake_aseprite, python_aseprite
 
         @pytest.fixture
         def policy_dir():
@@ -94,7 +93,7 @@ def controlled_suite(tmp_path: Path) -> tuple[Path, dict[str, str]]:
         @pytest.fixture
         def native_failure(tmp_path, monkeypatch):
             if os.name == "nt":
-                binary = windows_aseprite(tmp_path,
+                binary = python_aseprite(tmp_path,
                     "print('native stdout'); print('native stderr', file=sys.stderr); sys.exit(13)")
             else:
                 binary = fake_aseprite(tmp_path,

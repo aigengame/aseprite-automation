@@ -6,15 +6,14 @@ from pathlib import Path
 
 from jsonschema import validate
 
-from tests.support import fake_aseprite, spa
-from tests.windows_executable import windows_aseprite
+from tests.support import fake_aseprite, python_aseprite, spa
 
 
 def test_handler_error_classification_does_not_parse_human_message(
     tmp_path: Path,
 ) -> None:
     if os.name == "nt":
-        binary = windows_aseprite(
+        binary = python_aseprite(
             tmp_path,
             (
                 "import sys\n"

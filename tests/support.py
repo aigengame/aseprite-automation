@@ -22,6 +22,7 @@ from spa.contracts.ports import (
     TargetCommitObservation,
 )
 from spa.contracts.public import RuntimeCapability
+from tests.native_entry import python_entry
 
 
 def icc_fixture_path(identity: str) -> Path:
@@ -123,27 +124,47 @@ def cli_entry_command(
     return [executable]
 
 
+CONTROLLED_PYTHON_PRELUDE = (
+    "import os, sys, time\n"
+    "from pathlib import Path\n"
+    "sys.stdout.reconfigure(encoding='utf-8', newline='\\n')\n"
+    "sys.stderr.reconfigure(encoding='utf-8', newline='\\n')\n"
+    "arguments = dict(arg.split('=', 1) for arg in sys.argv[1:] if '=' in arg)\n"
+)
+"""Common imports, UTF-8 streams, and the key=value arguments of a Python body."""
+
+
+def _add_aseprite_resources(executable_directory: Path) -> None:
+    resource = executable_directory.parent / "Resources" / "data" / "gui.xml"
+    resource.parent.mkdir(parents=True)
+    resource.write_text("<gui/>", encoding="utf-8")
+
+
 def fake_aseprite(tmp_path: Path, body: str) -> Path:
-    """Create a controlled executable with a macOS-style resource layout."""
+    """Create a controlled shell executable with a macOS-style resource layout."""
     binary = tmp_path / "Aseprite.app" / "Contents" / "MacOS" / "aseprite"
     binary.parent.mkdir(parents=True)
     binary.write_text("#!/bin/sh\n" + body, encoding="utf-8")
     binary.chmod(0o755)
-    resource = binary.parent.parent / "Resources" / "data" / "gui.xml"
-    resource.parent.mkdir(parents=True)
-    resource.write_text("<gui/>", encoding="utf-8")
+    _add_aseprite_resources(binary.parent)
+    return binary
+
+
+def python_aseprite(tmp_path: Path, body: str) -> Path:
+    """Create a controlled Python entry with the same layout on every platform."""
+    directory = tmp_path / "Aseprite.app" / "Contents" / "MacOS"
+    binary = python_entry(
+        directory, "aseprite", CONTROLLED_PYTHON_PRELUDE + body + "\n"
+    )
+    _add_aseprite_resources(directory)
     return binary
 
 
 def fake_probe_response(tmp_path: Path, response: str) -> Path:
     """Create a controlled Aseprite transport that returns one probe response."""
     if os.name == "nt":
-        from tests.windows_executable import windows_aseprite
-
-        return windows_aseprite(
+        return python_aseprite(
             tmp_path,
-            "import sys\nfrom pathlib import Path\n"
-            "arguments = dict(arg.split('=', 1) for arg in sys.argv[1:] if '=' in arg)\n"
             "Path(arguments['echo']).write_bytes(Path(arguments['request']).read_bytes())\n"
             f"Path(arguments['response']).write_text({response!r}, encoding='utf-8')\n",
         )

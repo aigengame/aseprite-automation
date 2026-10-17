@@ -9,8 +9,7 @@ from pathlib import Path
 import pytest
 
 from tests.host_permissions import symlink_creation_permission
-from tests.support import fake_aseprite, spa
-from tests.windows_executable import windows_aseprite
+from tests.support import fake_aseprite, python_aseprite, spa
 
 
 def _one_frame_inspection() -> dict[str, object]:
@@ -593,7 +592,7 @@ def test_plan_step_validation_reports_index_after_one_process(tmp_path: Path) ->
         encoding="utf-8",
     )
     if os.name == "nt":
-        fake = windows_aseprite(
+        fake = python_aseprite(
             tmp_path,
             (
                 "import os, sys, time\n"
@@ -687,7 +686,7 @@ def test_plan_frame_inspection_rejects_incomplete_step_facts(
         encoding="utf-8",
     )
     if os.name == "nt":
-        fake = windows_aseprite(
+        fake = python_aseprite(
             tmp_path,
             (
                 "import os, sys, time\n"
@@ -755,7 +754,7 @@ def test_plan_create_postcondition_failure_identifies_step(tmp_path: Path) -> No
         encoding="utf-8",
     )
     if os.name == "nt":
-        fake = windows_aseprite(
+        fake = python_aseprite(
             tmp_path,
             (
                 "import os, sys, time\n"
@@ -831,7 +830,7 @@ def test_plan_runtime_capability_failure_is_typed_before_steps(tmp_path: Path) -
         encoding="utf-8",
     )
     if os.name == "nt":
-        fake = windows_aseprite(
+        fake = python_aseprite(
             tmp_path,
             (
                 "import os, sys, time\n"

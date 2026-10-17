@@ -6,7 +6,7 @@ import shlex
 import sys
 from pathlib import Path
 
-from tests.support import fake_aseprite
+from tests.support import fake_aseprite, python_aseprite
 
 
 def script_runtime(tmp_path: Path, body: str) -> Path:
@@ -25,12 +25,8 @@ def script_runtime(tmp_path: Path, body: str) -> Path:
         "verified_capabilities": ["aseprite_runtime_introspection"],
     }
     if os.name == "nt":
-        from tests.windows_executable import windows_aseprite
-
-        return windows_aseprite(
+        return python_aseprite(
             tmp_path,
-            "import os, sys, time\nfrom pathlib import Path\n"
-            "arguments = dict(arg.split('=', 1) for arg in sys.argv[1:] if '=' in arg)\n"
             "if any(Path(arg).name == 'probe.lua' for arg in sys.argv[1:]):\n"
             "    Path(arguments['echo']).write_bytes(Path(arguments['request']).read_bytes())\n"
             f"    Path(arguments['response']).write_text({json.dumps(probe)!r}, encoding='utf-8')\n"
