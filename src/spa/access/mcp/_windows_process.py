@@ -5,6 +5,7 @@ import sys
 if sys.platform == "win32":
     import asyncio
     import ctypes
+    from contextlib import contextmanager
     from ctypes import wintypes
     from typing import Any
 
@@ -62,6 +63,16 @@ if sys.platform == "win32":
             raise ctypes.WinError(ctypes.get_last_error())
         return value
 
+    @contextmanager
+    def _closing(handle):
+        """Close the handle; a close failure never replaces an error in flight."""
+        try:
+            yield handle
+        except BaseException:
+            _kernel32.CloseHandle(handle)
+            raise
+        _checked(_kernel32.CloseHandle(handle))
+
     class WindowsJob:
         """Retain ownership even when the selected CLI exits before its child."""
 
@@ -74,39 +85,35 @@ if sys.platform == "win32":
 
         def acquire(self, process: asyncio.subprocess.Process) -> None:
             pid = process.pid
-            process_handle = _checked(
-                _kernel32.OpenProcess(PROCESS_SET_QUOTA_AND_TERMINATE, False, pid)
-            )
-            try:
+            with _closing(
+                _checked(
+                    _kernel32.OpenProcess(PROCESS_SET_QUOTA_AND_TERMINATE, False, pid)
+                )
+            ) as process_handle:
                 _checked(
                     _kernel32.AssignProcessToJobObject(self.handle, process_handle)
                 )
-            finally:
-                _checked(_kernel32.CloseHandle(process_handle))
             snapshot = _kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0)
             if snapshot == ctypes.c_void_p(-1).value:
                 raise ctypes.WinError(ctypes.get_last_error())
-            try:
+            with _closing(snapshot):
                 entry = _ThreadEntry()
                 entry.size = ctypes.sizeof(entry)
                 more = _checked(_kernel32.Thread32First(snapshot, ctypes.byref(entry)))
                 while more:
                     if entry.owner_pid == pid:
-                        thread = _checked(
-                            _kernel32.OpenThread(
-                                THREAD_SUSPEND_RESUME, False, entry.thread_id
+                        with _closing(
+                            _checked(
+                                _kernel32.OpenThread(
+                                    THREAD_SUSPEND_RESUME, False, entry.thread_id
+                                )
                             )
-                        )
-                        try:
+                        ) as thread:
                             if _kernel32.ResumeThread(thread) == 0xFFFFFFFF:
                                 raise ctypes.WinError(ctypes.get_last_error())
-                            return
-                        finally:
-                            _checked(_kernel32.CloseHandle(thread))
+                        return
                     more = _kernel32.Thread32Next(snapshot, ctypes.byref(entry))
                 raise OSError("Suspended SPA CLI thread was not found")
-            finally:
-                _checked(_kernel32.CloseHandle(snapshot))
 
         def terminate(self, process: asyncio.subprocess.Process) -> None:
             _checked(_kernel32.TerminateJobObject(self.handle, 1))
