@@ -297,8 +297,12 @@ def test_declared_file_observations_follow_only_successful_execution(
         if include_fifo
         else []
     )
-    unavailable = result["files"][-1]
-    assert unavailable["path"] == str(tmp_path / "normal.bin/child")
-    assert unavailable["kind"] == "unavailable"
-    assert unavailable["size_bytes"] is None
-    assert unavailable["path"] in unavailable["error"]
+    observed = result["files"][-1]
+    assert observed["path"] == str(tmp_path / "normal.bin/child")
+    assert observed["size_bytes"] is None
+    if os.name == "nt":
+        assert observed["kind"] == "missing"
+        assert observed["error"] is None
+    else:
+        assert observed["kind"] == "unavailable"
+        assert observed["path"] in observed["error"]
