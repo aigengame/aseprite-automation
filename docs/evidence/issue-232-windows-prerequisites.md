@@ -378,15 +378,16 @@ unobservable Aseprite command line.
 
 - JUnit SHA-256: `b8f1ffadf842b67af0a128e5148d5209ce70c9b9854d4eddc7536dfe36892f77`.
 
-## Remaining acceptance
+## Current disposition
 
-#232 remains open while retained real E2E alias effects await the #230/#243
-reruns and integrated acceptance. The demonstrated creation sites now have
-case-local reporting; this does not supply the ordinary token with permission.
-The one approved temporary witness is finished; no host-setting or further
-elevation approval is pending. There is no proposal to replace the 78 inputs.
-#234 owns complete applicable-suite green,
-isolated-wheel/native effects and the separately documented windowed checks.
-The checkpoint satisfies the requirement to record all existing non-slow
-outcomes; it does not satisfy complete-suite acceptance or the outstanding
-real E2E alias-effect requirement.
+The checkpoints above retain their original revisions and outcomes. Issue #232
+was completed through [PR #266](https://github.com/aigengame/aseprite-automation/pull/266).
+The [final Windows integration audit](issue-234-windows-acceptance.md) records
+the integrated results, separate capable-process symlink witnesses, installed
+wheel evidence, and real windowed comparisons owned by #234.
+
+Case-local reporting does not grant the ordinary token symlink permission.
+All approved temporary witnesses have exited; their authorization does not
+carry to another process. No host-setting or further elevation decision is
+pending. The owner-deferred #230 investigation remains unresolved and
+non-blocking; these historical failures are not current failure counts.
