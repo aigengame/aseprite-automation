@@ -93,3 +93,25 @@ def test_start_failure_kills_started_cli_when_terminate_fails():
         assert owner.process.returncode is not None
 
     anyio.run(exercise)
+
+
+def test_start_failure_keeps_original_error_when_release_fails():
+    async def exercise():
+        owner = FailingOwnership("acquire", "release")
+        with pytest.raises(StartError) as raised:
+            await run(SLEEPING_CLI, os.environ.copy(), b"", ownership=lambda: owner)
+        assert str(raised.value.error) == "acquire failed"
+        assert owner.process is not None
+        assert owner.process.returncode is not None
+
+    anyio.run(exercise)
+
+
+def test_cancellation_survives_release_failure():
+    async def exercise():
+        owner = FailingOwnership("release")
+        assert await cancel_after_start(owner)
+        assert owner.process is not None
+        assert owner.process.returncode is not None
+
+    anyio.run(exercise)

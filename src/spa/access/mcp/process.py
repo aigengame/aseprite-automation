@@ -1,6 +1,7 @@
 """Run one MCP CLI invocation and own its complete process tree."""
 
 import asyncio
+import contextlib
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -69,16 +70,15 @@ async def run(
         process = await _start(owner, command, environment)
     except OSError as exc:
         raise StartError(exc) from exc
-    completed = False
     try:
         stdout, stderr = await process.communicate(request)
-        completed = True
-    finally:
+    except BaseException:
         try:
-            if not completed:
-                await _retire(owner, process, owned=True)
+            await _retire(owner, process, owned=True)
         finally:
-            owner.release()
+            _release_quietly(owner)
+        raise
+    owner.release()
     assert process.returncode is not None
     return Completion(stdout, stderr, process.returncode)
 
@@ -120,6 +120,12 @@ async def _start(
                 await _retire(owner, process, owned=False)
                 raise
     except BaseException:
-        owner.release()
+        _release_quietly(owner)
         raise
     return process
+
+
+def _release_quietly(owner: Ownership) -> None:
+    """Release ownership without replacing the error in flight."""
+    with contextlib.suppress(OSError):
+        owner.release()
