@@ -6,6 +6,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+from contextlib import ExitStack
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,10 @@ from PIL import Image
 
 from spa.adapters.aseprite.invocation import prepare_invocation
 from tests.support import process_diagnostics, spa
+from tests.windows_permissions import (
+    deny_directory_listing,
+    symlink_creation_permission,
+)
 
 pytestmark = pytest.mark.e2e
 
@@ -54,7 +59,8 @@ def _run(command: str, request: dict[str, object]) -> tuple[int, dict]:
         "animation",
         command,
         "--input-json",
-        json.dumps({**request, "aseprite": os.environ["SPA_TEST_ASEPRITE"]}),
+        "-",
+        stdin=json.dumps({**request, "aseprite": os.environ["SPA_TEST_ASEPRITE"]}),
     )
     assert run.stdout, run.stderr
     return run.returncode, json.loads(run.stdout)
@@ -296,7 +302,11 @@ def test_preview_rejects_destination_traversed_by_source_alias(tmp_path: Path) -
     destination = tmp_path / "preview.png"
     shutil.copyfile(native_source, destination)
     source = tmp_path / "linked.aseprite"
-    source.symlink_to(destination)
+    if os.name == "nt":
+        with symlink_creation_permission():
+            source.symlink_to(destination)
+    else:
+        source.symlink_to(destination)
     original = hashlib.sha256(source.read_bytes()).hexdigest()
 
     code, failure = _run(
@@ -326,8 +336,12 @@ def test_preview_reports_unverifiable_source_destination_identity(
     destination = private / "preview.png"
     os.link(source, destination)
     original = hashlib.sha256(source.read_bytes()).hexdigest()
-    private.chmod(0o333)
-    try:
+    with ExitStack() as permissions:
+        if os.name == "nt":
+            permissions.enter_context(deny_directory_listing(private))
+        else:
+            private.chmod(0o333)
+            permissions.callback(private.chmod, 0o700)
         try:
             os.listdir(private)
         except PermissionError:
@@ -348,8 +362,6 @@ def test_preview_reports_unverifiable_source_destination_identity(
                 }
             ),
         )
-    finally:
-        private.chmod(0o700)
 
     assert run.returncode != 0 and run.stdout
     failure = json.loads(run.stdout)

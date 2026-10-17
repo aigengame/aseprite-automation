@@ -11,6 +11,10 @@ from pathlib import Path
 import pytest
 
 WORKFLOW = Path(__file__).resolve().parents[2] / ".github/workflows/native-e2e.yml"
+pytestmark = pytest.mark.skipif(
+    os.name == "nt",
+    reason="Executes the hosted Linux workflows' Bash steps, not the portable runner",
+)
 
 
 def run_step(
@@ -301,3 +305,5 @@ def test_workflow_configuration_uses_shared_parameters(
         assert json.loads(value)["include"] == [
             {"shard_index": index, "shards": count} for index in range(count)
         ]
+    else:
+        assert "shards and workers must be positive integers" in result.stderr

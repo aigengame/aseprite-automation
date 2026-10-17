@@ -1,9 +1,11 @@
 """Real filesystem checks for bounded export publication."""
 
+import os
 from pathlib import Path
 
 from spa.adapters.artifact_set import LocalArtifactSets
 from spa.contracts.artifact_set import ArtifactDestination
+from tests.windows_permissions import symlink_creation_permission
 
 
 def test_verified_set_publishes_in_declared_order_and_discards_staging(
@@ -112,7 +114,11 @@ def test_missing_unexpected_and_nonregular_outputs_never_publish(
             files.verify_set(staged)
         unexpected.unlink()
         output.unlink()
-        output.symlink_to(source)
+        if os.name == "nt":
+            with symlink_creation_permission():
+                output.symlink_to(source)
+        else:
+            output.symlink_to(source)
         with pytest.raises(RuntimeIssue):
             files.verify_set(staged)
         output.unlink()
@@ -254,7 +260,11 @@ def test_source_alias_that_appears_after_staging_is_refused_before_publication(
     original = tmp_path / "original.aseprite"
     original.write_bytes(b"source")
     source = tmp_path / "source.aseprite"
-    source.symlink_to(original)
+    if os.name == "nt":
+        with symlink_creation_permission():
+            source.symlink_to(original)
+    else:
+        source.symlink_to(original)
     destination = ArtifactDestination("image", tmp_path / "001.png", "replace")
     files = LocalArtifactSets()
     staged = files.prepare(source, (destination,))

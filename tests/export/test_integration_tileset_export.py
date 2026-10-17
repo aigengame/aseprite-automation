@@ -1,6 +1,7 @@
 """Complete-pair validation and publication failures at the Kernel/file boundaries."""
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -20,6 +21,7 @@ from spa.contracts.public import Diagnostics
 from spa.delivery.tileset import export_tileset
 from spa.delivery.tileset_contracts import ExportTilesetRequest
 from tests.support import runtime_observation
+from tests.windows_permissions import symlink_creation_permission
 
 
 def intent(root: Path, *, replace=False) -> ExportTilesetRequest:
@@ -329,7 +331,11 @@ def test_destination_aliases_are_rejected_before_native_execution(
 
     image, metadata = tmp_path / "atlas.png", tmp_path / "map.json"
     metadata.write_bytes(b"existing")
-    image.symlink_to(metadata)
+    if os.name == "nt":
+        with symlink_creation_permission():
+            image.symlink_to(metadata)
+    else:
+        image.symlink_to(metadata)
 
     def must_not_run(*args):
         pytest.fail("Colliding destinations must fail before native execution")

@@ -129,6 +129,7 @@ def test_standalone_completion_gates_commit_and_cleans_staging(
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=False,
     )
     assert run.stdout, run.stderr

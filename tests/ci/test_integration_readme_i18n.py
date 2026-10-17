@@ -1,5 +1,6 @@
 """README freshness is enforced by the same check locally and in Fast tests."""
 
+import os
 import shutil
 import subprocess
 import sys
@@ -16,6 +17,7 @@ def run_sync(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
         cwd=root,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=10,
         check=False,
     )
@@ -44,7 +46,7 @@ def test_editing_english_requires_translation_sync(readme_repo: Path) -> None:
     original = translation.read_bytes()
     result = run_sync(readme_repo, "--check")
     assert result.returncode == 1
-    assert "docs/README.zh-CN.md" in result.stderr
+    assert str(Path("docs/README.zh-CN.md")) in result.stderr
     assert translation.read_bytes() == original
 
     translation.write_text("# SPA\n\n安装 SPA 及其 Skill。\n", encoding="utf-8")
@@ -80,7 +82,7 @@ def test_check_requires_a_valid_leading_marker(
     translation.write_text(changed, encoding="utf-8")
     result = run_sync(readme_repo, "--check")
     assert result.returncode == 1
-    assert "docs/README.zh-CN.md" in result.stderr
+    assert str(Path("docs/README.zh-CN.md")) in result.stderr
 
 
 def test_additional_locales_are_checked_without_configuration(
@@ -92,7 +94,7 @@ def test_additional_locales_are_checked_without_configuration(
     )
     result = run_sync(readme_repo, "--check")
     assert result.returncode == 1
-    assert "docs/README.fr.md" in result.stderr
+    assert str(Path("docs/README.fr.md")) in result.stderr
     assert run_sync(readme_repo).returncode == 0
     assert run_sync(readme_repo, "--check").returncode == 0
 
@@ -104,7 +106,8 @@ def test_line_endings_do_not_invalidate_translations(
     assert run_sync(readme_repo).returncode == 0
     for name in ("README.md", "docs/README.zh-CN.md"):
         path = readme_repo / name
-        path.write_bytes(path.read_bytes().replace(b"\n", newline))
+        content = path.read_text(encoding="utf-8").encode("utf-8")
+        path.write_bytes(content.replace(b"\n", newline))
     assert run_sync(readme_repo, "--check").returncode == 0
 
 
@@ -113,6 +116,6 @@ def test_stamping_preserves_prose_and_is_idempotent(readme_repo: Path) -> None:
     original = translation.read_bytes()
     assert run_sync(readme_repo).returncode == 0
     stamped = translation.read_bytes()
-    assert stamped.split(b"\n\n", maxsplit=1)[1] == original
+    assert stamped.split(os.linesep.encode("ascii") * 2, maxsplit=1)[1] == original
     assert run_sync(readme_repo).returncode == 0
     assert translation.read_bytes() == stamped

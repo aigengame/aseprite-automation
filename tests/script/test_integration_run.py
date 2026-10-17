@@ -9,8 +9,7 @@ from jsonschema import Draft202012Validator
 
 from tests.script.support import script_runtime
 from tests.support import spa
-
-pytestmark = pytest.mark.skipif(os.name == "nt", reason="POSIX process fixture")
+from tests.windows_permissions import symlink_creation_permission
 
 
 def test_timeout_is_reported_without_requiring_process_output(
@@ -203,14 +202,31 @@ def test_ordinary_operation_cannot_accept_a_caller_replacement(extra) -> None:
 
 
 @pytest.mark.parametrize("exit_status", [0, 7])
+@pytest.mark.parametrize(
+    "include_fifo",
+    [
+        pytest.param(False, id="ordinary"),
+        pytest.param(
+            True,
+            id="unix-fifo",
+            marks=pytest.mark.skipif(os.name == "nt", reason="Unix FIFO fixture"),
+        ),
+    ],
+)
 def test_declared_file_observations_follow_only_successful_execution(
-    tmp_path, exit_status
+    tmp_path, exit_status, include_fifo
 ) -> None:
     (tmp_path / "normal.bin").write_bytes(b"before")
-    (tmp_path / "link.bin").symlink_to("normal.bin")
-    (tmp_path / "dangling.bin").symlink_to("missing.bin")
+    if os.name == "nt":
+        with symlink_creation_permission():
+            (tmp_path / "link.bin").symlink_to("normal.bin")
+            (tmp_path / "dangling.bin").symlink_to("missing.bin")
+    else:
+        (tmp_path / "link.bin").symlink_to("normal.bin")
+        (tmp_path / "dangling.bin").symlink_to("missing.bin")
     (tmp_path / "directory").mkdir()
-    os.mkfifo(tmp_path / "pipe")
+    if include_fifo:
+        os.mkfifo(tmp_path / "pipe")
     binary = script_runtime(
         tmp_path,
         f'Path("normal.bin").write_bytes(b"after-run"); sys.exit({exit_status})',
@@ -230,7 +246,7 @@ def test_declared_file_observations_follow_only_successful_execution(
                     "link.bin",
                     "dangling.bin",
                     "directory",
-                    "pipe",
+                    *(["pipe"] if include_fifo else []),
                     "normal.bin/child",
                 ],
             }
@@ -269,15 +285,24 @@ def test_declared_file_observations_follow_only_successful_execution(
             "size_bytes": None,
             "error": None,
         },
-        {
-            "path": str(tmp_path / "pipe"),
-            "kind": "other",
-            "size_bytes": None,
-            "error": None,
-        },
-    ]
-    unavailable = result["files"][-1]
-    assert unavailable["path"] == str(tmp_path / "normal.bin/child")
-    assert unavailable["kind"] == "unavailable"
-    assert unavailable["size_bytes"] is None
-    assert unavailable["path"] in unavailable["error"]
+    ] + (
+        [
+            {
+                "path": str(tmp_path / "pipe"),
+                "kind": "other",
+                "size_bytes": None,
+                "error": None,
+            }
+        ]
+        if include_fifo
+        else []
+    )
+    observed = result["files"][-1]
+    assert observed["path"] == str(tmp_path / "normal.bin/child")
+    assert observed["size_bytes"] is None
+    if os.name == "nt":
+        assert observed["kind"] == "missing"
+        assert observed["error"] is None
+    else:
+        assert observed["kind"] == "unavailable"
+        assert observed["path"] in observed["error"]

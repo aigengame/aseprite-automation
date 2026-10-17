@@ -11,6 +11,7 @@ import pytest
 
 from tests.frame.test_e2e_frame import _run_fixture
 from tests.support import fake_aseprite
+from tests.windows_executable import windows_aseprite
 
 
 @pytest.mark.parametrize(
@@ -32,9 +33,20 @@ def test_direct_fixture_retains_exit_status_and_both_output_streams(
     status: int,
     description: str,
 ) -> None:
-    binary = fake_aseprite(
-        tmp_path, f"echo 'fixture stdout'\necho 'fixture stderr' >&2\n{termination}\n"
-    )
+    if os.name == "nt":
+        binary = windows_aseprite(
+            tmp_path,
+            (
+                "import os, sys, time\n"
+                "from pathlib import Path\n"
+                "print('fixture stdout'); print('fixture stderr', file=sys.stderr); sys.exit(13)"
+            ),
+        )
+    else:
+        binary = fake_aseprite(
+            tmp_path,
+            f"echo 'fixture stdout'\necho 'fixture stderr' >&2\n{termination}\n",
+        )
     monkeypatch.setenv("SPA_TEST_ASEPRITE", str(binary))
 
     with pytest.raises(AssertionError) as failure:
@@ -50,7 +62,10 @@ def test_direct_fixture_retains_exit_status_and_both_output_streams(
 def test_successful_direct_fixture_still_passes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    binary = fake_aseprite(tmp_path, "echo 'expected native result'\nexit 0\n")
+    if os.name == "nt":
+        binary = windows_aseprite(tmp_path, "print('expected native result')")
+    else:
+        binary = fake_aseprite(tmp_path, "echo 'expected native result'\nexit 0\n")
     monkeypatch.setenv("SPA_TEST_ASEPRITE", str(binary))
     _run_fixture("controlled.lua")
 
@@ -59,9 +74,19 @@ def test_successful_direct_fixture_still_passes(
 def test_probe_failure_evidence_reaches_pytest_reports(
     tmp_path: Path, phase: str
 ) -> None:
-    binary = fake_aseprite(
-        tmp_path, "echo 'probe stdout'\necho 'probe stderr' >&2\nkill -TERM $$\n"
-    )
+    if os.name == "nt":
+        binary = windows_aseprite(
+            tmp_path,
+            (
+                "import os, sys, time\n"
+                "from pathlib import Path\n"
+                "print('probe stdout'); print('probe stderr', file=sys.stderr); sys.exit(13)"
+            ),
+        )
+    else:
+        binary = fake_aseprite(
+            tmp_path, "echo 'probe stdout'\necho 'probe stderr' >&2\nkill -TERM $$\n"
+        )
     test_file = tmp_path / "test_probe.py"
     action = {
         "call": "    image_fixture(tmp_path)\n",
@@ -84,12 +109,15 @@ def test_probe_failure_evidence_reaches_pytest_reports(
         + setup
         + "def test_probe(tmp_path):\n"
         + action
-        + "def test_after_probe():\n    pass\n"
+        + "def test_after_probe():\n    pass\n",
+        encoding="utf-8",
     )
     report = tmp_path / "report.xml"
     result = subprocess.run(
         [
             sys.executable,
+            "-X",
+            "utf8",
             "-m",
             "pytest",
             "-p",
@@ -98,6 +126,7 @@ def test_probe_failure_evidence_reaches_pytest_reports(
             "-x",
             "-vv",
             "--tb=short",
+            f"--basetemp={tmp_path / 'pytest-temp'}",
             f"--junitxml={report}",
         ],
         cwd=tmp_path,
@@ -108,6 +137,7 @@ def test_probe_failure_evidence_reaches_pytest_reports(
         },
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=20,
         check=False,
     )
@@ -120,8 +150,12 @@ def test_probe_failure_evidence_reaches_pytest_reports(
         return
     assert result.returncode == 1, transcript
     assert len(cases) == 1
-    for evidence in (transcript, report.read_text()):
-        assert '"exit_status": -15' in evidence
-        assert "SIGTERM" in evidence
+    for evidence in (transcript, report.read_text(encoding="utf-8")):
+        if os.name == "nt":
+            assert '"exit_status": 13' in evidence
+            assert "exited with status 13" in evidence
+        else:
+            assert '"exit_status": -15' in evidence
+            assert "SIGTERM" in evidence
         assert "probe stdout" in evidence
         assert "probe stderr" in evidence

@@ -2,6 +2,7 @@
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import textwrap
@@ -30,7 +31,27 @@ def admission(tmp_path: Path) -> dict[str, str]:
     }
 
 
-def run(env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+def _windows_fake_gh(tmp_path: Path, body: str) -> Path:
+    """Adapt only the directly selected gh fixtures to Windows native execution."""
+    assert os.name == "nt"
+    from distlib.scripts import ScriptMaker
+
+    source = tmp_path / "windows-gh"
+    source.mkdir()
+    (source / "gh.py").write_text("#!python\n" + body, encoding="utf-8", newline="\n")
+    ScriptMaker(str(source), str(tmp_path)).make("gh.py")
+    return tmp_path / "gh.exe"
+
+
+def run(
+    env: dict[str, str], *, controlled_gh: Path | None = None
+) -> subprocess.CompletedProcess[str]:
+    if controlled_gh is not None:
+        assert controlled_gh.is_file()
+        selected = shutil.which("gh", path=env["PATH"])
+        assert (
+            selected is not None and Path(selected).resolve() == controlled_gh.resolve()
+        )
     body = WORKFLOW.read_text().split("          python3 - <<'PY'\n", 1)[1]
     script = textwrap.dedent(body.split("          PY\n", 1)[0])
     return subprocess.run(
@@ -78,15 +99,18 @@ def test_automatic_release_resolves_the_draft_against_original_main_event(
         f"elif endpoint.endswith('/compare/{SHA}...{'b' * 40}'):\n"
         "    print(json.dumps({'status': os.environ['SPA_TEST_ANCESTRY']}))\n"
         "else:\n"
-        "    sys.exit('unexpected API request: ' + endpoint)\n"
+        "    sys.exit('unexpected API request: ' + endpoint)\n",
+        encoding="utf-8",
     )
     gh.chmod(0o755)
+    if os.name == "nt":
+        gh = _windows_fake_gh(tmp_path, gh.read_text(encoding="utf-8"))
     admission.update(
-        PATH=f"{tmp_path}{os.pathsep}{os.environ['PATH']}",
+        PATH=str(tmp_path),
         SPA_TEST_DRAFT_SHA=SHA,
         SPA_TEST_ANCESTRY="ahead",
     )
-    result = run(admission)
+    result = run(admission, controlled_gh=gh)
     assert result.returncode == 0, result.stderr
     assert SHA in Path(admission["GITHUB_OUTPUT"]).read_text()
 
@@ -97,7 +121,7 @@ def test_automatic_release_resolves_the_draft_against_original_main_event(
     ):
         Path(admission["GITHUB_OUTPUT"]).unlink(missing_ok=True)
         admission.update(change)
-        result = run(admission)
+        result = run(admission, controlled_gh=gh)
         assert result.returncode != 0
         assert not Path(admission["GITHUB_OUTPUT"]).exists()
 
@@ -131,15 +155,36 @@ def test_untrusted_caller_or_target_cannot_emit_an_admission(admission, change) 
 
 def test_api_failure_cannot_admit_a_release(admission, tmp_path: Path) -> None:
     gh = tmp_path / "gh"
-    gh.write_text("#!/bin/sh\nexit 1\n")
-    gh.chmod(0o755)
+    calls = tmp_path / "calls.json"
+    if os.name == "nt":
+        gh = _windows_fake_gh(
+            tmp_path,
+            "import json, os, sys\nfrom pathlib import Path\n"
+            "Path(os.environ['SPA_TEST_GH_CALLS']).write_text(json.dumps(sys.argv[1:]), encoding='utf-8')\n"
+            "print('controlled gh API failure', file=sys.stderr)\n"
+            "sys.exit(1)\n",
+        )
+    else:
+        gh.write_text(
+            '#!/bin/sh\ntest "$#" -eq 2 || exit 2\n'
+            'printf \'["%s","%s"]\' "$1" "$2" > "$SPA_TEST_GH_CALLS"\n'
+            "echo 'controlled gh API failure' >&2\nexit 1\n",
+            encoding="utf-8",
+        )
+        gh.chmod(0o755)
     admission.update(
-        PATH=f"{tmp_path}{os.pathsep}{os.environ['PATH']}",
+        PATH=str(tmp_path),
         GITHUB_EVENT_NAME="push",
         SPA_RELEASE_ID="123",
+        SPA_TEST_GH_CALLS=str(calls),
     )
-    result = run(admission)
+    result = run(admission, controlled_gh=gh)
     assert result.returncode != 0
+    assert "controlled gh API failure" in result.stderr
+    assert json.loads(calls.read_text(encoding="utf-8")) == [
+        "api",
+        f"repos/{REPOSITORY}/releases/123",
+    ]
     assert not Path(admission["GITHUB_OUTPUT"]).exists()
 
 

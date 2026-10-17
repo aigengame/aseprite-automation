@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from tests.support import isolated_wheel_cli, spa
+from tests.windows_permissions import symlink_creation_permission
 
 
 @pytest.mark.e2e
@@ -317,7 +318,11 @@ def test_source_alias_is_rejected_for_both_in_place_values(
     )
     assert created.returncode == 0, created.stdout + created.stderr
     alias = tmp_path / "alias.aseprite"
-    alias.symlink_to(target)
+    if os.name == "nt":
+        with symlink_creation_permission():
+            alias.symlink_to(target)
+    else:
+        alias.symlink_to(target)
     before = hashlib.sha256(target.read_bytes()).hexdigest()
     plan = {
         "source_sprite_file": str(alias),

@@ -15,6 +15,7 @@ from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.application.surface import PROBE_RESOURCES
 from spa.contracts.public import RuntimeRequest
 from tests.support import process_diagnostics, spa
+from tests.windows_permissions import symlink_creation_permission
 
 pytestmark = pytest.mark.e2e
 
@@ -630,7 +631,11 @@ def test_native_paint_supports_in_place_and_rejects_alias_to_target(
     source, _ = _native_fixture(tmp_path)
     original = source.read_bytes()
     alias = tmp_path / "alias.aseprite"
-    alias.symlink_to(source)
+    if os.name == "nt":
+        with symlink_creation_permission():
+            alias.symlink_to(source)
+    else:
+        alias.symlink_to(source)
     for in_place in (False, True):
         run, result = _paint(alias, source, in_place=in_place, overwrite=True)
         assert run.returncode == 2 and result["code"] == "invalid_request"

@@ -15,9 +15,11 @@ from spa.adapters.sequence_png import decode_sequence_png
 from spa.application.failure_registry import FAILURE_CODES
 from spa.application.surface import PROBE_RESOURCES
 from spa.contracts.ports import OperationServices
+from spa.entry_point import configure_stdio
 
 
 def main() -> None:
+    configure_stdio()
     run_cli(
         build_app(
             OperationServices(

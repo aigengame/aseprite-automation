@@ -9,6 +9,8 @@ from pathlib import Path
 import pytest
 
 from tests.support import fake_aseprite, spa
+from tests.windows_executable import windows_aseprite
+from tests.windows_permissions import symlink_creation_permission
 
 
 def _one_frame_inspection() -> dict[str, object]:
@@ -444,7 +446,11 @@ def test_plan_preflight_checks_source_aliases_against_target_entry(
     target = tmp_path / "real.aseprite"
     target.write_bytes(b"preflight only")
     alias = tmp_path / "alias.aseprite"
-    alias.symlink_to(target)
+    if os.name == "nt":
+        with symlink_creation_permission():
+            alias.symlink_to(target)
+    else:
+        alias.symlink_to(target)
     plan = {
         "source_sprite_file": str(alias),
         "target_sprite_file": str(target),
@@ -589,9 +595,21 @@ def test_plan_step_validation_reports_index_after_one_process(tmp_path: Path) ->
         ),
         encoding="utf-8",
     )
-    fake = fake_aseprite(
-        tmp_path,
-        f"""
+    if os.name == "nt":
+        fake = windows_aseprite(
+            tmp_path,
+            (
+                "import os, sys, time\n"
+                "from pathlib import Path\n"
+                "arguments = dict(arg.split('=', 1) for arg in sys.argv[1:] if '=' in arg)\n"
+            )
+            + f"with Path({str(count_file)!r}).open('a', encoding='utf-8') as stream: stream.write('1\\n')\n"
+            + f"Path(arguments['response']).write_bytes(Path({str(response_file)!r}).read_bytes())",
+        )
+    else:
+        fake = fake_aseprite(
+            tmp_path,
+            f"""
 response_file=
 for argument in "$@"; do
   case "$argument" in response=*) response_file=${{argument#response=}};; esac
@@ -599,7 +617,7 @@ done
 printf '1\\n' >> {shlex.quote(str(count_file))}
 cp {shlex.quote(str(response_file))} "$response_file"
 """,
-    )
+        )
     run = spa(
         "plan",
         "run",
@@ -671,16 +689,27 @@ def test_plan_frame_inspection_rejects_incomplete_step_facts(
         ),
         encoding="utf-8",
     )
-    fake = fake_aseprite(
-        tmp_path,
-        f"""
+    if os.name == "nt":
+        fake = windows_aseprite(
+            tmp_path,
+            (
+                "import os, sys, time\n"
+                "from pathlib import Path\n"
+                "arguments = dict(arg.split('=', 1) for arg in sys.argv[1:] if '=' in arg)\n"
+            )
+            + f"Path(arguments['response']).write_bytes(Path({str(response_file)!r}).read_bytes())",
+        )
+    else:
+        fake = fake_aseprite(
+            tmp_path,
+            f"""
 response_file=
 for argument in "$@"; do
   case "$argument" in response=*) response_file=${{argument#response=}};; esac
 done
 cp {shlex.quote(str(response_file))} "$response_file"
 """,
-    )
+        )
     run = spa(
         "plan",
         "run",
@@ -728,16 +757,27 @@ def test_plan_create_postcondition_failure_identifies_step(tmp_path: Path) -> No
         ),
         encoding="utf-8",
     )
-    fake = fake_aseprite(
-        tmp_path,
-        f"""
+    if os.name == "nt":
+        fake = windows_aseprite(
+            tmp_path,
+            (
+                "import os, sys, time\n"
+                "from pathlib import Path\n"
+                "arguments = dict(arg.split('=', 1) for arg in sys.argv[1:] if '=' in arg)\n"
+            )
+            + f"Path(arguments['response']).write_bytes(Path({str(response_file)!r}).read_bytes())",
+        )
+    else:
+        fake = fake_aseprite(
+            tmp_path,
+            f"""
 response_file=
 for argument in "$@"; do
   case "$argument" in response=*) response_file=${{argument#response=}};; esac
 done
 cp {shlex.quote(str(response_file))} "$response_file"
 """,
-    )
+        )
     run = spa(
         "plan",
         "run",
@@ -793,16 +833,27 @@ def test_plan_runtime_capability_failure_is_typed_before_steps(tmp_path: Path) -
         ),
         encoding="utf-8",
     )
-    fake = fake_aseprite(
-        tmp_path,
-        f"""
+    if os.name == "nt":
+        fake = windows_aseprite(
+            tmp_path,
+            (
+                "import os, sys, time\n"
+                "from pathlib import Path\n"
+                "arguments = dict(arg.split('=', 1) for arg in sys.argv[1:] if '=' in arg)\n"
+            )
+            + f"Path(arguments['response']).write_bytes(Path({str(response_file)!r}).read_bytes())",
+        )
+    else:
+        fake = fake_aseprite(
+            tmp_path,
+            f"""
 response_file=
 for argument in "$@"; do
   case "$argument" in response=*) response_file=${{argument#response=}};; esac
 done
 cp {shlex.quote(str(response_file))} "$response_file"
 """,
-    )
+        )
     run = spa(
         "plan",
         "run",

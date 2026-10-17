@@ -153,7 +153,9 @@ local function resolve_matrix(requested)
   if #matches == 0 then return fail("missing") end
   if #matches > 1 then return fail("ambiguous") end
   local path = matches[1]
-  if path:sub(1, 1) ~= "/" then path = app.fs.joinPath(app.fs.currentPath, path) end
+  if path:sub(1, 1) ~= "/" and not (app.os.windows and path:match("^%a:[/\\]")) then
+    path = app.fs.joinPath(app.fs.currentPath, path)
+  end
   path = app.fs.normalizePath(path)
   if not app.fs.isFile(path) then return fail("missing") end
   local file = io.open(path, "rb")

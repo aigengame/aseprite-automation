@@ -41,6 +41,15 @@ use `spa` directly. Both forms occur in the examples below. Replace executable
 and asset paths with your own paths; commands that edit existing assets require
 the described Layers, Frames, Cels, Palettes, or Tags to exist.
 
+### Process text encoding
+
+The `spa` and optional `spa-mcp` process entries use UTF-8 for stdin, stdout and
+stderr, including help and early parameter errors. Send and read their text as
+UTF-8; no `PYTHONUTF8`, `PYTHONIOENCODING` or console code-page change is required.
+This policy applies to SPA-owned text. External program output retains its own
+decoding rules, and copied asset bytes are unchanged. Importing an entry module
+does not configure global streams.
+
 ### Command help
 
 Run `spa`, `spa --help`, or `spa help` to see the same command overview. These
@@ -126,6 +135,11 @@ output, for example `spa info --human`. If both `--json` and `--human` are set,
 `--json` takes precedence. Help remains text.
 `--input-json -` reads one complete JSON request object from stdin; a literal
 `--input-json` value is available for short invocations.
+
+SPA parses the received JSON literally. Strings such as `$NAME` and `%NAME%`
+are request data. Quote argv payloads for your shell or use stdin to supply the
+intended JSON. Runtime executable discovery retains its own home-directory
+expansion; discovery failures report the original requested and searched paths.
 
 ```sh
 uv run spa info --input-json '{"aseprite":"/path/to/Aseprite.app/Contents/MacOS/aseprite"}'
@@ -1803,7 +1817,8 @@ spa script run --schema
   script paths and declared file paths use that directory. Aseprite also uses it
   for relative I/O; `_SCRIPT_PATH` remains distinct. The script path,
   `working_directory`, and declared-file paths do not expand `~`. The `aseprite`
-  executable path retains runtime discovery's home-directory expansion.
+  executable path retains runtime discovery's home-directory expansion. These are
+  Script path rules; other Operations, such as Export, retain their own path handling.
 - Parameter names are ASCII identifiers (`[A-Za-z_][A-Za-z0-9_]*`); values are
   strings without NUL. They are passed as individual `--script-param name=value`
   arguments before `--script`, never as generated Lua or shell commands.

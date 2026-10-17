@@ -14,7 +14,8 @@ def run(*command: str, **request: object) -> tuple[int, dict]:
     result = spa(
         *command,
         "--input-json",
-        json.dumps({**request, "aseprite": os.environ["SPA_TEST_ASEPRITE"]}),
+        "-",
+        stdin=json.dumps({**request, "aseprite": os.environ["SPA_TEST_ASEPRITE"]}),
     )
     assert result.stdout, process_diagnostics(result)
     return result.returncode, json.loads(result.stdout)

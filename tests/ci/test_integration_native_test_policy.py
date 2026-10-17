@@ -76,6 +76,7 @@ def controlled_suite(tmp_path: Path) -> tuple[Path, dict[str, str]]:
         from pathlib import Path
         import pytest
         from tests.support import fake_aseprite
+        from tests.windows_executable import windows_aseprite
 
         @pytest.fixture
         def policy_dir():
@@ -92,8 +93,12 @@ def controlled_suite(tmp_path: Path) -> tuple[Path, dict[str, str]]:
 
         @pytest.fixture
         def native_failure(tmp_path, monkeypatch):
-            binary = fake_aseprite(tmp_path,
-                "echo 'native stdout'\\necho 'native stderr' >&2\\nkill -TERM $$\\n")
+            if os.name == "nt":
+                binary = windows_aseprite(tmp_path,
+                    "print('native stdout'); print('native stderr', file=sys.stderr); sys.exit(13)")
+            else:
+                binary = fake_aseprite(tmp_path,
+                    "echo 'native stdout'\\necho 'native stderr' >&2\\nkill -TERM $$\\n")
             monkeypatch.setenv("SPA_TEST_ASEPRITE", str(binary))
             return binary
         """)
@@ -119,9 +124,31 @@ def write_test(directory: Path, name: str, body: str) -> None:
     )
 
 
+def _windows_runner_command(env: dict[str, str]) -> list[str]:
+    """Observe the existing single-shard Python entry without a Linux shell wrapper."""
+    assert os.name == "nt"
+    # Match the run arguments in ACTION's "Run real Aseprite E2E tests" step.
+    # scripts/native_e2e.py owns the CLI; shell composition is tested on Linux.
+    target = Path(env["RUNNER_TEMP"]) / "spa-native-target.json"
+    target.write_text(env["SPA_NATIVE_TARGET_JSON"], encoding="utf-8")
+    return [
+        sys.executable,
+        "scripts/native_e2e.py",
+        "run",
+        "--shard-index",
+        env["SPA_E2E_SHARD_INDEX"],
+        "--target-file",
+        str(target),
+        "--output-dir",
+        str(Path(env["RUNNER_TEMP"]) / "spa-native-e2e"),
+    ]
+
+
 def run_step(directory: Path, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        ["bash", "-e", "-o", "pipefail", "-c", native_test_step()],
+        _windows_runner_command(env)
+        if os.name == "nt"
+        else ["bash", "-e", "-o", "pipefail", "-c", native_test_step()],
         cwd=directory,
         env=env,
         capture_output=True,
@@ -153,6 +180,7 @@ def test_passing_negative_tests_do_not_stop_the_shared_native_step(controlled_su
         directory,
         "test_negative.py",
         """\
+        import os
         import json
         from tests.support import spa
 
@@ -161,7 +189,8 @@ def test_passing_negative_tests_do_not_stop_the_shared_native_step(controlled_su
             failure = json.loads(run.stdout)
             assert run.returncode == 1
             assert failure["code"] == "process_failed"
-            assert "SIGTERM" in failure["message"]
+            description = "exited with status 13" if os.name == "nt" else "SIGTERM"
+            assert description in failure["message"]
 
         def test_after_negative(policy_dir):
             (policy_dir / "after-negative").touch()
@@ -204,7 +233,9 @@ def test_parallel_failure_is_visible_before_inflight_work_finishes(controlled_su
     output_chunks: list[str] = []
     reported_while_running = False
     with subprocess.Popen(
-        ["bash", "-e", "-o", "pipefail", "-c", native_test_step()],
+        _windows_runner_command(env)
+        if os.name == "nt"
+        else ["bash", "-e", "-o", "pipefail", "-c", native_test_step()],
         cwd=directory,
         env=env,
         stdout=subprocess.PIPE,
@@ -252,8 +283,12 @@ def test_parallel_failure_is_visible_before_inflight_work_finishes(controlled_su
         transcript,
         "".join(ET.tostring(case, encoding="unicode") for case in cases),
     ):
-        assert "exit status: -15" in evidence
-        assert "SIGTERM" in evidence
+        if os.name == "nt":
+            assert "exit status: 13" in evidence
+            assert "exit status 13" in evidence
+        else:
+            assert "exit status: -15" in evidence
+            assert "SIGTERM" in evidence
         assert "native stdout" in evidence
         assert "native stderr" in evidence
     assert "JUnit execution:" in transcript

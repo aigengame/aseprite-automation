@@ -47,6 +47,9 @@ that same Python installation. `--spa /absolute/path/to/spa` explicitly selects
 another installed CLI; the adapter uses it for discovery and all calls. It never
 selects a second CLI implicitly through `PATH`.
 
+Send and read MCP text as UTF-8, including parameter errors before startup; see
+the shared [process text policy](usage.md#process-text-encoding).
+
 `--aseprite` sets the CLI's default `SPA_ASEPRITE_EXECUTABLE`. Without the flag,
 the existing environment and CLI discovery rules apply. A tool request may include
 its schema-declared `aseprite` override. Paths use the adapter's working directory;

@@ -10,6 +10,7 @@ from jsonschema import validate
 
 from spa import SPA_BASELINE_ASEPRITE_VESION
 from tests.support import isolated_wheel_cli, spa
+from tests.windows_permissions import symlink_creation_permission
 
 pytestmark = pytest.mark.e2e
 
@@ -327,7 +328,11 @@ def test_symlinked_executable_resolves_to_resource_complete_bundle(
     tmp_path: Path,
 ) -> None:
     link = tmp_path / "aseprite"
-    link.symlink_to(os.environ["SPA_TEST_ASEPRITE"])
+    if os.name == "nt":
+        with symlink_creation_permission():
+            link.symlink_to(os.environ["SPA_TEST_ASEPRITE"])
+    else:
+        link.symlink_to(os.environ["SPA_TEST_ASEPRITE"])
     run = spa("info", "--aseprite", str(link))
     assert run.returncode == 0, run.stdout
     runtime = json.loads(run.stdout)["runtime"]

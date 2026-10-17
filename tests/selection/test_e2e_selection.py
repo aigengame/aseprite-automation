@@ -2,13 +2,25 @@
 
 import json
 import os
+import tempfile
 from pathlib import Path
 
 import pytest
 
 from tests.support import spa
+from tests.windows_permissions import symlink_creation_permission
 
 pytestmark = pytest.mark.e2e
+
+
+@pytest.fixture
+def windows_selection_directory():
+    """Keep tilde inputs under home without changing the native launch environment."""
+    assert os.name == "nt"
+    with tempfile.TemporaryDirectory(
+        prefix="spa-selection-", dir=Path.home()
+    ) as directory:
+        yield Path(directory)
 
 
 def selection(operation: str, **values) -> tuple[int, dict]:
@@ -379,11 +391,15 @@ def test_validate_returns_findings_without_repair(
 
 
 @pytest.mark.parametrize("spelling", ["absolute", "tilde"])
-def test_export_roundtrip_and_preview_use_explicit_canvas(tmp_path, spelling) -> None:
+def test_export_roundtrip_and_preview_use_explicit_canvas(
+    tmp_path, request, spelling
+) -> None:
     import hashlib
 
     from spa.adapters.png import verify_png
 
+    if os.name == "nt" and spelling == "tilde":
+        tmp_path = request.getfixturevalue("windows_selection_directory")
     destination = tmp_path / "mask.json"
     code, exported = selection(
         "export",
@@ -402,6 +418,7 @@ def test_export_roundtrip_and_preview_use_explicit_canvas(tmp_path, spelling) ->
         if spelling == "tilde"
         else str(destination)
     )
+    assert Path(input_path).expanduser().samefile(destination)
     artifact = {"kind": "artifact", "path": input_path}
     code, validated = selection(
         "validate", selection=artifact, canvas=ASYMMETRIC["bounds"]
@@ -501,21 +518,28 @@ def test_preview_refusal_does_not_publish_or_replace_existing_target(tmp_path) -
 @pytest.mark.parametrize("source_kind", ["direct", "symlink"])
 @pytest.mark.parametrize("spelling", ["absolute", "tilde"])
 def test_artifact_input_alias_is_not_replaced(
-    tmp_path, operation, source_kind, spelling
+    tmp_path, request, operation, source_kind, spelling
 ) -> None:
+    if os.name == "nt" and spelling == "tilde":
+        tmp_path = request.getfixturevalue("windows_selection_directory")
     target = tmp_path / ("mask.png" if operation == "preview" else "mask.json")
     target.write_text(json.dumps(ASYMMETRIC, indent=2))
     source = target
     entries = {target}
     if source_kind == "symlink":
         source = tmp_path / "input.json"
-        source.symlink_to(target)
+        if os.name == "nt":
+            with symlink_creation_permission():
+                source.symlink_to(target)
+        else:
+            source.symlink_to(target)
         entries.add(source)
     source_path = (
         str(Path("~") / os.path.relpath(source, Path.home()))
         if spelling == "tilde"
         else str(source)
     )
+    assert Path(source_path).expanduser().samefile(source)
     before = target.read_bytes()
     parameters = {"canvas": ASYMMETRIC["bounds"]} if operation == "preview" else {}
     code, result = selection(

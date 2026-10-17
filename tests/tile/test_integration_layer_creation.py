@@ -1,7 +1,6 @@
 """Explicit Tilemap intent and evidence gate Target publication."""
 
 import json
-import os
 import shlex
 from copy import deepcopy
 from pathlib import Path
@@ -30,7 +29,6 @@ def create_intent() -> dict:
     }
 
 
-@pytest.mark.skipif(os.name == "nt", reason="POSIX executable fixture")
 @pytest.mark.parametrize(
     "defect",
     [
@@ -83,6 +81,7 @@ def test_invalid_intent_is_rejected_before_runtime(tmp_path: Path, defect: str) 
     failure = json.loads(result.stdout)
     assert result.returncode == 2, failure
     assert failure["code"] == "invalid_request"
+    assert failure["diagnostics"]["exit_status"] is None
     assert not marker.exists()
     assert source.read_bytes() == b"source"
     assert target.read_bytes() == b"target"

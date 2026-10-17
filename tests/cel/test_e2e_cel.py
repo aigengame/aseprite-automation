@@ -421,6 +421,7 @@ def test_plan_adds_cel_then_paints_it_in_one_commit(
             json.dumps(request),
         ],
         text=True,
+        encoding="utf-8",
         capture_output=True,
         check=False,
     )

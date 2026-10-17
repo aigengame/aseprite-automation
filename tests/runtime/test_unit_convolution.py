@@ -1,11 +1,13 @@
 """Convolution Resource declarations, independent of native filter execution."""
 
 import json
+import os
 from pathlib import Path
 
 import pytest
 
 from spa.adapters.aseprite.convolution import discover_convolution_resources
+from tests.windows_permissions import directory_junction, symlink_creation_permission
 
 
 def _write(path: Path, text: str) -> Path:
@@ -189,8 +191,15 @@ def test_mac_prepared_launch_symlink_uses_adjacent_data_and_stable_source(
     source = _write(installed_data / "convmatr.def", _stock("installed"))
     launch = tmp_path / "work/aseprite"
     launch.parent.mkdir()
-    launch.symlink_to(canonical)
-    (launch.parent / "data").symlink_to(installed_data, target_is_directory=True)
+    if os.name == "nt":
+        with symlink_creation_permission():
+            launch.symlink_to(canonical)
+            (launch.parent / "data").symlink_to(
+                installed_data, target_is_directory=True
+            )
+    else:
+        launch.symlink_to(canonical)
+        (launch.parent / "data").symlink_to(installed_data, target_is_directory=True)
     _write(canonical.parent / "data/convmatr.usr", _stock("canonical-only"))
     _write(
         tmp_path / "home/Library/Application Support/Aseprite/data/convmatr.usr",
@@ -286,7 +295,12 @@ def test_alias_search_paths_retain_native_duplicate_loads(tmp_path: Path) -> Non
     source = _write(executable.parent / "data/convmatr.def", _stock("alias"))
     config = tmp_path / "config"
     (config / "aseprite").mkdir(parents=True)
-    (config / "aseprite/data").symlink_to(source.parent, target_is_directory=True)
+    alias = config / "aseprite/data"
+    if os.name == "nt":
+        directory_junction(alias, source.parent)
+        assert alias.is_junction() and alias.samefile(source.parent)
+    else:
+        alias.symlink_to(source.parent, target_is_directory=True)
     result = discover_convolution_resources(
         executable, {"XDG_CONFIG_HOME": str(config)}, platform="linux"
     )
