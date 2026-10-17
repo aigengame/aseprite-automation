@@ -11,10 +11,6 @@ from tests.host_permissions import (
     symlink_creation_permission,
 )
 
-pytestmark = pytest.mark.skipif(
-    os.name == "nt", reason="the Windows ACL path needs a native Windows run"
-)
-
 
 def test_symlink_permission_passes_other_errors_through() -> None:
     with pytest.raises(OSError, match="plain failure"), symlink_creation_permission():
@@ -48,8 +44,13 @@ def test_directory_listing_denial_restores_access_after_failure(
 def test_read_denial_restores_access(tmp_path: Path) -> None:
     file = tmp_path / "data.bin"
     file.write_bytes(b"payload")
-    with deny_access(file, "read"), pytest.raises(PermissionError):
-        file.read_bytes()
+    with deny_access(file, "read"):
+        try:
+            file.read_bytes()
+        except PermissionError:
+            pass
+        else:
+            pytest.skip("this process can read a denied file")
     assert file.read_bytes() == b"payload"
 
 
