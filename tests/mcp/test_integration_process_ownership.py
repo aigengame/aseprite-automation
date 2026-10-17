@@ -18,7 +18,7 @@ from spa.access.mcp.process import StartError, run
 SLEEPING_CLI = [
     sys._base_executable if sys.platform == "win32" else sys.executable,
     "-c",
-    "import time; time.sleep(60)",
+    "import time; time.sleep(30)",
 ]
 
 
@@ -53,6 +53,17 @@ class FailingOwnership:
         self._step("release")
 
 
+def assert_stopped(owner: FailingOwnership) -> None:
+    """The module waited for the CLI, and the CLI did not run to completion."""
+    assert owner.process is not None
+    # A killed CLI has a nonzero status; the sleeping CLI exits with 0.
+    assert owner.process.returncode not in (None, 0)
+
+
+async def run_owned(owner: FailingOwnership):
+    return await run(SLEEPING_CLI, os.environ.copy(), b"", ownership=lambda: owner)
+
+
 async def cancel_after_start(owner: FailingOwnership) -> bool:
     """Cancel the invocation after it starts; return whether run saw cancellation."""
     cancelled = False
@@ -60,7 +71,7 @@ async def cancel_after_start(owner: FailingOwnership) -> bool:
     async def invoke():
         nonlocal cancelled
         try:
-            await run(SLEEPING_CLI, os.environ.copy(), b"", ownership=lambda: owner)
+            await run_owned(owner)
         except anyio.get_cancelled_exc_class():
             cancelled = True
             raise
@@ -77,8 +88,7 @@ def test_cancellation_waits_for_cli_when_terminate_fails():
     async def exercise():
         owner = FailingOwnership("terminate")
         assert await cancel_after_start(owner)
-        assert owner.process is not None
-        assert owner.process.returncode is not None
+        assert_stopped(owner)
 
     anyio.run(exercise)
 
@@ -87,10 +97,9 @@ def test_start_failure_kills_started_cli_when_terminate_fails():
     async def exercise():
         owner = FailingOwnership("acquire", "terminate")
         with pytest.raises(StartError) as raised:
-            await run(SLEEPING_CLI, os.environ.copy(), b"", ownership=lambda: owner)
+            await run_owned(owner)
         assert str(raised.value.error) == "acquire failed"
-        assert owner.process is not None
-        assert owner.process.returncode is not None
+        assert_stopped(owner)
 
     anyio.run(exercise)
 
@@ -99,10 +108,9 @@ def test_start_failure_keeps_original_error_when_release_fails():
     async def exercise():
         owner = FailingOwnership("acquire", "release")
         with pytest.raises(StartError) as raised:
-            await run(SLEEPING_CLI, os.environ.copy(), b"", ownership=lambda: owner)
+            await run_owned(owner)
         assert str(raised.value.error) == "acquire failed"
-        assert owner.process is not None
-        assert owner.process.returncode is not None
+        assert_stopped(owner)
 
     anyio.run(exercise)
 
@@ -111,7 +119,6 @@ def test_cancellation_survives_release_failure():
     async def exercise():
         owner = FailingOwnership("release")
         assert await cancel_after_start(owner)
-        assert owner.process is not None
-        assert owner.process.returncode is not None
+        assert_stopped(owner)
 
     anyio.run(exercise)
