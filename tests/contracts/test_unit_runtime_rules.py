@@ -5,6 +5,7 @@ discovery row, and the `runtime_incompatible` rows use a probe that reports no
 capabilities.
 """
 
+import os
 from pathlib import Path
 
 import pytest
@@ -40,6 +41,13 @@ def _script(directory: Path, mode: int) -> str:
     return str(executable)
 
 
+def _not_executable(directory: Path) -> str:
+    executable = _script(directory, 0o644)
+    if os.access(executable, os.X_OK):
+        pytest.skip("the host reports a file without an execute bit as executable")
+    return executable
+
+
 def _requested_path(expected: str):
     def check(_command: str, outcome: Outcome) -> None:
         details = outcome.envelope["details"]
@@ -70,7 +78,7 @@ RULES = (
         runtime_command,
         (1, ENVIRONMENT, "executable_not_found"),
         lambda command, directory: _discovered(
-            command, directory, _script(directory, 0o644)
+            command, directory, _not_executable(directory)
         ),
     ),
     Rule(
