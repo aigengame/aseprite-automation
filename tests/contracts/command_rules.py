@@ -3,8 +3,11 @@
 A rule table states one rule that every command in a set obeys. Each row runs one
 command through the CLI projection in process, with `run_cli` and the real file
 adapters. Each Kernel port raises `PortReached`, so no Aseprite process starts and a
-row that reaches the Kernel fails. The expected exit status, category and code of a
-rule are literal values. They do not come from the Operation Descriptor.
+row that reaches the Kernel fails. The one exception is the `discovering` probe: it
+uses the installed `invoke_kernel_direct`, because `plan run` discovers the runtime
+in it. Its rows give an Aseprite path that discovery refuses before a process
+starts. The expected exit status, category and code of a rule are literal values.
+They do not come from the Operation Descriptor.
 
 The rows of a table come from a predicate over `OPERATIONS`, so a new command gets a
 row in each table that applies to it. A command that does not obey the rule needs an
@@ -440,6 +443,8 @@ def check_row(rule: Rule, command: str, directory: Path) -> None:
     assert outcome.result == rule.expected, outcome.envelope
     assert outcome.envelope["operation"] == f"spa {command}"
     validate_failure(command, outcome.envelope)
+    # No row starts an Aseprite process, so no row has an exit status.
+    assert outcome.envelope["diagnostics"]["exit_status"] is None, outcome.envelope
     if rule.check is not None:
         rule.check(command, outcome)
 

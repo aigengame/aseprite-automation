@@ -112,11 +112,17 @@ def test_runtime_rule(rule: Rule, command: str, tmp_path: Path) -> None:
 def test_rule_sets_are_literal_predicates_minus_true_exemptions(
     tmp_path: Path,
 ) -> None:
+    runtime = set(DESCRIPTORS) - {"version", "plan check"}
     assert {
-        name
-        for name, descriptor in DESCRIPTORS.items()
-        if not runtime_command(descriptor)
-    } == {"version", "plan check"}
+        name for name, descriptor in DESCRIPTORS.items() if runtime_command(descriptor)
+    } == runtime
+    # A changed predicate or a false exemption removes rows, and fails here.
+    assert {rule.name: set(rule.commands()) for rule in RULES} == {
+        "executable_missing": runtime,
+        "executable_not_executable": runtime,
+        "resources_absent": runtime,
+        "runtime_incompatible": runtime - {"plan run"},
+    }
     # With an incapable probe, `plan run` gets to its direct Kernel invocation.
     with pytest.raises(PortReached, match="invoke_kernel_direct"):
         run_request(
