@@ -3,9 +3,10 @@
 import json
 from dataclasses import replace
 from functools import partial
+from importlib import import_module
 from inspect import getsource
 from types import MappingProxyType
-from typing import Literal
+from typing import Literal, get_args
 
 import pytest
 from jsonschema import Draft202012Validator
@@ -79,6 +80,7 @@ from spa.contracts.ports import (
     ResponseEvidence,
     RuntimeCompatibilityEvidence,
     RuntimeIssue,
+    RuntimeIssueKind,
     TargetCommitEvidence,
     UnpublishedArtifactDestination,
 )
@@ -127,6 +129,26 @@ RUNTIME_ISSUE_CASES = (
     ("postcondition_failed", "kernel_response_invalid"),
     ("runtime_incompatible", "runtime_incompatible"),
 )
+# Only an Operation that owns the failure reports these kinds, so `info` cannot
+# classify them. Each kind names the module and test that classify it.
+OWNED_RUNTIME_ISSUE_CASES = {
+    "target_commit_failed": (
+        __name__,
+        "test_target_commit_failure_is_owned_by_mutating_sprite_operation",
+    ),
+    "artifact_file_failed": (
+        __name__,
+        "test_export_failures_are_owned_by_export_image",
+    ),
+    "artifact_verification_failed": (
+        __name__,
+        "test_export_failures_are_owned_by_export_image",
+    ),
+    "partial_publication": (
+        "tests.export.test_integration_tileset_export",
+        "test_partial_publication_projects_registered_failure_details",
+    ),
+}
 
 
 def test_all_installed_failure_codes_are_registered_once() -> None:
@@ -773,6 +795,14 @@ def _evidence_for(kind: str):
             missing_capabilities=("aseprite_runtime_introspection",),
         )
     raise AssertionError(kind)
+
+
+def test_every_runtime_issue_kind_has_a_classification_case() -> None:
+    kinds = [kind for kind, _ in RUNTIME_ISSUE_CASES] + list(OWNED_RUNTIME_ISSUE_CASES)
+    assert len(kinds) == len(set(kinds))
+    assert set(kinds) == set(get_args(RuntimeIssueKind))
+    for module, test in OWNED_RUNTIME_ISSUE_CASES.values():
+        assert callable(getattr(import_module(module), test, None)), (module, test)
 
 
 @pytest.mark.parametrize(("kind", "expected_code"), RUNTIME_ISSUE_CASES)

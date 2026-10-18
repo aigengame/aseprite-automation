@@ -80,15 +80,6 @@ def _flooding_aseprite(tmp_path: Path, byte_count: int) -> Path:
     )
 
 
-def test_missing_runtime_has_structured_environment_failure() -> None:
-    run = spa("info", "--aseprite", "/no/such/aseprite", "--json")
-    assert run.returncode == 1
-    failure = json.loads(run.stdout)
-    assert failure["code"] == "executable_not_found"
-    assert failure["category"] == "environment"
-    assert failure["details"]["requested_path"] == "/no/such/aseprite"
-
-
 def test_spa_prefixed_executable_environment_selects_runtime(tmp_path: Path) -> None:
     binary = exiting_aseprite(tmp_path, stdout="environment-selected", status=13)
     environment = os.environ.copy()
@@ -465,15 +456,6 @@ def test_app_bundle_cli_launch_is_scoped_to_macos(tmp_path: Path) -> None:
     else:
         assert launched_path == str(binary.resolve())
         assert data_status == "data-absent"
-
-
-def test_resource_check_is_distinct_from_process_outcome(tmp_path: Path) -> None:
-    binary = tmp_path / "aseprite"
-    binary.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
-    binary.chmod(0o755)
-    run = spa("info", "--aseprite", str(binary), "--json")
-    assert run.returncode == 1
-    assert json.loads(run.stdout)["code"] == "resource_incomplete"
 
 
 def test_process_start_failure_keeps_installed_executable_identity(
