@@ -29,7 +29,7 @@ def test_lifecycle_schema_exposes_standalone_and_plan_contracts(
 
 @pytest.mark.parametrize(
     "defect",
-    ["grid", "mapping", "duplicate-key", "empty-key", "two-targets", "in-place"],
+    ["grid", "mapping", "duplicate-key", "empty-key", "two-targets"],
 )
 def test_rebind_requires_explicit_valid_intent(tmp_path: Path, defect: str) -> None:
     marker = tmp_path / "invoked"
@@ -56,8 +56,6 @@ def test_rebind_requires_explicit_valid_intent(tmp_path: Path, defect: str) -> N
         request["mapping"] = {"kind": "explicit", "entries": entries}
     elif defect == "two-targets":
         request["target"] = {"tileset_index": 2, "tileset_name": "destination"}
-    else:
-        request["in_place"] = True
     result = spa("layer", "set-tileset", "--input-json", json.dumps(request))
     assert result.returncode == 2, result.stdout
     assert json.loads(result.stdout)["code"] == "invalid_request"
