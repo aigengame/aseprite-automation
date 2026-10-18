@@ -286,7 +286,7 @@ jobs:
           skip-existing: true
 
       - name: Require the complete matching PyPI release
-        run: python3 -I scripts/release_distributions.py dist --pypi-tag "$SPA_RELEASE_TAG"
+        run: python3 -I scripts/release_distributions.py dist --pypi-tag "$SPA_RELEASE_TAG" --wait-for-visibility
 
   publish:
     name: Publish GitHub Release

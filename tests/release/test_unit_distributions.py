@@ -191,21 +191,37 @@ def pypi_response(dist: Path, names: list[str]) -> bytes:
     ).encode()
 
 
+def pypi_queries(monkeypatch, responses: list[bytes | Exception]) -> list[str | int]:
+    pending = iter(responses)
+    events = []
+
+    def query(url, *, timeout):
+        assert url == "https://pypi.org/pypi/aseprite-automation/1.2.3/json"
+        assert timeout == 20
+        events.append("query")
+        response = next(pending)
+        if isinstance(response, Exception):
+            raise response
+        return io.BytesIO(response)
+
+    monkeypatch.setattr("urllib.request.urlopen", query)
+    monkeypatch.setattr("time.sleep", lambda seconds: events.append(seconds))
+    return events
+
+
 def test_matching_partial_upload_can_resume_but_is_not_complete(
     distributions, monkeypatch
 ) -> None:
     _, dist = distributions
     existing = next(dist.glob("*.whl")).name
-    monkeypatch.setattr(
-        "urllib.request.urlopen",
-        lambda *a, **kw: io.BytesIO(pypi_response(dist, [existing])),
-    )
+    events = pypi_queries(monkeypatch, [pypi_response(dist, [existing])] * 2)
 
     assert verify_pypi(dist, "1.2.3", allow_missing=True) == [
         "aseprite_automation-1.2.3.tar.gz"
     ]
     with pytest.raises(ValueError, match="missing"):
         verify_pypi(dist, "1.2.3")
+    assert events == ["query", "query"]
 
 
 @pytest.mark.parametrize("conflict", ["digest", "size", "version"])
@@ -229,11 +245,157 @@ def test_existing_conflicting_files_cannot_be_skipped(
         verify_pypi(dist, "1.2.3", allow_missing=True)
 
 
-def test_complete_matching_upload_can_be_reused(distributions, monkeypatch) -> None:
+@pytest.mark.parametrize("wait", [False, True])
+def test_complete_matching_upload_can_be_reused(
+    distributions, monkeypatch, wait
+) -> None:
     _, dist = distributions
     response = pypi_response(dist, [path.name for path in dist.iterdir()])
-    monkeypatch.setattr("urllib.request.urlopen", lambda *a, **kw: io.BytesIO(response))
-    assert verify_pypi(dist, "1.2.3") == []
+    events = pypi_queries(monkeypatch, [response])
+    assert verify_pypi(dist, "1.2.3", wait_for_visibility=wait) == []
+    assert events == ["query"]
+
+
+def test_post_upload_waits_for_missing_files_to_become_visible(
+    distributions, monkeypatch
+) -> None:
+    _, dist = distributions
+    wheel = next(dist.glob("*.whl")).name
+    events = pypi_queries(
+        monkeypatch,
+        [
+            urllib.error.HTTPError("https://pypi.org", 404, "not found", {}, None),
+            pypi_response(dist, [wheel]),
+            pypi_response(dist, [path.name for path in dist.iterdir()]),
+        ],
+    )
+
+    assert verify_pypi(dist, "1.2.3", wait_for_visibility=True) == []
+    assert events == ["query", 10, "query", 10, "query"]
+
+
+@pytest.mark.parametrize("invalid_urls", [{}, ""])
+def test_invalid_file_list_does_not_enter_the_visibility_wait(
+    distributions, monkeypatch, invalid_urls
+) -> None:
+    _, dist = distributions
+    response = json.loads(pypi_response(dist, []))
+    response["urls"] = invalid_urls
+    events = pypi_queries(monkeypatch, [json.dumps(response).encode()])
+
+    with pytest.raises(TypeError, match="invalid PyPI release files"):
+        verify_pypi(dist, "1.2.3", wait_for_visibility=True)
+    assert events == ["query"]
+
+
+@pytest.mark.parametrize("complete", [False, True])
+def test_visibility_wait_stops_after_seven_queries(
+    distributions, monkeypatch, complete
+):
+    _, dist = distributions
+    wheel = next(dist.glob("*.whl")).name
+    partial = pypi_response(dist, [wheel])
+    events = pypi_queries(
+        monkeypatch,
+        [urllib.error.HTTPError("https://pypi.org", 404, "not found", {}, None)]
+        + [partial] * 5
+        + [
+            pypi_response(dist, [path.name for path in dist.iterdir()])
+            if complete
+            else partial
+        ],
+    )
+
+    if complete:
+        assert verify_pypi(dist, "1.2.3", wait_for_visibility=True) == []
+    else:
+        with pytest.raises(ValueError) as failure:
+            verify_pypi(dist, "1.2.3", wait_for_visibility=True)
+        assert str(failure.value) == (
+            "PyPI release is missing files: ['aseprite_automation-1.2.3.tar.gz']"
+        )
+    assert events == ["query"] + [10, "query"] * 6
+
+
+@pytest.mark.parametrize("absent", ["404", "empty"])
+def test_visibility_wait_exhaustion_reports_both_missing_files(
+    distributions, monkeypatch, absent
+):
+    _, dist = distributions
+    response = (
+        urllib.error.HTTPError("https://pypi.org", 404, "not found", {}, None)
+        if absent == "404"
+        else pypi_response(dist, [])
+    )
+    events = pypi_queries(monkeypatch, [response] * 7)
+
+    with pytest.raises(ValueError) as failure:
+        verify_pypi(dist, "1.2.3", wait_for_visibility=True)
+    assert str(failure.value) == (
+        "PyPI release is missing files: ['aseprite_automation-1.2.3-py3-none-any.whl', "
+        "'aseprite_automation-1.2.3.tar.gz']"
+    )
+    assert events == ["query"] + [10, "query"] * 6
+
+
+@pytest.mark.parametrize("after_missing", [False, True])
+@pytest.mark.parametrize(
+    "conflict", ["digest", "size", "name", "version", "extra", "duplicate"]
+)
+def test_conflicts_stop_the_visibility_wait_even_when_another_file_is_missing(
+    distributions, monkeypatch, conflict, after_missing
+):
+    _, dist = distributions
+    wheel = next(dist.glob("*.whl")).name
+    response = json.loads(pypi_response(dist, [wheel]))
+    if conflict == "digest":
+        response["urls"][0]["digests"]["sha256"] = "0" * 64
+    elif conflict == "size":
+        response["urls"][0]["size"] += 1
+    elif conflict in {"name", "version"}:
+        response["info"][conflict] = "wrong identity"
+    elif conflict == "extra":
+        response["urls"][0]["filename"] = "unexpected.whl"
+    else:
+        response["urls"].append(response["urls"][0])
+    prefix = [pypi_response(dist, [])] if after_missing else []
+    events = pypi_queries(monkeypatch, prefix + [json.dumps(response).encode()])
+
+    with pytest.raises(ValueError, match="conflict"):
+        verify_pypi(dist, "1.2.3", wait_for_visibility=True)
+    assert events == (["query", 10, "query"] if after_missing else ["query"])
+
+
+@pytest.mark.parametrize("after_missing", [False, True])
+@pytest.mark.parametrize(
+    ("response", "error"),
+    [
+        (b"not JSON", json.JSONDecodeError),
+        (b"{}", KeyError),
+        (b'{"info":{"name":"aseprite-automation","version":"1.2.3"}}', KeyError),
+        (urllib.error.URLError("connection failed"), urllib.error.URLError),
+        (TimeoutError("request timed out"), TimeoutError),
+        *[
+            (
+                urllib.error.HTTPError(
+                    "https://pypi.org", status, "unavailable", {}, None
+                ),
+                urllib.error.HTTPError,
+            )
+            for status in (403, 429, 503)
+        ],
+    ],
+)
+def test_lookup_errors_are_not_retried(
+    distributions, monkeypatch, response, error, after_missing
+):
+    _, dist = distributions
+    prefix = [pypi_response(dist, [])] if after_missing else []
+    events = pypi_queries(monkeypatch, prefix + [response])
+
+    with pytest.raises(error):
+        verify_pypi(dist, "1.2.3", wait_for_visibility=True)
+    assert events == (["query", 10, "query"] if after_missing else ["query"])
 
 
 @pytest.mark.parametrize("status", [403, 404, 503])

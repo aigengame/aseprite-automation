@@ -4,12 +4,12 @@ SPA uses a reviewed Release PR and an exact-commit automatic release workflow.
 It publishes one verified Python wheel and source distribution to PyPI, then attaches
 the same files to the GitHub Release. Aseprite is supplied separately.
 
-The first PyPI upload starts with a new reviewed Release after this implementation
-and its MIT declaration reach `main`. Release-please selects the version. Historical
-versions are not backfilled; the withdrawn `v0.3.0` version is not reused for newer
-code. Until that first upload passes, local package checks demonstrate readiness,
-not a completed PyPI release. [Issue #189](https://github.com/aigengame/aseprite-automation/issues/189)
-tracks the initial setup and production installation evidence.
+SPA is published on [PyPI](https://pypi.org/project/aseprite-automation/) and
+[GitHub Releases](https://github.com/aigengame/aseprite-automation/releases).
+Release-please selects new versions through reviewed Release PRs. Historical versions
+are not backfilled; the withdrawn `v0.3.0` version is not reused for newer code.
+[Issue #189](https://github.com/aigengame/aseprite-automation/issues/189) records the
+original setup and first-publication acceptance requirements.
 
 ## Release authorities
 
@@ -91,7 +91,7 @@ cover the macOS bundle or restricted-agent launch path. Neither environment curr
 claims windowed Aseprite coverage. See [the test suite guide](testing.md) for the exact
 commands and skip policy.
 
-## Configure the first PyPI publisher
+## PyPI publisher setup and history
 
 ### Withdrawn pre-PyPI release
 
@@ -113,14 +113,14 @@ Its
 used the original commit as its comparison boundary without a version override.
 At reconciliation, the latest published GitHub release was still `v0.2.0`.
 Do not move the withdrawn tag to newer code, restore #111's pending label, or resume
-its historical workflow, which uses the retired binary-cache path. The next reviewed
-Release follows the current verification and publication workflow.
+its historical workflow, which uses the retired binary-cache path. Subsequent
+Releases follow the current verification and publication workflow.
 
-### Configure account access
+### One-time account setup
 
-Use the PyPI account that maintains `gda`. Before the first upload, add a
+Initial setup used the PyPI account that maintains `gda` and a
 [pending Trusted Publisher](https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/)
-with these exact fields:
+with these fields. The project now exists; routine releases reuse its publisher.
 
 | Field | Value |
 | --- | --- |
@@ -132,20 +132,18 @@ with these exact fields:
 
 Keep the GitHub `pypi` Environment restricted to the `main` branch. It has no
 additional reviewer gate: merging the reviewed Release PR is the publication
-approval. A pending publisher does not reserve the project name. Verify the
-non-secret binding in the owner's PyPI account before the first upload; do not
-record passwords or tokens. A successful first upload creates the project and
-converts the pending publisher into its publisher. Inspect the project and files
-afterward, as required by #189.
+approval. The first successful upload created the project and converted the pending
+publisher into its project publisher. Routine releases do not need a new pending
+publisher. Do not record passwords or tokens.
 
 ### Inspect the public files
 
-Before that first release, inspect the wheel/sdist inventory and public metadata,
-including the MIT license and `Copyright (c) 2026 aigengame`. After publication,
+The release workflow checks the wheel/sdist inventory and public metadata,
+including the MIT license and `Copyright (c) 2026 aigengame`. To check a PyPI installation,
 install the exact published version in a clean environment outside the checkout,
 run the installed-CLI tracer with a separately supplied Aseprite, and verify the
-`mcp` extra. Record the SHA, file digests, index version, tested host/runtime and
-results in #189. [Issue #54 evidence](evidence/issue-54-installed-distributions.md)
+`mcp` extra. Issue #189 defines the original one-time installation acceptance.
+[Issue #54 evidence](evidence/issue-54-installed-distributions.md)
 provides the shared installed-wheel checks; it does not substitute for a real
 PyPI installation or the release SHA's Linux verification.
 
@@ -163,8 +161,8 @@ check did not establish infringement; the owner accepted retaining historical
 copies without making history rewriting or artifact deletion a public-readiness
 requirement. Current source and new packages use the CC0 reference. Reassess that
 disposition if concrete contrary licensing evidence or a rights-holder request
-appears. #189's first-publish inspection must use newly built distributions containing
-the replacement; old artifacts cannot be relabeled as the corrected output.
+appears. Release distributions must use the corrected source containing the
+replacement; old artifacts cannot be relabeled as the corrected output.
 
 ## Prepare and publish a release
 
@@ -266,9 +264,24 @@ validation, package checks, or installed CLI verification.
   are already public. Use **Re-run failed jobs** to resume GitHub publication;
   `gh release upload --clobber` reuses the same two artifacts. This is recovery,
   not rollback of the PyPI upload.
-- A PyPI lookup failure, or an upload not yet visible through its JSON API, fails
-  the publication tail. Retry failed jobs after the service recovers. The verifier
-  requires the complete matching pair before GitHub publication.
+- After upload, the verifier queries PyPI immediately. If the release returns
+  HTTP 404 or valid metadata still lacks expected files, it retries at most six
+  times, ten seconds apart. Each query checks identity, filenames, size and
+  SHA-256 before deciding to wait. Success stops the wait; conflicts, invalid
+  responses, other HTTP errors and network errors fail immediately. The upload
+  and its single pre-upload check are outside this loop.
+  The limit is seven queries and sixty seconds of deliberate waiting; request
+  time is additional. The existing request and publication job timeouts still
+  apply. If files remain missing, the error lists them and the publication tail
+  fails. Use **Re-run failed jobs** after the files become visible or the cause
+  is corrected. GitHub publication still requires the complete matching pair.
+  Upload success alone does not establish immediate JSON API visibility:
+  [v0.5.0](https://github.com/aigengame/aseprite-automation/actions/runs/38679388891/attempts/1)
+  and [v0.5.1](https://github.com/aigengame/aseprite-automation/actions/runs/39026290653/attempts/1)
+  both received HTTP 200 for both uploads, then reported missing files in the
+  immediate query. Later checks matched the preserved artifacts, and failed-job
+  recovery succeeded. Neither failure was a timeout; the service's cache or
+  propagation mechanism was not established.
 - Distribution artifacts are retained for 30 days. Recover within that window.
   If the original files are no longer available, stop and resolve the release with
   the owner; do not rebuild and assume that new bytes belong to an existing version.
