@@ -377,6 +377,7 @@ def test_rule_sets_are_literal_predicates_minus_true_exemptions(
     # predicate or a false exemption removes rows, and fails here.
     edit -= set(NOT_EDIT)
     export -= set(EXPORT_EXEMPT)
+    assert set(EDIT_COMMANDS) == edit
     assert {rule.name: set(rule.commands()) for rule in RULES} == {
         "source_aliases_target": edit,
         "distinct_target_in_place": edit,
