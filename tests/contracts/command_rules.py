@@ -375,6 +375,8 @@ def check_row(rule: Rule, command: str, directory: Path) -> None:
     assert outcome.result == rule.expected, outcome.envelope
     assert outcome.envelope["operation"] == f"spa {command}"
     validate_failure(command, outcome.envelope)
+    # No row starts an Aseprite process, so no row has an exit status.
+    assert outcome.envelope["diagnostics"]["exit_status"] is None, outcome.envelope
     if rule.check is not None:
         rule.check(command, outcome)
 

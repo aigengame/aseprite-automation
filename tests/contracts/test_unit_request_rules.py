@@ -152,14 +152,23 @@ def test_request_rule(rule: Rule, command: str, tmp_path: Path) -> None:
 
 def test_rule_sets_are_literal_predicates_minus_true_exemptions() -> None:
     # A new command outside a set fails here, so its author must decide.
+    every = set(DESCRIPTORS)
+    runtime = every - {"version", "plan check"}
     assert {
-        name
-        for name, descriptor in DESCRIPTORS.items()
-        if not runtime_command(descriptor)
-    } == {"version", "plan check"}
+        name for name, descriptor in DESCRIPTORS.items() if runtime_command(descriptor)
+    } == runtime
     assert {name for name in DESCRIPTORS if source_location(name) is None} == set(
         NO_SOURCE
     )
+    # A changed predicate or a false exemption removes rows, and fails here.
+    assert {rule.name: set(rule.commands()) for rule in RULES} == {
+        "malformed_json": every,
+        "non_object_json": every,
+        "unknown_field": every,
+        "timeout_zero": runtime,
+        "timeout_above_limit": runtime,
+        "missing_source": every - set(NO_SOURCE),
+    }
     for rule in RULES:
         check_exemptions(rule)
 
