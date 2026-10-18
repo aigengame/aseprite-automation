@@ -12,7 +12,12 @@ from spa.adapters.artifact_set import LocalArtifactSets
 from spa.adapters.files import LocalArtifactFiles, LocalTargetFiles
 from spa.adapters.gif import decode_gif
 from spa.adapters.sequence_png import decode_sequence_png
-from spa.contracts.ports import KernelInvocationResult, OperationServices, RuntimeIssue
+from spa.contracts.ports import (
+    DiscoveryEvidence,
+    KernelInvocationResult,
+    OperationServices,
+    RuntimeIssue,
+)
 from spa.contracts.public import Diagnostics
 from spa.delivery.animation import (
     ExportGifRequest,
@@ -35,6 +40,7 @@ class _Export:
         self.phases = []
         self.staging_root = None
         self.staged_damage = None
+        self.probe_failure = None
         self.png_decoder = decode_sequence_png
         self.gif_decoder = decode_gif
         self.resolution = {
@@ -195,14 +201,19 @@ class _Export:
             facts, "/response.json", Diagnostics(exit_status=0)
         )
 
+    def probe(self, _request):
+        if self.probe_failure is not None:
+            raise self.probe_failure
+        return runtime_observation(
+            "aseprite_export_sequence",
+            "aseprite_export_gif",
+            "aseprite_convert_color_profile",
+        )
+
     def execute(self):
         files = LocalArtifactFiles()
         services = OperationServices(
-            probe_runtime=lambda _request: runtime_observation(
-                "aseprite_export_sequence",
-                "aseprite_export_gif",
-                "aseprite_convert_color_profile",
-            ),
+            probe_runtime=self.probe,
             invoke_kernel=self.invoke,
             target_files=LocalTargetFiles(),
             artifact_files=files,
@@ -437,4 +448,24 @@ def test_unknown_icc_identity_cannot_become_an_admitted_animation_profile(
     with pytest.raises(RuntimeIssue):
         case.execute()
 
+    case.unchanged()
+
+
+def test_gif_discards_its_staged_destination_when_the_probe_fails(
+    tmp_path: Path,
+) -> None:
+    # export gif stages its destination before the probe.
+    case = _Export(tmp_path, "gif")
+    case.probe_failure = RuntimeIssue(
+        "discovery_absent",
+        "Aseprite was not found",
+        DiscoveryEvidence(requested_path=None, searched=[]),
+    )
+
+    with pytest.raises(RuntimeIssue) as failure:
+        case.execute()
+
+    assert failure.value is case.probe_failure
+    assert case.phases == []
+    assert [path.name for path in case.directory.iterdir()] == ["animation.gif"]
     case.unchanged()

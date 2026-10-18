@@ -390,41 +390,42 @@ def export_gif(
         services.decode_gif,
     )
     assert files is not None and sets is not None and decode is not None
-    runtime = services.probe_runtime(request)
-    payload = request.model_dump(exclude_none=True) | {
-        "format": "gif",
-        "phase": "resolve",
-        "operation_limits": ANIMATION_LIMITS,
-    }
-    resolution = _facts(
-        AnimationResolution,
-        services.invoke_kernel(
-            runtime, ANIMATION_HANDLER, payload, request.timeout_seconds
-        ),
-    )
-    _validate_resolution(request, resolution)
-    if (
-        resolution.color_profile == "icc"
-        and "aseprite_convert_color_profile" not in runtime.verified_capabilities
-    ):
-        raise RuntimeIssue(
-            "runtime_incompatible",
-            "GIF ICC input requires native Color Profile conversion to sRGB",
-            RuntimeCompatibilityEvidence(
-                aseprite_version=runtime.aseprite_version,
-                lua_version=runtime.lua_version,
-                api_version=runtime.api_version,
-                required_lua_language="Lua 5.4",
-                minimum_api_version=41,
-                missing_capabilities=("aseprite_convert_color_profile",),
-            ),
-        )
+    # The destination checks come before the first Kernel invocation.
     destination = files.normalize_destination(request.destination.path)
     destinations = (
         ArtifactDestination("animation", destination, request.destination.if_exists),
     )
     staged = sets.prepare(Path(request.source_sprite_file), destinations)
     try:
+        runtime = services.probe_runtime(request)
+        payload = request.model_dump(exclude_none=True) | {
+            "format": "gif",
+            "phase": "resolve",
+            "operation_limits": ANIMATION_LIMITS,
+        }
+        resolution = _facts(
+            AnimationResolution,
+            services.invoke_kernel(
+                runtime, ANIMATION_HANDLER, payload, request.timeout_seconds
+            ),
+        )
+        _validate_resolution(request, resolution)
+        if (
+            resolution.color_profile == "icc"
+            and "aseprite_convert_color_profile" not in runtime.verified_capabilities
+        ):
+            raise RuntimeIssue(
+                "runtime_incompatible",
+                "GIF ICC input requires native Color Profile conversion to sRGB",
+                RuntimeCompatibilityEvidence(
+                    aseprite_version=runtime.aseprite_version,
+                    lua_version=runtime.lua_version,
+                    api_version=runtime.api_version,
+                    required_lua_language="Lua 5.4",
+                    minimum_api_version=41,
+                    missing_capabilities=("aseprite_convert_color_profile",),
+                ),
+            )
         payload.update(
             phase="encode",
             output_directory=str(staged.output_directory),

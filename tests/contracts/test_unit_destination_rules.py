@@ -53,9 +53,6 @@ NO_SPRITE_SOURCE = {
     "selection export": "has no Source Sprite",
     "selection preview": "has no Source Sprite",
 }
-GIF_PREFLIGHT = {
-    "export gif": "checks its destination after the native resolve phase (#279 part D)",
-}
 
 
 # Edit rules ----------------------------------------------------------------------
@@ -294,7 +291,6 @@ EXPORT_RULES = (
         _export(_existing_destination),
         _reason("destination_exists"),
         exempt=EXPORT_EXEMPT,
-        xfail=GIF_PREFLIGHT,
     ),
     Rule(
         "destination_parent_missing",
@@ -303,7 +299,6 @@ EXPORT_RULES = (
         _export(_missing_parent),
         _reason("destination_parent_missing"),
         exempt=EXPORT_EXEMPT,
-        xfail=GIF_PREFLIGHT,
     ),
     Rule(
         "source_symlink_aliases_destination",
@@ -312,7 +307,6 @@ EXPORT_RULES = (
         _source_symlink_to_destination,
         _reason("source_destination_alias"),
         exempt={**EXPORT_EXEMPT, **NO_SPRITE_SOURCE},
-        xfail=GIF_PREFLIGHT,
     ),
 )
 
