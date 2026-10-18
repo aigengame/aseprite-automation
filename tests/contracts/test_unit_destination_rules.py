@@ -81,8 +81,9 @@ def _edit(change: Callable[[dict[str, Any], Path], None], probe: str = "capable"
 
 
 def _alias_target(root: dict[str, Any], _directory: Path) -> None:
-    root.update(target_sprite_file=root["source_sprite_file"], in_place=False)
-    root.update(overwrite=True)
+    root.update(
+        target_sprite_file=root["source_sprite_file"], in_place=False, overwrite=True
+    )
 
 
 def _distinct_target_in_place(root: dict[str, Any], _directory: Path) -> None:
@@ -90,8 +91,9 @@ def _distinct_target_in_place(root: dict[str, Any], _directory: Path) -> None:
 
 
 def _in_place_without_overwrite(root: dict[str, Any], _directory: Path) -> None:
-    root.update(target_sprite_file=root["source_sprite_file"], in_place=True)
-    root.update(overwrite=False)
+    root.update(
+        target_sprite_file=root["source_sprite_file"], in_place=True, overwrite=False
+    )
 
 
 def _source_symlink_to_target(root: dict[str, Any], directory: Path) -> None:
@@ -118,8 +120,8 @@ def _identity(
 ):
     """Refuse at the Operation, before its probe, the Kernel and staging.
 
-    The dispatch of most commands probes the runtime first, so the CLI row uses a
-    probe that reports every capability.
+    The dispatch of most commands probes the runtime first. The CLI row uses a probe
+    that raises only for a command that tells dispatch not to probe first.
     """
 
     def run(command: str, directory: Path) -> Outcome:
@@ -143,7 +145,8 @@ def _identity(
             ], in_place
         assert _files(directory) == before
         root["in_place"] = cli_intent
-        return run_request(command, request, probe="capable")
+        probe = "capable" if descriptor.probe_before_execute else "unreached"
+        return run_request(command, request, probe=probe)
 
     return run
 
@@ -235,12 +238,13 @@ def _destinations(value: Any) -> list[dict[str, Any]]:
 
 
 def _export(change: Callable[[dict[str, Any], Path], None]):
+    # Only the last destination breaks the rule, so a command that checks only its
+    # first destination fails.
     def run(command: str, directory: Path) -> Outcome:
         request = minimal_request(command, directory)
         destinations = _destinations(request)
         assert destinations, "exempt an Export command without a destination"
-        for destination in destinations:
-            change(destination, directory)
+        change(destinations[-1], directory)
         return run_request(command, request, probe="capable")
 
     return run
@@ -261,11 +265,11 @@ def _source_symlink_to_destination(command: str, directory: Path) -> Outcome:
     destinations = _destinations(request)
     for destination in destinations:
         destination["if_exists"] = "replace"
-    first = Path(destinations[0]["path"])
-    first.write_bytes(b"destination")
+    last = Path(destinations[-1]["path"])
+    last.write_bytes(b"destination")
     source = directory / "alias.aseprite"
     with symlink_creation_permission():
-        source.symlink_to(first)
+        source.symlink_to(last)
     location = source_location(command)
     assert location == ["source_sprite_file"], location
     request["source_sprite_file"] = str(source)
@@ -310,7 +314,10 @@ EXPORT_RULES = (
 )
 
 
-@pytest.mark.parametrize(("rule", "command"), rows(EDIT_RULES + EXPORT_RULES))
+RULES = EDIT_RULES + EXPORT_RULES
+
+
+@pytest.mark.parametrize(("rule", "command"), rows(RULES))
 def test_destination_rule(rule: Rule, command: str, tmp_path: Path) -> None:
     check_row(rule, command, tmp_path)
 
@@ -368,5 +375,12 @@ def test_rule_sets_are_literal_predicates_minus_true_exemptions(
         destinations = _destinations(_request_in(tmp_path, command))
         assert bool(destinations) == (command not in EXPORT_EXEMPT), command
         assert (source_location(command) is None) == (command in NO_SPRITE_SOURCE)
-    for rule in EDIT_RULES + EXPORT_RULES:
+    # Each exemption is one of the sets that this test shows to be true.
+    assert all(rule.exempt == NOT_EDIT for rule in EDIT_RULES)
+    assert [rule.exempt for rule in EXPORT_RULES] == [
+        EXPORT_EXEMPT,
+        EXPORT_EXEMPT,
+        {**EXPORT_EXEMPT, **NO_SPRITE_SOURCE},
+    ]
+    for rule in RULES:
         check_exemptions(rule)
