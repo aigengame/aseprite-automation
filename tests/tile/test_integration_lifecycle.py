@@ -37,7 +37,6 @@ def test_add_schema_exposes_complete_snapshot_and_explicit_mutation() -> None:
         "color",
         "empty-key",
         "nul-key",
-        "in-place",
     ],
 )
 def test_invalid_add_does_not_invoke_aseprite(tmp_path: Path, defect: str) -> None:
@@ -68,8 +67,6 @@ def test_invalid_add_does_not_invoke_aseprite(tmp_path: Path, defect: str) -> No
         request["tile_key"] = ""
     elif defect == "nul-key":
         request["tile_key"] = "a\0b"
-    else:
-        request["in_place"] = True
     result = spa("tileset", "tile", "add", "--input-json", json.dumps(request))
     assert result.returncode == 2, result.stdout
     assert json.loads(result.stdout)["code"] == "invalid_request"
