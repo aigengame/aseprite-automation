@@ -10,6 +10,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.native_entry import python_entry
+
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github/workflows/native-e2e-shards.yml"
 REPOSITORY = "aigengame/aseprite-automation"
@@ -29,18 +31,6 @@ def admission(tmp_path: Path) -> dict[str, str]:
         "SPA_RELEASE_ID": "",
         "GITHUB_OUTPUT": str(tmp_path / "outputs"),
     }
-
-
-def _windows_fake_gh(tmp_path: Path, body: str) -> Path:
-    """Adapt only the directly selected gh fixtures to Windows native execution."""
-    assert os.name == "nt"
-    from distlib.scripts import ScriptMaker
-
-    source = tmp_path / "windows-gh"
-    source.mkdir()
-    (source / "gh.py").write_text("#!python\n" + body, encoding="utf-8", newline="\n")
-    ScriptMaker(str(source), str(tmp_path)).make("gh.py")
-    return tmp_path / "gh.exe"
 
 
 def run(
@@ -89,9 +79,9 @@ def test_automatic_release_resolves_the_draft_against_original_main_event(
     admission.update(GITHUB_EVENT_NAME="push", SPA_RELEASE_ID="123")
     # The untagged draft can identify an earlier reviewed commit. Never resolve today's main.
     admission["GITHUB_SHA"] = "b" * 40
-    gh = tmp_path / "gh"
-    gh.write_text(
-        f"#!{sys.executable}\n"
+    gh = python_entry(
+        tmp_path,
+        "gh",
         "import json, os, sys\n"
         "endpoint = sys.argv[2]\n"
         "if endpoint.endswith('/releases/123'):\n"
@@ -100,11 +90,7 @@ def test_automatic_release_resolves_the_draft_against_original_main_event(
         "    print(json.dumps({'status': os.environ['SPA_TEST_ANCESTRY']}))\n"
         "else:\n"
         "    sys.exit('unexpected API request: ' + endpoint)\n",
-        encoding="utf-8",
     )
-    gh.chmod(0o755)
-    if os.name == "nt":
-        gh = _windows_fake_gh(tmp_path, gh.read_text(encoding="utf-8"))
     admission.update(
         PATH=str(tmp_path),
         SPA_TEST_DRAFT_SHA=SHA,
@@ -154,24 +140,15 @@ def test_untrusted_caller_or_target_cannot_emit_an_admission(admission, change) 
 
 
 def test_api_failure_cannot_admit_a_release(admission, tmp_path: Path) -> None:
-    gh = tmp_path / "gh"
     calls = tmp_path / "calls.json"
-    if os.name == "nt":
-        gh = _windows_fake_gh(
-            tmp_path,
-            "import json, os, sys\nfrom pathlib import Path\n"
-            "Path(os.environ['SPA_TEST_GH_CALLS']).write_text(json.dumps(sys.argv[1:]), encoding='utf-8')\n"
-            "print('controlled gh API failure', file=sys.stderr)\n"
-            "sys.exit(1)\n",
-        )
-    else:
-        gh.write_text(
-            '#!/bin/sh\ntest "$#" -eq 2 || exit 2\n'
-            'printf \'["%s","%s"]\' "$1" "$2" > "$SPA_TEST_GH_CALLS"\n'
-            "echo 'controlled gh API failure' >&2\nexit 1\n",
-            encoding="utf-8",
-        )
-        gh.chmod(0o755)
+    gh = python_entry(
+        tmp_path,
+        "gh",
+        "import json, os, sys\nfrom pathlib import Path\n"
+        "Path(os.environ['SPA_TEST_GH_CALLS']).write_text(json.dumps(sys.argv[1:]), encoding='utf-8')\n"
+        "print('controlled gh API failure', file=sys.stderr)\n"
+        "sys.exit(1)\n",
+    )
     admission.update(
         PATH=str(tmp_path),
         GITHUB_EVENT_NAME="push",

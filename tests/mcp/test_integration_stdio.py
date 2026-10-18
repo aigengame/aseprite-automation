@@ -10,6 +10,7 @@ import anyio
 import pytest
 from mcp import Client, StdioServerParameters
 
+from tests.native_entry import python_entry
 from tests.support import process_diagnostics
 
 
@@ -49,9 +50,7 @@ def cli(tmp_path):
     }
 
     def write_cli(*, output=None, exit_status=0, stderr=""):
-        program = tmp_path / "spa-fixture"
-        script = f"""#!{sys.executable}
-import json, sys
+        script = f"""import json, sys
 request = json.load(sys.stdin)
 if sys.argv[1] == 'schema':
     print({json.dumps(json.dumps(manifest))})
@@ -65,26 +64,14 @@ else:
         print(stderr, file=sys.stderr)
     sys.exit({exit_status})
 """
-        if os.name == "nt":
-            from distlib.scripts import ScriptMaker
-
-            source = tmp_path / "windows-cli"
-            source.mkdir()
-            (source / "spa-fixture.py").write_text(
-                "#!python\nimport sys\n"
-                "for stream in (sys.stdin, sys.stdout, sys.stderr):\n"
-                "    stream.reconfigure(encoding='utf-8', errors=stream.errors)\n"
-                + script,
-                encoding="utf-8",
-                newline="\n",
-            )
-            maker = ScriptMaker(str(source), str(tmp_path))
-            maker.make("spa-fixture.py")
-            return program.with_suffix(".exe")
-
-        program.write_text(script)
-        program.chmod(0o755)
-        return program
+        # SPA writes UTF-8 to the CLI; a UTF-8 locale makes this prelude a no-op.
+        return python_entry(
+            tmp_path,
+            "spa-fixture",
+            "import sys\n"
+            "for stream in (sys.stdin, sys.stdout, sys.stderr):\n"
+            "    stream.reconfigure(encoding='utf-8', errors=stream.errors)\n" + script,
+        )
 
     return write_cli, manifest
 
@@ -97,8 +84,7 @@ def parameters(cli: Path, **env):
     )
 
 
-@pytest.mark.skipif(os.name != "nt", reason="Windows controlled CLI entry")
-def test_windows_cli_fixture_executes_requests_and_retains_diagnostics(cli):
+def test_cli_fixture_executes_requests_and_retains_diagnostics(cli):
     write_cli, manifest = cli
     program = write_cli(exit_status=2, stderr="fixture warning")
     discovery = subprocess.run(

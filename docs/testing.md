@@ -60,9 +60,16 @@ the same way on every platform and do not test `os.name`. On Windows they change
 and skip a case only for WinError 1314; elsewhere they change file modes and pass
 errors through. A denial fixture skips the case when the process can still list or
 read, for example when it runs as root. The Windows-only `directory_junction` helper
-stays in the same module. `tests/windows_executable.py` holds the Windows-private
-launch fixtures. A single-consumer fixture, such as Color Mode's unreadable-file
-condition, stays with its owning tests and builds on `deny_access`.
+stays in the same module. A single-consumer fixture, such as Color Mode's
+unreadable-file condition, stays with its owning tests and builds on `deny_access`.
+`tests/native_entry.py::python_entry` makes a native executable entry from a Python
+body on every platform: a distlib launcher on Windows and an interpreter-shebang file
+elsewhere. Only Windows installs the distlib test dependency. The controlled Aseprite
+fixtures in `tests/support.py`, such as `exiting_aseprite` and `responding_aseprite`,
+each name one behaviour and keep the macOS-style resource layout. They use a shell
+body on POSIX and a Python body on Windows, so test files do not test `os.name` to
+select a fixture. A single-consumer behaviour stays in its test file and builds on
+`controlled_aseprite`.
 
 Native Paint #26 has separate Line, Rectangle, and Ellipse runtime gates. Its
 real-runtime suite compares saved pixels with direct `app.useTool` references for

@@ -1,23 +1,19 @@
-"""Validate the Windows executable fixture independently of SPA's pipe capture."""
+"""Validate the controlled Aseprite entries independently of SPA's pipe capture."""
 
 import json
-import os
 import subprocess
 
 import pytest
 
 from tests.script.support import script_runtime
-from tests.support import fake_probe_response, process_diagnostics
-from tests.windows_executable import windows_aseprite
-
-pytestmark = pytest.mark.skipif(os.name != "nt", reason="private Windows fixture")
+from tests.support import fake_probe_response, process_diagnostics, python_aseprite
 
 
 @pytest.mark.parametrize("status", [0, 13])
-def test_windows_entry_preserves_arguments_streams_and_file_effects(tmp_path, status):
-    binary = windows_aseprite(
+def test_python_entry_preserves_arguments_streams_and_file_effects(tmp_path, status):
+    binary = python_aseprite(
         tmp_path,
-        "import json, sys\nfrom pathlib import Path\n"
+        "import json\n"
         "Path('arguments.json').write_text(json.dumps(sys.argv[1:]), encoding='utf-8')\n"
         "sys.stdout.buffer.write(b'output\\r\\n')\n"
         "sys.stderr.buffer.write(b'diagnostic\\n')\n"
@@ -40,7 +36,7 @@ def test_windows_entry_preserves_arguments_streams_and_file_effects(tmp_path, st
     )
 
 
-def test_windows_probe_fixture_copies_request_bytes_and_response(tmp_path):
+def test_probe_fixture_copies_request_bytes_and_response(tmp_path):
     response = '{"status":"ok","message":"响应"}'
     binary = fake_probe_response(tmp_path, response)
     request, echo, result = (tmp_path / name for name in ("request", "echo", "result"))
@@ -58,7 +54,7 @@ def test_windows_probe_fixture_copies_request_bytes_and_response(tmp_path):
     assert result.read_bytes() == response.encode("utf-8")
 
 
-def test_windows_script_fixture_keeps_probe_separate_from_caller(tmp_path):
+def test_script_fixture_keeps_probe_separate_from_caller(tmp_path):
     binary = script_runtime(
         tmp_path,
         "Path('effect').write_bytes(Path(sys.argv[-1]).read_bytes()); sys.exit(7)",
