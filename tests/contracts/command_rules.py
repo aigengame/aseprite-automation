@@ -418,8 +418,6 @@ class Rule:
     run: Callable[[str, Path], Outcome]
     check: Callable[[str, Outcome], None] | None = None
     exempt: Mapping[str, str] = field(default_factory=dict)
-    # Commands that break the rule now, each with the reason and the fix that is due.
-    xfail: Mapping[str, str] = field(default_factory=dict)
 
     def commands(self) -> list[str]:
         return sorted(
@@ -431,18 +429,7 @@ class Rule:
 
 def rows(rules: Sequence[Rule]) -> list[Any]:
     return [
-        pytest.param(
-            rule,
-            command,
-            id=f"{rule.name}[{command}]",
-            marks=[
-                pytest.mark.xfail(
-                    strict=True, raises=PortReached, reason=rule.xfail[command]
-                )
-            ]
-            if command in rule.xfail
-            else [],
-        )
+        pytest.param(rule, command, id=f"{rule.name}[{command}]")
         for rule in rules
         for command in rule.commands()
     ]
@@ -458,11 +445,8 @@ def check_row(rule: Rule, command: str, directory: Path) -> None:
 
 
 def check_exemptions(rule: Rule) -> None:
-    """Fail on an exemption or xfail outside the rows of the rule, or without a reason."""
+    """Fail on an exemption outside the set of the rule, or without a reason."""
     for command, reason in rule.exempt.items():
         descriptor = DESCRIPTORS.get(command)
         assert descriptor is not None and rule.applies(descriptor), (rule.name, command)
-        assert reason.strip(), (rule.name, command)
-    for command, reason in rule.xfail.items():
-        assert command in rule.commands(), (rule.name, command)
         assert reason.strip(), (rule.name, command)
