@@ -27,7 +27,7 @@ with Source and an existing Target preserved.
 | `tests/ci/` | README translation freshness, Release admission, native test execution policy, and shard evidence checks. |
 | `tests/cli/` | Access Projection through the installed CLI and its in-process projections. |
 | `tests/color_mode/` | Conditional Color Mode choices, native mapping/Dithering, complete Sprite and Plan conversion evidence. |
-| `tests/contracts/` | Shared Published Language rules, including Failure Code registration, Operation Descriptor constraints, and the rules that every command shares, as one table for each rule over the command tree. |
+| `tests/contracts/` | Shared Published Language rules, including Failure Code registration, Operation Descriptor constraints, and the rules that every command shares, as one table for each rule over the command tree, and the envelope schema check of `tests/native_invocation.py`. |
 | `tests/delivery/` | Shared Artifact staging, verification/publication lifecycles, and real filesystem publication boundaries. |
 | `tests/export/` | Image, GIF and PNG sequence Export contracts, independent format verification, and real Aseprite output evidence. |
 | `tests/examples/` | Installed-CLI workflows, deterministic asset production, and checked-in downstream asset agreement. |
@@ -70,6 +70,24 @@ each name one behaviour and keep the macOS-style resource layout. They use a she
 body on POSIX and a Python body on Windows, so test files do not test `os.name` to
 select a fixture. A single-consumer behaviour stays in its test file and builds on
 `controlled_aseprite`.
+`tests/support.py::controlled_runtime` gives a runtime observation of such an
+executable without a probe.
+
+`tests/native_invocation.py` runs the installed `spa` command and Lua fixtures for
+e2e tests. `run(command, request)` adds `aseprite` to the request of a runtime
+command: the `aseprite` argument, or else the `SPA_TEST_ASEPRITE` value. It does not
+change the request of the caller. It validates each envelope against the schema of
+its command, in process, and returns the exit status, the envelope, and the process.
+An access failure (`operation: "spa"`) uses the access failure schema.
+`expect_success` returns the success envelope, or fails with
+`process_diagnostics`. `run_lua(script, runtime, **params)` runs one Lua fixture in
+batch mode with the GUI resource that runtime discovery found. It sends each
+parameter as one `--script-param`, and a boolean as `true` or `false`. The caller
+asserts the exit status. The session-scope `runtime` fixture in `tests/conftest.py`
+probes the configured Aseprite once for each pytest worker. A fixture builder takes
+`runtime` as a parameter and does not probe. A test whose claim is the probe calls
+`probe` itself. Areas that still have private CLI helpers, native runners, or
+module-scope `runtime` fixtures move to this module through issue #280.
 
 Native Paint #26 has separate Line, Rectangle, and Ellipse runtime gates. Its
 real-runtime suite compares saved pixels with direct `app.useTool` references for

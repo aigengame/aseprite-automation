@@ -5,7 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from spa.contracts.ports import RuntimeIssue
+from spa.adapters.aseprite.aseprite import probe
+from spa.application.surface import PROBE_RESOURCES
+from spa.contracts.ports import RuntimeIssue, RuntimeObservation, RuntimeRequest
 
 
 @pytest.hookimpl(wrapper=True)
@@ -24,7 +26,19 @@ def _require_real_aseprite_for_e2e(request: pytest.FixtureRequest) -> None:
     """Fail selected e2e tests when the configured Aseprite cannot run."""
     if request.node.get_closest_marker("e2e") is None:
         return
+    _configured_aseprite()
 
+
+@pytest.fixture(scope="session")
+def runtime() -> RuntimeObservation:
+    """Probe the configured Aseprite once for each pytest worker.
+
+    A test whose claim is the probe itself calls `probe` directly.
+    """
+    return probe(RuntimeRequest(aseprite=str(_configured_aseprite())), PROBE_RESOURCES)
+
+
+def _configured_aseprite() -> Path:
     configured = os.environ.get("SPA_TEST_ASEPRITE")
     if not configured:
         pytest.fail("e2e tests need a real Aseprite executable; set SPA_TEST_ASEPRITE")
@@ -35,3 +49,4 @@ def _require_real_aseprite_for_e2e(request: pytest.FixtureRequest) -> None:
             "e2e tests need an executable SPA_TEST_ASEPRITE file; "
             f"configured path: {executable}"
         )
+    return executable

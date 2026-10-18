@@ -1,5 +1,6 @@
 """Helpers shared across test ownership areas."""
 
+import dataclasses
 import hashlib
 import os
 import shlex
@@ -365,4 +366,13 @@ def runtime_observation(*capabilities: RuntimeCapability) -> RuntimeObservation:
             "aseprite_json",
         ),
         verified_capabilities=capabilities,
+    )
+
+
+def controlled_runtime(binary: Path) -> RuntimeObservation:
+    """Observe a controlled Aseprite from `controlled_aseprite` without a probe."""
+    return dataclasses.replace(
+        runtime_observation(),
+        canonical_path=str(binary),
+        resource_path=str(binary.parents[1] / "Resources" / "data" / "gui.xml"),
     )
