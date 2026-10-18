@@ -26,6 +26,7 @@ from tests.contracts.command_rules import (
     run_request,
     services,
     source_location,
+    validate_failure,
 )
 from tests.host_permissions import symlink_creation_permission
 
@@ -146,7 +147,9 @@ def _identity(
         assert _files(directory) == before
         root["in_place"] = cli_intent
         probe = "capable" if descriptor.probe_before_execute else "unreached"
-        return run_request(command, request, probe=probe)
+        outcome = run_request(command, request, probe=probe)
+        assert _files(directory) == before
+        return outcome
 
     return run
 
@@ -347,6 +350,7 @@ def test_existing_target_without_overwrite(command: str, tmp_path: Path) -> None
         return
     outcome = run_request(command, request, probe="capable")
     assert outcome.result == INPUT_REFUSAL
+    validate_failure(command, outcome.envelope)
     assert outcome.envelope["details"]["errors"] == [error]
 
 
@@ -362,7 +366,7 @@ def test_rule_sets_are_literal_predicates_minus_true_exemptions(
     edit = {
         name for name, descriptor in DESCRIPTORS.items() if edit_command(descriptor)
     }
-    assert len(edit - set(NOT_EDIT)) == len(EDIT_COMMANDS) == 72
+    assert len(edit - set(NOT_EDIT)) == 72
     for command in edit:
         root = _edit_root(_request_in(tmp_path, command))
         has_intent = {"source_sprite_file", "in_place"} <= set(root)
@@ -375,12 +379,18 @@ def test_rule_sets_are_literal_predicates_minus_true_exemptions(
         destinations = _destinations(_request_in(tmp_path, command))
         assert bool(destinations) == (command not in EXPORT_EXEMPT), command
         assert (source_location(command) is None) == (command in NO_SPRITE_SOURCE)
-    # Each exemption is one of the sets that this test shows to be true.
-    assert all(rule.exempt == NOT_EDIT for rule in EDIT_RULES)
-    assert [rule.exempt for rule in EXPORT_RULES] == [
-        EXPORT_EXEMPT,
-        EXPORT_EXEMPT,
-        {**EXPORT_EXEMPT, **NO_SPRITE_SOURCE},
-    ]
+    # The exemptions are the sets that this test shows to be true. A changed
+    # predicate or a false exemption removes rows, and fails here.
+    edit -= set(NOT_EDIT)
+    export -= set(EXPORT_EXEMPT)
+    assert {rule.name: set(rule.commands()) for rule in RULES} == {
+        "source_aliases_target": edit,
+        "distinct_target_in_place": edit,
+        "source_symlink_traverses_target": edit,
+        "in_place_without_overwrite": edit,
+        "destination_exists": export,
+        "destination_parent_missing": export,
+        "source_symlink_aliases_destination": export - set(NO_SPRITE_SOURCE),
+    }
     for rule in RULES:
         check_exemptions(rule)
