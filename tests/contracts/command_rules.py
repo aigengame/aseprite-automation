@@ -3,8 +3,11 @@
 A rule table states one rule that every command in a set obeys. Each row runs one
 command through the CLI projection in process, with `run_cli` and the real file
 adapters. Each Kernel port raises `PortReached`, so no Aseprite process starts and a
-row that reaches the Kernel fails. The expected exit status, category and code of a
-rule are literal values. They do not come from the Operation Descriptor.
+row that reaches the Kernel fails. The one exception is the `discovering` probe: it
+uses the installed `invoke_kernel_direct`, because `plan run` discovers the runtime
+in it. Its rows give an Aseprite path that discovery refuses before a process
+starts. The expected exit status, category and code of a rule are literal values.
+They do not come from the Operation Descriptor.
 
 The rows of a table come from a predicate over `OPERATIONS`, so a new command gets a
 row in each table that applies to it. A command that does not obey the rule needs an
@@ -15,10 +18,12 @@ true.
 import contextlib
 import io
 import json
+import struct
 import sys
+import zlib
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from functools import cache
+from functools import cache, partial
 from pathlib import Path
 from typing import Any, get_args
 
@@ -29,6 +34,8 @@ from jsonschema import Draft202012Validator
 
 from spa.access.cli import build_app, run_cli
 from spa.adapters.artifact_set import LocalArtifactSets
+from spa.adapters.aseprite.aseprite import invoke_direct
+from spa.adapters.aseprite.aseprite import probe as discover_and_probe
 from spa.adapters.files import LocalArtifactFiles, LocalTargetFiles, observe_script_file
 from spa.adapters.gif import decode_gif
 from spa.adapters.icc import verify_icc
@@ -37,7 +44,7 @@ from spa.adapters.png import verify_png
 from spa.adapters.png_input import decode_png_artifact, decode_png_input
 from spa.adapters.sequence_png import decode_sequence_png
 from spa.application.failure_registry import FAILURE_CODES
-from spa.application.surface import OPERATIONS
+from spa.application.surface import OPERATIONS, PROBE_RESOURCES
 from spa.contracts.operation import OperationDescriptor
 from spa.contracts.ports import OperationServices, RuntimeProbe
 from spa.contracts.public import OperationSchema, RuntimeCapability, RuntimeRequest
@@ -65,19 +72,31 @@ def _capable_probe(_request: RuntimeRequest):
     return runtime_observation(*get_args(RuntimeCapability))
 
 
+def _incapable_probe(_request: RuntimeRequest):
+    return runtime_observation()
+
+
 PROBES: Mapping[str, RuntimeProbe] = {
     "unreached": _port("probe_runtime"),
     "capable": _capable_probe,
+    "incapable": _incapable_probe,
+    # The installed probe. A row gives it an Aseprite path that discovery refuses
+    # before a process starts.
+    "discovering": partial(discover_and_probe, resources=PROBE_RESOURCES),
 }
 
 
-def _services(probe: RuntimeProbe) -> OperationServices:
+def _services(probe: str) -> OperationServices:
+    direct = _port("invoke_kernel_direct")
+    if probe == "discovering":
+        # `plan run` discovers the runtime inside its direct Kernel invocation.
+        direct = invoke_direct
     return OperationServices(
-        probe_runtime=probe,
+        probe_runtime=PROBES[probe],
         invoke_kernel=_port("invoke_kernel"),
         invoke_script=_port("invoke_script"),
         observe_script_file=observe_script_file,
-        invoke_kernel_direct=_port("invoke_kernel_direct"),
+        invoke_kernel_direct=direct,
         target_files=LocalTargetFiles(),
         artifact_files=LocalArtifactFiles(),
         artifact_sets=LocalArtifactSets(),
@@ -93,7 +112,7 @@ def _services(probe: RuntimeProbe) -> OperationServices:
 
 @cache
 def _app(probe: str) -> typer.Typer:
-    return build_app(_services(PROBES[probe]), FAILURE_CODES)
+    return build_app(_services(probe), FAILURE_CODES)
 
 
 _CLICK_COMMANDS: dict[typer.Typer, click.Command] = {}
@@ -127,6 +146,14 @@ class Outcome:
         return [(error["location"], error["code"]) for error in errors]
 
 
+def every_command(_descriptor: OperationDescriptor[Any, Any]) -> bool:
+    return True
+
+
+def runtime_command(descriptor: OperationDescriptor[Any, Any]) -> bool:
+    return descriptor.requires_runtime
+
+
 def run_spa(argv: Sequence[str], probe: str = "unreached") -> Outcome:
     """Run `spa <argv>` in process and return its exit status and JSON output."""
     output = io.StringIO()
@@ -143,6 +170,15 @@ def run_spa(argv: Sequence[str], probe: str = "unreached") -> Outcome:
     finally:
         sys.argv, typer.main.get_command = saved
     return Outcome(exit_status, json.loads(output.getvalue()))
+
+
+def run_request(
+    command: str, request: dict[str, Any], *argv: str, probe: str = "unreached"
+) -> Outcome:
+    """Run `spa <command>` with `request` as `--input-json` and more `argv`."""
+    return run_spa(
+        [*command.split(), "--input-json", json.dumps(request), *argv], probe
+    )
 
 
 @cache
@@ -162,6 +198,20 @@ def validate_failure(command: str, envelope: dict[str, Any]) -> None:
 # Minimal valid requests ----------------------------------------------------------
 
 
+def _png_chunk(kind: bytes, data: bytes) -> bytes:
+    crc = zlib.crc32(kind + data)
+    return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", crc)
+
+
+# One transparent RGBA pixel.
+_INPUT_PNG = (
+    b"\x89PNG\r\n\x1a\n"
+    + _png_chunk(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 6, 0, 0, 0))
+    + _png_chunk(b"IDAT", zlib.compress(b"\x00" * 5))
+    + _png_chunk(b"IEND", b"")
+)
+
+
 @dataclass(frozen=True)
 class _Files:
     directory: Path
@@ -173,6 +223,11 @@ class _Files:
     @property
     def target(self) -> Path:
         return self.directory / "target.aseprite"
+
+    def input_png(self, name: str) -> Path:
+        path = self.directory / f"in-{name}.png"
+        path.write_bytes(_INPUT_PNG)
+        return path
 
 
 def _resolve(schema: dict[str, Any], root: dict[str, Any]) -> dict[str, Any]:
@@ -189,7 +244,7 @@ def _string(name: str, schema: dict[str, Any], files: _Files) -> str:
         if f"\\.{extension}" in pattern:
             return str(files.directory / f"out-{name}.{extension}")
     if name in ("path", "raster_file", "palette_file", "script"):
-        return str(files.directory / f"in-{name}.png")
+        return str(files.input_png(name))
     return "a" * max(1, schema.get("minLength", 1))
 
 
@@ -314,8 +369,13 @@ _REQUEST_CHANGES: Mapping[str, Callable[[dict[str, Any], _Files], None]] = {
 
 
 def minimal_request(command: str, directory: Path) -> dict[str, Any]:
-    """Build one schema-valid request for `command` with its files in `directory`."""
+    """Build one schema-valid request for `command` and write its input files.
+
+    The Source Sprite file exists but is not a Sprite: each rule refuses the request
+    before Aseprite reads it.
+    """
     files = _Files(directory)
+    files.source.write_bytes(b"not a Sprite")
     schema = _schema(command).request_schema
     request = _value(schema, schema, files)
     request.pop("aseprite", None)

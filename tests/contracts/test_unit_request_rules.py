@@ -12,7 +12,6 @@ from typing import Any
 import pytest
 from jsonschema import Draft202012Validator
 
-from spa.contracts.operation import OperationDescriptor
 from spa.contracts.public import OperationSchema
 from tests.contracts.command_rules import (
     DESCRIPTORS,
@@ -21,27 +20,18 @@ from tests.contracts.command_rules import (
     Rule,
     check_exemptions,
     check_row,
+    every_command,
     minimal_request,
     rows,
+    run_request,
     run_spa,
+    runtime_command,
     source_location,
 )
 
 
-def every_command(_descriptor: OperationDescriptor[Any, Any]) -> bool:
-    return True
-
-
-def runtime_command(descriptor: OperationDescriptor[Any, Any]) -> bool:
-    return descriptor.requires_runtime
-
-
 def _with_input(command: str, text: str) -> Outcome:
     return run_spa([*command.split(), "--input-json", text])
-
-
-def _with_request(command: str, request: dict[str, Any]) -> Outcome:
-    return _with_input(command, json.dumps(request))
 
 
 def _without_source(command: str, directory: Path) -> Outcome:
@@ -52,7 +42,7 @@ def _without_source(command: str, directory: Path) -> Outcome:
     for part in location[:-1]:
         parent = parent[part]
     del parent[location[-1]]
-    return _with_request(command, request)
+    return run_request(command, request)
 
 
 def _errors(*expected: tuple[list[Any], str]):
@@ -111,7 +101,7 @@ RULES = (
         "unknown_field",
         every_command,
         INPUT_REFUSAL,
-        lambda command, directory: _with_request(
+        lambda command, directory: run_request(
             command, {**minimal_request(command, directory), "zz_unknown": 1}
         ),
         _errors((["zz_unknown"], "extra_forbidden")),
@@ -120,7 +110,7 @@ RULES = (
         "timeout_zero",
         runtime_command,
         INPUT_REFUSAL,
-        lambda command, directory: _with_request(
+        lambda command, directory: run_request(
             command, {**minimal_request(command, directory), "timeout_seconds": 0}
         ),
         _errors((["timeout_seconds"], "greater_than")),
@@ -129,7 +119,7 @@ RULES = (
         "timeout_above_limit",
         runtime_command,
         INPUT_REFUSAL,
-        lambda command, directory: _with_request(
+        lambda command, directory: run_request(
             command, {**minimal_request(command, directory), "timeout_seconds": 121}
         ),
         _errors((["timeout_seconds"], "less_than_equal")),
