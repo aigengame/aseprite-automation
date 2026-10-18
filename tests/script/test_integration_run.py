@@ -7,9 +7,9 @@ from pathlib import Path
 import pytest
 from jsonschema import Draft202012Validator
 
+from tests.host_permissions import symlink_creation_permission
 from tests.script.support import script_runtime
 from tests.support import spa
-from tests.windows_permissions import symlink_creation_permission
 
 
 def test_timeout_is_reported_without_requiring_process_output(
@@ -217,11 +217,7 @@ def test_declared_file_observations_follow_only_successful_execution(
     tmp_path, exit_status, include_fifo
 ) -> None:
     (tmp_path / "normal.bin").write_bytes(b"before")
-    if os.name == "nt":
-        with symlink_creation_permission():
-            (tmp_path / "link.bin").symlink_to("normal.bin")
-            (tmp_path / "dangling.bin").symlink_to("missing.bin")
-    else:
+    with symlink_creation_permission():
         (tmp_path / "link.bin").symlink_to("normal.bin")
         (tmp_path / "dangling.bin").symlink_to("missing.bin")
     (tmp_path / "directory").mkdir()

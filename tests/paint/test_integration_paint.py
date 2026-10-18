@@ -1,13 +1,12 @@
 """Public Paint request validation without a running Aseprite executable."""
 
 import json
-import os
 from pathlib import Path
 
 import pytest
 
+from tests.host_permissions import symlink_creation_permission
 from tests.support import spa
-from tests.windows_permissions import symlink_creation_permission
 
 
 @pytest.mark.parametrize("in_place", [False, True])
@@ -17,10 +16,7 @@ def test_apply_rejects_source_alias_before_runtime_probe(
     target = tmp_path / "target.aseprite"
     target.write_bytes(b"unchanged")
     source = tmp_path / "source.aseprite"
-    if os.name == "nt":
-        with symlink_creation_permission():
-            source.symlink_to(target)
-    else:
+    with symlink_creation_permission():
         source.symlink_to(target)
     request = {
         "aseprite": "/missing/aseprite",

@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from spa.adapters.aseprite.convolution import discover_convolution_resources
-from tests.windows_permissions import directory_junction, symlink_creation_permission
+from tests.host_permissions import directory_junction, symlink_creation_permission
 
 
 def _write(path: Path, text: str) -> Path:
@@ -191,13 +191,7 @@ def test_mac_prepared_launch_symlink_uses_adjacent_data_and_stable_source(
     source = _write(installed_data / "convmatr.def", _stock("installed"))
     launch = tmp_path / "work/aseprite"
     launch.parent.mkdir()
-    if os.name == "nt":
-        with symlink_creation_permission():
-            launch.symlink_to(canonical)
-            (launch.parent / "data").symlink_to(
-                installed_data, target_is_directory=True
-            )
-    else:
+    with symlink_creation_permission():
         launch.symlink_to(canonical)
         (launch.parent / "data").symlink_to(installed_data, target_is_directory=True)
     _write(canonical.parent / "data/convmatr.usr", _stock("canonical-only"))

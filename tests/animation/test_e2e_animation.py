@@ -6,18 +6,17 @@ import os
 import shutil
 import subprocess
 import tempfile
-from contextlib import ExitStack
 from pathlib import Path
 
 import pytest
 from PIL import Image
 
 from spa.adapters.aseprite.invocation import prepare_invocation
-from tests.support import process_diagnostics, spa
-from tests.windows_permissions import (
+from tests.host_permissions import (
     deny_directory_listing,
     symlink_creation_permission,
 )
+from tests.support import process_diagnostics, spa
 
 pytestmark = pytest.mark.e2e
 
@@ -302,10 +301,7 @@ def test_preview_rejects_destination_traversed_by_source_alias(tmp_path: Path) -
     destination = tmp_path / "preview.png"
     shutil.copyfile(native_source, destination)
     source = tmp_path / "linked.aseprite"
-    if os.name == "nt":
-        with symlink_creation_permission():
-            source.symlink_to(destination)
-    else:
+    with symlink_creation_permission():
         source.symlink_to(destination)
     original = hashlib.sha256(source.read_bytes()).hexdigest()
 
@@ -336,18 +332,7 @@ def test_preview_reports_unverifiable_source_destination_identity(
     destination = private / "preview.png"
     os.link(source, destination)
     original = hashlib.sha256(source.read_bytes()).hexdigest()
-    with ExitStack() as permissions:
-        if os.name == "nt":
-            permissions.enter_context(deny_directory_listing(private))
-        else:
-            private.chmod(0o333)
-            permissions.callback(private.chmod, 0o700)
-        try:
-            os.listdir(private)
-        except PermissionError:
-            pass
-        else:
-            pytest.skip("cannot reproduce an unlistable directory")
+    with deny_directory_listing(private):
         run = spa(
             "animation",
             "preview",

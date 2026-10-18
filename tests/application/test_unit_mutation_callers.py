@@ -1,6 +1,5 @@
 """Standalone completion retains Source alias refusal before native work."""
 
-import os
 from pathlib import Path
 
 import pytest
@@ -8,7 +7,7 @@ import pytest
 from spa.adapters.files import LocalTargetFiles
 from spa.application.surface import OPERATIONS
 from spa.contracts.ports import OperationServices, RequestIssue
-from tests.windows_permissions import symlink_creation_permission
+from tests.host_permissions import symlink_creation_permission
 
 ADDRESS = {"layer": {"layer_path": [1]}, "frame_number": 1}
 DESTINATION = {"layer": {"layer_path": [2]}, "frame_number": 2}
@@ -82,10 +81,7 @@ def test_source_alias_is_rejected_before_caller_probe_and_staging(
 ) -> None:
     target, source = tmp_path / "target.aseprite", tmp_path / "alias.aseprite"
     target.write_bytes(b"existing Target")
-    if os.name == "nt":
-        with symlink_creation_permission():
-            source.symlink_to(target)
-    else:
+    with symlink_creation_permission():
         source.symlink_to(target)
 
     def unexpected(*_args):

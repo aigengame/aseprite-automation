@@ -6,7 +6,6 @@ checks do not claim to exercise Aseprite's transformations or color algorithms.
 
 import hashlib
 import json
-import os
 import struct
 import zlib
 from copy import deepcopy
@@ -25,9 +24,9 @@ from spa.contracts.digest import fnv1a64
 from spa.contracts.ports import KernelInvocationResult, OperationServices
 from spa.contracts.public import Diagnostics
 from spa.preparation.raster import PREPARATION_OPERATIONS
+from tests.host_permissions import symlink_creation_permission
 from tests.preparation.support import specification
 from tests.support import runtime_observation
-from tests.windows_permissions import symlink_creation_permission
 
 DESCRIPTOR = PREPARATION_OPERATIONS[0]
 SOURCE_PIXELS = [
@@ -577,17 +576,11 @@ def test_publication_preflight_protects_source_and_existing_destination(
         reason = "source_destination_alias"
     elif kind == "source_symlink":
         source.rename(destination)
-        if os.name == "nt":
-            with symlink_creation_permission():
-                source.symlink_to(destination)
-        else:
+        with symlink_creation_permission():
             source.symlink_to(destination)
         reason = "source_destination_alias"
     elif kind == "destination_symlink":
-        if os.name == "nt":
-            with symlink_creation_permission():
-                destination.symlink_to(source)
-        else:
+        with symlink_creation_permission():
             destination.symlink_to(source)
         reason = "destination_not_file"
     else:
@@ -792,10 +785,7 @@ def test_source_alias_is_checked_again_before_publication(preparation):
     request, services, native, files, source, destination = preparation
     original_path = source.with_name("retained-source.png")
     source.rename(original_path)
-    if os.name == "nt":
-        with symlink_creation_permission():
-            source.symlink_to(original_path)
-    else:
+    with symlink_creation_permission():
         source.symlink_to(original_path)
     original = original_path.read_bytes()
     destination.write_bytes(b"retained destination")

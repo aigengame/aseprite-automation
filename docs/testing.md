@@ -53,10 +53,23 @@ Add an ownership directory only when tests for that behavior exist. Keep a helpe
 the narrowest ownership directory that uses it. Move a helper to `tests/support.py`
 only when more than one ownership area needs it. Each directory is a Python package,
 so different owners can safely use the same focused file name later.
-The existing `tests/windows_executable.py` and `tests/windows_permissions.py`
-companions contain Windows-private launch and filesystem setup used by several
-owners. Keep their platform-specific setup there; a single-consumer fixture such
-as Color Mode's unreadable-file condition stays with its owning tests.
+`tests/host_permissions.py` holds the host-permission fixtures that several owners
+share: `symlink_creation_permission`, `deny_directory_listing`, and the public
+`deny_access` step that saves, denies, and restores one access right. Callers use them
+the same way on every platform and do not test `os.name`. On Windows they change ACLs
+and skip a case only for WinError 1314; elsewhere they change file modes and pass
+errors through. A denial fixture skips the case when the process can still list or
+read, for example when it runs as root. The Windows-only `directory_junction` helper
+stays in the same module. A single-consumer fixture, such as Color Mode's
+unreadable-file condition, stays with its owning tests and builds on `deny_access`.
+`tests/native_entry.py::python_entry` makes a native executable entry from a Python
+body on every platform: a distlib launcher on Windows and an interpreter-shebang file
+elsewhere. Only Windows installs the distlib test dependency. The controlled Aseprite
+fixtures in `tests/support.py`, such as `exiting_aseprite` and `responding_aseprite`,
+each name one behaviour and keep the macOS-style resource layout. They use a shell
+body on POSIX and a Python body on Windows, so test files do not test `os.name` to
+select a fixture. A single-consumer behaviour stays in its test file and builds on
+`controlled_aseprite`.
 
 Native Paint #26 has separate Line, Rectangle, and Ellipse runtime gates. Its
 real-runtime suite compares saved pixels with direct `app.useTool` references for
