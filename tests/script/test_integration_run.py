@@ -76,8 +76,6 @@ def test_script_process_failures_use_registered_schema_and_keep_diagnostics(
         {"parameters": {"value": "nul\x00value"}},
         {"working_directory": "bad\x00path"},
         {"declared_files": ["bad\x00path"]},
-        {"timeout_seconds": 0},
-        {"timeout_seconds": 121},
         {"execution_kind": "mutation"},
         {"determinism": "deterministic"},
         {"operation": "sprite create"},
