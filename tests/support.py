@@ -4,9 +4,11 @@ import hashlib
 import os
 import shlex
 import shutil
+import signal
 import struct
 import subprocess
 import sys
+import textwrap
 from importlib.resources import files
 from pathlib import Path
 from typing import Any
@@ -22,6 +24,7 @@ from spa.contracts.ports import (
     TargetCommitObservation,
 )
 from spa.contracts.public import RuntimeCapability
+from tests.native_entry import python_entry
 
 
 def icc_fixture_path(identity: str) -> Path:
@@ -123,47 +126,169 @@ def cli_entry_command(
     return [executable]
 
 
+CONTROLLED_PYTHON_PRELUDE = (
+    "import os, sys, time\n"
+    "from pathlib import Path\n"
+    "sys.stdout.reconfigure(encoding='utf-8', newline='\\n')\n"
+    "sys.stderr.reconfigure(encoding='utf-8', newline='\\n')\n"
+    "arguments = dict(arg.split('=', 1) for arg in sys.argv[1:] if '=' in arg)\n"
+)
+"""Common imports, UTF-8 streams, and the key=value arguments of a Python body."""
+
+CONTROLLED_SHELL_PRELUDE = """request=
+response=
+echo=
+for argument in "$@"; do
+  case "$argument" in
+    request=*) request=${argument#request=};;
+    response=*) response=${argument#response=};;
+    echo=*) echo=${argument#echo=};;
+  esac
+done
+"""
+"""Set the request, response, and echo paths of a shell body from its arguments."""
+
+
+def _add_aseprite_resources(executable_directory: Path) -> None:
+    resource = executable_directory.parent / "Resources" / "data" / "gui.xml"
+    resource.parent.mkdir(parents=True)
+    resource.write_text("<gui/>", encoding="utf-8")
+
+
 def fake_aseprite(tmp_path: Path, body: str) -> Path:
-    """Create a controlled executable with a macOS-style resource layout."""
+    """Create a controlled shell executable with a macOS-style resource layout."""
     binary = tmp_path / "Aseprite.app" / "Contents" / "MacOS" / "aseprite"
     binary.parent.mkdir(parents=True)
     binary.write_text("#!/bin/sh\n" + body, encoding="utf-8")
     binary.chmod(0o755)
-    resource = binary.parent.parent / "Resources" / "data" / "gui.xml"
-    resource.parent.mkdir(parents=True)
-    resource.write_text("<gui/>", encoding="utf-8")
+    _add_aseprite_resources(binary.parent)
     return binary
 
 
-def fake_probe_response(tmp_path: Path, response: str) -> Path:
-    """Create a controlled Aseprite transport that returns one probe response."""
-    if os.name == "nt":
-        from tests.windows_executable import windows_aseprite
+def python_aseprite(tmp_path: Path, body: str) -> Path:
+    """Create a controlled Python entry with the same layout on every platform."""
+    directory = tmp_path / "Aseprite.app" / "Contents" / "MacOS"
+    binary = python_entry(
+        directory, "aseprite", CONTROLLED_PYTHON_PRELUDE + body + "\n"
+    )
+    _add_aseprite_resources(directory)
+    return binary
 
-        return windows_aseprite(
-            tmp_path,
-            "import sys\nfrom pathlib import Path\n"
-            "arguments = dict(arg.split('=', 1) for arg in sys.argv[1:] if '=' in arg)\n"
-            "Path(arguments['echo']).write_bytes(Path(arguments['request']).read_bytes())\n"
-            f"Path(arguments['response']).write_text({response!r}, encoding='utf-8')\n",
-        )
-    quoted_response = shlex.quote(response)
-    return fake_aseprite(
+
+def controlled_aseprite(tmp_path: Path, *, shell: str, python: str) -> Path:
+    """Create one controlled Aseprite behaviour from the body for this platform.
+
+    POSIX runs the shell body, which keeps its process structure, such as exec and
+    pipes. Windows runs the Python body in a native entry.
+    """
+    if os.name == "nt":
+        return python_aseprite(tmp_path, python)
+    return fake_aseprite(tmp_path, shell)
+
+
+def exiting_aseprite(
+    tmp_path: Path, *, stdout: str = "", stderr: str = "", status: int = 0
+) -> Path:
+    """Write one optional line to each output stream, then exit with status.
+
+    A negative status ends the process with that signal. Only POSIX has this case.
+    """
+    shell: list[str] = []
+    python: list[str] = []
+    if stdout:
+        shell.append(f"printf '%s\\n' {shlex.quote(stdout)}")
+        python.append(f"print({stdout!r})")
+    if stderr:
+        shell.append(f"printf '%s\\n' {shlex.quote(stderr)} >&2")
+        python.append(f"print({stderr!r}, file=sys.stderr)")
+    if status < 0:
+        assert os.name != "nt", "signal termination is a POSIX fixture"
+        shell.append(f"kill -{signal.Signals(-status).name.removeprefix('SIG')} $$")
+    else:
+        shell.append(f"exit {status}")
+        python.append(f"sys.exit({status})")
+    return controlled_aseprite(
+        tmp_path, shell="\n".join(shell) + "\n", python="\n".join(python)
+    )
+
+
+def responding_aseprite(
+    tmp_path: Path, response: str, *, echo: str | None = None, status: int = 0
+) -> Path:
+    """Write response to the response= file, then exit with status.
+
+    When echo is given, first write it to the echo= file.
+    """
+    shell = CONTROLLED_SHELL_PRELUDE
+    python = ""
+    if echo is not None:
+        shell += f"printf '%s' {shlex.quote(echo)} > \"$echo\"\n"
+        python += f"Path(arguments['echo']).write_text({echo!r}, encoding='utf-8')\n"
+    shell += f"printf '%s' {shlex.quote(response)} > \"$response\"\nexit {status}\n"
+    python += (
+        f"Path(arguments['response']).write_text({response!r}, encoding='utf-8')\n"
+        f"sys.exit({status})"
+    )
+    return controlled_aseprite(tmp_path, shell=shell, python=python)
+
+
+def recording_aseprite(tmp_path: Path, record: Path, response: str) -> Path:
+    """Append one line of tab-separated arguments to record, then write response."""
+    return controlled_aseprite(
         tmp_path,
-        f"""
-request=
-response_file=
-echo_file=
-for argument in "$@"; do
-  case "$argument" in
-    request=*) request=${{argument#request=}};;
-    response=*) response_file=${{argument#response=}};;
-    echo=*) echo_file=${{argument#echo=}};;
-  esac
-done
-cp "$request" "$echo_file"
-printf '%s' {quoted_response} > "$response_file"
-""",
+        shell=(
+            "line=\n"
+            "separator=\n"
+            'for argument in "$@"; do\n'
+            '  line="$line$separator$argument"\n'
+            "  separator='\t'\n"
+            "done\n"
+            f"printf '%s\\n' \"$line\" >> {shlex.quote(str(record))}\n"
+            + CONTROLLED_SHELL_PRELUDE
+            + f"printf '%s' {shlex.quote(response)} > \"$response\"\n"
+        ),
+        python=(
+            f"with Path({str(record)!r}).open('a', encoding='utf-8') as stream:\n"
+            "    stream.write('\\t'.join(sys.argv[1:]) + '\\n')\n"
+            f"Path(arguments['response']).write_text({response!r}, encoding='utf-8')"
+        ),
+    )
+
+
+def fake_probe_response(
+    tmp_path: Path, response: str, *, kernel_response: str | None = None
+) -> Path:
+    """Create a controlled Aseprite transport that returns one probe response.
+
+    A probe passes an echo= argument. With kernel_response, an invocation without
+    that argument receives kernel_response instead of the probe response.
+    """
+    shell = (
+        f'cp "$request" "$echo"\nprintf \'%s\' {shlex.quote(response)} > "$response"\n'
+    )
+    python = (
+        "Path(arguments['echo']).write_bytes(Path(arguments['request']).read_bytes())\n"
+        f"Path(arguments['response']).write_text({response!r}, encoding='utf-8')\n"
+    )
+    if kernel_response is not None:
+        # Do not indent the shell branch: a quoted multi-line response would
+        # receive the indentation inside its quotes.
+        shell = (
+            'if test -n "$echo"; then\n'
+            + shell
+            + "else\n"
+            + f"printf '%s' {shlex.quote(kernel_response)} > \"$response\"\n"
+            + "fi\n"
+        )
+        python = (
+            "if 'echo' in arguments:\n"
+            + textwrap.indent(python, "    ")
+            + "else:\n"
+            + f"    Path(arguments['response']).write_text({kernel_response!r}, "
+            "encoding='utf-8')\n"
+        )
+    return controlled_aseprite(
+        tmp_path, shell=CONTROLLED_SHELL_PRELUDE + shell, python=python
     )
 
 
