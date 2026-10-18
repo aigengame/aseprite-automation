@@ -74,13 +74,13 @@ def run(
     payload = dict(request)
     descriptor = _DESCRIPTORS.get(command)
     if descriptor is not None and descriptor.requires_runtime:
-        payload["aseprite"] = str(aseprite or os.environ["SPA_TEST_ASEPRITE"])
+        selected = os.environ["SPA_TEST_ASEPRITE"] if aseprite is None else aseprite
+        payload["aseprite"] = str(selected)
     text = json.dumps(payload)
     if transport == "argv":
         process = spa(*command.split(), "--input-json", text)
     else:
         process = spa(*command.split(), "--input-json", "-", stdin=text)
-    assert process.stdout, process_diagnostics(process)
     try:
         envelope = json.loads(process.stdout)
     except json.JSONDecodeError as error:

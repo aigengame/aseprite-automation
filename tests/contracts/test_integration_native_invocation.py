@@ -1,12 +1,16 @@
 """The shared native invocation module checks each envelope with its own schema."""
 
+import json
+import subprocess
+import traceback
 from collections.abc import Callable
 from typing import Any
 
 import pytest
 from jsonschema import ValidationError
 
-from tests.native_invocation import run, validate_envelope
+from tests import native_invocation
+from tests.native_invocation import expect_success, run, validate_envelope
 
 MISSING = "/missing/aseprite"
 
@@ -71,3 +75,45 @@ def test_changed_envelope_fails_its_own_schema(
 
     with pytest.raises(ValidationError):
         validate_envelope(command, change(envelope))
+
+
+@pytest.mark.parametrize(
+    ("change", "error"),
+    [
+        (lambda stdout: "", AssertionError),
+        (lambda stdout: "not json", AssertionError),
+        (
+            lambda stdout: json.dumps({**json.loads(stdout), "unexpected": True}),
+            ValidationError,
+        ),
+    ],
+    ids=["empty-stdout", "not-json", "invalid-envelope"],
+)
+def test_run_refuses_bad_stdout_with_process_diagnostics(
+    monkeypatch: pytest.MonkeyPatch,
+    change: Callable[[str], str],
+    error: type[Exception],
+) -> None:
+    installed = native_invocation.spa
+
+    def changed_spa(
+        *args: str, stdin: str | None = None
+    ) -> subprocess.CompletedProcess[str]:
+        process = installed(*args, stdin=stdin)
+        return subprocess.CompletedProcess(
+            process.args, process.returncode, change(process.stdout), process.stderr
+        )
+
+    monkeypatch.setattr(native_invocation, "spa", changed_spa)
+
+    with pytest.raises(error) as failure:
+        run("version", {})
+
+    assert "exit status: 0" in "".join(traceback.format_exception_only(failure.value))
+
+
+def test_expect_success_refuses_a_failure_envelope_with_process_diagnostics() -> None:
+    with pytest.raises(AssertionError, match="exit status: 1"):
+        expect_success(
+            "frame list", {"sprite_file": "/missing/source.aseprite"}, aseprite=MISSING
+        )

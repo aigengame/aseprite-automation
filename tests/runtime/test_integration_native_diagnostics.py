@@ -80,6 +80,38 @@ def test_lua_fixture_gets_each_parameter_as_one_script_param(tmp_path: Path) -> 
     assert response.read_text(encoding="utf-8") == "native result"
 
 
+def _pytest(
+    test_file: Path, report: Path, binary: Path, *options: str
+) -> subprocess.CompletedProcess[str]:
+    """Run test_file in a nested pytest with the project conftest and binary."""
+    return subprocess.run(
+        [
+            sys.executable,
+            "-X",
+            "utf8",
+            "-m",
+            "pytest",
+            "-p",
+            "tests.conftest",
+            str(test_file),
+            *options,
+            f"--basetemp={test_file.parent / 'pytest-temp'}",
+            f"--junitxml={report}",
+        ],
+        cwd=test_file.parent,
+        env={
+            **os.environ,
+            "PYTHONPATH": str(Path(__file__).resolve().parents[2]),
+            "SPA_TEST_ASEPRITE": str(binary),
+        },
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=20,
+        check=False,
+    )
+
+
 @pytest.mark.parametrize("phase", ["call", "setup", "expected"])
 def test_probe_failure_evidence_reaches_pytest_reports(
     tmp_path: Path, phase: str
@@ -117,34 +149,7 @@ def test_probe_failure_evidence_reaches_pytest_reports(
         encoding="utf-8",
     )
     report = tmp_path / "report.xml"
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-X",
-            "utf8",
-            "-m",
-            "pytest",
-            "-p",
-            "tests.conftest",
-            str(test_file),
-            "-x",
-            "-vv",
-            "--tb=short",
-            f"--basetemp={tmp_path / 'pytest-temp'}",
-            f"--junitxml={report}",
-        ],
-        cwd=tmp_path,
-        env={
-            **os.environ,
-            "PYTHONPATH": str(Path(__file__).resolve().parents[2]),
-            "SPA_TEST_ASEPRITE": str(binary),
-        },
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        timeout=20,
-        check=False,
-    )
+    result = _pytest(test_file, report, binary, "-x", "-vv", "--tb=short")
     transcript = result.stdout + result.stderr
     cases = ET.parse(report).findall(".//testcase")
     if phase == "expected":
@@ -163,3 +168,26 @@ def test_probe_failure_evidence_reaches_pytest_reports(
             assert "SIGTERM" in evidence
         assert "probe stdout" in evidence
         assert "probe stderr" in evidence
+
+
+def test_failed_session_probe_reports_its_diagnostics_once_per_test(
+    tmp_path: Path,
+) -> None:
+    binary = exiting_aseprite(
+        tmp_path, stdout="probe stdout", stderr="probe stderr", status=13
+    )
+    test_file = tmp_path / "test_session_probe.py"
+    test_file.write_text(
+        "def test_first(runtime):\n    pass\n\ndef test_second(runtime):\n    pass\n",
+        encoding="utf-8",
+    )
+    report = tmp_path / "report.xml"
+    result = _pytest(test_file, report, binary)
+    transcript = result.stdout + result.stderr
+    assert result.returncode == 1, transcript
+    errors = [case.find("error") for case in ET.parse(report).findall(".//testcase")]
+    assert len(errors) == 2, transcript
+    for error in errors:
+        assert error is not None and error.text is not None, transcript
+        assert error.text.count("Runtime diagnostics:") == 1, error.text
+        assert "probe stderr" in error.text
