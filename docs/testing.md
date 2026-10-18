@@ -27,7 +27,7 @@ with Source and an existing Target preserved.
 | `tests/ci/` | README translation freshness, Release admission, native test execution policy, and shard evidence checks. |
 | `tests/cli/` | Access Projection through the installed CLI and its in-process projections. |
 | `tests/color_mode/` | Conditional Color Mode choices, native mapping/Dithering, complete Sprite and Plan conversion evidence. |
-| `tests/contracts/` | Shared Published Language rules, including Failure Code registration and Operation Descriptor constraints. |
+| `tests/contracts/` | Shared Published Language rules, including Failure Code registration, Operation Descriptor constraints, and the rules that every command shares, as one table for each rule over the command tree. |
 | `tests/delivery/` | Shared Artifact staging, verification/publication lifecycles, and real filesystem publication boundaries. |
 | `tests/export/` | Image, GIF and PNG sequence Export contracts, independent format verification, and real Aseprite output evidence. |
 | `tests/examples/` | Installed-CLI workflows, deterministic asset production, and checked-in downstream asset agreement. |
