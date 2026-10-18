@@ -12,10 +12,14 @@ from pathlib import Path
 import pytest
 
 from spa.authoring.document.sprite import SPRITE_INSPECTION_RESOURCES
-from tests.frame.test_e2e_frame import _run, _run_fixture
+from spa.contracts.ports import RuntimeObservation
 from tests.motion.test_e2e_motion import curves, fixture
+from tests.native_invocation import expect_success, run_lua
+from tests.support import process_diagnostics
 
 pytestmark = pytest.mark.e2e
+
+FIXTURES = Path(__file__).parent / "fixtures"
 
 
 @pytest.mark.parametrize(
@@ -29,38 +33,36 @@ pytestmark = pytest.mark.e2e
     ],
 )
 def test_shared_persistence_compares_slice_facts_and_multiplicities(
-    entry_point: str, nested: bool
+    runtime: RuntimeObservation, entry_point: str, nested: bool
 ) -> None:
-    _run_fixture(
-        str(Path(__file__).parent / "fixtures" / "compare_slice_facts.lua"),
-        persistence=str(
-            files("spa.kernel").joinpath("document/sprite/sprite_persistence.lua")
+    lua = run_lua(
+        FIXTURES / "compare_slice_facts.lua",
+        runtime,
+        persistence=files("spa.kernel").joinpath(
+            "document/sprite/sprite_persistence.lua"
         ),
         entry_point=entry_point,
-        nested=str(nested).lower(),
+        nested=nested,
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
 
 
 def test_tag_add_preserves_color_distinct_slices_across_native_reordering(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    _run_fixture(
-        str(Path(__file__).parent / "fixtures" / "reordered_slices.lua"),
-        out=str(source),
-    )
+    lua = run_lua(FIXTURES / "reordered_slices.lua", runtime, out=source)
+    assert lua.returncode == 0, process_diagnostics(lua)
     source_bytes = source.read_bytes()
-    before = _run(
-        "sprite",
-        "get",
-        request={"sprite_file": str(source), "inspection_scope": ["slices"]},
+    before = expect_success(
+        "sprite get", {"sprite_file": str(source), "inspection_scope": ["slices"]}
     )
     assert len(before["slices"]) == 2
     assert {item["color"]["red"] for item in before["slices"]} == {0, 12}
-    added = _run(
-        "tag",
-        "add",
-        request={
+    added = expect_success(
+        "tag add",
+        {
             "source_sprite_file": str(source),
             "target_sprite_file": str(target),
             "in_place": False,
@@ -74,10 +76,8 @@ def test_tag_add_preserves_color_distinct_slices_across_native_reordering(
     )
     assert added["persisted_reopen_verified"] is True
     assert added["tag"]["name"] == "new"
-    after = _run(
-        "sprite",
-        "get",
-        request={"sprite_file": str(target), "inspection_scope": ["slices"]},
+    after = expect_success(
+        "sprite get", {"sprite_file": str(target), "inspection_scope": ["slices"]}
     )
     assert Counter(
         json.dumps(item, sort_keys=True) for item in after["slices"]
@@ -85,34 +85,39 @@ def test_tag_add_preserves_color_distinct_slices_across_native_reordering(
     assert source.read_bytes() == source_bytes
 
 
-def run_verified_save(tmp_path: Path, case: str) -> None:
+def run_verified_save(runtime: RuntimeObservation, tmp_path: Path, case: str) -> None:
+    """Run the verified-save fixture with the Kernel persistence and inspection files."""
     kernel = files("spa.kernel")
-    _run_fixture(
-        str(Path(__file__).parent / "fixtures" / "verified_save.lua"),
-        persistence=str(kernel.joinpath("document/sprite/sprite_persistence.lua")),
+    lua = run_lua(
+        FIXTURES / "verified_save.lua",
+        runtime,
+        persistence=kernel.joinpath("document/sprite/sprite_persistence.lua"),
         **{
-            resource.parameter_name: str(kernel.joinpath(resource.package_path))
+            resource.parameter_name: kernel.joinpath(resource.package_path)
             for resource in SPRITE_INSPECTION_RESOURCES
         },
-        digest=str(kernel.joinpath("foundation/digest.lua")),
-        staged=str(tmp_path / "staged.aseprite"),
+        digest=kernel.joinpath("foundation/digest.lua"),
+        staged=tmp_path / "staged.aseprite",
         case=case,
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
 
 
 def test_verified_save_transfers_ownership_and_returns_fresh_facts(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
-    run_verified_save(tmp_path, "success")
+    run_verified_save(runtime, tmp_path, "success")
     assert (tmp_path / "staged.aseprite").is_file()
 
 
 @pytest.mark.parametrize("case", ["save", "reopen", "observation", "comparison"])
 def test_verified_save_closes_owned_sprites_on_failure(
+    runtime: RuntimeObservation,
     tmp_path: Path,
     case: str,
 ) -> None:
-    run_verified_save(tmp_path, case)
+    run_verified_save(runtime, tmp_path, case)
 
 
 @pytest.mark.parametrize("operation", ["cel set", "motion apply"])
@@ -121,12 +126,13 @@ def test_verified_save_closes_owned_sprites_on_failure(
 )
 @pytest.mark.parametrize("in_place", [False, True])
 def test_handlers_gate_commit_and_restore_editor_on_persistence_failure(
+    runtime: RuntimeObservation,
     tmp_path: Path,
     operation: str,
     case: str,
     in_place: bool,
 ) -> None:
-    source = fixture(tmp_path, uuids="true")
+    source = fixture(runtime, tmp_path, uuids="true")
     target = source if in_place else tmp_path / "existing.aseprite"
     if not in_place:
         target.write_bytes(b"prior Target")
@@ -209,8 +215,10 @@ def observed_cli(
     return json.loads(run.stdout), json.loads(observations_path.read_text())
 
 
-def test_cel_and_motion_plan_saves_only_after_all_steps(tmp_path: Path) -> None:
-    source = fixture(tmp_path, uuids="true")
+def test_cel_and_motion_plan_saves_only_after_all_steps(
+    runtime: RuntimeObservation, tmp_path: Path
+) -> None:
+    source = fixture(runtime, tmp_path, uuids="true")
     before_source = source.read_bytes()
     outcome, observations = observed_cli(
         tmp_path,

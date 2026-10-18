@@ -6,29 +6,29 @@ from pathlib import Path
 
 import pytest
 
-from tests.frame.test_e2e_frame import _run_fixture
-from tests.support import spa
+from spa.contracts.ports import RuntimeObservation
+from tests.native_invocation import run_lua
+from tests.support import process_diagnostics, spa
 
 pytestmark = pytest.mark.e2e
 
-
-def native(name: str, **parameters: object) -> None:
-    _run_fixture(
-        str(Path(__file__).parent / "fixtures" / name),
-        **{key: str(value) for key, value in parameters.items()},
-    )
+FIXTURES = Path(__file__).parent / "fixtures"
 
 
-def fixture(tmp_path: Path, **parameters: object) -> Path:
+def fixture(runtime: RuntimeObservation, tmp_path: Path, **parameters: object) -> Path:
+    """Write the posed motion Sprite to tmp_path, and return its path."""
     source = tmp_path / "source.aseprite"
-    native("poses.lua", out=source, **parameters)
+    lua = run_lua(FIXTURES / "poses.lua", runtime, out=source, **parameters)
+    assert lua.returncode == 0, process_diagnostics(lua)
     assert source.is_file()
     return source
 
 
-def inspect(source: Path, tmp_path: Path) -> dict:
+def inspect(runtime: RuntimeObservation, source: Path, tmp_path: Path) -> dict:
+    """Read the native Frames and Cels of source with the inspection fixture."""
     out = tmp_path / "inspection.json"
-    native("inspect.lua", source=source, out=out)
+    lua = run_lua(FIXTURES / "inspect.lua", runtime, source=source, out=out)
+    assert lua.returncode == 0, process_diagnostics(lua)
     return json.loads(out.read_text())
 
 
@@ -77,17 +77,18 @@ def run_motion(source: Path, target: Path, inputs: dict) -> tuple[int, dict]:
 
 
 def test_motion_preserves_authored_poses_and_uses_each_cels_baseline(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
-    source = fixture(tmp_path)
+    source = fixture(runtime, tmp_path)
     before_bytes = source.read_bytes()
-    before = inspect(source, tmp_path)
+    before = inspect(runtime, source, tmp_path)
     target = tmp_path / "motion.aseprite"
     code, result = run_motion(source, target, curves())
     assert code == 0, result
     assert result["persisted_reopen_verified"] is True
     assert len(result["cels"]) == 5
-    after = inspect(target, tmp_path)
+    after = inspect(runtime, target, tmp_path)
     moved = [cel for cel in after["cels"] if cel["layer"] == "wizard"]
     assert [(c["x"], c["y"]) for c in moved] == [
         (-2, 2),
@@ -107,9 +108,10 @@ def test_motion_preserves_authored_poses_and_uses_each_cels_baseline(
 
 
 def test_full_native_displacement_and_position_boundaries_persist(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
-    source = fixture(tmp_path, kind="boundary")
+    source = fixture(runtime, tmp_path, kind="boundary")
     inputs = curves()
     inputs.update(to_frame=1, opacity=None)
     inputs["position_offsets"]["keys"] = [
@@ -119,12 +121,14 @@ def test_full_native_displacement_and_position_boundaries_persist(
     code, result = run_motion(source, target, inputs)
     assert code == 0, result
     assert result["cels"][0]["after"]["position"] == {"x": 32767, "y": -32768}
-    reopened = inspect(target, tmp_path)["cels"][0]
+    reopened = inspect(runtime, target, tmp_path)["cels"][0]
     assert (reopened["x"], reopened["y"]) == (32767, -32768)
 
 
-def test_motion_target_count_is_not_limited_by_plan_step_count(tmp_path: Path) -> None:
-    source = fixture(tmp_path, frame_count=65)
+def test_motion_target_count_is_not_limited_by_plan_step_count(
+    runtime: RuntimeObservation, tmp_path: Path
+) -> None:
+    source = fixture(runtime, tmp_path, frame_count=65)
     inputs = curves()
     inputs["to_frame"] = 65
     for name in ("position_offsets", "opacity"):
