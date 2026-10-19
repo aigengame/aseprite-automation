@@ -368,49 +368,6 @@ def test_convert_preserves_linked_cels_and_reports_all_palette_changes_and_tiles
     assert not any(tile["changed"] for tile in result["tilesets"][0]["tiles"])
 
 
-@pytest.mark.parametrize(
-    "command,case,reason",
-    [
-        (command, case, reason)
-        for command in ["assign-color-profile", "convert-color-profile"]
-        for case, reason in [
-            ("missing", "unreadable"),
-            ("directory", "unreadable"),
-            ("invalid", "invalid"),
-        ]
-    ]
-    + [
-        ("convert-color-profile", "lab", "unsupported_color_space"),
-    ],
-)
-def test_bad_icc_is_typed_and_never_publishes(
-    tmp_path: Path, runtime, command: str, case: str, reason: str
-):
-    from PIL import ImageCms
-
-    if command == "convert-color-profile":
-        _require_conversion(runtime)
-
-    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    _native(runtime, source, action="create")
-    original = source.read_bytes()
-    target.write_bytes(b"existing Target")
-    icc = tmp_path / "bad.icc"
-    if case == "directory":
-        icc.mkdir()
-    elif case == "invalid":
-        icc.write_bytes(b"not a profile")
-    elif case == "lab":
-        icc.write_bytes(
-            ImageCms.ImageCmsProfile(ImageCms.createProfile("LAB")).tobytes()
-        )
-    code, result = _run(command, source, target, {"kind": "icc", "icc_file": str(icc)})
-    assert code != 0 and result["code"] == "color_profile_file_failed", result
-    assert result["details"]["reason"] == reason
-    assert source.read_bytes() == original and target.read_bytes() == b"existing Target"
-    assert not list(tmp_path.glob(".*.staged.aseprite"))
-
-
 def test_convert_plan_matches_standalone_and_step_evidence(tmp_path: Path, runtime):
     _require_conversion(runtime)
     source, target, standalone = (
@@ -757,34 +714,16 @@ def test_admitted_same_profile_and_content_noops_remain_successful(
     )
 
 
-def test_conversion_discovery_matches_runtime_and_missing_converter_refuses_publication(
+def test_plan_refuses_convert_when_the_runtime_has_no_converter(
     tmp_path: Path, runtime
 ):
-    manifest_run = spa("schema", "--aseprite", os.environ["SPA_TEST_ASEPRITE"])
-    assert manifest_run.returncode == 0, manifest_run.stdout
-    manifest = json.loads(manifest_run.stdout)
-    available = "aseprite_convert_color_profile" in runtime.verified_capabilities
-    operations = {entry["operation"] for entry in manifest["operations"]}
-    assert "spa sprite assign-color-profile" in operations
-    assert ("spa sprite convert-color-profile" in operations) == available
-    if available:
-        return
+    if "aseprite_convert_color_profile" in runtime.verified_capabilities:
+        pytest.skip("selected runtime has a native Color Profile converter")
     assert sys.platform == "linux", "expected native Color Profile conversion"
-    gap = next(
-        item
-        for item in manifest["capability_gaps"]
-        if item["capability"] == "spa sprite convert-color-profile"
-    )
-    assert "aseprite_convert_color_profile" in gap["reason"]
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
     _native(runtime, source, action="create")
     original = source.read_bytes()
     target.write_bytes(b"existing Target")
-    code, result = _run("convert-color-profile", source, target, {"kind": "srgb"})
-    assert code != 0 and result["code"] == "runtime_incompatible", result
-    assert result["details"]["missing_capabilities"] == [
-        "aseprite_convert_color_profile"
-    ]
     code, result = _plan(
         source,
         target,

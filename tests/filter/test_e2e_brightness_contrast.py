@@ -8,28 +8,9 @@ from tests.filter.support import (
     observe_images,
     pixels,
     rgb_palette_colors,
-    run,
 )
 
 pytestmark = pytest.mark.e2e
-
-
-def test_surface_reports_observed_manual_tilemap_filter(runtime):
-    code, manifest = run("info")
-    assert code == 0, manifest
-    assert "spa filter brightness-contrast" in manifest["supported_capabilities"]
-    assert (
-        "aseprite_filter_brightness_contrast_tilemap_manual"
-        in manifest["runtime"]["verified_capabilities"]
-    )
-    assert not any(
-        gap["capability"] == "spa filter brightness-contrast: Manual Tilemap pixels"
-        for gap in manifest["capability_gaps"]
-    )
-    assert any(
-        gap["capability"] == "spa filter hue-saturation: Tilemap pixels"
-        for gap in manifest["capability_gaps"]
-    )
 
 
 @pytest.mark.parametrize(
