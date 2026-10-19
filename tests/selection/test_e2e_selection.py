@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.support import spa
+from tests.native_invocation import expect_success, run
 
 pytestmark = pytest.mark.e2e
 
@@ -22,29 +22,17 @@ def windows_selection_directory():
         yield Path(directory)
 
 
-def selection(operation: str, **values) -> tuple[int, dict]:
-    run = spa(
-        "selection",
-        operation,
-        "--input-json",
-        json.dumps(
-            {
-                "coordinate_space": "canvas-pixel",
-                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-                **values,
-            }
-        ),
-    )
-    return run.returncode, json.loads(run.stdout)
+def canvas_request(**fields: object) -> dict:
+    """Return a Selection request with fields in canvas-pixel coordinates."""
+    return {"coordinate_space": "canvas-pixel", **fields}
 
 
 def test_create_rectangle_retains_absolute_canvas_coordinates() -> None:
     rectangle = {"x": -3, "y": 7, "width": 4, "height": 2}
-    code, result = selection(
-        "create", shape={"kind": "rectangle", "rectangle": rectangle}
+    result = expect_success(
+        "selection create",
+        canvas_request(shape={"kind": "rectangle", "rectangle": rectangle}),
     )
-
-    assert code == 0, result
     assert result["selection"] == {"kind": "all", "rectangle": rectangle}
     assert result["bounds"] == rectangle
     assert result["pixel_count"] == 8
@@ -54,8 +42,9 @@ def test_create_rectangle_retains_absolute_canvas_coordinates() -> None:
 @pytest.mark.parametrize(("width", "height"), [(1, 1), (1, 5), (5, 1)])
 def test_degenerate_ellipse_uses_inclusive_native_endpoints(width, height) -> None:
     bounds = {"x": 11, "y": -8, "width": width, "height": height}
-    code, result = selection("create", shape={"kind": "ellipse", "bounds": bounds})
-    assert code == 0, result
+    result = expect_success(
+        "selection create", canvas_request(shape={"kind": "ellipse", "bounds": bounds})
+    )
     assert result["selection"] == {"kind": "all", "rectangle": bounds}
     assert result["pixel_count"] == width * height
 
@@ -90,8 +79,9 @@ def coverage(value: dict) -> set[tuple[int, int]]:
 def test_combine_uses_native_set_operations(mode, xs) -> None:
     left = {"kind": "all", "rectangle": {"x": -2, "y": 5, "width": 3, "height": 1}}
     right = {"kind": "all", "rectangle": {"x": -1, "y": 5, "width": 3, "height": 1}}
-    code, result = selection("combine", mode=mode, left=left, right=right)
-    assert code == 0, result
+    result = expect_success(
+        "selection combine", canvas_request(mode=mode, left=left, right=right)
+    )
     assert coverage(result["selection"]) == {(x, 5) for x in xs}
     assert result["pixel_count"] == len(xs)
 
@@ -107,13 +97,14 @@ ASYMMETRIC = {
 
 
 def test_create_mask_and_finite_inversion_keep_nonzero_origin() -> None:
-    code, created = selection("create", shape={"kind": "mask", "input": ASYMMETRIC})
-    assert code == 0, created
-    assert created["selection"] == ASYMMETRIC
-    code, inverted = selection(
-        "invert", selection=created["selection"], canvas=ASYMMETRIC["bounds"]
+    created = expect_success(
+        "selection create", canvas_request(shape={"kind": "mask", "input": ASYMMETRIC})
     )
-    assert code == 0, inverted
+    assert created["selection"] == ASYMMETRIC
+    inverted = expect_success(
+        "selection invert",
+        canvas_request(selection=created["selection"], canvas=ASYMMETRIC["bounds"]),
+    )
     assert coverage(inverted["selection"]) == {(11, 20), (12, 20), (13, 20)}
 
 
@@ -121,8 +112,9 @@ def test_create_mask_and_finite_inversion_keep_nonzero_origin() -> None:
     "value", [{"kind": "empty"}, {"kind": "all", "rectangle": ASYMMETRIC["bounds"]}]
 )
 def test_invert_empty_and_full(value) -> None:
-    code, result = selection("invert", selection=value, canvas=ASYMMETRIC["bounds"])
-    assert code == 0, result
+    result = expect_success(
+        "selection invert", canvas_request(selection=value, canvas=ASYMMETRIC["bounds"])
+    )
     assert result["pixel_count"] == (8 if value["kind"] == "empty" else 0)
     assert result["selection"]["kind"] == (
         "all" if value["kind"] == "empty" else "empty"
@@ -150,10 +142,10 @@ def pixels(rows: list[str], x=10, y=20) -> set[tuple[int, int]]:
 def test_grow_uses_native_brush_footprint(shape, radius, rows) -> None:
     value = {"kind": "all", "rectangle": {"x": 12, "y": 22, "width": 1, "height": 1}}
     area = {"x": 8, "y": 18, "width": 9, "height": 9}
-    code, result = selection(
-        "grow", selection=value, canvas=area, shape=shape, radius=radius
+    result = expect_success(
+        "selection grow",
+        canvas_request(selection=value, canvas=area, shape=shape, radius=radius),
     )
-    assert code == 0, result
     assert coverage(result["selection"]) == pixels(rows, 12 - radius, 22 - radius)
     assert (result["shape"], result["radius"], result["canvas"]) == (
         shape,
@@ -177,10 +169,10 @@ def test_transform_keeps_tight_bounds_placement_separate_from_actual_coverage(
     transform, rows
 ) -> None:
     area = {"x": 5, "y": 15, "width": 20, "height": 20}
-    code, result = selection(
-        "transform", selection=ASYMMETRIC, canvas=area, transform=transform
+    result = expect_success(
+        "selection transform",
+        canvas_request(selection=ASYMMETRIC, canvas=area, transform=transform),
     )
-    assert code == 0, result
     assert coverage(result["selection"]) == pixels(rows)
     assert result["source_bounds"] == ASYMMETRIC["bounds"]
     assert (result["target_placement"]["x"], result["target_placement"]["y"]) == (
@@ -221,13 +213,14 @@ def mask_value(rows: list[str], x=10, y=20) -> dict:
     ],
 )
 def test_downscale_retains_survivor_offset_or_becomes_empty(rows, expected) -> None:
-    code, result = selection(
-        "transform",
-        selection=mask_value(rows),
-        canvas=ASYMMETRIC["bounds"],
-        transform={"kind": "scale", "width": 2, "height": 1},
+    result = expect_success(
+        "selection transform",
+        canvas_request(
+            selection=mask_value(rows),
+            canvas=ASYMMETRIC["bounds"],
+            transform={"kind": "scale", "width": 2, "height": 1},
+        ),
     )
-    assert code == 0, result
     assert coverage(result["selection"]) == expected
     assert result["target_placement"] == {"x": 10, "y": 20, "width": 2, "height": 1}
     assert result["bounds"] == (
@@ -243,25 +236,27 @@ def test_downscale_retains_survivor_offset_or_becomes_empty(rows, expected) -> N
     ],
 )
 def test_nearest_scale_same_size_and_upscale(width, height, rows) -> None:
-    code, result = selection(
-        "transform",
-        selection=ASYMMETRIC,
-        canvas={"x": 10, "y": 20, "width": 8, "height": 4},
-        transform={"kind": "scale", "width": width, "height": height},
+    result = expect_success(
+        "selection transform",
+        canvas_request(
+            selection=ASYMMETRIC,
+            canvas={"x": 10, "y": 20, "width": 8, "height": 4},
+            transform={"kind": "scale", "width": width, "height": height},
+        ),
     )
-    assert code == 0, result
     assert coverage(result["selection"]) == pixels(rows)
 
 
 @pytest.mark.parametrize(("x", "y"), [(3, 2), (-3, -2)])
 def test_translate_applies_integer_displacement(x, y) -> None:
-    code, result = selection(
-        "transform",
-        selection=ASYMMETRIC,
-        canvas={"x": 0, "y": 0, "width": 30, "height": 30},
-        transform={"kind": "translate", "offset": {"x": x, "y": y}},
+    result = expect_success(
+        "selection transform",
+        canvas_request(
+            selection=ASYMMETRIC,
+            canvas={"x": 0, "y": 0, "width": 30, "height": 30},
+            transform={"kind": "translate", "offset": {"x": x, "y": y}},
+        ),
     )
-    assert code == 0, result
     assert coverage(result["selection"]) == pixels(["#...", "####"], 10 + x, 20 + y)
 
 
@@ -269,14 +264,15 @@ def test_translate_applies_integer_displacement(x, y) -> None:
 @pytest.mark.parametrize("radius", [1, 2])
 def test_shrink_erodes_complete_coverage(shape, radius) -> None:
     area = {"x": 10, "y": 20, "width": 7, "height": 7}
-    code, result = selection(
-        "shrink",
-        selection={"kind": "all", "rectangle": area},
-        canvas=area,
-        shape=shape,
-        radius=radius,
+    result = expect_success(
+        "selection shrink",
+        canvas_request(
+            selection={"kind": "all", "rectangle": area},
+            canvas=area,
+            shape=shape,
+            radius=radius,
+        ),
     )
-    assert code == 0, result
     assert coverage(result["selection"]) == pixels(
         ["#" * (7 - 2 * radius)] * (7 - 2 * radius), 10 + radius, 20 + radius
     )
@@ -293,10 +289,10 @@ def test_shrink_with_hole_compares_complete_native_coverage(shape, rows) -> None
     value = mask_value(
         ["#######", "#######", "#######", "###.###", "#######", "#######", "#######"]
     )
-    code, result = selection(
-        "shrink", selection=value, canvas=value["bounds"], shape=shape, radius=1
+    result = expect_success(
+        "selection shrink",
+        canvas_request(selection=value, canvas=value["bounds"], shape=shape, radius=1),
     )
-    assert code == 0, result
     assert coverage(result["selection"]) == pixels(rows, 11, 21)
 
 
@@ -307,10 +303,12 @@ def test_empty_remains_empty_with_valid_parameters(operation) -> None:
         if operation == "transform"
         else {"shape": "square", "radius": 2}
     )
-    code, result = selection(
-        operation, selection={"kind": "empty"}, canvas=ASYMMETRIC["bounds"], **params
+    result = expect_success(
+        f"selection {operation}",
+        canvas_request(
+            selection={"kind": "empty"}, canvas=ASYMMETRIC["bounds"], **params
+        ),
     )
-    assert code == 0, result
     assert result["selection"] == {"kind": "empty"}
     assert result["bounds"] is None
     if operation == "transform":
@@ -320,22 +318,28 @@ def test_empty_remains_empty_with_valid_parameters(operation) -> None:
 def test_grow_clips_but_transform_refuses_outside_selected_coverage() -> None:
     area = {"x": 10, "y": 20, "width": 3, "height": 3}
     value = {"kind": "all", "rectangle": {**area, "width": 1, "height": 1}}
-    code, grown = selection(
-        "grow", selection=value, canvas=area, shape="circle", radius=1
+    grown = expect_success(
+        "selection grow",
+        canvas_request(selection=value, canvas=area, shape="circle", radius=1),
     )
-    assert code == 0, grown
     assert coverage(grown["selection"]) == {(10, 20), (11, 20), (10, 21)}
-    code, refused = selection(
-        "transform",
-        selection=value,
-        canvas=area,
-        transform={"kind": "translate", "offset": {"x": -1, "y": 0}},
+    outcome = run(
+        "selection transform",
+        canvas_request(
+            selection=value,
+            canvas=area,
+            transform={"kind": "translate", "offset": {"x": -1, "y": 0}},
+        ),
     )
-    assert code != 0 and refused["code"] == "selection_out_of_bounds", refused
-    code, eroded = selection(
-        "shrink", selection=value, canvas=area, shape="circle", radius=1
+    refused = outcome.envelope
+    assert outcome.returncode != 0 and refused["code"] == "selection_out_of_bounds", (
+        refused
     )
-    assert code == 0 and eroded["selection"] == {"kind": "empty"}, eroded
+    eroded = expect_success(
+        "selection shrink",
+        canvas_request(selection=value, canvas=area, shape="circle", radius=1),
+    )
+    assert eroded["selection"] == {"kind": "empty"}, eroded
 
 
 @pytest.mark.parametrize("operation", ["invert", "grow", "shrink", "transform"])
@@ -347,22 +351,27 @@ def test_input_outside_canvas_is_rejected_before_processing(operation) -> None:
             {"shape": "circle", "radius": 1} if operation in {"grow", "shrink"} else {}
         )
     )
-    code, result = selection(
-        operation,
-        selection=ASYMMETRIC,
-        canvas={"x": 11, "y": 20, "width": 3, "height": 2},
-        **params,
+    outcome = run(
+        f"selection {operation}",
+        canvas_request(
+            selection=ASYMMETRIC,
+            canvas={"x": 11, "y": 20, "width": 3, "height": 2},
+            **params,
+        ),
     )
-    assert code != 0 and result["code"] == "selection_out_of_bounds", result
+    result = outcome.envelope
+    assert outcome.returncode != 0 and result["code"] == "selection_out_of_bounds", (
+        result
+    )
 
 
 def test_validate_returns_findings_without_repair() -> None:
-    code, result = selection(
-        "validate",
-        selection=ASYMMETRIC,
-        canvas={"x": 11, "y": 20, "width": 3, "height": 2},
+    result = expect_success(
+        "selection validate",
+        canvas_request(
+            selection=ASYMMETRIC, canvas={"x": 11, "y": 20, "width": 3, "height": 2}
+        ),
     )
-    assert code == 0, result
     assert result["valid"] is False
     assert "selection_out_of_bounds" in {item["kind"] for item in result["findings"]}
 
@@ -378,12 +387,13 @@ def test_export_roundtrip_and_preview_use_explicit_canvas(
     if os.name == "nt" and spelling == "tilde":
         tmp_path = request.getfixturevalue("windows_selection_directory")
     destination = tmp_path / "mask.json"
-    code, exported = selection(
-        "export",
-        selection=ASYMMETRIC,
-        destination={"path": str(destination), "if_exists": "fail"},
+    exported = expect_success(
+        "selection export",
+        canvas_request(
+            selection=ASYMMETRIC,
+            destination={"path": str(destination), "if_exists": "fail"},
+        ),
     )
-    assert code == 0, exported
     assert exported["artifact"]["role"] == "selection-mask"
     assert (
         exported["artifact"]["sha256"]
@@ -397,21 +407,25 @@ def test_export_roundtrip_and_preview_use_explicit_canvas(
     )
     assert Path(input_path).expanduser().samefile(destination)
     artifact = {"kind": "artifact", "path": input_path}
-    code, validated = selection(
-        "validate", selection=artifact, canvas=ASYMMETRIC["bounds"]
+    validated = expect_success(
+        "selection validate",
+        canvas_request(selection=artifact, canvas=ASYMMETRIC["bounds"]),
     )
-    assert code == 0 and validated["valid"] is True, validated
-    code, restored = selection("create", shape={"kind": "mask", "input": artifact})
-    assert code == 0 and restored["selection"] == ASYMMETRIC, restored
+    assert validated["valid"] is True, validated
+    restored = expect_success(
+        "selection create", canvas_request(shape={"kind": "mask", "input": artifact})
+    )
+    assert restored["selection"] == ASYMMETRIC, restored
     preview = tmp_path / "mask.png"
     area = {"x": 9, "y": 19, "width": 6, "height": 4}
-    code, rendered = selection(
-        "preview",
-        selection=artifact,
-        canvas=area,
-        destination={"path": str(preview), "if_exists": "fail"},
+    rendered = expect_success(
+        "selection preview",
+        canvas_request(
+            selection=artifact,
+            canvas=area,
+            destination={"path": str(preview), "if_exists": "fail"},
+        ),
     )
-    assert code == 0, rendered
     assert rendered["canvas"] == area
     assert rendered["artifact"]["role"] == "selection-preview"
     decoded = verify_png(preview.read_bytes(), preview)
@@ -432,137 +446,130 @@ def test_artifact_empty_and_overwrite_failures_leave_no_staging_files(
     suffix = "png" if operation == "preview" else "json"
     target = tmp_path / f"selection.{suffix}"
     parameters = {"canvas": ASYMMETRIC["bounds"]} if operation == "preview" else {}
-    code, result = selection(
-        operation,
-        selection=value,
-        destination={"path": str(target), "if_exists": "fail"},
-        **parameters,
+    result = expect_success(
+        f"selection {operation}",
+        canvas_request(
+            selection=value,
+            destination={"path": str(target), "if_exists": "fail"},
+            **parameters,
+        ),
     )
-    assert code == 0, result
     assert result["selection"] == value
     original = target.read_bytes()
-    code, result = selection(
-        operation,
-        selection=value,
-        destination={"path": str(target), "if_exists": "fail"},
-        **parameters,
+    outcome = run(
+        f"selection {operation}",
+        canvas_request(
+            selection=value,
+            destination={"path": str(target), "if_exists": "fail"},
+            **parameters,
+        ),
     )
-    assert code != 0 and result["code"] == "artifact_file_failed", result
+    result = outcome.envelope
+    assert outcome.returncode != 0 and result["code"] == "artifact_file_failed", result
     assert target.read_bytes() == original
-    code, result = selection(
-        operation,
-        selection=value,
-        destination={"path": str(target), "if_exists": "replace"},
-        **parameters,
+    result = expect_success(
+        f"selection {operation}",
+        canvas_request(
+            selection=value,
+            destination={"path": str(target), "if_exists": "replace"},
+            **parameters,
+        ),
     )
-    assert code == 0, result
     assert set(tmp_path.iterdir()) == {target}
 
 
 def test_preview_refusal_does_not_publish_or_replace_existing_target(tmp_path) -> None:
     target = tmp_path / "preview.png"
     target.write_bytes(b"keep previous result")
-    code, result = selection(
-        "preview",
-        selection=ASYMMETRIC,
-        canvas={"x": 11, "y": 20, "width": 3, "height": 2},
-        destination={"path": str(target), "if_exists": "replace"},
+    outcome = run(
+        "selection preview",
+        canvas_request(
+            selection=ASYMMETRIC,
+            canvas={"x": 11, "y": 20, "width": 3, "height": 2},
+            destination={"path": str(target), "if_exists": "replace"},
+        ),
     )
-    assert code != 0 and result["code"] == "selection_out_of_bounds", result
+    result = outcome.envelope
+    assert outcome.returncode != 0 and result["code"] == "selection_out_of_bounds", (
+        result
+    )
     assert target.read_bytes() == b"keep previous result"
     assert set(tmp_path.iterdir()) == {target}
 
 
 def test_created_combined_transformed_selection_is_consumed_by_paint(tmp_path) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    runtime = {"aseprite": os.environ["SPA_TEST_ASEPRITE"]}
-    created = spa(
-        "sprite",
-        "create",
-        "--input-json",
-        json.dumps(
-            {
-                **runtime,
-                "target_sprite_file": str(source),
-                "width": 4,
-                "height": 3,
-                "color_mode": "rgb",
-                "initial_layer": {"kind": "transparent"},
-                "overwrite": False,
-            }
-        ),
-    )
-    assert created.returncode == 0, created.stdout
-    original = source.read_bytes()
-    code, first = selection(
-        "create",
-        shape={
-            "kind": "rectangle",
-            "rectangle": {"x": 0, "y": 0, "width": 2, "height": 1},
+    expect_success(
+        "sprite create",
+        {
+            "target_sprite_file": str(source),
+            "width": 4,
+            "height": 3,
+            "color_mode": "rgb",
+            "initial_layer": {"kind": "transparent"},
+            "overwrite": False,
         },
     )
-    assert code == 0, first
-    code, second = selection(
-        "combine",
-        mode="subtract",
-        left=first["selection"],
-        right={"kind": "all", "rectangle": {"x": 1, "y": 0, "width": 1, "height": 1}},
-    )
-    assert code == 0, second
-    code, third = selection(
-        "transform",
-        selection=second["selection"],
-        canvas={"x": 0, "y": 0, "width": 4, "height": 3},
-        transform={"kind": "translate", "offset": {"x": 2, "y": 1}},
-    )
-    assert code == 0, third
-    red = {"kind": "rgba", "red": 255, "green": 0, "blue": 0, "alpha": 255}
-    run = spa(
-        "paint",
-        "apply",
-        "--input-json",
-        json.dumps(
-            {
-                **runtime,
-                "source_sprite_file": str(source),
-                "target_sprite_file": str(target),
-                "in_place": False,
-                "overwrite": False,
-                "target": {"layer_path": [1], "frame_number": 1},
-                "selection": third["selection"],
-                "patch": {
-                    "coordinate_space": "image-pixel",
-                    "rectangle": {"x": 0, "y": 0, "width": 4, "height": 3},
-                    "runs": [
-                        {"x": 0, "y": y, "length": 4, "color": red} for y in range(3)
-                    ],
-                },
+    original = source.read_bytes()
+    first = expect_success(
+        "selection create",
+        canvas_request(
+            shape={
+                "kind": "rectangle",
+                "rectangle": {"x": 0, "y": 0, "width": 2, "height": 1},
             }
         ),
     )
-    assert run.returncode == 0, run.stdout
-    result = json.loads(run.stdout)
+    second = expect_success(
+        "selection combine",
+        canvas_request(
+            mode="subtract",
+            left=first["selection"],
+            right={
+                "kind": "all",
+                "rectangle": {"x": 1, "y": 0, "width": 1, "height": 1},
+            },
+        ),
+    )
+    third = expect_success(
+        "selection transform",
+        canvas_request(
+            selection=second["selection"],
+            canvas={"x": 0, "y": 0, "width": 4, "height": 3},
+            transform={"kind": "translate", "offset": {"x": 2, "y": 1}},
+        ),
+    )
+    red = {"kind": "rgba", "red": 255, "green": 0, "blue": 0, "alpha": 255}
+    result = expect_success(
+        "paint apply",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": False,
+            "overwrite": False,
+            "target": {"layer_path": [1], "frame_number": 1},
+            "selection": third["selection"],
+            "patch": {
+                "coordinate_space": "image-pixel",
+                "rectangle": {"x": 0, "y": 0, "width": 4, "height": 3},
+                "runs": [{"x": 0, "y": y, "length": 4, "color": red} for y in range(3)],
+            },
+        },
+    )
     assert result["pixels_written"] == 1
     assert result["pixels_skipped_by_selection"] == 11
     assert source.read_bytes() == original
-    snapshot_run = spa(
-        "image",
-        "get",
-        "--input-json",
-        json.dumps(
-            {
-                **runtime,
-                "sprite_file": str(target),
-                "source": {
-                    "kind": "individual",
-                    "target": {"layer": {"layer_path": [1]}, "frame_number": 1},
-                    "rectangle": {"x": 0, "y": 0, "width": 4, "height": 3},
-                },
-            }
-        ),
-    )
-    assert snapshot_run.returncode == 0, snapshot_run.stdout
-    rows = json.loads(snapshot_run.stdout)["snapshot"]["rows"]
+    rows = expect_success(
+        "image get",
+        {
+            "sprite_file": str(target),
+            "source": {
+                "kind": "individual",
+                "target": {"layer": {"layer_path": [1]}, "frame_number": 1},
+                "rectangle": {"x": 0, "y": 0, "width": 4, "height": 3},
+            },
+        },
+    )["snapshot"]["rows"]
     actual = [
         [entry["color"] for entry in row for _ in range(entry["length"])]
         for row in rows
@@ -577,34 +584,44 @@ def test_created_combined_transformed_selection_is_consumed_by_paint(tmp_path) -
 
 def test_native_coordinate_overflow_cannot_return_wrapped_success() -> None:
     area = {"x": 2**31, "y": 20, "width": 1, "height": 1}
-    code, result = selection("create", shape={"kind": "rectangle", "rectangle": area})
-    assert code != 0, result
+    outcome = run(
+        "selection create",
+        canvas_request(shape={"kind": "rectangle", "rectangle": area}),
+    )
+    result = outcome.envelope
+    assert outcome.returncode != 0, result
     assert result["code"] == "kernel_execution_failed"
 
 
 @pytest.mark.parametrize("operation", ["grow", "shrink"])
 def test_morphology_refuses_unrepresentable_native_footprint(operation) -> None:
-    code, result = selection(
-        operation,
-        selection={
-            "kind": "all",
-            "rectangle": {"x": 11, "y": 21, "width": 1, "height": 1},
-        },
-        canvas={"x": 10, "y": 20, "width": 3, "height": 3},
-        radius=2**32,
-        shape="square",
+    outcome = run(
+        f"selection {operation}",
+        canvas_request(
+            selection={
+                "kind": "all",
+                "rectangle": {"x": 11, "y": 21, "width": 1, "height": 1},
+            },
+            canvas={"x": 10, "y": 20, "width": 3, "height": 3},
+            radius=2**32,
+            shape="square",
+        ),
     )
-    assert code != 0 and result["code"] == "kernel_execution_failed", result
+    result = outcome.envelope
+    assert outcome.returncode != 0 and result["code"] == "kernel_execution_failed", (
+        result
+    )
     assert result["diagnostics"]["exit_status"] == 0
 
 
 def test_transform_tests_selected_coverage_not_the_placement_rectangle() -> None:
-    code, result = selection(
-        "transform",
-        selection=ASYMMETRIC,
-        canvas=ASYMMETRIC["bounds"],
-        transform={"kind": "scale", "width": 8, "height": 1},
+    result = expect_success(
+        "selection transform",
+        canvas_request(
+            selection=ASYMMETRIC,
+            canvas=ASYMMETRIC["bounds"],
+            transform={"kind": "scale", "width": 8, "height": 1},
+        ),
     )
-    assert code == 0, result
     assert result["target_placement"] == {"x": 10, "y": 20, "width": 8, "height": 1}
     assert coverage(result["selection"]) == {(10, 20), (11, 20)}

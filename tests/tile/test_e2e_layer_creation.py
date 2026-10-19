@@ -4,8 +4,9 @@ from pathlib import Path
 
 import pytest
 
+from tests.native_invocation import expect_success, run
 from tests.support import clear_first_saved_layer_uuid
-from tests.tile.support import fixture, run
+from tests.tile.support import tiles_sprite
 
 pytestmark = pytest.mark.e2e
 
@@ -18,7 +19,7 @@ def test_new_tilemap_layer_accepts_explicit_cel_creation(
     source = tmp_path / "source.aseprite"
     layered = tmp_path / "layered.aseprite"
     target = tmp_path / "target.aseprite"
-    fixture(source, runtime, mode="indexed", transparent="7")
+    tiles_sprite(runtime, source, mode="indexed", transparent="7")
     original = source.read_bytes()
     tileset = (
         {
@@ -34,18 +35,18 @@ def test_new_tilemap_layer_accepts_explicit_cel_creation(
         if intent == "create"
         else {"share": {"tileset_index": 1}}
     )
-    code, added = run(
-        "layer",
-        "add",
-        source_sprite_file=str(source),
-        target_sprite_file=str(layered),
-        in_place=False,
-        overwrite=False,
-        kind="tilemap",
-        name="new map",
-        tileset=tileset,
+    added = expect_success(
+        "layer add",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(layered),
+            "in_place": False,
+            "overwrite": False,
+            "kind": "tilemap",
+            "name": "new map",
+            "tileset": tileset,
+        },
     )
-    assert code == 0, added
     assert added["tilemap"]["initial_cel_count"] == 0
     layered_bytes = layered.read_bytes()
     address = {
@@ -60,25 +61,23 @@ def test_new_tilemap_layer_accepts_explicit_cel_creation(
         "overwrite": False,
     }
     inputs = {"target": address, "tilemap_size": size}
-    code, result = (
-        run(
-            "plan",
-            "run",
-            plan=files | {"steps": [{"operation": "cel add", "input": inputs}]},
+    result = (
+        expect_success(
+            "plan run",
+            {"plan": files | {"steps": [{"operation": "cel add", "input": inputs}]}},
         )
         if plan
-        else run("cel", "add", **files, **inputs)
+        else expect_success("cel add", {**files, **inputs})
     )
-    assert code == 0, result
     assert result["persisted_reopen_verified"] is True
-    code, observed = run(
-        "tilemap",
-        "get",
-        sprite_file=str(target),
-        target=address,
-        rectangle={"x": 0, "y": 0, **size},
+    observed = expect_success(
+        "tilemap get",
+        {
+            "sprite_file": str(target),
+            "target": address,
+            "rectangle": {"x": 0, "y": 0, **size},
+        },
     )
-    assert code == 0, observed
     assert observed["tilemap"]["cell_size"] == size
     assert (
         observed["tilemap"]["tileset_index"]
@@ -86,8 +85,7 @@ def test_new_tilemap_layer_accepts_explicit_cel_creation(
     )
     assert observed["snapshot"]["complete"] is True
     assert observed["snapshot"]["entries"] == []
-    code, final_tilesets = run("tileset", "list", sprite_file=str(target))
-    assert code == 0, final_tilesets
+    final_tilesets = expect_success("tileset list", {"sprite_file": str(target)})
     assert len(final_tilesets["tilesets"]) == added["tilemap"]["tileset_count"]
     assert source.read_bytes() == original
     assert layered.read_bytes() == layered_bytes
@@ -100,25 +98,28 @@ def test_create_tilemap_layer_preserves_existing_document(
     tmp_path: Path, runtime, mode: str, base_index: int
 ) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    fixture(source, runtime, mode=mode, transparent="7")
+    tiles_sprite(runtime, source, mode=mode, transparent="7")
     original = source.read_bytes()
-    code, before = run("tileset", "list", sprite_file=str(source))
-    assert code == 0, before
+    before = expect_success("tileset list", {"sprite_file": str(source)})
     grid = {"origin": {"x": 0, "y": 0}, "tile_size": {"width": 4, "height": 5}}
-    code, added = run(
-        "layer",
-        "add",
-        source_sprite_file=str(source),
-        target_sprite_file=str(target),
-        in_place=False,
-        overwrite=False,
-        kind="tilemap",
-        name="new map",
-        tileset={
-            "create": {"name": "new terrain", "grid": grid, "base_index": base_index}
+    added = expect_success(
+        "layer add",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": False,
+            "overwrite": False,
+            "kind": "tilemap",
+            "name": "new map",
+            "tileset": {
+                "create": {
+                    "name": "new terrain",
+                    "grid": grid,
+                    "base_index": base_index,
+                }
+            },
         },
     )
-    assert code == 0, added
     assert added["persisted_reopen_verified"] is True
     assert added["layer"]["is_tilemap"] is True
     assert added["layer"]["name"] == "new map"
@@ -130,22 +131,23 @@ def test_create_tilemap_layer_preserves_existing_document(
     assert created["initial_cel_count"] == 0
     assert created["tileset_count"] == len(before["tilesets"]) + 1
     assert created["temporary_tilesets_removed"] == 0
-    code, after = run("tileset", "list", sprite_file=str(target))
-    assert code == 0, after
+    after = expect_success("tileset list", {"sprite_file": str(target)})
     assert after["tilesets"][:-1] == before["tilesets"]
     assert after["tilesets"][-1] == created["tileset"]
-    code, cell = run(
-        "tilemap",
-        "get",
-        sprite_file=str(target),
-        target={"layer": {"layer_path": added["layer"]["path"]}, "frame_number": 2},
+    cell = expect_success(
+        "tilemap get",
+        {
+            "sprite_file": str(target),
+            "target": {
+                "layer": {"layer_path": added["layer"]["path"]},
+                "frame_number": 2,
+            },
+        },
     )
-    assert code == 0, cell
     assert cell["tilemap"]["exists"] is False
-    code, document = run(
-        "sprite", "get", sprite_file=str(target), inspection_scope=["tilesets"]
+    document = expect_success(
+        "sprite get", {"sprite_file": str(target), "inspection_scope": ["tilesets"]}
     )
-    assert code == 0, document
     assert document["tilesets"][-1]["base_index"] == base_index
     assert source.read_bytes() == original
 
@@ -155,22 +157,21 @@ def test_share_removes_only_its_temporary_tileset(
     tmp_path: Path, runtime, address: dict
 ) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    fixture(source, runtime, properties="true")
+    tiles_sprite(runtime, source, properties="true")
     original = source.read_bytes()
-    code, before = run("tileset", "list", sprite_file=str(source))
-    assert code == 0, before
-    code, added = run(
-        "layer",
-        "add",
-        source_sprite_file=str(source),
-        target_sprite_file=str(target),
-        in_place=False,
-        overwrite=False,
-        kind="tilemap",
-        name="new shared map",
-        tileset={"share": address},
+    before = expect_success("tileset list", {"sprite_file": str(source)})
+    added = expect_success(
+        "layer add",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": False,
+            "overwrite": False,
+            "kind": "tilemap",
+            "name": "new shared map",
+            "tileset": {"share": address},
+        },
     )
-    assert code == 0, added
     result = added["tilemap"]
     selected = before["tilesets"][0 if "tileset_index" in address else -1]
     assert result["shared_tileset_before"] == selected
@@ -178,8 +179,7 @@ def test_share_removes_only_its_temporary_tileset(
     assert result["tileset_count"] == len(before["tilesets"])
     assert result["temporary_tilesets_removed"] == 1
     assert result["initial_cel_count"] == 0
-    code, after = run("tileset", "list", sprite_file=str(target))
-    assert code == 0, after
+    after = expect_success("tileset list", {"sprite_file": str(target)})
     assert len(after["tilesets"]) == len(before["tilesets"])
     for current, previous in zip(after["tilesets"], before["tilesets"], strict=True):
         current["layers"] = [
@@ -187,16 +187,15 @@ def test_share_removes_only_its_temporary_tileset(
         ]
         assert current == previous
     for destination in (source, target):
-        code, tile = run(
-            "tileset",
-            "tile",
-            "get",
-            sprite_file=str(destination),
-            target={"tileset_index": 1},
-            tile={"tile_index": 2},
-            property_namespaces=["example.tiles", "not.requested"],
+        tile = expect_success(
+            "tileset tile get",
+            {
+                "sprite_file": str(destination),
+                "target": {"tileset_index": 1},
+                "tile": {"tile_index": 2},
+                "property_namespaces": ["example.tiles", "not.requested"],
+            },
         )
-        assert code == 0, tile
         observed = {key: tile[key] for key in ("tile", "snapshot")}
         if destination == source:
             expected = observed
@@ -209,36 +208,34 @@ def test_share_accepts_native_assignment_of_an_unverified_layer_uuid(
     tmp_path: Path, runtime
 ) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    fixture(source, runtime, uuids="true")
+    tiles_sprite(runtime, source, uuids="true")
     clear_first_saved_layer_uuid(source, "map")
     original = source.read_bytes()
-    code, before = run("tileset", "list", sprite_file=str(source))
-    assert code == 0, before
+    before = expect_success("tileset list", {"sprite_file": str(source)})
     existing_bindings = before["tilesets"][0]["layers"]
     assert [binding["name"] for binding in existing_bindings] == ["map", "shared"]
     assert existing_bindings[0]["layer_uuid"] is None
     assert isinstance(existing_bindings[1]["layer_uuid"], str)
 
-    code, added = run(
-        "layer",
-        "add",
-        source_sprite_file=str(source),
-        target_sprite_file=str(target),
-        in_place=False,
-        overwrite=False,
-        kind="tilemap",
-        name="added",
-        tileset={"share": {"tileset_index": 1}},
+    added = expect_success(
+        "layer add",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": False,
+            "overwrite": False,
+            "kind": "tilemap",
+            "name": "added",
+            "tileset": {"share": {"tileset_index": 1}},
+        },
     )
-    assert code == 0, added
     assert added["persisted_reopen_verified"] is True
     assert added["use_layer_uuids"] is True
     assert added["tilemap"]["shared_tileset_before"] == before["tilesets"][0]
     assert added["tilemap"]["tileset_count"] == len(before["tilesets"])
     assert added["tilemap"]["temporary_tilesets_removed"] == 1
 
-    code, after = run("tileset", "list", sprite_file=str(target))
-    assert code == 0, after
+    after = expect_success("tileset list", {"sprite_file": str(target)})
     assert after["tilesets"][0] == added["tilemap"]["tileset"]
     retained = after["tilesets"][0]["layers"][:-1]
     assigned_uuid = retained[0]["layer_uuid"]
@@ -259,33 +256,31 @@ def test_tilemap_appends_to_exact_group_and_preserves_uuid_policy(
     tmp_path: Path, runtime, parent_kind: str, persist: bool
 ) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    fixture(source, runtime, group="true", uuids=str(persist).lower())
-    code, before = run("layer", "list", sprite_file=str(source))
-    assert code == 0, before
+    tiles_sprite(runtime, source, group="true", uuids=str(persist).lower())
+    before = expect_success("layer list", {"sprite_file": str(source)})
     parent = before["layers"][-1]
     address = {
         "layer_path": parent["path"],
         "layer_name": parent["name"],
         "layer_uuid": parent["layer_uuid"],
     }
-    code, added = run(
-        "layer",
-        "add",
-        source_sprite_file=str(source),
-        target_sprite_file=str(target),
-        in_place=False,
-        overwrite=False,
-        kind="tilemap",
-        name="nested map",
-        parent={parent_kind: address[parent_kind]},
-        tileset={"share": {"tileset_index": 1}},
+    added = expect_success(
+        "layer add",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": False,
+            "overwrite": False,
+            "kind": "tilemap",
+            "name": "nested map",
+            "parent": {parent_kind: address[parent_kind]},
+            "tileset": {"share": {"tileset_index": 1}},
+        },
     )
-    assert code == 0, added
     assert added["layer"]["path"] == [*parent["path"], 2]
     assert added["use_layer_uuids"] is persist
     assert (added["layer"]["layer_uuid"] is not None) is persist
-    code, after = run("layer", "list", sprite_file=str(target))
-    assert code == 0, after
+    after = expect_success("layer list", {"sprite_file": str(target)})
     assert after["layers"][-1]["children"].pop() == added["layer"]
     assert after == {**before, "sprite_file": str(target)}
 
@@ -303,21 +298,23 @@ def test_invalid_share_preserves_source_and_existing_target(
     tmp_path: Path, runtime, address: dict, expected: str
 ) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    fixture(source, runtime, duplicate_name="true")
+    tiles_sprite(runtime, source, duplicate_name="true")
     original = source.read_bytes()
     target.write_bytes(b"previous target")
-    code, failure = run(
-        "layer",
-        "add",
-        source_sprite_file=str(source),
-        target_sprite_file=str(target),
-        in_place=False,
-        overwrite=True,
-        kind="tilemap",
-        name="new map",
-        tileset={"share": address},
+    outcome = run(
+        "layer add",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": False,
+            "overwrite": True,
+            "kind": "tilemap",
+            "name": "new map",
+            "tileset": {"share": address},
+        },
     )
-    assert code == 2, failure
+    failure = outcome.envelope
+    assert outcome.returncode == 2, failure
     assert failure["code"] == expected
     assert {
         key: value
@@ -333,21 +330,23 @@ def test_tilemap_parent_refusal_preserves_in_place_source(
     tmp_path: Path, runtime
 ) -> None:
     source = tmp_path / "source.aseprite"
-    fixture(source, runtime)
+    tiles_sprite(runtime, source)
     original = source.read_bytes()
-    code, failure = run(
-        "layer",
-        "add",
-        source_sprite_file=str(source),
-        target_sprite_file=str(source),
-        in_place=True,
-        overwrite=True,
-        kind="tilemap",
-        name="new map",
-        parent={"layer_path": [1]},
-        tileset={"share": {"tileset_index": 1}},
+    outcome = run(
+        "layer add",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(source),
+            "in_place": True,
+            "overwrite": True,
+            "kind": "tilemap",
+            "name": "new map",
+            "parent": {"layer_path": [1]},
+            "tileset": {"share": {"tileset_index": 1}},
+        },
     )
-    assert code == 2, failure
+    failure = outcome.envelope
+    assert outcome.returncode == 2, failure
     assert failure["code"] == "layer_parent_not_group"
     assert source.read_bytes() == original
     assert set(tmp_path.iterdir()) == {source}
