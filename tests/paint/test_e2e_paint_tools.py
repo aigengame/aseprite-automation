@@ -4,28 +4,17 @@ from pathlib import Path
 
 import pytest
 
-from tests.paint.support import call_spa
+from tests.native_invocation import expect_success
+from tests.paint.support import RED, create_sprite, read_pixels
 
 pytestmark = pytest.mark.e2e
 
-RED = {"kind": "rgba", "red": 255, "green": 0, "blue": 0, "alpha": 255}
-
-
-def create_sprite(destination: Path) -> None:
-    code, result = call_spa(
-        "sprite",
-        "create",
-        target_sprite_file=str(destination),
-        width=8,
-        height=6,
-        color_mode="rgb",
-        initial_layer={"kind": "transparent"},
-        overwrite=False,
-    )
-    assert code == 0, result
-
 
 def paint_request(source: Path, target: Path) -> dict:
+    """Return the Paint request fields that address Layer 1, Frame 1 of source.
+
+    The request writes a new target at full opacity and rejects clipping.
+    """
     return {
         "source_sprite_file": str(source),
         "target_sprite_file": str(target),
@@ -38,46 +27,28 @@ def paint_request(source: Path, target: Path) -> dict:
     }
 
 
-def pixels(sprite: Path, *, frame: int = 1) -> list[list[dict]]:
-    code, result = call_spa(
-        "image",
-        "get",
-        sprite_file=str(sprite),
-        source={
-            "kind": "individual",
-            "target": {"layer": {"layer_path": [1]}, "frame_number": frame},
-            "rectangle": {"x": 0, "y": 0, "width": 8, "height": 6},
-        },
-    )
-    assert code == 0, result
-    return [
-        [segment["color"] for segment in row for _ in range(segment["length"])]
-        for row in result["snapshot"]["rows"]
-    ]
-
-
 def test_pencil_keeps_one_ordered_gesture_and_persists_pixels(tmp_path: Path) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
     create_sprite(source)
     original = source.read_bytes()
     points = [{"x": 2, "y": 2}, {"x": 5, "y": 2}, {"x": 2, "y": 2}]
-    code, result = call_spa(
-        "paint",
-        "pencil",
-        **paint_request(source, target),
-        points=points,
-        freehand_algorithm="regular",
-        brush={"kind": "circle", "size": 1},
-        color=RED,
-        ink="simple",
+    result = expect_success(
+        "paint pencil",
+        {
+            **paint_request(source, target),
+            "points": points,
+            "freehand_algorithm": "regular",
+            "brush": {"kind": "circle", "size": 1},
+            "color": RED,
+            "ink": "simple",
+        },
     )
-    assert code == 0, result
     assert result["points"] == points
     assert result["freehand_algorithm"] == "regular"
     assert result["pixels_changed"] == result["pixels_requested"] == 4
     assert result["persisted_reopen_verified"]
     assert source.read_bytes() == original
-    output = pixels(target)
+    output = read_pixels(target)
     assert {
         (x, y)
         for y, row in enumerate(output)
@@ -92,31 +63,31 @@ def test_eraser_uses_native_alpha_erasure(tmp_path: Path) -> None:
         for name in ("source.aseprite", "drawn.aseprite", "erased.aseprite")
     )
     create_sprite(source)
-    code, result = call_spa(
-        "paint",
-        "pencil",
-        **paint_request(source, drawn),
-        points=[{"x": 2, "y": 2}, {"x": 5, "y": 2}],
-        freehand_algorithm="regular",
-        brush={"kind": "circle", "size": 1},
-        color=RED,
-        ink="simple",
+    expect_success(
+        "paint pencil",
+        {
+            **paint_request(source, drawn),
+            "points": [{"x": 2, "y": 2}, {"x": 5, "y": 2}],
+            "freehand_algorithm": "regular",
+            "brush": {"kind": "circle", "size": 1},
+            "color": RED,
+            "ink": "simple",
+        },
     )
-    assert code == 0, result
     request = paint_request(drawn, target) | {"opacity": 128}
-    code, result = call_spa(
-        "paint",
-        "eraser",
-        **request,
-        points=[{"x": 2, "y": 2}],
-        freehand_algorithm="regular",
-        brush={"kind": "circle", "size": 1},
-        behavior={"kind": "erase"},
+    result = expect_success(
+        "paint eraser",
+        {
+            **request,
+            "points": [{"x": 2, "y": 2}],
+            "freehand_algorithm": "regular",
+            "brush": {"kind": "circle", "size": 1},
+            "behavior": {"kind": "erase"},
+        },
     )
-    assert code == 0, result
     assert result["native_behavior"] == "alpha-erasure"
     assert result["requested_opacity"] == result["effective_opacity"] == 128
-    output = pixels(target)
+    output = read_pixels(target)
     assert output[2][2] == RED | {"alpha": 127}
     assert output[2][3] == RED
 
@@ -124,20 +95,20 @@ def test_eraser_uses_native_alpha_erasure(tmp_path: Path) -> None:
 def test_fill_uses_original_canvas_and_reports_native_matching(tmp_path: Path) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "filled.aseprite"
     create_sprite(source)
-    code, result = call_spa(
-        "paint",
-        "fill",
-        **paint_request(source, target),
-        seed={"x": 0, "y": 0},
-        color=RED,
-        ink="simple",
-        tolerance=0,
-        contiguous=True,
-        connectivity="four-connected",
-        refer_to="active-layer",
-        stop_at_grid=False,
+    result = expect_success(
+        "paint fill",
+        {
+            **paint_request(source, target),
+            "seed": {"x": 0, "y": 0},
+            "color": RED,
+            "ink": "simple",
+            "tolerance": 0,
+            "contiguous": True,
+            "connectivity": "four-connected",
+            "refer_to": "active-layer",
+            "stop_at_grid": False,
+        },
     )
-    assert code == 0, result
     assert result["pixels_requested"] == result["pixels_changed"] == 48
     assert result["source_scope"] == {
         "kind": "active-layer",
@@ -145,4 +116,4 @@ def test_fill_uses_original_canvas_and_reports_native_matching(tmp_path: Path) -
         "canvas_bounds": {"x": 0, "y": 0, "width": 8, "height": 6},
     }
     assert result["effective_grid_cell"] is None
-    assert all(color == RED for row in pixels(target) for color in row)
+    assert all(color == RED for row in read_pixels(target) for color in row)

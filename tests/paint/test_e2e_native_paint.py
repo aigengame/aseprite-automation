@@ -10,42 +10,28 @@ from pathlib import Path
 
 import pytest
 
-from spa.adapters.aseprite.aseprite import probe
-from spa.adapters.aseprite.invocation import prepare_invocation
-from spa.application.surface import PROBE_RESOURCES
-from spa.contracts.public import RuntimeRequest
-from tests.support import process_diagnostics, spa
+from spa.contracts.ports import RuntimeObservation
+from tests.native_invocation import Outcome, run, run_lua, validate_envelope
+from tests.paint.support import (
+    FIXTURES,
+    RED,
+    create_sprite,
+    native_fixture,
+    read_pixels,
+)
+from tests.support import process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
-RED = {"kind": "rgba", "red": 255, "green": 0, "blue": 0, "alpha": 255}
 
+def _paint(
+    source: Path, destination: Path, primitive: str = "line", **options: object
+) -> Outcome:
+    """Run `spa paint <primitive>` on Layer 1, Frame 1 of source with a red 1 px brush.
 
-def _call(*command: str, **request: object):
-    run = spa(
-        *command,
-        "--input-json",
-        "-",
-        stdin=json.dumps({"aseprite": os.environ["SPA_TEST_ASEPRITE"], **request}),
-    )
-    return run, json.loads(run.stdout) if run.stdout else {}
-
-
-def _create(source: Path) -> None:
-    run, result = _call(
-        "sprite",
-        "create",
-        target_sprite_file=str(source),
-        width=8,
-        height=6,
-        color_mode="rgb",
-        initial_layer={"kind": "transparent"},
-        overwrite=False,
-    )
-    assert run.returncode == 0, result
-
-
-def _paint(source: Path, destination: Path, primitive: str = "line", **options: object):
+    A line goes from (2, 2) to (5, 2); a shape has an outline in a 4 by 3 box at
+    (2, 2). The options replace these fields.
+    """
     geometry = {"from": {"x": 2, "y": 2}, "to": {"x": 5, "y": 2}}
     if primitive != "line":
         geometry = {
@@ -65,33 +51,16 @@ def _paint(source: Path, destination: Path, primitive: str = "line", **options: 
         "opacity": 255,
         "clipping": "reject",
     }
-    return _call("paint", primitive, **(request | geometry | options))
-
-
-def _pixels(source: Path, *, frame: int = 1) -> list[list[dict]]:
-    run, result = _call(
-        "image",
-        "get",
-        sprite_file=str(source),
-        source={
-            "kind": "individual",
-            "target": {"layer": {"layer_path": [1]}, "frame_number": frame},
-            "rectangle": {"x": 0, "y": 0, "width": 8, "height": 6},
-        },
-    )
-    assert run.returncode == 0, result
-    return [
-        [segment["color"] for segment in row for _ in range(segment["length"])]
-        for row in result["snapshot"]["rows"]
-    ]
+    return run(f"paint {primitive}", request | geometry | options)
 
 
 def test_line_persists_native_pixels_without_resizing_the_cel(tmp_path: Path) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    _create(source)
+    create_sprite(source)
     original = source.read_bytes()
-    run, result = _paint(source, target)
-    assert run.returncode == 0, run.stdout + run.stderr
+    outcome = _paint(source, target)
+    result = outcome.envelope
+    assert outcome.returncode == 0, process_diagnostics(outcome.process)
     assert (
         result["pixels_requested"]
         == result["pixels_written"]
@@ -100,7 +69,7 @@ def test_line_persists_native_pixels_without_resizing_the_cel(tmp_path: Path) ->
     )
     assert result["persisted_reopen_verified"] is True
     assert source.read_bytes() == original
-    pixels = _pixels(target)
+    pixels = read_pixels(target)
     assert {
         (x, y)
         for y, row in enumerate(pixels)
@@ -117,11 +86,12 @@ def test_line_persists_native_pixels_without_resizing_the_cel(tmp_path: Path) ->
 
 def test_filled_rectangle_uses_half_open_bounds(tmp_path: Path) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "rectangle.aseprite"
-    _create(source)
-    run, result = _paint(source, target, "rectangle", style="filled")
-    assert run.returncode == 0, run.stdout + run.stderr
+    create_sprite(source)
+    outcome = _paint(source, target, "rectangle", style="filled")
+    result = outcome.envelope
+    assert outcome.returncode == 0, process_diagnostics(outcome.process)
     assert result["pixels_changed"] == 12
-    pixels = _pixels(target)
+    pixels = read_pixels(target)
     assert {
         (x, y)
         for y, row in enumerate(pixels)
@@ -132,16 +102,17 @@ def test_filled_rectangle_uses_half_open_bounds(tmp_path: Path) -> None:
 
 def test_filled_ellipse_has_native_pixel_coverage(tmp_path: Path) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "ellipse.aseprite"
-    _create(source)
-    run, result = _paint(
+    create_sprite(source)
+    outcome = _paint(
         source,
         target,
         "ellipse",
         style="filled",
         bounds={"x": 2, "y": 2, "width": 3, "height": 3},
     )
-    assert run.returncode == 0, run.stdout + run.stderr
-    pixels = _pixels(target)
+    result = outcome.envelope
+    assert outcome.returncode == 0, process_diagnostics(outcome.process)
+    pixels = read_pixels(target)
     assert {
         (x, y)
         for y, row in enumerate(pixels)
@@ -162,7 +133,7 @@ def test_native_save_failure_after_drawing_never_publishes(
     tmp_path: Path, in_place: bool
 ) -> None:
     source = tmp_path / "source.aseprite"
-    _create(source)
+    create_sprite(source)
     target = source if in_place else tmp_path / "target.aseprite"
     if not in_place:
         target.write_bytes(source.read_bytes())
@@ -185,10 +156,10 @@ def test_native_save_failure_after_drawing_never_publishes(
         "ink": "simple",
         "opacity": 255,
     }
-    run = subprocess.run(
+    process = subprocess.run(
         [
             sys.executable,
-            str(Path(__file__).parent / "fixtures" / "fail_native_save_cli.py"),
+            str(FIXTURES / "fail_native_save_cli.py"),
             str(observations),
             cli,
             "paint",
@@ -201,48 +172,16 @@ def test_native_save_failure_after_drawing_never_publishes(
         capture_output=True,
         check=False,
     )
-    failure = json.loads(run.stdout)
-    assert run.returncode == 1 and failure["code"] == "kernel_execution_failed", failure
+    failure = json.loads(process.stdout)
+    validate_envelope("paint line", failure)
+    assert process.returncode == 1 and failure["code"] == "kernel_execution_failed", (
+        failure
+    )
     assert "could not reopen Native Paint" in failure["details"]["reason"], failure
     assert json.loads(observations.read_text()) == {"commits": 0, "discarded": True}
     assert source.read_bytes() == before_source
     assert target.read_bytes() == before_target
     assert not list(tmp_path.rglob("*.staged.aseprite"))
-
-
-def _native_fixture(tmp_path: Path, *, reference: bool = False, **options: object):
-    source = tmp_path / "source.aseprite"
-    expected = tmp_path / "reference.aseprite"
-    config = tmp_path / "native.json"
-    config.write_text(json.dumps({"mode": "rgb", **options}))
-    binary = Path(os.environ["SPA_TEST_ASEPRITE"]).resolve()
-    # Use the same supported process layout as other real-runtime fixtures.
-    selected = probe(RuntimeRequest(aseprite=str(binary)), PROBE_RESOURCES)
-    (tmp_path / "runtime").mkdir()
-    prepared = prepare_invocation(
-        Path(selected.canonical_path),
-        Path(selected.resource_path),
-        tmp_path / "runtime",
-    )
-    args = [
-        str(prepared.executable),
-        "--batch",
-        "--script-param",
-        f"input={config}",
-        "--script-param",
-        f"source={source}",
-    ]
-    if reference:
-        args += ["--script-param", f"reference={expected}"]
-    args += [
-        "--script",
-        str(Path(__file__).parent / "fixtures" / "native_paint_reference.lua"),
-    ]
-    run = subprocess.run(
-        args, capture_output=True, text=True, env=prepared.environment, check=False
-    )
-    assert run.returncode == 0, process_diagnostics(run)
-    return source, expected
 
 
 @pytest.mark.parametrize(
@@ -260,7 +199,12 @@ def _native_fixture(tmp_path: Path, *, reference: bool = False, **options: objec
 )
 @pytest.mark.parametrize("opacity", [0, 128, 255])
 def test_native_ink_opacity_parity_on_nonempty_image(
-    tmp_path: Path, primitive: str, style: str | None, ink: str, opacity: int
+    runtime: RuntimeObservation,
+    tmp_path: Path,
+    primitive: str,
+    style: str | None,
+    ink: str,
+    opacity: int,
 ) -> None:
     geometry = (
         {"from": {"x": 2, "y": 2}, "to": {"x": 5, "y": 2}}
@@ -270,7 +214,8 @@ def test_native_ink_opacity_parity_on_nonempty_image(
             "style": style,
         }
     )
-    source, expected = _native_fixture(
+    source, expected = native_fixture(
+        runtime,
         tmp_path,
         reference=True,
         tool=("filled_" if style == "filled" else "") + primitive,
@@ -280,11 +225,10 @@ def test_native_ink_opacity_parity_on_nonempty_image(
         brush={"kind": "circle", "size": 1},
     )
     target = tmp_path / "painted.aseprite"
-    run, result = _paint(
-        source, target, primitive, ink=ink, opacity=opacity, **geometry
-    )
-    assert run.returncode == 0, run.stdout + run.stderr
-    assert _pixels(target) == _pixels(expected)
+    outcome = _paint(source, target, primitive, ink=ink, opacity=opacity, **geometry)
+    result = outcome.envelope
+    assert outcome.returncode == 0, process_diagnostics(outcome.process)
+    assert read_pixels(target) == read_pixels(expected)
     assert result["requested_opacity"] == opacity
     assert result["effective_opacity"] == (
         255 if ink in {"simple", "copy-color"} else opacity
@@ -297,13 +241,14 @@ def test_native_ink_opacity_parity_on_nonempty_image(
 
 @pytest.mark.parametrize("clipping", ["reject", "clip"])
 def test_native_footprint_bounds_and_canvas_selection_on_offset_linked_cels(
+    runtime: RuntimeObservation,
     tmp_path: Path,
     clipping: str,
 ) -> None:
-    source, _ = _native_fixture(tmp_path, linked=True, offset=True)
+    source, _ = native_fixture(runtime, tmp_path, linked=True, offset=True)
     original = source.read_bytes()
     target = tmp_path / "clipped.aseprite"
-    run, result = _paint(
+    outcome = _paint(
         source,
         target,
         clipping=clipping,
@@ -314,13 +259,14 @@ def test_native_footprint_bounds_and_canvas_selection_on_offset_linked_cels(
             "rectangle": {"x": -2, "y": 4, "width": 1, "height": 3},
         },
     )
+    result = outcome.envelope
     assert source.read_bytes() == original
     if clipping == "reject":
-        assert run.returncode != 0
+        assert outcome.returncode != 0
         assert "footprint is outside Image bounds" in result["details"]["reason"]
         assert not target.exists()
         return
-    assert run.returncode == 0, run.stdout + run.stderr
+    assert outcome.returncode == 0, process_diagnostics(outcome.process)
     assert result["pixels_requested"] == 5
     assert result["pixels_skipped_by_bounds"] == 1
     assert result["pixels_skipped_by_selection"] == 1
@@ -328,9 +274,9 @@ def test_native_footprint_bounds_and_canvas_selection_on_offset_linked_cels(
     assert [item["frame_number"] for item in result["affected_cels"]] == [1, 2]
     assert result["affected_cels"][0]["position"] == {"x": -2, "y": 3}
     assert result["linked_cels_preserved"] is True
-    assert _pixels(target) == _pixels(target, frame=2)
-    assert _pixels(target, frame=3) == _pixels(source, frame=3)
-    pixels = _pixels(target)
+    assert read_pixels(target) == read_pixels(target, frame=2)
+    assert read_pixels(target, frame=3) == read_pixels(source, frame=3)
+    pixels = read_pixels(target)
     assert {
         (x, y)
         for y, row in enumerate(pixels)
@@ -365,7 +311,12 @@ def test_native_footprint_bounds_and_canvas_selection_on_offset_linked_cels(
     ],
 )
 def test_brush_and_color_mode_parity(
-    tmp_path: Path, primitive: str, style: str | None, mode: str, brush: dict
+    runtime: RuntimeObservation,
+    tmp_path: Path,
+    primitive: str,
+    style: str | None,
+    mode: str,
+    brush: dict,
 ) -> None:
     geometry = (
         {"from": {"x": 2, "y": 2}, "to": {"x": 5, "y": 2}}
@@ -375,7 +326,8 @@ def test_brush_and_color_mode_parity(
             "style": style,
         }
     )
-    source, expected = _native_fixture(
+    source, expected = native_fixture(
+        runtime,
         tmp_path,
         reference=True,
         mode=mode,
@@ -393,7 +345,7 @@ def test_brush_and_color_mode_parity(
         else {"kind": "palette-index", "index": 2}
     )
     target = tmp_path / "painted.aseprite"
-    run, result = _paint(
+    outcome = _paint(
         source,
         target,
         primitive,
@@ -404,8 +356,9 @@ def test_brush_and_color_mode_parity(
         clipping="clip",
         **geometry,
     )
-    assert run.returncode == 0, run.stdout + run.stderr
-    assert _pixels(target) == _pixels(expected)
+    result = outcome.envelope
+    assert outcome.returncode == 0, process_diagnostics(outcome.process)
+    assert read_pixels(target) == read_pixels(expected)
     assert result["brush"] == brush | {"angle": brush.get("angle", 0)}
     if mode == "indexed":
         assert result["effective_palettes"][0]["palette_size"] == 8
@@ -422,11 +375,17 @@ def test_brush_and_color_mode_parity(
 )
 @pytest.mark.parametrize("width,height", [(1, 1), (1, 3), (3, 1)])
 def test_degenerate_shape_retains_native_tool_behavior(
-    tmp_path: Path, primitive: str, style: str, width: int, height: int
+    runtime: RuntimeObservation,
+    tmp_path: Path,
+    primitive: str,
+    style: str,
+    width: int,
+    height: int,
 ) -> None:
     bounds = {"x": 2, "y": 2, "width": width, "height": height}
     brush = {"kind": "circle", "size": 3}
-    source, expected = _native_fixture(
+    source, expected = native_fixture(
+        runtime,
         tmp_path,
         reference=True,
         tool=("filled_" if style == "filled" else "") + primitive,
@@ -436,7 +395,7 @@ def test_degenerate_shape_retains_native_tool_behavior(
         brush=brush,
     )
     target = tmp_path / "painted.aseprite"
-    run, result = _paint(
+    outcome = _paint(
         source,
         target,
         primitive,
@@ -446,15 +405,16 @@ def test_degenerate_shape_retains_native_tool_behavior(
         ink="copy-color",
         opacity=0,
     )
-    assert run.returncode == 0, run.stdout + run.stderr
-    assert _pixels(target) == _pixels(expected)
+    result = outcome.envelope
+    assert outcome.returncode == 0, process_diagnostics(outcome.process)
+    assert read_pixels(target) == read_pixels(expected)
     assert result["bounds"] == bounds and result["style"] == style
 
 
 @pytest.mark.parametrize("mode", ["rgb", "grayscale", "indexed"])
 @pytest.mark.parametrize("primitive", ["line", "rectangle", "ellipse"])
 def test_background_targets_match_native_paint(
-    tmp_path: Path, mode: str, primitive: str
+    runtime: RuntimeObservation, tmp_path: Path, mode: str, primitive: str
 ) -> None:
     geometry = (
         {"from": {"x": 2, "y": 2}, "to": {"x": 5, "y": 2}}
@@ -464,7 +424,8 @@ def test_background_targets_match_native_paint(
             "style": "filled",
         }
     )
-    source, expected = _native_fixture(
+    source, expected = native_fixture(
+        runtime,
         tmp_path,
         reference=True,
         mode=mode,
@@ -483,7 +444,7 @@ def test_background_targets_match_native_paint(
         else {"kind": "palette-index", "index": 2}
     )
     target = tmp_path / "painted.aseprite"
-    run, result = _paint(
+    outcome = _paint(
         source,
         target,
         primitive,
@@ -492,21 +453,23 @@ def test_background_targets_match_native_paint(
         color=color,
         **geometry,
     )
-    assert run.returncode == 0, run.stdout + run.stderr
+    result = outcome.envelope
+    assert outcome.returncode == 0, process_diagnostics(outcome.process)
     assert result["background_opaque"] is True
-    assert _pixels(target) == _pixels(expected)
+    assert read_pixels(target) == read_pixels(expected)
 
 
 @pytest.mark.parametrize("primitive", ["line", "rectangle", "ellipse"])
 def test_shading_gap_is_typed_and_never_publishes(
-    tmp_path: Path, primitive: str
+    runtime: RuntimeObservation, tmp_path: Path, primitive: str
 ) -> None:
-    source, _ = _native_fixture(tmp_path)
+    source, _ = native_fixture(runtime, tmp_path)
     original = source.read_bytes()
     target = tmp_path / "unchanged.aseprite"
     target.write_bytes(original)
-    run, result = _paint(source, target, primitive, ink="shading", overwrite=True)
-    assert run.returncode == 2, run.stdout + run.stderr
+    outcome = _paint(source, target, primitive, ink="shading", overwrite=True)
+    result = outcome.envelope
+    assert outcome.returncode == 2, process_diagnostics(outcome.process)
     assert result["code"] == "paint_capability_gap"
     assert result["details"]["gap"]["capability"] == "shading Ink"
     assert result["details"]["gap"]["aseprite_version"]
@@ -515,14 +478,15 @@ def test_shading_gap_is_typed_and_never_publishes(
 
 @pytest.mark.parametrize("selection", [None, {"kind": "empty"}])
 def test_hidden_pixels_and_explicit_empty_selection_are_preserved(
-    tmp_path: Path, selection: dict | None
+    runtime: RuntimeObservation, tmp_path: Path, selection: dict | None
 ) -> None:
-    source, _ = _native_fixture(tmp_path, hidden=True)
+    source, _ = native_fixture(runtime, tmp_path, hidden=True)
     target = tmp_path / "painted.aseprite"
-    before = _pixels(source)
-    run, result = _paint(source, target, selection=selection)
-    assert run.returncode == 0, run.stdout + run.stderr
-    after = _pixels(target)
+    before = read_pixels(source)
+    outcome = _paint(source, target, selection=selection)
+    result = outcome.envelope
+    assert outcome.returncode == 0, process_diagnostics(outcome.process)
+    after = read_pixels(target)
     assert after[5][7] == {
         "kind": "rgba",
         "red": 17,
@@ -552,23 +516,14 @@ def test_hidden_pixels_and_explicit_empty_selection_are_preserved(
     ],
 )
 def test_native_tool_state_is_restored_on_success_and_failure(
-    tmp_path: Path, tool: str
+    runtime: RuntimeObservation, tmp_path: Path, tool: str
 ) -> None:
     from spa.authoring.raster.paint_native import NATIVE_PAINT_RESOURCES
 
-    source, _ = _native_fixture(tmp_path)
-    observation = probe(
-        RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
-    )
-    workspace = tmp_path / "isolation"
-    workspace.mkdir()
-    prepared = prepare_invocation(
-        Path(observation.canonical_path), Path(observation.resource_path), workspace
-    )
+    source, _ = native_fixture(runtime, tmp_path)
     blocked_parent = tmp_path / "blocked-stage-parent"
     blocked_parent.write_bytes(b"not a directory")
     kernel = files("spa.kernel")
-    args = [str(prepared.executable), "--batch"]
     params = {
         "tool": tool,
         "source": str(source),
@@ -578,16 +533,8 @@ def test_native_tool_state_is_restored_on_success_and_failure(
     }
     for resource in NATIVE_PAINT_RESOURCES:
         params[resource.parameter_name] = str(kernel.joinpath(resource.package_path))
-    for name, value in params.items():
-        args += ["--script-param", f"{name}={value}"]
-    args += [
-        "--script",
-        str(Path(__file__).parent / "fixtures" / "native_paint_isolation.lua"),
-    ]
-    run = subprocess.run(
-        args, text=True, capture_output=True, env=prepared.environment, check=False
-    )
-    assert run.returncode == 0, process_diagnostics(run)
+    lua = run_lua(FIXTURES / "native_paint_isolation.lua", runtime, **params)
+    assert lua.returncode == 0, process_diagnostics(lua)
     assert (tmp_path / "painted.aseprite").is_file()
     assert not (tmp_path / "failure.aseprite").exists()
 
@@ -603,13 +550,13 @@ def test_native_tool_state_is_restored_on_success_and_failure(
 )
 @pytest.mark.parametrize("primitive", ["line", "rectangle", "ellipse"])
 def test_unsupported_or_absent_targets_do_not_publish(
-    tmp_path: Path, kind: str, code: str, primitive: str
+    runtime: RuntimeObservation, tmp_path: Path, kind: str, code: str, primitive: str
 ) -> None:
-    source, _ = _native_fixture(tmp_path, target_kind=kind)
+    source, _ = native_fixture(runtime, tmp_path, target_kind=kind)
     original = source.read_bytes()
     target = tmp_path / "unchanged.aseprite"
     target.write_bytes(original)
-    run, result = _paint(
+    outcome = _paint(
         source,
         target,
         primitive,
@@ -619,15 +566,19 @@ def test_unsupported_or_absent_targets_do_not_publish(
             "frame_number": 2 if kind == "absent" else 1,
         },
     )
-    assert run.returncode == 2, run.stdout + run.stderr
+    result = outcome.envelope
+    assert outcome.returncode == 2, process_diagnostics(outcome.process)
     assert result["code"] == code
     assert source.read_bytes() == target.read_bytes() == original
 
 
-def test_native_paint_supports_in_place(tmp_path: Path) -> None:
-    source, _ = _native_fixture(tmp_path)
+def test_native_paint_supports_in_place(
+    runtime: RuntimeObservation, tmp_path: Path
+) -> None:
+    source, _ = native_fixture(runtime, tmp_path)
     original = source.read_bytes()
-    run, result = _paint(source, source, in_place=True, overwrite=True)
-    assert run.returncode == 0, run.stdout + run.stderr
+    outcome = _paint(source, source, in_place=True, overwrite=True)
+    result = outcome.envelope
+    assert outcome.returncode == 0, process_diagnostics(outcome.process)
     assert source.read_bytes() != original
     assert result["pixels_changed"] == 4

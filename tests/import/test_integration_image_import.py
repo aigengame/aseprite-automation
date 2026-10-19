@@ -20,8 +20,7 @@ from spa.contracts.ports import OperationServices
 from tests.host_permissions import symlink_creation_permission
 from tests.support import fake_probe_response, probe_answer, runtime_observation
 
-from .test_e2e_image_import import _indexed
-from .test_e2e_import_boundaries import _assert_unpublished, _ObservedTargetFiles
+from .support import ObservedTargetFiles, assert_unpublished, indexed_png
 
 
 def _unused(*args):
@@ -149,7 +148,7 @@ def test_raster_alias_of_target_rejects_before_native(tmp_path, alias):
         "raster_file": str(raster),
     }
     before = {item.name for item in tmp_path.iterdir()}
-    files = _ObservedTargetFiles()
+    files = ObservedTargetFiles()
 
     failure = _call(request, files)
 
@@ -328,7 +327,7 @@ def _replay(tmp_path, *, indexed, corruption=None):
     source.write_bytes(b"Source Sprite")
     target.write_bytes(b"existing Target")
     if indexed:
-        _indexed(raster, [1, 1])
+        indexed_png(raster, [1, 1])
     else:
         Image.new("RGBA", (2, 1), (17, 31, 53, 128)).save(raster)
     original = source.read_bytes(), raster.read_bytes(), target.read_bytes()
@@ -341,7 +340,7 @@ def _replay(tmp_path, *, indexed, corruption=None):
             {"kernel_protocol_version": 1, "status": "ok", "result": result}
         ),
     )
-    files = _ObservedTargetFiles()
+    files = ObservedTargetFiles()
     calls = []
 
     def native(observation, handler, payload, timeout):
@@ -408,4 +407,4 @@ def test_tampered_native_success_cannot_publish(tmp_path, corruption):
     )
     assert result.get("code") == "kernel_response_invalid", result
     assert not files.commits
-    _assert_unpublished(source, raster, target, original, files)
+    assert_unpublished(source, raster, target, original, files)
