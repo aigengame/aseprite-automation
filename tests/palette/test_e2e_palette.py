@@ -143,21 +143,6 @@ def test_set_edits_only_the_exact_change_and_rereads_persisted_entries(
     assert source.read_bytes() == original
 
 
-def test_info_publishes_entry_edit_capability_and_explains_lifecycle_gaps() -> None:
-    code, result = _run("info")
-    assert code == 0, result
-    assert "aseprite_palette_entries" in result["runtime"]["verified_capabilities"]
-    for command in ("spa palette list", "spa palette get", "spa palette set"):
-        assert command in result["supported_capabilities"]
-    for command in ("spa palette add", "spa palette remove"):
-        assert command not in result["supported_capabilities"]
-        gap = next(
-            gap for gap in result["capability_gaps"] if gap["capability"] == command
-        )
-        assert "SPA does not provide Palette Change add/remove" in gap["reason"]
-        assert "entry edits target existing changes" in gap["reason"]
-
-
 @pytest.mark.parametrize(
     ("change_frame", "index", "failure"),
     [

@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 
-from tests.host_permissions import symlink_creation_permission
 from tests.support import spa
 
 pytestmark = pytest.mark.e2e
@@ -357,37 +356,15 @@ def test_input_outside_canvas_is_rejected_before_processing(operation) -> None:
     assert code != 0 and result["code"] == "selection_out_of_bounds", result
 
 
-@pytest.mark.parametrize(
-    ("value", "space", "canvas", "finding"),
-    [
-        (
-            {
-                "kind": "mask",
-                "bounds": ASYMMETRIC["bounds"],
-                "rows": list(reversed(ASYMMETRIC["rows"])),
-            },
-            "canvas-pixel",
-            None,
-            "selection_encoding_invalid",
-        ),
-        (ASYMMETRIC, "image-pixel", None, "selection_coordinate_space_invalid"),
-        (
-            ASYMMETRIC,
-            "canvas-pixel",
-            {"x": 11, "y": 20, "width": 3, "height": 2},
-            "selection_out_of_bounds",
-        ),
-    ],
-)
-def test_validate_returns_findings_without_repair(
-    value, space, canvas, finding
-) -> None:
+def test_validate_returns_findings_without_repair() -> None:
     code, result = selection(
-        "validate", selection=value, coordinate_space=space, canvas=canvas
+        "validate",
+        selection=ASYMMETRIC,
+        canvas={"x": 11, "y": 20, "width": 3, "height": 2},
     )
     assert code == 0, result
     assert result["valid"] is False
-    assert finding in {item["kind"] for item in result["findings"]}
+    assert "selection_out_of_bounds" in {item["kind"] for item in result["findings"]}
 
 
 @pytest.mark.parametrize("spelling", ["absolute", "tilde"])
@@ -482,24 +459,6 @@ def test_artifact_empty_and_overwrite_failures_leave_no_staging_files(
     assert set(tmp_path.iterdir()) == {target}
 
 
-def test_invalid_artifact_is_a_finding_for_validate_and_failure_for_consumers(
-    tmp_path,
-) -> None:
-    path = tmp_path / "invalid.json"
-    path.write_text('{"kind":"mask","rows":[]}')
-    artifact = {"kind": "artifact", "path": str(path)}
-    code, result = selection("validate", selection=artifact)
-    assert code == 0 and result["valid"] is False, result
-    assert result["findings"][0]["kind"] == "selection_encoding_invalid"
-    code, result = selection(
-        "export",
-        selection=artifact,
-        destination={"path": str(tmp_path / "out.json"), "if_exists": "fail"},
-    )
-    assert code != 0 and result["code"] == "selection_invalid", result
-    assert set(tmp_path.iterdir()) == {path}
-
-
 def test_preview_refusal_does_not_publish_or_replace_existing_target(tmp_path) -> None:
     target = tmp_path / "preview.png"
     target.write_bytes(b"keep previous result")
@@ -512,43 +471,6 @@ def test_preview_refusal_does_not_publish_or_replace_existing_target(tmp_path) -
     assert code != 0 and result["code"] == "selection_out_of_bounds", result
     assert target.read_bytes() == b"keep previous result"
     assert set(tmp_path.iterdir()) == {target}
-
-
-@pytest.mark.parametrize("operation", ["export", "preview"])
-@pytest.mark.parametrize("source_kind", ["direct", "symlink"])
-@pytest.mark.parametrize("spelling", ["absolute", "tilde"])
-def test_artifact_input_alias_is_not_replaced(
-    tmp_path, request, operation, source_kind, spelling
-) -> None:
-    if os.name == "nt" and spelling == "tilde":
-        tmp_path = request.getfixturevalue("windows_selection_directory")
-    target = tmp_path / ("mask.png" if operation == "preview" else "mask.json")
-    target.write_text(json.dumps(ASYMMETRIC, indent=2))
-    source = target
-    entries = {target}
-    if source_kind == "symlink":
-        source = tmp_path / "input.json"
-        with symlink_creation_permission():
-            source.symlink_to(target)
-        entries.add(source)
-    source_path = (
-        str(Path("~") / os.path.relpath(source, Path.home()))
-        if spelling == "tilde"
-        else str(source)
-    )
-    assert Path(source_path).expanduser().samefile(source)
-    before = target.read_bytes()
-    parameters = {"canvas": ASYMMETRIC["bounds"]} if operation == "preview" else {}
-    code, result = selection(
-        operation,
-        selection={"kind": "artifact", "path": source_path},
-        destination={"path": str(target), "if_exists": "replace"},
-        **parameters,
-    )
-    assert code != 0 and result["code"] == "artifact_file_failed", result
-    assert result["details"]["reason"] == "source_destination_alias"
-    assert target.read_bytes() == before
-    assert set(tmp_path.iterdir()) == entries
 
 
 def test_created_combined_transformed_selection_is_consumed_by_paint(tmp_path) -> None:

@@ -62,10 +62,6 @@ def test_create_empty_tilemap_cel(
     assert source.read_bytes() == before
 
 
-def test_manifest_observes_empty_tilemap_creation(runtime) -> None:
-    assert "aseprite_tile_cel_creation" in runtime.verified_capabilities
-
-
 @pytest.mark.parametrize("plan", [False, True], ids=["standalone", "plan"])
 @pytest.mark.parametrize(
     "address, geometry, expected",

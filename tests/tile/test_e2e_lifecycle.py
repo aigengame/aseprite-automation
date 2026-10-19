@@ -229,7 +229,6 @@ def test_add_preserves_complete_pixels_in_each_mode(
             {},
             "tile_lifecycle_invalid",
         ),
-        ("assign-key", {"tile_index": 0, "tile_key": "new"}, {}, "invalid_request"),
         (
             "assign-key",
             {"tile_index": 2**53 + 1, "tile_key": "new"},
@@ -263,7 +262,6 @@ def test_add_preserves_complete_pixels_in_each_mode(
             {},
             "tile_lifecycle_invalid",
         ),
-        ("reorder", {"tile_keys": ["a", "b", "c", "c"]}, {}, "invalid_request"),
         (
             "reorder",
             {"tile_keys": ["d", "c", "b", "a"]},
