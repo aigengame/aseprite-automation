@@ -69,7 +69,11 @@ fixtures in `tests/support.py`, such as `exiting_aseprite` and `responding_asepr
 each name one behaviour and keep the macOS-style resource layout. They use a shell
 body on POSIX and a Python body on Windows, so test files do not test `os.name` to
 select a fixture. A single-consumer behaviour stays in its test file and builds on
-`controlled_aseprite`.
+`controlled_aseprite`. `probe_only_aseprite` answers the runtime probe with the
+capabilities that the test gives, and exits 97 on each other call. A test of a
+refusal after the probe and before the Kernel uses it, so the test fails when the
+request gets to the Kernel. `probe_answer` gives the same probe response to other
+fixtures.
 `tests/support.py::controlled_runtime` gives a runtime observation of such an
 executable without a probe. A test that uses a controlled executable uses
 `controlled_runtime`, not the session `runtime` fixture.
@@ -289,7 +293,9 @@ Use the tier in the file name:
   Aseprite behavior.
 - `test_e2e_*.py` invokes the installed `spa` CLI with a real Aseprite executable,
   or exercises a shared packaged Kernel Interface directly with native fixtures.
-  Mark the module or each test with `pytest.mark.e2e`.
+  Mark the module or each test with `pytest.mark.e2e`. A refusal that SPA decides
+  before the Kernel call is not an e2e case: test it in the fast tier with a missing
+  Aseprite path or a controlled executable.
 
 `pytest.mark.slow` is an additional cost marker, not a verification tier. Use it
 for complete example rebuilds, which run locally on demand. Automated CI and
