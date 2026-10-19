@@ -4,6 +4,7 @@ import json
 import sys
 from copy import deepcopy
 from dataclasses import replace
+from importlib.resources import files
 from pathlib import Path
 
 from spa.adapters.files import LocalTargetFiles
@@ -19,7 +20,8 @@ from tests.support import (
 )
 
 FIXTURES = Path(__file__).parent / "fixtures"
-KERNEL = Path(__file__).resolve().parents[2] / "src" / "spa" / "kernel"
+# The Aseprite adapter resolves Kernel resources in the same package.
+KERNEL = Path(str(files("spa.kernel")))
 
 
 def filter_handler(operation: str) -> PackagedHandler:
