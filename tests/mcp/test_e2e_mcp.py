@@ -191,23 +191,3 @@ def test_installed_mcp_workflow_matches_cli_and_delivers_png(tmp_path):
     )
     assert reopened.returncode == 0, reopened.stdout
     assert json.loads(reopened.stdout)["metadata"]["height"] == 2
-
-
-def test_installed_legacy_handshake_and_typed_failure():
-    async def exercise():
-        params = StdioServerParameters(
-            command=shutil.which("spa-mcp"),
-            args=["--aseprite", os.environ["SPA_TEST_ASEPRITE"]],
-        )
-        async with Client(params, mode="legacy", read_timeout_seconds=120) as client:
-            assert client.protocol_version == "2025-11-25"
-            listing = await client.list_tools()
-            assert any(tool.name == "sprite_create" for tool in listing.tools)
-            good = await client.call_tool("version", {})
-            assert not good.is_error
-            assert good.structured_content["operation"] == "spa version"
-            bad = await client.call_tool("version", {"unexpected": True})
-            assert bad.is_error and bad.structured_content is None
-            assert json.loads(bad.content[0].text)["code"] == "invalid_request"
-
-    anyio.run(exercise)

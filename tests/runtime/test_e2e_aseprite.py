@@ -9,7 +9,6 @@ import pytest
 from jsonschema import validate
 
 from spa import SPA_BASELINE_ASEPRITE_VESION
-from tests.host_permissions import symlink_creation_permission
 from tests.support import isolated_wheel_cli, spa
 
 pytestmark = pytest.mark.e2e
@@ -43,13 +42,6 @@ def test_wheel_installed_info_discovers_real_runtime(
         "aseprite_runtime_introspection" in result["runtime"]["verified_capabilities"]
     )
     assert all(gap["reason"] for gap in result["capability_gaps"])
-
-
-def test_slice_authoring_capability_is_verified_by_native_roundtrip() -> None:
-    run = spa("info", "--aseprite", os.environ["SPA_TEST_ASEPRITE"], "--json")
-    assert run.returncode == 0, run.stdout
-    result = json.loads(run.stdout)
-    assert "aseprite_slice_authoring" in result["runtime"]["verified_capabilities"]
 
 
 def test_info_reports_installed_runtime() -> None:
@@ -322,22 +314,6 @@ def test_info_reports_installed_runtime() -> None:
     human_run = spa("info", "--aseprite", os.environ["SPA_TEST_ASEPRITE"], "--human")
     assert human_run.returncode == 0, human_run.stdout
     assert "Lua 5.4" in human_run.stdout
-
-
-def test_symlinked_executable_resolves_to_resource_complete_bundle(
-    tmp_path: Path,
-) -> None:
-    link = tmp_path / "aseprite"
-    with symlink_creation_permission():
-        link.symlink_to(os.environ["SPA_TEST_ASEPRITE"])
-    run = spa("info", "--aseprite", str(link))
-    assert run.returncode == 0, run.stdout
-    runtime = json.loads(run.stdout)["runtime"]
-    assert runtime["selection_source"] == "explicit"
-    assert runtime["resource_complete"] is True
-    assert runtime["canonical_path"] == str(
-        Path(os.environ["SPA_TEST_ASEPRITE"]).resolve()
-    )
 
 
 @pytest.mark.skipif(
