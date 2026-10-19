@@ -6,7 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from tests.image.support import export_image, image_fixture, inspect_native
+from tests.image.support import image_fixture, inspect_native
+from tests.native_invocation import render_frame
 from tests.support import inject_palette_change, spa
 
 pytestmark = pytest.mark.e2e
@@ -95,7 +96,7 @@ def test_crop_preserves_canvas_pixels_and_linked_cels(tmp_path: Path) -> None:
     assert_persisted_link(target)
     assert result["persisted_reopen_verified"] is True
     for frame in (1, 2):
-        png = export_image(target, tmp_path / f"frame-{frame}.png", frame)
+        png = render_frame(target, frame)
         assert png.getpixel((2, 2)) == (0, 0, 255, 255)
         assert png.getpixel((1, 2))[3] == 0
         stored = inspect_native(target, tmp_path, 0, 0, frame)
@@ -146,7 +147,7 @@ def test_canvas_resize_clips_and_fills_without_moving_copied_canvas_pixels(
     assert result["native_sharing_preserved"] is True
     assert_persisted_link(target)
     for frame in (1, 2):
-        png = export_image(target, tmp_path / f"canvas-{frame}.png", frame)
+        png = render_frame(target, frame)
         assert png.getpixel((2, 2)) == (0, 0, 255, 255)
         assert png.getpixel((2, 1)) == (0, 255, 0, 255)
         # Transparent stored source pixels replace fill; this is not compositing.

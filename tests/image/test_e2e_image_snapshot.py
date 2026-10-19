@@ -15,6 +15,7 @@ from spa.adapters.aseprite.aseprite import probe
 from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.application.surface import PROBE_RESOURCES
 from spa.contracts.public import RuntimeRequest
+from tests.native_invocation import render_frame
 from tests.support import inject_palette_change, process_diagnostics, spa
 
 pytestmark = pytest.mark.e2e
@@ -1116,34 +1117,7 @@ def test_hidden_pixel_difference_is_observable_even_when_exported_pngs_match(
     ]
     code, result = _replace(source, target, value)
     assert code == 0, result
-    from PIL import Image
-
-    images = []
-    for sprite in [source, target]:
-        path = sprite.with_suffix(".png")
-        run = spa(
-            "export",
-            "image",
-            "--input-json",
-            json.dumps(
-                {
-                    "source_sprite_file": str(sprite),
-                    "destination": {"path": str(path), "if_exists": "fail"},
-                    "frame_number": 1,
-                    "export_image_area": {"kind": "canvas"},
-                    "layer_composition": {"mode": "visible"},
-                    "composition_color_mode": "preserve",
-                    "color_mode": "preserve",
-                    "color_profile": "preserve",
-                    "transparency": "preserve",
-                    "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-                }
-            ),
-        )
-        assert run.returncode == 0, run.stdout
-        with Image.open(path) as image:
-            images.append(image.convert("RGBA").tobytes())
-    assert images[0] == images[1]
+    assert render_frame(source, 1).tobytes() == render_frame(target, 1).tobytes()
     code, after = _get(target, source=_individual())
     assert code == 0 and after["snapshot"] == value, after
     assert result["before_content_digest"] != result["after_content_digest"]

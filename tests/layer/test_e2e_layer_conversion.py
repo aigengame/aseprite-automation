@@ -9,9 +9,9 @@ import tempfile
 from pathlib import Path
 
 import pytest
-from PIL import Image
 
 from spa.adapters.aseprite.invocation import prepare_invocation
+from tests.native_invocation import render_frame
 from tests.support import process_diagnostics, spa
 
 pytestmark = pytest.mark.e2e
@@ -50,32 +50,6 @@ def _run(command: str, request: dict[str, object]) -> tuple[int, dict]:
         json.dumps({**request, "aseprite": os.environ["SPA_TEST_ASEPRITE"]}),
     )
     return run.returncode, json.loads(run.stdout)
-
-
-def _export(sprite_file: Path, frame_number: int, target: Path) -> Image.Image:
-    run = spa(
-        "export",
-        "image",
-        "--input-json",
-        json.dumps(
-            {
-                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-                "source_sprite_file": str(sprite_file),
-                "destination": {"path": str(target), "if_exists": "fail"},
-                "frame_number": frame_number,
-                "export_image_area": {"kind": "canvas"},
-                "layer_composition": {"mode": "visible"},
-                "composition_color_mode": "preserve",
-                "color_mode": "preserve",
-                "color_profile": "preserve",
-                "transparency": "preserve",
-            }
-        ),
-    )
-    assert run.returncode == 0, run.stdout
-    with Image.open(target) as image:
-        image.load()
-        return image.convert("RGBA")
 
 
 def _assert_native_fill(source: Path, mode: str) -> None:
@@ -182,11 +156,11 @@ def test_convert_transparent_layer_to_background_persists_full_canvas_cels(
         cel["bounds"] == {"x": 0, "y": 0, "width": 4, "height": 4} for cel in cels
     )
     assert all(cel["opacity"] == 255 for cel in cels)
-    rendered = _export(target, 1, tmp_path / "frame-1.png")
+    rendered = render_frame(target, 1)
     assert rendered.getpixel((3, 3)) == (10, 20, 30, 255)
     assert rendered.getpixel((0, 1))[3] == 255
     assert rendered.getpixel((0, 1)) != (10, 20, 30, 255)
-    assert _export(target, 2, tmp_path / "frame-2.png").getpixel((0, 1)) == (
+    assert render_frame(target, 2).getpixel((0, 1)) == (
         10,
         20,
         30,
