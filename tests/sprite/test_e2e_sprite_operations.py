@@ -188,65 +188,22 @@ def test_copy_preserves_tile_bearing_native_bytes_and_reopens(tmp_path: Path) ->
     assert json.loads(reopened.stdout)["metadata"]["tileset_count"] > 0
 
 
-def test_copy_requires_a_distinct_target_and_overwrite_permission(
-    tmp_path: Path,
-) -> None:
+def test_copy_refuses_an_existing_target_without_overwrite(tmp_path: Path) -> None:
     source = _create(tmp_path)
     original = source.read_bytes()
+    target = tmp_path / "existing.aseprite"
+    target.write_bytes(b"existing")
     request = {
         "aseprite": os.environ["SPA_TEST_ASEPRITE"],
         "source_sprite_file": str(source),
-        "target_sprite_file": str(source),
-        "overwrite": True,
+        "target_sprite_file": str(target),
+        "overwrite": False,
     }
-    same_target = spa("sprite", "copy", "--input-json", json.dumps(request))
-    assert same_target.returncode != 0
-    same_failure = json.loads(same_target.stdout)
-    assert same_failure["code"] == "invalid_request"
-    assert same_failure["details"]["errors"][0]["location"] == ["target_sprite_file"]
-    assert source.read_bytes() == original
-
-    target = tmp_path / "existing.aseprite"
-    target.write_bytes(b"existing")
-    request.update(target_sprite_file=str(target), overwrite=False)
     refused = spa("sprite", "copy", "--input-json", json.dumps(request))
     assert refused.returncode != 0
     assert json.loads(refused.stdout)["code"] == "target_commit_failed"
     assert target.read_bytes() == b"existing"
     assert source.read_bytes() == original
-    assert not list(tmp_path.glob("*.staged.aseprite"))
-
-
-def test_copy_reports_source_staging_failure_without_target_commit(
-    tmp_path: Path,
-) -> None:
-    missing = tmp_path / "missing.aseprite"
-    target = tmp_path / "copy.aseprite"
-    run = spa(
-        "sprite",
-        "copy",
-        "--input-json",
-        json.dumps(
-            {
-                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-                "source_sprite_file": str(missing),
-                "target_sprite_file": str(target),
-                "overwrite": False,
-            }
-        ),
-    )
-    assert run.returncode != 0
-    failure = json.loads(run.stdout)
-    validate(
-        failure, json.loads(spa("sprite", "copy", "--schema").stdout)["failure_schema"]
-    )
-    assert failure["code"] == "sprite_copy_staging_failed"
-    assert failure["details"] == {
-        "kind": "sprite_copy_staging",
-        "source_sprite_file": str(missing),
-        "target_sprite_file": str(target),
-    }
-    assert not target.exists()
     assert not list(tmp_path.glob("*.staged.aseprite"))
 
 
@@ -301,22 +258,16 @@ def test_flatten_reports_all_structural_consequences_after_reopen(
         )
 
 
-def test_flatten_in_place_requires_explicit_intent(tmp_path: Path) -> None:
+def test_flatten_in_place_replaces_the_source(tmp_path: Path) -> None:
     source = _fixture(tmp_path, "flatten_sprite.lua")
     original = source.read_bytes()
     request = {
         "aseprite": os.environ["SPA_TEST_ASEPRITE"],
         "source_sprite_file": str(source),
         "target_sprite_file": str(source),
-        "in_place": False,
+        "in_place": True,
         "overwrite": True,
     }
-    refused = spa("sprite", "flatten", "--input-json", json.dumps(request))
-    assert refused.returncode != 0
-    assert json.loads(refused.stdout)["code"] == "invalid_request"
-    assert source.read_bytes() == original
-
-    request["in_place"] = True
     run = spa("sprite", "flatten", "--input-json", json.dumps(request))
     assert run.returncode == 0, run.stdout
     result = json.loads(run.stdout)

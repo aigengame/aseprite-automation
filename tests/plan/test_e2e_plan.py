@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 
-from tests.host_permissions import symlink_creation_permission
 from tests.support import isolated_wheel_cli, spa
 
 
@@ -293,61 +292,6 @@ def test_plan_in_place_failure_preserves_existing_file(tmp_path: Path) -> None:
     result = json.loads(success.stdout)
     assert result["target_commit"]["target_sprite_file"] == str(source)
     assert hashlib.sha256(source.read_bytes()).hexdigest() != before
-
-
-@pytest.mark.e2e
-def test_source_alias_is_rejected_for_both_in_place_values(
-    tmp_path: Path,
-) -> None:
-    target = tmp_path / "real.aseprite"
-    created = spa(
-        "sprite",
-        "create",
-        "--input-json",
-        json.dumps(
-            {
-                "target_sprite_file": str(target),
-                "width": 2,
-                "height": 2,
-                "color_mode": "rgb",
-                "initial_layer": {"kind": "transparent"},
-                "overwrite": False,
-                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-            }
-        ),
-    )
-    assert created.returncode == 0, created.stdout + created.stderr
-    alias = tmp_path / "alias.aseprite"
-    with symlink_creation_permission():
-        alias.symlink_to(target)
-    before = hashlib.sha256(target.read_bytes()).hexdigest()
-    plan = {
-        "source_sprite_file": str(alias),
-        "target_sprite_file": str(target),
-        "overwrite": True,
-        "steps": [{"operation": "paint apply", "input": _red_pixel()}],
-    }
-    for in_place in (False, True):
-        rejected = spa(
-            "plan",
-            "run",
-            "--input-json",
-            json.dumps(
-                {
-                    "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-                    "plan": plan | {"in_place": in_place},
-                }
-            ),
-        )
-        assert rejected.returncode == 2, rejected.stdout + rejected.stderr
-        failure = json.loads(rejected.stdout)
-        assert failure["code"] == "invalid_request"
-        assert failure["details"]["errors"][0]["location"] == [
-            "plan",
-            "source_sprite_file",
-        ]
-        assert hashlib.sha256(target.read_bytes()).hexdigest() == before
-        assert alias.is_symlink()
 
 
 @pytest.mark.e2e

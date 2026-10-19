@@ -516,6 +516,8 @@ def test_plan_preflight_checks_source_aliases_against_target_entry(
                 "plan",
                 "source_sprite_file",
             ]
+    assert alias.is_symlink()
+    assert target.read_bytes() == b"preflight only"
 
     plan["in_place"] = False
     target_alias = tmp_path / "target-alias.aseprite"

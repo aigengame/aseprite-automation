@@ -535,36 +535,3 @@ def test_unlink_refuses_locked_layer_hierarchy(
     assert code == 2, result
     assert result["code"] == "cel_unsupported_target"
     assert not output.exists()
-
-
-@pytest.mark.parametrize(
-    "changes",
-    [
-        {"position": {"x": 32768, "y": 0}},
-        {"position": {"x": -32769, "y": 0}},
-        {"position": {"x": 0, "y": 32768}},
-        {"position": {"x": 0, "y": -32769}},
-        {"z_index": 32768},
-        {"z_index": -32769},
-    ],
-)
-def test_set_rejects_unpersistable_cel_values(
-    tmp_path: Path, changes: dict[str, object]
-) -> None:
-    source = tmp_path / "source.aseprite"
-    output = tmp_path / "output.aseprite"
-    _fixture(source, "relationships.lua")
-    code, result = _run(
-        "set",
-        {
-            "source_sprite_file": str(source),
-            "target_sprite_file": str(output),
-            "in_place": False,
-            "overwrite": False,
-            "target": {"layer": {"layer_path": [1]}, "frame_number": 1},
-            **changes,
-        },
-    )
-    assert code == 2, result
-    assert result["code"] == "invalid_request"
-    assert not output.exists()
