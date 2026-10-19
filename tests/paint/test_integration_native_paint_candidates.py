@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from spa import SPA_BASELINE_ASEPRITE_VESION
-from tests.support import fake_probe_response, spa
+from tests.support import fake_probe_response, probe_answer, spa
 
 
 @pytest.mark.parametrize(
@@ -17,25 +17,14 @@ def test_unavailable_paint_guidance_keeps_selected_runtime_identity(
 ) -> None:
     binary = fake_probe_response(
         tmp_path,
-        json.dumps(
-            {
-                "kernel_protocol_version": 1,
-                "status": "ok",
-                "aseprite_version": aseprite_version,
-                "api_version": 41,
-                "lua_version": "Lua 5.4",
-                "verified_prerequisites": [
-                    "aseprite_scripting",
-                    "lua_file_io",
-                    "aseprite_json",
-                ],
-                "verified_capabilities": [
-                    "aseprite_runtime_introspection",
-                    "aseprite_paint_line",
-                    "aseprite_paint_rectangle",
-                    "aseprite_paint_ellipse",
-                ],
-            }
+        probe_answer(
+            [
+                "aseprite_runtime_introspection",
+                "aseprite_paint_line",
+                "aseprite_paint_rectangle",
+                "aseprite_paint_ellipse",
+            ],
+            aseprite_version=aseprite_version,
         ),
     )
     info = spa("info", "--aseprite", str(binary))

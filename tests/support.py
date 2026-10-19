@@ -2,6 +2,7 @@
 
 import dataclasses
 import hashlib
+import json
 import os
 import shlex
 import shutil
@@ -10,9 +11,10 @@ import struct
 import subprocess
 import sys
 import textwrap
+from collections.abc import Iterable
 from importlib.resources import files
 from pathlib import Path
-from typing import Any
+from typing import Any, get_args
 
 import pytest
 
@@ -288,6 +290,64 @@ def fake_probe_response(
             + f"    Path(arguments['response']).write_text({kernel_response!r}, "
             "encoding='utf-8')\n"
         )
+    return controlled_aseprite(
+        tmp_path, shell=CONTROLLED_SHELL_PRELUDE + shell, python=python
+    )
+
+
+def probe_answer(
+    capabilities: Iterable[RuntimeCapability] = get_args(RuntimeCapability),
+    *,
+    aseprite_version: str = "test",
+) -> str:
+    """Return the probe response of a runtime that verifies capabilities."""
+    return json.dumps(
+        {
+            "kernel_protocol_version": 1,
+            "status": "ok",
+            "aseprite_version": aseprite_version,
+            "api_version": 41,
+            "lua_version": "Lua 5.4",
+            "verified_prerequisites": [
+                "aseprite_scripting",
+                "lua_file_io",
+                "aseprite_json",
+            ],
+            "verified_capabilities": list(capabilities),
+        }
+    )
+
+
+PROBE_ONLY_REFUSAL = "probe-only Aseprite: call refused"
+"""The stderr line of a probe-only Aseprite for each call that is not a probe."""
+
+
+def probe_only_aseprite(
+    tmp_path: Path,
+    capabilities: Iterable[RuntimeCapability] = get_args(RuntimeCapability),
+) -> Path:
+    """Answer the runtime probe, and refuse each other call.
+
+    The probe answer verifies capabilities. A call without an echo= argument, for
+    example a Kernel call, writes PROBE_ONLY_REFUSAL to stderr and exits 97. Thus a
+    test of a refusal before the Kernel fails if the request gets to the Kernel.
+    """
+    answer = probe_answer(capabilities)
+    shell = (
+        'if test -z "$echo"; then\n'
+        f"printf '%s\\n' {shlex.quote(PROBE_ONLY_REFUSAL)} >&2\n"
+        "exit 97\n"
+        "fi\n"
+        'cp "$request" "$echo"\n'
+        f"printf '%s' {shlex.quote(answer)} > \"$response\"\n"
+    )
+    python = (
+        "if 'echo' not in arguments:\n"
+        f"    print({PROBE_ONLY_REFUSAL!r}, file=sys.stderr)\n"
+        "    sys.exit(97)\n"
+        "Path(arguments['echo']).write_bytes(Path(arguments['request']).read_bytes())\n"
+        f"Path(arguments['response']).write_text({answer!r}, encoding='utf-8')\n"
+    )
     return controlled_aseprite(
         tmp_path, shell=CONTROLLED_SHELL_PRELUDE + shell, python=python
     )
