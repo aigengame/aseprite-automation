@@ -110,6 +110,17 @@ def isolated_wheel_cli(work_directory: Path, monkeypatch: pytest.MonkeyPatch) ->
     return selected
 
 
+def installed_cli() -> str:
+    """Return the SPA command that the example recipes run.
+
+    `SPA_TEST_INSTALLED_CLI` selects a wheel-installed CLI. Otherwise this is the
+    `spa` command of the active project environment.
+    """
+    selected = os.environ.get("SPA_TEST_INSTALLED_CLI") or shutil.which("spa")
+    assert selected, "run tests in an installed SPA environment"
+    return selected
+
+
 def cli_entry_command(
     kind: str, work_directory: Path, monkeypatch: pytest.MonkeyPatch
 ) -> list[str]:
