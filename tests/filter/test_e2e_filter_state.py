@@ -5,14 +5,16 @@ from pathlib import Path
 
 import pytest
 
-from spa.authoring.raster.color_curve import COLOR_CURVE_RESOURCE
-from spa.authoring.raster.despeckle import DESPECKLE_RESOURCE
-from spa.authoring.raster.filter import FILTER_RESOURCES
-from spa.authoring.raster.hue_saturation import HUE_SATURATION_RESOURCE
-from spa.authoring.raster.invert_outline import INVERT_COLOR_RESOURCE, OUTLINE_RESOURCE
-from spa.authoring.raster.replace_color import REPLACE_COLOR_RESOURCE
-from spa.contracts.raster import RASTER_COLOR_RESOURCE
-from tests.filter.support import apply, native_script, observe_images, pixels
+from tests.filter.support import (
+    FIXTURES,
+    apply,
+    filter_handler,
+    kernel_resources,
+    observe_images,
+    pixels,
+)
+from tests.native_invocation import run_lua
+from tests.support import process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
@@ -21,40 +23,21 @@ def _exercise_state(
     tmp_path: Path, runtime, kind: str, fault: bool, operation: str
 ) -> dict:
     response = tmp_path / f"{kind}-{'fault' if fault else 'success'}.json"
-    kernel = Path(__file__).resolve().parents[2] / "src" / "spa" / "kernel"
-    resources = {
-        resource.parameter_name: kernel / resource.package_path
-        for resource in FILTER_RESOURCES
-    }
-    if operation == "hue-saturation":
-        resources[HUE_SATURATION_RESOURCE.parameter_name] = (
-            kernel / HUE_SATURATION_RESOURCE.package_path
-        )
-    for name, resource in (
-        ("color-curve", COLOR_CURVE_RESOURCE),
-        ("replace-color", REPLACE_COLOR_RESOURCE),
-        ("invert-color", INVERT_COLOR_RESOURCE),
-        ("outline", OUTLINE_RESOURCE),
-        ("despeckle", DESPECKLE_RESOURCE),
-    ):
-        if operation == name:
-            resources[resource.parameter_name] = kernel / resource.package_path
-    resources[RASTER_COLOR_RESOURCE.parameter_name] = (
-        kernel / RASTER_COLOR_RESOURCE.package_path
-    )
+    resources = kernel_resources(filter_handler(operation))
     if fault:
         key = {"palette": "palette", "tilemap": "filter_tiles"}.get(kind, "digest")
         resources[f"{key}_real"] = resources[key]
-        resources[key] = Path(__file__).parent / "fixtures" / f"state_fault_{key}.lua"
-    native_script(
+        resources[key] = FIXTURES / f"state_fault_{key}.lua"
+    lua = run_lua(
+        FIXTURES / "state_filter.lua",
         runtime,
-        "state_filter.lua",
         response=response,
         kind=kind,
-        fault=str(fault).lower(),
+        fault=fault,
         workspace=tmp_path,
         **resources,
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     return json.loads(response.read_text())
 
 
@@ -148,16 +131,18 @@ def test_extreme_values_match_independent_native_command(
     source = tmp_path / "source.aseprite"
     target = tmp_path / "target.aseprite"
     baseline = tmp_path / "native.aseprite"
-    native_script(runtime, "source.lua", source=source, mode=mode)
-    native_script(
+    lua = run_lua(FIXTURES / "source.lua", runtime, source=source, mode=mode)
+    assert lua.returncode == 0, process_diagnostics(lua)
+    lua = run_lua(
+        FIXTURES / "state_native_baseline.lua",
         runtime,
-        "state_native_baseline.lua",
         source=source,
         target=baseline,
         mode=mode,
         brightness=brightness,
         contrast=contrast,
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     channels = ["gray"] if mode == "grayscale" else ["red", "green", "blue"]
     application = pixels(mode, channels={"kind": "components", "names": channels})
     if mode == "indexed":

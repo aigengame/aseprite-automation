@@ -2,7 +2,9 @@
 
 import pytest
 
-from tests.filter.support import native_script, observe_images, pixels, run
+from tests.filter.support import FIXTURES, observe_images, pixels
+from tests.native_invocation import expect_success, run, run_lua
+from tests.support import process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
@@ -14,24 +16,32 @@ def pixel_input(mode="rgb", **options):
 
 
 def apply(source, target, selected, width=3, height=1, tiled_mode="none", **intent):
-    return run(
-        "filter",
-        "despeckle",
-        source_sprite_file=str(source),
-        target_sprite_file=str(target),
-        in_place=intent.pop("in_place", False),
-        overwrite=intent.pop("overwrite", False),
-        pixels=selected,
-        width=width,
-        height=height,
-        tiled_mode=tiled_mode,
-        **intent,
+    """Run `spa filter despeckle` and return `(returncode, envelope)`.
+
+    This adds the Source and Target fields, `in_place` and `overwrite` from
+    intent (default False), and the window and tiled mode defaults.
+    """
+    outcome = run(
+        "filter despeckle",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": intent.pop("in_place", False),
+            "overwrite": intent.pop("overwrite", False),
+            "pixels": selected,
+            "width": width,
+            "height": height,
+            "tiled_mode": tiled_mode,
+            **intent,
+        },
     )
+    return outcome.returncode, outcome.envelope
 
 
 def test_despeckle_uses_native_median_and_verifies_persistence(tmp_path, runtime):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "source.lua", source=source, mode="grayscale")
+    lua = run_lua(FIXTURES / "source.lua", runtime, source=source, mode="grayscale")
+    assert lua.returncode == 0, process_diagnostics(lua)
     original = source.read_bytes()
     code, result = apply(source, target, pixel_input("grayscale"))
     assert code == 0, result
@@ -75,11 +85,12 @@ def test_every_channel_branch_matches_independent_native_command(
         tmp_path / name
         for name in ("source.aseprite", "target.aseprite", "native.aseprite")
     ]
-    native_script(runtime, "despeckle_source.lua", source=source, mode=mode)
+    lua = run_lua(FIXTURES / "despeckle_source.lua", runtime, source=source, mode=mode)
+    assert lua.returncode == 0, process_diagnostics(lua)
     flags = sum(FLAGS[name] for name in names) if names else 32
-    native_script(
+    lua = run_lua(
+        FIXTURES / "despeckle_native_baseline.lua",
         runtime,
-        "despeckle_native_baseline.lua",
         source=source,
         target=baseline,
         channels=flags,
@@ -87,6 +98,7 @@ def test_every_channel_branch_matches_independent_native_command(
         height=1,
         tiled_mode="none",
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     channels = {"kind": "components", "names": names} if names else {"kind": "index"}
     selected = pixel_input(mode, channels=channels)
     if mode == "indexed":
@@ -129,12 +141,17 @@ def test_windows_and_edges_match_native(tmp_path, runtime, width, height, tiled_
         tmp_path / name
         for name in ("source.aseprite", "target.aseprite", "native.aseprite")
     ]
-    native_script(
-        runtime, "despeckle_source.lua", source=source, mode="grayscale", grid="true"
-    )
-    native_script(
+    lua = run_lua(
+        FIXTURES / "despeckle_source.lua",
         runtime,
-        "despeckle_native_baseline.lua",
+        source=source,
+        mode="grayscale",
+        grid="true",
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
+    lua = run_lua(
+        FIXTURES / "despeckle_native_baseline.lua",
+        runtime,
         source=source,
         target=baseline,
         channels=16,
@@ -142,6 +159,7 @@ def test_windows_and_edges_match_native(tmp_path, runtime, width, height, tiled_
         height=height,
         tiled_mode=tiled_mode,
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     code, result = apply(
         source, target, pixel_input("grayscale"), width, height, tiled_mode
     )
@@ -181,7 +199,8 @@ def test_windows_and_edges_match_native(tmp_path, runtime, width, height, tiled_
 @pytest.mark.parametrize("mode", ["rgb", "grayscale", "indexed"])
 def test_one_by_one_reports_native_unchanged_pixels(tmp_path, runtime, mode):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "despeckle_source.lua", source=source, mode=mode)
+    lua = run_lua(FIXTURES / "despeckle_source.lua", runtime, source=source, mode=mode)
+    assert lua.returncode == 0, process_diagnostics(lua)
     selected = pixel_input(mode)
     if mode == "indexed":
         selected.update(channels={"kind": "index"}, palette_frame_number=1)
@@ -199,14 +218,15 @@ def test_one_by_one_keeps_native_rgb_map_outcome(
     tmp_path, runtime, index, components, expected
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(
+    lua = run_lua(
+        FIXTURES / "despeckle_source.lua",
         runtime,
-        "despeckle_source.lua",
         source=source,
         mode="indexed",
         duplicate="true",
         index=index,
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     channels = (
         {"kind": "components", "names": ["red", "green", "blue", "alpha"]}
         if components
@@ -229,7 +249,10 @@ def test_one_by_one_keeps_native_rgb_map_outcome(
 @pytest.mark.parametrize("names", [n for n in RGB_SETS if "green" not in n])
 def test_defective_indexed_channels_refuse_without_publishing(tmp_path, runtime, names):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "despeckle_source.lua", source=source, mode="indexed")
+    lua = run_lua(
+        FIXTURES / "despeckle_source.lua", runtime, source=source, mode="indexed"
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
     original = source.read_bytes()
     target.write_bytes(b"keep existing target")
     code, result = apply(
@@ -245,8 +268,7 @@ def test_defective_indexed_channels_refuse_without_publishing(tmp_path, runtime,
     assert code != 0 and result["code"] == "filter_unsupported_document", result
     assert "Green" in result["message"]
     assert result["message"] == result["details"]["reason"]
-    info_code, info = run("info")
-    assert info_code == 0, info
+    info = expect_success("info", {})
     gap = next(
         gap
         for gap in info["capability_gaps"]
@@ -262,9 +284,14 @@ def test_defective_indexed_channels_refuse_without_publishing(tmp_path, runtime,
 @pytest.mark.parametrize("mode", ["rgb", "grayscale", "indexed"])
 def test_background_alpha_refuses_whole_request(tmp_path, runtime, mode):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(
-        runtime, "despeckle_source.lua", source=source, mode=mode, background="true"
+    lua = run_lua(
+        FIXTURES / "despeckle_source.lua",
+        runtime,
+        source=source,
+        mode=mode,
+        background="true",
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     selected = pixel_input(
         mode,
         channels={
@@ -284,7 +311,8 @@ def test_background_alpha_refuses_whole_request(tmp_path, runtime, mode):
 @pytest.mark.parametrize("target_kind", ["tilemap", "mixed", "all", "ordinary"])
 def test_tilemap_boundary(tmp_path, runtime, target_kind):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "tilemap.lua", source=source, mode="rgb")
+    lua = run_lua(FIXTURES / "tilemap.lua", runtime, source=source, mode="rgb")
+    assert lua.returncode == 0, process_diagnostics(lua)
     original = source.read_bytes()
     selected = pixel_input()
     if target_kind == "all":
@@ -318,9 +346,14 @@ def test_tilemap_boundary(tmp_path, runtime, target_kind):
 )
 def test_explicit_selection_and_linked_target(tmp_path, runtime, selection):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(
-        runtime, "despeckle_source.lua", source=source, mode="grayscale", linked="true"
+    lua = run_lua(
+        FIXTURES / "despeckle_source.lua",
+        runtime,
+        source=source,
+        mode="grayscale",
+        linked="true",
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     before = observe_images(runtime, source)
     code, result = apply(source, target, pixel_input("grayscale", selection=selection))
     assert code == 0, result
@@ -400,7 +433,8 @@ def test_native_selection_normalization_and_named_target_remain_valid(
     tmp_path, runtime, selection, expected, values
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "source.lua", source=source, mode="grayscale")
+    lua = run_lua(FIXTURES / "source.lua", runtime, source=source, mode="grayscale")
+    assert lua.returncode == 0, process_diagnostics(lua)
     selected = pixel_input(
         "grayscale",
         selection=selection,
@@ -425,7 +459,10 @@ def test_native_selection_normalization_and_named_target_remain_valid(
 
 def test_selected_cartesian_absences_remain_valid(tmp_path, runtime):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "target_scene.lua", source=source, mode="cartesian")
+    lua = run_lua(
+        FIXTURES / "target_scene.lua", runtime, source=source, mode="cartesian"
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
     code, result = apply(
         source,
         target,

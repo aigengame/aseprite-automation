@@ -3,12 +3,14 @@
 import pytest
 
 from tests.filter.support import (
+    FIXTURES,
     apply,
-    native_script,
     observe_images,
     pixels,
     rgb_palette_colors,
 )
+from tests.native_invocation import run_lua
+from tests.support import process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
@@ -35,7 +37,8 @@ def test_explicit_zero_is_noop_without_requantizing_duplicate_colors(
     tmp_path, runtime, mode, application
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "noop.lua", source=source, mode=mode)
+    lua = run_lua(FIXTURES / "noop.lua", runtime, source=source, mode=mode)
+    assert lua.returncode == 0, process_diagnostics(lua)
     before = observe_images(runtime, source)
     code, result = apply(source, target, application, brightness=0, contrast=0)
     assert code == 0, result
@@ -46,7 +49,8 @@ def test_explicit_zero_is_noop_without_requantizing_duplicate_colors(
 
 def test_rgb_pixels_are_native_and_source_is_unchanged(tmp_path, runtime):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "source.lua", source=source, mode="rgb")
+    lua = run_lua(FIXTURES / "source.lua", runtime, source=source, mode="rgb")
+    assert lua.returncode == 0, process_diagnostics(lua)
     before = source.read_bytes()
     code, result = apply(source, target, pixels())
     assert code == 0, result
@@ -71,32 +75,38 @@ def test_rgb_pixels_are_native_and_source_is_unchanged(tmp_path, runtime):
     assert len(result["images"]) == 1
     assert len(result["affected_cels"]) == 1
     assert source.read_bytes() == before
-    native_script(runtime, "check_rgb.lua", source=target)
+    lua = run_lua(FIXTURES / "check_rgb.lua", runtime, source=target)
+    assert lua.returncode == 0, process_diagnostics(lua)
 
 
 def test_grayscale_only_changes_gray_and_retains_alpha(tmp_path, runtime):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "source.lua", source=source, mode="grayscale")
+    lua = run_lua(FIXTURES / "source.lua", runtime, source=source, mode="grayscale")
+    assert lua.returncode == 0, process_diagnostics(lua)
     code, result = apply(source, target, pixels("grayscale"))
     assert code == 0, result
-    native_script(runtime, "check_gray.lua", source=target)
+    lua = run_lua(FIXTURES / "check_gray.lua", runtime, source=target)
+    assert lua.returncode == 0, process_diagnostics(lua)
 
 
 def test_indexed_pixels_use_explicit_palette_without_changing_entries(
     tmp_path, runtime
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "source.lua", source=source, mode="indexed")
+    lua = run_lua(FIXTURES / "source.lua", runtime, source=source, mode="indexed")
+    assert lua.returncode == 0, process_diagnostics(lua)
     code, result = apply(source, target, pixels("indexed", palette_frame_number=1))
     assert code == 0, result
     assert result["palette_before"] == result["palette_after"]
     assert result["palette_basis"]["palette_frame_number"] == 1
-    native_script(runtime, "check_indexed_pixels.lua", source=target)
+    lua = run_lua(FIXTURES / "check_indexed_pixels.lua", runtime, source=target)
+    assert lua.returncode == 0, process_diagnostics(lua)
 
 
 def test_indexed_palette_only_changes_explicit_entries_and_no_pixels(tmp_path, runtime):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "source.lua", source=source, mode="indexed")
+    lua = run_lua(FIXTURES / "source.lua", runtime, source=source, mode="indexed")
+    assert lua.returncode == 0, process_diagnostics(lua)
     code, result = apply(
         source,
         target,
@@ -115,7 +125,10 @@ def test_indexed_palette_only_changes_explicit_entries_and_no_pixels(tmp_path, r
     assert result["processed_image_numbers"] == []
     assert result["images"] == []
     assert result["changed"] is True
-    native_script(runtime, "check_palette.lua", source=target, mode="indexed")
+    lua = run_lua(
+        FIXTURES / "check_palette.lua", runtime, source=target, mode="indexed"
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
 
 
 @pytest.mark.parametrize(
@@ -134,7 +147,8 @@ def test_tilemap_pixel_target_refuses_before_publication(
     tmp_path, runtime, cels_target
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "tilemap.lua", source=source, mode="rgb")
+    lua = run_lua(FIXTURES / "tilemap.lua", runtime, source=source, mode="rgb")
+    assert lua.returncode == 0, process_diagnostics(lua)
     original = source.read_bytes()
     target.write_bytes(b"existing target")
     application = pixels(cels_target=cels_target)
@@ -147,7 +161,10 @@ def test_tilemap_pixel_target_refuses_before_publication(
 
 def test_palette_only_uses_tilemap_anchor_and_preserves_every_image(tmp_path, runtime):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "tilemap.lua", source=source, mode="indexed", only="true")
+    lua = run_lua(
+        FIXTURES / "tilemap.lua", runtime, source=source, mode="indexed", only="true"
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
     before = observe_images(runtime, source)
     code, result = apply(
         source,
@@ -171,7 +188,8 @@ def test_indexed_native_quantization_can_change_alpha_without_filtering_tiles(
     tmp_path, runtime
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "tilemap.lua", source=source, mode="indexed")
+    lua = run_lua(FIXTURES / "tilemap.lua", runtime, source=source, mode="indexed")
+    assert lua.returncode == 0, process_diagnostics(lua)
     before = observe_images(runtime, source)
     code, result = apply(
         source,
@@ -193,11 +211,13 @@ def test_indexed_native_quantization_can_change_alpha_without_filtering_tiles(
 
 def test_rgb_palette_colors_changes_only_exact_old_color_matches(tmp_path, runtime):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "source.lua", source=source, mode="rgb")
+    lua = run_lua(FIXTURES / "source.lua", runtime, source=source, mode="rgb")
+    assert lua.returncode == 0, process_diagnostics(lua)
     code, result = apply(source, target, rgb_palette_colors())
     assert code == 0, result
     assert result["changed"] is True
-    native_script(runtime, "check_palette.lua", source=target, mode="rgb")
+    lua = run_lua(FIXTURES / "check_palette.lua", runtime, source=target, mode="rgb")
+    assert lua.returncode == 0, process_diagnostics(lua)
 
 
 @pytest.mark.parametrize("palette_colors", [False, True])
@@ -205,7 +225,8 @@ def test_empty_selection_keeps_images_but_retains_palette_application(
     tmp_path, runtime, palette_colors
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "source.lua", source=source, mode="rgb")
+    lua = run_lua(FIXTURES / "source.lua", runtime, source=source, mode="rgb")
+    assert lua.returncode == 0, process_diagnostics(lua)
     before = observe_images(runtime, source)
     application = (rgb_palette_colors if palette_colors else pixels)(
         selection={"kind": "empty"}
