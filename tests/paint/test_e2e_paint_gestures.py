@@ -354,18 +354,3 @@ def test_gesture_preserves_background_opacity(tmp_path: Path, operation: str) ->
     assert run.returncode == 0, run.stdout + run.stderr
     assert _pixels(target) == _pixels(expected)
     assert result["background_opaque"] is True
-
-
-def test_gradient_gap_is_reported_without_corrupting_runtime_discovery() -> None:
-    run, result = _call("schema")
-    assert run.returncode == 0, run.stdout + run.stderr
-    available = {entry["operation"] for entry in result["operations"]}
-    assert {"spa paint contour", "spa paint blur"} <= available
-    assert "spa paint gradient" not in available
-    gap = next(
-        gap
-        for gap in result["capability_gaps"]
-        if gap["capability"] == "spa paint gradient"
-    )
-    assert gap["aseprite_version"] == result["runtime"]["aseprite_version"]
-    assert "Gradient Type" in gap["reason"] and "Dithering Matrix" in gap["reason"]

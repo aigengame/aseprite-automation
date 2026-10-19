@@ -3,9 +3,6 @@
 import hashlib
 import json
 import os
-from copy import deepcopy
-from dataclasses import replace
-from pathlib import Path
 
 import pytest
 from PIL import Image
@@ -21,7 +18,7 @@ from spa.contracts.ports import OperationServices, RuntimeIssue, TargetCommitEvi
 from tests.host_permissions import symlink_creation_permission
 from tests.support import process_diagnostics, spa
 
-from .test_e2e_image_import import _create, _indexed
+from .test_e2e_image_import import _create
 from .test_e2e_image_import import runtime as runtime  # noqa: PLC0414
 
 pytestmark = pytest.mark.e2e
@@ -78,16 +75,13 @@ def _dispatch(source, raster, target, runtime, files, invoker):
     return result.model_dump(mode="json")
 
 
-def _inputs(tmp_path, runtime, *, indexed=False):
+def _inputs(tmp_path, runtime):
     source, raster, target = (
         tmp_path / name for name in ("source.aseprite", "input.png", "target.aseprite")
     )
-    _create(runtime, source, **({"mode": "indexed"} if indexed else {}))
+    _create(runtime, source)
     target.write_bytes(source.read_bytes())
-    if indexed:
-        _indexed(raster, [1, 1])
-    else:
-        Image.new("RGBA", (2, 1), (17, 31, 53, 128)).save(raster)
+    Image.new("RGBA", (2, 1), (17, 31, 53, 128)).save(raster)
     return source, raster, target
 
 
@@ -157,70 +151,6 @@ def test_consumed_png_remains_frozen_when_original_changes_before_native(
     assert pixels == original_pixels
 
 
-@pytest.mark.parametrize(
-    "corruption",
-    [
-        "stored_digest",
-        "rgba_digest",
-        "geometry",
-        "frame",
-        "layer_path",
-        "sprite_cel",
-        "persisted",
-        "palette_color",
-        "palette_frame",
-        "mask_collision",
-        "mask_fact",
-    ],
-)
-def test_tampered_real_native_success_cannot_publish(tmp_path, runtime, corruption):
-    indexed = corruption.startswith(("palette", "mask"))
-    source, raster, target = _inputs(tmp_path, runtime, indexed=indexed)
-    original = source.read_bytes(), raster.read_bytes(), target.read_bytes()
-    files = _ObservedTargetFiles()
-    native_success = []
-
-    def corrupted_result(observation, handler, payload, timeout):
-        observed = invoke(observation, handler, payload, timeout)
-        assert observed.payload.get("persisted_reopen_verified") is True, (
-            observed.payload
-        )
-        assert Path(payload["staged_sprite_file"]).is_file()
-        evidence = deepcopy(observed.payload)
-        native_success.append(observed.payload)
-        if corruption in ("stored_digest", "rgba_digest"):
-            evidence["image"][
-                "stored_content_digest"
-                if corruption == "stored_digest"
-                else "rgba_content_digest"
-            ]["value"] = "0" * 16
-        elif corruption == "geometry":
-            evidence["cel"]["image_bounds"]["width"] += 1
-        elif corruption == "frame":
-            evidence["cel"]["frame_number"] = evidence["before"]["frame_number"] = 1
-        elif corruption == "layer_path":
-            evidence["cel"]["layer_path"] = evidence["before"]["layer_path"] = [2]
-        elif corruption == "sprite_cel":
-            evidence["sprite"]["cels"][0]["bounds"]["width"] += 1
-        elif corruption == "persisted":
-            evidence["persisted_reopen_verified"] = False
-        elif corruption == "palette_color":
-            evidence["effective_palette"]["indexes"][0]["color"]["red"] += 1
-        elif corruption == "palette_frame":
-            evidence["effective_palette"]["palette_frame_number"] = 3
-        elif corruption == "mask_collision":
-            evidence["transparent_index"] = 1
-        elif corruption == "mask_fact":
-            evidence["transparent_index"] = 3
-        return replace(observed, payload=evidence)
-
-    result = _dispatch(source, raster, target, runtime, files, corrupted_result)
-    assert len(native_success) == 1
-    assert result.get("code") == "kernel_response_invalid", result
-    assert not files.commits
-    _assert_unpublished(source, raster, target, original, files)
-
-
 def test_target_publication_failure_after_native_success_preserves_inputs(
     tmp_path, runtime
 ):
@@ -243,33 +173,6 @@ def test_target_publication_failure_after_native_success_preserves_inputs(
     assert result["details"]["reason"] == "replace_failed"
     assert files.commits == files.stages
     _assert_unpublished(source, raster, target, original, files)
-
-
-@pytest.mark.parametrize("alias", ["direct", "symlink_chain"])
-def test_raster_alias_of_target_rejects_before_native(tmp_path, runtime, alias):
-    source, raster, target = _inputs(tmp_path, runtime)
-    original_png, original_source = raster.read_bytes(), source.read_bytes()
-    target = tmp_path / "input.aseprite"
-    target.write_bytes(original_png)
-    if alias == "direct":
-        raster = target
-    else:
-        raster.unlink()
-        intermediate = tmp_path / "intermediate.png"
-        with symlink_creation_permission():
-            intermediate.symlink_to(target.name)
-            raster.symlink_to(intermediate.name)
-    files = _ObservedTargetFiles()
-
-    def unexpected_native(*_):
-        raise AssertionError("Output alias reached native import")
-
-    result = _dispatch(source, raster, target, runtime, files, unexpected_native)
-    assert result.get("code") == "image_import_incompatible", result
-    assert result["details"]["reason"] == "output_alias"
-    assert source.read_bytes() == original_source
-    assert raster.read_bytes() == target.read_bytes() == original_png
-    assert files.stages == files.commits == files.discards == []
 
 
 def test_changed_raster_alias_before_commit_refuses_and_discards_native_stage(

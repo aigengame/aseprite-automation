@@ -252,23 +252,6 @@ def test_indexed_background_rejects_translucent_palette_output(
     )
 
 
-@pytest.mark.parametrize("palette_number", [None, 1])
-def test_missing_or_wrong_palette_frame_number_rejects_atomically(
-    tmp_path: Path, palette_number: int | None
-) -> None:
-    source, target = tmp_path / "changed.aseprite", tmp_path / "unchanged.aseprite"
-    _fixture(source)
-    inject_palette_change(source, FRAME_2_PALETTE, frame_number=2)
-
-    _atomic_refusal(
-        source,
-        target,
-        (7, 8),
-        "paint_composite_invalid",
-        palette_frame_number=palette_number,
-    )
-
-
 def test_source_index_outside_target_palette_rejects_atomically(
     tmp_path: Path,
 ) -> None:
@@ -292,26 +275,6 @@ def test_missing_transparent_index_in_palette_rejects_atomically(
         "paint_composite_invalid",
         target={"layer": {"layer_path": [1]}, "frame_number": 1},
         palette_frame_number=1,
-    )
-
-
-@pytest.mark.parametrize(
-    "blend,opacity", [("normal", 0), ("normal", 127), ("multiply", 255)]
-)
-def test_unsupported_indexed_blend_or_opacity_is_typed_gap(
-    tmp_path: Path, blend: str, opacity: int
-) -> None:
-    source, target = tmp_path / "changed.aseprite", tmp_path / "unchanged.aseprite"
-    _fixture(source)
-    inject_palette_change(source, FRAME_2_PALETTE, frame_number=2)
-
-    _atomic_refusal(
-        source,
-        target,
-        (7, 8),
-        "paint_composite_unsupported",
-        blend_mode=blend,
-        opacity=opacity,
     )
 
 

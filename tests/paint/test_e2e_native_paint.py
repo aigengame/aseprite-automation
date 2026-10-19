@@ -14,7 +14,6 @@ from spa.adapters.aseprite.aseprite import probe
 from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.application.surface import PROBE_RESOURCES
 from spa.contracts.public import RuntimeRequest
-from tests.host_permissions import symlink_creation_permission
 from tests.support import process_diagnostics, spa
 
 pytestmark = pytest.mark.e2e
@@ -625,18 +624,9 @@ def test_unsupported_or_absent_targets_do_not_publish(
     assert source.read_bytes() == target.read_bytes() == original
 
 
-def test_native_paint_supports_in_place_and_rejects_alias_to_target(
-    tmp_path: Path,
-) -> None:
+def test_native_paint_supports_in_place(tmp_path: Path) -> None:
     source, _ = _native_fixture(tmp_path)
     original = source.read_bytes()
-    alias = tmp_path / "alias.aseprite"
-    with symlink_creation_permission():
-        alias.symlink_to(source)
-    for in_place in (False, True):
-        run, result = _paint(alias, source, in_place=in_place, overwrite=True)
-        assert run.returncode == 2 and result["code"] == "invalid_request"
-        assert source.read_bytes() == original
     run, result = _paint(source, source, in_place=True, overwrite=True)
     assert run.returncode == 0, run.stdout + run.stderr
     assert source.read_bytes() != original

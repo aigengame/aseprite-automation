@@ -88,13 +88,12 @@ def test_composite_persists_native_alpha_at_declared_image_position(
     assert reopened["snapshot"] == value
 
 
-@pytest.mark.parametrize(
-    "case",
-    ["bounds", "color-mode", "palette-for-rgb", "malformed-artifact", "position-range"],
-)
+@pytest.mark.parametrize("case", ["bounds", "color-mode"])
 def test_invalid_composite_preserves_source_and_existing_target(
     tmp_path: Path, case: str
 ) -> None:
+    # The Kernel refuses these rows: only the Sprite gives its bounds and Color Mode.
+    # tests/paint/test_integration_composite.py has the refusals before the probe.
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
     _create(source)
     original = source.read_bytes()
@@ -103,27 +102,19 @@ def test_invalid_composite_preserves_source_and_existing_target(
     options: dict = {"overwrite": True}
     if case == "bounds":
         options["position"] = {"x": -1, "y": 0}
-    elif case == "color-mode":
+    else:
         value = _snapshot(
             {"kind": "grayscale", "gray": 90, "alpha": 128}, mode="grayscale"
         )
-    elif case == "palette-for-rgb":
-        options["palette_frame_number"] = 1
-    elif case == "position-range":
-        options["position"] = {"x": 2**53 + 1, "y": 0}
-        options["aseprite"] = "/missing/aseprite"
-    else:
-        invalid = tmp_path / "invalid.json"
-        invalid.write_text('{"color_mode":"rgb"}')
-        options["input"] = {"kind": "artifact", "path": str(invalid)}
     code, result = _compose(source, target, value, **options)
     assert code != 0, result
-    assert result["code"] == (
-        "invalid_request" if case == "position-range" else "paint_composite_invalid"
-    )
+    assert result["code"] == "paint_composite_invalid"
     assert source.read_bytes() == original
     assert target.read_bytes() == b"existing target"
-    assert not list(tmp_path.glob("*.spa-stage-*"))
+    assert {item.name for item in tmp_path.iterdir()} == {
+        "source.aseprite",
+        "target.aseprite",
+    }
 
 
 @pytest.mark.parametrize(
@@ -203,37 +194,6 @@ def test_composite_uses_explicit_native_opacity(
     # (Aseprite blend_funcs.cpp rgba_blender_normal, alpha-zero branch).
     expected = {**color, "alpha": alpha}
     assert pixels["snapshot"]["rows"] == [[{"length": 1, "color": expected}]]
-
-
-@pytest.mark.parametrize(
-    "blend_mode", ["hue", "saturation", "color", "luminosity", "addition"]
-)
-def test_composite_refuses_grayscale_modes_with_different_native_meaning(
-    tmp_path: Path, blend_mode: str
-) -> None:
-    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    image_fixture(tmp_path, "grayscale")
-    before = source.read_bytes()
-    code, result = _compose(
-        source,
-        target,
-        _snapshot({"kind": "grayscale", "gray": 90, "alpha": 128}, mode="grayscale"),
-        blend_mode=blend_mode,
-    )
-    assert code != 0, result
-    assert result["code"] == "paint_composite_unsupported"
-    gap = result["details"]["gap"]
-    assert blend_mode in gap["capability"]
-    assert gap["aseprite_version"]
-    assert result["message"] == gap["reason"]
-    assert "evidence" not in gap
-    assert "unavailable" in gap["reason"]
-    validate(
-        result,
-        json.loads(spa("paint", "composite", "--schema").stdout)["failure_schema"],
-    )
-    assert source.read_bytes() == before
-    assert not target.exists()
 
 
 @pytest.mark.parametrize("x", [-(2**31), 2**31 - 1])
