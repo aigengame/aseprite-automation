@@ -78,22 +78,33 @@ def test_changed_envelope_fails_its_own_schema(
 
 
 @pytest.mark.parametrize(
-    ("change", "error"),
+    ("command", "change", "error", "status"),
     [
-        (lambda stdout: "", AssertionError),
-        (lambda stdout: "not json", AssertionError),
-        (lambda stdout: "[]", ValidationError),
+        ("version", lambda stdout: "", AssertionError, 0),
+        ("version", lambda stdout: "not json", AssertionError, 0),
+        ("version", lambda stdout: "[]", ValidationError, 0),
         (
+            "version",
             lambda stdout: json.dumps({**json.loads(stdout), "unexpected": True}),
             ValidationError,
+            0,
         ),
+        ("frame nosuch", lambda stdout: "[]", ValidationError, 2),
     ],
-    ids=["empty-stdout", "not-json", "not-an-object", "invalid-envelope"],
+    ids=[
+        "empty-stdout",
+        "not-json",
+        "not-an-object",
+        "invalid-envelope",
+        "access-not-an-object",
+    ],
 )
 def test_run_refuses_bad_stdout_with_process_diagnostics(
     monkeypatch: pytest.MonkeyPatch,
+    command: str,
     change: Callable[[str], str],
     error: type[Exception],
+    status: int,
 ) -> None:
     installed = native_invocation.spa
 
@@ -108,9 +119,10 @@ def test_run_refuses_bad_stdout_with_process_diagnostics(
     monkeypatch.setattr(native_invocation, "spa", changed_spa)
 
     with pytest.raises(error) as failure:
-        run("version", {})
+        run(command, {})
 
-    assert "exit status: 0" in "".join(traceback.format_exception_only(failure.value))
+    message = "".join(traceback.format_exception_only(failure.value))
+    assert f"exit status: {status}" in message
 
 
 def test_expect_success_refuses_a_failure_envelope_with_process_diagnostics() -> None:

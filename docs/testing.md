@@ -81,16 +81,16 @@ has `aseprite` fails the test. `run` does not change the request of the caller. 
 validates each envelope against the schema of its command, in process, and returns
 the exit status, the envelope, and the process. A stdout that is not a valid
 envelope fails the test with `process_diagnostics`. An access failure (`operation:
-"spa"`) uses the access failure schema. `expect_success` returns the success
-envelope, or fails with `process_diagnostics`. `run_lua(script, runtime, **params)`
-runs one Lua fixture in batch mode with the GUI resource that runtime discovery
-found. It sends each parameter as one `--script-param`, and a boolean as `true` or
-`false`. The caller asserts the exit status. The session-scope `runtime` fixture in
-`tests/conftest.py` probes the configured Aseprite once for each pytest worker. A
-fixture builder takes `runtime` as a parameter and does not probe. A test whose
-claim is the probe calls `probe` itself. Areas that still have private CLI helpers,
-native runners, or module-scope `runtime` fixtures move to this module through issue
-#280.
+"spa"`) and each envelope of a command that is not registered use the access failure
+schema. `expect_success` returns the success envelope, or fails with
+`process_diagnostics`. `run_lua(script, runtime, **params)` runs one Lua fixture in
+batch mode with the GUI resource that runtime discovery found. It sends each
+parameter as one `--script-param`, and a boolean as `true` or `false`. The caller
+asserts the exit status. The session-scope `runtime` fixture in `tests/conftest.py`
+probes the configured Aseprite once for each pytest worker. A fixture builder takes
+`runtime` as a parameter and does not probe. A test whose claim is the probe calls
+`probe` itself. Areas that still have private CLI helpers, native runners, or
+module-scope `runtime` fixtures move to this module through issue #280.
 
 Native Paint #26 has separate Line, Rectangle, and Ellipse runtime gates. Its
 real-runtime suite compares saved pixels with direct `app.useTool` references for
