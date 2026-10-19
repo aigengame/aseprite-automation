@@ -1,6 +1,6 @@
 # Test suite
 
-For native text, `tests/paint/test_e2e_text_discovery.py` verifies the installed
+For native text, `tests/paint/test_integration_text_discovery.py` verifies the
 Capability Gap and absence of false callability. The [issue #47 investigation](evidence/issue-47-native-text.md)
 retains manual native pixel and save/reopen observations. Its text fixture is not
 part of routine discovery or pytest; neither installed discovery nor CI needs to

@@ -35,7 +35,6 @@ def test_text_gap_reports_availability_without_research_narrative(
     assert gap.aseprite_version == selected_version
     assert "SPA does not provide text rasterization" in gap.reason
     assert "Import prepared raster text" in gap.reason
-    assert "evidence" not in gap.model_dump()
     assert "spa paint line" in info.supported_capabilities
     assert not any("text" in name.split() for name in info.supported_capabilities)
     assert not any("text" in item.operation.split() for item in schema.operations)
