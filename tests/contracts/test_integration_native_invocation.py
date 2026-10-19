@@ -82,12 +82,13 @@ def test_changed_envelope_fails_its_own_schema(
     [
         (lambda stdout: "", AssertionError),
         (lambda stdout: "not json", AssertionError),
+        (lambda stdout: "[]", ValidationError),
         (
             lambda stdout: json.dumps({**json.loads(stdout), "unexpected": True}),
             ValidationError,
         ),
     ],
-    ids=["empty-stdout", "not-json", "invalid-envelope"],
+    ids=["empty-stdout", "not-json", "not-an-object", "invalid-envelope"],
 )
 def test_run_refuses_bad_stdout_with_process_diagnostics(
     monkeypatch: pytest.MonkeyPatch,

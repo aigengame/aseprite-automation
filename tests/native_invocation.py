@@ -47,15 +47,17 @@ def _validator(command: str, status: str) -> Draft202012Validator:
     return Draft202012Validator(schema.failure_schema)
 
 
-def validate_envelope(command: str, envelope: dict[str, Any]) -> None:
+def validate_envelope(command: str, envelope: object) -> None:
     """Validate an envelope against the schema of command.
 
-    An access failure (operation `spa`) uses the access failure schema.
+    An access failure (operation `spa`) uses the access failure schema. A value
+    that is not an object fails the failure schema of command.
     """
-    if envelope.get("operation") == "spa":
+    fields: dict[str, Any] = envelope if isinstance(envelope, dict) else {}
+    if fields.get("operation") == "spa":
         _validator("spa", "failure").validate(envelope)
     else:
-        _validator(command, str(envelope.get("status"))).validate(envelope)
+        _validator(command, str(fields.get("status"))).validate(envelope)
 
 
 def run(
