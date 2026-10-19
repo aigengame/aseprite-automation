@@ -13,7 +13,7 @@ from spa.contracts.public import RuntimeRequest
 from tests.support import process_diagnostics
 
 
-def export_image_request(
+def export_image_choices(
     source: Path,
     destination: Path,
     *,
@@ -21,8 +21,8 @@ def export_image_request(
     if_exists: str = "fail",
     **choices: object,
 ) -> dict:
+    """Return an Export Image request without an Aseprite path."""
     return {
-        "aseprite": os.environ["SPA_TEST_ASEPRITE"],
         "source_sprite_file": str(source),
         "destination": {"path": str(destination), "if_exists": if_exists},
         "frame_number": frame_number,
@@ -33,6 +33,26 @@ def export_image_request(
         "color_profile": "preserve",
         "transparency": "preserve",
         **choices,
+    }
+
+
+def export_image_request(
+    source: Path,
+    destination: Path,
+    *,
+    frame_number: int = 1,
+    if_exists: str = "fail",
+    **choices: object,
+) -> dict:
+    return {
+        "aseprite": os.environ["SPA_TEST_ASEPRITE"],
+        **export_image_choices(
+            source,
+            destination,
+            frame_number=frame_number,
+            if_exists=if_exists,
+            **choices,
+        ),
     }
 
 

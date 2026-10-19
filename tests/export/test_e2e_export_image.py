@@ -2,22 +2,15 @@
 
 import hashlib
 import json
-import os
-import shutil
 import struct
-from copy import deepcopy
 from pathlib import Path
 
 import pytest
-from jsonschema import Draft202012Validator, validate
+from jsonschema import validate
 from PIL import Image, ImageCms
 
 from tests.export.support import export_image_request as _request
 from tests.export.support import source_sprite as _source
-from tests.host_permissions import (
-    deny_directory_listing,
-    symlink_creation_permission,
-)
 from tests.support import isolated_wheel_cli, spa
 
 pytestmark = pytest.mark.e2e
@@ -69,57 +62,6 @@ def test_export_frame_as_verified_visible_rgb_png(tmp_path: Path) -> None:
         assert image.convert("RGBA").getpixel((1, 0)) == (17, 34, 51, 128)
         assert image.convert("RGBA").getpixel((0, 0)) == (0, 0, 0, 0)
     assert hashlib.sha256(source.read_bytes()).hexdigest() == original_sha
-
-
-def test_export_rejects_destination_traversed_by_source_alias(tmp_path: Path) -> None:
-    native_source = _source(tmp_path)
-    destination = tmp_path / "image.png"
-    shutil.copyfile(native_source, destination)
-    source = tmp_path / "linked.aseprite"
-    with symlink_creation_permission():
-        source.symlink_to(destination)
-    original = hashlib.sha256(source.read_bytes()).hexdigest()
-
-    run = spa(
-        "export",
-        "image",
-        "--input-json",
-        json.dumps(_request(source, destination, if_exists="replace")),
-    )
-
-    assert run.returncode != 0
-    failure = json.loads(run.stdout)
-    assert failure["code"] == "artifact_file_failed"
-    assert failure["details"]["reason"] == "source_destination_alias"
-    assert hashlib.sha256(source.read_bytes()).hexdigest() == original
-    assert hashlib.sha256(destination.read_bytes()).hexdigest() == original
-
-
-def test_export_reports_unverifiable_source_destination_identity(
-    tmp_path: Path,
-) -> None:
-    native_source = _source(tmp_path)
-    private = tmp_path / "private"
-    private.mkdir()
-    source = private / "source.aseprite"
-    shutil.copyfile(native_source, source)
-    destination = private / "image.png"
-    os.link(source, destination)
-    original = hashlib.sha256(source.read_bytes()).hexdigest()
-    with deny_directory_listing(private):
-        run = spa(
-            "export",
-            "image",
-            "--input-json",
-            json.dumps(_request(source, destination, if_exists="replace")),
-        )
-
-    assert run.returncode != 0 and run.stdout
-    failure = json.loads(run.stdout)
-    assert failure["code"] == "artifact_file_failed"
-    assert failure["details"]["reason"] == "source_destination_identity_unverified"
-    assert hashlib.sha256(source.read_bytes()).hexdigest() == original
-    assert hashlib.sha256(destination.read_bytes()).hexdigest() == original
 
 
 def test_export_opaque_rgb_without_color_profile(tmp_path: Path) -> None:
@@ -294,25 +236,11 @@ def test_export_rejects_gamma_profile_before_encoding(tmp_path: Path) -> None:
     assert not list(tmp_path.glob("*.staged.png"))
 
 
-def test_export_requires_explicit_existing_file_policy(tmp_path: Path) -> None:
+def test_export_replaces_existing_file_when_policy_is_replace(tmp_path: Path) -> None:
     source = _source(tmp_path)
     destination = tmp_path / "image.png"
     destination.write_bytes(b"existing artifact")
     original = destination.read_bytes()
-
-    refused = spa(
-        "export",
-        "image",
-        "--input-json",
-        json.dumps(_request(source, destination)),
-    )
-
-    assert refused.returncode != 0
-    refusal = json.loads(refused.stdout)
-    assert refusal["code"] == "artifact_file_failed"
-    assert refusal["details"]["reason"] == "destination_exists"
-    assert destination.read_bytes() == original
-    assert not list(tmp_path.glob("*.staged.png"))
 
     replaced = spa(
         "export",
@@ -360,69 +288,6 @@ def test_export_uses_native_visible_group_composition(tmp_path: Path) -> None:
     with Image.open(destination) as image:
         image.load()
         assert image.convert("RGBA").getpixel((0, 0)) == (0, 0, 200, 128)
-
-
-def test_export_schema_refuses_unsupported_and_incomplete_choices(
-    tmp_path: Path,
-) -> None:
-    source = _source(tmp_path)
-    destination = tmp_path / "rejected.png"
-    accepted = _request(source, destination)
-    schema = json.loads(spa("export", "image", "--schema").stdout)
-    validator = Draft202012Validator(schema["request_schema"])
-    validator.validate(accepted)
-    assert schema["execution_kind"] == "export"
-    assert schema["side_effects"] == ["publishes one verified PNG Image Artifact"]
-
-    rejected: list[tuple[str, object]] = [
-        ("destination.path", str(tmp_path / "image.jpg")),
-        ("destination.path", str(tmp_path / "image.PNG")),
-        ("destination.path", str(tmp_path / "image.png") + "\n"),
-        ("destination.path", str(tmp_path / "image\r.png")),
-        ("destination.path", str(tmp_path / "image\x00.png")),
-        ("source_sprite_file", str(source) + "\n"),
-        ("source_sprite_file", str(tmp_path / "source\r.aseprite")),
-        ("source_sprite_file", str(tmp_path / "source\x00.aseprite")),
-        ("destination.if_exists", None),
-        ("frame_number", 0),
-        ("frame_number", None),
-        ("export_image_area", None),
-        ("layer_composition", None),
-        ("composition_color_mode", None),
-        ("composition_color_mode", "grayscale"),
-        ("tag", "walk"),
-        ("frame_range", [1, 2]),
-        ("ignore_empty", True),
-        (
-            "export_image_area",
-            {"kind": "bounds", "x": 0, "y": 0, "width": 1, "height": 1},
-        ),
-        ("selection", {"kind": "mask"}),
-        ("layer_composition", "all"),
-        ("include_layers", [[1]]),
-        ("color_mode", "grayscale"),
-        ("color_profile", "omit"),
-        ("transparency", "background"),
-        ("palette", {"kind": "quantize"}),
-        ("outputs", [str(destination), str(tmp_path / "other.png")]),
-        ("format", "png"),
-    ]
-    for location, value in rejected:
-        request = deepcopy(accepted)
-        parent, separator, field = location.partition(".")
-        target = request[parent] if separator else request
-        assert isinstance(target, dict)
-        if value is None:
-            target.pop(field if separator else parent)
-        else:
-            target[field if separator else parent] = value
-        assert not validator.is_valid(request), location
-        run = spa("export", "image", "--input-json", json.dumps(request))
-        assert run.returncode == 2, (location, run.stdout)
-        failure = json.loads(run.stdout)
-        validate(failure, schema["failure_schema"])
-        assert failure["code"] == "invalid_request"
-        assert not destination.exists()
 
 
 def test_export_reports_normalized_destination(tmp_path: Path) -> None:

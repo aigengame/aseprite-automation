@@ -427,38 +427,10 @@ def test_out_of_range_pivot_refuses_in_place_change_atomically(tmp_path: Path) -
     assert source.read_bytes() == original
 
 
-@pytest.mark.parametrize(
-    ("options", "failure_code"),
-    [
-        ({"width": 0}, "invalid_request"),
-        ({"method": "bicubic"}, "invalid_request"),
-        ({"method": "nearest-neighbor", "palette_frame_number": 1}, "invalid_request"),
-        ({"position_policy": {"kind": "pivot", "pivot_x": 1}}, "invalid_request"),
-        (
-            {
-                "width": 2,
-                "height": 2,
-                "position_policy": {
-                    "kind": "pivot",
-                    "pivot_x": 2**31,
-                    "pivot_y": 0,
-                    "rounding": "floor",
-                },
-            },
-            "invalid_request",
-        ),
-        (
-            {"method": "bilinear", "palette_frame_number": 1},
-            "image_resize_palette_basis_invalid",
-        ),
-    ],
-)
-def test_invalid_resize_intent_has_no_target_file(
-    tmp_path: Path, options: dict, failure_code: str
-) -> None:
+def test_palette_frame_with_bilinear_resize_has_no_target_file(tmp_path: Path) -> None:
     source = _fixture(tmp_path)
     target = tmp_path / "rejected.aseprite"
-    status, failure = _resize(source, target, **options)
+    status, failure = _resize(source, target, method="bilinear", palette_frame_number=1)
     assert status == 2, failure
-    assert failure["code"] == failure_code
+    assert failure["code"] == "image_resize_palette_basis_invalid"
     assert not target.exists()

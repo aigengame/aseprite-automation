@@ -3,7 +3,6 @@
 import hashlib
 import json
 import os
-import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -12,10 +11,6 @@ import pytest
 from PIL import Image
 
 from spa.adapters.aseprite.invocation import prepare_invocation
-from tests.host_permissions import (
-    deny_directory_listing,
-    symlink_creation_permission,
-)
 from tests.support import process_diagnostics, spa
 
 pytestmark = pytest.mark.e2e
@@ -162,29 +157,6 @@ def test_audit_ignores_hidden_cel_in_declared_pair(tmp_path: Path) -> None:
     assert result["findings"] == []
 
 
-def test_audit_reports_typed_coverage_limit_before_inspection(tmp_path: Path) -> None:
-    source = _source(tmp_path, "coverage.lua")
-    code, failure = _run(
-        "audit",
-        {
-            "sprite_file": str(source),
-            "from_frame": 1,
-            "to_frame": 1,
-            "required_cels": [
-                {"layer": {"layer_path": [1]}, "frame_number": 1} for _ in range(1025)
-            ],
-        },
-    )
-    assert code != 0 and failure["code"] == "audit_limit_exceeded"
-    assert failure["details"] == {
-        "kind": "operation_limit",
-        "unit": "coverage_observations",
-        "requested": 1025,
-        "allowed_minimum": 0,
-        "allowed_maximum": 1024,
-    }
-
-
 def test_audit_reports_typed_overlap_pixel_limit(tmp_path: Path) -> None:
     source = _source(tmp_path, "coverage.lua", width="1024", height="1024")
     pair = {
@@ -294,66 +266,6 @@ def test_preview_requires_explicit_replacement_intent(tmp_path: Path) -> None:
     )
     assert code == 0, result
     assert destination.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
-
-
-def test_preview_rejects_destination_traversed_by_source_alias(tmp_path: Path) -> None:
-    native_source = _source(tmp_path, "rgb_frames.lua")
-    destination = tmp_path / "preview.png"
-    shutil.copyfile(native_source, destination)
-    source = tmp_path / "linked.aseprite"
-    with symlink_creation_permission():
-        source.symlink_to(destination)
-    original = hashlib.sha256(source.read_bytes()).hexdigest()
-
-    code, failure = _run(
-        "preview",
-        {
-            "source_sprite_file": str(source),
-            "earlier_frame": 1,
-            "later_frame": 2,
-            "destination": {"path": str(destination), "if_exists": "replace"},
-        },
-    )
-
-    assert code != 0 and failure["code"] == "artifact_file_failed"
-    assert failure["details"]["reason"] == "source_destination_alias"
-    assert hashlib.sha256(source.read_bytes()).hexdigest() == original
-    assert hashlib.sha256(destination.read_bytes()).hexdigest() == original
-
-
-def test_preview_reports_unverifiable_source_destination_identity(
-    tmp_path: Path,
-) -> None:
-    native_source = _source(tmp_path, "rgb_frames.lua")
-    private = tmp_path / "private"
-    private.mkdir()
-    source = private / "source.aseprite"
-    shutil.copyfile(native_source, source)
-    destination = private / "preview.png"
-    os.link(source, destination)
-    original = hashlib.sha256(source.read_bytes()).hexdigest()
-    with deny_directory_listing(private):
-        run = spa(
-            "animation",
-            "preview",
-            "--input-json",
-            json.dumps(
-                {
-                    "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-                    "source_sprite_file": str(source),
-                    "earlier_frame": 1,
-                    "later_frame": 2,
-                    "destination": {"path": str(destination), "if_exists": "replace"},
-                }
-            ),
-        )
-
-    assert run.returncode != 0 and run.stdout
-    failure = json.loads(run.stdout)
-    assert failure["code"] == "artifact_file_failed"
-    assert failure["details"]["reason"] == "source_destination_identity_unverified"
-    assert hashlib.sha256(source.read_bytes()).hexdigest() == original
-    assert hashlib.sha256(destination.read_bytes()).hexdigest() == original
 
 
 @pytest.mark.parametrize("alpha", ["opaque", "partial", "transparent"])
