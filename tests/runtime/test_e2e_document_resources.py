@@ -5,7 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from tests.frame.test_e2e_frame import _run_fixture
+from spa.contracts.ports import RuntimeObservation
+from tests.native_invocation import run_lua
+from tests.support import process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
@@ -23,10 +25,13 @@ pytestmark = pytest.mark.e2e
     ],
 )
 def test_missing_document_dependency_reports_lua_error(
-    consumer: str, missing: str
+    runtime: RuntimeObservation, consumer: str, missing: str
 ) -> None:
-    _run_fixture(
-        str(Path(__file__).parent / "fixtures" / "missing_document_resource.lua"),
-        consumer=str(files("spa.kernel").joinpath(consumer)),
+    # The fixture exits 0 only when loading fails with the expected message.
+    lua = run_lua(
+        Path(__file__).parent / "fixtures" / "missing_document_resource.lua",
+        runtime,
+        consumer=files("spa.kernel").joinpath(consumer),
         missing=missing,
     )
+    assert lua.returncode == 0, process_diagnostics(lua)

@@ -211,11 +211,14 @@ def test_parallel_failure_is_visible_before_inflight_work_finishes(controlled_su
         directory,
         "test_failure.py",
         """\
-        from tests.frame.test_e2e_frame import _run_fixture
+        from tests.native_invocation import run_lua
+        from tests.support import controlled_runtime, process_diagnostics
 
         def test_native_failure(native_failure, policy_dir, wait_for):
             wait_for(policy_dir / "in-flight")
-            _run_fixture("controlled.lua")
+            runtime = controlled_runtime(native_failure)
+            lua = run_lua(policy_dir / "controlled.lua", runtime)
+            assert lua.returncode == 0, process_diagnostics(lua)
 
         """,
     )

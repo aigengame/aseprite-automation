@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 from jsonschema import validate
 
+from spa.contracts.ports import RuntimeObservation
 from tests.motion.test_e2e_motion import curves, fixture, inspect, run_motion
 from tests.plan.test_e2e_plan import _red_pixel
 from tests.support import spa
@@ -39,8 +40,10 @@ def plan(source: Path, target: Path, steps: list[dict]) -> tuple[int, dict]:
     return run.returncode, json.loads(run.stdout)
 
 
-def test_motion_plan_matches_standalone_and_defers_persistence(tmp_path: Path) -> None:
-    source = fixture(tmp_path)
+def test_motion_plan_matches_standalone_and_defers_persistence(
+    runtime: RuntimeObservation, tmp_path: Path
+) -> None:
+    source = fixture(runtime, tmp_path)
     standalone, planned = tmp_path / "standalone.aseprite", tmp_path / "plan.aseprite"
     inputs = curves()
     code, expected = run_motion(source, standalone, inputs)
@@ -55,13 +58,14 @@ def test_motion_plan_matches_standalone_and_defers_persistence(tmp_path: Path) -
         key: expected[key]
         for key in ("cels", "before_cel_count", "unchanged_facts_verified")
     } | {"persisted_reopen_verified": False}
-    assert inspect(planned, tmp_path) == inspect(standalone, tmp_path)
+    assert inspect(runtime, planned, tmp_path) == inspect(runtime, standalone, tmp_path)
 
 
 def test_motion_uses_step_start_baselines_across_layers_and_later_edits(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
-    source = fixture(tmp_path)
+    source = fixture(runtime, tmp_path)
     frozen = source.read_bytes()
     inputs = curves()
     other = {
@@ -103,7 +107,7 @@ def test_motion_uses_step_start_baselines_across_layers_and_later_edits(
         == {"x": 101, "y": -101}
     )
     assert second["after"]["position"] == {"x": 102, "y": -102}
-    final = inspect(target, tmp_path)
+    final = inspect(runtime, target, tmp_path)
     assert len(final["frames"]) == 6
     assert (
         next(c for c in final["cels"] if c["layer"] == "wizard" and c["frame"] == 4)[
@@ -121,9 +125,9 @@ def test_motion_uses_step_start_baselines_across_layers_and_later_edits(
     ("kind", "code"), [("missing", "cel_not_found"), ("linked", "motion_linked_cel")]
 )
 def test_motion_failure_after_prior_plan_work_does_not_publish(
-    tmp_path: Path, in_place: bool, kind: str, code: str
+    runtime: RuntimeObservation, tmp_path: Path, in_place: bool, kind: str, code: str
 ) -> None:
-    source = fixture(tmp_path, kind=kind)
+    source = fixture(runtime, tmp_path, kind=kind)
     target = source if in_place else tmp_path / "existing.aseprite"
     if not in_place:
         target.write_bytes(b"existing Target")
@@ -159,9 +163,9 @@ def test_motion_failure_after_prior_plan_work_does_not_publish(
     "case", ["success", "motion_coverage", "motion_count", "unverified_save"]
 )
 def test_motion_plan_uses_one_process_and_gates_publication(
-    tmp_path: Path, case: str
+    runtime: RuntimeObservation, tmp_path: Path, case: str
 ) -> None:
-    source = fixture(tmp_path)
+    source = fixture(runtime, tmp_path)
     target = tmp_path / "existing.aseprite"
     target.write_bytes(b"prior Target")
     observations_path = tmp_path / "observations.json"

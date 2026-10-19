@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+from spa.contracts.ports import RuntimeObservation
 from tests.motion.test_e2e_motion import curves, fixture
 
 pytestmark = pytest.mark.e2e
@@ -44,9 +45,13 @@ pytestmark = pytest.mark.e2e
     ],
 )
 def test_standalone_completion_gates_commit_and_cleans_staging(
-    tmp_path: Path, operation: str, in_place: bool, case: str
+    runtime: RuntimeObservation,
+    tmp_path: Path,
+    operation: str,
+    in_place: bool,
+    case: str,
 ) -> None:
-    source = fixture(tmp_path, uuids="true")
+    source = fixture(runtime, tmp_path, uuids="true")
     target = source if in_place else tmp_path / "target.aseprite"
     if not in_place:
         target.write_bytes(b"existing Target")

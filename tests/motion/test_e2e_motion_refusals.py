@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from spa.contracts.ports import RuntimeObservation
 from tests.image.test_e2e_image_orientation import _fixture as unsupported_fixture
 from tests.motion.test_e2e_motion import curves, fixture, run_motion
 
@@ -21,9 +22,14 @@ pytestmark = pytest.mark.e2e
     ],
 )
 def test_range_failure_preserves_target(
-    tmp_path: Path, in_place: bool, case: str, expected: str, frame: int | None
+    runtime: RuntimeObservation,
+    tmp_path: Path,
+    in_place: bool,
+    case: str,
+    expected: str,
+    frame: int | None,
 ) -> None:
-    source = fixture(tmp_path, kind=case)
+    source = fixture(runtime, tmp_path, kind=case)
     frozen = source.read_bytes()
     target = source if in_place else tmp_path / "existing.aseprite"
     if not in_place:

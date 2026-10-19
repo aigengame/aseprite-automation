@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from spa.contracts.ports import RuntimeObservation
 from tests.motion.test_e2e_motion import curves, fixture, inspect, run_motion
 
 pytestmark = pytest.mark.e2e
@@ -36,10 +37,15 @@ def moved(after: dict, layer: str = "wizard") -> list[dict]:
 )
 @pytest.mark.parametrize("interpolation", ["linear", "smoothstep"])
 def test_half_ties_round_before_baseline_addition(
-    tmp_path: Path, policy: str, negative: int, positive: int, interpolation: str
+    runtime: RuntimeObservation,
+    tmp_path: Path,
+    policy: str,
+    negative: int,
+    positive: int,
+    interpolation: str,
 ) -> None:
-    source = fixture(tmp_path)
-    before = inspect(source, tmp_path)
+    source = fixture(runtime, tmp_path)
+    before = inspect(runtime, source, tmp_path)
     request = curves()
     request["opacity"] = None
     request["position_offsets"].update(interpolation=interpolation, rounding=policy)
@@ -49,7 +55,7 @@ def test_half_ties_round_before_baseline_addition(
     request["position_offsets"]["keys"][-1]["offset"] = {"x": -span, "y": span}
     code, result = run_motion(source, tmp_path / "out.aseprite", request)
     assert code == 0, result
-    after = inspect(tmp_path / "out.aseprite", tmp_path)
+    after = inspect(runtime, tmp_path / "out.aseprite", tmp_path)
     assert_preserved(before, after)
     first, second = moved(after)[:2]
     assert (first["x"], first["y"], first["opacity"]) == (-2, 2, 20)
@@ -72,10 +78,14 @@ def test_half_ties_round_before_baseline_addition(
 )
 @pytest.mark.parametrize("interpolation", ["linear", "smoothstep"])
 def test_opacity_curve_rounds_half_ties_independently(
-    tmp_path: Path, policy: str, rounded_up: bool, interpolation: str
+    runtime: RuntimeObservation,
+    tmp_path: Path,
+    policy: str,
+    rounded_up: bool,
+    interpolation: str,
 ) -> None:
-    source = fixture(tmp_path, mode="grayscale")
-    before = inspect(source, tmp_path)
+    source = fixture(runtime, tmp_path, mode="grayscale")
+    before = inspect(runtime, source, tmp_path)
     request = curves()
     request["position_offsets"] = None
     request["opacity"].update(interpolation=interpolation, rounding=policy)
@@ -88,7 +98,7 @@ def test_opacity_curve_rounds_half_ties_independently(
     target = tmp_path / "out.aseprite"
     code, result = run_motion(source, target, request)
     assert code == 0, result
-    after = inspect(target, tmp_path)
+    after = inspect(runtime, target, tmp_path)
     assert_preserved(before, after)
     assert (
         moved(after)[1]["opacity"]
@@ -99,9 +109,11 @@ def test_opacity_curve_rounds_half_ties_independently(
     ]
 
 
-def test_step_exact_interior_keys_and_independent_policies(tmp_path: Path) -> None:
-    source = fixture(tmp_path, artwork="emblem")
-    before = inspect(source, tmp_path)
+def test_step_exact_interior_keys_and_independent_policies(
+    runtime: RuntimeObservation, tmp_path: Path
+) -> None:
+    source = fixture(runtime, tmp_path, artwork="emblem")
+    before = inspect(runtime, source, tmp_path)
     request = curves()
     request["position_offsets"] = {
         "interpolation": "step",
@@ -126,7 +138,7 @@ def test_step_exact_interior_keys_and_independent_policies(tmp_path: Path) -> No
     assert code == 0, result
     assert [cel["before"]["frame_number"] for cel in result["cels"]] == [1, 2, 3, 4, 5]
     assert [cel["after"]["opacity"] for cel in result["cels"]] == [0, 127, 255, 127, 0]
-    after = inspect(target, tmp_path)
+    after = inspect(runtime, target, tmp_path)
     assert_preserved(before, after, "emblem")
     assert [(c["x"], c["y"]) for c in moved(after, "emblem")] == [
         (-2, 2),
@@ -138,8 +150,10 @@ def test_step_exact_interior_keys_and_independent_policies(tmp_path: Path) -> No
     assert [c["opacity"] for c in moved(after, "emblem")] == [0, 127, 255, 127, 0]
 
 
-def test_smoothstep_floor_uses_exact_fraction(tmp_path: Path) -> None:
-    source = fixture(tmp_path)
+def test_smoothstep_floor_uses_exact_fraction(
+    runtime: RuntimeObservation, tmp_path: Path
+) -> None:
+    source = fixture(runtime, tmp_path)
     request = curves()
     request.update(from_frame=1, to_frame=4, opacity=None)
     request["position_offsets"].update(interpolation="smoothstep", rounding="floor")
@@ -151,7 +165,7 @@ def test_smoothstep_floor_uses_exact_fraction(tmp_path: Path) -> None:
     code, result = run_motion(source, target, request)
     assert code == 0, result
     # At Frame 3, smoothstep(2/3)=20/27; -999*20/27=-740 exactly.
-    assert [(c["x"], c["y"]) for c in moved(inspect(target, tmp_path))] == [
+    assert [(c["x"], c["y"]) for c in moved(inspect(runtime, target, tmp_path))] == [
         (-2, 2),
         (-260, 260),
         (-740, 740),
@@ -169,10 +183,10 @@ def test_smoothstep_floor_uses_exact_fraction(tmp_path: Path) -> None:
     ],
 )
 def test_single_frame_and_omitted_properties_preserve_native_pixels(
-    tmp_path: Path, mode: str, mask: int, artwork: str
+    runtime: RuntimeObservation, tmp_path: Path, mode: str, mask: int, artwork: str
 ) -> None:
-    source = fixture(tmp_path, mode=mode, mask=mask, artwork=artwork)
-    before = inspect(source, tmp_path)
+    source = fixture(runtime, tmp_path, mode=mode, mask=mask, artwork=artwork)
+    before = inspect(runtime, source, tmp_path)
     request = curves()
     request.update(from_frame=3, to_frame=3, opacity=None)
     request["position_offsets"]["keys"] = [
@@ -181,7 +195,7 @@ def test_single_frame_and_omitted_properties_preserve_native_pixels(
     target = tmp_path / "position.aseprite"
     code, result = run_motion(source, target, request)
     assert code == 0, result
-    after = inspect(target, tmp_path)
+    after = inspect(runtime, target, tmp_path)
     assert_preserved(before, after, artwork)
     assert [(c["x"], c["y"], c["opacity"]) for c in moved(after, artwork)] == [
         (-2, 2, 20),
@@ -203,7 +217,7 @@ def test_single_frame_and_omitted_properties_preserve_native_pixels(
     second = tmp_path / "opacity.aseprite"
     code, result = run_motion(source, second, opacity_only)
     assert code == 0, result
-    final = inspect(second, tmp_path)
+    final = inspect(runtime, second, tmp_path)
     assert_preserved(before, final, artwork)
     assert moved(final, artwork)[2]["opacity"] == 0
     assert [(c["x"], c["y"]) for c in moved(final, artwork)] == [
@@ -212,9 +226,10 @@ def test_single_frame_and_omitted_properties_preserve_native_pixels(
 
 
 def test_frozen_input_determinism_changed_keys_and_relative_accumulation(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
-    source = fixture(tmp_path)
+    source = fixture(runtime, tmp_path)
     frozen = source.read_bytes()
     request = curves()
     request["opacity"] = None
@@ -225,14 +240,14 @@ def test_frozen_input_determinism_changed_keys_and_relative_accumulation(
     for target in (first, second):
         code, result = run_motion(source, target, request)
         assert code == 0, result
-    assert inspect(first, tmp_path) == inspect(second, tmp_path)
+    assert inspect(runtime, first, tmp_path) == inspect(runtime, second, tmp_path)
     assert source.read_bytes() == frozen
     revised = deepcopy(request)
     revised["position_offsets"]["keys"][-1]["offset"] = {"x": 4, "y": -4}
     code, result = run_motion(source, changed, revised)
     assert code == 0, result
-    assert moved(inspect(first, tmp_path))[-1]["x"] == 4
-    assert moved(inspect(changed, tmp_path))[-1]["x"] == 6
+    assert moved(inspect(runtime, first, tmp_path))[-1]["x"] == 4
+    assert moved(inspect(runtime, changed, tmp_path))[-1]["x"] == 6
     code, result = run_motion(first, repeated, request)
     assert code == 0, result
-    assert moved(inspect(repeated, tmp_path))[-1]["x"] == 6
+    assert moved(inspect(runtime, repeated, tmp_path))[-1]["x"] == 6
