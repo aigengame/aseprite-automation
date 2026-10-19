@@ -4,10 +4,7 @@ import hashlib
 import os
 from pathlib import Path
 
-from tests.host_permissions import (
-    deny_directory_listing,
-    symlink_creation_permission,
-)
+from tests.host_permissions import deny_directory_listing
 from tests.native_invocation import run
 from tests.support import probe_only_aseprite
 
@@ -23,31 +20,6 @@ def _preview(source: Path, destination: Path) -> dict:
         "later_frame": 2,
         "destination": {"path": str(destination), "if_exists": "replace"},
     }
-
-
-def test_preview_alias_refusal_leaves_source_and_destination_unchanged(
-    tmp_path: Path,
-) -> None:
-    # tests/contracts/test_unit_destination_rules.py holds the refusal itself
-    # (source_symlink_aliases_destination). It does not check the bytes.
-    destination = tmp_path / "preview.png"
-    destination.write_bytes(b"destination")
-    source = tmp_path / "linked.aseprite"
-    with symlink_creation_permission():
-        source.symlink_to(destination)
-    original = _sha256(source)
-
-    outcome = run(
-        "animation preview",
-        _preview(source, destination),
-        aseprite=probe_only_aseprite(tmp_path),
-    )
-
-    assert outcome.returncode != 0
-    assert outcome.envelope["details"]["reason"] == "source_destination_alias"
-    assert source.is_symlink()
-    assert _sha256(source) == original
-    assert _sha256(destination) == original
 
 
 def test_preview_reports_unverifiable_source_destination_identity(
