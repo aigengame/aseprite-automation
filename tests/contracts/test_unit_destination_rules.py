@@ -2,8 +2,10 @@
 
 Each rule refuses the request before the Kernel. Each Kernel port raises
 `PortReached`, so a row that gets to the Kernel fails. Unless a rule says otherwise,
-its CLI request uses a probe that reports every capability. Each row also fails when
-the refusal adds, removes or changes a file in its directory.
+its CLI request uses a probe that reports every capability. The rows of the identity
+and Export rules also fail when the refusal adds, removes or changes a file in their
+directory. The `in_place_without_overwrite` rows do not check the directory, because
+the request model refuses them before dispatch.
 """
 
 from collections.abc import Callable
