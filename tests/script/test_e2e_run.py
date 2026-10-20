@@ -90,17 +90,38 @@ def test_file_script_keeps_source_bytes_directory_and_explicit_parameters(
     assert (tmp_path / "parameter.txt").read_text() == value
 
 
+# Aseprite returns -1 for a Lua error, and a POSIX exit status keeps the low 8 bits
+# (measured: 255 with Aseprite 1.3.18.5 on macOS). The Windows status is not measured.
+LUA_ERROR_STATUS = None if os.name == "nt" else 255
+
+
 @pytest.mark.parametrize(
-    "code",
+    ("code", "status", "output"),
     [
-        'error("caller failure")',
-        "local = invalid syntax",
-        '\ufeffprint("BOM remains")',
-        "return 7",
+        pytest.param(
+            'error("caller failure")',
+            LUA_ERROR_STATUS,
+            "caller.lua:1: caller failure",
+            id='error("caller failure")',
+        ),
+        pytest.param(
+            "local = invalid syntax",
+            LUA_ERROR_STATUS,
+            "<name> expected near '='",
+            id="local = invalid syntax",
+        ),
+        pytest.param(
+            '\ufeffprint("BOM remains")',
+            LUA_ERROR_STATUS,
+            "unexpected symbol near '<\\239>'",
+            id='\ufeffprint("BOM remains")',
+        ),
+        # An integer that the script returns is the process exit status.
+        pytest.param("return 7", 7, None, id="return 7"),
     ],
 )
 def test_native_script_errors_are_process_failures_without_kernel_translation(
-    code: str,
+    code: str, status: int | None, output: str | None
 ) -> None:
     run = spa(
         "script",
@@ -118,9 +139,16 @@ def test_native_script_errors_are_process_failures_without_kernel_translation(
     assert run.returncode == 1, result
     assert result["operation"] == "spa script run"
     assert result["code"] == "process_failed"
-    assert result["diagnostics"]["exit_status"] != 0
-    if code != "return 7":
-        assert result["diagnostics"]["stdout"]
+    diagnostics = result["diagnostics"]
+    assert result["details"]["exit_status"] == diagnostics["exit_status"]
+    if status is None:
+        assert diagnostics["exit_status"] != 0
+    else:
+        assert diagnostics["exit_status"] == status
+    if output is None:
+        assert diagnostics["stdout"] == ""
+    else:
+        assert output in diagnostics["stdout"]
     schema = json.loads(spa("script", "run", "--schema").stdout)
     Draft202012Validator(schema["failure_schema"]).validate(result)
 

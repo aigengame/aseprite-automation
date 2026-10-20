@@ -2,6 +2,7 @@
 
 import json
 import os
+import signal
 from pathlib import Path
 
 import pytest
@@ -34,22 +35,32 @@ def test_timeout_is_reported_without_requiring_process_output(
     assert result["code"] == "process_timeout", result
     assert result["diagnostics"]["stdout"] == "", result
     assert result["diagnostics"]["stderr"] == "", result
-    assert result["diagnostics"]["exit_status"] is not None
+    if os.name == "nt":
+        assert result["diagnostics"]["exit_status"] is not None
+    else:
+        # SPA kills the process at the deadline.
+        assert result["diagnostics"]["exit_status"] == -signal.SIGKILL
     assert result["details"]["exit_status"] == result["diagnostics"]["exit_status"]
     schema = json.loads(spa("script", "run", "--schema").stdout)
     Draft202012Validator(schema["failure_schema"]).validate(result)
 
 
 @pytest.mark.parametrize(
-    "body,code,output",
+    "body,code,output,status",
     [
-        ("print('before failure'); sys.exit(9)", "process_failed", "before failure\n"),
-        ("os.write(1, b'x' * 65537)", "output_limit_exceeded", "x" * 65536),
+        (
+            "print('before failure'); sys.exit(9)",
+            "process_failed",
+            "before failure\n",
+            9,
+        ),
+        # The child can exit before or after SPA kills it at the limit.
+        ("os.write(1, b'x' * 65537)", "output_limit_exceeded", "x" * 65536, None),
     ],
     ids=["nonzero-exit", "output-limit"],
 )
 def test_script_process_failures_use_registered_schema_and_keep_diagnostics(
-    tmp_path, body, code, output
+    tmp_path, body, code, output, status
 ) -> None:
     binary = script_runtime(tmp_path, body)
     request = {"script": {"kind": "inline", "code": ""}}
@@ -62,6 +73,8 @@ def test_script_process_failures_use_registered_schema_and_keep_diagnostics(
     assert result["code"] == code
     assert result["diagnostics"]["stdout"] == output
     assert result["details"]["exit_status"] == result["diagnostics"]["exit_status"]
+    if status is not None:
+        assert result["diagnostics"]["exit_status"] == status
     schema = json.loads(spa("script", "run", "--schema").stdout)
     Draft202012Validator(schema["failure_schema"]).validate(result)
 
