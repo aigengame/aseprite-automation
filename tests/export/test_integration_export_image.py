@@ -8,10 +8,9 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
-from tests.export.support import export_image_choices as _request
 from tests.host_permissions import deny_directory_listing
 from tests.native_invocation import run
-from tests.support import spa
+from tests.support import export_image_choices, spa
 
 MISSING_ASEPRITE = "/missing/aseprite"
 
@@ -33,7 +32,7 @@ def test_export_reports_unverifiable_source_destination_identity(
     with deny_directory_listing(private):
         outcome = run(
             "export image",
-            _request(source, destination, if_exists="replace"),
+            export_image_choices(source, destination, if_exists="replace"),
             aseprite=MISSING_ASEPRITE,
         )
 
@@ -53,7 +52,7 @@ def test_export_schema_refuses_unsupported_and_incomplete_choices(
     source = tmp_path / "source.aseprite"
     source.write_bytes(b"source")
     destination = tmp_path / "rejected.png"
-    accepted = _request(source, destination)
+    accepted = export_image_choices(source, destination)
     schema = json.loads(spa("export", "image", "--schema").stdout)
     validator = Draft202012Validator(schema["request_schema"])
     validator.validate({**accepted, "aseprite": MISSING_ASEPRITE})

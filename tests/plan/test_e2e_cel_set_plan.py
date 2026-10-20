@@ -7,11 +7,15 @@ import pytest
 from jsonschema import validate
 
 from spa.contracts.ports import RuntimeObservation
-from tests.image.test_e2e_image_orientation import _fixture as _image_fixture
-from tests.image.test_e2e_image_orientation import _inspect
 from tests.native_invocation import expect_success, run
 from tests.plan.support import plan_request, red_pixel
-from tests.support import cel_relationships_sprite, observe_cli, spa
+from tests.support import (
+    cel_relationships_sprite,
+    inspect_orientation,
+    observe_cli,
+    orientation_fixture,
+    spa,
+)
 
 pytestmark = pytest.mark.e2e
 
@@ -187,9 +191,9 @@ def test_later_cel_refusal_reports_step_and_preserves_files(
 
 @pytest.mark.parametrize("mode", ["rgb", "grayscale", "indexed"])
 def test_plan_preserves_linked_pixels_on_hidden_locked_layers(
-    tmp_path: Path, mode: str
+    tmp_path: Path, runtime, mode: str
 ) -> None:
-    original = _image_fixture(tmp_path, mode)
+    original = orientation_fixture(runtime, tmp_path, mode)
     source = tmp_path / "hidden-locked.aseprite"
     expect_success(
         "layer set",
@@ -202,7 +206,7 @@ def test_plan_preserves_linked_pixels_on_hidden_locked_layers(
             "properties": {"is_visible": False, "is_editable": False},
         },
     )
-    before = _inspect(source, tmp_path)
+    before = inspect_orientation(runtime, source, tmp_path)
     inputs = [
         {
             "target": {"layer": {"layer_path": [1]}, "frame_number": 2},
@@ -248,8 +252,8 @@ def test_plan_preserves_linked_pixels_on_hidden_locked_layers(
             assert step["result"][field] == expected[field]
     assert len(result["steps"][0]["result"]["affected_cels"]) == 2
     assert len(result["steps"][1]["result"]["affected_cels"]) == 1
-    after = _inspect(target, tmp_path)
-    assert after == _inspect(current, tmp_path)
+    after = inspect_orientation(runtime, target, tmp_path)
+    assert after == inspect_orientation(runtime, current, tmp_path)
     for old, new in zip(before["cels"], after["cels"], strict=True):
         assert new["pixels"] == old["pixels"]
         assert new["linked_frames"] == old["linked_frames"]
@@ -271,9 +275,9 @@ def test_plan_preserves_linked_pixels_on_hidden_locked_layers(
     ],
 )
 def test_plan_retains_standalone_target_refusals(
-    tmp_path: Path, kind: str, layer: int, frame: int, failure_code: str
+    tmp_path: Path, runtime, kind: str, layer: int, frame: int, failure_code: str
 ) -> None:
-    source = _image_fixture(tmp_path, kind=kind)
+    source = orientation_fixture(runtime, tmp_path, kind=kind)
     target = tmp_path / "existing.aseprite"
     target.write_bytes(b"prior Target bytes")
     before = source.read_bytes()

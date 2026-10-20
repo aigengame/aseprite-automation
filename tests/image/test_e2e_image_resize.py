@@ -1,28 +1,27 @@
 """Image Resize through the installed CLI and a real Aseprite runtime."""
 
 import json
-import os
-import subprocess
-import tempfile
 from importlib.resources import files
 from pathlib import Path
 
 import pytest
 
-from spa.adapters.aseprite.aseprite import probe
-from spa.adapters.aseprite.invocation import prepare_invocation
-from spa.application.surface import PROBE_RESOURCES
-from spa.contracts.public import RuntimeRequest
-from tests.image.support import image_fixture as _fixture
-from tests.image.support import inspect_native as _inspect_native
-from tests.native_invocation import render_frame
-from tests.support import inject_palette_change, process_diagnostics, spa
+from spa.contracts.ports import RuntimeObservation
+from tests.image.support import inspect_native
+from tests.native_invocation import expect_success, render_frame, run, run_lua
+from tests.support import image_fixture, inject_palette_change, process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
 
-def _resize(source: Path, output: Path, **options: object) -> tuple[int, dict]:
-    request = {
+def _resize_request(source: Path, output: Path, **options: object) -> dict:
+    """Return an Image Resize request for Layer 1, Frame 1.
+
+    The request writes output, not in place and without overwrite, as a 4 x 4
+    nearest-neighbor resize that keeps the Cel position. Each option replaces
+    one field.
+    """
+    return {
         "source_sprite_file": str(source),
         "target_sprite_file": str(output),
         "in_place": False,
@@ -32,20 +31,17 @@ def _resize(source: Path, output: Path, **options: object) -> tuple[int, dict]:
         "height": 4,
         "method": "nearest-neighbor",
         "position_policy": {"kind": "keep"},
-        "aseprite": os.environ["SPA_TEST_ASEPRITE"],
         **options,
     }
-    run = spa("image", "resize", "--input-json", json.dumps(request))
-    return run.returncode, json.loads(run.stdout)
 
 
-def test_resize_keeps_cel_position_and_persists_native_pixels(tmp_path: Path) -> None:
-    source = _fixture(tmp_path)
+def test_resize_keeps_cel_position_and_persists_native_pixels(
+    tmp_path: Path, runtime: RuntimeObservation
+) -> None:
+    source = image_fixture(runtime, tmp_path)
     target = tmp_path / "resized.aseprite"
 
-    code, result = _resize(source, target)
-
-    assert code == 0, result
+    result = expect_success("image resize", _resize_request(source, target))
     assert result["requested_size"] == {"width": 4, "height": 4}
     assert result["effective_size"] == {"width": 4, "height": 4}
     assert result["old_size"] == {"width": 2, "height": 2}
@@ -71,25 +67,30 @@ def test_resize_keeps_cel_position_and_persists_native_pixels(tmp_path: Path) ->
     ],
 )
 def test_linked_image_pivot_uses_one_exact_offset_for_every_cel(
-    tmp_path: Path, rounding: str, applied_x: int, applied_y: int
+    tmp_path: Path,
+    runtime: RuntimeObservation,
+    rounding: str,
+    applied_x: int,
+    applied_y: int,
 ) -> None:
-    source = _fixture(tmp_path, "linked")
+    source = image_fixture(runtime, tmp_path, "linked")
     target = tmp_path / "resized.aseprite"
-    code, result = _resize(
-        source,
-        target,
-        target={"layer": {"layer_path": [1]}, "frame_number": 2},
-        width=3,
-        height=3,
-        position_policy={
-            "kind": "pivot",
-            "pivot_x": 1,
-            "pivot_y": -1,
-            "rounding": rounding,
-        },
+    result = expect_success(
+        "image resize",
+        _resize_request(
+            source,
+            target,
+            target={"layer": {"layer_path": [1]}, "frame_number": 2},
+            width=3,
+            height=3,
+            position_policy={
+                "kind": "pivot",
+                "pivot_x": 1,
+                "pivot_y": -1,
+                "rounding": rounding,
+            },
+        ),
     )
-
-    assert code == 0, result
     assert result["offset_x"] == {
         "numerator": -1,
         "denominator": 2,
@@ -115,23 +116,16 @@ def test_linked_image_pivot_uses_one_exact_offset_for_every_cel(
     assert result["persisted_reopen_verified"] is True
 
     for frame_number, expected_partner in ((1, 2), (2, 1)):
-        run = spa(
-            "cel",
-            "get",
-            "--input-json",
-            json.dumps(
-                {
-                    "sprite_file": str(target),
-                    "target": {
-                        "layer": {"layer_path": [1]},
-                        "frame_number": frame_number,
-                    },
-                    "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-                }
-            ),
-        )
-        assert run.returncode == 0, run.stdout
-        persisted = json.loads(run.stdout)["cel"]
+        persisted = expect_success(
+            "cel get",
+            {
+                "sprite_file": str(target),
+                "target": {
+                    "layer": {"layer_path": [1]},
+                    "frame_number": frame_number,
+                },
+            },
+        )["cel"]
         assert persisted["position"] == affected[frame_number - 1]["after_position"]
         assert persisted["image_bounds"]["width"] == 3
         assert persisted["image_bounds"]["height"] == 3
@@ -140,14 +134,17 @@ def test_linked_image_pivot_uses_one_exact_offset_for_every_cel(
         ]
 
 
-def test_indexed_bilinear_uses_declared_effective_palette(tmp_path: Path) -> None:
-    source = _fixture(tmp_path, "indexed")
+def test_indexed_bilinear_uses_declared_effective_palette(
+    tmp_path: Path, runtime: RuntimeObservation
+) -> None:
+    source = image_fixture(runtime, tmp_path, "indexed")
     original = source.read_bytes()
     target = tmp_path / "indexed-resized.aseprite"
 
-    code, result = _resize(source, target, method="bilinear", palette_frame_number=1)
-
-    assert code == 0, result
+    result = expect_success(
+        "image resize",
+        _resize_request(source, target, method="bilinear", palette_frame_number=1),
+    )
     assert result["color_mode"] == "indexed"
     assert result["effective_palette"] == {
         "requested_frame_number": 1,
@@ -157,7 +154,7 @@ def test_indexed_bilinear_uses_declared_effective_palette(tmp_path: Path) -> Non
     }
     assert result["native_sharing_preserved"] is True
     assert source.read_bytes() == original
-    center = _inspect_native(target, tmp_path, 1, 1)
+    center = inspect_native(runtime, target, tmp_path, 1, 1)
     assert center == {
         "pixel": 3,
         "transparent_index": 0,
@@ -169,31 +166,37 @@ def test_indexed_bilinear_uses_declared_effective_palette(tmp_path: Path) -> Non
 
 def test_indexed_bilinear_resolves_palette_before_requested_frame(
     tmp_path: Path,
+    runtime: RuntimeObservation,
 ) -> None:
-    source = _fixture(tmp_path, "indexed-two-frame")
-    code, result = _resize(
-        source,
-        tmp_path / "indexed-later.aseprite",
-        method="bilinear",
-        palette_frame_number=2,
+    source = image_fixture(runtime, tmp_path, "indexed-two-frame")
+    result = expect_success(
+        "image resize",
+        _resize_request(
+            source,
+            tmp_path / "indexed-later.aseprite",
+            method="bilinear",
+            palette_frame_number=2,
+        ),
     )
-    assert code == 0, result
     assert result["effective_palette"]["requested_frame_number"] == 2
     assert result["effective_palette"]["palette_frame_number"] == 1
 
 
-def test_indexed_bilinear_preserves_transparent_index_edge(tmp_path: Path) -> None:
-    source = _fixture(tmp_path, "indexed-edge")
+def test_indexed_bilinear_preserves_transparent_index_edge(
+    tmp_path: Path, runtime: RuntimeObservation
+) -> None:
+    source = image_fixture(runtime, tmp_path, "indexed-edge")
     original = source.read_bytes()
     target = tmp_path / "indexed-edge-resized.aseprite"
 
-    code, result = _resize(source, target, method="bilinear", palette_frame_number=1)
-
-    assert code == 0, result
+    result = expect_success(
+        "image resize",
+        _resize_request(source, target, method="bilinear", palette_frame_number=1),
+    )
     assert result["effective_palette"]["transparent_color_index"] == 0
     assert source.read_bytes() == original
-    assert _inspect_native(target, tmp_path, 0, 0)["pixel"] == 1
-    assert _inspect_native(target, tmp_path, 3, 3)["pixel"] == 0
+    assert inspect_native(runtime, target, tmp_path, 0, 0)["pixel"] == 1
+    assert inspect_native(runtime, target, tmp_path, 3, 3)["pixel"] == 0
 
 
 @pytest.mark.parametrize(
@@ -208,21 +211,22 @@ def test_indexed_bilinear_preserves_transparent_index_edge(tmp_path: Path) -> No
     ],
 )
 def test_indexed_bilinear_honors_nonzero_transparent_index(
-    tmp_path: Path, mode: str, expected_row: list[int]
+    tmp_path: Path, runtime: RuntimeObservation, mode: str, expected_row: list[int]
 ) -> None:
-    source = _fixture(tmp_path, mode)
+    source = image_fixture(runtime, tmp_path, mode)
     original = source.read_bytes()
     target = tmp_path / "offset-mask-resized.aseprite"
 
-    code, result = _resize(source, target, method="bilinear", palette_frame_number=1)
-
-    assert code == 0, result
+    result = expect_success(
+        "image resize",
+        _resize_request(source, target, method="bilinear", palette_frame_number=1),
+    )
     assert result["effective_palette"]["transparent_color_index"] == 2
     assert result["effective_palette"]["palette_size"] == (
         257 if mode.endswith("large-palette") else 5
     )
     assert source.read_bytes() == original
-    persisted = _inspect_native(target, tmp_path, 0, 0, row=True)
+    persisted = inspect_native(runtime, target, tmp_path, 0, 0, row=True)
     assert persisted["row"] == expected_row
     assert persisted["pixel"] == expected_row[0]
     assert persisted["transparent_index"] == 2
@@ -236,38 +240,20 @@ def test_indexed_bilinear_honors_nonzero_transparent_index(
 
 def test_shared_resize_restores_active_context_on_success_and_failure(
     tmp_path: Path,
+    runtime: RuntimeObservation,
 ) -> None:
-    observation = probe(
-        RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
-    )
     output = tmp_path / "context.json"
-    with tempfile.TemporaryDirectory(prefix="spa-image-context-") as work:
-        prepared = prepare_invocation(
-            Path(observation.canonical_path),
-            Path(observation.resource_path),
-            Path(work),
-        )
-        run = subprocess.run(
-            [
-                str(prepared.executable),
-                "--batch",
-                "--script-param",
-                f"image_resize_transform={files('spa.kernel').joinpath('raster/image/image_resize_transform.lua')}",
-                "--script-param",
-                f"effective_palette={files('spa.kernel').joinpath('color/effective_palette.lua')}",
-                "--script-param",
-                f"out={output}",
-                "--script",
-                str(
-                    Path(__file__).parent / "fixtures" / "resize_transform_context.lua"
-                ),
-            ],
-            text=True,
-            capture_output=True,
-            check=False,
-            env=prepared.environment,
-        )
-    assert run.returncode == 0, process_diagnostics(run)
+    kernel = files("spa.kernel")
+    lua = run_lua(
+        Path(__file__).parent / "fixtures" / "resize_transform_context.lua",
+        runtime,
+        image_resize_transform=kernel.joinpath(
+            "raster/image/image_resize_transform.lua"
+        ),
+        effective_palette=kernel.joinpath("color/effective_palette.lua"),
+        out=output,
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
     result = json.loads(output.read_text())
     assert result["before"] == {"sprite": True, "layer": True, "frame": True}
     assert result["success"] is True
@@ -281,8 +267,9 @@ def test_shared_resize_restores_active_context_on_success_and_failure(
 
 def test_indexed_bilinear_uses_declared_palette_change_in_pixel_result(
     tmp_path: Path,
+    runtime: RuntimeObservation,
 ) -> None:
-    source = _fixture(tmp_path, "indexed-two-frame")
+    source = image_fixture(runtime, tmp_path, "indexed-two-frame")
     inject_palette_change(
         source,
         [
@@ -292,19 +279,24 @@ def test_indexed_bilinear_uses_declared_palette_change_in_pixel_result(
             (0, 0, 0, 255),
         ],
     )
-    first_code, first = _resize(
-        source,
-        tmp_path / "first-palette.aseprite",
-        method="bilinear",
-        palette_frame_number=1,
+    first = expect_success(
+        "image resize",
+        _resize_request(
+            source,
+            tmp_path / "first-palette.aseprite",
+            method="bilinear",
+            palette_frame_number=1,
+        ),
     )
-    second_code, second = _resize(
-        source,
-        tmp_path / "second-palette.aseprite",
-        method="bilinear",
-        palette_frame_number=2,
+    second = expect_success(
+        "image resize",
+        _resize_request(
+            source,
+            tmp_path / "second-palette.aseprite",
+            method="bilinear",
+            palette_frame_number=2,
+        ),
     )
-    assert first_code == second_code == 0, (first, second)
     assert first["effective_palette"]["palette_frame_number"] == 1
     assert second["effective_palette"]["palette_frame_number"] == 2
     assert first["after_content_digest"] != second["after_content_digest"]
@@ -312,15 +304,23 @@ def test_indexed_bilinear_uses_declared_palette_change_in_pixel_result(
 
 def test_indexed_bilinear_requires_a_valid_palette_frame_atomically(
     tmp_path: Path,
+    runtime: RuntimeObservation,
 ) -> None:
-    source = _fixture(tmp_path, "indexed")
+    source = image_fixture(runtime, tmp_path, "indexed")
     original = source.read_bytes()
     for palette_frame_number in (None, 99):
         target = tmp_path / f"rejected-{palette_frame_number}.aseprite"
-        code, failure = _resize(
-            source, target, method="bilinear", palette_frame_number=palette_frame_number
+        outcome = run(
+            "image resize",
+            _resize_request(
+                source,
+                target,
+                method="bilinear",
+                palette_frame_number=palette_frame_number,
+            ),
         )
-        assert code == 2, failure
+        failure = outcome.envelope
+        assert outcome.returncode == 2, failure
         assert failure["code"] == "image_resize_palette_basis_invalid"
         assert not target.exists()
         assert source.read_bytes() == original
@@ -328,46 +328,52 @@ def test_indexed_bilinear_requires_a_valid_palette_frame_atomically(
 
 def test_grayscale_bilinear_preserves_transparent_edge_color_without_mutating_source(
     tmp_path: Path,
+    runtime: RuntimeObservation,
 ) -> None:
-    source = _fixture(tmp_path, "grayscale")
+    source = image_fixture(runtime, tmp_path, "grayscale")
     original = source.read_bytes()
     target = tmp_path / "grayscale-resized.aseprite"
 
-    code, result = _resize(source, target, method="bilinear")
-
-    assert code == 0, result
+    result = expect_success(
+        "image resize", _resize_request(source, target, method="bilinear")
+    )
     assert result["color_mode"] == "grayscale"
     assert result["effective_palette"] is None
     assert source.read_bytes() == original
-    center = _inspect_native(target, tmp_path, 1, 1)
+    center = inspect_native(runtime, target, tmp_path, 1, 1)
     assert center["width"] == center["height"] == 4
     assert center["gray"] == 200
     assert center["alpha"] == 113
 
 
-def test_rgb_bilinear_repairs_transparent_edge_on_a_source_copy(tmp_path: Path) -> None:
-    source = _fixture(tmp_path, "rgb-edge")
+def test_rgb_bilinear_repairs_transparent_edge_on_a_source_copy(
+    tmp_path: Path, runtime: RuntimeObservation
+) -> None:
+    source = image_fixture(runtime, tmp_path, "rgb-edge")
     original = source.read_bytes()
     target = tmp_path / "rgb-edge-resized.aseprite"
-    code, result = _resize(source, target, method="bilinear")
-    assert code == 0, result
+    expect_success("image resize", _resize_request(source, target, method="bilinear"))
     assert source.read_bytes() == original
-    center = _inspect_native(target, tmp_path, 1, 1)
+    center = inspect_native(runtime, target, tmp_path, 1, 1)
     assert center["red"] == 255
     assert center["green"] == center["blue"] == 0
     assert center["alpha"] == 113
 
 
-def test_rotsprite_resize_persists_requested_size_and_method(tmp_path: Path) -> None:
-    source = _fixture(tmp_path)
+def test_rotsprite_resize_persists_requested_size_and_method(
+    tmp_path: Path, runtime: RuntimeObservation
+) -> None:
+    source = image_fixture(runtime, tmp_path)
     target = tmp_path / "rotsprite.aseprite"
-    code, result = _resize(source, target, method="rotsprite", width=3, height=3)
-    assert code == 0, result
+    result = expect_success(
+        "image resize",
+        _resize_request(source, target, method="rotsprite", width=3, height=3),
+    )
     assert result["method"] == "rotsprite"
     assert result["effective_size"] == {"width": 3, "height": 3}
     assert result["affected_cels"][0]["after_position"] == {"x": 1, "y": 2}
     assert result["persisted_reopen_verified"] is True
-    assert _inspect_native(target, tmp_path, 0, 0)["red"] == 255
+    assert inspect_native(runtime, target, tmp_path, 0, 0)["red"] == 255
 
 
 @pytest.mark.parametrize(
@@ -384,53 +390,69 @@ def test_rotsprite_resize_persists_requested_size_and_method(tmp_path: Path) -> 
     ],
 )
 def test_unsupported_or_absent_cel_is_rejected_without_publication(
-    tmp_path: Path, mode: str, address: dict, code: str
+    tmp_path: Path, runtime: RuntimeObservation, mode: str, address: dict, code: str
 ) -> None:
-    source = _fixture(tmp_path, mode)
+    source = image_fixture(runtime, tmp_path, mode)
     original = source.read_bytes()
     target = tmp_path / "rejected.aseprite"
 
-    status, failure = _resize(
-        source,
-        target,
-        target={
-            "layer": {"layer_path": address["layer_path"]},
-            "frame_number": address["frame_number"],
-        },
+    outcome = run(
+        "image resize",
+        _resize_request(
+            source,
+            target,
+            target={
+                "layer": {"layer_path": address["layer_path"]},
+                "frame_number": address["frame_number"],
+            },
+        ),
     )
+    failure = outcome.envelope
 
-    assert status == 2, failure
+    assert outcome.returncode == 2, failure
     assert failure["code"] == code
     assert not target.exists()
     assert source.read_bytes() == original
 
 
-def test_out_of_range_pivot_refuses_in_place_change_atomically(tmp_path: Path) -> None:
-    source = _fixture(tmp_path)
+def test_out_of_range_pivot_refuses_in_place_change_atomically(
+    tmp_path: Path, runtime: RuntimeObservation
+) -> None:
+    source = image_fixture(runtime, tmp_path)
     original = source.read_bytes()
 
-    status, failure = _resize(
-        source,
-        source,
-        in_place=True,
-        overwrite=True,
-        position_policy={
-            "kind": "pivot",
-            "pivot_x": 2**31 - 1,
-            "pivot_y": 0,
-            "rounding": "floor",
-        },
+    outcome = run(
+        "image resize",
+        _resize_request(
+            source,
+            source,
+            in_place=True,
+            overwrite=True,
+            position_policy={
+                "kind": "pivot",
+                "pivot_x": 2**31 - 1,
+                "pivot_y": 0,
+                "rounding": "floor",
+            },
+        ),
     )
+    failure = outcome.envelope
 
-    assert status == 2, failure
+    assert outcome.returncode == 2, failure
     assert failure["code"] == "image_resize_position_out_of_bounds"
     assert source.read_bytes() == original
 
 
-def test_palette_frame_with_bilinear_resize_has_no_target_file(tmp_path: Path) -> None:
-    source = _fixture(tmp_path)
+def test_palette_frame_with_bilinear_resize_has_no_target_file(
+    tmp_path: Path, runtime: RuntimeObservation
+) -> None:
+    source = image_fixture(runtime, tmp_path)
     target = tmp_path / "rejected.aseprite"
-    status, failure = _resize(source, target, method="bilinear", palette_frame_number=1)
-    assert status == 2, failure
+    outcome = run(
+        "image resize",
+        _resize_request(source, target, method="bilinear", palette_frame_number=1),
+    )
+    failure = outcome.envelope
+    assert outcome.returncode == 2, failure
     assert failure["code"] == "image_resize_palette_basis_invalid"
     assert not target.exists()

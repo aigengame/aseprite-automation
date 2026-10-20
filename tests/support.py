@@ -364,6 +364,34 @@ def probe_only_aseprite(
     )
 
 
+def script_runtime(tmp_path: Path, body: str) -> Path:
+    """Answer the runtime probe, then run body as the caller's script process."""
+    probe = probe_answer(["aseprite_runtime_introspection"])
+    driver = tmp_path / "runtime.py"
+    driver.write_text(CONTROLLED_PYTHON_PRELUDE + body + "\n", encoding="utf-8")
+    # On POSIX, keep the protocol stub independent of Python startup. The caller
+    # process can still time out before it produces any output.
+    return controlled_aseprite(
+        tmp_path,
+        shell=CONTROLLED_SHELL_PRELUDE
+        + f"""is_probe=false
+for argument in "$@"; do
+  case "$argument" in */probe.lua) is_probe=true;; esac
+done
+if [ "$is_probe" = true ]; then
+  cp "$request" "$echo"
+  printf '%s' {shlex.quote(probe)} > "$response"
+else
+  exec {shlex.quote(sys.executable)} {shlex.quote(str(driver))} "$@"
+fi
+""",
+        python="if any(Path(arg).name == 'probe.lua' for arg in sys.argv[1:]):\n"
+        "    Path(arguments['echo']).write_bytes(Path(arguments['request']).read_bytes())\n"
+        f"    Path(arguments['response']).write_text({probe!r}, encoding='utf-8')\n"
+        "else:\n" + "\n".join("    " + line for line in body.splitlines()),
+    )
+
+
 def inject_palette_change(
     target: Path,
     entries: list[tuple[int, int, int, int]],
@@ -485,6 +513,236 @@ def controlled_runtime(binary: Path) -> RuntimeObservation:
         canonical_path=str(binary),
         resource_path=str(binary.parents[1] / "Resources" / "data" / "gui.xml"),
     )
+
+
+# Lua fixture builders and request builders that the export, image, animation,
+# tile, paint, plan, motion and MCP areas share. Each builder takes the session
+# `runtime` and imports `run_lua` when it runs, because tests.native_invocation
+# imports this module.
+
+_EXPORT_FIXTURES = Path(__file__).parent / "export" / "fixtures"
+_IMAGE_FIXTURES = Path(__file__).parent / "image" / "fixtures"
+_TILE_FIXTURES = Path(__file__).parent / "tile" / "fixtures"
+
+
+def export_image_choices(
+    source: Path,
+    destination: Path,
+    *,
+    frame_number: int = 1,
+    if_exists: str = "fail",
+    **choices: object,
+) -> dict:
+    """Return an Export Image request without an Aseprite path.
+
+    The request exports the visible canvas of frame_number and preserves the
+    color mode, color profile and transparency. Each choice replaces one field.
+    """
+    return {
+        "source_sprite_file": str(source),
+        "destination": {"path": str(destination), "if_exists": if_exists},
+        "frame_number": frame_number,
+        "export_image_area": {"kind": "canvas"},
+        "layer_composition": {"mode": "visible"},
+        "composition_color_mode": "preserve",
+        "color_mode": "preserve",
+        "color_profile": "preserve",
+        "transparency": "preserve",
+        **choices,
+    }
+
+
+def source_sprite(
+    runtime: RuntimeObservation,
+    tmp_path: Path,
+    fixture_name: str = "rgb_frames.lua",
+    **params: object,
+) -> Path:
+    """Write `source.aseprite` in tmp_path with an export Lua fixture.
+
+    This adds the `out` parameter, checks the exit status and the written file,
+    and returns the file.
+    """
+    from tests.native_invocation import run_lua
+
+    source = tmp_path / "source.aseprite"
+    lua = run_lua(_EXPORT_FIXTURES / fixture_name, runtime, out=source, **params)
+    assert lua.returncode == 0, process_diagnostics(lua)
+    assert source.is_file()
+    return source
+
+
+def image_fixture(
+    runtime: RuntimeObservation, tmp_path: Path, mode: str = "rgb"
+) -> Path:
+    """Write `source.aseprite` in tmp_path with `resize_targets.lua` for mode.
+
+    This checks the exit status and the written file, and returns the file.
+    """
+    from tests.native_invocation import run_lua
+
+    source = tmp_path / "source.aseprite"
+    lua = run_lua(
+        _IMAGE_FIXTURES / "resize_targets.lua", runtime, out=source, mode=mode
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
+    assert source.is_file()
+    return source
+
+
+def orientation_fixture(
+    runtime: RuntimeObservation,
+    tmp_path: Path,
+    mode: str = "rgb",
+    kind: str = "regular",
+) -> Path:
+    """Write `source.aseprite` in tmp_path with `orientation_targets.lua`.
+
+    This checks the exit status and the written file, and returns the file.
+    """
+    from tests.native_invocation import run_lua
+
+    source = tmp_path / "source.aseprite"
+    lua = run_lua(
+        _IMAGE_FIXTURES / "orientation_targets.lua",
+        runtime,
+        out=source,
+        mode=mode,
+        kind=kind,
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
+    assert source.is_file()
+    return source
+
+
+def inspect_orientation(
+    runtime: RuntimeObservation, source: Path, tmp_path: Path, layer: int = 1
+) -> dict:
+    """Return the Cels of layer in source that `inspect_orientation.lua` reads.
+
+    The fixture writes `native.json` in tmp_path.
+    """
+    from tests.native_invocation import run_lua
+
+    output = tmp_path / "native.json"
+    lua = run_lua(
+        _IMAGE_FIXTURES / "inspect_orientation.lua",
+        runtime,
+        source=source,
+        out=output,
+        layer=layer,
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
+    return json.loads(output.read_text())
+
+
+def aseprite_chunks(raw: bytes | bytearray):
+    """Yield the offset, type and data of each chunk of an `.aseprite` file."""
+    frame_at = 128
+    while frame_at < len(raw):
+        size = struct.unpack_from("<I", raw, frame_at)[0]
+        at = frame_at + 16
+        while at < frame_at + size:
+            length, kind = struct.unpack_from("<IH", raw, at)
+            yield at, kind, bytes(raw[at + 6 : at + length])
+            at += length
+        frame_at += size
+
+
+_MULTIPLY = 1  # native blend mode MULTIPLY in the file format
+# Opacity and blend mode of each Group, in file order, for each patched fixture.
+_SNAPSHOT_GROUP_FIELDS = {
+    "composition": ((128, 255), ()),
+    "blend": ((255,), (_MULTIPLY,)),
+    "indexed-blend": ((255,), (_MULTIPLY,)),
+    "indexed-opacity": ((128,), ()),
+    "hidden-group": ((128, 192), (_MULTIPLY, None)),
+}
+
+
+def snapshot_fixture(
+    runtime: RuntimeObservation,
+    tmp_path: Path,
+    mode: str = "rgb",
+    *,
+    script: str = "snapshot_targets.lua",
+) -> Path:
+    """Write `<mode>.aseprite` in tmp_path with an image Lua fixture.
+
+    The fixture is `snapshot_targets.lua` unless script names another one. This
+    checks the exit status. Then it writes the file fields that batch SaveAs
+    omits: the Group opacity and blend mode of the patched modes, and the
+    precise reference bounds of the `reference` mode.
+    """
+    from tests.native_invocation import run_lua
+
+    source = tmp_path / f"{mode}.aseprite"
+    lua = run_lua(_IMAGE_FIXTURES / script, runtime, out=source, mode=mode)
+    assert lua.returncode == 0, process_diagnostics(lua)
+    if mode in _SNAPSHOT_GROUP_FIELDS:
+        write_group_opacity_and_blend(source, *_SNAPSHOT_GROUP_FIELDS[mode])
+    elif mode == "reference":
+        raw = bytearray(source.read_bytes())
+        for at, kind, _ in aseprite_chunks(raw):
+            if kind == 0x2006:
+                struct.pack_into("<4i", raw, at + 10, 32768, -81920, 950272, 475136)
+        source.write_bytes(raw)
+    return source
+
+
+def tileset_lifecycle_sprite(
+    runtime: RuntimeObservation, source: Path, **params: object
+) -> None:
+    """Write the Tileset rebind Sprite of `tile/fixtures/tileset_lifecycle.lua`."""
+    from tests.native_invocation import run_lua
+
+    lua = run_lua(
+        _TILE_FIXTURES / "tileset_lifecycle.lua", runtime, source=source, **params
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
+
+
+def color_mode_conversion(source: str, target: str) -> dict:
+    """Return the `conversion` object that changes source to target Color Mode.
+
+    A change to grayscale uses `luma`. A change to indexed uses the default RGB
+    map algorithm and best-fit criteria; from RGB it also uses no dithering.
+    The same mode gives only the target `color_mode`.
+    """
+    options: dict = {"color_mode": target}
+    if source != target:
+        if target == "grayscale":
+            options["to_gray"] = "luma"
+        if target == "indexed":
+            options.update(
+                rgb_map_algorithm="default", color_best_fit_criteria="default"
+            )
+            if source == "rgb":
+                options["dithering"] = {"algorithm": "none"}
+    return {"source_color_mode": source, "target": options}
+
+
+def change_sprite_color_mode(
+    source: Path, target: Path, conversion: dict
+) -> tuple[int, dict]:
+    """Run `spa sprite change-color-mode` and return `(returncode, envelope)`.
+
+    This adds the Source and Target fields with `in_place` and `overwrite`
+    False. The envelope gets the schema check of `run`.
+    """
+    from tests.native_invocation import run
+
+    outcome = run(
+        "sprite change-color-mode",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": False,
+            "overwrite": False,
+            "conversion": conversion,
+        },
+    )
+    return outcome.returncode, outcome.envelope
 
 
 # Shared e2e builders for the Plan, Layer, Cel, Sprite, Tag and Motion tests.

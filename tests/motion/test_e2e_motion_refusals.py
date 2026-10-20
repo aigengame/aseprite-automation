@@ -5,9 +5,13 @@ from pathlib import Path
 import pytest
 
 from spa.contracts.ports import RuntimeObservation
-from tests.image.test_e2e_image_orientation import _fixture as unsupported_fixture
 from tests.native_invocation import run
-from tests.support import motion_curves, motion_request, motion_sprite
+from tests.support import (
+    motion_curves,
+    motion_request,
+    motion_sprite,
+    orientation_fixture,
+)
 
 pytestmark = pytest.mark.e2e
 
@@ -65,9 +69,9 @@ def test_range_failure_preserves_target(
     [("background", 1), ("reference", 1), ("tilemap", 2), ("group", 2)],
 )
 def test_motion_retains_cel_set_layer_eligibility(
-    tmp_path: Path, kind: str, layer: int
+    tmp_path: Path, runtime: RuntimeObservation, kind: str, layer: int
 ) -> None:
-    source = unsupported_fixture(tmp_path, kind=kind)
+    source = orientation_fixture(runtime, tmp_path, kind=kind)
     target = tmp_path / "target.aseprite"
     inputs = {
         "layer": {"layer_path": [layer]},

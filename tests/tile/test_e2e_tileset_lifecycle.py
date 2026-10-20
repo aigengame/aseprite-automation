@@ -5,11 +5,8 @@ from pathlib import Path
 import pytest
 
 from tests.native_invocation import expect_success, run
-from tests.tile.support import (
-    lifecycle_sprite,
-    tileset_lifecycle_sprite,
-    verify_tileset_lifecycle,
-)
+from tests.support import tileset_lifecycle_sprite
+from tests.tile.support import lifecycle_sprite, verify_tileset_lifecycle
 
 pytestmark = pytest.mark.e2e
 

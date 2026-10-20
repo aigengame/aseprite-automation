@@ -13,14 +13,12 @@ from jsonschema import validate
 from mcp import Client, StdioServerParameters
 from PIL import Image
 
-from tests.export.support import export_image_request
-from tests.image.support import image_fixture
-from tests.support import spa
+from tests.support import export_image_choices, image_fixture, spa
 
 pytestmark = pytest.mark.e2e
 
 
-def test_installed_mcp_workflow_matches_cli_and_delivers_png(tmp_path):
+def test_installed_mcp_workflow_matches_cli_and_delivers_png(tmp_path, runtime):
     executable = shutil.which("spa-mcp")
     assert executable
     aseprite = os.environ["SPA_TEST_ASEPRITE"]
@@ -108,7 +106,8 @@ def test_installed_mcp_workflow_matches_cli_and_delivers_png(tmp_path):
                 },
             )
             exported = await call(
-                "export_image", export_image_request(source, destination)
+                "export_image",
+                export_image_choices(source, destination, aseprite=aseprite),
             )
             images = [part for part in exported.content if part.type == "image"]
             assert len(images) == 1
@@ -125,7 +124,7 @@ def test_installed_mcp_workflow_matches_cli_and_delivers_png(tmp_path):
                     for y in range(2)
                     for x in range(3)
                 ] == [(17, 34, 51, 255)] * 6
-            grayscale = image_fixture(tmp_path, "grayscale")
+            grayscale = image_fixture(runtime, tmp_path, "grayscale")
             refused_target = tmp_path / "refused.aseprite"
             original = grayscale.read_bytes()
             refused = await client.call_tool(

@@ -5,13 +5,13 @@ import subprocess
 
 import pytest
 
-from tests.script.support import script_runtime
 from tests.support import (
     PROBE_ONLY_REFUSAL,
     fake_probe_response,
     probe_only_aseprite,
     process_diagnostics,
     python_aseprite,
+    script_runtime,
     spa,
 )
 
