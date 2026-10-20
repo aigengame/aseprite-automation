@@ -1,9 +1,5 @@
 """Standalone mutation completion cases that the e2e and integration tiers share."""
 
-import json
-import shutil
-import subprocess
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -50,9 +46,12 @@ _IMAGE_INPUT = {
 
 
 def completion_request(
-    operation: str, aseprite: str | Path, source: Path, target: Path, in_place: bool
+    operation: str, source: Path, target: Path, in_place: bool
 ) -> dict[str, Any]:
-    """Return a request of operation that may overwrite target."""
+    """Return a request of operation that may overwrite target.
+
+    The request has no `aseprite`; `observe_cli` adds it.
+    """
     inputs = {
         "motion apply": motion_curves(),
         "tag add": {
@@ -84,44 +83,12 @@ def completion_request(
         },
     }[operation]
     return {
-        "aseprite": str(aseprite),
         "source_sprite_file": str(source),
         "target_sprite_file": str(target),
         "in_place": in_place,
         "overwrite": True,
         **inputs,
     }
-
-
-def observe_completion(
-    case: str, tmp_path: Path, operation: str, request: dict[str, Any]
-) -> tuple[subprocess.CompletedProcess[str], dict[str, Any], dict[str, Any]]:
-    """Run the installed CLI through the observer, which injects the fault of case.
-
-    Return the process, its envelope, and the completion events that the observer
-    recorded.
-    """
-    cli = shutil.which("spa")
-    assert cli, "run tests in an installed SPA environment"
-    report = tmp_path / "completion.json"
-    run = subprocess.run(
-        [
-            sys.executable,
-            str(Path(__file__).parent / "fixtures" / "observe_mutation_completion.py"),
-            case,
-            str(report),
-            cli,
-            *operation.split(),
-            "--input-json",
-            json.dumps(request),
-        ],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        check=False,
-    )
-    assert run.stdout, run.stderr
-    return run, json.loads(run.stdout), json.loads(report.read_text())
 
 
 def assert_completion_trace(

@@ -1,7 +1,6 @@
 """Native evidence gates standalone mutation Target Commit and cleanup."""
 
 import hashlib
-import os
 from pathlib import Path
 
 import pytest
@@ -11,9 +10,8 @@ from tests.application.support import (
     OPERATIONS,
     assert_completion_trace,
     completion_request,
-    observe_completion,
 )
-from tests.support import motion_sprite
+from tests.support import motion_sprite, observe_cli
 
 pytestmark = pytest.mark.e2e
 
@@ -35,10 +33,10 @@ def test_standalone_completion_gates_commit_and_cleans_staging(
     if not in_place:
         target.write_bytes(b"existing Target")
     before_source, before_target = source.read_bytes(), target.read_bytes()
-    request = completion_request(
-        operation, os.environ["SPA_TEST_ASEPRITE"], source, target, in_place
+    request = completion_request(operation, source, target, in_place)
+    run, outcome, observed = observe_cli(
+        case, operation, request, tmp_path / "completion.json", seam="invoke"
     )
-    run, outcome, observed = observe_completion(case, tmp_path, operation, request)
     if case == "success":
         assert run.returncode == 0, outcome
         assert outcome["persisted_reopen_verified"] is True

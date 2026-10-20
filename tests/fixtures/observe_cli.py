@@ -1,4 +1,4 @@
-"""Run the installed CLI with observers on one adapter seam, for e2e tests.
+"""Run the installed CLI with observers on one adapter seam, for tests.
 
 Usage: observe_cli.py <seam> <case> <observations> <cli> <argument>...
 
@@ -6,6 +6,10 @@ The observers replace SPA adapters before the entry point constructs them. Each
 seam counts Target Commits and writes its observations as JSON when the CLI
 stops. The seam selects what else the observers do:
 
+- `invoke`: record the completion events of a standalone mutation (identity,
+  probe, stage, invoke, commit, discard), count its native invocations, and
+  inject the probe, invocation, evidence, postcondition, identity or commit
+  fault of case.
 - `invoke_direct`: count the native invocations of a Plan, change the native
   response as case requires, and refuse a separate probe or standalone handler.
 - `run`: count the probe and handler processes, and run each handler inside
@@ -20,8 +24,9 @@ from pathlib import Path
 
 from spa.adapters import files as file_adapter
 from spa.adapters.aseprite import aseprite
+from spa.contracts.ports import ProcessEvidence, RuntimeIssue, TargetCommitEvidence
 
-SEAMS = ("invoke_direct", "run")
+SEAMS = ("invoke", "invoke_direct", "run")
 # Cases whose native Plan response must come with a staged Sprite file.
 STAGED_CASES = {
     "contradictory_count",
@@ -35,7 +40,9 @@ seam, case, observations_file, cli, *arguments = sys.argv[1:]
 assert seam in SEAMS, f"unknown seam {seam!r}; use one of {SEAMS}"
 observations = {"commits": 0}
 native_file = Path(observations_file).with_suffix(".native.json")
-original_invoke = aseprite.invoke_direct
+original_probe = aseprite.probe
+original_invoke = aseprite.invoke
+original_invoke_direct = aseprite.invoke_direct
 original_run = aseprite._run
 
 
@@ -43,6 +50,84 @@ class ObservedTargetFiles(file_adapter.LocalTargetFiles):
     def commit(self, staged, target, *, overwrite):
         observations["commits"] += 1
         return super().commit(staged, target, overwrite=overwrite)
+
+
+class CompletionTargetFiles(ObservedTargetFiles):
+    """Record the completion events, and inject the identity and commit faults."""
+
+    def same_publication_entry(self, source, target):
+        observations["events"].append("identity")
+        if case == "identity" and observations["events"].count("identity") == 2:
+            raise OSError("Injected identity observation failure")
+        return super().same_publication_entry(source, target)
+
+    def staged_path(self, target):
+        observations["events"].append("stage")
+        staged = super().staged_path(target)
+        observations["staged"] = str(staged)
+        return staged
+
+    def commit(self, staged, target, *, overwrite):
+        observations["events"].append("commit")
+        if case == "commit":
+            raise RuntimeIssue(
+                "target_commit_failed",
+                "Injected publication failure",
+                TargetCommitEvidence(str(target), "replace_failed"),
+            )
+        return super().commit(staged, target, overwrite=overwrite)
+
+    def discard(self, staged):
+        observations["events"].append("discard")
+        super().discard(staged)
+        observations["discarded"] = not staged.exists()
+
+
+def process_failure():
+    raise RuntimeIssue(
+        "process_failed",
+        "Injected process failure",
+        ProcessEvidence("test-aseprite", 13),
+    )
+
+
+def observed_probe(*args, **kwargs):
+    observations["events"].append("probe")
+    if case == "probe":
+        process_failure()
+    return original_probe(*args, **kwargs)
+
+
+def observed_invoke(observation, handler, payload, timeout):
+    """Run one standalone handler, and change its response as case requires."""
+    observations["events"].append("invoke")
+    if case == "invocation":
+        Path(payload["staged_sprite_file"]).write_bytes(b"partial native output")
+        process_failure()
+    observations["native_invocations"] += 1
+    result = original_invoke(observation, handler, payload, timeout)
+    assert Path(payload["staged_sprite_file"]).is_file()
+    if case == "evidence":
+        result.payload["persisted_reopen_verified"] = False
+    elif case == "postcondition":
+        if handler.name == "motion_apply":
+            result.payload["cels"][0]["after"]["opacity"] = 1
+        elif handler.name == "tag_mutate":
+            result.payload["tag"]["tag_index"] = 999
+        elif handler.name == "frame_mutate":
+            result.payload["sprite"]["frames"][0]["duration_ms"] = 1
+        elif handler.name == "layer_mutate":
+            result.payload["after"]["metadata"]["layer_count"] += 1
+        elif handler.name in (
+            "image_orientation",
+            "image_resize",
+            "image_replace",
+            "paint_composite",
+        ):
+            result.payload["target"]["frame_number"] = 2
+        else:
+            result.payload["cel"]["frame_number"] = 2
+    return result
 
 
 def corrupt(payload):
@@ -76,9 +161,9 @@ def corrupt(payload):
         removal["tilesets"][0]["base_index"] = 82
 
 
-def observed_invoke(*args):
+def observed_invoke_direct(*args):
     observations["native_invocations"] += 1
-    result = original_invoke(*args)
+    result = original_invoke_direct(*args)
     if case in STAGED_CASES:
         assert Path(args[2]["staged_sprite_file"]).is_file()
     corrupt(result.payload)
@@ -112,14 +197,20 @@ def observed_run(command, *args, **kwargs):
     return original_run(command, *args, **kwargs)
 
 
-file_adapter.LocalTargetFiles = ObservedTargetFiles
-if seam == "invoke_direct":
+if seam == "invoke":
+    observations.update(events=[], native_invocations=0)
+    file_adapter.LocalTargetFiles = CompletionTargetFiles
+    aseprite.probe = observed_probe
+    aseprite.invoke = observed_invoke
+elif seam == "invoke_direct":
     observations["native_invocations"] = 0
-    aseprite.invoke_direct = observed_invoke
+    file_adapter.LocalTargetFiles = ObservedTargetFiles
+    aseprite.invoke_direct = observed_invoke_direct
     aseprite.probe = unexpected
     aseprite.invoke = unexpected
 else:
     observations.update(handler_invocations=0, probe_invocations=0)
+    file_adapter.LocalTargetFiles = ObservedTargetFiles
     aseprite._run = observed_run
 sys.argv = [cli, *arguments]
 try:

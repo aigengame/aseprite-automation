@@ -109,13 +109,17 @@ because `tests/native_invocation.py` imports `tests/support.py`.
 
 `tests/support.py::observe_cli` runs the installed `spa` command through
 `tests/fixtures/observe_cli.py`, which replaces one SPA adapter seam with observers
-before the entry point runs. With the `invoke_direct` seam, the observers count the
-native invocations of a Plan, change the native response as the case requires, and
-refuse a separate probe or standalone handler. With the `run` seam, they count the
-probe and handler processes and run each handler inside
+before the entry point runs. With the `invoke` seam, the observers record the
+completion events of a standalone mutation (identity, probe, stage, invoke, commit,
+discard), count its native invocations, and inject the probe, invocation, evidence,
+postcondition, identity, or commit fault of the case. With the `invoke_direct` seam,
+they count the native invocations of a Plan, change the native response as the case
+requires, and refuse a separate probe or standalone handler. With the `run` seam,
+they count the probe and handler processes and run each handler inside
 `tests/fixtures/observe_cli.lua`, which injects the native I/O fault of the case. On
-both seams they count Target Commits and write the observations to a JSON file.
-`observe_cli` adds `aseprite` and validates the envelope as `run` does.
+each seam they count Target Commits and write the observations to a JSON file.
+`observe_cli` adds `aseprite` and validates the envelope as `run` does; a test can
+give its own Aseprite as `aseprite=`.
 
 Native Paint #26 has separate Line, Rectangle, and Ellipse runtime gates. Its
 real-runtime suite compares saved pixels with direct `app.useTool` references for

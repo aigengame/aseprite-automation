@@ -8,9 +8,8 @@ from tests.application.support import (
     OPERATIONS,
     assert_completion_trace,
     completion_request,
-    observe_completion,
 )
-from tests.support import probe_only_aseprite
+from tests.support import observe_cli, probe_only_aseprite
 
 
 @pytest.mark.parametrize("operation", OPERATIONS)
@@ -28,8 +27,15 @@ def test_standalone_completion_gates_commit_and_cleans_staging(
     if not in_place:
         target.write_bytes(b"existing Target")
     before_source, before_target = source.read_bytes(), target.read_bytes()
-    request = completion_request(operation, aseprite, source, target, in_place)
-    run, outcome, observed = observe_completion(case, tmp_path, operation, request)
+    request = completion_request(operation, source, target, in_place)
+    run, outcome, observed = observe_cli(
+        case,
+        operation,
+        request,
+        tmp_path / "completion.json",
+        seam="invoke",
+        aseprite=aseprite,
+    )
     assert run.returncode == 1, outcome
     assert outcome["code"] == "process_failed"
     assert outcome["category"] == "execution"
