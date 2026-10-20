@@ -1,10 +1,6 @@
 """Ownership and native facts at the shared Sprite persistence boundary."""
 
 import json
-import os
-import shutil
-import subprocess
-import sys
 from collections import Counter
 from importlib.resources import files
 from pathlib import Path
@@ -13,13 +9,13 @@ import pytest
 
 from spa.authoring.document.sprite import SPRITE_INSPECTION_RESOURCES
 from spa.contracts.ports import RuntimeObservation
-from tests.motion.test_e2e_motion import curves, fixture
 from tests.native_invocation import expect_success, run_lua
-from tests.support import process_diagnostics
+from tests.support import motion_curves, motion_sprite, observe_cli, process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
 FIXTURES = Path(__file__).parent / "fixtures"
+OBSERVER = FIXTURES / "observe_persistence_cli.py"
 
 
 @pytest.mark.parametrize(
@@ -132,13 +128,13 @@ def test_handlers_gate_commit_and_restore_editor_on_persistence_failure(
     case: str,
     in_place: bool,
 ) -> None:
-    source = fixture(runtime, tmp_path, uuids="true")
+    source = motion_sprite(runtime, tmp_path, uuids="true")
     target = source if in_place else tmp_path / "existing.aseprite"
     if not in_place:
         target.write_bytes(b"prior Target")
     before_source, before_target = source.read_bytes(), target.read_bytes()
     inputs = (
-        curves()
+        motion_curves()
         if operation == "motion apply"
         else {
             "target": {"layer": {"layer_path": [1]}, "frame_number": 1},
@@ -146,14 +142,15 @@ def test_handlers_gate_commit_and_restore_editor_on_persistence_failure(
         }
     )
     request = {
-        "aseprite": os.environ["SPA_TEST_ASEPRITE"],
         "source_sprite_file": str(source),
         "target_sprite_file": str(target),
         "in_place": in_place,
         "overwrite": True,
         **inputs,
     }
-    outcome, observations = observed_cli(tmp_path, operation, request, case)
+    _, outcome, observations = observe_cli(
+        OBSERVER, case, operation, request, tmp_path / "observations.json"
+    )
     assert observations["handler_invocations"] == observations["saves"] == 1
     assert observations["probe_invocations"] == 1
     assert observations["editor_restored"] is True
@@ -189,42 +186,16 @@ def test_handlers_gate_commit_and_restore_editor_on_persistence_failure(
     assert not list(tmp_path.glob(".*.staged.aseprite"))
 
 
-def observed_cli(
-    tmp_path: Path, operation: str, request: dict, case: str = "success"
-) -> tuple[dict, dict]:
-    cli = shutil.which("spa")
-    assert cli, "run tests in an installed SPA environment"
-    observations_path = tmp_path / "observations.json"
-    run = subprocess.run(
-        [
-            sys.executable,
-            str(Path(__file__).parent / "fixtures" / "observe_persistence_cli.py"),
-            case,
-            str(observations_path),
-            cli,
-            *operation.split(),
-            "--input-json",
-            json.dumps(request),
-        ],
-        text=True,
-        encoding="utf-8",
-        capture_output=True,
-        check=False,
-    )
-    assert run.stdout, run.stderr
-    return json.loads(run.stdout), json.loads(observations_path.read_text())
-
-
 def test_cel_and_motion_plan_saves_only_after_all_steps(
     runtime: RuntimeObservation, tmp_path: Path
 ) -> None:
-    source = fixture(runtime, tmp_path, uuids="true")
+    source = motion_sprite(runtime, tmp_path, uuids="true")
     before_source = source.read_bytes()
-    outcome, observations = observed_cli(
-        tmp_path,
+    _, outcome, observations = observe_cli(
+        OBSERVER,
+        "success",
         "plan run",
         {
-            "aseprite": os.environ["SPA_TEST_ASEPRITE"],
             "plan": {
                 "source_sprite_file": str(source),
                 "target_sprite_file": str(tmp_path / "planned.aseprite"),
@@ -236,10 +207,11 @@ def test_cel_and_motion_plan_saves_only_after_all_steps(
                             "opacity": 42,
                         },
                     },
-                    {"operation": "motion apply", "input": curves()},
+                    {"operation": "motion apply", "input": motion_curves()},
                 ],
             },
         },
+        tmp_path / "observations.json",
     )
     assert outcome["status"] == "success", outcome
     assert outcome["persisted_reopen_verified"] is True

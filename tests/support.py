@@ -485,3 +485,132 @@ def controlled_runtime(binary: Path) -> RuntimeObservation:
         canonical_path=str(binary),
         resource_path=str(binary.parents[1] / "Resources" / "data" / "gui.xml"),
     )
+
+
+# Shared e2e builders for the Plan, Layer, Cel, Sprite, Tag and Motion tests.
+# tests.native_invocation imports this module, so these functions import it in
+# their bodies.
+_MOTION_FIXTURES = Path(__file__).parent / "motion" / "fixtures"
+_CEL_FIXTURES = Path(__file__).parent / "cel" / "fixtures"
+
+
+def motion_sprite(
+    runtime: RuntimeObservation, tmp_path: Path, **parameters: object
+) -> Path:
+    """Write the posed motion Sprite of `poses.lua` to tmp_path, and return its path."""
+    from tests.native_invocation import run_lua
+
+    source = tmp_path / "source.aseprite"
+    lua = run_lua(_MOTION_FIXTURES / "poses.lua", runtime, out=source, **parameters)
+    assert lua.returncode == 0, process_diagnostics(lua)
+    assert source.is_file()
+    return source
+
+
+def inspect_motion(runtime: RuntimeObservation, source: Path, tmp_path: Path) -> dict:
+    """Read the native Frames and Cels of source with `inspect.lua`."""
+    from tests.native_invocation import run_lua
+
+    out = tmp_path / "inspection.json"
+    lua = run_lua(_MOTION_FIXTURES / "inspect.lua", runtime, source=source, out=out)
+    assert lua.returncode == 0, process_diagnostics(lua)
+    return json.loads(out.read_text())
+
+
+def motion_curves() -> dict:
+    """Return motion inputs that move Layer 1 over Frames 1 to 5 and fade it in."""
+    return {
+        "layer": {"layer_path": [1]},
+        "from_frame": 1,
+        "to_frame": 5,
+        "position_offsets": {
+            "interpolation": "linear",
+            "rounding": "nearest-away-from-zero",
+            "keys": [
+                {"frame_number": 1, "offset": {"x": 0, "y": 0}},
+                {"frame_number": 5, "offset": {"x": 2, "y": -2}},
+            ],
+        },
+        "opacity": {
+            "interpolation": "linear",
+            "rounding": "floor",
+            "keys": [
+                {"frame_number": 1, "opacity": 0},
+                {"frame_number": 5, "opacity": 255},
+            ],
+        },
+    }
+
+
+def motion_request(source: Path, target: Path, inputs: dict) -> dict[str, Any]:
+    """Return a `motion apply` request from source to target with inputs.
+
+    `in_place` is true when target is source, and `overwrite` is true when target
+    already exists.
+    """
+    return {
+        "source_sprite_file": str(source),
+        "target_sprite_file": str(target),
+        "in_place": source == target,
+        "overwrite": target.exists(),
+        **inputs,
+    }
+
+
+def cel_relationships_sprite(runtime: RuntimeObservation, target: Path) -> None:
+    """Write the linked and unlinked Cel Sprite of `relationships.lua` to target."""
+    from tests.native_invocation import run_lua
+
+    lua = run_lua(_CEL_FIXTURES / "relationships.lua", runtime, out=target)
+    assert lua.returncode == 0, process_diagnostics(lua)
+
+
+def observe_cli(
+    observer: Path,
+    case: str,
+    command: str,
+    request: dict[str, Any],
+    observations: Path,
+) -> tuple[subprocess.CompletedProcess[str], dict[str, Any], dict[str, Any]]:
+    """Run `spa <command>` in an observer script, and return its process and records.
+
+    The observer is a Python fixture. It patches SPA adapters in the CLI process
+    before the entry point runs, injects the fault of case, and writes what it
+    observed to observations. This runner adds the `SPA_TEST_ASEPRITE` value to
+    request, and validates the envelope against the schema of command. Return the
+    process, its envelope, and the observations.
+    """
+    from jsonschema import ValidationError
+
+    from tests.native_invocation import validate_envelope
+
+    assert "aseprite" not in request, "the runner adds the Aseprite path"
+    cli = shutil.which("spa")
+    assert cli, "run tests in an installed SPA environment"
+    payload = json.dumps({**request, "aseprite": os.environ["SPA_TEST_ASEPRITE"]})
+    process = subprocess.run(
+        [
+            sys.executable,
+            str(observer),
+            case,
+            str(observations),
+            cli,
+            *command.split(),
+            "--input-json",
+            payload,
+        ],
+        text=True,
+        encoding="utf-8",
+        capture_output=True,
+        check=False,
+    )
+    try:
+        envelope = json.loads(process.stdout)
+    except json.JSONDecodeError as error:
+        raise AssertionError(process_diagnostics(process)) from error
+    try:
+        validate_envelope(command, envelope)
+    except ValidationError as error:
+        error.add_note(process_diagnostics(process))
+        raise
+    return process, envelope, json.loads(observations.read_text())

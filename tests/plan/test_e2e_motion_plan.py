@@ -1,73 +1,57 @@
 """Motion shares native semantics and captures each Plan Step's current Cels."""
 
 import json
-import os
-import shutil
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
 from jsonschema import validate
 
 from spa.contracts.ports import RuntimeObservation
-from tests.motion.test_e2e_motion import curves, fixture, inspect, run_motion
-from tests.plan.test_e2e_plan import _red_pixel
-from tests.support import spa
+from tests.native_invocation import expect_success, run
+from tests.plan.support import FIXTURES, plan_request, red_pixel
+from tests.support import (
+    inspect_motion,
+    motion_curves,
+    motion_request,
+    motion_sprite,
+    observe_cli,
+    spa,
+)
 
 pytestmark = pytest.mark.e2e
-
-
-def plan(source: Path, target: Path, steps: list[dict]) -> tuple[int, dict]:
-    run = spa(
-        "plan",
-        "run",
-        "--input-json",
-        json.dumps(
-            {
-                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-                "plan": {
-                    "source_sprite_file": str(source),
-                    "target_sprite_file": str(target),
-                    "in_place": source == target,
-                    "overwrite": target.exists(),
-                    "steps": steps,
-                },
-            }
-        ),
-    )
-    assert run.stdout, run.stderr
-    return run.returncode, json.loads(run.stdout)
 
 
 def test_motion_plan_matches_standalone_and_defers_persistence(
     runtime: RuntimeObservation, tmp_path: Path
 ) -> None:
-    source = fixture(runtime, tmp_path)
+    source = motion_sprite(runtime, tmp_path)
     standalone, planned = tmp_path / "standalone.aseprite", tmp_path / "plan.aseprite"
-    inputs = curves()
-    code, expected = run_motion(source, standalone, inputs)
-    assert code == 0, expected
-    code, result = plan(
-        source, planned, [{"operation": "motion apply", "input": inputs}]
+    inputs = motion_curves()
+    expected = expect_success(
+        "motion apply", motion_request(source, standalone, inputs)
     )
-    assert code == 0, result
+    result = expect_success(
+        "plan run",
+        plan_request(source, planned, [{"operation": "motion apply", "input": inputs}]),
+    )
     assert result["persisted_reopen_verified"] is True
     validate(result, json.loads(spa("plan", "run", "--schema").stdout)["result_schema"])
     assert result["steps"][0]["result"] == {
         key: expected[key]
         for key in ("cels", "before_cel_count", "unchanged_facts_verified")
     } | {"persisted_reopen_verified": False}
-    assert inspect(runtime, planned, tmp_path) == inspect(runtime, standalone, tmp_path)
+    assert inspect_motion(runtime, planned, tmp_path) == inspect_motion(
+        runtime, standalone, tmp_path
+    )
 
 
 def test_motion_uses_step_start_baselines_across_layers_and_later_edits(
     runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
-    source = fixture(runtime, tmp_path)
+    source = motion_sprite(runtime, tmp_path)
     frozen = source.read_bytes()
-    inputs = curves()
+    inputs = motion_curves()
     other = {
         "layer": {"layer_name": "untouched"},
         "from_frame": 1,
@@ -89,15 +73,14 @@ def test_motion_uses_step_start_baselines_across_layers_and_later_edits(
         {"operation": "motion apply", "input": inputs},
         {"operation": "motion apply", "input": inputs},
         {"operation": "motion apply", "input": other},
-        {"operation": "paint apply", "input": _red_pixel()},
+        {"operation": "paint apply", "input": red_pixel()},
         {
             "operation": "frame add",
             "input": {"frame_number": 2, "duration_ms": 150},
         },
     ]
     target = tmp_path / "combined.aseprite"
-    code, result = plan(source, target, steps)
-    assert code == 0, result
+    result = expect_success("plan run", plan_request(source, target, steps))
     first = result["steps"][1]["result"]["cels"][2]
     second = result["steps"][2]["result"]["cels"][2]
     assert first["before"]["position"] == {"x": 100, "y": -100}
@@ -107,7 +90,7 @@ def test_motion_uses_step_start_baselines_across_layers_and_later_edits(
         == {"x": 101, "y": -101}
     )
     assert second["after"]["position"] == {"x": 102, "y": -102}
-    final = inspect(runtime, target, tmp_path)
+    final = inspect_motion(runtime, target, tmp_path)
     assert len(final["frames"]) == 6
     assert (
         next(c for c in final["cels"] if c["layer"] == "wizard" and c["frame"] == 4)[
@@ -127,31 +110,35 @@ def test_motion_uses_step_start_baselines_across_layers_and_later_edits(
 def test_motion_failure_after_prior_plan_work_does_not_publish(
     runtime: RuntimeObservation, tmp_path: Path, in_place: bool, kind: str, code: str
 ) -> None:
-    source = fixture(runtime, tmp_path, kind=kind)
+    source = motion_sprite(runtime, tmp_path, kind=kind)
     target = source if in_place else tmp_path / "existing.aseprite"
     if not in_place:
         target.write_bytes(b"existing Target")
     frozen, prior = source.read_bytes(), target.read_bytes()
-    inputs = curves()
+    inputs = motion_curves()
     if kind == "linked":
         inputs["to_frame"] = 1
         for name in ("position_offsets", "opacity"):
             inputs[name]["keys"] = inputs[name]["keys"][:1]
-    status, result = plan(
-        source,
-        target,
-        [
-            {
-                "operation": "cel set",
-                "input": {
-                    "target": {"layer": {"layer_path": [2]}, "frame_number": 1},
-                    "opacity": 0,
+    outcome = run(
+        "plan run",
+        plan_request(
+            source,
+            target,
+            [
+                {
+                    "operation": "cel set",
+                    "input": {
+                        "target": {"layer": {"layer_path": [2]}, "frame_number": 1},
+                        "opacity": 0,
+                    },
                 },
-            },
-            {"operation": "motion apply", "input": inputs},
-        ],
+                {"operation": "motion apply", "input": inputs},
+            ],
+        ),
     )
-    assert status == 2, result
+    result = outcome.envelope
+    assert outcome.returncode == 2, result
     assert result["code"] == code
     assert result["details"]["step_number"] == 2
     assert source.read_bytes() == frozen
@@ -165,48 +152,29 @@ def test_motion_failure_after_prior_plan_work_does_not_publish(
 def test_motion_plan_uses_one_process_and_gates_publication(
     runtime: RuntimeObservation, tmp_path: Path, case: str
 ) -> None:
-    source = fixture(runtime, tmp_path)
+    source = motion_sprite(runtime, tmp_path)
     target = tmp_path / "existing.aseprite"
     target.write_bytes(b"prior Target")
-    observations_path = tmp_path / "observations.json"
-    cli = shutil.which("spa")
-    assert cli
-    run = subprocess.run(
-        [
-            sys.executable,
-            str(Path(__file__).parent / "fixtures" / "observe_cli.py"),
-            case,
-            str(observations_path),
-            cli,
-            "plan",
-            "run",
-            "--input-json",
-            json.dumps(
-                {
-                    "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-                    "plan": {
-                        "source_sprite_file": str(source),
-                        "target_sprite_file": str(target),
-                        "overwrite": True,
-                        "steps": [{"operation": "motion apply", "input": curves()}],
-                    },
-                }
-            ),
-        ],
-        text=True,
-        encoding="utf-8",
-        capture_output=True,
-        check=False,
+    process, result, observations = observe_cli(
+        FIXTURES / "observe_cli.py",
+        case,
+        "plan run",
+        {
+            "plan": {
+                "source_sprite_file": str(source),
+                "target_sprite_file": str(target),
+                "overwrite": True,
+                "steps": [{"operation": "motion apply", "input": motion_curves()}],
+            }
+        },
+        tmp_path / "observations.json",
     )
-    assert run.stdout, run.stderr
-    result = json.loads(run.stdout)
-    observations = json.loads(observations_path.read_text())
     assert observations["native_invocations"] == 1
     if case == "success":
-        assert run.returncode == 0, result
+        assert process.returncode == 0, result
         assert observations["commits"] == 1
     else:
-        assert run.returncode != 0, result
+        assert process.returncode != 0, result
         assert observations["commits"] == 0
         assert result["code"] == "kernel_response_invalid"
         assert target.read_bytes() == b"prior Target"
