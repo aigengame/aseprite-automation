@@ -297,12 +297,19 @@ def test_compare_and_preview_reject_export_image_input_matrix(
 ) -> None:
     source = source_sprite(runtime, tmp_path, fixture, two_frames="true", **params)
     destination = tmp_path / "preview.png"
+    # The Lua message of the refusal that each Source targets.
+    refusal = (
+        ": unsupported Tilemap Image"
+        if fixture == "rgb_tilemap.lua"
+        else ": unsupported Source Color Mode"
+    )
     outcome = run(
         "animation compare",
         {"sprite_file": str(source), "earlier_frame": 1, "later_frame": 2},
     )
     compared = outcome.envelope
     assert outcome.returncode != 0 and compared["code"] == "kernel_execution_failed"
+    assert compared["details"]["reason"].endswith(refusal), compared
     outcome = run(
         "animation preview",
         {
@@ -314,5 +321,6 @@ def test_compare_and_preview_reject_export_image_input_matrix(
     )
     previewed = outcome.envelope
     assert outcome.returncode != 0 and previewed["code"] == "kernel_execution_failed"
+    assert previewed["details"]["reason"].endswith(refusal), previewed
     assert not destination.exists()
     assert not list(tmp_path.glob("*.staged.png"))
