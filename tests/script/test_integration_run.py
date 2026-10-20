@@ -8,8 +8,7 @@ import pytest
 from jsonschema import Draft202012Validator
 
 from tests.host_permissions import symlink_creation_permission
-from tests.script.support import script_runtime
-from tests.support import spa
+from tests.support import script_runtime, spa
 
 
 def test_timeout_is_reported_without_requiring_process_output(
