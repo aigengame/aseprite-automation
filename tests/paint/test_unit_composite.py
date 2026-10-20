@@ -124,7 +124,7 @@ def test_malformed_kernel_result_does_not_replace_existing_target(
         FAILURE_CODES,
     )
     assert isinstance(outcome, FailureEnvelope)
-    assert outcome.code in {"kernel_response_invalid", "response_malformed"}
+    assert outcome.code == "kernel_response_invalid"
     assert target.read_bytes() == b"target"
     assert source.read_bytes() == b"source"
     assert {item.name for item in tmp_path.iterdir()} == {
