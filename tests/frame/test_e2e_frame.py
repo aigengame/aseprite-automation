@@ -1,6 +1,5 @@
 """Frame operations against a real Aseprite Sprite."""
 
-import json
 import struct
 from pathlib import Path
 
@@ -8,7 +7,7 @@ import pytest
 
 from spa.contracts.ports import RuntimeObservation
 from tests.native_invocation import expect_success, render_frame, run, run_lua
-from tests.support import process_diagnostics
+from tests.support import native_link_status, process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
@@ -50,13 +49,6 @@ def _add_second_slice_key(sprite_file: Path, frame_number: int = 3) -> None:
             return
         chunk_offset += chunk_size
     raise AssertionError("fixture has no Slice chunk")
-
-
-def _native_link_status(runtime: RuntimeObservation, target: Path, out: Path) -> bool:
-    """Read whether the native Cels of target are linked."""
-    lua = run_lua(FIXTURES / "inspect_links.lua", runtime, source=target, out=out)
-    assert lua.returncode == 0, process_diagnostics(lua)
-    return json.loads(out.read_text(encoding="utf-8"))["linked"]
 
 
 def test_set_changes_only_one_frame_duration_and_reports_observed_facts(
@@ -384,7 +376,7 @@ def test_move_linked_cels_preserves_native_link(
         },
     )
     assert moved["cel_content_verified"] is True
-    assert _native_link_status(runtime, target, tmp_path / "link-status.json") is True
+    assert native_link_status(runtime, target, tmp_path / "link-status.json") is True
 
 
 def test_move_background_cel_preserves_opaque_content(
@@ -528,7 +520,7 @@ def test_duplicate_frame_uses_declared_cel_mode_and_persists(
         {"layer_path": [1], "source_frame_number": 1, "kind": cel_mode}
     ]
     assert duplicated["persisted_reopen_verified"] is True
-    assert _native_link_status(runtime, target, tmp_path / "links.json") is (
+    assert native_link_status(runtime, target, tmp_path / "links.json") is (
         cel_mode == "link"
     )
     assert expect_success("frame list", {"sprite_file": str(source)})["frames"] == [
@@ -814,7 +806,7 @@ def test_duplicate_background_cel_preserves_declared_mode(
     )
     assert duplicated["source_cel_count"] == 1
     assert duplicated["inserted_cel_count"] == 1
-    assert _native_link_status(runtime, target, tmp_path / "links.json") is (
+    assert native_link_status(runtime, target, tmp_path / "links.json") is (
         cel_mode == "link"
     )
 
@@ -896,7 +888,7 @@ def test_copy_mode_overrides_continuous_layer_policy(
         },
     )
     assert duplicated["sprite"]["layers"][0]["is_continuous"] is True
-    assert _native_link_status(runtime, target, tmp_path / "links.json") is False
+    assert native_link_status(runtime, target, tmp_path / "links.json") is False
 
 
 def test_in_place_add_commits_to_the_source_entry(

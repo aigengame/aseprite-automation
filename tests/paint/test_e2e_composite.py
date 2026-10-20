@@ -6,10 +6,10 @@ from pathlib import Path
 import pytest
 from jsonschema import validate
 
-from tests.image.support import image_fixture
+from spa.contracts.ports import RuntimeObservation
 from tests.native_invocation import expect_success, run
 from tests.paint.support import create_sprite
-from tests.support import spa
+from tests.support import image_fixture, spa
 
 pytestmark = pytest.mark.e2e
 
@@ -116,9 +116,14 @@ def test_invalid_composite_preserves_source_and_existing_target(
     ],
 )
 def test_composite_rejects_unsupported_cel_targets(
-    tmp_path: Path, kind: str, layer: int, frame: int, code: str
+    tmp_path: Path,
+    runtime: RuntimeObservation,
+    kind: str,
+    layer: int,
+    frame: int,
+    code: str,
 ) -> None:
-    source = image_fixture(tmp_path, kind)
+    source = image_fixture(runtime, tmp_path, kind)
     original = source.read_bytes()
     target = tmp_path / "rejected.aseprite"
     value = _snapshot({"kind": "rgba", "red": 0, "green": 0, "blue": 0, "alpha": 255})

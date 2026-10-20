@@ -125,23 +125,28 @@ def test_probe_failure_evidence_reaches_pytest_reports(
     )
     test_file = tmp_path / "test_probe.py"
     action = {
-        "call": "    image_fixture(tmp_path)\n",
+        "call": "    probe_runtime()\n",
         "setup": "    pass\n",
         "expected": (
-            "    with pytest.raises(RuntimeIssue):\n        image_fixture(tmp_path)\n"
+            "    with pytest.raises(RuntimeIssue):\n        probe_runtime()\n"
         ),
     }[phase]
     setup = (
         "@pytest.fixture(autouse=True)\n"
         "def failed_setup(tmp_path):\n"
-        "    image_fixture(tmp_path)\n"
+        "    probe_runtime()\n"
         if phase == "setup"
         else ""
     )
     test_file.write_text(
+        "import os\n"
         "import pytest\n"
-        "from spa.contracts.ports import RuntimeIssue\n"
-        "from tests.image.support import image_fixture\n"
+        "from spa.adapters.aseprite.aseprite import probe\n"
+        "from spa.application.surface import PROBE_RESOURCES\n"
+        "from spa.contracts.ports import RuntimeIssue, RuntimeRequest\n"
+        "def probe_runtime():\n"
+        "    aseprite = os.environ['SPA_TEST_ASEPRITE']\n"
+        "    probe(RuntimeRequest(aseprite=aseprite), PROBE_RESOURCES)\n"
         + setup
         + "def test_probe(tmp_path):\n"
         + action

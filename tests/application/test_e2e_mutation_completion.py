@@ -13,7 +13,7 @@ from tests.application.support import (
     completion_request,
     observe_completion,
 )
-from tests.motion.test_e2e_motion import fixture
+from tests.support import motion_sprite
 
 pytestmark = pytest.mark.e2e
 
@@ -30,7 +30,7 @@ def test_standalone_completion_gates_commit_and_cleans_staging(
     in_place: bool,
     case: str,
 ) -> None:
-    source = fixture(runtime, tmp_path, uuids="true")
+    source = motion_sprite(runtime, tmp_path, uuids="true")
     target = source if in_place else tmp_path / "target.aseprite"
     if not in_place:
         target.write_bytes(b"existing Target")

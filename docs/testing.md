@@ -73,7 +73,8 @@ select a fixture. A single-consumer behaviour stays in its test file and builds 
 capabilities that the test gives, and exits 97 on each other call. A test of a
 refusal after the probe and before the Kernel uses it, so the test fails when the
 request gets to the Kernel. `probe_answer` gives the same probe response to other
-fixtures.
+fixtures. `script_runtime` answers the probe in the same way and runs a Python body
+for each other call, as the script process of `spa script run`.
 `tests/support.py::controlled_runtime` gives a runtime observation of such an
 executable without a probe. A test that uses a controlled executable uses
 `controlled_runtime`, not the session `runtime` fixture.
@@ -95,8 +96,21 @@ parameter as one `--script-param`, and a boolean as `true` or `false`. The calle
 asserts the exit status. The session-scope `runtime` fixture in `tests/conftest.py`
 probes the configured Aseprite once for each pytest worker. A fixture builder takes
 `runtime` as a parameter and does not probe. A test whose claim is the probe calls
-`probe` itself. Areas that still have private CLI helpers, native runners, or
-module-scope `runtime` fixtures move to this module through issue #280.
+`probe` itself. A test module keeps its own CLI or Lua fixture helper only when the
+helper adds test-specific steps to `run`, `expect_success`, or `run_lua`, and its
+docstring states those steps. A builder that more than one area uses, such as
+`orientation_fixture`, is in `tests/support.py`. It imports `run_lua` in its body,
+because `tests/native_invocation.py` imports `tests/support.py`.
+
+`tests/support.py::observe_cli` runs the installed `spa` command through
+`tests/fixtures/observe_cli.py`, which replaces one SPA adapter seam with observers
+before the entry point runs. With the `invoke_direct` seam, the observers count the
+native invocations of a Plan, change the native response as the case requires, and
+refuse a separate probe or standalone handler. With the `run` seam, they count the
+probe and handler processes and run each handler inside
+`tests/fixtures/observe_cli.lua`, which injects the native I/O fault of the case. On
+both seams they count Target Commits and write the observations to a JSON file.
+`observe_cli` adds `aseprite` and validates the envelope as `run` does.
 
 Native Paint #26 has separate Line, Rectangle, and Ellipse runtime gates. Its
 real-runtime suite compares saved pixels with direct `app.useTool` references for

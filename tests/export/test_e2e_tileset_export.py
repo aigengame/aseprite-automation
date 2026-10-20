@@ -1,31 +1,25 @@
 """Verified Tileset atlas and map pairs through the installed public CLI."""
 
 import json
-import os
 from pathlib import Path
 
 import pytest
 from PIL import Image
 
-from spa.adapters.aseprite.aseprite import probe
-from spa.application.surface import PROBE_RESOURCES
-from spa.contracts.public import RuntimeRequest
 from tests.export.support import png_icc_label
 from tests.native_invocation import expect_success, run, run_lua
-from tests.support import process_diagnostics
-from tests.tile.support import tileset_lifecycle_sprite
+from tests.support import process_diagnostics, tileset_lifecycle_sprite
 
 pytestmark = pytest.mark.e2e
 
 
-@pytest.fixture(scope="module")
-def runtime():
-    return probe(
-        RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
-    )
-
-
 def request(source: Path, root: Path, **overrides: object) -> dict:
+    """Return an Export Tileset request of the `source` Tileset.
+
+    The request exports the `map` Layer at Frame 1, rectangle 3 x 1 at 0, 0, in
+    3 columns, to `atlas.png` and `map.json` in root. Each override replaces one
+    field.
+    """
     return {
         "source_sprite_file": str(source),
         "tileset": {"tileset_name": "source"},
@@ -99,6 +93,12 @@ PALETTE = [
 def matrix_source(
     tmp_path: Path, runtime, mode="rgb", profile="none", **params
 ) -> Path:
+    """Write `source.aseprite` in tmp_path with `tileset_export.lua`.
+
+    This gives the fixture the ICC file of a linear sRGB or Display P3 profile.
+    An indexed source without palette_size gets a native Palette Change at
+    Frame 2.
+    """
     from importlib.resources import files
 
     from spa.authoring.color.profile import PROFILE_ICC_RESOURCES
@@ -127,6 +127,7 @@ def matrix_source(
 
 
 def matrix_request(source: Path, tmp_path: Path) -> dict:
+    """Return the `request` of the `terrain` Tileset at Frame 2, 3 x 2, 2 columns."""
     return request(
         source,
         tmp_path,

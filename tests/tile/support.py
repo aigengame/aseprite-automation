@@ -63,14 +63,6 @@ def verify_cel_creation(
     assert lua.returncode == 0, process_diagnostics(lua)
 
 
-def tileset_lifecycle_sprite(
-    runtime: RuntimeObservation, source: Path, **params: object
-) -> None:
-    """Write the Tileset rebind Sprite of `tileset_lifecycle.lua` to source."""
-    lua = run_lua(FIXTURES / "tileset_lifecycle.lua", runtime, source=source, **params)
-    assert lua.returncode == 0, process_diagnostics(lua)
-
-
 def verify_tileset_lifecycle(
     runtime: RuntimeObservation, source: Path, **params: object
 ) -> None:

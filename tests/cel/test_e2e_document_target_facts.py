@@ -4,8 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from tests.cel.test_e2e_cel import _fixture
-from tests.native_invocation import expect_success, run
+from spa.contracts.ports import RuntimeObservation
+from tests.native_invocation import expect_success, run, run_lua
+from tests.support import process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
@@ -22,9 +23,16 @@ def _mutation(source: Path, target: Path) -> dict:
     }
 
 
-def _reordered_links(tmp_path: Path) -> tuple[Path, str]:
+def _reordered_links(runtime: RuntimeObservation, tmp_path: Path) -> tuple[Path, str]:
+    """Write `target_facts.lua`, link Frame 2 to Frame 1, and move Layer [2] to 1.
+
+    Check each step, and return the moved Sprite and the UUID of its leaf Layer.
+    """
     source = tmp_path / "source.aseprite"
-    _fixture(source, "target_facts.lua")
+    lua = run_lua(
+        Path(__file__).parent / "fixtures" / "target_facts.lua", runtime, out=source
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
     original = expect_success("layer list", {"sprite_file": str(source)})
     leaf = original["layers"][1]["children"][0]["children"][0]
     assert leaf["path"] == [2, 1, 1]
@@ -55,10 +63,11 @@ def _reordered_links(tmp_path: Path) -> tuple[Path, str]:
 
 @pytest.mark.parametrize("paint", ["apply", "line"])
 def test_reordered_nested_cels_keep_identity_paths_and_linked_raster_scope(
+    runtime: RuntimeObservation,
     tmp_path: Path,
     paint: str,
 ) -> None:
-    source, uuid = _reordered_links(tmp_path)
+    source, uuid = _reordered_links(runtime, tmp_path)
     before = source.read_bytes()
     address = {"layer": {"layer_uuid": uuid}, "frame_number": 1}
     cel = expect_success("cel get", {"sprite_file": str(source), "target": address})[
@@ -151,9 +160,10 @@ def test_reordered_nested_cels_keep_identity_paths_and_linked_raster_scope(
 
 
 def test_plan_reports_reordered_document_paths_and_preserves_uuid_after_reopen(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
-    source, uuid = _reordered_links(tmp_path)
+    source, uuid = _reordered_links(runtime, tmp_path)
     target = tmp_path / "planned.aseprite"
     result = expect_success(
         "plan run",

@@ -6,11 +6,11 @@ import pytest
 from pydantic import ValidationError
 
 from spa.authoring.document.motion import MotionInput
-from tests.motion.test_e2e_motion import curves
+from tests.support import motion_curves
 
 
 def test_full_signed_coordinate_displacement_is_accepted() -> None:
-    request = curves()
+    request = motion_curves()
     request["position_offsets"]["keys"][0]["offset"] = {"x": -65535, "y": 65535}
     request["position_offsets"]["keys"][1]["offset"] = {"x": 65535, "y": -65535}
     parsed = MotionInput.model_validate(request)
@@ -20,7 +20,7 @@ def test_full_signed_coordinate_displacement_is_accepted() -> None:
 
 @pytest.mark.parametrize("bad", [-65536, 65536, 0.5, "1", True])
 def test_offset_domain_rejects_out_of_range_or_non_integer_values(bad: object) -> None:
-    request = curves()
+    request = motion_curves()
     request["position_offsets"]["keys"][0]["offset"]["x"] = bad
     with pytest.raises(ValidationError):
         MotionInput.model_validate(request)
@@ -43,14 +43,14 @@ def test_offset_domain_rejects_out_of_range_or_non_integer_values(bad: object) -
     ],
 )
 def test_incomplete_unordered_or_unspecified_curves_are_rejected(change) -> None:
-    request = curves()
+    request = motion_curves()
     change(request)
     with pytest.raises(ValidationError):
         MotionInput.model_validate(request)
 
 
 def test_single_frame_requires_one_key_per_supplied_curve() -> None:
-    request = curves()
+    request = motion_curves()
     request.update(from_frame=3, to_frame=3)
     request["position_offsets"]["keys"] = [
         {"frame_number": 3, "offset": {"x": -2, "y": 3}}

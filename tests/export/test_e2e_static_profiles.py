@@ -1,30 +1,23 @@
 """Static PNG Profile choices and native Profile-before-Palette operation order."""
 
-import json
-import os
 from pathlib import Path
 
 import pytest
 from PIL import Image
 
-from spa.adapters.aseprite.aseprite import probe
-from spa.application.surface import PROBE_RESOURCES
-from spa.contracts.public import RuntimeRequest
-from tests.export.support import export_image_request as _request
-from tests.export.support import png_icc_label, source_sprite
-from tests.export.test_e2e_static_geometry import _export
-from tests.support import icc_fixture_path, spa
+from spa.contracts.ports import RuntimeObservation
+from tests.export.support import export_verified_image, png_icc_label
+from tests.native_invocation import Outcome, run
+from tests.support import (
+    export_image_choices,
+    icc_fixture_path,
+    process_diagnostics,
+    source_sprite,
+)
 
 pytestmark = pytest.mark.e2e
 PROFILES = ("none", "srgb", "linear_srgb", "display_p3_cc0", "display_p3")
 UNCHANGED = [(11, 22, 33, 255), (44, 55, 66, 255)]
-
-
-@pytest.fixture(scope="module")
-def runtime():
-    return probe(
-        RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
-    )
 
 
 def _profile(identity: str) -> dict:
@@ -35,8 +28,15 @@ def _profile(identity: str) -> dict:
     )
 
 
-def _source(tmp_path: Path, identity: str, *, mode: str = "rgb") -> Path:
+def _source(
+    runtime: RuntimeObservation, tmp_path: Path, identity: str, *, mode: str = "rgb"
+) -> Path:
+    """Return the opaque `source_sprite` of `rgb_profile_alpha.lua`.
+
+    This sets the `profile` and `icc_file` parameters from the Profile identity.
+    """
     return source_sprite(
+        runtime,
         tmp_path,
         "rgb_profile_alpha.lua",
         mode=mode,
@@ -65,12 +65,12 @@ def _encoded_profile(result: dict, destination: Path, identity: str) -> None:
 
 @pytest.mark.parametrize("identity", PROFILES)
 def test_preserve_keeps_profile_encoding_and_stored_channels(
-    tmp_path: Path, identity: str
+    tmp_path: Path, runtime: RuntimeObservation, identity: str
 ) -> None:
-    source = _source(tmp_path, identity)
+    source = _source(runtime, tmp_path, identity)
     before = source.read_bytes()
     destination = tmp_path / "preserved.png"
-    result = _export(_request(source, destination))
+    result = export_verified_image(export_image_choices(source, destination))
     _encoded_profile(result, destination, identity)
     with Image.open(destination) as image:
         assert list(image.convert("RGBA").get_flattened_data()) == UNCHANGED
@@ -79,13 +79,13 @@ def test_preserve_keeps_profile_encoding_and_stored_channels(
 
 @pytest.mark.parametrize("identity", PROFILES)
 def test_assign_changes_only_profile_and_preserves_stored_channels(
-    tmp_path: Path, identity: str
+    tmp_path: Path, runtime: RuntimeObservation, identity: str
 ) -> None:
-    source = _source(tmp_path, "srgb" if identity == "none" else "none")
+    source = _source(runtime, tmp_path, "srgb" if identity == "none" else "none")
     before = source.read_bytes()
     destination = tmp_path / "assigned.png"
-    result = _export(
-        _request(
+    result = export_verified_image(
+        export_image_choices(
             source,
             destination,
             color_profile={"kind": "assign", "profile": _profile(identity)},
@@ -98,12 +98,23 @@ def test_assign_changes_only_profile_and_preserves_stored_channels(
 
 
 def _conversion_refusal(
-    run, runtime, source: Path, before: bytes, destination: Path, prior: bytes
+    outcome: Outcome,
+    runtime: RuntimeObservation,
+    source: Path,
+    before: bytes,
+    destination: Path,
+    prior: bytes,
 ) -> bool:
+    """Return True after it checks a refusal for a missing conversion capability.
+
+    When the runtime has `aseprite_convert_color_profile`, return False and do
+    not check outcome. Otherwise outcome must be a `runtime_incompatible`
+    refusal that keeps the Source and the existing destination unchanged.
+    """
     if "aseprite_convert_color_profile" in runtime.verified_capabilities:
         return False
-    assert run.returncode != 0
-    failure = json.loads(run.stdout)
+    assert outcome.returncode != 0
+    failure = outcome.envelope
     assert failure["code"] == "runtime_incompatible", failure
     assert (
         "aseprite_convert_color_profile" in failure["details"]["missing_capabilities"]
@@ -127,22 +138,22 @@ def _conversion_refusal(
 def test_each_admitted_profile_conversion_uses_actual_runtime_capability(
     tmp_path: Path, runtime, source_profile: str, target_profile: str, pixels: list
 ) -> None:
-    source = _source(tmp_path, source_profile)
+    source = _source(runtime, tmp_path, source_profile)
     before = source.read_bytes()
     destination = tmp_path / "converted.png"
     prior = b"existing destination"
     destination.write_bytes(prior)
-    request = _request(
+    request = export_image_choices(
         source,
         destination,
         color_profile={"kind": "convert", "profile": _profile(target_profile)},
     )
     request["destination"]["if_exists"] = "replace"
-    run = spa("export", "image", "--input-json", json.dumps(request))
-    if _conversion_refusal(run, runtime, source, before, destination, prior):
+    outcome = run("export image", request)
+    if _conversion_refusal(outcome, runtime, source, before, destination, prior):
         return
-    assert run.returncode == 0, run.stdout + run.stderr
-    result = json.loads(run.stdout)
+    assert outcome.returncode == 0, process_diagnostics(outcome.process)
+    result = outcome.envelope
     _encoded_profile(result, destination, target_profile)
     with Image.open(destination) as image:
         assert list(image.convert("RGBA").get_flattened_data()) == pixels
@@ -152,22 +163,22 @@ def test_each_admitted_profile_conversion_uses_actual_runtime_capability(
 def test_unadmitted_srgb_to_display_p3_cc0_direction_preserves_existing_destination(
     tmp_path: Path, runtime
 ) -> None:
-    source = _source(tmp_path, "srgb")
+    source = _source(runtime, tmp_path, "srgb")
     before = source.read_bytes()
     destination = tmp_path / "refused.png"
     prior = b"existing destination"
     destination.write_bytes(prior)
-    request = _request(
+    request = export_image_choices(
         source,
         destination,
         color_profile={"kind": "convert", "profile": _profile("display_p3_cc0")},
     )
     request["destination"]["if_exists"] = "replace"
-    run = spa("export", "image", "--input-json", json.dumps(request))
-    if _conversion_refusal(run, runtime, source, before, destination, prior):
+    outcome = run("export image", request)
+    if _conversion_refusal(outcome, runtime, source, before, destination, prior):
         return
-    assert run.returncode != 0
-    failure = json.loads(run.stdout)
+    assert outcome.returncode != 0
+    failure = outcome.envelope
     assert failure["code"] == "color_profile_file_failed", failure
     assert failure["details"]["reason"] == "unsupported_conversion"
     assert source.read_bytes() == before and destination.read_bytes() == prior
@@ -175,25 +186,26 @@ def test_unadmitted_srgb_to_display_p3_cc0_direction_preserves_existing_destinat
 
 @pytest.mark.parametrize("profile_choice", ["preserve", "assign"])
 def test_grayscale_with_rgb_icc_profile_refuses_publication(
-    tmp_path: Path, profile_choice: str
+    tmp_path: Path, runtime: RuntimeObservation, profile_choice: str
 ) -> None:
     source = _source(
+        runtime,
         tmp_path,
         "linear_srgb" if profile_choice == "preserve" else "srgb",
         mode="grayscale",
     )
     before = source.read_bytes()
     destination = tmp_path / "gray.png"
-    request = _request(
+    request = export_image_choices(
         source,
         destination,
         color_profile="preserve"
         if profile_choice == "preserve"
         else {"kind": "assign", "profile": _profile("linear_srgb")},
     )
-    run = spa("export", "image", "--input-json", json.dumps(request))
-    assert run.returncode != 0
-    failure = json.loads(run.stdout)
+    outcome = run("export image", request)
+    assert outcome.returncode != 0
+    failure = outcome.envelope
     assert failure["code"] == "export_image_invalid", failure
     assert failure["details"]["reason"] == "color_profile"
     assert not destination.exists() and source.read_bytes() == before
@@ -204,6 +216,7 @@ def test_profile_conversion_precedes_palette_import_and_mapping_on_selected_cont
     tmp_path: Path, runtime, palette_format: str
 ) -> None:
     source = source_sprite(
+        runtime,
         tmp_path,
         "static_profiles_order.lua",
         icc_file=str(icc_fixture_path("linear_srgb")),
@@ -229,7 +242,7 @@ def test_profile_conversion_precedes_palette_import_and_mapping_on_selected_cont
     destination = tmp_path / "ordered.png"
     prior = b"existing destination"
     destination.write_bytes(prior)
-    request = _request(
+    request = export_image_choices(
         source,
         destination,
         frame_number=2,
@@ -254,11 +267,11 @@ def test_profile_conversion_precedes_palette_import_and_mapping_on_selected_cont
         },
     )
     request["destination"]["if_exists"] = "replace"
-    run = spa("export", "image", "--input-json", json.dumps(request))
-    if _conversion_refusal(run, runtime, source, before, destination, prior):
+    outcome = run("export image", request)
+    if _conversion_refusal(outcome, runtime, source, before, destination, prior):
         return
-    assert run.returncode == 0, run.stdout + run.stderr
-    result = json.loads(run.stdout)
+    assert outcome.returncode == 0, process_diagnostics(outcome.process)
+    result = outcome.envelope
     assert result["frame_number"] == 2 and result["resolved_layer_paths"] == [[1]]
     assert result["palette_entries"] == [
         dict(zip(("red", "green", "blue", "alpha"), color)) for color in entries

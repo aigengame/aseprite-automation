@@ -5,31 +5,24 @@ from pathlib import Path
 
 from jsonschema import validate
 
+from tests.native_invocation import run
 from tests.support import probe_only_aseprite, spa
-
-
-def _copy(source: Path, target: Path, aseprite: Path, *, overwrite: bool):
-    return spa(
-        "sprite",
-        "copy",
-        "--input-json",
-        json.dumps(
-            {
-                "aseprite": str(aseprite),
-                "source_sprite_file": str(source),
-                "target_sprite_file": str(target),
-                "overwrite": overwrite,
-            }
-        ),
-    )
 
 
 def test_copy_requires_a_distinct_target(tmp_path: Path) -> None:
     source = tmp_path / "source.aseprite"
     source.write_bytes(b"Source")
-    run = _copy(source, source, probe_only_aseprite(tmp_path), overwrite=True)
-    assert run.returncode == 2, run.stdout
-    failure = json.loads(run.stdout)
+    outcome = run(
+        "sprite copy",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(source),
+            "overwrite": True,
+        },
+        aseprite=probe_only_aseprite(tmp_path),
+    )
+    failure = outcome.envelope
+    assert outcome.returncode == 2, failure
     assert failure["code"] == "invalid_request"
     assert failure["details"]["errors"][0]["location"] == ["target_sprite_file"]
     assert failure["details"]["errors"][0]["code"] == "source_target_identity"
@@ -42,9 +35,17 @@ def test_copy_reports_source_staging_failure_without_target_commit(
 ) -> None:
     missing = tmp_path / "missing.aseprite"
     target = tmp_path / "copy.aseprite"
-    run = _copy(missing, target, probe_only_aseprite(tmp_path), overwrite=False)
-    assert run.returncode == 1, run.stdout
-    failure = json.loads(run.stdout)
+    outcome = run(
+        "sprite copy",
+        {
+            "source_sprite_file": str(missing),
+            "target_sprite_file": str(target),
+            "overwrite": False,
+        },
+        aseprite=probe_only_aseprite(tmp_path),
+    )
+    failure = outcome.envelope
+    assert outcome.returncode == 1, failure
     validate(
         failure, json.loads(spa("sprite", "copy", "--schema").stdout)["failure_schema"]
     )

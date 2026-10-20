@@ -6,16 +6,21 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from tests.export.support import png_icc_label, source_sprite
+from spa.contracts.ports import RuntimeObservation
+from tests.export.support import png_icc_label
+from tests.support import source_sprite
 
 pytestmark = pytest.mark.e2e
 
 
 @pytest.mark.parametrize("profile", ["none", "srgb", "linear_srgb", "display_p3_cc0"])
-def test_png_profile_copy_preserves_content_and_input(tmp_path: Path, profile: str):
+def test_png_profile_copy_preserves_content_and_input(
+    tmp_path: Path, runtime: RuntimeObservation, profile: str
+):
     kernel = files("spa.kernel")
     icc = kernel.joinpath(f"color/profiles/{profile}.icc")
     source_sprite(
+        runtime,
         tmp_path,
         "png_profile.lua",
         profile=profile,

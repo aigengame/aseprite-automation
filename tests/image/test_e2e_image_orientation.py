@@ -1,71 +1,38 @@
 """Whole-Image orientation through the installed CLI and native persisted pixels."""
 
 import json
-import os
-import subprocess
-import tempfile
 from importlib.resources import files
 from pathlib import Path
 
 import pytest
 from jsonschema import validate
 
-from spa.adapters.aseprite.aseprite import probe
-from spa.adapters.aseprite.invocation import prepare_invocation
-from spa.application.surface import PROBE_RESOURCES
-from spa.contracts.public import RuntimeRequest
-from tests.support import process_diagnostics, spa
+from spa.contracts.ports import RuntimeObservation
+from tests.native_invocation import expect_success, run, run_lua
+from tests.support import (
+    inspect_orientation,
+    orientation_fixture,
+    process_diagnostics,
+    spa,
+)
 
 pytestmark = pytest.mark.e2e
 
 
-def _native(script: str, **parameters: object) -> None:
-    observation = probe(
-        RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
-    )
-    with tempfile.TemporaryDirectory(prefix="spa-orientation-") as work:
-        prepared = prepare_invocation(
-            Path(observation.canonical_path),
-            Path(observation.resource_path),
-            Path(work),
-        )
-        args = [str(prepared.executable), "--batch"]
-        for key, value in parameters.items():
-            args.extend(("--script-param", f"{key}={value}"))
-        args.extend(("--script", str(Path(__file__).parent / "fixtures" / script)))
-        run = subprocess.run(
-            args, capture_output=True, text=True, env=prepared.environment, check=False
-        )
-    assert run.returncode == 0, process_diagnostics(run)
+def _orientation_request(source: Path, target_file: Path, **options: object) -> dict:
+    """Return an Image flip or rotate request for Layer 1, Frame 1.
 
-
-def _fixture(tmp_path: Path, mode: str = "rgb", kind: str = "regular") -> Path:
-    source = tmp_path / "source.aseprite"
-    _native("orientation_targets.lua", out=source, mode=mode, kind=kind)
-    assert source.is_file()
-    return source
-
-
-def _inspect(source: Path, tmp_path: Path, layer: int = 1) -> dict:
-    output = tmp_path / "native.json"
-    _native("inspect_orientation.lua", source=source, out=output, layer=layer)
-    return json.loads(output.read_text())
-
-
-def _run(
-    operation: str, source: Path, target_file: Path, **options: object
-) -> tuple[int, dict]:
-    request = {
+    The request writes target_file, not in place and without overwrite. Each
+    option replaces one field.
+    """
+    return {
         "source_sprite_file": str(source),
         "target_sprite_file": str(target_file),
         "in_place": False,
         "overwrite": False,
         "target": {"layer": {"layer_path": [1]}, "frame_number": 1},
-        "aseprite": os.environ["SPA_TEST_ASEPRITE"],
         **options,
     }
-    run = spa("image", operation, "--input-json", json.dumps(request))
-    return run.returncode, json.loads(run.stdout)
 
 
 @pytest.mark.parametrize("mode", ["rgb", "grayscale", "indexed"])
@@ -74,13 +41,14 @@ def _run(
     [("horizontal", [2, 1, 0, 5, 4, 3]), ("vertical", [3, 4, 5, 0, 1, 2])],
 )
 def test_flip_shared_image_once_and_keep_all_cel_positions(
-    tmp_path: Path, mode: str, axis: str, order: list[int]
+    tmp_path: Path, runtime: RuntimeObservation, mode: str, axis: str, order: list[int]
 ) -> None:
-    source = _fixture(tmp_path, mode)
-    before = _inspect(source, tmp_path)
+    source = orientation_fixture(runtime, tmp_path, mode)
+    before = inspect_orientation(runtime, source, tmp_path)
     target = tmp_path / "flipped.aseprite"
-    status, result = _run("flip", source, target, axis=axis)
-    assert status == 0, result
+    result = expect_success(
+        "image flip", _orientation_request(source, target, axis=axis)
+    )
     validate(
         result, json.loads(spa("image", "flip", "--schema").stdout)["result_schema"]
     )
@@ -89,7 +57,7 @@ def test_flip_shared_image_once_and_keep_all_cel_positions(
     assert result["native_sharing_preserved"] is True
     assert result["persisted_reopen_verified"] is True
     assert len(result["affected_cels"]) == 2
-    after = _inspect(target, tmp_path)
+    after = inspect_orientation(runtime, target, tmp_path)
     expected = [before["cels"][0]["pixels"][index] for index in order]
     for cel in after["cels"][:2]:
         assert cel["pixels"] == expected
@@ -110,18 +78,21 @@ def test_flip_shared_image_once_and_keep_all_cel_positions(
 )
 def test_quarter_turn_swaps_non_square_dimensions_and_preserves_pixel_values(
     tmp_path: Path,
+    runtime: RuntimeObservation,
     mode: str,
     angle: int,
     size: tuple[int, int],
     order: list[int],
 ) -> None:
-    source = _fixture(tmp_path, mode)
-    before = _inspect(source, tmp_path)
+    source = orientation_fixture(runtime, tmp_path, mode)
+    before = inspect_orientation(runtime, source, tmp_path)
     target = tmp_path / "rotated.aseprite"
-    status, result = _run(
-        "rotate", source, target, angle=angle, position_policy={"kind": "keep"}
+    result = expect_success(
+        "image rotate",
+        _orientation_request(
+            source, target, angle=angle, position_policy={"kind": "keep"}
+        ),
     )
-    assert status == 0, result
     validate(
         result, json.loads(spa("image", "rotate", "--schema").stdout)["result_schema"]
     )
@@ -129,7 +100,7 @@ def test_quarter_turn_swaps_non_square_dimensions_and_preserves_pixel_values(
     assert result["old_size"] == {"width": 3, "height": 2}
     assert result["new_size"] == {"width": size[0], "height": size[1]}
     assert result["position_delta"] == {"x": 0, "y": 0}
-    after = _inspect(target, tmp_path)
+    after = inspect_orientation(runtime, target, tmp_path)
     expected = [before["cels"][0]["pixels"][index] for index in order]
     for current in after["cels"][:2]:
         assert current["pixels"] == expected
@@ -143,17 +114,19 @@ def test_quarter_turn_swaps_non_square_dimensions_and_preserves_pixel_values(
     ("angle", "delta"), [(90, (1, 6)), (-90, (-6, 0)), (180, (-6, 7))]
 )
 def test_rotation_anchors_outside_image_pivot_and_moves_linked_cels_once(
-    tmp_path: Path, angle: int, delta: tuple[int, int]
+    tmp_path: Path, runtime: RuntimeObservation, angle: int, delta: tuple[int, int]
 ) -> None:
-    source = _fixture(tmp_path)
-    before = _inspect(source, tmp_path)
+    source = orientation_fixture(runtime, tmp_path)
+    before = inspect_orientation(runtime, source, tmp_path)
     target = tmp_path / "pivot.aseprite"
     policy = {"kind": "pivot", "pivot_x": -2, "pivot_y": 4}
-    status, result = _run("rotate", source, target, angle=angle, position_policy=policy)
-    assert status == 0, result
+    result = expect_success(
+        "image rotate",
+        _orientation_request(source, target, angle=angle, position_policy=policy),
+    )
     assert result["position_policy"] == policy
     assert result["position_delta"] == {"x": delta[0], "y": delta[1]}
-    after = _inspect(target, tmp_path)
+    after = inspect_orientation(runtime, target, tmp_path)
     for current in after["cels"][:2]:
         assert current["position"] == {"x": 4 + delta[0], "y": 5 + delta[1]}
         assert len(current["linked_frames"]) == 1
@@ -169,27 +142,31 @@ def test_rotation_anchors_outside_image_pivot_and_moves_linked_cels_once(
 )
 def test_rotation_reports_placement_bounds_without_publishing(
     tmp_path: Path,
+    runtime: RuntimeObservation,
     angle: int,
     pivot: int,
     attempted_position: dict,
     in_place: bool,
 ) -> None:
-    source = _fixture(tmp_path)
+    source = orientation_fixture(runtime, tmp_path)
     original = source.read_bytes()
     target = source if in_place else tmp_path / "existing-target.aseprite"
     if not in_place:
         target.write_bytes(original)
-    status, result = _run(
-        "rotate",
-        source,
-        target,
-        in_place=in_place,
-        overwrite=True,
-        target={"layer": {"layer_path": [1]}, "frame_number": 2},
-        angle=angle,
-        position_policy={"kind": "pivot", "pivot_x": pivot, "pivot_y": pivot},
+    outcome = run(
+        "image rotate",
+        _orientation_request(
+            source,
+            target,
+            in_place=in_place,
+            overwrite=True,
+            target={"layer": {"layer_path": [1]}, "frame_number": 2},
+            angle=angle,
+            position_policy={"kind": "pivot", "pivot_x": pivot, "pivot_y": pivot},
+        ),
     )
-    assert status == 2
+    result = outcome.envelope
+    assert outcome.returncode == 2
     assert result["code"] == "image_rotate_position_out_of_bounds", result
     assert source.read_bytes() == target.read_bytes() == original
     details = result["details"]
@@ -207,22 +184,23 @@ def test_rotation_reports_placement_bounds_without_publishing(
 @pytest.mark.parametrize(("kind", "layer"), [("background", 1), ("reference", 1)])
 @pytest.mark.parametrize("axis", ["horizontal", "vertical"])
 def test_flip_preserves_background_and_reference_placement(
-    tmp_path: Path, kind: str, layer: int, axis: str
+    tmp_path: Path, runtime: RuntimeObservation, kind: str, layer: int, axis: str
 ) -> None:
-    source = _fixture(tmp_path, kind=kind)
-    inspected = _inspect(source, tmp_path, layer)
+    source = orientation_fixture(runtime, tmp_path, kind=kind)
+    inspected = inspect_orientation(runtime, source, tmp_path, layer)
     assert inspected[f"is_{kind}"] is True
     before = inspected["cels"][0]
     target = tmp_path / "special-flipped.aseprite"
-    status, result = _run(
-        "flip",
-        source,
-        target,
-        axis=axis,
-        target={"layer": {"layer_path": [layer]}, "frame_number": 1},
+    result = expect_success(
+        "image flip",
+        _orientation_request(
+            source,
+            target,
+            axis=axis,
+            target={"layer": {"layer_path": [layer]}, "frame_number": 1},
+        ),
     )
-    assert status == 0, result
-    after = _inspect(target, tmp_path, layer)["cels"][0]
+    after = inspect_orientation(runtime, target, tmp_path, layer)["cels"][0]
     width, height = before["width"], before["height"]
     assert after["width"] == width and after["height"] == height
     assert after["position"] == before["position"]
@@ -257,9 +235,15 @@ def test_flip_preserves_background_and_reference_placement(
     ],
 )
 def test_unsupported_target_rejection_preserves_existing_source_and_target(
-    tmp_path: Path, operation: str, kind: str, layer: int, frame: int, code: str
+    tmp_path: Path,
+    runtime: RuntimeObservation,
+    operation: str,
+    kind: str,
+    layer: int,
+    frame: int,
+    code: str,
 ) -> None:
-    source = _fixture(tmp_path, kind=kind)
+    source = orientation_fixture(runtime, tmp_path, kind=kind)
     original = source.read_bytes()
     target = tmp_path / "preserved.aseprite"
     target.write_bytes(original)
@@ -271,15 +255,18 @@ def test_unsupported_target_rejection_preserves_existing_source_and_target(
             "position_policy": {"kind": "keep"},
         }
     )
-    status, result = _run(
-        operation,
-        source,
-        target,
-        overwrite=True,
-        target={"layer": {"layer_path": [layer]}, "frame_number": frame},
-        **options,
+    outcome = run(
+        f"image {operation}",
+        _orientation_request(
+            source,
+            target,
+            overwrite=True,
+            target={"layer": {"layer_path": [layer]}, "frame_number": frame},
+            **options,
+        ),
     )
-    assert status == 2, result
+    result = outcome.envelope
+    assert outcome.returncode == 2, result
     assert result["code"] == code, result
     assert source.read_bytes() == target.read_bytes() == original
 
@@ -295,11 +282,16 @@ def test_unsupported_target_rejection_preserves_existing_source_and_target(
     ],
 )
 def test_native_transform_ignores_active_selection(
-    tmp_path: Path, operation: str, options: dict, pixels: list[int]
+    tmp_path: Path,
+    runtime: RuntimeObservation,
+    operation: str,
+    options: dict,
+    pixels: list[int],
 ) -> None:
     output = tmp_path / "selected.json"
-    _native(
-        "orientation_selection.lua",
+    lua = run_lua(
+        Path(__file__).parent / "fixtures" / "orientation_selection.lua",
+        runtime,
         out=output,
         operation=operation,
         **options,
@@ -307,6 +299,7 @@ def test_native_transform_ignores_active_selection(
             "raster/image/image_orientation_transform.lua"
         ),
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     result = json.loads(output.read_text())
     assert result["pixels"] == pixels
     assert result["selection"] == {"x": 4, "y": 5, "width": 1, "height": 1}

@@ -1,80 +1,29 @@
 """Explicit Background Layer conversion through the installed CLI."""
 
 import hashlib
-import json
-import os
 import struct
-import subprocess
-import tempfile
 from pathlib import Path
 
 import pytest
 
-from spa.adapters.aseprite.invocation import prepare_invocation
-from tests.native_invocation import render_frame
-from tests.support import process_diagnostics, spa
+from spa.contracts.ports import RuntimeObservation
+from tests.native_invocation import expect_success, render_frame, run, run_lua
+from tests.support import process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
-
-def _fixture(target: Path, name: str, mode: str | None = None) -> None:
-    aseprite = Path(os.environ["SPA_TEST_ASEPRITE"]).resolve()
-    resource = aseprite.parent.parent / "Resources" / "data" / "gui.xml"
-    script = Path(__file__).parent / "fixtures" / name
-    with tempfile.TemporaryDirectory(prefix="spa-layer-conversion-fixture-") as work:
-        prepared = prepare_invocation(aseprite, resource, Path(work))
-        params = ["--script-param", f"mode={mode}"] if mode is not None else []
-        run = subprocess.run(
-            [
-                str(prepared.executable),
-                "--batch",
-                "--script-param",
-                f"out={target}",
-                *params,
-                "--script",
-                str(script),
-            ],
-            text=True,
-            capture_output=True,
-            env=prepared.environment,
-            check=False,
-        )
-    assert run.returncode == 0, process_diagnostics(run)
+FIXTURES = Path(__file__).parent / "fixtures"
 
 
-def _run(command: str, request: dict[str, object]) -> tuple[int, dict]:
-    run = spa(
-        "layer",
-        command,
-        "--input-json",
-        json.dumps({**request, "aseprite": os.environ["SPA_TEST_ASEPRITE"]}),
+def _assert_native_fill(runtime: RuntimeObservation, source: Path, mode: str) -> None:
+    """Check the Background fill of source in mode with `assert_conversion_fill.lua`.
+
+    The fixture exits with an error when a check fails.
+    """
+    lua = run_lua(
+        FIXTURES / "assert_conversion_fill.lua", runtime, source=source, mode=mode
     )
-    return run.returncode, json.loads(run.stdout)
-
-
-def _assert_native_fill(source: Path, mode: str) -> None:
-    aseprite = Path(os.environ["SPA_TEST_ASEPRITE"]).resolve()
-    resource = aseprite.parent.parent / "Resources" / "data" / "gui.xml"
-    script = Path(__file__).parent / "fixtures" / "assert_conversion_fill.lua"
-    with tempfile.TemporaryDirectory(prefix="spa-conversion-assert-") as work:
-        prepared = prepare_invocation(aseprite, resource, Path(work))
-        run = subprocess.run(
-            [
-                str(prepared.executable),
-                "--batch",
-                "--script-param",
-                f"source={source}",
-                "--script-param",
-                f"mode={mode}",
-                "--script",
-                str(script),
-            ],
-            text=True,
-            capture_output=True,
-            env=prepared.environment,
-            check=False,
-        )
-    assert run.returncode == 0, process_diagnostics(run)
+    assert lua.returncode == 0, process_diagnostics(lua)
 
 
 def _make_second_frame_fill_index_transparent(source: Path) -> None:
@@ -101,13 +50,15 @@ def _make_second_frame_fill_index_transparent(source: Path) -> None:
 
 
 def test_convert_transparent_layer_to_background_persists_full_canvas_cels(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "background.aseprite"
-    _fixture(source, "conversion_rgb.lua")
-    code, result = _run(
-        "convert-to-background",
+    lua = run_lua(FIXTURES / "conversion_rgb.lua", runtime, out=source)
+    assert lua.returncode == 0, process_diagnostics(lua)
+    result = expect_success(
+        "layer convert-to-background",
         {
             "source_sprite_file": str(source),
             "target_sprite_file": str(target),
@@ -123,7 +74,6 @@ def test_convert_transparent_layer_to_background_persists_full_canvas_cels(
             },
         },
     )
-    assert code == 0, result
     assert result["persisted_reopen_verified"] is True
     assert result["before_layer"]["name"] == "subject"
     assert result["after_layer"]["is_background"] is True
@@ -170,14 +120,16 @@ def test_convert_transparent_layer_to_background_persists_full_canvas_cels(
 
 
 def test_convert_background_to_transparent_preserves_cels_and_reports_native_name(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
     source = tmp_path / "source.aseprite"
     background = tmp_path / "background.aseprite"
     transparent = tmp_path / "transparent.aseprite"
-    _fixture(source, "conversion_rgb.lua")
-    code, result = _run(
-        "convert-to-background",
+    lua = run_lua(FIXTURES / "conversion_rgb.lua", runtime, out=source)
+    assert lua.returncode == 0, process_diagnostics(lua)
+    result = expect_success(
+        "layer convert-to-background",
         {
             "source_sprite_file": str(source),
             "target_sprite_file": str(background),
@@ -193,9 +145,8 @@ def test_convert_background_to_transparent_preserves_cels_and_reports_native_nam
             },
         },
     )
-    assert code == 0, result
-    code, result = _run(
-        "convert-from-background",
+    result = expect_success(
+        "layer convert-from-background",
         {
             "source_sprite_file": str(background),
             "target_sprite_file": str(transparent),
@@ -204,7 +155,6 @@ def test_convert_background_to_transparent_preserves_cels_and_reports_native_nam
             "target": {"layer_path": [1]},
         },
     )
-    assert code == 0, result
     assert result["before_layer"]["is_background"] is True
     assert result["after_layer"]["is_transparent"] is True
     assert result["after_layer"]["name"] == "Layer 0"
@@ -226,13 +176,14 @@ def test_convert_background_to_transparent_preserves_cels_and_reports_native_nam
     ],
 )
 def test_convert_to_background_uses_compatible_color_in_each_mode(
-    tmp_path: Path, mode: str, color: dict
+    runtime: RuntimeObservation, tmp_path: Path, mode: str, color: dict
 ) -> None:
     source = tmp_path / f"{mode}.aseprite"
     target = tmp_path / "background.aseprite"
-    _fixture(source, "conversion_modes.lua", mode)
-    code, result = _run(
-        "convert-to-background",
+    lua = run_lua(FIXTURES / "conversion_modes.lua", runtime, out=source, mode=mode)
+    assert lua.returncode == 0, process_diagnostics(lua)
+    result = expect_success(
+        "layer convert-to-background",
         {
             "source_sprite_file": str(source),
             "target_sprite_file": str(target),
@@ -242,13 +193,12 @@ def test_convert_to_background_uses_compatible_color_in_each_mode(
             "background_color": color,
         },
     )
-    assert code == 0, result
     assert result["created_cels"] == 1
     assert result["after_layer"]["is_background"] is True
-    _assert_native_fill(target, mode)
+    _assert_native_fill(runtime, target, mode)
     transparent = tmp_path / "transparent.aseprite"
-    code, reversed_result = _run(
-        "convert-from-background",
+    reversed_result = expect_success(
+        "layer convert-from-background",
         {
             "source_sprite_file": str(target),
             "target_sprite_file": str(transparent),
@@ -257,7 +207,6 @@ def test_convert_to_background_uses_compatible_color_in_each_mode(
             "target": {"layer_path": [1]},
         },
     )
-    assert code == 0, reversed_result
     assert reversed_result["after_layer"]["is_transparent"] is True
     assert reversed_result["after_layer"]["name"] == "Layer 0"
     assert reversed_result["before"]["cels"] == reversed_result["after"]["cels"]
@@ -265,13 +214,15 @@ def test_convert_to_background_uses_compatible_color_in_each_mode(
 
 
 def test_nested_source_moves_to_root_bottom_and_reports_changed_addresses(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "background.aseprite"
-    _fixture(source, "mutations.lua")
-    code, result = _run(
-        "convert-to-background",
+    lua = run_lua(FIXTURES / "mutations.lua", runtime, out=source)
+    assert lua.returncode == 0, process_diagnostics(lua)
+    result = expect_success(
+        "layer convert-to-background",
         {
             "source_sprite_file": str(source),
             "target_sprite_file": str(target),
@@ -287,7 +238,6 @@ def test_nested_source_moves_to_root_bottom_and_reports_changed_addresses(
             },
         },
     )
-    assert code == 0, result
     assert result["before_layer"]["path"] == [3, 1]
     assert result["after_layer"]["path"] == [1]
     assert result["created_cels"] == 1
@@ -299,14 +249,17 @@ def test_nested_source_moves_to_root_bottom_and_reports_changed_addresses(
     "variant", ["hidden", "locked", "hidden-parent", "group", "reference"]
 )
 def test_ineligible_source_fails_without_publishing_or_mutating_source(
-    tmp_path: Path, variant: str
+    runtime: RuntimeObservation, tmp_path: Path, variant: str
 ) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "target.aseprite"
-    _fixture(source, "conversion_ineligible.lua", variant)
+    lua = run_lua(
+        FIXTURES / "conversion_ineligible.lua", runtime, out=source, mode=variant
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
     source_sha = hashlib.sha256(source.read_bytes()).hexdigest()
-    code, result = _run(
-        "convert-to-background",
+    outcome = run(
+        "layer convert-to-background",
         {
             "source_sprite_file": str(source),
             "target_sprite_file": str(target),
@@ -322,7 +275,8 @@ def test_ineligible_source_fails_without_publishing_or_mutating_source(
             },
         },
     )
-    assert code == 2, result
+    result = outcome.envelope
+    assert outcome.returncode == 2, result
     assert result["code"] == "layer_unsupported_target"
     assert not target.exists()
     assert hashlib.sha256(source.read_bytes()).hexdigest() == source_sha
@@ -330,14 +284,15 @@ def test_ineligible_source_fails_without_publishing_or_mutating_source(
 
 @pytest.mark.parametrize("path", [[1], [2], [2, 1], [2, 2]])
 def test_existing_background_or_unsupported_kind_blocks_forward_conversion(
-    tmp_path: Path, path: list[int]
+    runtime: RuntimeObservation, tmp_path: Path, path: list[int]
 ) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "target.aseprite"
-    _fixture(source, "tilemap_subtree.lua")
+    lua = run_lua(FIXTURES / "tilemap_subtree.lua", runtime, out=source)
+    assert lua.returncode == 0, process_diagnostics(lua)
     source_sha = hashlib.sha256(source.read_bytes()).hexdigest()
-    code, result = _run(
-        "convert-to-background",
+    outcome = run(
+        "layer convert-to-background",
         {
             "source_sprite_file": str(source),
             "target_sprite_file": str(target),
@@ -353,7 +308,8 @@ def test_existing_background_or_unsupported_kind_blocks_forward_conversion(
             },
         },
     )
-    assert code == 2, result
+    result = outcome.envelope
+    assert outcome.returncode == 2, result
     assert result["code"] == "layer_unsupported_target"
     assert not target.exists()
     assert hashlib.sha256(source.read_bytes()).hexdigest() == source_sha
@@ -382,18 +338,22 @@ def test_existing_background_or_unsupported_kind_blocks_forward_conversion(
     ],
 )
 def test_incompatible_fill_rejects_before_publication(
-    tmp_path: Path, mode: str, color: dict, expected_code: str
+    runtime: RuntimeObservation,
+    tmp_path: Path,
+    mode: str,
+    color: dict,
+    expected_code: str,
 ) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "target.aseprite"
-    _fixture(
-        source,
-        "conversion_rgb.lua" if mode == "rgb" else "conversion_modes.lua",
-        None if mode == "rgb" else mode,
-    )
+    if mode == "rgb":
+        lua = run_lua(FIXTURES / "conversion_rgb.lua", runtime, out=source)
+    else:
+        lua = run_lua(FIXTURES / "conversion_modes.lua", runtime, out=source, mode=mode)
+    assert lua.returncode == 0, process_diagnostics(lua)
     source_sha = hashlib.sha256(source.read_bytes()).hexdigest()
-    code, result = _run(
-        "convert-to-background",
+    outcome = run(
+        "layer convert-to-background",
         {
             "source_sprite_file": str(source),
             "target_sprite_file": str(target),
@@ -403,7 +363,8 @@ def test_incompatible_fill_rejects_before_publication(
             "background_color": color,
         },
     )
-    assert code == 2, result
+    result = outcome.envelope
+    assert outcome.returncode == 2, result
     assert result["code"] == expected_code
     assert not target.exists()
     assert hashlib.sha256(source.read_bytes()).hexdigest() == source_sha
@@ -411,14 +372,20 @@ def test_incompatible_fill_rejects_before_publication(
 
 @pytest.mark.parametrize("variant", ["hidden", "locked"])
 def test_ineligible_background_fails_without_mutating_source(
-    tmp_path: Path, variant: str
+    runtime: RuntimeObservation, tmp_path: Path, variant: str
 ) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "target.aseprite"
-    _fixture(source, "conversion_background_ineligible.lua", variant)
+    lua = run_lua(
+        FIXTURES / "conversion_background_ineligible.lua",
+        runtime,
+        out=source,
+        mode=variant,
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
     source_sha = hashlib.sha256(source.read_bytes()).hexdigest()
-    code, result = _run(
-        "convert-from-background",
+    outcome = run(
+        "layer convert-from-background",
         {
             "source_sprite_file": str(source),
             "target_sprite_file": str(target),
@@ -427,20 +394,26 @@ def test_ineligible_background_fails_without_mutating_source(
             "target": {"layer_path": [1]},
         },
     )
-    assert code == 2, result
+    result = outcome.envelope
+    assert outcome.returncode == 2, result
     assert result["code"] == "layer_unsupported_target"
     assert not target.exists()
     assert hashlib.sha256(source.read_bytes()).hexdigest() == source_sha
 
 
-def test_indexed_fill_must_be_opaque_in_every_frame_palette(tmp_path: Path) -> None:
+def test_indexed_fill_must_be_opaque_in_every_frame_palette(
+    runtime: RuntimeObservation, tmp_path: Path
+) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "target.aseprite"
-    _fixture(source, "conversion_modes.lua", "indexed")
+    lua = run_lua(
+        FIXTURES / "conversion_modes.lua", runtime, out=source, mode="indexed"
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
     _make_second_frame_fill_index_transparent(source)
     source_sha = hashlib.sha256(source.read_bytes()).hexdigest()
-    code, result = _run(
-        "convert-to-background",
+    outcome = run(
+        "layer convert-to-background",
         {
             "source_sprite_file": str(source),
             "target_sprite_file": str(target),
@@ -450,18 +423,22 @@ def test_indexed_fill_must_be_opaque_in_every_frame_palette(tmp_path: Path) -> N
             "background_color": {"kind": "palette-index", "index": 2},
         },
     )
-    assert code == 2, result
+    result = outcome.envelope
+    assert outcome.returncode == 2, result
     assert result["code"] == "layer_unsupported_target"
     assert not target.exists()
     assert hashlib.sha256(source.read_bytes()).hexdigest() == source_sha
 
 
-def test_invalid_in_place_conversion_does_not_change_source(tmp_path: Path) -> None:
+def test_invalid_in_place_conversion_does_not_change_source(
+    runtime: RuntimeObservation, tmp_path: Path
+) -> None:
     source = tmp_path / "source.aseprite"
-    _fixture(source, "conversion_rgb.lua")
+    lua = run_lua(FIXTURES / "conversion_rgb.lua", runtime, out=source)
+    assert lua.returncode == 0, process_diagnostics(lua)
     source_sha = hashlib.sha256(source.read_bytes()).hexdigest()
-    code, result = _run(
-        "convert-to-background",
+    outcome = run(
+        "layer convert-to-background",
         {
             "source_sprite_file": str(source),
             "target_sprite_file": str(source),
@@ -477,6 +454,7 @@ def test_invalid_in_place_conversion_does_not_change_source(tmp_path: Path) -> N
             },
         },
     )
-    assert code == 2, result
+    result = outcome.envelope
+    assert outcome.returncode == 2, result
     assert result["code"] == "layer_unsupported_target"
     assert hashlib.sha256(source.read_bytes()).hexdigest() == source_sha
