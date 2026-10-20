@@ -274,9 +274,13 @@ def test_indexed_linked_rebind_allows_different_valid_frame_palettes(
     verify_tileset_lifecycle(runtime, target)
 
 
-@pytest.mark.parametrize("keys", [["a"], ["a", "b", "unused"]])
+# Each reason was measured with Aseprite 1.3.18.5.
+@pytest.mark.parametrize(
+    "keys,reason",
+    [(["a"], "mapping_incomplete"), (["a", "b", "unused"], "mapping_invalid")],
+)
 def test_explicit_mapping_requires_exactly_used_keys(
-    tmp_path: Path, runtime, keys: list[str]
+    tmp_path: Path, runtime, keys: list[str], reason: str
 ) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
     tileset_lifecycle_sprite(runtime, source)
@@ -289,7 +293,7 @@ def test_explicit_mapping_requires_exactly_used_keys(
     result = outcome.envelope
     assert outcome.returncode != 0, result
     assert result["code"] == "tileset_lifecycle_invalid"
-    assert result["details"]["reason"] in {"mapping_incomplete", "mapping_invalid"}
+    assert result["details"]["reason"] == reason, result
     assert source.read_bytes() == original
     assert not target.exists()
 

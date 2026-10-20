@@ -181,72 +181,101 @@ def test_add_preserves_complete_pixels_in_each_mode(
     assert observed["snapshot"] == image
 
 
+# Each `tile_lifecycle_invalid` reason was measured with Aseprite 1.3.18.5.
 @pytest.mark.parametrize(
-    "operation,inputs,fixture_options,expected",
+    "operation,inputs,fixture_options,expected,reason",
     [
-        ("add", {"tile_key": "a", "image": snapshot()}, {}, "tile_lifecycle_invalid"),
+        (
+            "add",
+            {"tile_key": "a", "image": snapshot()},
+            {},
+            "tile_lifecycle_invalid",
+            "key_conflict",
+        ),
         (
             "add",
             {"tile_key": "new", "image": snapshot("grayscale")},
             {},
             "tile_lifecycle_invalid",
+            "image_incompatible",
         ),
         (
             "assign-key",
             {"tile_index": 3, "tile_key": "a"},
             {"unkeyed": "3"},
             "tile_lifecycle_invalid",
+            "key_conflict",
         ),
         (
             "assign-key",
             {"tile_index": 1, "tile_key": "new"},
             {},
             "tile_lifecycle_invalid",
+            "already_keyed",
         ),
         (
             "assign-key",
             {"tile_index": 2**53 + 1, "tile_key": "new"},
             {},
             "tile_index_out_of_bounds",
+            None,
         ),
-        ("remove", {"tile_key": "a"}, {}, "tile_lifecycle_invalid"),
-        ("remove", {"tile_key": "absent"}, {}, "tile_key_missing"),
+        (
+            "remove",
+            {"tile_key": "a"},
+            {},
+            "tile_lifecycle_invalid",
+            "replacement_required",
+        ),
+        ("remove", {"tile_key": "absent"}, {}, "tile_key_missing", None),
         (
             "remove",
             {"tile_key": "a", "replacement": {"kind": "tile", "tile_key": "a"}},
             {},
             "tile_lifecycle_invalid",
+            "replacement_invalid",
         ),
         (
             "remove",
             {"tile_key": "a", "replacement": {"kind": "empty"}},
             {"duplicate": "4"},
             "tile_key_ambiguous",
+            None,
         ),
         (
             "remove",
             {"tile_key": "a", "replacement": {"kind": "empty"}},
             {"invalid": "true"},
             "tile_lifecycle_invalid",
+            "invalid_placement",
         ),
-        ("reorder", {"tile_keys": ["a", "b", "c"]}, {}, "tile_lifecycle_invalid"),
+        (
+            "reorder",
+            {"tile_keys": ["a", "b", "c"]},
+            {},
+            "tile_lifecycle_invalid",
+            "invalid_permutation",
+        ),
         (
             "reorder",
             {"tile_keys": ["a", "b", "c", "extra"]},
             {},
             "tile_lifecycle_invalid",
+            "invalid_permutation",
         ),
         (
             "reorder",
             {"tile_keys": ["d", "c", "b", "a"]},
             {"unkeyed": "3"},
             "tile_lifecycle_invalid",
+            "invalid_permutation",
         ),
         (
             "reorder",
             {"tile_keys": ["d", "c", "b", "a"]},
             {"duplicate": "4"},
             "tile_lifecycle_invalid",
+            "invalid_permutation",
         ),
     ],
 )
@@ -257,6 +286,7 @@ def test_refusal_preserves_source_existing_target_and_cleans_staging(
     inputs: dict,
     fixture_options: dict,
     expected: str,
+    reason: str | None,
 ) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
     lifecycle_sprite(runtime, source, **fixture_options)
@@ -268,16 +298,24 @@ def test_refusal_preserves_source_existing_target_and_cleans_staging(
     refused = outcome.envelope
     assert outcome.returncode == 2, refused
     assert refused["code"] == expected
+    assert refused["details"].get("reason") == reason, refused
     assert source.read_bytes() == original
     assert target.read_bytes() == b"previous target"
     assert set(tmp_path.iterdir()) == {source, target}
 
 
+# Each reason was measured with Aseprite 1.3.18.5.
 @pytest.mark.parametrize(
-    "frame,index,palette_size", [(3, 2, 8), (2**53 + 1, 2, 8), (1, 9, 8), (2, 1, 2)]
+    "frame,index,palette_size,reason",
+    [
+        (3, 2, 8, "palette_frame"),
+        (2**53 + 1, 2, 8, "palette_frame"),
+        (1, 9, 8, "palette_index"),
+        (2, 1, 2, "palette_index"),
+    ],
 )
 def test_add_rejects_invalid_palette_basis(
-    tmp_path: Path, runtime, frame: int, index: int, palette_size: int
+    tmp_path: Path, runtime, frame: int, index: int, palette_size: int, reason: str
 ) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
     lifecycle_sprite(runtime, source, mode="indexed")
@@ -302,7 +340,7 @@ def test_add_rejects_invalid_palette_basis(
     failure = outcome.envelope
     assert outcome.returncode == 2, failure
     assert failure["code"] == "tile_lifecycle_invalid"
-    assert failure["details"]["reason"] in {"palette_frame", "palette_index"}
+    assert failure["details"]["reason"] == reason, failure
     assert source.read_bytes() == original
     assert not target.exists()
 
