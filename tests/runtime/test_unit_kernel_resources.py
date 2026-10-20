@@ -1,9 +1,11 @@
-"""Packaged Kernel resources required by runtime capability probes."""
+"""Packaged Kernel resources of runtime capability probes and Operation handlers."""
 
+import sys
 from importlib.resources import files
 
 import pytest
 
+from spa.application.surface import OPERATIONS, PROBE_RESOURCES
 from spa.contracts.ports import PackagedHandler, PackagedResource
 
 
@@ -38,63 +40,25 @@ def test_resource_parameters_remain_independent_of_package_paths() -> None:
         PackagedHandler("sprite_get", handler.package_path, (resource, resource))
 
 
-def test_probe_resources_are_packaged() -> None:
+def test_probe_and_handler_resources_are_packaged() -> None:
     kernel = files("spa.kernel")
+    # Each handler is a module value of the module that defines its execute function.
+    handlers = {
+        value
+        for descriptor in OPERATIONS
+        for value in vars(sys.modules[descriptor.execute.__module__]).values()
+        if isinstance(value, PackagedHandler)
+    }
+    assert handlers
+    paths = {resource.package_path for resource in PROBE_RESOURCES}
+    for handler in handlers:
+        paths.add(handler.package_path)
+        paths.update(resource.package_path for resource in handler.support_resources)
 
-    for name in (
-        "document/sprite/sprite_create_support.lua",
-        "document/slice/slice_inspect.lua",
-        "document/slice/slice_support.lua",
-        "document/slice/slice_read.lua",
-        "document/slice/slice_mutate.lua",
-        "runtime/fixtures/sprite_inspection_fixture.aseprite",
-        "raster/paint/paint_apply_support.lua",
-        "raster/paint/native_tool.lua",
-        "raster/paint/paint_native_support.lua",
-        "raster/paint/paint_fill.lua",
-        "raster/paint/paint_pencil.lua",
-        "raster/paint/paint_eraser.lua",
-        "raster/paint/paint_line.lua",
-        "raster/paint/paint_rectangle.lua",
-        "raster/paint/paint_ellipse.lua",
-        "raster/paint/paint_contour.lua",
-        "raster/paint/paint_blur.lua",
-        "runtime/fixtures/paint_apply_fixture.aseprite",
-        "runtime/capability_probe.lua",
-        "foundation/digest.lua",
-        "raster/selection/selection_mask.lua",
-        "raster/selection/selection_support.lua",
-        "raster/selection/selection_create.lua",
-        "raster/selection/selection_combine.lua",
-        "raster/selection/selection_invert.lua",
-        "raster/selection/selection_grow.lua",
-        "raster/selection/selection_shrink.lua",
-        "raster/selection/selection_transform.lua",
-        "raster/selection/selection_export.lua",
-        "raster/selection/selection_preview.lua",
-        "raster/image/image_resize.lua",
-        "raster/image/image_resize_transform.lua",
-        "color/effective_palette.lua",
-        "color/palette_support.lua",
-        "color/palette_read.lua",
-        "color/palette_set.lua",
-        "color/palette_transform.lua",
-        "color/palette_transform_run.lua",
-        "color/palette_images.lua",
-        "color/palette_file.lua",
-        "color/palette_quantization.lua",
-        "delivery/palette_export.lua",
-        "color/profile.lua",
-        "color/profile_file.lua",
-        "color/profile_mutation.lua",
-        "color/profiles/linear_srgb.icc",
-        "color/profiles/display_p3_cc0.icc",
-        "raster/image/image_orientation.lua",
-        "raster/image/image_orientation_transform.lua",
-    ):
+    for name in sorted(paths):
         resource = kernel.joinpath(name)
-        assert resource.is_file()
-        assert len(resource.read_bytes()) > 0
+        assert resource.is_file(), name
+        assert len(resource.read_bytes()) > 0, name
 
 
 def test_paint_capability_probe_has_no_sprite_capability_gate() -> None:
