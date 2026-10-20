@@ -5,10 +5,9 @@ import struct
 from pathlib import Path
 
 import pytest
-from PIL import Image
 
 from spa.contracts.ports import RuntimeObservation
-from tests.native_invocation import expect_success, run, run_lua
+from tests.native_invocation import expect_success, render_frame, run, run_lua
 from tests.support import process_diagnostics
 
 pytestmark = pytest.mark.e2e
@@ -180,23 +179,8 @@ def test_move_frame_preserves_timing_pixels_and_reports_native_references(
     for section in ("frames", "cels", "tags", "slices", "palettes"):
         assert reopened[section] == moved["sprite"][section]
     for frame_number, color in enumerate(expected_colors, 1):
-        png = tmp_path / f"frame-{frame_number}.png"
-        expect_success(
-            "export image",
-            {
-                "source_sprite_file": str(target),
-                "destination": {"path": str(png), "if_exists": "fail"},
-                "frame_number": frame_number,
-                "export_image_area": {"kind": "canvas"},
-                "layer_composition": {"mode": "visible"},
-                "composition_color_mode": "preserve",
-                "color_mode": "preserve",
-                "color_profile": "preserve",
-                "transparency": "preserve",
-            },
-        )
-        with Image.open(png) as image:
-            assert image.convert("RGBA").getpixel((0, 0)) == (color, 0, 0, 255)
+        rendered = render_frame(target, frame_number)
+        assert rendered.getpixel((0, 0)) == (color, 0, 0, 255)
 
 
 def test_remove_frame_shifts_retained_content_and_rejects_final_frame(
@@ -424,23 +408,8 @@ def test_move_background_cel_preserves_opaque_content(
     assert moved["cel_content_verified"] is True
     assert [cel["frame_number"] for cel in moved["sprite"]["cels"]] == [1, 2, 3]
     for frame_number, color in enumerate((90, 30, 60), 1):
-        png = tmp_path / f"background-{frame_number}.png"
-        expect_success(
-            "export image",
-            {
-                "source_sprite_file": str(target),
-                "destination": {"path": str(png), "if_exists": "fail"},
-                "frame_number": frame_number,
-                "export_image_area": {"kind": "canvas"},
-                "layer_composition": {"mode": "visible"},
-                "composition_color_mode": "preserve",
-                "color_mode": "preserve",
-                "color_profile": "preserve",
-                "transparency": "preserve",
-            },
-        )
-        with Image.open(png) as image:
-            assert image.convert("RGBA").getpixel((0, 0)) == (color, 0, 0, 255)
+        rendered = render_frame(target, frame_number)
+        assert rendered.getpixel((0, 0)) == (color, 0, 0, 255)
 
 
 @pytest.mark.parametrize(
@@ -570,7 +539,6 @@ def test_duplicate_frame_uses_declared_cel_mode_and_persists(
 def test_add_background_frame_uses_explicit_color(tmp_path: Path) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "target.aseprite"
-    png = tmp_path / "frame.png"
     color = {"kind": "rgba", "red": 17, "green": 34, "blue": 51, "alpha": 255}
     expect_success(
         "sprite create",
@@ -603,22 +571,7 @@ def test_add_background_frame_uses_explicit_color(tmp_path: Path) -> None:
     assert added["inserted_cel_count"] == 1
     assert added["background_fill"] == color
     assert added["cel_relationships"] == []
-    expect_success(
-        "export image",
-        {
-            "source_sprite_file": str(target),
-            "destination": {"path": str(png), "if_exists": "fail"},
-            "frame_number": 1,
-            "export_image_area": {"kind": "canvas"},
-            "layer_composition": {"mode": "visible"},
-            "composition_color_mode": "preserve",
-            "color_mode": "preserve",
-            "color_profile": "preserve",
-            "transparency": "preserve",
-        },
-    )
-    with Image.open(png) as image:
-        assert image.convert("RGBA").getpixel((0, 0)) == (17, 34, 51, 255)
+    assert render_frame(target, 1).getpixel((0, 0)) == (17, 34, 51, 255)
     plan_target = tmp_path / "plan.aseprite"
     plan = expect_success(
         "plan run",

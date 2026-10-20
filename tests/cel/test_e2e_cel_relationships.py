@@ -5,10 +5,10 @@ import os
 from pathlib import Path
 
 import pytest
-from PIL import Image
 
 from tests.cel.test_e2e_cel import _fixture, _run
 from tests.layer.test_e2e_layer_mutation import _run as _run_layer
+from tests.native_invocation import render_frame
 from tests.support import spa
 
 pytestmark = pytest.mark.e2e
@@ -145,31 +145,6 @@ def _paint(source: Path, target: Path) -> None:
     assert run.returncode == 0, run.stdout
 
 
-def _render_pixel(source: Path, frame_number: int, output: Path) -> tuple[int, ...]:
-    run = spa(
-        "export",
-        "image",
-        "--input-json",
-        json.dumps(
-            {
-                "source_sprite_file": str(source),
-                "destination": {"path": str(output), "if_exists": "fail"},
-                "frame_number": frame_number,
-                "export_image_area": {"kind": "canvas"},
-                "layer_composition": {"mode": "visible"},
-                "composition_color_mode": "preserve",
-                "color_mode": "preserve",
-                "color_profile": "preserve",
-                "transparency": "preserve",
-                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-            }
-        ),
-    )
-    assert run.returncode == 0, run.stdout
-    with Image.open(output) as image:
-        return image.convert("RGBA").getpixel((1, 1))
-
-
 def test_native_link_propagates_pixel_edit_and_unlink_stops_it(tmp_path: Path) -> None:
     source = tmp_path / "source.aseprite"
     linked = tmp_path / "linked.aseprite"
@@ -193,8 +168,8 @@ def test_native_link_propagates_pixel_edit_and_unlink_stops_it(tmp_path: Path) -
     assert code == 0, result
     _paint(linked, painted_link)
     assert (
-        _render_pixel(painted_link, 1, tmp_path / "one.png")
-        == _render_pixel(painted_link, 4, tmp_path / "four.png")
+        render_frame(painted_link, 1).getpixel((1, 1))
+        == render_frame(painted_link, 4).getpixel((1, 1))
         == (255, 0, 0, 210)
     )
     code, result = _run(
@@ -208,13 +183,13 @@ def test_native_link_propagates_pixel_edit_and_unlink_stops_it(tmp_path: Path) -
     )
     assert code == 0, result
     _paint(unlinked, painted_unlink)
-    assert _render_pixel(painted_unlink, 1, tmp_path / "new-one.png") == (
+    assert render_frame(painted_unlink, 1).getpixel((1, 1)) == (
         255,
         0,
         0,
         210,
     )
-    assert _render_pixel(painted_unlink, 4, tmp_path / "new-four.png") == (
+    assert render_frame(painted_unlink, 4).getpixel((1, 1)) == (
         30,
         40,
         50,
@@ -240,8 +215,8 @@ def test_copy_remains_independent_after_source_paint(tmp_path: Path) -> None:
     )
     assert code == 0, result
     _paint(copied, painted)
-    assert _render_pixel(painted, 1, tmp_path / "source.png") == (255, 0, 0, 210)
-    assert _render_pixel(painted, 3, tmp_path / "copy.png") == (30, 40, 50, 210)
+    assert render_frame(painted, 1).getpixel((1, 1)) == (255, 0, 0, 210)
+    assert render_frame(painted, 3).getpixel((1, 1)) == (30, 40, 50, 210)
 
 
 def test_copy_from_linked_source_reports_only_changed_destination(

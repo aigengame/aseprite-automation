@@ -87,7 +87,9 @@ the exit status, the envelope, and the process. A stdout that is not a valid
 envelope fails the test with `process_diagnostics`. An access failure (`operation:
 "spa"`) and each envelope of a command that is not registered use the access failure
 schema. `expect_success` returns the success envelope, or fails with
-`process_diagnostics`. `run_lua(script, runtime, **params)` runs one Lua fixture in
+`process_diagnostics`. `render_frame(source, frame)` is the render oracle: it exports
+one Frame with `export image` as a visible-canvas PNG, and returns it as an RGBA
+image. `run_lua(script, runtime, **params)` runs one Lua fixture in
 batch mode with the GUI resource that runtime discovery found. It sends each
 parameter as one `--script-param`, and a boolean as `true` or `false`. The caller
 asserts the exit status. The session-scope `runtime` fixture in `tests/conftest.py`

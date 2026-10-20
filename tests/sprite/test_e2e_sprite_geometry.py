@@ -8,12 +8,12 @@ from pathlib import Path
 
 import pytest
 from jsonschema import validate
-from PIL import Image
 
 from spa.adapters.aseprite.aseprite import probe
 from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.application.surface import PROBE_RESOURCES
 from spa.contracts.public import RuntimeRequest
+from tests.native_invocation import render_frame
 from tests.support import process_diagnostics, spa
 
 pytestmark = pytest.mark.e2e
@@ -53,31 +53,6 @@ def _run(
 ) -> tuple[subprocess.CompletedProcess[str], dict[str, object]]:
     run = spa("sprite", operation, "--input-json", json.dumps(request))
     return run, json.loads(run.stdout)
-
-
-def _pixels(sprite: Path, output: Path, frame_number: int) -> Image.Image:
-    run = spa(
-        "export",
-        "image",
-        "--input-json",
-        json.dumps(
-            {
-                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-                "source_sprite_file": str(sprite),
-                "destination": {"path": str(output), "if_exists": "fail"},
-                "frame_number": frame_number,
-                "export_image_area": {"kind": "canvas"},
-                "layer_composition": {"mode": "visible"},
-                "composition_color_mode": "preserve",
-                "color_mode": "preserve",
-                "color_profile": "preserve",
-                "transparency": "preserve",
-            }
-        ),
-    )
-    assert run.returncode == 0, run.stdout
-    with Image.open(output) as image:
-        return image.convert("RGBA")
 
 
 def test_resize_uses_fixed_nearest_neighbor_and_reports_persisted_geometry(
@@ -133,7 +108,7 @@ def test_resize_uses_fixed_nearest_neighbor_and_reports_persisted_geometry(
     }
     assert result["persisted_reopen_verified"] is True
     assert target.is_file()
-    pixels = _pixels(target, tmp_path / "resized.png", 1)
+    pixels = render_frame(target, 1)
     assert pixels.size == (8, 8)
     assert pixels.getpixel((2, 2)) == (255, 0, 0, 255)
     assert pixels.getpixel((3, 3)) == (255, 0, 0, 255)
@@ -195,7 +170,7 @@ def test_crop_clips_content_to_explicit_half_open_canvas_rectangle(
     }
     assert result["persisted_reopen_verified"] is True
     assert target.is_file()
-    pixels = _pixels(target, tmp_path / "cropped.png", 2)
+    pixels = render_frame(target, 2)
     assert pixels.size == (2, 2)
     assert pixels.getpixel((0, 1)) == (0, 255, 0, 255)
     assert pixels.getpixel((1, 1))[3] == 0

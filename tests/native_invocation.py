@@ -2,7 +2,8 @@
 
 `run` and `expect_success` use one `aseprite` rule and validate each envelope
 against the schema of its command, in process. `run_lua` runs one Lua fixture
-with the GUI resource that runtime discovery found.
+with the GUI resource that runtime discovery found. `render_frame` is the render
+oracle: it exports one Frame through `spa export image`.
 """
 
 import json
@@ -16,6 +17,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from jsonschema import Draft202012Validator, ValidationError
+from PIL import Image
 
 from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.application.failure_registry import FAILURE_CODES
@@ -109,6 +111,32 @@ def expect_success(
         process_diagnostics(outcome.process)
     )
     return outcome.envelope
+
+
+def render_frame(source: Path, frame: int) -> Image.Image:
+    """Export one Frame of source as a visible-canvas PNG, and return it as RGBA.
+
+    The PNG goes to a temporary directory, so the caller's directory does not
+    change.
+    """
+    with tempfile.TemporaryDirectory(prefix="spa-render-frame-") as work:
+        output = Path(work) / "frame.png"
+        expect_success(
+            "export image",
+            {
+                "source_sprite_file": str(source),
+                "destination": {"path": str(output), "if_exists": "fail"},
+                "frame_number": frame,
+                "export_image_area": {"kind": "canvas"},
+                "layer_composition": {"mode": "visible"},
+                "composition_color_mode": "preserve",
+                "color_mode": "preserve",
+                "color_profile": "preserve",
+                "transparency": "preserve",
+            },
+        )
+        with Image.open(output) as image:
+            return image.convert("RGBA")
 
 
 def _script_parameter(value: object) -> str:

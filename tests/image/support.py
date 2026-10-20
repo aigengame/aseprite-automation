@@ -6,13 +6,11 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from PIL import Image
-
 from spa.adapters.aseprite.aseprite import probe
 from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.application.surface import PROBE_RESOURCES
 from spa.contracts.public import RuntimeRequest
-from tests.support import process_diagnostics, spa
+from tests.support import process_diagnostics
 
 
 def image_fixture(tmp_path: Path, mode: str = "rgb") -> Path:
@@ -45,32 +43,6 @@ def image_fixture(tmp_path: Path, mode: str = "rgb") -> Path:
     assert run.returncode == 0, process_diagnostics(run)
     assert source.is_file()
     return source
-
-
-def export_image(source: Path, output: Path, frame_number: int = 1) -> Image.Image:
-    run = spa(
-        "export",
-        "image",
-        "--input-json",
-        json.dumps(
-            {
-                "source_sprite_file": str(source),
-                "destination": {"path": str(output), "if_exists": "fail"},
-                "frame_number": frame_number,
-                "export_image_area": {"kind": "canvas"},
-                "layer_composition": {"mode": "visible"},
-                "composition_color_mode": "preserve",
-                "color_mode": "preserve",
-                "color_profile": "preserve",
-                "transparency": "preserve",
-                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-            }
-        ),
-    )
-    assert run.returncode == 0, run.stdout
-    with Image.open(output) as image:
-        image.load()
-        return image.convert("RGBA")
 
 
 def inspect_native(

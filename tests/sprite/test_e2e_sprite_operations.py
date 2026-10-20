@@ -8,12 +8,12 @@ from pathlib import Path
 
 import pytest
 from jsonschema import validate
-from PIL import Image
 
 from spa.adapters.aseprite.aseprite import probe
 from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.application.surface import PROBE_RESOURCES
 from spa.contracts.public import RuntimeRequest
+from tests.native_invocation import render_frame
 from tests.support import process_diagnostics, spa
 
 pytestmark = pytest.mark.e2e
@@ -74,32 +74,6 @@ def _fixture(tmp_path: Path, name: str, **params: str) -> Path:
     assert run.returncode == 0, process_diagnostics(run)
     assert source.is_file()
     return source
-
-
-def _export_pixels(sprite_file: Path, destination: Path, frame_number: int) -> bytes:
-    run = spa(
-        "export",
-        "image",
-        "--input-json",
-        json.dumps(
-            {
-                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-                "source_sprite_file": str(sprite_file),
-                "destination": {"path": str(destination), "if_exists": "fail"},
-                "frame_number": frame_number,
-                "export_image_area": {"kind": "canvas"},
-                "layer_composition": {"mode": "visible"},
-                "composition_color_mode": "preserve",
-                "color_mode": "preserve",
-                "color_profile": "preserve",
-                "transparency": "preserve",
-            }
-        ),
-    )
-    assert run.returncode == 0, run.stdout
-    with Image.open(destination) as image:
-        image.load()
-        return image.convert("RGBA").tobytes()
 
 
 def test_validate_reports_only_declared_checks_and_mismatches(tmp_path: Path) -> None:
@@ -251,10 +225,9 @@ def test_flatten_reports_all_structural_consequences_after_reopen(
     assert target.is_file()
     assert source.read_bytes() == original
     for frame_number in (1, 2):
-        assert _export_pixels(
-            source, tmp_path / f"before-{frame_number}.png", frame_number
-        ) == _export_pixels(
-            target, tmp_path / f"after-{frame_number}.png", frame_number
+        assert (
+            render_frame(source, frame_number).tobytes()
+            == render_frame(target, frame_number).tobytes()
         )
 
 
@@ -304,7 +277,7 @@ def test_flatten_reports_indexed_palette_and_color_mode(tmp_path: Path) -> None:
 def test_flatten_includes_hidden_layer_pixels_in_native_result(tmp_path: Path) -> None:
     source = _fixture(tmp_path, "hidden_layer_sprite.lua")
     target = tmp_path / "hidden-flat.aseprite"
-    before_pixel = _export_pixels(source, tmp_path / "hidden-before.png", 1)
+    before_pixel = render_frame(source, 1).tobytes()
     assert before_pixel[:4] == bytes((0, 0, 255, 255))
     run = spa(
         "sprite",
@@ -324,7 +297,7 @@ def test_flatten_includes_hidden_layer_pixels_in_native_result(tmp_path: Path) -
     result = json.loads(run.stdout)
     assert result["before_sprite"]["layers"][1]["is_visible"] is False
     assert result["sprite"]["metadata"]["layer_count"] == 1
-    after_pixel = _export_pixels(target, tmp_path / "hidden-after.png", 1)
+    after_pixel = render_frame(target, 1).tobytes()
     assert after_pixel[:4] == bytes((255, 0, 0, 255))
 
 

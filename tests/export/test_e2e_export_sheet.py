@@ -3,7 +3,6 @@
 import hashlib
 import json
 import os
-import struct
 from pathlib import Path
 
 import pytest
@@ -11,7 +10,7 @@ from jsonschema import validate
 from PIL import Image
 
 from tests.export.support import png_icc_label, source_sprite
-from tests.support import inject_palette_change, spa
+from tests.support import inject_palette_change, spa, write_group_opacity_and_blend
 
 pytestmark = pytest.mark.e2e
 
@@ -359,19 +358,7 @@ def test_explicit_group_includes_hidden_descendants_and_retains_native_opacity(
     tmp_path: Path,
 ) -> None:
     source = source_sprite(tmp_path, "sheet_sources.lua", variant="hidden_group")
-    # #117: batch SaveAs omits persisted Group opacity. Supply an independent
-    # file-format fixture, as the Image composition tests do, without production repair.
-    raw = bytearray(source.read_bytes())
-    struct.pack_into("<I", raw, 14, struct.unpack_from("<I", raw, 14)[0] | 2)
-    offset = 144
-    group_number = 0
-    for _ in range(struct.unpack_from("<H", raw, 134)[0]):
-        size, kind = struct.unpack_from("<IH", raw, offset)
-        if kind == 0x2004 and struct.unpack_from("<H", raw, offset + 8)[0] == 1:
-            group_number += 1
-            raw[offset + 18] = 128 if group_number == 1 else 255
-        offset += size
-    source.write_bytes(raw)
+    write_group_opacity_and_blend(source, (128, 255))
     before = source.read_bytes()
     request = sheet_request(source, tmp_path)
     request.update(

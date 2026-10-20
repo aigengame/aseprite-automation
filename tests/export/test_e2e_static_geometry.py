@@ -11,7 +11,7 @@ from PIL import Image
 
 from tests.export.support import export_image_request as _request
 from tests.export.support import source_sprite
-from tests.support import spa
+from tests.support import spa, write_group_opacity_and_blend
 
 pytestmark = pytest.mark.e2e
 
@@ -274,28 +274,12 @@ def test_invalid_area_keeps_source_and_destination_unchanged(
     assert destination.read_bytes() == prior if replace else not destination.exists()
 
 
-def _persist_group_opacity(source: Path) -> None:
-    # #117: native batch SaveAs drops persisted Group opacity. Independent test
-    # fixture data sets the documented flag and bytes; no production repair.
-    raw = bytearray(source.read_bytes())
-    struct.pack_into("<I", raw, 14, struct.unpack_from("<I", raw, 14)[0] | 2)
-    offset = 144
-    group_number = 0
-    for _ in range(struct.unpack_from("<H", raw, 134)[0]):
-        size, kind = struct.unpack_from("<IH", raw, offset)
-        if kind == 0x2004 and struct.unpack_from("<H", raw, offset + 8)[0] == 1:
-            group_number += 1
-            raw[offset + 18] = 128 if group_number == 1 else 255
-        offset += size
-    source.write_bytes(raw)
-
-
 @pytest.mark.parametrize("selection", ["group", "leaf"])
 def test_exact_group_or_layer_keeps_hidden_ancestor_opacity_context(
     tmp_path: Path, selection: str
 ) -> None:
     source = source_sprite(tmp_path, "sheet_sources.lua", variant="hidden_group")
-    _persist_group_opacity(source)
+    write_group_opacity_and_blend(source, (128, 255))
     before = source.read_bytes()
     destination = tmp_path / "group.png"
     address = (

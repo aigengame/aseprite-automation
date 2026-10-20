@@ -11,7 +11,7 @@ import struct
 import subprocess
 import sys
 import textwrap
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from importlib.resources import files
 from pathlib import Path
 from typing import Any, get_args
@@ -408,6 +408,44 @@ def clear_first_saved_layer_uuid(source: Path, layer_name: str) -> None:
                 return
         chunk_offset += chunk_size
     raise AssertionError(f"fixture has no Layer chunk named {layer_name!r}")
+
+
+def write_group_opacity_and_blend(
+    sprite: Path, opacity: Sequence[int], blend_mode: Sequence[int | None] = ()
+) -> None:
+    """Write the Group opacity and blend mode that batch SaveAs omits (#117).
+
+    Aseprite 1.3.18.5 batch SaveAs does not save these Group fields. This sets the
+    header flag that makes them valid. The n-th Group Layer chunk, in file order,
+    gets opacity[n], and blend_mode[n] when that value is not None. The sprite
+    must have exactly len(opacity) Groups.
+    """
+    assert not blend_mode or len(blend_mode) == len(opacity)
+    payload = bytearray(sprite.read_bytes())
+    flags = struct.unpack_from("<I", payload, 14)[0]
+    struct.pack_into("<I", payload, 14, flags | 2)
+    frame_offset = 128
+    frame_size, frame_magic, chunk_count = struct.unpack_from(
+        "<IHH", payload, frame_offset
+    )
+    assert frame_magic == 0xF1FA and frame_size > 16
+    chunk_offset = frame_offset + 16
+    groups = 0
+    for _ in range(chunk_count):
+        chunk_size, chunk_type = struct.unpack_from("<IH", payload, chunk_offset)
+        assert chunk_size >= 6
+        if (
+            chunk_type == 0x2004
+            and struct.unpack_from("<H", payload, chunk_offset + 8)[0] == 1
+        ):
+            assert groups < len(opacity), "the sprite has more Groups than values"
+            payload[chunk_offset + 18] = opacity[groups]
+            if blend_mode and blend_mode[groups] is not None:
+                struct.pack_into("<H", payload, chunk_offset + 16, blend_mode[groups])
+            groups += 1
+        chunk_offset += chunk_size
+    assert groups == len(opacity), f"the sprite has {groups} Groups"
+    sprite.write_bytes(payload)
 
 
 def runtime_observation(*capabilities: RuntimeCapability) -> RuntimeObservation:

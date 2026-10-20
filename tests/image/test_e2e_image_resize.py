@@ -13,9 +13,9 @@ from spa.adapters.aseprite.aseprite import probe
 from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.application.surface import PROBE_RESOURCES
 from spa.contracts.public import RuntimeRequest
-from tests.image.support import export_image as _export
 from tests.image.support import image_fixture as _fixture
 from tests.image.support import inspect_native as _inspect_native
+from tests.native_invocation import render_frame
 from tests.support import inject_palette_change, process_diagnostics, spa
 
 pytestmark = pytest.mark.e2e
@@ -56,7 +56,7 @@ def test_resize_keeps_cel_position_and_persists_native_pixels(tmp_path: Path) ->
     assert target.is_file()
     assert source.read_bytes() != target.read_bytes()
 
-    pixels = _export(target, tmp_path / "resized.png")
+    pixels = render_frame(target, 1)
     assert pixels.getpixel((1, 2)) == (255, 0, 0, 255)
     assert pixels.getpixel((4, 2)) == (0, 0, 255, 255)
 
