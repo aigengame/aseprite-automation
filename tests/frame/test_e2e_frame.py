@@ -652,7 +652,58 @@ def test_add_reports_native_tag_range_adjustment(
     assert added["sprite"]["tags"][0]["to_frame"] == 3
 
 
+def _step_evidence(result: dict[str, object]) -> dict[str, object]:
+    """Return the Frame mutation evidence that a Step and a standalone run share."""
+    standalone_only = {"status", "operation", "target_commit"}
+    step_only = {"persisted_reopen_verified", "sprite"}
+    return {
+        key: value
+        for key, value in result.items()
+        if key not in standalone_only | step_only
+    }
+
+
 def test_plan_frame_steps_match_standalone_semantics(tmp_path: Path) -> None:
+    created = tmp_path / "created.aseprite"
+    added = tmp_path / "added.aseprite"
+    duplicated = tmp_path / "duplicated.aseprite"
+    expect_success(
+        "sprite create",
+        {
+            "target_sprite_file": str(created),
+            "width": 3,
+            "height": 2,
+            "color_mode": "rgb",
+            "initial_layer": {"kind": "transparent"},
+            "overwrite": False,
+        },
+    )
+    files = {"in_place": False, "overwrite": False}
+    add = expect_success(
+        "frame add",
+        {
+            "source_sprite_file": str(created),
+            "target_sprite_file": str(added),
+            **files,
+            "frame_number": 2,
+            "duration_ms": 340,
+        },
+    )
+    listed = expect_success("frame list", {"sprite_file": str(added)})
+    duplicate = expect_success(
+        "frame duplicate",
+        {
+            "source_sprite_file": str(added),
+            "target_sprite_file": str(duplicated),
+            **files,
+            "source_frame_number": 1,
+            "cel_mode": "link",
+        },
+    )
+    got = expect_success(
+        "frame get", {"sprite_file": str(duplicated), "frame_number": 2}
+    )
+
     target = tmp_path / "plan.aseprite"
     result = expect_success(
         "plan run",
@@ -684,20 +735,12 @@ def test_plan_frame_steps_match_standalone_semantics(tmp_path: Path) -> None:
             }
         },
     )
+    steps = [step["result"] for step in result["steps"]]
     assert result["persisted_reopen_verified"] is True
-    assert result["steps"][1]["result"]["inserted_frame"] == {
-        "frame_number": 2,
-        "duration_ms": 340,
-    }
-    assert len(result["steps"][2]["result"]["frames"]) == 2
-    assert result["steps"][3]["result"]["inserted_frame"] == {
-        "frame_number": 2,
-        "duration_ms": 100,
-    }
-    assert result["steps"][3]["result"]["cel_relationships"] == [
-        {"layer_path": [1], "source_frame_number": 1, "kind": "link"}
-    ]
-    assert result["steps"][4]["result"]["frame"]["duration_ms"] == 100
+    assert _step_evidence(steps[1]) == _step_evidence(add)
+    assert steps[2]["frames"] == listed["frames"]
+    assert _step_evidence(steps[3]) == _step_evidence(duplicate)
+    assert steps[4]["frame"] == got["frame"]
     assert expect_success("frame list", {"sprite_file": str(target)})["frames"] == [
         {"frame_number": 1, "duration_ms": 100},
         {"frame_number": 2, "duration_ms": 100},
