@@ -292,6 +292,51 @@ def test_invalid_intent_and_palette_are_rejected_before_native(preparation, chan
     original = source.read_bytes()
     result = _call(request, services)
     assert result["code"] == "invalid_request"
+    canonical = (
+        ["specification", "palette"],
+        "value_error",
+        "Value error, Use exactly one declared RGBA0 entry and opaque remaining entries",
+    )
+    location, kind, message = {
+        "omitted_intent": (["intent"], "missing", "Field required"),
+        "incomplete_reproduction": (
+            ["intent", "reproduce", "expected"],
+            "missing",
+            "Field required",
+        ),
+        "transparent_hidden_rgb": canonical,
+        "missing_transparency": canonical,
+        "multiple_transparency": canonical,
+        "transparent_index_outside_palette": (
+            ["specification", "palette"],
+            "value_error",
+            "Value error, Transparent Palette Index must address an entry",
+        ),
+        "transparent_index_negative": (
+            ["specification", "palette", "transparent_index"],
+            "greater_than_equal",
+            "Input should be greater than or equal to 0",
+        ),
+        "transparent_index_256": (
+            ["specification", "palette", "transparent_index"],
+            "less_than_equal",
+            "Input should be less than or equal to 255",
+        ),
+        "one_palette_entry": (
+            ["specification", "palette", "entries"],
+            "too_short",
+            "List should have at least 2 items after validation, not 1",
+        ),
+        "257_palette_entries": (
+            ["specification", "palette", "entries"],
+            "too_long",
+            "List should have at most 256 items after validation, not 257",
+        ),
+        "256_opaque_entries": canonical,
+    }[change]
+    assert result["details"]["errors"] == [
+        {"location": location, "code": kind, "message": message}
+    ]
     assert not native.calls and not files.publications
     assert source.read_bytes() == original
     assert destination.read_bytes() == b"retained destination"
@@ -469,6 +514,20 @@ def test_contradictory_native_or_encoded_facts_never_publish(preparation, fault,
         request["specification"]["output_mode"] = "indexed"
     destination.write_bytes(b"retained destination")
     original = source.read_bytes()
+    if fault == "retained_icc":
+        # The real decoder gives ICC bytes only with an iCCP profile, which the
+        # profile check refuses first. This decoder adds ICC bytes to the sRGB
+        # facts of the prepared PNG, so that only the ICC check can refuse it.
+        decode = decode_png_input
+        icc = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
+        services = replace(
+            services,
+            decode_png_input=lambda payload: (
+                decode(payload)
+                if payload == original
+                else replace(decode(payload), icc_bytes=icc)
+            ),
+        )
 
     def tamper(facts, png_path, rgba_path):
         if fault == "mapping_rejected":
@@ -504,16 +563,19 @@ def test_contradictory_native_or_encoded_facts_never_publish(preparation, fault,
         elif fault == "missing_profile":
             _replace_chunk(png_path, b"sRGB", None)
         elif fault == "retained_icc":
-            profile = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
-            with Image.open(png_path) as image:
-                image.save(png_path, icc_profile=profile)
+            pass  # The decoder above gives this fault.
         elif fault == "wrong_rendering_intent":
             _replace_chunk(png_path, b"sRGB", b"\x03")
         elif fault == "rgba_rgb_format":
+            # An RGB PNG with a tRNS key for black keeps the complete RGBA pixels,
+            # and with them both content digests and the sidecar. Only the PNG
+            # color type check can refuse it.
             metadata = PngImagePlugin.PngInfo()
             metadata.add(b"sRGB", b"\x00")
             with Image.open(png_path) as image:
-                image.convert("RGB").save(png_path, pnginfo=metadata)
+                image.convert("RGB").save(
+                    png_path, pnginfo=metadata, transparency=(0, 0, 0)
+                )
         elif fault == "indexed_palette":
             # Keep native digest and sidecar consistent with these wrong Palette
             # bytes, so independently checking the requested Palette must reject.
