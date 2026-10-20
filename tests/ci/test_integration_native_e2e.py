@@ -2,13 +2,13 @@
 
 import json
 import os
-import re
 import subprocess
 import sys
-import textwrap
 from pathlib import Path
 
 import pytest
+
+from tests.support import workflow_step
 
 WORKFLOW = Path(__file__).resolve().parents[2] / ".github/workflows/native-e2e.yml"
 pytestmark = pytest.mark.skipif(
@@ -20,12 +20,8 @@ pytestmark = pytest.mark.skipif(
 def run_step(
     name: str, repository: Path, env: dict[str, str], workflow: Path = WORKFLOW
 ) -> subprocess.CompletedProcess[str]:
-    step = workflow.read_text().split(f"      - name: {name}\n", 1)[1]
-    body = re.split(
-        r"\n(?=\S| {1,8}\S)", step.split("        run: |\n", 1)[1], maxsplit=1
-    )[0]
     return subprocess.run(
-        ["bash", "-e", "-o", "pipefail", "-c", textwrap.dedent(body)],
+        ["bash", "-e", "-o", "pipefail", "-c", workflow_step(workflow, name)],
         cwd=repository,
         env=env,
         capture_output=True,

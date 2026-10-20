@@ -5,12 +5,12 @@ import os
 import shutil
 import subprocess
 import sys
-import textwrap
 from pathlib import Path
 
 import pytest
 
 from tests.native_entry import python_entry
+from tests.support import workflow_step
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github/workflows/native-e2e-shards.yml"
@@ -42,8 +42,10 @@ def run(
         assert (
             selected is not None and Path(selected).resolve() == controlled_gh.resolve()
         )
-    body = WORKFLOW.read_text().split("          python3 - <<'PY'\n", 1)[1]
-    script = textwrap.dedent(body.split("          PY\n", 1)[0])
+    run = workflow_step(
+        WORKFLOW, "Validate the caller and release commit before scheduling"
+    )
+    script = run.split("python3 - <<'PY'\n", 1)[1].split("\nPY\n", 1)[0]
     return subprocess.run(
         [sys.executable, "-c", script],
         env=env,

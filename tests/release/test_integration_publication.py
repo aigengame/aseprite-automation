@@ -4,7 +4,6 @@ import hashlib
 import io
 import json
 import os
-import re
 import shlex
 import subprocess
 import sys
@@ -16,6 +15,7 @@ from pathlib import Path
 import pytest
 
 from scripts.release_distributions import main as verify_distributions
+from tests.support import workflow_step
 
 WORKFLOW = Path(__file__).resolve().parents[2] / ".github/workflows/release.yml"
 pytestmark = pytest.mark.skipif(
@@ -25,12 +25,8 @@ pytestmark = pytest.mark.skipif(
 
 
 def run_step(name: str, directory: Path, environment: dict[str, str]):
-    step = WORKFLOW.read_text().split(f"      - name: {name}\n", 1)[1]
-    body = re.split(
-        r"\n(?=\S| {1,8}\S)", step.split("        run: |\n", 1)[1], maxsplit=1
-    )[0]
     return subprocess.run(
-        ["bash", "-e", "-o", "pipefail", "-c", textwrap.dedent(body)],
+        ["bash", "-e", "-o", "pipefail", "-c", workflow_step(WORKFLOW, name)],
         cwd=directory,
         env={**os.environ, **environment},
         capture_output=True,

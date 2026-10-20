@@ -13,13 +13,14 @@ from pathlib import Path
 
 import pytest
 
+from tests.support import workflow_step
+
 ROOT = Path(__file__).resolve().parents[2]
 ACTION = ROOT / ".github/actions/run-linux-aseprite-e2e/action.yml"
 
 
 def native_test_step() -> str:
-    step = ACTION.read_text().split("    - name: Run real Aseprite E2E tests\n", 1)[1]
-    return textwrap.dedent(step.split("      run: |\n", 1)[1].split("\n    - ", 1)[0])
+    return workflow_step(ACTION, "Run real Aseprite E2E tests")
 
 
 @pytest.fixture

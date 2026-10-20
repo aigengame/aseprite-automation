@@ -4,10 +4,11 @@ import json
 import os
 import subprocess
 import sys
-import textwrap
 from pathlib import Path
 
 import pytest
+
+from tests.support import workflow_step
 
 ACTION = (
     Path(__file__).resolve().parents[2] / ".github/actions/aseprite-runtime/action.yml"
@@ -46,7 +47,7 @@ def test_host_runtime_requires_a_working_batch_script(tmp_path: Path, runtime) -
         "DISPLAY": "",
         "WAYLAND_DISPLAY": "",
     }
-    body = textwrap.dedent(ACTION.read_text().split("      run: |\n", 1)[1])
+    body = workflow_step(ACTION, "Validate and expose the headless Aseprite executable")
     result = subprocess.run(
         ["bash", "-e", "-o", "pipefail", "-c", body],
         env=env,
