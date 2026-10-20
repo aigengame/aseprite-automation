@@ -93,8 +93,13 @@ one Frame with `export image` as a visible-canvas PNG, and returns it as an RGBA
 image. `run_lua(script, runtime, **params)` runs one Lua fixture in
 batch mode with the GUI resource that runtime discovery found. It sends each
 parameter as one `--script-param`, and a boolean as `true` or `false`. The caller
-asserts the exit status. The session-scope `runtime` fixture in `tests/conftest.py`
-probes the configured Aseprite once for each pytest worker. A fixture builder takes
+asserts the exit status. Each launch has one deadline for all callers,
+`LUA_FIXTURE_DEADLINE_SECONDS` (120 s). When the deadline expires, `run_lua` stops
+the Aseprite process, and the test fails with the script, its parameters, and the
+output captured until then. `run` and `expect_success` do not add a deadline: the
+product deadline (`timeout_seconds`) already bounds each Aseprite process that SPA
+starts. The session-scope `runtime` fixture in `tests/conftest.py` probes the
+configured Aseprite once for each pytest worker. A fixture builder takes
 `runtime` as a parameter and does not probe. A test whose claim is the probe calls
 `probe` itself. A test module keeps its own CLI or Lua fixture helper only when the
 helper adds test-specific steps to `run`, `expect_success`, or `run_lua`, and its

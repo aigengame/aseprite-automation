@@ -29,6 +29,9 @@ from tests.support import process_diagnostics, spa
 
 _DESCRIPTORS = {descriptor.name: descriptor for descriptor in OPERATIONS}
 
+LUA_FIXTURE_DEADLINE_SECONDS = 120
+"""The deadline of each `run_lua` Aseprite launch, for every caller."""
+
 
 @dataclass(frozen=True)
 class Outcome:
@@ -145,29 +148,51 @@ def _script_parameter(value: object) -> str:
     return str(value)
 
 
+def _captured(output: bytes | str | None) -> str:
+    if isinstance(output, bytes):
+        return output.decode("utf-8", errors="replace")
+    return output or ""
+
+
 def run_lua(
     script: Path, runtime: RuntimeObservation, **params: object
 ) -> subprocess.CompletedProcess[str]:
     """Run one Lua fixture in batch mode, and return the completed process.
 
     Each keyword becomes one `--script-param`. The caller asserts the exit status;
-    `process_diagnostics` describes the process when the assertion fails.
+    `process_diagnostics` describes the process when the assertion fails. When
+    the launch does not exit before `LUA_FIXTURE_DEADLINE_SECONDS`, the Aseprite
+    process is stopped, and the test fails with the script, its parameters and the
+    output captured until then.
     """
-    arguments = [
-        item
-        for key, value in params.items()
-        for item in ("--script-param", f"{key}={_script_parameter(value)}")
-    ]
+    values = [f"{key}={_script_parameter(value)}" for key, value in params.items()]
+    arguments = [item for value in values for item in ("--script-param", value)]
     with tempfile.TemporaryDirectory(prefix="spa-lua-fixture-") as work:
         prepared = prepare_invocation(
             Path(runtime.canonical_path), Path(runtime.resource_path), Path(work)
         )
-        return subprocess.run(
-            [str(prepared.executable), "--batch", *arguments, "--script", str(script)],
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            capture_output=True,
-            check=False,
-            env=prepared.environment,
-        )
+        try:
+            return subprocess.run(
+                [
+                    str(prepared.executable),
+                    "--batch",
+                    *arguments,
+                    "--script",
+                    str(script),
+                ],
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                capture_output=True,
+                check=False,
+                env=prepared.environment,
+                timeout=LUA_FIXTURE_DEADLINE_SECONDS,
+            )
+        except subprocess.TimeoutExpired as expired:
+            # subprocess.run stopped and reaped the process before it raised.
+            raise AssertionError(
+                f"Lua fixture did not exit in {expired.timeout:g} s: {script}\n"
+                f"parameters: {' '.join(values)}\n"
+                f"stdout:\n{_captured(expired.stdout)}\n"
+                f"stderr:\n{_captured(expired.stderr)}"
+            ) from None
