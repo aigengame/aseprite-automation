@@ -975,9 +975,11 @@ The #39 slice uses `tests/filter/test_unit_despeckle.py` for strict request/sche
 parity and `test_integration_despeckle.py` for evidence validation before Target
 Commit. `test_e2e_despeckle.py` exercises native RGB and Grayscale Channel subsets,
 Indexed stored-index and supported component paths, window boundaries, tiled
-edges, 1×1 RGB Map behavior, Selection, linked Cels, Background and Tilemap refusal,
-and reopened output. `test_e2e_filter_state.py` injects a post-command failure to
-prove rollback after native mutation and restoration of the previous editor site.
+edges, 1×1 RGB Map behavior, Selection, linked Cels, Grayscale and Indexed Background
+refusal, and reopened output. `test_e2e_filter_refusals.py` holds the RGB Background
+Alpha and Tilemap refusals of each Filter except Brightness/Contrast.
+`test_e2e_filter_state.py` injects a post-command failure to prove rollback after
+native mutation and restoration of the previous editor site.
 
 `tests/runtime/test_unit_convolution.py` checks bounded declaration scanning,
 lookup paths, duplicates, defaults and incomplete input reporting.
