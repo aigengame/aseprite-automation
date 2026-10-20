@@ -844,6 +844,12 @@ Verification tier, host platform, and display capability are separate properties
 Place a platform condition on the smallest test that needs it. A passing macOS test is
 macOS evidence; it is not Linux evidence. The macOS bundle and restricted-agent cases
 remain macOS-specific. Issue #69 owns Linux CI and Linux real-Aseprite evidence.
+CI runs the fast tier only on Linux. Thus these fast cases give local evidence only:
+`tests/runtime/test_integration_windows_capture.py` and the Windows interruption case
+of `tests/ci/test_integration_native_shards.py` (Windows),
+`tests/runtime/test_integration_aseprite.py::test_unwritable_bundle_link_has_typed_start_failure`
+(macOS), and the case-variant cases of
+`tests/application/test_unit_publication_identity.py` (a case-insensitive file system).
 
 Aseprite `--batch` does not start the UI. A test that produces or inspects image files
 through that path is not windowed unless it actually needs a display. When a
