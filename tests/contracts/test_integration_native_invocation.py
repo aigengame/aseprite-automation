@@ -1,16 +1,20 @@
-"""The shared native invocation module checks each envelope with its own schema."""
+"""The shared native invocation module checks each envelope with its own schema,
+and stops a Lua fixture at its deadline."""
 
 import json
+import os
 import subprocess
 import traceback
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import pytest
 from jsonschema import ValidationError
 
 from tests import native_invocation
-from tests.native_invocation import expect_success, run, validate_envelope
+from tests.native_invocation import expect_success, run, run_lua, validate_envelope
+from tests.support import controlled_runtime, fake_aseprite
 
 MISSING = "/missing/aseprite"
 
@@ -130,3 +134,27 @@ def test_expect_success_refuses_a_failure_envelope_with_process_diagnostics() ->
         expect_success(
             "frame list", {"sprite_file": "/missing/source.aseprite"}, aseprite=MISSING
         )
+
+
+@pytest.mark.skipif(os.name != "posix", reason="signal 0 checks the process on POSIX")
+def test_run_lua_stops_a_fixture_at_the_deadline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pid = tmp_path / "pid"
+    binary = fake_aseprite(
+        tmp_path,
+        f'echo $$ > "{pid}"\necho started\necho waiting >&2\nexec sleep 30\n',
+    )
+    monkeypatch.setattr(native_invocation, "LUA_FIXTURE_DEADLINE_SECONDS", 2)
+    script = tmp_path / "hang.lua"
+
+    with pytest.raises(AssertionError) as failure:
+        run_lua(script, controlled_runtime(binary), target="out.aseprite", flag=True)
+
+    message = str(failure.value)
+    assert f"did not exit in 2 s: {script}" in message
+    assert "parameters: target=out.aseprite flag=true" in message
+    assert "stdout:\nstarted\n" in message
+    assert "stderr:\nwaiting\n" in message
+    with pytest.raises(ProcessLookupError):
+        os.kill(int(pid.read_text()), 0)
