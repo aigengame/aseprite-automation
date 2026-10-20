@@ -8,7 +8,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 import pytest
-from PIL import Image, PngImagePlugin
+from PIL import Image, ImageCms, PngImagePlugin
 
 from spa.adapters.files import LocalArtifactFiles, LocalTargetFiles
 from spa.adapters.png import verify_png
@@ -391,6 +391,80 @@ def test_failure_preserves_destination_and_cleans_both_stages(
     assert files.publications == [caller.destination] * publication_attempts
     assert caller.destination.read_bytes() == b"existing destination"
     assert caller.original_source.read_bytes() == caller.source_bytes
+    assert sorted(path.suffix for path in files.discarded) == [".png", ".rgba"]
+    assert all(not path.exists() for path in files.discarded)
+
+
+@pytest.mark.parametrize("caller", ["export"], indirect=True)
+@pytest.mark.parametrize(
+    "term",
+    [
+        "mismatch",
+        "stored_digest",
+        "color_mode",
+        "palette",
+        "icc_identity",
+        "icc_identity_without_icc",
+        "srgb_intent",
+        "grayscale_icc",
+    ],
+)
+def test_export_refuses_each_png_representation_difference(caller, term):
+    """Each row except `mismatch` keeps the PNG and RGBA stages in agreement."""
+    files = RecordingFiles()
+    unlisted_icc = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
+
+    def invoke(_observation, _handler, payload, _timeout):
+        png, rgba = write_render(payload, caller)
+        if term == "mismatch":
+            # The PNG pixels differ from the native render and its digest.
+            Image.new("RGB", (1, 1), (1, 2, 3)).save(png)
+            rgba.write_bytes(bytes((0, 0, 0, 255)))
+            caller.native.update(
+                alpha_min=255,
+                alpha_max=255,
+                stored_content_digest=fnv1a64(bytes((0, 0, 0, 255))),
+            )
+        elif term == "stored_digest":
+            caller.native["stored_content_digest"] = fnv1a64(bytes((9, 2, 3, 128)))
+        elif term == "color_mode":
+            caller.native.update(source_color_mode="grayscale", color_mode="grayscale")
+        elif term == "palette":
+            caller.native["palette_entries"] = [
+                {"red": 1, "green": 2, "blue": 3, "alpha": 128}
+            ]
+        elif term == "icc_identity":
+            Image.frombytes("RGBA", (1, 1), caller.rgba).save(
+                png, icc_profile=unlisted_icc
+            )
+            caller.native.update(color_profile="icc", icc_identity="linear_srgb")
+        elif term == "icc_identity_without_icc":
+            caller.native["icc_identity"] = "linear_srgb"
+        elif term == "srgb_intent":
+            metadata = PngImagePlugin.PngInfo()
+            metadata.add(b"sRGB", b"\x01")
+            Image.frombytes("RGBA", (1, 1), caller.rgba).save(png, pnginfo=metadata)
+            caller.native["color_profile"] = "srgb"
+        else:
+            # An unlisted ICC has no identity, so the identity term agrees.
+            Image.new("L", (1, 1), 7).save(png, icc_profile=unlisted_icc)
+            rgba.write_bytes(bytes((7, 7, 7, 255)))
+            caller.native.update(
+                source_color_mode="grayscale",
+                color_mode="grayscale",
+                color_profile="icc",
+                alpha_min=255,
+                alpha_max=255,
+                stored_content_digest=fnv1a64(bytes((7, 255))),
+            )
+        return KernelInvocationResult(caller.native, "/response.json", DIAGNOSTICS)
+
+    with pytest.raises(RuntimeIssue) as caught:
+        caller.run(services(invoke, files))
+    assert caught.value.kind == "artifact_verification_failed"
+    assert caught.value.evidence.reason == EXPORT_REPRESENTATION
+    assert not files.publications
+    assert caller.destination.read_bytes() == b"existing destination"
     assert sorted(path.suffix for path in files.discarded) == [".png", ".rgba"]
     assert all(not path.exists() for path in files.discarded)
 
