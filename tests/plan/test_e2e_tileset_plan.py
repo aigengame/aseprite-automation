@@ -1,17 +1,14 @@
 """Atomic Tileset lifecycle composition through the public CLI."""
 
 import hashlib
-import json
-import os
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
 
 from spa.contracts.ports import RuntimeObservation
 from tests.native_invocation import expect_success, run, run_lua
-from tests.support import process_diagnostics, spa
+from tests.plan.support import FIXTURES
+from tests.support import observe_cli, process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
@@ -41,7 +38,7 @@ def lifecycle_steps() -> list[dict]:
 def source_fixture(source: Path, runtime: RuntimeObservation) -> None:
     """Write the Tileset lifecycle Plan Sprite of `tileset_lifecycle.lua` to source."""
     lua = run_lua(
-        Path(__file__).parent / "fixtures" / "tileset_lifecycle.lua",
+        FIXTURES / "tileset_lifecycle.lua",
         runtime,
         source=source,
     )
@@ -184,48 +181,32 @@ def test_plan_verifies_step_time_tileset_evidence_before_its_only_commit(
     source_fixture(source, runtime)
     original = source.read_bytes()
     target.write_bytes(b"Previous Target")
-    observations_file = tmp_path / "observations.json"
-    command = spa("--help").args[0]
-    executed = subprocess.run(
-        [
-            sys.executable,
-            str(Path(__file__).parent / "fixtures" / "observe_tileset_cli.py"),
-            case,
-            str(observations_file),
-            command,
-            "plan",
-            "run",
-            "--input-json",
-            json.dumps(
-                {
-                    "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-                    "plan": {
-                        "source_sprite_file": str(source),
-                        "target_sprite_file": str(target),
-                        "overwrite": True,
-                        "steps": [
-                            {
-                                "operation": "cel add",
-                                "input": {
-                                    "target": {
-                                        "layer": {"layer_name": "map"},
-                                        "frame_number": 2,
-                                    },
-                                    "tilemap_size": {"width": 2, "height": 1},
-                                },
+    executed, result, observations = observe_cli(
+        FIXTURES / "observe_tileset_cli.py",
+        case,
+        "plan run",
+        {
+            "plan": {
+                "source_sprite_file": str(source),
+                "target_sprite_file": str(target),
+                "overwrite": True,
+                "steps": [
+                    {
+                        "operation": "cel add",
+                        "input": {
+                            "target": {
+                                "layer": {"layer_name": "map"},
+                                "frame_number": 2,
                             },
-                            *lifecycle_steps(),
-                        ],
+                            "tilemap_size": {"width": 2, "height": 1},
+                        },
                     },
-                }
-            ),
-        ],
-        text=True,
-        capture_output=True,
-        check=False,
+                    *lifecycle_steps(),
+                ],
+            },
+        },
+        tmp_path / "observations.json",
     )
-    result = json.loads(executed.stdout)
-    observations = json.loads(observations_file.read_text())
     assert observations["native_invocations"] == 1
     assert source.read_bytes() == original
     if failed_step is None:

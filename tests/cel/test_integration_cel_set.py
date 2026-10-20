@@ -1,11 +1,10 @@
 """Cel set bounds must refuse the request before any runtime or file mutation."""
 
-import json
 from pathlib import Path
 
 import pytest
 
-from tests.support import spa
+from tests.native_invocation import run
 
 
 @pytest.mark.parametrize(
@@ -25,24 +24,20 @@ def test_set_rejects_unpersistable_cel_values(
     source = tmp_path / "source.aseprite"
     target = tmp_path / "target.aseprite"
     source.write_bytes(b"Source must remain unchanged")
-    run = spa(
-        "cel",
-        "set",
-        "--input-json",
-        json.dumps(
-            {
-                "aseprite": "/missing/aseprite",
-                "source_sprite_file": str(source),
-                "target_sprite_file": str(target),
-                "in_place": False,
-                "overwrite": False,
-                "target": {"layer": {"layer_path": [1]}, "frame_number": 1},
-                **changes,
-            }
-        ),
+    outcome = run(
+        "cel set",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": False,
+            "overwrite": False,
+            "target": {"layer": {"layer_path": [1]}, "frame_number": 1},
+            **changes,
+        },
+        aseprite="/missing/aseprite",
     )
-    assert run.returncode == 2, run.stdout + run.stderr
-    result = json.loads(run.stdout)
+    result = outcome.envelope
+    assert outcome.returncode == 2, result
     assert result["code"] == "invalid_request", result
     assert [error["location"] for error in result["details"]["errors"]] == [location]
     assert not target.exists()

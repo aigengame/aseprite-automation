@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.native_invocation import run
 from tests.support import spa
 
 
@@ -42,6 +43,11 @@ def test_image_size_is_exclusive_to_add(
 
 
 def _reject(tmp_path: Path, operation: str, image_size: dict | None) -> None:
+    """Check that request validation refuses image_size for operation.
+
+    operation is a Cel command, or "plan" for a one-step `cel add` Plan. The
+    refusal must come before runtime discovery and leave both files unchanged.
+    """
     source = tmp_path / "source.aseprite"
     target = tmp_path / "target.aseprite"
     source.write_bytes(b"Source must remain unchanged")
@@ -57,17 +63,16 @@ def _reject(tmp_path: Path, operation: str, image_size: dict | None) -> None:
         "overwrite": True,
     }
     if operation == "plan":
-        command = ("plan", "run")
+        command = "plan run"
         request = {
             "plan": {**files, "steps": [{"operation": "cel add", "input": cel_input}]}
         }
     else:
-        command = ("cel", operation)
+        command = f"cel {operation}"
         request = {**files, **cel_input}
-    request["aseprite"] = "/missing/aseprite"
-    run = spa(*command, "--input-json", json.dumps(request))
-    assert run.returncode == 2, run.stdout + run.stderr
-    result = json.loads(run.stdout)
+    outcome = run(command, request, aseprite="/missing/aseprite")
+    result = outcome.envelope
+    assert outcome.returncode == 2, result
     assert result["code"] == "invalid_request", result
     assert any(
         "image_size" in error["location"] for error in result["details"]["errors"]
