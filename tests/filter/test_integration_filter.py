@@ -6,47 +6,8 @@ from spa.application.surface import info_result, schema_result
 from spa.authoring.raster.filter import BrightnessContrastRequest, brightness_contrast
 from spa.contracts.ports import RuntimeIssue
 from spa.contracts.public import RuntimeRequest
-from tests.filter.support import (
-    assert_unpublished,
-    filter_evidence,
-    setup_filter_staging,
-)
+from tests.filter.support import assert_unpublished, evidence, setup_operation
 from tests.support import operation_services, runtime_observation
-
-
-def evidence():
-    result = filter_evidence()
-    result.update(
-        brightness=10,
-        contrast=0,
-        requested_tileset_mode=None,
-        observed_tileset_mode=None,
-        changed_tiles=[],
-    )
-    for image in result["images"]:
-        image["image_kind"] = "ordinary"
-    return result
-
-
-def setup_operation(tmp_path, response=None, crash=False):
-    services, source, target, staged = setup_filter_staging(tmp_path, response, crash)
-    request = BrightnessContrastRequest.model_validate(
-        {
-            "source_sprite_file": str(source),
-            "target_sprite_file": str(target),
-            "in_place": False,
-            "overwrite": True,
-            "brightness": 10,
-            "contrast": 0,
-            "application": {
-                "kind": "pixels",
-                "color_mode": "rgb",
-                "channels": {"kind": "components", "names": ["red"]},
-                "cels_target": {"kind": "all"},
-            },
-        }
-    )
-    return request, services, source, target, staged
 
 
 def test_valid_persisted_evidence_publishes_target(tmp_path):

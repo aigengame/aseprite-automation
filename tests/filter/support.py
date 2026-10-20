@@ -9,6 +9,9 @@ from pathlib import Path
 
 from spa.adapters.files import LocalTargetFiles
 from spa.application.surface import OPERATIONS
+from spa.authoring.raster.color_curve import ColorCurveRequest, color_curve
+from spa.authoring.raster.filter import BrightnessContrastRequest
+from spa.authoring.raster.replace_color import ReplaceColorRequest, replace_color
 from spa.contracts.ports import KernelInvocationResult, PackagedHandler
 from spa.contracts.public import Diagnostics
 from tests.native_invocation import run, run_lua
@@ -219,3 +222,86 @@ def assert_unpublished(source, target, staged):
     assert target.read_bytes() == b"preexisting target"
     assert len(staged) == 1
     assert not staged[0].exists()
+
+
+def evidence():
+    """Return valid `spa filter brightness-contrast` evidence for one RGB Cel."""
+    result = filter_evidence()
+    result.update(
+        brightness=10,
+        contrast=0,
+        requested_tileset_mode=None,
+        observed_tileset_mode=None,
+        changed_tiles=[],
+    )
+    for image in result["images"]:
+        image["image_kind"] = "ordinary"
+    return result
+
+
+def hue_evidence():
+    """Return valid `spa filter hue-saturation` evidence for one RGB Cel."""
+    result = filter_cel_evidence()
+    result["adjustment"] = {
+        "mode": "hsl-multiply",
+        "hue": 0,
+        "saturation": 0,
+        "lightness": 10,
+    }
+    result["alpha"] = None
+    return result
+
+
+def operation_case(name):
+    """Return `(response, parameters, request_type, execute)` for a pixel Filter.
+
+    name is `color-curve` or `replace-color`. The response is valid evidence
+    for one RGB Cel and the parameters.
+    """
+    response = hue_evidence()
+    for field in ("application", "palette_indexes", "adjustment", "alpha"):
+        del response[field]
+    if name == "color-curve":
+        parameters = {"points": [{"input": 0, "output": 255}]}
+        request_type, execute = ColorCurveRequest, color_curve
+    else:
+        parameters = {
+            "from": {"kind": "rgba", "red": 0, "green": 0, "blue": 0, "alpha": 255},
+            "to": {"kind": "rgba", "red": 255, "green": 255, "blue": 255, "alpha": 255},
+            "tolerance": 0,
+        }
+        response["changed_pixel_count"] = 1
+        request_type, execute = ReplaceColorRequest, replace_color
+    response.update(parameters)
+    return response, parameters, request_type, execute
+
+
+def response_for():
+    """Return valid `spa filter despeckle` evidence for a 3-by-1 window."""
+    response = filter_cel_evidence()
+    response.update(
+        width=3, height=1, tiled_mode="none", anchor={"x": 1, "y": 0}, sample_count=3
+    )
+    return response
+
+
+def setup_operation(tmp_path, response=None, crash=False):
+    """Return a Brightness/Contrast request and the staging of setup_filter_staging."""
+    services, source, target, staged = setup_filter_staging(tmp_path, response, crash)
+    request = BrightnessContrastRequest.model_validate(
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": False,
+            "overwrite": True,
+            "brightness": 10,
+            "contrast": 0,
+            "application": {
+                "kind": "pixels",
+                "color_mode": "rgb",
+                "channels": {"kind": "components", "names": ["red"]},
+                "cels_target": {"kind": "all"},
+            },
+        }
+    )
+    return request, services, source, target, staged

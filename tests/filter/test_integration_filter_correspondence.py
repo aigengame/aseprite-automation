@@ -14,11 +14,14 @@ from spa.authoring.raster.invert_outline import (
     outline,
 )
 from spa.contracts.ports import RuntimeIssue
-from tests.filter.support import filter_cel_evidence, setup_filter_staging
-from tests.filter.test_integration_despeckle import response_for
-from tests.filter.test_integration_filter import evidence
-from tests.filter.test_integration_hue_saturation import hue_evidence
-from tests.filter.test_integration_pixel_filters import operation_case
+from tests.filter.support import (
+    evidence,
+    filter_cel_evidence,
+    hue_evidence,
+    operation_case,
+    response_for,
+    setup_filter_staging,
+)
 
 
 @pytest.fixture(

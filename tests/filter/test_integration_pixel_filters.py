@@ -2,30 +2,8 @@
 
 import pytest
 
-from spa.authoring.raster.color_curve import ColorCurveRequest, color_curve
-from spa.authoring.raster.replace_color import ReplaceColorRequest, replace_color
 from spa.contracts.ports import RuntimeIssue
-from tests.filter.test_integration_filter import assert_unpublished, setup_operation
-from tests.filter.test_integration_hue_saturation import hue_evidence
-
-
-def operation_case(name):
-    response = hue_evidence()
-    for field in ("application", "palette_indexes", "adjustment", "alpha"):
-        del response[field]
-    if name == "color-curve":
-        parameters = {"points": [{"input": 0, "output": 255}]}
-        request_type, execute = ColorCurveRequest, color_curve
-    else:
-        parameters = {
-            "from": {"kind": "rgba", "red": 0, "green": 0, "blue": 0, "alpha": 255},
-            "to": {"kind": "rgba", "red": 255, "green": 255, "blue": 255, "alpha": 255},
-            "tolerance": 0,
-        }
-        response["changed_pixel_count"] = 1
-        request_type, execute = ReplaceColorRequest, replace_color
-    response.update(parameters)
-    return response, parameters, request_type, execute
+from tests.filter.support import assert_unpublished, operation_case, setup_operation
 
 
 @pytest.mark.parametrize("name", ["color-curve", "replace-color"])

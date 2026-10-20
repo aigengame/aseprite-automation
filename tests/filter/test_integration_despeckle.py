@@ -8,7 +8,7 @@ from spa.contracts.ports import RuntimeIssue
 from spa.contracts.public import RuntimeRequest
 from tests.filter.support import (
     assert_unpublished,
-    filter_cel_evidence,
+    response_for,
     setup_filter_staging,
 )
 from tests.support import operation_services, runtime_observation
@@ -29,14 +29,6 @@ def request_for(source, target):
             "cels_target": {"kind": "all"},
         },
     )
-
-
-def response_for():
-    response = filter_cel_evidence()
-    response.update(
-        width=3, height=1, tiled_mode="none", anchor={"x": 1, "y": 0}, sample_count=3
-    )
-    return response
 
 
 def test_matched_native_observations_publish(tmp_path):
