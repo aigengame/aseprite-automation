@@ -862,6 +862,8 @@ def observe_cli(
       change the native Plan response.
     - "run": count probe and handler processes and Target Commits, and run each
       handler in the native I/O wrapper `tests/fixtures/observe_cli.lua`.
+    - "staged_path": block each staged path so the native save fails, count
+      Target Commits, and record that the discard returned with no staged file.
 
     This runner adds aseprite, or the `SPA_TEST_ASEPRITE` value, to request, and
     validates the envelope against the schema of command. Return the process, its
@@ -871,7 +873,9 @@ def observe_cli(
 
     from tests.native_invocation import validate_envelope
 
-    assert seam in ("invoke", "invoke_direct", "run"), f"unknown observer seam {seam!r}"
+    assert seam in ("invoke", "invoke_direct", "run", "staged_path"), (
+        f"unknown observer seam {seam!r}"
+    )
     assert "aseprite" not in request, "give the Aseprite path as aseprite="
     cli = shutil.which("spa")
     assert cli, "run tests in an installed SPA environment"

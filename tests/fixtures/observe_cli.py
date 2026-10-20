@@ -15,6 +15,9 @@ stops. The seam selects what else the observers do:
 - `run`: count the probe and handler processes, and run each handler inside
   `observe_cli.lua`. That wrapper injects the native I/O fault of case and
   records what the handler did.
+- `staged_path`: give each staged path below a regular file, so the native save
+  after the native work fails, and record that the discard returned with no
+  staged file. The only case is `blocked_stage`.
 """
 
 import json
@@ -26,7 +29,7 @@ from spa.adapters import files as file_adapter
 from spa.adapters.aseprite import aseprite
 from spa.contracts.ports import ProcessEvidence, RuntimeIssue, TargetCommitEvidence
 
-SEAMS = ("invoke", "invoke_direct", "run")
+SEAMS = ("invoke", "invoke_direct", "run", "staged_path")
 # Cases whose native Plan response must come with a staged Sprite file.
 STAGED_CASES = {
     "contradictory_count",
@@ -79,6 +82,20 @@ class CompletionTargetFiles(ObservedTargetFiles):
 
     def discard(self, staged):
         observations["events"].append("discard")
+        super().discard(staged)
+        observations["discarded"] = not staged.exists()
+
+
+class BlockedStageTargetFiles(ObservedTargetFiles):
+    """Fail the outbound staging; the native work and save stay real."""
+
+    def staged_path(self, target):
+        staged = super().staged_path(target)
+        blocked_parent = staged.parent / "blocked-stage-parent"
+        blocked_parent.write_bytes(b"not a directory")
+        return blocked_parent / staged.name
+
+    def discard(self, staged):
         super().discard(staged)
         observations["discarded"] = not staged.exists()
 
@@ -208,10 +225,14 @@ elif seam == "invoke_direct":
     aseprite.invoke_direct = observed_invoke_direct
     aseprite.probe = unexpected
     aseprite.invoke = unexpected
-else:
+elif seam == "run":
     observations.update(handler_invocations=0, probe_invocations=0)
     file_adapter.LocalTargetFiles = ObservedTargetFiles
     aseprite._run = observed_run
+else:
+    assert case == "blocked_stage", f"unknown staged_path case {case!r}"
+    observations["discarded"] = False
+    file_adapter.LocalTargetFiles = BlockedStageTargetFiles
 sys.argv = [cli, *arguments]
 try:
     runpy.run_path(cli, run_name="__main__")

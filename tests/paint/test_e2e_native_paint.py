@@ -1,17 +1,12 @@
 """Native Paint through the public CLI, with saved Image facts as evidence."""
 
-import json
-import os
-import shutil
-import subprocess
-import sys
 from importlib.resources import files
 from pathlib import Path
 
 import pytest
 
 from spa.contracts.ports import RuntimeObservation
-from tests.native_invocation import Outcome, run, run_lua, validate_envelope
+from tests.native_invocation import Outcome, run, run_lua
 from tests.paint.support import (
     FIXTURES,
     RED,
@@ -19,7 +14,7 @@ from tests.paint.support import (
     native_fixture,
     read_pixels,
 )
-from tests.support import process_diagnostics
+from tests.support import observe_cli, process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
@@ -138,11 +133,7 @@ def test_native_save_failure_after_drawing_never_publishes(
     if not in_place:
         target.write_bytes(source.read_bytes())
     before_source, before_target = source.read_bytes(), target.read_bytes()
-    cli = shutil.which("spa")
-    assert cli is not None
-    observations = tmp_path / "observations.json"
     request = {
-        "aseprite": os.environ["SPA_TEST_ASEPRITE"],
         "source_sprite_file": str(source),
         "target_sprite_file": str(target),
         "in_place": in_place,
@@ -156,29 +147,18 @@ def test_native_save_failure_after_drawing_never_publishes(
         "ink": "simple",
         "opacity": 255,
     }
-    process = subprocess.run(
-        [
-            sys.executable,
-            str(FIXTURES / "fail_native_save_cli.py"),
-            str(observations),
-            cli,
-            "paint",
-            "line",
-            "--input-json",
-            "-",
-        ],
-        input=json.dumps(request),
-        text=True,
-        capture_output=True,
-        check=False,
+    process, failure, observed = observe_cli(
+        "blocked_stage",
+        "paint line",
+        request,
+        tmp_path / "observations.json",
+        seam="staged_path",
     )
-    failure = json.loads(process.stdout)
-    validate_envelope("paint line", failure)
     assert process.returncode == 1 and failure["code"] == "kernel_execution_failed", (
         failure
     )
     assert "could not reopen Native Paint" in failure["details"]["reason"], failure
-    assert json.loads(observations.read_text()) == {"commits": 0, "discarded": True}
+    assert observed == {"commits": 0, "discarded": True}
     assert source.read_bytes() == before_source
     assert target.read_bytes() == before_target
     assert not list(tmp_path.rglob("*.staged.aseprite"))
