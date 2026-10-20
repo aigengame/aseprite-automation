@@ -22,6 +22,19 @@ def _mutations_sprite(runtime: RuntimeObservation, target: Path) -> None:
     assert lua.returncode == 0, process_diagnostics(lua)
 
 
+def _affected(
+    layer_paths: list[list[int]], cels: list[tuple[list[int], int]]
+) -> dict[str, object]:
+    """Return the exact affected set of the Layer paths and (Layer path, Frame) Cels."""
+    return {
+        "layer_paths": layer_paths,
+        "cels": [
+            {"layer_path": layer_path, "frame_number": frame_number}
+            for layer_path, frame_number in cels
+        ],
+    }
+
+
 def _mutation_request(source: Path, target: Path) -> dict[str, object]:
     """Return the file fields of a Layer mutation from source to a new target."""
     return {
@@ -60,8 +73,8 @@ def test_set_layer_properties_and_report_rendered_change(
     assert changed["is_editable"] is False
     assert changed["opacity"] == 128
     assert changed["blend_mode"] == "multiply"
-    assert [2] in result["affected_before"]["layer_paths"]
-    assert [2] in result["affected_after"]["layer_paths"]
+    for phase in ("affected_before", "affected_after"):
+        assert result[phase] == _affected([[2]], [([2], 1), ([2], 2)])
     assert len(result["rendered_frames"]) == 2
     assert all(
         frame["before_digest"] != frame["after_digest"]
@@ -95,14 +108,12 @@ def test_move_reorders_one_sibling_and_reports_shifted_addresses(
         "lower",
         "group",
     ]
-    assert {tuple(path) for path in result["affected_before"]["layer_paths"]} >= {
-        (1,),
-        (2,),
-    }
-    assert {tuple(path) for path in result["affected_after"]["layer_paths"]} >= {
-        (1,),
-        (2,),
-    }
+    assert result["affected_before"] == _affected(
+        [[1], [2]], [([1], 1), ([2], 1), ([2], 2)]
+    )
+    assert result["affected_after"] == _affected(
+        [[1], [2]], [([1], 1), ([1], 2), ([2], 1)]
+    )
     assert result["persisted_reopen_verified"] is True
 
 
@@ -120,11 +131,7 @@ def test_remove_group_reports_complete_deleted_subtree_and_cels(
         },
     )
     assert result["after"]["metadata"]["layer_count"] == 2
-    assert [3] in result["affected_before"]["layer_paths"]
-    assert [3, 1] in result["affected_before"]["layer_paths"]
-    assert {"layer_path": [3, 1], "frame_number": 1} in result["affected_before"][
-        "cels"
-    ]
+    assert result["affected_before"] == _affected([[3], [3, 1]], [([3, 1], 1)])
     assert result["affected_after"]["layer_paths"] == []
     assert (
         result["rendered_frames"][0]["before_digest"]
@@ -151,9 +158,12 @@ def test_merge_down_preserves_lower_identity_and_persisted_pixels(
         "lower",
         "group",
     ]
-    assert [1] in result["affected_before"]["layer_paths"]
-    assert [2] in result["affected_before"]["layer_paths"]
-    assert [1] in result["affected_after"]["layer_paths"]
+    assert result["affected_before"] == _affected(
+        [[1], [2], [3], [3, 1]], [([1], 1), ([2], 1), ([2], 2), ([3, 1], 1)]
+    )
+    assert result["affected_after"] == _affected(
+        [[1], [2], [2, 1]], [([1], 1), ([1], 2), ([2, 1], 1)]
+    )
     assert result["persisted_reopen_verified"] is True
 
 
@@ -305,8 +315,10 @@ def test_nested_move_stays_within_group_and_merge_targets_adjacent_sibling(
         "nested-upper",
         "nested-lower",
     ]
-    assert [2, 1] in move["affected_after"]["layer_paths"]
-    assert [2, 2] in move["affected_after"]["layer_paths"]
+    for phase in ("affected_before", "affected_after"):
+        assert move[phase] == _affected(
+            [[2], [2, 1], [2, 2]], [([2, 1], 1), ([2, 2], 1)]
+        )
 
     merge = expect_success(
         "layer merge",
@@ -345,11 +357,10 @@ def test_set_group_properties_without_image_only_fields(
     assert group["name"] == "renamed-group"
     assert group["is_visible"] is False
     assert group["is_editable"] is False
-    assert {tuple(path) for path in result["affected_after"]["layer_paths"]} >= {
-        (2,),
-        (2, 1),
-        (2, 2),
-    }
+    for phase in ("affected_before", "affected_after"):
+        assert result[phase] == _affected(
+            [[2], [2, 1], [2, 2]], [([2, 1], 1), ([2, 2], 1)]
+        )
 
 
 @pytest.mark.parametrize(
@@ -493,11 +504,7 @@ def test_merge_reports_unlinked_surviving_cels_even_when_pixels_match(
         {**_mutation_request(source, target), "target": {"layer_path": [2]}},
     )
     assert native_link_status(runtime, target, tmp_path / "target-links.json") is False
-    for phase in ("affected_before", "affected_after"):
-        assert {
-            tuple(cel["layer_path"] + [cel["frame_number"]])
-            for cel in result[phase]["cels"]
-        } >= {
-            (1, 1),
-            (1, 2),
-        }
+    assert result["affected_before"] == _affected(
+        [[1], [2]], [([1], 1), ([1], 2), ([2], 1)]
+    )
+    assert result["affected_after"] == _affected([[1]], [([1], 1), ([1], 2)])

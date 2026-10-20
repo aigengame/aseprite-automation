@@ -241,8 +241,25 @@ def test_nested_source_moves_to_root_bottom_and_reports_changed_addresses(
     assert result["before_layer"]["path"] == [3, 1]
     assert result["after_layer"]["path"] == [1]
     assert result["created_cels"] == 1
-    assert [3, 1] in result["affected_before"]["layer_paths"]
-    assert [1] in result["affected_after"]["layer_paths"]
+    assert result["affected_before"] == {
+        "layer_paths": [[1], [2], [3], [3, 1]],
+        "cels": [
+            {"layer_path": [1], "frame_number": 1},
+            {"layer_path": [2], "frame_number": 1},
+            {"layer_path": [2], "frame_number": 2},
+            {"layer_path": [3, 1], "frame_number": 1},
+        ],
+    }
+    assert result["affected_after"] == {
+        "layer_paths": [[1], [2], [3], [4]],
+        "cels": [
+            {"layer_path": [1], "frame_number": 1},
+            {"layer_path": [1], "frame_number": 2},
+            {"layer_path": [2], "frame_number": 1},
+            {"layer_path": [3], "frame_number": 1},
+            {"layer_path": [3], "frame_number": 2},
+        ],
+    }
 
 
 @pytest.mark.parametrize(
