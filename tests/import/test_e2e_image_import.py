@@ -356,6 +356,31 @@ def test_rgb_transparent_color_keeps_hidden_rgb(tmp_path, runtime):
     result = expect_success("image import", _import(source, raster, target))
     assert result["cel"]["content"] == "transparent"
     assert result["image"]["width"] == 2
+    read = expect_success(
+        "image get",
+        {
+            "sprite_file": str(target),
+            "source": {
+                "kind": "individual",
+                "target": {"layer": {"layer_path": [1]}, "frame_number": 2},
+                "rectangle": {"x": 0, "y": 0, "width": 2, "height": 1},
+            },
+        },
+    )
+    assert read["snapshot"]["rows"] == [
+        [
+            {
+                "length": 2,
+                "color": {
+                    "kind": "rgba",
+                    "red": 17,
+                    "green": 31,
+                    "blue": 53,
+                    "alpha": 0,
+                },
+            }
+        ]
+    ]
 
 
 def test_read_only_input_extension_is_not_used_as_format_evidence(tmp_path, runtime):
