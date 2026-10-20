@@ -53,7 +53,6 @@ def test_region_schema_declares_standalone_mutation_and_bounds(command: str) -> 
         "null-key",
         "packed",
         "unknown-flag",
-        "too-many",
         "in-place",
     ],
 )
@@ -62,6 +61,7 @@ def test_invalid_set_is_rejected_before_runtime(tmp_path: Path, defect: str) -> 
     binary = fake_aseprite(tmp_path, f"touch {shlex.quote(str(marker))}\nexit 1")
     snapshot = deepcopy(SNAPSHOT)
     entry = snapshot["entries"][0]
+    message = None
     if defect == "duplicate":
         snapshot["entries"].append(deepcopy(entry))
     elif defect == "unsorted":
@@ -71,7 +71,9 @@ def test_invalid_set_is_rejected_before_runtime(tmp_path: Path, defect: str) -> 
     elif defect == "outside":
         entry["tile_x"] = 3
     elif defect == "negative-origin":
-        snapshot["rectangle"]["x"] = -1
+        # The entry stays inside the Rectangle, so only the origin rule refuses it.
+        snapshot["rectangle"].update(x=-1, width=3)
+        message = "Tile Cell Rectangle origin must be nonnegative"
     elif defect == "partial":
         snapshot["complete"] = False
     elif defect == "empty-entry":
@@ -84,8 +86,6 @@ def test_invalid_set_is_rejected_before_runtime(tmp_path: Path, defect: str) -> 
         entry["placement"] = 0x80000001
     elif defect == "unknown-flag":
         entry["placement"]["rotation"] = 90
-    elif defect == "too-many":
-        snapshot["entries"] = [entry] * 4097
     request = {
         "aseprite": str(binary),
         "source_sprite_file": "source.aseprite",
@@ -95,12 +95,61 @@ def test_invalid_set_is_rejected_before_runtime(tmp_path: Path, defect: str) -> 
         "target": {"layer": {"layer_path": [1]}, "frame_number": 1},
         "snapshot": snapshot,
     }
-    # The entries-limit case exceeds Linux's per-argument size limit.
     result = spa("tilemap", "set", "--input-json", "-", stdin=json.dumps(request))
-    assert (
-        result.returncode == 2
-        and json.loads(result.stdout)["code"] == "invalid_request"
-    ), result.stdout
+    failure = json.loads(result.stdout)
+    assert result.returncode == 2 and failure["code"] == "invalid_request", (
+        result.stdout
+    )
+    if message is not None:
+        assert [error["message"] for error in failure["details"]["errors"]] == [
+            f"Value error, {message}"
+        ]
+    assert not marker.exists()
+
+
+@pytest.mark.parametrize("count", [4096, 4097])
+@pytest.mark.parametrize("command", ["set", "patch"])
+def test_region_entries_limit_is_4096(tmp_path: Path, command: str, count: int) -> None:
+    marker = tmp_path / "invoked"
+    binary = fake_aseprite(tmp_path, f"touch {shlex.quote(str(marker))}\nexit 1")
+    # Unique entries in one row, so no other entry rule applies.
+    entries = [
+        {"tile_x": x, "tile_y": 0, "placement": deepcopy(PLACEMENT)}
+        for x in range(count)
+    ]
+    region = (
+        {
+            "snapshot": {
+                **deepcopy(SNAPSHOT),
+                "rectangle": {"x": 0, "y": 0, "width": count, "height": 1},
+                "entries": entries,
+            }
+        }
+        if command == "set"
+        else {"patch": {"coordinate_space": "tile-cell", "entries": entries}}
+    )
+    request = {
+        "aseprite": str(binary),
+        "source_sprite_file": "source.aseprite",
+        "target_sprite_file": "target.aseprite",
+        "in_place": False,
+        "overwrite": False,
+        "target": {"layer": {"layer_path": [1]}, "frame_number": 1},
+        **region,
+    }
+    # Send the request on stdin: it is larger than the Linux per-argument limit.
+    result = spa("tilemap", command, "--input-json", "-", stdin=json.dumps(request))
+    envelope = json.loads(result.stdout)
+    if count == 4096:
+        # The request passes validation, so the controlled runtime starts.
+        assert envelope["code"] != "invalid_request", result.stdout
+        assert marker.exists()
+        return
+    assert result.returncode == 2 and envelope["code"] == "invalid_request"
+    [error] = envelope["details"]["errors"]
+    assert error["location"] == [next(iter(region)), "entries"]
+    assert error["code"] == "too_long"
+    assert "at most 4096 items" in error["message"]
     assert not marker.exists()
 
 
