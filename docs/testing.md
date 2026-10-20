@@ -494,6 +494,10 @@ Use a new output directory for each run. For complete installed-wheel CLI covera
 build the current wheel, install it with the locked runtime dependencies in a separate
 environment, and set `SPA_TEST_INSTALLED_CLI` to its installed `spa` executable.
 Otherwise the existing wheel-only cases report their environment skips.
+Routine CI and the Release fast tests do not set `SPA_TEST_INSTALLED_CLI`, so these
+cases skip there. The Release quality job adds the `mcp` extra to its wheel smoke
+install and runs the 11 `wheel` cases of `tests/cli/test_integration_commands.py`
+and `tests/mcp/test_integration_process.py` against it.
 
 The [installed distribution record](evidence/issue-54-installed-distributions.md)
 records the tested macOS profile, the isolated-wheel replay, and the remaining

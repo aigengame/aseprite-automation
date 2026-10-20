@@ -157,6 +157,16 @@ jobs:
       - name: Build and verify distributions once
         uses: ./.github/actions/verify-python-distributions
 
+      - name: Run the installed-wheel entry tests
+        run: |
+          uv export --quiet --frozen --no-dev --no-emit-project --extra mcp \
+            --output-file "$RUNNER_TEMP/spa-mcp-requirements.txt"
+          uv pip install --python "$RUNNER_TEMP/spa-wheel-smoke/bin/python" \
+            --require-hashes -r "$RUNNER_TEMP/spa-mcp-requirements.txt"
+          SPA_TEST_INSTALLED_CLI="$RUNNER_TEMP/spa-wheel-smoke/bin/spa" \
+            uv run --frozen --group test pytest -m "not e2e" -k wheel -rs \
+            tests/cli/test_integration_commands.py tests/mcp/test_integration_process.py
+
       - name: Preserve the verified distributions
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
