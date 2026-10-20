@@ -1,14 +1,12 @@
 """Bounded animation delivery over retained wizard Sources; no recipe rebuild."""
 
 import hashlib
-import json
-import os
 from pathlib import Path
 
 import pytest
 from PIL import Image
 
-from tests.support import spa
+from tests.native_invocation import expect_success
 
 pytestmark = pytest.mark.e2e
 REPOSITORY = Path(__file__).resolve().parents[2]
@@ -17,17 +15,18 @@ DELIVERY = EXAMPLE / "godot/content/wizard_assets"
 
 
 def _export(operation: str, source: Path, frames: list[int], destination: dict) -> dict:
+    """Export the visible Layers of frames, which must succeed, and return the result.
+
+    This also checks the reported operation and that each playback occurrence
+    has its ordinal, its Source Frame and a 100 ms duration.
+    """
     request = {
-        "aseprite": os.environ["SPA_TEST_ASEPRITE"],
         "source_sprite_file": str(source),
         "playback": {"kind": "frames", "frame_numbers": frames},
         "layer_composition": {"mode": "visible"},
         "destination": destination,
     }
-    run = spa("export", operation, "--input-json", json.dumps(request))
-    assert run.returncode == 0, f"{run.stdout}\n{run.stderr}"
-    result = json.loads(run.stdout)
-    assert result["status"] == "success", result
+    result = expect_success(f"export {operation}", request)
     assert result["operation"] == f"spa export {operation}"
     occurrences = result["playback"]["occurrences"]
     assert [item["occurrence"] for item in occurrences] == list(

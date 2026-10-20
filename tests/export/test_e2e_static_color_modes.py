@@ -1,25 +1,33 @@
 """Static PNG Color Mode choices, bounded Palette preparation, and opacity."""
 
-import json
 from pathlib import Path
 
 import pytest
 from PIL import Image
 
 from spa.contracts.digest import fnv1a64
+from spa.contracts.ports import RuntimeObservation
 from tests.color_mode.test_e2e_color_mode import conversion_for, convert
-from tests.export.support import export_image_request as _request
-from tests.export.support import source_sprite
-from tests.export.test_e2e_static_geometry import _export
-from tests.support import inject_palette_change, spa
+from tests.export.support import export_verified_image
+from tests.native_invocation import run
+from tests.support import export_image_choices, inject_palette_change, source_sprite
 
 pytestmark = pytest.mark.e2e
 MODES = ("rgb", "grayscale", "indexed")
 
 
-def _source(tmp_path: Path, mode: str = "rgb", scenario: str = "basic") -> Path:
+def _source(
+    runtime: RuntimeObservation,
+    tmp_path: Path,
+    mode: str = "rgb",
+    scenario: str = "basic",
+) -> Path:
+    """Return the `source_sprite` of `static_color_modes.lua`.
+
+    This names the fixture and always passes mode and scenario.
+    """
     return source_sprite(
-        tmp_path, "static_color_modes.lua", mode=mode, scenario=scenario
+        runtime, tmp_path, "static_color_modes.lua", mode=mode, scenario=scenario
     )
 
 
@@ -33,15 +41,15 @@ def _pixels(destination: Path) -> list[tuple[int, int, int, int]]:
     [(source, target) for source in MODES for target in MODES],
 )
 def test_explicit_conversion_and_same_mode_preserve_neutral_samples_and_alpha(
-    tmp_path: Path, source_mode: str, target_mode: str
+    tmp_path: Path, runtime: RuntimeObservation, source_mode: str, target_mode: str
 ) -> None:
-    source = _source(tmp_path, source_mode)
+    source = _source(runtime, tmp_path, source_mode)
     before = source.read_bytes()
     destination = tmp_path / "converted.png"
     choices = {"color_mode": conversion_for(source_mode, target_mode)}
     if source_mode != "indexed" and target_mode == "indexed":
         choices["palette_preparation"] = {"kind": "current"}
-    result = _export(_request(source, destination, **choices))
+    result = export_verified_image(export_image_choices(source, destination, **choices))
 
     assert result["source_color_mode"] == source_mode
     assert result["color_mode"] == target_mode
@@ -59,9 +67,9 @@ def test_explicit_conversion_and_same_mode_preserve_neutral_samples_and_alpha(
 
 @pytest.mark.parametrize("algorithm", ("none", "ordered", "old", "error-diffusion"))
 def test_dithering_matches_existing_native_conversion_and_one_file_matrix(
-    tmp_path: Path, algorithm: str
+    tmp_path: Path, runtime: RuntimeObservation, algorithm: str
 ) -> None:
-    source = _source(tmp_path, scenario="dither")
+    source = _source(runtime, tmp_path, scenario="dither")
     before = source.read_bytes()
     dithering: dict = {"algorithm": algorithm}
     if algorithm == "ordered":
@@ -73,8 +81,8 @@ def test_dithering_matches_existing_native_conversion_and_one_file_matrix(
     code, native = convert(source, tmp_path / "native.aseprite", conversion)
     assert code == 0, native
     destination = tmp_path / "dithered.png"
-    result = _export(
-        _request(
+    result = export_verified_image(
+        export_image_choices(
             source,
             destination,
             color_mode=conversion,
@@ -97,8 +105,8 @@ def test_dithering_matches_existing_native_conversion_and_one_file_matrix(
             "path": native["dithering"]["matrix"]["resolved_path"],
         }
         explicit = tmp_path / "file-matrix.png"
-        _export(
-            _request(
+        export_verified_image(
+            export_image_choices(
                 source,
                 explicit,
                 color_mode=conversion,
@@ -113,9 +121,9 @@ def test_dithering_matches_existing_native_conversion_and_one_file_matrix(
 
 @pytest.mark.parametrize("preparation", ("current", "quantize"))
 def test_palette_preparation_uses_only_selected_frame_and_rectangle(
-    tmp_path: Path, preparation: str
+    tmp_path: Path, runtime: RuntimeObservation, preparation: str
 ) -> None:
-    source = _source(tmp_path, scenario="selection")
+    source = _source(runtime, tmp_path, scenario="selection")
     selected_palette = [
         (0, 0, 0, 0),
         (70, 70, 70, 255),
@@ -133,8 +141,8 @@ def test_palette_preparation_uses_only_selected_frame_and_rectangle(
             new_layer_blending_method=True,
         )
     destination = tmp_path / "selected.png"
-    result = _export(
-        _request(
+    result = export_verified_image(
+        export_image_choices(
             source,
             destination,
             frame_number=2,
@@ -172,9 +180,9 @@ def test_palette_preparation_uses_only_selected_frame_and_rectangle(
     ),
 )
 def test_conversion_refusal_preserves_source_and_existing_destination(
-    tmp_path: Path, fault: str, code: str
+    tmp_path: Path, runtime: RuntimeObservation, fault: str, code: str
 ) -> None:
-    source = _source(tmp_path)
+    source = _source(runtime, tmp_path)
     before = source.read_bytes()
     destination = tmp_path / "preserved.png"
     destination.write_bytes(b"existing destination")
@@ -187,16 +195,16 @@ def test_conversion_refusal_preserves_source_and_existing_destination(
             "matrix": {"kind": "installed", "id": "missing-export-matrix"},
         }
         choices["palette_preparation"] = {"kind": "current"}
-    request = _request(
+    request = export_image_choices(
         source,
         destination,
         color_mode=conversion,
         **choices,
     )
     request["destination"]["if_exists"] = "replace"
-    run = spa("export", "image", "--input-json", json.dumps(request))
-    assert run.returncode != 0, run.stdout
-    failure = json.loads(run.stdout)
+    outcome = run("export image", request)
+    assert outcome.returncode != 0, outcome.envelope
+    failure = outcome.envelope
     assert failure["code"] == code, failure
     if fault == "wrong_mode":
         assert failure["details"]["expected"] == "indexed"
@@ -213,9 +221,9 @@ def test_conversion_refusal_preserves_source_and_existing_destination(
 
 @pytest.mark.parametrize("mode", MODES)
 def test_background_preserves_opaque_samples_and_fills_transparency(
-    tmp_path: Path, mode: str
+    tmp_path: Path, runtime: RuntimeObservation, mode: str
 ) -> None:
-    source = _source(tmp_path, mode)
+    source = _source(runtime, tmp_path, mode)
     before = source.read_bytes()
     background = {
         "rgb": {"kind": "rgba", "red": 33, "green": 33, "blue": 33, "alpha": 255},
@@ -223,8 +231,8 @@ def test_background_preserves_opaque_samples_and_fills_transparency(
         "indexed": {"kind": "palette-index", "index": 2},
     }[mode]
     destination = tmp_path / "opaque.png"
-    result = _export(
-        _request(
+    result = export_verified_image(
+        export_image_choices(
             source,
             destination,
             transparency={"kind": "background", "background_color": background},
@@ -241,12 +249,13 @@ def test_background_preserves_opaque_samples_and_fills_transparency(
 
 def test_indexed_background_refuses_used_palette_alpha_128_without_publication(
     tmp_path: Path,
+    runtime: RuntimeObservation,
 ) -> None:
-    source = _source(tmp_path, "indexed", "semi")
+    source = _source(runtime, tmp_path, "indexed", "semi")
     before = source.read_bytes()
     destination = tmp_path / "preserved.png"
     destination.write_bytes(b"existing destination")
-    request = _request(
+    request = export_image_choices(
         source,
         destination,
         transparency={
@@ -255,9 +264,9 @@ def test_indexed_background_refuses_used_palette_alpha_128_without_publication(
         },
     )
     request["destination"]["if_exists"] = "replace"
-    run = spa("export", "image", "--input-json", json.dumps(request))
-    assert run.returncode != 0, run.stdout
-    failure = json.loads(run.stdout)
+    outcome = run("export image", request)
+    assert outcome.returncode != 0, outcome.envelope
+    failure = outcome.envelope
     assert failure["code"] == "export_image_invalid", failure
     assert failure["details"]["reason"] == "background"
     assert destination.read_bytes() == b"existing destination"

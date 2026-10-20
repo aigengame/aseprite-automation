@@ -2,20 +2,32 @@
 
 import hashlib
 import json
-import os
 from pathlib import Path
 
 import pytest
 from jsonschema import validate
 from PIL import Image
 
-from tests.export.support import png_icc_label, source_sprite
-from tests.support import inject_palette_change, spa, write_group_opacity_and_blend
+from spa.contracts.ports import RuntimeObservation
+from tests.export.support import png_icc_label
+from tests.native_invocation import expect_success, run
+from tests.support import (
+    inject_palette_change,
+    process_diagnostics,
+    source_sprite,
+    spa,
+    write_group_opacity_and_blend,
+)
 
 pytestmark = pytest.mark.e2e
 
 
 def sheet_request(source: Path, folder: Path) -> dict:
+    """Return an Export Sheet request of Frames 1 to 2 of the visible Layers.
+
+    The request writes RGB `sheet.png` and `sheet.json` in folder with a
+    horizontal layout, no trim, no padding and the `wizard_{frame0001}` names.
+    """
     return {
         "source_sprite_file": str(source),
         "image_destination": {"path": str(folder / "sheet.png"), "if_exists": "fail"},
@@ -30,21 +42,18 @@ def sheet_request(source: Path, folder: Path) -> dict:
         "trim": "none",
         "padding": {"border": 0, "shape": 0, "inner": 0},
         "filename_format": "wizard_{frame0001}",
-        "aseprite": os.environ["SPA_TEST_ASEPRITE"],
     }
 
 
 def test_sheet_publishes_two_verified_artifacts_without_changing_source(
     tmp_path: Path,
+    runtime: RuntimeObservation,
 ) -> None:
-    source = source_sprite(tmp_path)
+    source = source_sprite(runtime, tmp_path)
     before = source.read_bytes()
     request = sheet_request(source, tmp_path)
 
-    run = spa("export", "sheet", "--input-json", json.dumps(request))
-
-    assert run.returncode == 0, run.stdout + run.stderr
-    result = json.loads(run.stdout)
+    result = expect_success("export sheet", request)
     validate(
         result, json.loads(spa("export", "sheet", "--schema").stdout)["result_schema"]
     )
@@ -71,18 +80,20 @@ def test_sheet_publishes_two_verified_artifacts_without_changing_source(
 
 @pytest.mark.parametrize("mode", ["rgb", "grayscale"])
 def test_sheet_does_not_quantize_nonindexed_sources_implicitly(
-    tmp_path: Path, mode: str
+    tmp_path: Path, runtime: RuntimeObservation, mode: str
 ) -> None:
-    source = source_sprite(tmp_path, "rgb_profile_alpha.lua", mode=mode, profile="none")
+    source = source_sprite(
+        runtime, tmp_path, "rgb_profile_alpha.lua", mode=mode, profile="none"
+    )
     before = source.read_bytes()
     request = sheet_request(source, tmp_path)
     request.update(
         output_color_mode="indexed",
         selection={"kind": "range", "from_frame": 1, "to_frame": 1},
     )
-    run = spa("export", "sheet", "--input-json", json.dumps(request))
-    assert run.returncode != 0
-    result = json.loads(run.stdout)
+    outcome = run("export sheet", request)
+    assert outcome.returncode != 0
+    result = outcome.envelope
     assert result["code"] == "export_sheet_unsupported"
     assert result["details"]["reason"] == "source_color_mode"
     assert not (tmp_path / "sheet.png").exists()
@@ -92,16 +103,15 @@ def test_sheet_does_not_quantize_nonindexed_sources_implicitly(
 
 def test_zero_based_names_are_output_ordinals_with_literal_prefix_and_suffix(
     tmp_path: Path,
+    runtime: RuntimeObservation,
 ) -> None:
-    source = source_sprite(tmp_path)
+    source = source_sprite(runtime, tmp_path)
     request = sheet_request(source, tmp_path)
     request.update(
         selection={"kind": "range", "from_frame": 2, "to_frame": 2},
         filename_format="wizard_{frame0000}.png",
     )
-    run = spa("export", "sheet", "--input-json", json.dumps(request))
-    assert run.returncode == 0, run.stdout + run.stderr
-    result = json.loads(run.stdout)
+    result = expect_success("export sheet", request)
     assert result["frames"][0]["filename"] == "wizard_0000.png"
     assert result["frames"][0]["source_frame"] == 2
     assert not (tmp_path / "wizard_0000.png").exists()
@@ -119,9 +129,9 @@ def test_zero_based_names_are_output_ordinals_with_literal_prefix_and_suffix(
 )
 @pytest.mark.parametrize("trim", ["none", "sprite", "frame"])
 def test_native_layouts_preserve_duplicate_and_blank_logical_frames(
-    tmp_path: Path, layout: dict, trim: str
+    tmp_path: Path, runtime: RuntimeObservation, layout: dict, trim: str
 ) -> None:
-    source = source_sprite(tmp_path, "sheet_sources.lua", variant="duplicates")
+    source = source_sprite(runtime, tmp_path, "sheet_sources.lua", variant="duplicates")
     before = source.read_bytes()
     request = sheet_request(source, tmp_path)
     request.update(
@@ -130,9 +140,7 @@ def test_native_layouts_preserve_duplicate_and_blank_logical_frames(
         trim=trim,
         padding={"border": 1, "shape": 2, "inner": 1},
     )
-    run = spa("export", "sheet", "--input-json", json.dumps(request))
-    assert run.returncode == 0, run.stdout + run.stderr
-    result = json.loads(run.stdout)
+    result = expect_success("export sheet", request)
     assert result["source_frames"] == [1, 2, 3, 4, 5]
     assert result["selected_tag"]["direction"] == "reverse"
     assert result["selected_tag"]["repeats"] == 2
@@ -167,17 +175,15 @@ def test_native_layouts_preserve_duplicate_and_blank_logical_frames(
 
 @pytest.mark.parametrize("mask", [0, 7])
 def test_indexed_sheet_preserves_full_palette_indexes_and_transparency(
-    tmp_path: Path, mask: int
+    tmp_path: Path, runtime: RuntimeObservation, mask: int
 ) -> None:
     source = source_sprite(
-        tmp_path, "sheet_sources.lua", variant=f"indexed{mask}_linked"
+        runtime, tmp_path, "sheet_sources.lua", variant=f"indexed{mask}_linked"
     )
     before = source.read_bytes()
     request = sheet_request(source, tmp_path)
     request.update(output_color_mode="indexed", layout={"kind": "packed"})
-    run = spa("export", "sheet", "--input-json", json.dumps(request))
-    assert run.returncode == 0, run.stdout + run.stderr
-    result = json.loads(run.stdout)
+    result = expect_success("export sheet", request)
     assert result["output_color_mode"] == "indexed" and len(result["frames"]) == 2
     assert result["frames"][0]["rectangle"] == result["frames"][1]["rectangle"]
     with Image.open(tmp_path / "sheet.png") as image:
@@ -194,8 +200,11 @@ def test_indexed_sheet_preserves_full_palette_indexes_and_transparency(
 
 def test_linked_palette_changes_render_before_dedup_and_reject_incompatible_indexed(
     tmp_path: Path,
+    runtime: RuntimeObservation,
 ) -> None:
-    source = source_sprite(tmp_path, "sheet_sources.lua", variant="indexed7_linked")
+    source = source_sprite(
+        runtime, tmp_path, "sheet_sources.lua", variant="indexed7_linked"
+    )
     palette = [(n * 10, n * 11, n * 12, 255) for n in range(8)]
     palette[1], palette[2], palette[3] = (
         (1, 230, 7, 255),
@@ -206,9 +215,7 @@ def test_linked_palette_changes_render_before_dedup_and_reject_incompatible_inde
     before = source.read_bytes()
     request = sheet_request(source, tmp_path)
     request["layout"] = {"kind": "packed"}
-    run = spa("export", "sheet", "--input-json", json.dumps(request))
-    assert run.returncode == 0, run.stdout + run.stderr
-    frames = json.loads(run.stdout)["frames"]
+    frames = expect_success("export sheet", request)["frames"]
     assert frames[0]["rectangle"] != frames[1]["rectangle"]
     with Image.open(tmp_path / "sheet.png") as image:
         rgba = image.convert("RGBA")
@@ -223,9 +230,7 @@ def test_linked_palette_changes_render_before_dedup_and_reject_incompatible_inde
     old = [
         (tmp_path / filename).read_bytes() for filename in ("sheet.png", "sheet.json")
     ]
-    failure = json.loads(
-        spa("export", "sheet", "--input-json", json.dumps(request)).stdout
-    )
+    failure = run("export sheet", request).envelope
     assert (
         failure["code"] == "export_sheet_unsupported"
         and failure["details"]["reason"] == "palette_mismatch"
@@ -236,22 +241,20 @@ def test_linked_palette_changes_render_before_dedup_and_reject_incompatible_inde
     request.update(
         selection={"kind": "range", "from_frame": 1, "to_frame": 1}, trim="sprite"
     )
-    run = spa("export", "sheet", "--input-json", json.dumps(request))
-    assert run.returncode == 0, run.stdout + run.stderr
+    expect_success("export sheet", request)
     assert source.read_bytes() == before
 
 
 def test_subset_projects_complete_tags_and_keeps_whole_timeline_common_trim(
     tmp_path: Path,
+    runtime: RuntimeObservation,
 ) -> None:
-    source = source_sprite(tmp_path, "sheet_sources.lua", variant="duplicates")
+    source = source_sprite(runtime, tmp_path, "sheet_sources.lua", variant="duplicates")
     request = sheet_request(source, tmp_path)
     request.update(
         selection={"kind": "tag", "tag": {"tag_name": "nested"}}, trim="sprite"
     )
-    run = spa("export", "sheet", "--input-json", json.dumps(request))
-    assert run.returncode == 0, run.stdout + run.stderr
-    result = json.loads(run.stdout)
+    result = expect_success("export sheet", request)
     assert result["source_frames"] == [2, 3]
     assert result["common_trim"] == {"x": 2, "y": 1, "width": 5, "height": 3}
     tags = json.loads((tmp_path / "sheet.json").read_text())["meta"]["frameTags"]
@@ -270,10 +273,10 @@ def test_subset_projects_complete_tags_and_keeps_whole_timeline_common_trim(
     "trim,success", [("none", False), ("sprite", False), ("frame", True)]
 )
 def test_indexed_background_conflict_is_decided_after_native_trim(
-    tmp_path: Path, trim: str, success: bool
+    tmp_path: Path, runtime: RuntimeObservation, trim: str, success: bool
 ) -> None:
     source = source_sprite(
-        tmp_path, "sheet_sources.lua", variant="background_indexed_mask"
+        runtime, tmp_path, "sheet_sources.lua", variant="background_indexed_mask"
     )
     before = source.read_bytes()
     request = sheet_request(source, tmp_path)
@@ -282,10 +285,10 @@ def test_indexed_background_conflict_is_decided_after_native_trim(
         selection={"kind": "tag", "tag": {"tag_name": "first"}},
         trim=trim,
     )
-    run = spa("export", "sheet", "--input-json", json.dumps(request))
-    result = json.loads(run.stdout)
+    outcome = run("export sheet", request)
+    result = outcome.envelope
     if success:
-        assert run.returncode == 0, run.stdout + run.stderr
+        assert outcome.returncode == 0, process_diagnostics(outcome.process)
         assert result["effective_background"] is True
         assert result["frames"][0]["source_rectangle"] == {
             "x": 2,
@@ -313,7 +316,7 @@ def test_indexed_background_conflict_is_decided_after_native_trim(
 )
 @pytest.mark.parametrize("profile", ["none", "srgb", "linear_srgb", "display_p3_cc0"])
 def test_sheet_preserves_supported_profiles_with_independent_icc_verification(
-    tmp_path: Path, mode: str, output: str, profile: str
+    tmp_path: Path, runtime: RuntimeObservation, mode: str, output: str, profile: str
 ) -> None:
     icc = (
         Path(__file__).resolve().parents[2]
@@ -321,6 +324,7 @@ def test_sheet_preserves_supported_profiles_with_independent_icc_verification(
         / f"{profile}.icc"
     )
     source = source_sprite(
+        runtime,
         tmp_path,
         "rgb_profile_alpha.lua",
         mode=mode,
@@ -331,9 +335,7 @@ def test_sheet_preserves_supported_profiles_with_independent_icc_verification(
     before = source.read_bytes()
     request = sheet_request(source, tmp_path)
     request.update(output_color_mode=output)
-    run = spa("export", "sheet", "--input-json", json.dumps(request))
-    assert run.returncode == 0, run.stdout + run.stderr
-    result = json.loads(run.stdout)
+    result = expect_success("export sheet", request)
     with Image.open(tmp_path / "sheet.png") as image:
         if profile in ("none", "srgb"):
             assert result["color_profile"] == profile
@@ -356,8 +358,11 @@ def test_sheet_preserves_supported_profiles_with_independent_icc_verification(
 
 def test_explicit_group_includes_hidden_descendants_and_retains_native_opacity(
     tmp_path: Path,
+    runtime: RuntimeObservation,
 ) -> None:
-    source = source_sprite(tmp_path, "sheet_sources.lua", variant="hidden_group")
+    source = source_sprite(
+        runtime, tmp_path, "sheet_sources.lua", variant="hidden_group"
+    )
     write_group_opacity_and_blend(source, (128, 255))
     before = source.read_bytes()
     request = sheet_request(source, tmp_path)
@@ -365,8 +370,7 @@ def test_explicit_group_includes_hidden_descendants_and_retains_native_opacity(
         selection={"kind": "range", "from_frame": 1, "to_frame": 1},
         layer_composition={"mode": "include", "layers": [{"layer_name": "selected"}]},
     )
-    run = spa("export", "sheet", "--input-json", json.dumps(request))
-    assert run.returncode == 0, run.stdout + run.stderr
+    expect_success("export sheet", request)
     with Image.open(tmp_path / "sheet.png") as image:
         rgba = image.convert("RGBA")
         assert rgba.getpixel((0, 0)) == (201, 17, 29, 128)
@@ -376,12 +380,12 @@ def test_explicit_group_includes_hidden_descendants_and_retains_native_opacity(
 
 def test_reference_is_excluded_and_direct_reference_selection_is_refused(
     tmp_path: Path,
+    runtime: RuntimeObservation,
 ) -> None:
-    source = source_sprite(tmp_path, "sheet_sources.lua", variant="reference")
+    source = source_sprite(runtime, tmp_path, "sheet_sources.lua", variant="reference")
     request = sheet_request(source, tmp_path)
     request["selection"] = {"kind": "range", "from_frame": 1, "to_frame": 1}
-    run = spa("export", "sheet", "--input-json", json.dumps(request))
-    assert run.returncode == 0, run.stdout + run.stderr
+    expect_success("export sheet", request)
     with Image.open(tmp_path / "sheet.png") as image:
         assert list(image.convert("RGBA").get_flattened_data()) == [
             (200, 0, 0, 255),
@@ -393,9 +397,7 @@ def test_reference_is_excluded_and_direct_reference_selection_is_refused(
     }
     for key in ("image_destination", "metadata_destination"):
         request[key]["if_exists"] = "replace"
-    failure = json.loads(
-        spa("export", "sheet", "--input-json", json.dumps(request)).stdout
-    )
+    failure = run("export sheet", request).envelope
     assert (
         failure["code"] == "export_sheet_unsupported"
         and failure["details"]["reason"] == "reference_layer"
@@ -403,16 +405,17 @@ def test_reference_is_excluded_and_direct_reference_selection_is_refused(
 
 
 @pytest.mark.parametrize("output", ["rgb", "indexed"])
-def test_sheet_reuses_native_tilemap_composition(tmp_path: Path, output: str) -> None:
-    source = source_sprite(tmp_path, "sheet_sources.lua", variant="tilemap")
+def test_sheet_reuses_native_tilemap_composition(
+    tmp_path: Path, runtime: RuntimeObservation, output: str
+) -> None:
+    source = source_sprite(runtime, tmp_path, "sheet_sources.lua", variant="tilemap")
     request = sheet_request(source, tmp_path)
     request.update(
         output_color_mode=output,
         selection={"kind": "range", "from_frame": 1, "to_frame": 1},
         layer_composition={"mode": "include", "layers": [{"layer_name": "tiles"}]},
     )
-    run = spa("export", "sheet", "--input-json", json.dumps(request))
-    assert run.returncode == 0, run.stdout + run.stderr
+    expect_success("export sheet", request)
     with Image.open(tmp_path / "sheet.png") as image:
         rgba = image.convert("RGBA")
         assert rgba.getpixel((0, 0)) == (11, 22, 33, 255)
