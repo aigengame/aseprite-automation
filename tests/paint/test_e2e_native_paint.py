@@ -242,8 +242,12 @@ def test_native_footprint_bounds_and_canvas_selection_on_offset_linked_cels(
     result = outcome.envelope
     assert source.read_bytes() == original
     if clipping == "reject":
-        assert outcome.returncode != 0
-        assert "footprint is outside Image bounds" in result["details"]["reason"]
+        assert outcome.returncode == 1, process_diagnostics(outcome.process)
+        assert result["code"] == "kernel_execution_failed"
+        assert (
+            "Native Brush footprint is outside Image bounds"
+            in result["details"]["reason"]
+        )
         assert not target.exists()
         return
     assert outcome.returncode == 0, process_diagnostics(outcome.process)

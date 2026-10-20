@@ -357,6 +357,10 @@ def test_background_and_grayscale_writes_preserve_native_mode_and_opacity(
     translucent_patch["runs"][0]["color"]["alpha"] = 1  # type: ignore[index]
     translucent = _apply(background, translucent_target, translucent_patch)
     assert translucent.returncode == 1, process_diagnostics(translucent.process)
+    assert (
+        "Background RGB write must be opaque"
+        in translucent.envelope["details"]["reason"]
+    )
     assert not translucent_target.exists()
 
     grayscale = tmp_path / "grayscale.aseprite"
@@ -432,6 +436,10 @@ def test_indexed_write_reports_effective_palette_and_rejects_missing_index_atomi
     ]
     invalid = _apply(source, invalid_target, invalid_patch)
     assert invalid.returncode == 1, process_diagnostics(invalid.process)
+    assert (
+        "Palette Index does not exist in every affected Cel Frame Effective Palette"
+        in invalid.envelope["details"]["reason"]
+    )
     assert not invalid_target.exists()
     assert source.read_bytes() == source_bytes
 

@@ -389,7 +389,10 @@ def test_small_image_clips_to_original_extent(
 def test_rejects_unclipped_footprint_and_outside_canvas_seed(
     runtime: RuntimeObservation, tmp_path: Path
 ) -> None:
-    for name, seed in (("bounds", (0, 0)), ("seed", (-3, 0))):
+    for name, seed, reason in (
+        ("bounds", (0, 0), "Native Brush footprint is outside Image bounds"),
+        ("seed", (-3, 0), "Fill seed is outside the Sprite Canvas"),
+    ):
         case_dir = tmp_path / name
         case_dir.mkdir()
         config = {
@@ -430,6 +433,8 @@ def test_rejects_unclipped_footprint_and_outside_canvas_seed(
                 "clipping": "reject",
             },
         )
-        assert outcome.returncode != 0
+        assert outcome.returncode == 1, process_diagnostics(outcome.process)
+        assert outcome.envelope["code"] == "kernel_execution_failed"
+        assert reason in outcome.envelope["details"]["reason"]
         assert not destination.exists()
         assert source.read_bytes() == original
