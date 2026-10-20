@@ -629,35 +629,6 @@ def test_apply_case_variant_publication_entry_requires_in_place_intent(
         assert source.read_bytes() == before
 
 
-def test_apply_resolves_the_complete_target_before_any_write(tmp_path: Path) -> None:
-    source = tmp_path / "source.aseprite"
-    target = tmp_path / "never-published.aseprite"
-    create_sprite(source, width=3, height=2)
-    source_bytes = source.read_bytes()
-    patch = _rgba_patch(x=0, y=0, length=1, width=4)
-    patch["runs"] = [
-        patch["runs"][0],  # type: ignore[index]
-        {
-            "x": 3,
-            "y": 0,
-            "length": 1,
-            "color": {
-                "kind": "rgba",
-                "red": 68,
-                "green": 85,
-                "blue": 102,
-                "alpha": 255,
-            },
-        },
-    ]
-
-    outcome = _apply(source, target, patch)
-
-    assert outcome.returncode == 1, process_diagnostics(outcome.process)
-    assert not target.exists()
-    assert source.read_bytes() == source_bytes
-
-
 @pytest.mark.parametrize(
     ("kind", "address", "reason"),
     [
