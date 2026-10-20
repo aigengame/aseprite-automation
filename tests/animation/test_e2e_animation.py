@@ -1,69 +1,28 @@
 """Installed animation audit, compare, and preview against native Aseprite."""
 
 import hashlib
-import json
-import os
-import subprocess
-import tempfile
 from pathlib import Path
 
 import pytest
 from PIL import Image
 
-from spa.adapters.aseprite.invocation import prepare_invocation
-from tests.support import process_diagnostics, spa
+from spa.contracts.ports import RuntimeObservation
+from tests.native_invocation import expect_success, run, run_lua
+from tests.support import process_diagnostics, source_sprite
 
 pytestmark = pytest.mark.e2e
 
+FIXTURES = Path(__file__).parent / "fixtures"
 
-def _source(tmp_path: Path, fixture: str, **params: str) -> Path:
+
+def test_audit_reports_exact_declared_coverage_and_findings(
+    tmp_path: Path, runtime: RuntimeObservation
+) -> None:
     source = tmp_path / "source.aseprite"
-    binary = Path(os.environ["SPA_TEST_ASEPRITE"])
-    resource = binary.parent.parent / "Resources" / "data" / "gui.xml"
-    fixture_path = Path(__file__).parent / "fixtures" / fixture
-    if fixture in {"rgb_frames.lua", "rgb_profile_alpha.lua", "rgb_tilemap.lua"}:
-        fixture_path = Path(__file__).parents[1] / "export" / "fixtures" / fixture
-    with tempfile.TemporaryDirectory(prefix="spa-animation-fixture-") as work:
-        prepared = prepare_invocation(binary, resource, Path(work))
-        run = subprocess.run(
-            [
-                str(prepared.executable),
-                "--batch",
-                "--script-param",
-                f"out={source}",
-                *[
-                    argument
-                    for name, value in params.items()
-                    for argument in ("--script-param", f"{name}={value}")
-                ],
-                "--script",
-                str(fixture_path),
-            ],
-            text=True,
-            capture_output=True,
-            check=False,
-            env=prepared.environment,
-        )
-    assert run.returncode == 0, process_diagnostics(run)
-    return source
-
-
-def _run(command: str, request: dict[str, object]) -> tuple[int, dict]:
-    run = spa(
-        "animation",
-        command,
-        "--input-json",
-        "-",
-        stdin=json.dumps({**request, "aseprite": os.environ["SPA_TEST_ASEPRITE"]}),
-    )
-    assert run.stdout, run.stderr
-    return run.returncode, json.loads(run.stdout)
-
-
-def test_audit_reports_exact_declared_coverage_and_findings(tmp_path: Path) -> None:
-    source = _source(tmp_path, "coverage.lua")
-    code, result = _run(
-        "audit",
+    lua = run_lua(FIXTURES / "coverage.lua", runtime, out=source)
+    assert lua.returncode == 0, process_diagnostics(lua)
+    result = expect_success(
+        "animation audit",
         {
             "sprite_file": str(source),
             "from_frame": 1,
@@ -80,7 +39,6 @@ def test_audit_reports_exact_declared_coverage_and_findings(tmp_path: Path) -> N
             ],
         },
     )
-    assert code == 0, result
     assert result["complete"] is True
     assert result["scope"] == {"from_frame": 1, "to_frame": 3}
     assert result["required_cels"] == [
@@ -95,10 +53,14 @@ def test_audit_reports_exact_declared_coverage_and_findings(tmp_path: Path) -> N
     ]
 
 
-def test_audit_allows_undeclared_absent_cel(tmp_path: Path) -> None:
-    source = _source(tmp_path, "coverage.lua")
-    code, result = _run(
-        "audit",
+def test_audit_allows_undeclared_absent_cel(
+    tmp_path: Path, runtime: RuntimeObservation
+) -> None:
+    source = tmp_path / "source.aseprite"
+    lua = run_lua(FIXTURES / "coverage.lua", runtime, out=source)
+    assert lua.returncode == 0, process_diagnostics(lua)
+    result = expect_success(
+        "animation audit",
         {
             "sprite_file": str(source),
             "from_frame": 1,
@@ -107,7 +69,6 @@ def test_audit_allows_undeclared_absent_cel(tmp_path: Path) -> None:
             "non_overlap": [],
         },
     )
-    assert code == 0, result
     assert result["complete"] is True
     assert result["required_cels"] == []
     assert result["durations"] == []
@@ -115,10 +76,14 @@ def test_audit_allows_undeclared_absent_cel(tmp_path: Path) -> None:
     assert result["findings"] == []
 
 
-def test_audit_uses_quantized_native_effective_alpha(tmp_path: Path) -> None:
-    source = _source(tmp_path, "low_opacity.lua")
-    code, result = _run(
-        "audit",
+def test_audit_uses_quantized_native_effective_alpha(
+    tmp_path: Path, runtime: RuntimeObservation
+) -> None:
+    source = tmp_path / "source.aseprite"
+    lua = run_lua(FIXTURES / "low_opacity.lua", runtime, out=source)
+    assert lua.returncode == 0, process_diagnostics(lua)
+    result = expect_success(
+        "animation audit",
         {
             "sprite_file": str(source),
             "from_frame": 1,
@@ -131,15 +96,16 @@ def test_audit_uses_quantized_native_effective_alpha(tmp_path: Path) -> None:
             ],
         },
     )
-    assert code == 0, result
     assert result["overlaps"][0]["overlap_pixels"] == 0
     assert result["findings"] == []
 
 
-def test_audit_ignores_hidden_cel_in_declared_pair(tmp_path: Path) -> None:
-    source = _source(tmp_path, "rgb_frames.lua")
-    code, result = _run(
-        "audit",
+def test_audit_ignores_hidden_cel_in_declared_pair(
+    tmp_path: Path, runtime: RuntimeObservation
+) -> None:
+    source = source_sprite(runtime, tmp_path, "rgb_frames.lua")
+    result = expect_success(
+        "animation audit",
         {
             "sprite_file": str(source),
             "from_frame": 2,
@@ -152,19 +118,24 @@ def test_audit_ignores_hidden_cel_in_declared_pair(tmp_path: Path) -> None:
             ],
         },
     )
-    assert code == 0, result
     assert result["overlaps"][0]["overlap_pixels"] == 0
     assert result["findings"] == []
 
 
-def test_audit_reports_typed_overlap_pixel_limit(tmp_path: Path) -> None:
-    source = _source(tmp_path, "coverage.lua", width="1024", height="1024")
+def test_audit_reports_typed_overlap_pixel_limit(
+    tmp_path: Path, runtime: RuntimeObservation
+) -> None:
+    source = tmp_path / "source.aseprite"
+    lua = run_lua(
+        FIXTURES / "coverage.lua", runtime, out=source, width="1024", height="1024"
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
     pair = {
         "first_layer": {"layer_path": [1]},
         "second_layer": {"layer_path": [2]},
     }
-    code, failure = _run(
-        "audit",
+    outcome = run(
+        "animation audit",
         {
             "sprite_file": str(source),
             "from_frame": 1,
@@ -172,7 +143,8 @@ def test_audit_reports_typed_overlap_pixel_limit(tmp_path: Path) -> None:
             "non_overlap": [pair] * 6,
         },
     )
-    assert code != 0 and failure["code"] == "audit_limit_exceeded"
+    failure = outcome.envelope
+    assert outcome.returncode != 0 and failure["code"] == "audit_limit_exceeded"
     assert failure["details"] == {
         "kind": "operation_limit",
         "unit": "overlap_pixel_checks",
@@ -182,31 +154,34 @@ def test_audit_reports_typed_overlap_pixel_limit(tmp_path: Path) -> None:
     }
 
 
-def test_compare_counts_full_canvas_rgba_differences(tmp_path: Path) -> None:
-    source = _source(tmp_path, "rgb_frames.lua")
+def test_compare_counts_full_canvas_rgba_differences(
+    tmp_path: Path, runtime: RuntimeObservation
+) -> None:
+    source = source_sprite(runtime, tmp_path, "rgb_frames.lua")
     request = {"sprite_file": str(source), "earlier_frame": 1, "later_frame": 2}
-    code, different = _run("compare", request)
-    assert code == 0, different
+    different = expect_success("animation compare", request)
     assert different["complete"] is True
     assert different["color_mode"] == "rgb"
     assert different["bounds"] == {"x": 0, "y": 0, "width": 3, "height": 2}
     assert different["differing_pixels"] == 2
-    identical_source = _source(
+    identical_source = source_sprite(
+        runtime,
         tmp_path,
         "rgb_profile_alpha.lua",
         profile="none",
         alpha="opaque",
         two_frames="true",
     )
-    code, same = _run("compare", {**request, "sprite_file": str(identical_source)})
-    assert code == 0, same
+    same = expect_success(
+        "animation compare", {**request, "sprite_file": str(identical_source)}
+    )
     assert same["differing_pixels"] == 0
 
 
 def test_preview_publishes_verified_overlay_without_source_mutation(
-    tmp_path: Path,
+    tmp_path: Path, runtime: RuntimeObservation
 ) -> None:
-    source = _source(tmp_path, "rgb_frames.lua")
+    source = source_sprite(runtime, tmp_path, "rgb_frames.lua")
     original = hashlib.sha256(source.read_bytes()).hexdigest()
     destination = tmp_path / "preview.png"
     request = {
@@ -215,8 +190,7 @@ def test_preview_publishes_verified_overlay_without_source_mutation(
         "later_frame": 2,
         "destination": {"path": str(destination), "if_exists": "fail"},
     }
-    code, result = _run("preview", request)
-    assert code == 0, result
+    result = expect_success("animation preview", request)
     assert result["destination"] == request["destination"]
     assert result["artifact"]["path"] == str(destination)
     assert result["artifact"]["role"] == "preview"
@@ -247,8 +221,10 @@ def test_preview_publishes_verified_overlay_without_source_mutation(
     assert not list(tmp_path.glob("*.staged.rgba"))
 
 
-def test_preview_requires_explicit_replacement_intent(tmp_path: Path) -> None:
-    source = _source(tmp_path, "rgb_frames.lua")
+def test_preview_requires_explicit_replacement_intent(
+    tmp_path: Path, runtime: RuntimeObservation
+) -> None:
+    source = source_sprite(runtime, tmp_path, "rgb_frames.lua")
     destination = tmp_path / "preview.png"
     destination.write_bytes(b"existing")
     request = {
@@ -257,20 +233,23 @@ def test_preview_requires_explicit_replacement_intent(tmp_path: Path) -> None:
         "later_frame": 2,
         "destination": {"path": str(destination), "if_exists": "fail"},
     }
-    code, failure = _run("preview", request)
-    assert code != 0 and failure["code"] == "artifact_file_failed"
+    outcome = run("animation preview", request)
+    failure = outcome.envelope
+    assert outcome.returncode != 0 and failure["code"] == "artifact_file_failed"
     assert destination.read_bytes() == b"existing"
-    code, result = _run(
-        "preview",
+    expect_success(
+        "animation preview",
         {**request, "destination": {"path": str(destination), "if_exists": "replace"}},
     )
-    assert code == 0, result
     assert destination.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
 
 
 @pytest.mark.parametrize("alpha", ["opaque", "partial", "transparent"])
-def test_preview_decoded_alpha_fixtures(tmp_path: Path, alpha: str) -> None:
-    source = _source(
+def test_preview_decoded_alpha_fixtures(
+    tmp_path: Path, runtime: RuntimeObservation, alpha: str
+) -> None:
+    source = source_sprite(
+        runtime,
         tmp_path,
         "rgb_profile_alpha.lua",
         profile="none",
@@ -278,8 +257,8 @@ def test_preview_decoded_alpha_fixtures(tmp_path: Path, alpha: str) -> None:
         two_frames="true",
     )
     destination = tmp_path / "preview.png"
-    code, result = _run(
-        "preview",
+    result = expect_success(
+        "animation preview",
         {
             "source_sprite_file": str(source),
             "earlier_frame": 1,
@@ -287,7 +266,6 @@ def test_preview_decoded_alpha_fixtures(tmp_path: Path, alpha: str) -> None:
             "destination": {"path": str(destination), "if_exists": "fail"},
         },
     )
-    assert code == 0, result
     assert result["color_profile"] == "none"
     with Image.open(destination) as image:
         image.load()
@@ -312,16 +290,21 @@ def test_preview_decoded_alpha_fixtures(tmp_path: Path, alpha: str) -> None:
     ],
 )
 def test_compare_and_preview_reject_export_image_input_matrix(
-    tmp_path: Path, fixture: str, params: dict[str, str]
+    tmp_path: Path,
+    runtime: RuntimeObservation,
+    fixture: str,
+    params: dict[str, str],
 ) -> None:
-    source = _source(tmp_path, fixture, two_frames="true", **params)
+    source = source_sprite(runtime, tmp_path, fixture, two_frames="true", **params)
     destination = tmp_path / "preview.png"
-    code, compared = _run(
-        "compare", {"sprite_file": str(source), "earlier_frame": 1, "later_frame": 2}
+    outcome = run(
+        "animation compare",
+        {"sprite_file": str(source), "earlier_frame": 1, "later_frame": 2},
     )
-    assert code != 0 and compared["code"] == "kernel_execution_failed"
-    code, previewed = _run(
-        "preview",
+    compared = outcome.envelope
+    assert outcome.returncode != 0 and compared["code"] == "kernel_execution_failed"
+    outcome = run(
+        "animation preview",
         {
             "source_sprite_file": str(source),
             "earlier_frame": 1,
@@ -329,6 +312,7 @@ def test_compare_and_preview_reject_export_image_input_matrix(
             "destination": {"path": str(destination), "if_exists": "fail"},
         },
     )
-    assert code != 0 and previewed["code"] == "kernel_execution_failed"
+    previewed = outcome.envelope
+    assert outcome.returncode != 0 and previewed["code"] == "kernel_execution_failed"
     assert not destination.exists()
     assert not list(tmp_path.glob("*.staged.png"))
