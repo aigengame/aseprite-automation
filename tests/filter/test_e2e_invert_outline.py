@@ -1,4 +1,13 @@
-"""Standalone filters compared with independent native command invocations."""
+"""Invert Color and Outline through the installed CLI.
+
+Native parity tests compare the Target with an independent native command
+invocation (`invert_outline_native.lua`, or the `native` action of
+`invert_outline_mixed.lua`). Refusal tests check that an unsafe Palette index,
+an Indexed component request or an invalid Palette color stops the request
+before publication. Witness tests check literal pixels: two Invert Color
+passes, discriminating Outline points and tiled corners, and an empty
+Selection.
+"""
 
 import pytest
 

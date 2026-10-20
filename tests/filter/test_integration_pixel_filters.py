@@ -1,4 +1,9 @@
-"""No fixed-pixel Filter publishes inconsistent native observations."""
+"""Color Curve and Replace Color refuse inconsistent native evidence.
+
+Each row names the validator text that refuses it. The Palette and parameter
+rules of each Filter are rows of the `filter_case` table in
+`test_integration_filter_correspondence.py`.
+"""
 
 import pytest
 
