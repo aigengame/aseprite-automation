@@ -1,5 +1,6 @@
 """Independent observations of encoded animation delivery bytes."""
 
+import re
 import struct
 import zlib
 from io import BytesIO
@@ -166,10 +167,19 @@ def test_sequence_png_rejects_invalid_packed_adam7_stream(stream: bytes):
         decode_sequence_png(_packed_adam7_png(1, stream))
 
 
-@pytest.mark.parametrize(
-    "damage",
-    ["crc", "trailing", "truncated", "scanline", "zlib_tail", "duplicate_ihdr"],
-)
+# Each message is the text of the check that owns the damage. A later check or
+# Pillow can raise the same exception type when the owning check is absent.
+_PNG_DAMAGE_MESSAGES = {
+    "crc": "Invalid PNG chunk CRC",
+    "trailing": "Invalid PNG IEND",
+    "truncated": "Truncated PNG chunk",
+    "scanline": "PNG pixel stream size disagrees with IHDR",
+    "zlib_tail": "Invalid or oversized PNG compressed stream",
+    "duplicate_ihdr": "Duplicate PNG IHDR",
+}
+
+
+@pytest.mark.parametrize("damage", list(_PNG_DAMAGE_MESSAGES))
 def test_sequence_png_rejects_incomplete_or_inconsistent_encoded_bytes(
     damage: str,
 ) -> None:
@@ -191,7 +201,9 @@ def test_sequence_png_rejects_incomplete_or_inconsistent_encoded_bytes(
     else:
         payload = payload[:33] + payload[8:33] + payload[33:]
 
-    with pytest.raises(AnimationDecodeError):
+    with pytest.raises(
+        AnimationDecodeError, match=re.escape(_PNG_DAMAGE_MESSAGES[damage])
+    ):
         decode_sequence_png(payload)
 
 
@@ -315,24 +327,24 @@ def test_gif_observes_distinct_local_palette_and_disposal_composition() -> None:
     assert all(frame.disposal_method == 1 for frame in decoded.frames)
 
 
-@pytest.mark.parametrize(
-    "damage",
-    [
-        "missing_trailer",
-        "truncated_table",
-        "truncated_data",
-        "trailing",
-        "background_index",
-        "gce_size",
-        "gce_flags",
-        "transparent_index",
-        "gce_terminator",
-        "loop_marker",
-        "duplicate_loop",
-        "out_of_canvas",
-        "lzw_size",
-    ],
-)
+_GIF_DAMAGE_MESSAGES = {
+    "missing_trailer": "Truncated GIF block",
+    "truncated_table": "Truncated GIF block",
+    "truncated_data": "Truncated GIF block",
+    "trailing": "Invalid GIF trailer or incomplete Frame set",
+    "background_index": "GIF Background Color Index exceeds global color table",
+    "gce_size": "Invalid or duplicate GIF Graphics Control Extension",
+    "gce_flags": "Invalid GIF Graphics Control Extension",
+    "transparent_index": "GIF Transparent Color Index exceeds color table",
+    "gce_terminator": "Invalid GIF Graphics Control Extension",
+    "loop_marker": "Invalid or duplicate GIF loop extension",
+    "duplicate_loop": "Invalid or duplicate GIF loop extension",
+    "out_of_canvas": "Invalid GIF Image Descriptor",
+    "lzw_size": "Invalid GIF LZW minimum code size",
+}
+
+
+@pytest.mark.parametrize("damage", list(_GIF_DAMAGE_MESSAGES))
 def test_gif_rejects_incomplete_or_invalid_blocks(damage: str) -> None:
     payload = bytearray(_gif())
     gce = payload.index(b"\x21\xf9\x04")
@@ -365,7 +377,9 @@ def test_gif_rejects_incomplete_or_invalid_blocks(damage: str) -> None:
     else:
         payload[image + 10] = 1
 
-    with pytest.raises(AnimationDecodeError):
+    with pytest.raises(
+        AnimationDecodeError, match=re.escape(_GIF_DAMAGE_MESSAGES[damage])
+    ):
         decode_gif(bytes(payload))
 
 
