@@ -24,6 +24,10 @@ def _mutation(source: Path, target: Path) -> dict:
 
 
 def _reordered_links(runtime: RuntimeObservation, tmp_path: Path) -> tuple[Path, str]:
+    """Write `target_facts.lua`, link Frame 2 to Frame 1, and move Layer [2] to 1.
+
+    Check each step, and return the moved Sprite and the UUID of its leaf Layer.
+    """
     source = tmp_path / "source.aseprite"
     lua = run_lua(
         Path(__file__).parent / "fixtures" / "target_facts.lua", runtime, out=source
