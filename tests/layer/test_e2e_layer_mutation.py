@@ -9,7 +9,7 @@ import pytest
 from spa.authoring.document.sprite import SPRITE_INSPECTION_RESOURCES
 from spa.contracts.ports import RuntimeObservation
 from tests.native_invocation import expect_success, run, run_lua
-from tests.support import process_diagnostics
+from tests.support import native_link_status, process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
@@ -479,22 +479,6 @@ def test_regular_move_can_cross_tilemap_sibling_without_editing_its_content(
     assert result["after"]["metadata"]["tileset_count"] == 1
 
 
-def _linked_cels(runtime: RuntimeObservation, sprite_file: Path) -> bool:
-    """Return whether sprite_file has linked Cels, read by `inspect_links.lua`.
-
-    The fixture writes its report next to sprite_file.
-    """
-    report = sprite_file.with_suffix(".links.json")
-    lua = run_lua(
-        Path(__file__).parents[1] / "frame" / "fixtures" / "inspect_links.lua",
-        runtime,
-        source=sprite_file,
-        out=report,
-    )
-    assert lua.returncode == 0, process_diagnostics(lua)
-    return json.loads(report.read_text())["linked"]
-
-
 def test_merge_reports_unlinked_surviving_cels_even_when_pixels_match(
     runtime: RuntimeObservation,
     tmp_path: Path,
@@ -503,12 +487,12 @@ def test_merge_reports_unlinked_surviving_cels_even_when_pixels_match(
     target = tmp_path / "merged.aseprite"
     lua = run_lua(FIXTURES / "linked_merge.lua", runtime, out=source)
     assert lua.returncode == 0, process_diagnostics(lua)
-    assert _linked_cels(runtime, source) is True
+    assert native_link_status(runtime, source, tmp_path / "source-links.json") is True
     result = expect_success(
         "layer merge",
         {**_mutation_request(source, target), "target": {"layer_path": [2]}},
     )
-    assert _linked_cels(runtime, target) is False
+    assert native_link_status(runtime, target, tmp_path / "target-links.json") is False
     for phase in ("affected_before", "affected_after"):
         assert {
             tuple(cel["layer_path"] + [cel["frame_number"]])

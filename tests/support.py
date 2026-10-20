@@ -492,6 +492,7 @@ def controlled_runtime(binary: Path) -> RuntimeObservation:
 # their bodies.
 _MOTION_FIXTURES = Path(__file__).parent / "motion" / "fixtures"
 _CEL_FIXTURES = Path(__file__).parent / "cel" / "fixtures"
+_FRAME_FIXTURES = Path(__file__).parent / "frame" / "fixtures"
 _OBSERVER = Path(__file__).parent / "fixtures" / "observe_cli.py"
 
 
@@ -564,6 +565,22 @@ def cel_relationships_sprite(runtime: RuntimeObservation, target: Path) -> None:
 
     lua = run_lua(_CEL_FIXTURES / "relationships.lua", runtime, out=target)
     assert lua.returncode == 0, process_diagnostics(lua)
+
+
+def native_link_status(
+    runtime: RuntimeObservation, sprite_file: Path, out: Path
+) -> bool:
+    """Return whether Cels 1 and 2 of Layer 1 in sprite_file share one image.
+
+    `inspect_links.lua` reads the native Sprite and writes its report to out.
+    """
+    from tests.native_invocation import run_lua
+
+    lua = run_lua(
+        _FRAME_FIXTURES / "inspect_links.lua", runtime, source=sprite_file, out=out
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
+    return json.loads(out.read_text(encoding="utf-8"))["linked"]
 
 
 def observe_cli(
