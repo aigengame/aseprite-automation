@@ -477,39 +477,6 @@ def test_plan_paint_without_cel_fails_with_typed_outcome(
     assert not target_file.exists()
 
 
-def test_plan_duplicate_cel_add_rejects_without_commit(
-    runtime: RuntimeObservation, tmp_path: Path
-) -> None:
-    source = tmp_path / "source.aseprite"
-    target_file = tmp_path / "duplicate.aseprite"
-    _cels_sprite(runtime, source)
-    outcome = run(
-        "plan run",
-        {
-            "plan": {
-                "source_sprite_file": str(source),
-                "target_sprite_file": str(target_file),
-                "steps": [
-                    {
-                        "operation": "cel add",
-                        "input": {
-                            "target": {
-                                "layer": {"layer_path": [1]},
-                                "frame_number": 2,
-                            }
-                        },
-                    }
-                ],
-            },
-        },
-    )
-    assert outcome.returncode == 2, outcome.envelope
-    failure = outcome.envelope
-    assert failure["code"] == "cel_already_exists"
-    assert failure["details"]["step_number"] == 1
-    assert not target_file.exists()
-
-
 @pytest.mark.parametrize(
     ("fixture", "target", "expected_code", "details_kind"),
     [

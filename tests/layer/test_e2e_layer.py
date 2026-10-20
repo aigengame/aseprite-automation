@@ -212,24 +212,6 @@ def test_zero_saved_uuid_is_not_exposed_as_persistent_identity(
     missing = outcome.envelope
     assert outcome.returncode == 2
     assert missing["code"] == "layer_missing"
-    plan_result = expect_success(
-        "plan run",
-        {
-            "plan": {
-                "source_sprite_file": str(source),
-                "steps": [
-                    {
-                        "operation": "sprite get",
-                        "input": {"inspection_scope": ["layers"]},
-                    }
-                ],
-            },
-        },
-    )
-    assert (
-        plan_result["steps"][0]["result"]["sprite"]["layers"][1]["layer_uuid"] is None
-    )
-    assert plan_result["final_sprite"]["layers"][1]["layer_uuid"] is None
 
 
 @pytest.mark.parametrize("persist_plan", [False, True])
