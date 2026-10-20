@@ -115,3 +115,37 @@ def test_composite_requires_an_explicit_supported_output_choice(
         ImageGetRequest.model_validate(
             {"sprite_file": "source.aseprite", "source": source}
         )
+
+
+@pytest.mark.parametrize(
+    ("composition", "location", "error_type"),
+    [
+        (
+            {"mode": "include", "layers": []},
+            ("source", "composite", "layer_composition", "include", "layers"),
+            "too_short",
+        ),
+        (
+            {"mode": "all"},
+            ("source", "composite", "layer_composition"),
+            "union_tag_invalid",
+        ),
+    ],
+)
+def test_composite_requires_visible_or_a_nonempty_include_list(
+    composition: dict, location: tuple[str, ...], error_type: str
+) -> None:
+    source = {
+        "kind": "composite",
+        "output_color_mode": "preserve",
+        "frame_number": 1,
+        "rectangle": {"x": 1, "y": 1, "width": 2, "height": 1},
+        "layer_composition": composition,
+    }
+    with pytest.raises(ValidationError) as refused:
+        ImageGetRequest.model_validate(
+            {"sprite_file": "source.aseprite", "source": source}
+        )
+    assert [(error["loc"], error["type"]) for error in refused.value.errors()] == [
+        (location, error_type)
+    ]

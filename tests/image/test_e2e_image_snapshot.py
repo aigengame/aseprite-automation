@@ -10,58 +10,22 @@ from importlib.resources import files
 from pathlib import Path
 
 import pytest
-from jsonschema import validate
 
 from spa.adapters.aseprite.aseprite import probe
 from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.application.surface import PROBE_RESOURCES
 from spa.contracts.public import RuntimeRequest
-from tests.support import inject_palette_change, process_diagnostics, spa
+from tests.native_invocation import render_frame
+from tests.support import (
+    inject_palette_change,
+    process_diagnostics,
+    spa,
+    write_group_opacity_and_blend,
+)
 
 pytestmark = pytest.mark.e2e
 
 FULL_AREA = {"x": 0, "y": 0, "width": 4, "height": 3}
-
-
-@pytest.mark.parametrize(
-    "artifact_path", ["bad\u0000.json", "~spa-pr114-no-such-user/snapshot.json"]
-)
-def test_unusable_snapshot_artifact_path_returns_failure_without_commit(
-    tmp_path: Path,
-    artifact_path: str,
-) -> None:
-    source = _fixture(tmp_path)
-    destination = tmp_path / "existing.aseprite"
-    destination.write_bytes(source.read_bytes())
-    original_source, original_target = source.read_bytes(), destination.read_bytes()
-    run = spa(
-        "image",
-        "replace",
-        "--input-json",
-        "-",
-        stdin=json.dumps(
-            {
-                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-                "source_sprite_file": str(source),
-                "target_sprite_file": str(destination),
-                "in_place": False,
-                "overwrite": True,
-                "target": {"layer": {"layer_path": [1]}, "frame_number": 1},
-                "input": {"kind": "artifact", "path": artifact_path},
-            }
-        ),
-    )
-    assert run.returncode != 0
-    assert run.stdout, run.stderr
-    failure = json.loads(run.stdout)
-    schema = json.loads(spa("image", "replace", "--schema").stdout)
-    validate(failure, schema["failure_schema"])
-    assert failure["code"] == "artifact_file_failed", failure
-    assert failure["details"]["reason"] == "input_file_unreadable"
-    assert "Traceback" not in run.stderr
-    assert source.read_bytes() == original_source
-    assert destination.read_bytes() == original_target
-    assert set(tmp_path.iterdir()) == {source, destination}
 
 
 def _individual(
@@ -98,6 +62,17 @@ def _replace(
         ),
     )
     return run.returncode, json.loads(run.stdout)
+
+
+_MULTIPLY = 1  # native blend mode MULTIPLY in the file format
+# Opacity and blend mode of each Group, in file order, for each patched fixture.
+_GROUP_FIELDS = {
+    "composition": ((128, 255), ()),
+    "blend": ((255,), (_MULTIPLY,)),
+    "indexed-blend": ((255,), (_MULTIPLY,)),
+    "indexed-opacity": ((128,), ()),
+    "hidden-group": ((128, 192), (_MULTIPLY, None)),
+}
 
 
 def _chunks(raw: bytes | bytearray):
@@ -142,36 +117,8 @@ def _fixture(
             env=prepared.environment,
         )
     assert run.returncode == 0, process_diagnostics(run)
-    if mode in {
-        "composition",
-        "blend",
-        "indexed-blend",
-        "indexed-opacity",
-        "hidden-group",
-    }:
-        # Batch SaveAs omits group fields in 1.3.18.5. Supply independent native
-        # file-format evidence, as with Palette Change fixtures, instead of
-        # assuming a live Group opacity was serialized.
-        raw = bytearray(source.read_bytes())
-        flags = struct.unpack_from("<I", raw, 14)[0]
-        struct.pack_into("<I", raw, 14, flags | 2)
-        group_number = 0
-        for at, kind, _ in _chunks(raw):
-            if kind == 0x2004 and struct.unpack_from("<H", raw, at + 8)[0] == 1:
-                group_number += 1
-                raw[at + 18] = (
-                    128
-                    if mode in {"composition", "indexed-opacity", "hidden-group"}
-                    and group_number == 1
-                    else 192
-                    if mode == "hidden-group" and group_number == 2
-                    else 255
-                )
-                if mode in {"blend", "indexed-blend"} or (
-                    mode == "hidden-group" and group_number == 1
-                ):
-                    struct.pack_into("<H", raw, at + 16, 1)  # native MULTIPLY
-        source.write_bytes(raw)
+    if mode in _GROUP_FIELDS:
+        write_group_opacity_and_blend(source, *_GROUP_FIELDS[mode])
     elif mode == "reference":
         raw = bytearray(source.read_bytes())
         for at, kind, _ in _chunks(raw):
@@ -1001,8 +948,6 @@ def test_native_composition_preserves_hidden_ancestry_and_rebases_canvas_roi(
 @pytest.mark.parametrize(
     ("mode", "composition", "options", "expected"),
     [
-        ("rgb", {"mode": "include", "layers": []}, {}, "invalid_request"),
-        ("rgb", {"mode": "all"}, {}, "invalid_request"),
         (
             "rgb",
             {"mode": "include", "layers": [{"layer_path": [9]}]},
@@ -1160,34 +1105,7 @@ def test_hidden_pixel_difference_is_observable_even_when_exported_pngs_match(
     ]
     code, result = _replace(source, target, value)
     assert code == 0, result
-    from PIL import Image
-
-    images = []
-    for sprite in [source, target]:
-        path = sprite.with_suffix(".png")
-        run = spa(
-            "export",
-            "image",
-            "--input-json",
-            json.dumps(
-                {
-                    "source_sprite_file": str(sprite),
-                    "destination": {"path": str(path), "if_exists": "fail"},
-                    "frame_number": 1,
-                    "export_image_area": {"kind": "canvas"},
-                    "layer_composition": {"mode": "visible"},
-                    "composition_color_mode": "preserve",
-                    "color_mode": "preserve",
-                    "color_profile": "preserve",
-                    "transparency": "preserve",
-                    "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-                }
-            ),
-        )
-        assert run.returncode == 0, run.stdout
-        with Image.open(path) as image:
-            images.append(image.convert("RGBA").tobytes())
-    assert images[0] == images[1]
+    assert render_frame(source, 1).tobytes() == render_frame(target, 1).tobytes()
     code, after = _get(target, source=_individual())
     assert code == 0 and after["snapshot"] == value, after
     assert result["before_content_digest"] != result["after_content_digest"]

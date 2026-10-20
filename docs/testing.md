@@ -1,6 +1,6 @@
 # Test suite
 
-For native text, `tests/paint/test_e2e_text_discovery.py` verifies the installed
+For native text, `tests/paint/test_integration_text_discovery.py` verifies the
 Capability Gap and absence of false callability. The [issue #47 investigation](evidence/issue-47-native-text.md)
 retains manual native pixel and save/reopen observations. Its text fixture is not
 part of routine discovery or pytest; neither installed discovery nor CI needs to
@@ -69,7 +69,11 @@ fixtures in `tests/support.py`, such as `exiting_aseprite` and `responding_asepr
 each name one behaviour and keep the macOS-style resource layout. They use a shell
 body on POSIX and a Python body on Windows, so test files do not test `os.name` to
 select a fixture. A single-consumer behaviour stays in its test file and builds on
-`controlled_aseprite`.
+`controlled_aseprite`. `probe_only_aseprite` answers the runtime probe with the
+capabilities that the test gives, and exits 97 on each other call. A test of a
+refusal after the probe and before the Kernel uses it, so the test fails when the
+request gets to the Kernel. `probe_answer` gives the same probe response to other
+fixtures.
 `tests/support.py::controlled_runtime` gives a runtime observation of such an
 executable without a probe. A test that uses a controlled executable uses
 `controlled_runtime`, not the session `runtime` fixture.
@@ -83,7 +87,9 @@ the exit status, the envelope, and the process. A stdout that is not a valid
 envelope fails the test with `process_diagnostics`. An access failure (`operation:
 "spa"`) and each envelope of a command that is not registered use the access failure
 schema. `expect_success` returns the success envelope, or fails with
-`process_diagnostics`. `run_lua(script, runtime, **params)` runs one Lua fixture in
+`process_diagnostics`. `render_frame(source, frame)` is the render oracle: it exports
+one Frame with `export image` as a visible-canvas PNG, and returns it as an RGBA
+image. `run_lua(script, runtime, **params)` runs one Lua fixture in
 batch mode with the GUI resource that runtime discovery found. It sends each
 parameter as one `--script-param`, and a boolean as `true` or `false`. The caller
 asserts the exit status. The session-scope `runtime` fixture in `tests/conftest.py`
@@ -289,7 +295,9 @@ Use the tier in the file name:
   Aseprite behavior.
 - `test_e2e_*.py` invokes the installed `spa` CLI with a real Aseprite executable,
   or exercises a shared packaged Kernel Interface directly with native fixtures.
-  Mark the module or each test with `pytest.mark.e2e`.
+  Mark the module or each test with `pytest.mark.e2e`. A refusal that SPA decides
+  before the Kernel call is not an e2e case: test it in the fast tier with a missing
+  Aseprite path or a controlled executable.
 
 `pytest.mark.slow` is an additional cost marker, not a verification tier. Use it
 for complete example rebuilds, which run locally on demand. Automated CI and

@@ -2,7 +2,10 @@
 
 Each rule refuses the request before the Kernel. Each Kernel port raises
 `PortReached`, so a row that gets to the Kernel fails. Unless a rule says otherwise,
-its CLI request uses a probe that reports every capability.
+its CLI request uses a probe that reports every capability. The rows of the identity
+and Export rules also fail when the refusal adds, removes or changes a file in their
+directory. The `in_place_without_overwrite` rows do not check the directory, because
+the request model refuses them before dispatch.
 """
 
 from collections.abc import Callable
@@ -103,11 +106,20 @@ def _source_symlink_to_target(root: dict[str, Any], directory: Path) -> None:
     root.update(source_sprite_file=str(source), in_place=False, overwrite=True)
 
 
-def _files(directory: Path) -> dict[str, tuple[bool, bytes]]:
+def _files(directory: Path) -> dict[str, tuple[bool, bytes | None]]:
     return {
-        path.name: (path.is_symlink(), path.read_bytes())
+        path.name: (path.is_symlink(), path.read_bytes() if path.is_file() else None)
         for path in directory.iterdir()
     }
+
+
+def _run_keeping_files(
+    command: str, request: dict[str, Any], directory: Path
+) -> Outcome:
+    before = _files(directory)
+    outcome = run_request(command, request, probe="capable")
+    assert _files(directory) == before, outcome.envelope
+    return outcome
 
 
 def _identity(
@@ -245,7 +257,7 @@ def _export(change: Callable[[dict[str, Any], Path], None]):
         destinations = _destinations(request)
         assert destinations, "exempt an Export command without a destination"
         change(destinations[-1], directory)
-        return run_request(command, request, probe="capable")
+        return _run_keeping_files(command, request, directory)
 
     return run
 
@@ -273,7 +285,7 @@ def _source_symlink_to_destination(command: str, directory: Path) -> Outcome:
     location = source_location(command)
     assert location == ["source_sprite_file"], location
     request["source_sprite_file"] = str(source)
-    return run_request(command, request, probe="capable")
+    return _run_keeping_files(command, request, directory)
 
 
 def _reason(expected: str):

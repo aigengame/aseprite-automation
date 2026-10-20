@@ -2,7 +2,9 @@
 
 import pytest
 
-from tests.filter.support import native_script, observe_images, pixels, run
+from tests.filter.support import FIXTURES, observe_images, pixels
+from tests.native_invocation import expect_success, run_lua
+from tests.support import process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
@@ -11,23 +13,25 @@ def test_equal_colors_with_positive_tolerance_still_normalize_neighbors(
     tmp_path, runtime
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "source.lua", source=source, mode="rgb")
+    lua = run_lua(FIXTURES / "source.lua", runtime, source=source, mode="rgb")
+    assert lua.returncode == 0, process_diagnostics(lua)
     original = source.read_bytes()
     options = pixels(channels={"kind": "components", "names": ["red"]})
     options.pop("kind")
     color = {"kind": "rgba", "red": 100, "green": 0, "blue": 0, "alpha": 255}
-    code, result = run(
-        "filter",
-        "replace-color",
-        source_sprite_file=str(source),
-        target_sprite_file=str(target),
-        in_place=False,
-        overwrite=False,
-        tolerance=60,
-        **{"from": color, "to": color},
-        **options,
+    result = expect_success(
+        "filter replace-color",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": False,
+            "overwrite": False,
+            "tolerance": 60,
+            "from": color,
+            "to": color,
+            **options,
+        },
     )
-    assert code == 0, result
     assert result["changed_pixel_count"] == 1
     assert "matched_pixel_count" not in result
     assert result["changed"] is True
@@ -63,7 +67,8 @@ def test_replace_matches_native_in_each_mode(
         tmp_path / name
         for name in ("source.aseprite", "target.aseprite", "native.aseprite")
     )
-    native_script(runtime, "source.lua", source=source, mode=mode)
+    lua = run_lua(FIXTURES / "source.lua", runtime, source=source, mode=mode)
+    assert lua.returncode == 0, process_diagnostics(lua)
     options = pixels(
         mode,
         channels={"kind": "index"}
@@ -88,27 +93,28 @@ def test_replace_matches_native_in_each_mode(
             "to": {"kind": "rgba", "red": 150, "green": 90, "blue": 30, "alpha": 128},
         }
     before = observe_images(runtime, source)
-    native_script(
+    lua = run_lua(
+        FIXTURES / "replace_native.lua",
         runtime,
-        "replace_native.lua",
         source=source,
         target=native,
         channels=json.dumps([channel]),
         tolerance=tolerance,
         **{name: json.dumps(value) for name, value in colors.items()},
     )
-    code, result = run(
-        "filter",
-        "replace-color",
-        source_sprite_file=str(source),
-        target_sprite_file=str(target),
-        in_place=False,
-        overwrite=False,
-        tolerance=tolerance,
-        **colors,
-        **options,
+    assert lua.returncode == 0, process_diagnostics(lua)
+    result = expect_success(
+        "filter replace-color",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": False,
+            "overwrite": False,
+            "tolerance": tolerance,
+            **colors,
+            **options,
+        },
     )
-    assert code == 0, result
     after = observe_images(runtime, target)
     assert after == observe_images(runtime, native)
     assert result["changed_pixel_count"] == sum(
@@ -121,29 +127,31 @@ def test_transparent_replacement_counts_native_expansion_once(
     tmp_path, runtime, linked
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(
-        runtime, "replace_expansion.lua", source=source, linked=str(linked).lower()
+    lua = run_lua(
+        FIXTURES / "replace_expansion.lua",
+        runtime,
+        source=source,
+        linked=linked,
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     before = source.read_bytes()
     options = pixels(
         channels={"kind": "components", "names": ["red", "green", "blue", "alpha"]}
     )
     options.pop("kind")
-    code, result = run(
-        "filter",
-        "replace-color",
-        source_sprite_file=str(source),
-        target_sprite_file=str(target),
-        in_place=False,
-        overwrite=False,
-        tolerance=0,
-        **{
+    result = expect_success(
+        "filter replace-color",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": False,
+            "overwrite": False,
+            "tolerance": 0,
             "from": {"kind": "rgba", "red": 0, "green": 0, "blue": 0, "alpha": 0},
             "to": {"kind": "rgba", "red": 255, "green": 0, "blue": 0, "alpha": 255},
+            **options,
         },
-        **options,
     )
-    assert code == 0, result
     assert result["changed_pixel_count"] == 3
     assert result["processed_image_numbers"] == [1]
     expected = [0xFF0000FF, 0xFFFF0000, 0xFF0000FF, 0xFF0000FF]

@@ -16,12 +16,14 @@ from spa.application.failure_registry import FAILURE_CODES
 from spa.application.surface import OPERATIONS
 from spa.contracts.ports import PackagedHandler, RuntimeObservation
 from spa.contracts.public import RuntimeRequest
+from tests.host_permissions import symlink_creation_permission
 from tests.support import (
     controlled_aseprite,
     exiting_aseprite,
     fake_aseprite,
     fake_probe_response,
     operation_services,
+    probe_only_aseprite,
     recording_aseprite,
     responding_aseprite,
     spa,
@@ -136,6 +138,22 @@ def test_unexpandable_executable_path_uses_structured_discovery_failure(
         unresolved if source == "argv" else None
     )
     assert failure["details"]["searched"] == [unresolved]
+
+
+def test_symlinked_executable_resolves_to_resource_complete_bundle(
+    tmp_path: Path,
+) -> None:
+    binary = probe_only_aseprite(tmp_path)
+    # The link directory has no gui.xml, so only the resolved bundle has resources.
+    link = tmp_path / "aseprite"
+    with symlink_creation_permission():
+        link.symlink_to(binary)
+    run = spa("info", "--aseprite", str(link))
+    assert run.returncode == 0, run.stdout
+    runtime = json.loads(run.stdout)["runtime"]
+    assert runtime["selection_source"] == "explicit"
+    assert runtime["resource_complete"] is True
+    assert runtime["canonical_path"] == str(binary.resolve())
 
 
 def test_stdin_json_selects_the_installed_runtime(tmp_path: Path) -> None:

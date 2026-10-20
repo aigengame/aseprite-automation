@@ -5,19 +5,26 @@ from pathlib import Path
 
 import pytest
 
-from tests.slice.support import fixture, native_script
+from tests.native_invocation import run_lua
+from tests.slice.support import FIXTURES, fixture
+from tests.support import process_diagnostics
 
 pytestmark = pytest.mark.e2e
 KERNEL = Path(__file__).parents[2] / "src/spa/kernel"
 
 
-def _observation(tmp_path, mode):
+def _observation(runtime, tmp_path, mode):
+    """Return the `vendor_fault.lua` result for mode.
+
+    Also check that the fixture keeps the source and writes no exporter image.
+    """
     source = tmp_path / "source.aseprite"
-    fixture(source)
+    fixture(runtime, source)
     original = source.read_bytes()
     output = tmp_path / "result.json"
-    native_script(
-        "vendor_fault.lua",
+    lua = run_lua(
+        FIXTURES / "vendor_fault.lua",
+        runtime,
         source=source,
         workspace=tmp_path,
         output=output,
@@ -26,6 +33,7 @@ def _observation(tmp_path, mode):
         slice_inspect=KERNEL / "document/slice/slice_inspect.lua",
         mode=mode,
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     assert source.read_bytes() == original
     assert not (tmp_path / "sprite-slices.png").exists()
     return json.loads(output.read_text())
@@ -59,8 +67,10 @@ def _observation(tmp_path, mode):
         "native_line_feed",
     ],
 )
-def test_slice_reader_rejects_malformed_or_missing_native_vendor_data(tmp_path, mode):
-    result = _observation(tmp_path, mode)
+def test_slice_reader_rejects_malformed_or_missing_native_vendor_data(
+    tmp_path, runtime, mode
+):
+    result = _observation(runtime, tmp_path, mode)
     multi = next(item for item in result["baseline"] if item["name"] == "multi")
     assert [item["frame_number"] for item in multi["keys"]] == [1, 3, 5]
     assert result["accepted"] is False, result
@@ -68,8 +78,10 @@ def test_slice_reader_rejects_malformed_or_missing_native_vendor_data(tmp_path, 
     assert result["active_frame_number"] == 4
 
 
-def test_slice_reader_preserves_native_keyless_slice_without_synthetic_key(tmp_path):
-    result = _observation(tmp_path, "keyless")
+def test_slice_reader_preserves_native_keyless_slice_without_synthetic_key(
+    tmp_path, runtime
+):
+    result = _observation(runtime, tmp_path, "keyless")
     assert result["accepted"] is True, result
     empty = next(
         item for item in result["result"]["slices"] if item["name"] == "keyless"

@@ -2,8 +2,10 @@
 
 import json
 from pathlib import Path
+from typing import get_args
 
 import pytest
+from jsonschema import Draft202012Validator
 from pydantic import ValidationError
 
 from spa.adapters.files import LocalArtifactFiles, LocalTargetFiles
@@ -15,7 +17,7 @@ from spa.authoring.raster.paint_composite import (
     composite_capability_gaps,
 )
 from spa.contracts.ports import KernelInvocationResult, OperationServices
-from spa.contracts.public import Diagnostics, FailureEnvelope
+from spa.contracts.public import Diagnostics, FailureEnvelope, RuntimeCapability
 from tests.support import runtime_observation
 
 
@@ -170,3 +172,104 @@ def test_missing_indexed_capability_refuses_before_kernel(tmp_path: Path) -> Non
         for gap in composite_capability_gaps("test", observation.verified_capabilities)
     )
     assert not list(tmp_path.iterdir())
+
+
+def _refused_after_probe(tmp_path: Path, **changes: object) -> dict:
+    """Dispatch with a probe that verifies every capability and no Kernel."""
+    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
+    source.write_bytes(b"source")
+    target.write_bytes(b"target")
+    observation = runtime_observation(*get_args(RuntimeCapability))
+    probes = []
+
+    def probe(_request):
+        probes.append(_request)
+        return observation
+
+    def unexpected_invoke(*_args):
+        raise AssertionError("a static Composite gap must not invoke the Kernel")
+
+    request = {
+        **_request(),
+        "source_sprite_file": str(source),
+        "target_sprite_file": str(target),
+        "overwrite": True,
+        **changes,
+    }
+    outcome = dispatch(
+        COMPOSITE_OPERATIONS[0],
+        json.dumps(request),
+        {},
+        OperationServices(
+            probe_runtime=probe,
+            invoke_kernel=unexpected_invoke,
+            target_files=LocalTargetFiles(),
+        ),
+        FAILURE_CODES,
+    )
+    assert isinstance(outcome, FailureEnvelope)
+    failure = outcome.model_dump(mode="json")
+    Draft202012Validator(
+        COMPOSITE_OPERATIONS[0].schema(FAILURE_CODES).failure_schema
+    ).validate(failure)
+    assert len(probes) == 1
+    assert failure["category"] == "input"
+    assert failure["code"] == "paint_composite_unsupported"
+    assert source.read_bytes() == b"source"
+    assert target.read_bytes() == b"target"
+    assert {item.name for item in tmp_path.iterdir()} == {
+        "source.aseprite",
+        "target.aseprite",
+    }
+    return failure
+
+
+@pytest.mark.parametrize(
+    "blend_mode", ["hue", "saturation", "color", "luminosity", "addition"]
+)
+def test_composite_refuses_grayscale_modes_with_different_native_meaning(
+    tmp_path: Path, blend_mode: str
+) -> None:
+    gray = {"kind": "grayscale", "gray": 90, "alpha": 128}
+    snapshot = _request()["input"]["snapshot"]
+    snapshot["color_mode"] = "grayscale"
+    snapshot["rows"][0][0]["color"] = gray
+
+    failure = _refused_after_probe(
+        tmp_path,
+        input={"kind": "inline", "snapshot": snapshot},
+        blend_mode=blend_mode,
+    )
+
+    gap = failure["details"]["gap"]
+    assert gap == {
+        "capability": f"spa paint composite: grayscale {blend_mode}",
+        "aseprite_version": "test",
+        "reason": failure["message"],
+    }
+    assert "unavailable" in gap["reason"]
+
+
+@pytest.mark.parametrize(
+    "blend,opacity", [("normal", 0), ("normal", 127), ("multiply", 255)]
+)
+def test_unsupported_indexed_blend_or_opacity_is_typed_gap(
+    tmp_path: Path, blend: str, opacity: int
+) -> None:
+    snapshot = _request()["input"]["snapshot"]
+    snapshot["color_mode"] = "indexed"
+    snapshot["rows"][0][0]["color"] = {"kind": "palette-index", "index": 1}
+
+    failure = _refused_after_probe(
+        tmp_path,
+        input={"kind": "inline", "snapshot": snapshot},
+        palette_frame_number=1,
+        blend_mode=blend,
+        opacity=opacity,
+    )
+
+    assert failure["details"]["gap"] == {
+        "capability": "spa paint composite: indexed blend-mode/opacity",
+        "aseprite_version": "test",
+        "reason": failure["message"],
+    }

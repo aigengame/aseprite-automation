@@ -1,48 +1,27 @@
 """Native evidence gates standalone mutation Target Commit and cleanup."""
 
 import hashlib
-import json
 import os
-import shutil
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
 
 from spa.contracts.ports import RuntimeObservation
-from tests.motion.test_e2e_motion import curves, fixture
+from tests.application.support import (
+    OPERATIONS,
+    assert_completion_trace,
+    completion_request,
+    observe_completion,
+)
+from tests.motion.test_e2e_motion import fixture
 
 pytestmark = pytest.mark.e2e
 
 
-@pytest.mark.parametrize(
-    "operation",
-    [
-        "cel set",
-        "motion apply",
-        "tag add",
-        "frame set",
-        "cel remove",
-        "layer set",
-        "image flip",
-        "image resize",
-        "image replace",
-        "paint composite",
-    ],
-)
+@pytest.mark.parametrize("operation", OPERATIONS)
 @pytest.mark.parametrize("in_place", [False, True])
 @pytest.mark.parametrize(
-    "case",
-    [
-        "success",
-        "probe",
-        "invocation",
-        "evidence",
-        "postcondition",
-        "identity",
-        "commit",
-    ],
+    "case", ["success", "evidence", "postcondition", "identity", "commit"]
 )
 def test_standalone_completion_gates_commit_and_cleans_staging(
     runtime: RuntimeObservation,
@@ -56,89 +35,10 @@ def test_standalone_completion_gates_commit_and_cleans_staging(
     if not in_place:
         target.write_bytes(b"existing Target")
     before_source, before_target = source.read_bytes(), target.read_bytes()
-    address = {"layer": {"layer_path": [1]}, "frame_number": 1}
-    image_input = {
-        "kind": "inline",
-        "snapshot": {
-            "coordinate_space": "image-pixel",
-            "color_mode": "rgb",
-            "rectangle": {"x": 0, "y": 0, "width": 9, "height": 12},
-            "rows": [
-                [
-                    {
-                        "length": 9,
-                        "color": {
-                            "kind": "rgba",
-                            "red": 210,
-                            "green": 50,
-                            "blue": 20,
-                            "alpha": 255,
-                        },
-                    }
-                ]
-                for _ in range(12)
-            ],
-        },
-    }
-    inputs = {
-        "motion apply": curves(),
-        "tag add": {
-            "name": "new",
-            "from_frame": 1,
-            "to_frame": 2,
-            "direction": "forward",
-            "repeats": 0,
-        },
-        "cel set": {"target": address, "opacity": 42},
-        "frame set": {"frame_number": 1, "duration_ms": 321},
-        "cel remove": {"target": address},
-        "layer set": {"target": address["layer"], "properties": {"opacity": 128}},
-        "image flip": {"target": address, "axis": "horizontal"},
-        "image resize": {
-            "target": address,
-            "width": 5,
-            "height": 6,
-            "method": "nearest-neighbor",
-            "position_policy": {"kind": "keep"},
-        },
-        "image replace": {"target": address, "input": image_input},
-        "paint composite": {
-            "target": address,
-            "input": image_input,
-            "position": {"x": 0, "y": 0},
-            "opacity": 255,
-            "blend_mode": "normal",
-        },
-    }[operation]
-    request = {
-        "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-        "source_sprite_file": str(source),
-        "target_sprite_file": str(target),
-        "in_place": in_place,
-        "overwrite": True,
-        **inputs,
-    }
-    cli = shutil.which("spa")
-    assert cli, "run tests in an installed SPA environment"
-    report = tmp_path / "completion.json"
-    run = subprocess.run(
-        [
-            sys.executable,
-            str(Path(__file__).parent / "fixtures" / "observe_mutation_completion.py"),
-            case,
-            str(report),
-            cli,
-            *operation.split(),
-            "--input-json",
-            json.dumps(request),
-        ],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        check=False,
+    request = completion_request(
+        operation, os.environ["SPA_TEST_ASEPRITE"], source, target, in_place
     )
-    assert run.stdout, run.stderr
-    outcome, observed = json.loads(run.stdout), json.loads(report.read_text())
+    run, outcome, observed = observe_completion(case, tmp_path, operation, request)
     if case == "success":
         assert run.returncode == 0, outcome
         assert outcome["persisted_reopen_verified"] is True
@@ -155,11 +55,7 @@ def test_standalone_completion_gates_commit_and_cleans_staging(
         assert observed["commits"] == 0
         assert source.read_bytes() == before_source
         assert target.read_bytes() == before_target
-        if case in ("probe", "invocation"):
-            assert outcome["code"] == "process_failed"
-            assert outcome["category"] == "execution"
-            assert outcome["details"]["exit_status"] == 13
-        elif case in ("evidence", "postcondition"):
+        if case in ("evidence", "postcondition"):
             assert outcome["code"] == "kernel_response_invalid"
             assert outcome["category"] == "kernel_protocol"
         else:
@@ -181,20 +77,4 @@ def test_standalone_completion_gates_commit_and_cleans_staging(
                 )
     if not in_place:
         assert source.read_bytes() == before_source
-    # These Operations have no capability-enrichment probe at the CLI boundary.
-    preflight_first = operation in ("frame set", "paint composite")
-    expected_events = ["identity", "probe"] if preflight_first else ["probe"]
-    if case != "probe":
-        if not preflight_first:
-            expected_events.append("identity")
-        expected_events.extend(["stage", "invoke"])
-        if case in ("success", "identity", "commit"):
-            expected_events.append("identity")
-        if case in ("success", "commit"):
-            expected_events.append("commit")
-        expected_events.append("discard")
-        assert observed["discarded"] is True
-        assert not Path(observed["staged"]).exists()
-    assert observed["events"] == expected_events
-    assert observed["native_invocations"] == int(case not in ("probe", "invocation"))
-    assert not list(tmp_path.glob(".*.staged.aseprite"))
+    assert_completion_trace(observed, operation, case, tmp_path)

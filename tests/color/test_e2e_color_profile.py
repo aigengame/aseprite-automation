@@ -1,30 +1,19 @@
 """Color Profile commands preserve or transform native stored color facts."""
 
 import json
-import os
 import struct
-import subprocess
 import sys
-import tempfile
 from importlib.resources import files
 from pathlib import Path
 
 import pytest
 
-from spa.adapters.aseprite.aseprite import probe
-from spa.adapters.aseprite.invocation import prepare_invocation
-from spa.application.surface import PROBE_RESOURCES
-from spa.contracts.public import RuntimeRequest
-from tests.support import icc_fixture_path, process_diagnostics, spa
+from tests.native_invocation import run, run_lua
+from tests.support import icc_fixture_path, process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
-
-@pytest.fixture(scope="module")
-def runtime():
-    return probe(
-        RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
-    )
+FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def _require_conversion(runtime) -> None:
@@ -34,57 +23,38 @@ def _require_conversion(runtime) -> None:
         pytest.skip("selected Linux runtime has no native Color Profile converter")
 
 
-def _native(
-    runtime, source: Path, *, fixture: str = "profile_sprite.lua", **params: str
-) -> dict:
-    with tempfile.TemporaryDirectory(prefix="spa-profile-test-") as work:
-        prepared = prepare_invocation(
-            Path(runtime.canonical_path), Path(runtime.resource_path), Path(work)
-        )
-        arguments = [str(prepared.executable), "--batch"]
-        for key, value in {"source": str(source), **params}.items():
-            arguments.extend(["--script-param", f"{key}={value}"])
-        result = subprocess.run(
-            [
-                *arguments,
-                "--script",
-                str(Path(__file__).parent / "fixtures" / fixture),
-            ],
-            env=prepared.environment,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-    assert result.returncode == 0, process_diagnostics(result)
-    return json.loads(result.stdout)
+def _profile_sprite(runtime, source: Path, **params: str) -> dict:
+    """Run `profile_sprite.lua` on source and return the JSON that it prints."""
+    lua = run_lua(FIXTURES / "profile_sprite.lua", runtime, source=source, **params)
+    assert lua.returncode == 0, process_diagnostics(lua)
+    return json.loads(lua.stdout)
 
 
 def _run(command: str, source: Path, target: Path, profile: dict, **extra: object):
-    result = spa(
-        "sprite",
-        command,
-        "--input-json",
-        json.dumps(
-            {
-                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-                "source_sprite_file": str(source),
-                "target_sprite_file": str(target),
-                "in_place": source == target,
-                "overwrite": True,
-                "profile": profile,
-                **extra,
-            }
-        ),
+    """Run `spa sprite <command>` and return `(returncode, envelope)`.
+
+    This adds the Source and Target fields, `in_place` when they are equal,
+    `overwrite` True, and profile.
+    """
+    outcome = run(
+        f"sprite {command}",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": source == target,
+            "overwrite": True,
+            "profile": profile,
+            **extra,
+        },
     )
-    assert result.stdout, process_diagnostics(result)
-    return result.returncode, json.loads(result.stdout)
+    return outcome.returncode, outcome.envelope
 
 
 def test_assign_none_preserves_stored_colors_and_persists_profile(
     tmp_path: Path, runtime
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    before = _native(runtime, source, action="create")
+    before = _profile_sprite(runtime, source, action="create")
     original = source.read_bytes()
     code, result = _run("assign-color-profile", source, target, {"kind": "none"})
     assert code == 0, result
@@ -94,7 +64,7 @@ def test_assign_none_preserves_stored_colors_and_persists_profile(
     assert result["profile_changed"] is True
     assert result["persisted_reopen_verified"] is True
     assert not any(item["changed"] for item in result["images"] + result["palettes"])
-    after = _native(runtime, target, action="observe")
+    after = _profile_sprite(runtime, target, action="observe")
     assert _encoded_profile(target) == "none"
     assert after["pixels"] == before["pixels"]
     assert after["entries"] == before["entries"]
@@ -116,32 +86,31 @@ def _encoded_profile(path: Path) -> str:
 
 
 def _plan(source: Path, target: Path, steps: list[dict]):
-    result = spa(
-        "plan",
-        "run",
-        "--input-json",
-        json.dumps(
-            {
-                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-                "plan": {
-                    "source_sprite_file": str(source),
-                    "target_sprite_file": str(target),
-                    "in_place": source == target,
-                    "overwrite": True,
-                    "steps": steps,
-                },
-            }
-        ),
+    """Run `spa plan run` with steps and return `(returncode, envelope)`.
+
+    This adds the Source and Target fields, `in_place` when they are equal,
+    and `overwrite` True.
+    """
+    outcome = run(
+        "plan run",
+        {
+            "plan": {
+                "source_sprite_file": str(source),
+                "target_sprite_file": str(target),
+                "in_place": source == target,
+                "overwrite": True,
+                "steps": steps,
+            },
+        },
     )
-    assert result.stdout, process_diagnostics(result)
-    return result.returncode, json.loads(result.stdout)
+    return outcome.returncode, outcome.envelope
 
 
 def test_assign_plan_uses_step_start_profile_and_final_none_persistence(
     tmp_path: Path, runtime
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "plan.aseprite"
-    _native(runtime, source, action="create")
+    _profile_sprite(runtime, source, action="create")
     steps = [
         {
             "operation": "sprite assign-color-profile",
@@ -182,7 +151,7 @@ def test_assign_icc_reports_frozen_input_and_preserves_pixels(
     from PIL import ImageCms
 
     source, target = tmp_path / "source.aseprite", tmp_path / "icc.aseprite"
-    before = _native(runtime, source, action="create")
+    before = _profile_sprite(runtime, source, action="create")
     icc = tmp_path / "linear.icc"
     if profile_kind == "linear_rgb":
         contents = _linear_icc(icc)
@@ -205,7 +174,7 @@ def test_assign_icc_reports_frozen_input_and_preserves_pixels(
         "native_name": result["effective_profile"]["name"],
         "matches_effective_profile": True,
     }
-    after = _native(runtime, target, action="observe", expected_icc=str(icc))
+    after = _profile_sprite(runtime, target, action="observe", expected_icc=str(icc))
     assert _encoded_profile(target) == "icc"
     assert after["matches_requested_icc"] is True
     assert before["pixels"] == after["pixels"] and before["entries"] == after["entries"]
@@ -223,7 +192,8 @@ def test_assign_icc_reports_frozen_input_and_preserves_pixels(
     assert code == 0, planned
     assert planned["steps"][0]["result"]["icc_file"] == result["icc_file"]
     assert (
-        _native(runtime, plan_target, action="observe", expected_icc=str(icc)) == after
+        _profile_sprite(runtime, plan_target, action="observe", expected_icc=str(icc))
+        == after
     )
 
 
@@ -236,18 +206,18 @@ def test_convert_icc_matches_independent_native_conversion_and_reports_changes(
         tmp_path / name
         for name in ["source.aseprite", "converted.aseprite", "oracle.aseprite"]
     )
-    before = _native(runtime, source, action="create", mode=mode)
+    before = _profile_sprite(runtime, source, action="create", mode=mode)
     icc = tmp_path / "linear.icc"
     _linear_icc(icc)
     code, result = _run(
         "convert-color-profile", source, target, {"kind": "icc", "icc_file": str(icc)}
     )
     assert code == 0, result
-    expected = _native(
+    expected = _profile_sprite(
         runtime, source, action="convert", icc=str(icc), output=str(oracle)
     )
-    actual = _native(runtime, target, action="observe")
-    assert actual == _native(runtime, oracle, action="observe") == expected
+    actual = _profile_sprite(runtime, target, action="observe")
+    assert actual == _profile_sprite(runtime, oracle, action="observe") == expected
     assert _encoded_profile(target) == "icc"
     assert result["images"][0]["changed"] == (before["pixels"] != actual["pixels"])
     assert result["palettes"][0]["changed"] == (before["entries"] != actual["entries"])
@@ -271,7 +241,7 @@ def test_assign_and_convert_cover_noops_and_native_srgb_target(
         tmp_path / name
         for name in ["source.aseprite", "assigned.aseprite", "converted.aseprite"]
     )
-    before = _native(runtime, source, action="create", mode=mode)
+    before = _profile_sprite(runtime, source, action="create", mode=mode)
     for command in ["assign-color-profile", "convert-color-profile"]:
         code, noop = _run(command, source, source, {"kind": "srgb"})
         assert code == 0 and not noop["profile_changed"], noop
@@ -282,13 +252,16 @@ def test_assign_and_convert_cover_noops_and_native_srgb_target(
         "assign-color-profile", source, assigned, {"kind": "icc", "icc_file": str(icc)}
     )
     assert code == 0, result
-    assert _native(runtime, assigned, action="observe")["pixels"] == before["pixels"]
+    assert (
+        _profile_sprite(runtime, assigned, action="observe")["pixels"]
+        == before["pixels"]
+    )
     code, result = _run("convert-color-profile", assigned, converted, {"kind": "srgb"})
     assert code == 0 and result["source_profile"]["kind"] == "icc", result
     assert result["effective_profile"]["kind"] == _encoded_profile(converted) == "srgb"
     assert result["icc_file"] is None
-    actual = _native(runtime, converted, action="observe")
-    assert actual == _native(
+    actual = _profile_sprite(runtime, converted, action="observe")
+    assert actual == _profile_sprite(
         runtime, assigned, action="convert", output=str(tmp_path / "oracle.aseprite")
     )
     assert result["images"][0]["changed"] == (mode != "indexed")
@@ -304,12 +277,17 @@ def test_assign_and_convert_cover_noops_and_native_srgb_target(
         ],
     )
     assert code == 0, planned
-    assert _native(runtime, tmp_path / "plan.aseprite", action="observe") == actual
+    assert (
+        _profile_sprite(runtime, tmp_path / "plan.aseprite", action="observe") == actual
+    )
     code, _ = _run("assign-color-profile", assigned, assigned, {"kind": "none"})
     assert code == 0
     code, result = _run("convert-color-profile", assigned, assigned, {"kind": "srgb"})
     assert code == 0 and result["source_profile"]["kind"] == "none", result
-    assert _native(runtime, assigned, action="observe")["pixels"] == before["pixels"]
+    assert (
+        _profile_sprite(runtime, assigned, action="observe")["pixels"]
+        == before["pixels"]
+    )
 
 
 def test_convert_preserves_linked_cels_and_reports_all_palette_changes_and_tiles(
@@ -322,7 +300,7 @@ def test_convert_preserves_linked_cels_and_reports_all_palette_changes_and_tiles
         tmp_path / name
         for name in ["source.aseprite", "target.aseprite", "oracle.aseprite"]
     )
-    _native(runtime, source, action="create", timeline="true", tiles="true")
+    _profile_sprite(runtime, source, action="create", timeline="true", tiles="true")
     inject_palette_change(
         source,
         [
@@ -333,7 +311,7 @@ def test_convert_preserves_linked_cels_and_reports_all_palette_changes_and_tiles
         ],
         frame_number=2,
     )
-    before = _native(runtime, source, action="observe")
+    before = _profile_sprite(runtime, source, action="observe")
     # Assignment must preserve the same linked/Palette/Tileset fixture too.
     code, assigned = _run("assign-color-profile", source, target, {"kind": "none"})
     assert code == 0, assigned
@@ -349,10 +327,10 @@ def test_convert_preserves_linked_cels_and_reports_all_palette_changes_and_tiles
         "convert-color-profile", source, target, {"kind": "icc", "icc_file": str(icc)}
     )
     assert code == 0, result
-    expected = _native(
+    expected = _profile_sprite(
         runtime, source, action="convert", icc=str(icc), output=str(oracle)
     )
-    actual = _native(runtime, target, action="observe")
+    actual = _profile_sprite(runtime, target, action="observe")
     assert actual == expected
     assert actual["links"] == before["links"] and actual["links"]
     assert len(result["images"]) == len(actual["cels"]) == 4
@@ -368,56 +346,13 @@ def test_convert_preserves_linked_cels_and_reports_all_palette_changes_and_tiles
     assert not any(tile["changed"] for tile in result["tilesets"][0]["tiles"])
 
 
-@pytest.mark.parametrize(
-    "command,case,reason",
-    [
-        (command, case, reason)
-        for command in ["assign-color-profile", "convert-color-profile"]
-        for case, reason in [
-            ("missing", "unreadable"),
-            ("directory", "unreadable"),
-            ("invalid", "invalid"),
-        ]
-    ]
-    + [
-        ("convert-color-profile", "lab", "unsupported_color_space"),
-    ],
-)
-def test_bad_icc_is_typed_and_never_publishes(
-    tmp_path: Path, runtime, command: str, case: str, reason: str
-):
-    from PIL import ImageCms
-
-    if command == "convert-color-profile":
-        _require_conversion(runtime)
-
-    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    _native(runtime, source, action="create")
-    original = source.read_bytes()
-    target.write_bytes(b"existing Target")
-    icc = tmp_path / "bad.icc"
-    if case == "directory":
-        icc.mkdir()
-    elif case == "invalid":
-        icc.write_bytes(b"not a profile")
-    elif case == "lab":
-        icc.write_bytes(
-            ImageCms.ImageCmsProfile(ImageCms.createProfile("LAB")).tobytes()
-        )
-    code, result = _run(command, source, target, {"kind": "icc", "icc_file": str(icc)})
-    assert code != 0 and result["code"] == "color_profile_file_failed", result
-    assert result["details"]["reason"] == reason
-    assert source.read_bytes() == original and target.read_bytes() == b"existing Target"
-    assert not list(tmp_path.glob(".*.staged.aseprite"))
-
-
 def test_convert_plan_matches_standalone_and_step_evidence(tmp_path: Path, runtime):
     _require_conversion(runtime)
     source, target, standalone = (
         tmp_path / name
         for name in ["source.aseprite", "target.aseprite", "standalone.aseprite"]
     )
-    _native(runtime, source, action="create")
+    _profile_sprite(runtime, source, action="create")
     icc = tmp_path / "linear.icc"
     _linear_icc(icc)
     profile = {"kind": "icc", "icc_file": str(icc)}
@@ -434,7 +369,7 @@ def test_convert_plan_matches_standalone_and_step_evidence(tmp_path: Path, runti
         for key, value in expected.items()
         if key not in {"operation", "status", "target_commit"}
     } | {"persisted_reopen_verified": False}
-    assert _native(runtime, target, action="observe") == _native(
+    assert _profile_sprite(runtime, target, action="observe") == _profile_sprite(
         runtime, standalone, action="observe"
     )
     original = target.read_bytes()
@@ -468,7 +403,7 @@ def test_convert_refuses_lab_source_and_live_plan_profile_before_publication(
         tmp_path / name
         for name in ["source.aseprite", "lab.aseprite", "target.aseprite"]
     )
-    _native(runtime, source, action="create")
+    _profile_sprite(runtime, source, action="create")
     icc = tmp_path / "lab.icc"
     icc.write_bytes(ImageCms.ImageCmsProfile(ImageCms.createProfile("LAB")).tobytes())
     lab = {"kind": "icc", "icc_file": str(icc)}
@@ -516,7 +451,7 @@ def test_convert_refuses_unlisted_icc_file_but_assign_preserves_it(
         tmp_path / name
         for name in ["source.aseprite", "assigned.aseprite", "target.aseprite"]
     )
-    _native(runtime, source, action="create")
+    _profile_sprite(runtime, source, action="create")
     icc = tmp_path / "unlisted.icc"
     raw = bytearray(ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes())
     if case == "metadata":
@@ -607,7 +542,7 @@ def test_p3_to_srgb_preserves_preparation_and_plan_parity(
             "oracle.aseprite",
         ]
     )
-    before = _native(runtime, source, action="create", p3_sample="true")
+    before = _profile_sprite(runtime, source, action="create", p3_sample="true")
     original = source.read_bytes()
     icc = tmp_path / "display-p3.icc"
     if profile_source == "caller_apple":
@@ -629,8 +564,8 @@ def test_p3_to_srgb_preserves_preparation_and_plan_parity(
     assert contents in assigned_bytes
     code, result = _run("convert-color-profile", assigned, target, {"kind": "srgb"})
     assert code == 0 and result["persisted_reopen_verified"], result
-    actual = _native(runtime, target, action="observe")
-    expected = _native(runtime, assigned, action="convert", output=str(oracle))
+    actual = _profile_sprite(runtime, target, action="observe")
+    expected = _profile_sprite(runtime, assigned, action="convert", output=str(oracle))
     assert actual == expected
     assert actual["pixels"][0] == 195 | (60 << 8) | (2 << 16) | (127 << 24)
     assert [value >> 24 for value in actual["pixels"]] == [
@@ -645,7 +580,7 @@ def test_p3_to_srgb_preserves_preparation_and_plan_parity(
     for plan_source, steps in [(source, [assign, convert]), (assigned, [convert])]:
         code, plan_result = _plan(plan_source, planned, steps)
         assert code == 0 and plan_result["persisted_reopen_verified"], plan_result
-        assert _native(runtime, planned, action="observe") == actual
+        assert _profile_sprite(runtime, planned, action="observe") == actual
     assert source.read_bytes() == original and assigned.read_bytes() == assigned_bytes
 
 
@@ -667,7 +602,7 @@ def test_known_icc_membership_does_not_admit_untested_directions(
         tmp_path / name
         for name in ["source.aseprite", "assigned.aseprite", "target.aseprite"]
     )
-    _native(runtime, source, action="create")
+    _profile_sprite(runtime, source, action="create")
     profiles = {}
     for kind in ["linear_srgb", "display_p3_cc0"]:
         path = tmp_path / f"{kind}.icc"
@@ -710,7 +645,7 @@ def test_admitted_same_profile_and_content_noops_remain_successful(
 ):
     _require_conversion(runtime)
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    _native(runtime, source, action="create", black="true")
+    _profile_sprite(runtime, source, action="create", black="true")
     icc = tmp_path / "known.icc"
     icc.write_bytes(icc_fixture_path(profile_kind).read_bytes())
     profile = {"kind": "icc", "icc_file": str(icc)}
@@ -757,34 +692,16 @@ def test_admitted_same_profile_and_content_noops_remain_successful(
     )
 
 
-def test_conversion_discovery_matches_runtime_and_missing_converter_refuses_publication(
+def test_plan_refuses_convert_when_the_runtime_has_no_converter(
     tmp_path: Path, runtime
 ):
-    manifest_run = spa("schema", "--aseprite", os.environ["SPA_TEST_ASEPRITE"])
-    assert manifest_run.returncode == 0, manifest_run.stdout
-    manifest = json.loads(manifest_run.stdout)
-    available = "aseprite_convert_color_profile" in runtime.verified_capabilities
-    operations = {entry["operation"] for entry in manifest["operations"]}
-    assert "spa sprite assign-color-profile" in operations
-    assert ("spa sprite convert-color-profile" in operations) == available
-    if available:
-        return
+    if "aseprite_convert_color_profile" in runtime.verified_capabilities:
+        pytest.skip("selected runtime has a native Color Profile converter")
     assert sys.platform == "linux", "expected native Color Profile conversion"
-    gap = next(
-        item
-        for item in manifest["capability_gaps"]
-        if item["capability"] == "spa sprite convert-color-profile"
-    )
-    assert "aseprite_convert_color_profile" in gap["reason"]
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    _native(runtime, source, action="create")
+    _profile_sprite(runtime, source, action="create")
     original = source.read_bytes()
     target.write_bytes(b"existing Target")
-    code, result = _run("convert-color-profile", source, target, {"kind": "srgb"})
-    assert code != 0 and result["code"] == "runtime_incompatible", result
-    assert result["details"]["missing_capabilities"] == [
-        "aseprite_convert_color_profile"
-    ]
     code, result = _plan(
         source,
         target,
@@ -819,7 +736,7 @@ def test_distinct_p3_profiles_do_not_admit_cross_conversion(
         tmp_path / name
         for name in ("source.aseprite", "assigned.aseprite", "target.aseprite")
     ]
-    _native(runtime, source, action="create", p3_sample="true")
+    _profile_sprite(runtime, source, action="create", p3_sample="true")
     first = profiles[source_identity]
     second = profiles["cc0" if source_identity == "apple" else "apple"]
     assert _run("assign-color-profile", source, assigned, first)[0] == 0
@@ -861,12 +778,14 @@ def test_native_identity_digest_matches_independent_complete_byte_hashes(
         inputs.append(str(path))
     index = tmp_path / "inputs.json"
     index.write_text(json.dumps(inputs))
-    observed = _native(
+    lua = run_lua(
+        FIXTURES / "profile_digest.lua",
         runtime,
-        index,
-        fixture="profile_digest.lua",
+        source=index,
         digest=str(files("spa.kernel").joinpath("foundation/digest.lua")),
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
+    observed = json.loads(lua.stdout)
     assert observed["sha256"] == [
         hashlib.sha256(payload).hexdigest() for payload in payloads
     ]

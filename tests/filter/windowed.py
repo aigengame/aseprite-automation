@@ -12,14 +12,16 @@ from spa.adapters.aseprite.aseprite import probe
 from spa.application.surface import PROBE_RESOURCES
 from spa.contracts.public import RuntimeRequest
 from tests.filter.support import (
+    FIXTURES,
     apply,
-    native_script,
     observe_images,
     pixels,
     rgb_palette_colors,
 )
 from tests.filter.test_e2e_filter_tilemaps import PARTIAL_MASK
 from tests.filter.test_e2e_tilemap_applications import create, observe
+from tests.native_invocation import run_lua
+from tests.support import process_diagnostics
 
 CASES = (
     "rgb",
@@ -51,7 +53,7 @@ def prepare(root, runtime):
     # Refuse reuse: an old UI result or receipt must never satisfy a new run.
     root.mkdir(parents=True, exist_ok=False)
     runner = root / "runner.lua"
-    shutil.copyfile(Path(__file__).parent / "fixtures/windowed_filter.lua", runner)
+    shutil.copyfile(FIXTURES / "windowed_filter.lua", runner)
     cases = []
     for name in CASES:
         folder = root / name
@@ -71,22 +73,24 @@ def prepare(root, runtime):
         if name in CASES[:4]:
             create(runtime, source, mode)
         elif name in ("linked", "distinct"):
-            native_script(
+            lua = run_lua(
+                FIXTURES / "tilemap_sharing.lua",
                 runtime,
-                "tilemap_sharing.lua",
                 source=source,
-                linked=str(name == "linked").lower(),
+                linked=name == "linked",
             )
+            assert lua.returncode == 0, process_diagnostics(lua)
             selection["rectangle"]["width"] = 1
         else:
-            native_script(
+            lua = run_lua(
+                FIXTURES / "tilemap_spatial.lua",
                 runtime,
-                "tilemap_spatial.lua",
                 source=source,
                 flags=0x20000000,
                 offset=-1,
                 width=3,
             )
+            assert lua.returncode == 0, process_diagnostics(lua)
             frames = [1]
             selection = PARTIAL_MASK
         options = {

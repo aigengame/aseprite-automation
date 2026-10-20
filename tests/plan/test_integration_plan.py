@@ -8,7 +8,12 @@ from pathlib import Path
 import pytest
 
 from tests.host_permissions import symlink_creation_permission
-from tests.support import recording_aseprite, responding_aseprite, spa
+from tests.support import (
+    probe_only_aseprite,
+    recording_aseprite,
+    responding_aseprite,
+    spa,
+)
 
 
 def _one_frame_inspection() -> dict[str, object]:
@@ -63,66 +68,98 @@ def test_plan_check_admits_a_read_plan_without_launching_aseprite(
     assert result["commit_required"] is False
 
 
-@pytest.mark.parametrize("verb", ["check", "run"])
+def _bad_icc_file(tmp_path: Path, file_kind: str) -> Path:
+    icc = tmp_path / "input.icc"
+    if file_kind == "directory":
+        icc.mkdir()
+    elif file_kind == "invalid":
+        icc.write_bytes(b"not an ICC file")
+    elif file_kind in {"lab", "unlisted"}:
+        from PIL import ImageCms
+
+        name = {"lab": "LAB", "unlisted": "sRGB"}[file_kind]
+        icc.write_bytes(
+            ImageCms.ImageCmsProfile(ImageCms.createProfile(name)).tobytes()
+        )
+    return icc
+
+
+# "standalone" runs the sprite command against a probe-only Aseprite, so that a
+# request that reaches the Kernel fails with a process failure. The Plan routes
+# use an Aseprite path that does not exist and stop in static preflight.
+@pytest.mark.parametrize("route", ["standalone", "check", "run"])
 @pytest.mark.parametrize(
     "operation,file_kind,reason",
     [
-        (operation, file_kind, reason)
+        (operation, file_kind, "unreadable" if file_kind != "invalid" else "invalid")
         for operation in ["assign-color-profile", "convert-color-profile"]
-        for file_kind, reason in [("missing", "unreadable"), ("invalid", "invalid")]
+        for file_kind in ["missing", "directory", "invalid"]
     ]
-    + [("convert-color-profile", "unlisted", "unsupported_profile")],
+    + [
+        ("convert-color-profile", "lab", "unsupported_color_space"),
+        ("convert-color-profile", "unlisted", "unsupported_profile"),
+    ],
 )
 def test_plan_rejects_bad_icc_before_runtime(
-    tmp_path: Path, verb: str, operation: str, file_kind: str, reason: str
+    tmp_path: Path, route: str, operation: str, file_kind: str, reason: str
 ) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
     source.write_bytes(b"Source bytes")
     target.write_bytes(b"Target bytes")
-    icc = tmp_path / "input.icc"
-    if file_kind == "invalid":
-        icc.write_bytes(b"not an ICC file")
-    elif file_kind == "unlisted":
-        from PIL import ImageCms
-
-        icc.write_bytes(
-            ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
-        )
-    run = spa(
-        "plan",
-        verb,
-        "--input-json",
-        json.dumps(
-            {
-                "plan": {
+    icc = _bad_icc_file(tmp_path, file_kind)
+    profile = {"kind": "icc", "icc_file": str(icc)}
+    if route == "standalone":
+        run = spa(
+            "sprite",
+            operation,
+            "--input-json",
+            json.dumps(
+                {
+                    "aseprite": str(probe_only_aseprite(tmp_path)),
                     "source_sprite_file": str(source),
                     "target_sprite_file": str(target),
+                    "in_place": False,
                     "overwrite": True,
-                    "steps": [
-                        {
-                            "operation": "sprite get",
-                            "input": {"inspection_scope": ["frames"]},
-                        },
-                        {
-                            "operation": f"sprite {operation}",
-                            "input": {
-                                "profile": {"kind": "icc", "icc_file": str(icc)},
-                            },
-                        },
-                    ],
+                    "profile": profile,
                 }
-            }
-        ),
-        env=os.environ | {"SPA_ASEPRITE_EXECUTABLE": "/missing/aseprite"},
-    )
-    assert run.returncode != 0, run.stdout + run.stderr
+            ),
+        )
+        step_number = None
+    else:
+        run = spa(
+            "plan",
+            route,
+            "--input-json",
+            json.dumps(
+                {
+                    "plan": {
+                        "source_sprite_file": str(source),
+                        "target_sprite_file": str(target),
+                        "overwrite": True,
+                        "steps": [
+                            {
+                                "operation": "sprite get",
+                                "input": {"inspection_scope": ["frames"]},
+                            },
+                            {
+                                "operation": f"sprite {operation}",
+                                "input": {"profile": profile},
+                            },
+                        ],
+                    }
+                }
+            ),
+            env=os.environ | {"SPA_ASEPRITE_EXECUTABLE": "/missing/aseprite"},
+        )
+        step_number = 2
+    assert run.returncode == 2, run.stdout + run.stderr
     result = json.loads(run.stdout)
     assert result["code"] == "color_profile_file_failed", result
     assert result["details"] == {
         "kind": "color_profile_file",
         "path": str(icc),
         "reason": reason,
-        "step_number": 2,
+        "step_number": step_number,
     }
     assert source.read_bytes() == b"Source bytes"
     assert target.read_bytes() == b"Target bytes"
@@ -479,6 +516,8 @@ def test_plan_preflight_checks_source_aliases_against_target_entry(
                 "plan",
                 "source_sprite_file",
             ]
+    assert alias.is_symlink()
+    assert target.read_bytes() == b"preflight only"
 
     plan["in_place"] = False
     target_alias = tmp_path / "target-alias.aseprite"

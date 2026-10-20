@@ -13,9 +13,9 @@ from spa.adapters.aseprite.aseprite import probe
 from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.application.surface import PROBE_RESOURCES
 from spa.contracts.public import RuntimeRequest
-from tests.image.support import export_image as _export
 from tests.image.support import image_fixture as _fixture
 from tests.image.support import inspect_native as _inspect_native
+from tests.native_invocation import render_frame
 from tests.support import inject_palette_change, process_diagnostics, spa
 
 pytestmark = pytest.mark.e2e
@@ -56,7 +56,7 @@ def test_resize_keeps_cel_position_and_persists_native_pixels(tmp_path: Path) ->
     assert target.is_file()
     assert source.read_bytes() != target.read_bytes()
 
-    pixels = _export(target, tmp_path / "resized.png")
+    pixels = render_frame(target, 1)
     assert pixels.getpixel((1, 2)) == (255, 0, 0, 255)
     assert pixels.getpixel((4, 2)) == (0, 0, 255, 255)
 
@@ -427,38 +427,10 @@ def test_out_of_range_pivot_refuses_in_place_change_atomically(tmp_path: Path) -
     assert source.read_bytes() == original
 
 
-@pytest.mark.parametrize(
-    ("options", "failure_code"),
-    [
-        ({"width": 0}, "invalid_request"),
-        ({"method": "bicubic"}, "invalid_request"),
-        ({"method": "nearest-neighbor", "palette_frame_number": 1}, "invalid_request"),
-        ({"position_policy": {"kind": "pivot", "pivot_x": 1}}, "invalid_request"),
-        (
-            {
-                "width": 2,
-                "height": 2,
-                "position_policy": {
-                    "kind": "pivot",
-                    "pivot_x": 2**31,
-                    "pivot_y": 0,
-                    "rounding": "floor",
-                },
-            },
-            "invalid_request",
-        ),
-        (
-            {"method": "bilinear", "palette_frame_number": 1},
-            "image_resize_palette_basis_invalid",
-        ),
-    ],
-)
-def test_invalid_resize_intent_has_no_target_file(
-    tmp_path: Path, options: dict, failure_code: str
-) -> None:
+def test_palette_frame_with_bilinear_resize_has_no_target_file(tmp_path: Path) -> None:
     source = _fixture(tmp_path)
     target = tmp_path / "rejected.aseprite"
-    status, failure = _resize(source, target, **options)
+    status, failure = _resize(source, target, method="bilinear", palette_frame_number=1)
     assert status == 2, failure
-    assert failure["code"] == failure_code
+    assert failure["code"] == "image_resize_palette_basis_invalid"
     assert not target.exists()

@@ -9,9 +9,9 @@ import tempfile
 from pathlib import Path
 
 import pytest
-from PIL import Image
 
 from spa.adapters.aseprite.invocation import prepare_invocation
+from tests.native_invocation import render_frame
 from tests.support import process_diagnostics, spa
 
 pytestmark = pytest.mark.e2e
@@ -234,34 +234,12 @@ def test_background_cel_clear_requires_explicit_color_at_each_frame(
     code, reopened = _run("get", {"sprite_file": str(target_file), "target": target})
     assert code == 0, reopened
     assert reopened["cel"] == cleared["cel"]
-    artifact = tmp_path / "frame.png"
-    export = spa(
-        "export",
-        "image",
-        "--input-json",
-        json.dumps(
-            {
-                "source_sprite_file": str(target_file),
-                "destination": {"path": str(artifact), "if_exists": "fail"},
-                "frame_number": number,
-                "export_image_area": {"kind": "canvas"},
-                "layer_composition": {"mode": "visible"},
-                "composition_color_mode": "preserve",
-                "color_mode": "preserve",
-                "color_profile": "preserve",
-                "transparency": "preserve",
-                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-            }
-        ),
+    rgba = render_frame(target_file, number)
+    assert all(
+        rgba.getpixel((x, y)) == (3, 7, 11, 255)
+        for y in range(rgba.height)
+        for x in range(rgba.width)
     )
-    assert export.returncode == 0, export.stdout
-    with Image.open(artifact) as rendered:
-        rgba = rendered.convert("RGBA")
-        assert all(
-            rgba.getpixel((x, y)) == (3, 7, 11, 255)
-            for y in range(rgba.height)
-            for x in range(rgba.width)
-        )
 
 
 def test_get_reports_native_linked_cels_after_reopen(tmp_path: Path) -> None:

@@ -2,6 +2,7 @@
 
 import dataclasses
 import hashlib
+import json
 import os
 import shlex
 import shutil
@@ -10,9 +11,10 @@ import struct
 import subprocess
 import sys
 import textwrap
+from collections.abc import Iterable, Sequence
 from importlib.resources import files
 from pathlib import Path
-from typing import Any
+from typing import Any, get_args
 
 import pytest
 
@@ -105,6 +107,17 @@ def isolated_wheel_cli(work_directory: Path, monkeypatch: pytest.MonkeyPatch) ->
         pytest.skip("SPA_TEST_INSTALLED_CLI does not select a wheel-installed CLI")
     monkeypatch.chdir(work_directory)
     monkeypatch.delenv("PYTHONPATH", raising=False)
+    return selected
+
+
+def installed_cli() -> str:
+    """Return the SPA command that the example recipes run.
+
+    `SPA_TEST_INSTALLED_CLI` selects a wheel-installed CLI. Otherwise this is the
+    `spa` command of the active project environment.
+    """
+    selected = os.environ.get("SPA_TEST_INSTALLED_CLI") or shutil.which("spa")
+    assert selected, "run tests in an installed SPA environment"
     return selected
 
 
@@ -293,6 +306,64 @@ def fake_probe_response(
     )
 
 
+def probe_answer(
+    capabilities: Iterable[RuntimeCapability] = get_args(RuntimeCapability),
+    *,
+    aseprite_version: str = "test",
+) -> str:
+    """Return the probe response of a runtime that verifies capabilities."""
+    return json.dumps(
+        {
+            "kernel_protocol_version": 1,
+            "status": "ok",
+            "aseprite_version": aseprite_version,
+            "api_version": 41,
+            "lua_version": "Lua 5.4",
+            "verified_prerequisites": [
+                "aseprite_scripting",
+                "lua_file_io",
+                "aseprite_json",
+            ],
+            "verified_capabilities": list(capabilities),
+        }
+    )
+
+
+PROBE_ONLY_REFUSAL = "probe-only Aseprite: call refused"
+"""The stderr line of a probe-only Aseprite for each call that is not a probe."""
+
+
+def probe_only_aseprite(
+    tmp_path: Path,
+    capabilities: Iterable[RuntimeCapability] = get_args(RuntimeCapability),
+) -> Path:
+    """Answer the runtime probe, and refuse each other call.
+
+    The probe answer verifies capabilities. A call without an echo= argument, for
+    example a Kernel call, writes PROBE_ONLY_REFUSAL to stderr and exits 97. Thus a
+    test of a refusal before the Kernel fails if the request gets to the Kernel.
+    """
+    answer = probe_answer(capabilities)
+    shell = (
+        'if test -z "$echo"; then\n'
+        f"printf '%s\\n' {shlex.quote(PROBE_ONLY_REFUSAL)} >&2\n"
+        "exit 97\n"
+        "fi\n"
+        'cp "$request" "$echo"\n'
+        f"printf '%s' {shlex.quote(answer)} > \"$response\"\n"
+    )
+    python = (
+        "if 'echo' not in arguments:\n"
+        f"    print({PROBE_ONLY_REFUSAL!r}, file=sys.stderr)\n"
+        "    sys.exit(97)\n"
+        "Path(arguments['echo']).write_bytes(Path(arguments['request']).read_bytes())\n"
+        f"Path(arguments['response']).write_text({answer!r}, encoding='utf-8')\n"
+    )
+    return controlled_aseprite(
+        tmp_path, shell=CONTROLLED_SHELL_PRELUDE + shell, python=python
+    )
+
+
 def inject_palette_change(
     target: Path,
     entries: list[tuple[int, int, int, int]],
@@ -348,6 +419,44 @@ def clear_first_saved_layer_uuid(source: Path, layer_name: str) -> None:
                 return
         chunk_offset += chunk_size
     raise AssertionError(f"fixture has no Layer chunk named {layer_name!r}")
+
+
+def write_group_opacity_and_blend(
+    sprite: Path, opacity: Sequence[int], blend_mode: Sequence[int | None] = ()
+) -> None:
+    """Write the Group opacity and blend mode that batch SaveAs omits (#117).
+
+    Aseprite 1.3.18.5 batch SaveAs does not save these Group fields. This sets the
+    header flag that makes them valid. The n-th Group Layer chunk, in file order,
+    gets opacity[n], and blend_mode[n] when that value is not None. The sprite
+    must have exactly len(opacity) Groups.
+    """
+    assert not blend_mode or len(blend_mode) == len(opacity)
+    payload = bytearray(sprite.read_bytes())
+    flags = struct.unpack_from("<I", payload, 14)[0]
+    struct.pack_into("<I", payload, 14, flags | 2)
+    frame_offset = 128
+    frame_size, frame_magic, chunk_count = struct.unpack_from(
+        "<IHH", payload, frame_offset
+    )
+    assert frame_magic == 0xF1FA and frame_size > 16
+    chunk_offset = frame_offset + 16
+    groups = 0
+    for _ in range(chunk_count):
+        chunk_size, chunk_type = struct.unpack_from("<IH", payload, chunk_offset)
+        assert chunk_size >= 6
+        if (
+            chunk_type == 0x2004
+            and struct.unpack_from("<H", payload, chunk_offset + 8)[0] == 1
+        ):
+            assert groups < len(opacity), "the sprite has more Groups than values"
+            payload[chunk_offset + 18] = opacity[groups]
+            if blend_mode and blend_mode[groups] is not None:
+                struct.pack_into("<H", payload, chunk_offset + 16, blend_mode[groups])
+            groups += 1
+        chunk_offset += chunk_size
+    assert groups == len(opacity), f"the sprite has {groups} Groups"
+    sprite.write_bytes(payload)
 
 
 def runtime_observation(*capabilities: RuntimeCapability) -> RuntimeObservation:

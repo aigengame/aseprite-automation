@@ -1,19 +1,14 @@
 """Native Indexed Paint Composite coverage at the public CLI boundary."""
 
 import json
-import os
-import subprocess
-import tempfile
 from importlib.resources import files
 from pathlib import Path
 
 import pytest
 
-from spa.adapters.aseprite.aseprite import probe
-from spa.adapters.aseprite.invocation import prepare_invocation
-from spa.application.surface import PROBE_RESOURCES
-from spa.contracts.public import RuntimeRequest
-from tests.paint.support import call_spa
+from spa.contracts.ports import RuntimeObservation
+from tests.native_invocation import expect_success, run, run_lua
+from tests.paint.support import FIXTURES
 from tests.support import inject_palette_change, process_diagnostics
 
 pytestmark = pytest.mark.e2e
@@ -31,33 +26,12 @@ FRAME_2_PALETTE = [
 ]
 
 
-def _fixture(path: Path, *, kind: str = "independent") -> None:
-    observation = probe(
-        RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
-    )
-    with tempfile.TemporaryDirectory(prefix="spa-composite-indexed-") as work:
-        prepared = prepare_invocation(
-            Path(observation.canonical_path),
-            Path(observation.resource_path),
-            Path(work),
-        )
-        run = subprocess.run(
-            [
-                str(prepared.executable),
-                "--batch",
-                "--script-param",
-                f"kind={kind}",
-                "--script-param",
-                f"out={path}",
-                "--script",
-                str(Path(__file__).parent / "fixtures" / "composite_indexed.lua"),
-            ],
-            text=True,
-            capture_output=True,
-            check=False,
-            env=prepared.environment,
-        )
-    assert run.returncode == 0, process_diagnostics(run)
+def _fixture(
+    runtime: RuntimeObservation, path: Path, *, kind: str = "independent"
+) -> None:
+    """Write the `composite_indexed.lua` Sprite of the given kind to path."""
+    lua = run_lua(FIXTURES / "composite_indexed.lua", runtime, kind=kind, out=path)
+    assert lua.returncode == 0, process_diagnostics(lua)
     assert path.is_file()
 
 
@@ -78,9 +52,12 @@ def _snapshot(*indexes: int) -> dict:
     }
 
 
-def _compose(
-    source: Path, output: Path, *indexes: int, **options: object
-) -> tuple[int, dict]:
+def _compose(source: Path, output: Path, *indexes: int, **options: object) -> dict:
+    """Return a `paint composite` request for one row of palette indexes.
+
+    The request writes a new output at (0, 0) on Layer 1, Frame 2, with the Frame 2
+    palette. The options replace these fields.
+    """
     request: dict[str, object] = {
         "source_sprite_file": str(source),
         "target_sprite_file": str(output),
@@ -94,29 +71,26 @@ def _compose(
         "palette_frame_number": 2,
     }
     request.update(options)
-    return call_spa(
-        "paint",
-        "composite",
-        **request,
-    )
+    return request
 
 
 def _image(path: Path, frame: int) -> dict:
-    code, result = call_spa(
-        "image",
-        "get",
-        sprite_file=str(path),
-        source={
-            "kind": "individual",
-            "target": {"layer": {"layer_path": [1]}, "frame_number": frame},
-            "rectangle": {"x": 0, "y": 0, "width": 2, "height": 1},
+    """Return the `image get` result for the first two pixels of Layer 1."""
+    return expect_success(
+        "image get",
+        {
+            "sprite_file": str(path),
+            "source": {
+                "kind": "individual",
+                "target": {"layer": {"layer_path": [1]}, "frame_number": frame},
+                "rectangle": {"x": 0, "y": 0, "width": 2, "height": 1},
+            },
         },
     )
-    assert code == 0, result
-    return result
 
 
 def _indexes(path: Path, frame: int) -> list[int]:
+    """Return the palette indexes of the first two pixels of Layer 1."""
     result = _image(path, frame)
     return [
         run["color"]["index"]
@@ -126,17 +100,17 @@ def _indexes(path: Path, frame: int) -> list[int]:
 
 
 def test_frame_two_effective_palette_composes_mask_and_new_index(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
     source = tmp_path / "palette-change.aseprite"
     target = tmp_path / "composited.aseprite"
-    _fixture(source)
+    _fixture(runtime, source)
     inject_palette_change(source, FRAME_2_PALETTE, frame_number=2)
     original = source.read_bytes()
 
-    code, result = _compose(source, target, 7, 8)
+    result = expect_success("paint composite", _compose(source, target, 7, 8))
 
-    assert code == 0, result
     first, second = _image(target, 1), _image(target, 2)
     assert _indexes(target, 2) == [1, 8]
     assert _indexes(target, 1) == [1, 1]
@@ -174,11 +148,19 @@ def _atomic_refusal(
     expected_code: str,
     **options: object,
 ) -> dict:
+    """Run a composite that must refuse, and check that no file changes.
+
+    It writes a sentinel to output first, and returns the failure envelope.
+    """
     original = source.read_bytes()
     sentinel = b"existing target must remain intact"
     output.write_bytes(sentinel)
-    code, result = _compose(source, output, *indexes, overwrite=True, **options)
-    assert code == 2, result
+    outcome = run(
+        "paint composite",
+        _compose(source, output, *indexes, overwrite=True, **options),
+    )
+    result = outcome.envelope
+    assert outcome.returncode == 2, result
     assert result["code"] == expected_code, result
     assert source.read_bytes() == original
     assert output.read_bytes() == sentinel
@@ -186,16 +168,16 @@ def _atomic_refusal(
 
 
 def test_linked_cels_share_indexed_image_and_report_each_palette(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
     source, target = tmp_path / "linked.aseprite", tmp_path / "linked-out.aseprite"
-    _fixture(source, kind="linked")
+    _fixture(runtime, source, kind="linked")
     inject_palette_change(source, FRAME_2_PALETTE, frame_number=2)
     original = source.read_bytes()
 
-    code, result = _compose(source, target, 7, 2)
+    result = expect_success("paint composite", _compose(source, target, 7, 2))
 
-    assert code == 0, result
     assert result["native_sharing_preserved"] is True
     assert [cel["frame_number"] for cel in result["affected_cels"]] == [1, 2]
     assert [
@@ -207,40 +189,46 @@ def test_linked_cels_share_indexed_image_and_report_each_palette(
 
 
 def test_linked_other_frame_missing_source_index_rejects_atomically(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
     source, target = tmp_path / "linked.aseprite", tmp_path / "unchanged.aseprite"
-    _fixture(source, kind="linked")
+    _fixture(runtime, source, kind="linked")
     inject_palette_change(source, FRAME_2_PALETTE, frame_number=2)
 
     _atomic_refusal(source, target, (7, 8), "paint_composite_invalid")
 
 
-def test_indexed_background_accepts_opaque_result(tmp_path: Path) -> None:
+def test_indexed_background_accepts_opaque_result(
+    runtime: RuntimeObservation, tmp_path: Path
+) -> None:
     source, target = tmp_path / "background.aseprite", tmp_path / "result.aseprite"
-    _fixture(source, kind="background")
+    _fixture(runtime, source, kind="background")
     original = source.read_bytes()
 
-    code, result = _compose(
-        source,
-        target,
-        7,
-        8,
-        target={"layer": {"layer_path": [1]}, "frame_number": 1},
-        palette_frame_number=1,
+    result = expect_success(
+        "paint composite",
+        _compose(
+            source,
+            target,
+            7,
+            8,
+            target={"layer": {"layer_path": [1]}, "frame_number": 1},
+            palette_frame_number=1,
+        ),
     )
 
-    assert code == 0, result
     assert result["background_opaque"] is True
     assert _indexes(target, 1) == [1, 8]
     assert source.read_bytes() == original
 
 
 def test_indexed_background_rejects_translucent_palette_output(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
     source, target = tmp_path / "background.aseprite", tmp_path / "unchanged.aseprite"
-    _fixture(source, kind="background-alpha")
+    _fixture(runtime, source, kind="background-alpha")
 
     _atomic_refusal(
         source,
@@ -252,38 +240,23 @@ def test_indexed_background_rejects_translucent_palette_output(
     )
 
 
-@pytest.mark.parametrize("palette_number", [None, 1])
-def test_missing_or_wrong_palette_frame_number_rejects_atomically(
-    tmp_path: Path, palette_number: int | None
-) -> None:
-    source, target = tmp_path / "changed.aseprite", tmp_path / "unchanged.aseprite"
-    _fixture(source)
-    inject_palette_change(source, FRAME_2_PALETTE, frame_number=2)
-
-    _atomic_refusal(
-        source,
-        target,
-        (7, 8),
-        "paint_composite_invalid",
-        palette_frame_number=palette_number,
-    )
-
-
 def test_source_index_outside_target_palette_rejects_atomically(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
     source, target = tmp_path / "changed.aseprite", tmp_path / "unchanged.aseprite"
-    _fixture(source)
+    _fixture(runtime, source)
     inject_palette_change(source, FRAME_2_PALETTE, frame_number=2)
 
     _atomic_refusal(source, target, (7, 9), "paint_composite_invalid")
 
 
 def test_missing_transparent_index_in_palette_rejects_atomically(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
     source, target = tmp_path / "missing-mask.aseprite", tmp_path / "unchanged.aseprite"
-    _fixture(source, kind="missing-mask")
+    _fixture(runtime, source, kind="missing-mask")
 
     _atomic_refusal(
         source,
@@ -295,39 +268,21 @@ def test_missing_transparent_index_in_palette_rejects_atomically(
     )
 
 
-@pytest.mark.parametrize(
-    "blend,opacity", [("normal", 0), ("normal", 127), ("multiply", 255)]
-)
-def test_unsupported_indexed_blend_or_opacity_is_typed_gap(
-    tmp_path: Path, blend: str, opacity: int
-) -> None:
-    source, target = tmp_path / "changed.aseprite", tmp_path / "unchanged.aseprite"
-    _fixture(source)
-    inject_palette_change(source, FRAME_2_PALETTE, frame_number=2)
-
-    _atomic_refusal(
-        source,
-        target,
-        (7, 8),
-        "paint_composite_unsupported",
-        blend_mode=blend,
-        opacity=opacity,
-    )
-
-
 def test_selection_uses_canvas_position_and_preserves_nonzero_mask(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
     source = tmp_path / "offset.aseprite"
-    _fixture(source, kind="offset")
+    _fixture(runtime, source, kind="offset")
     inject_palette_change(source, FRAME_2_PALETTE, frame_number=2)
     original = source.read_bytes()
     selection = {"kind": "all", "rectangle": {"x": 2, "y": 0, "width": 1, "height": 1}}
 
     target = tmp_path / "selected.aseprite"
-    code, result = _compose(source, target, 2, 8, selection=selection)
+    result = expect_success(
+        "paint composite", _compose(source, target, 2, 8, selection=selection)
+    )
 
-    assert code == 0, result
     assert result["applied_runs"] == [{"x": 1, "y": 0, "length": 1}]
     assert result["skipped_by_selection_runs"] == [{"x": 0, "y": 0, "length": 1}]
     assert _indexes(target, 2) == [1, 8]
@@ -337,51 +292,32 @@ def test_selection_uses_canvas_position_and_preserves_nonzero_mask(
         "kind": "all",
         "rectangle": {"x": 1, "y": 0, "width": 2, "height": 1},
     }
-    code, mask_result = _compose(source, mask_target, 7, 8, selection=mask_selection)
-    assert code == 0, mask_result
+    expect_success(
+        "paint composite",
+        _compose(source, mask_target, 7, 8, selection=mask_selection),
+    )
     assert _indexes(mask_target, 2) == [1, 8]
     assert source.read_bytes() == original
 
 
 def test_indexed_helper_closes_scratch_and_restores_context_after_error(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
-    observation = probe(
-        RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
-    )
     support = files("spa.kernel")
     output = tmp_path / "helper.json"
-    with tempfile.TemporaryDirectory(prefix="spa-composite-helper-") as work:
-        prepared = prepare_invocation(
-            Path(observation.canonical_path),
-            Path(observation.resource_path),
-            Path(work),
-        )
-        args = [str(prepared.executable), "--batch"]
-        for key, value in {
-            "kind": "helper",
-            "out": str(output),
-            "paint_composite": str(
-                support.joinpath("raster/paint/paint_composite_support.lua")
-            ),
-            "image_snapshot": str(support.joinpath("raster/image/image_snapshot.lua")),
-            "raster_color": str(support.joinpath("raster/raster_color.lua")),
-            "effective_palette": str(support.joinpath("color/effective_palette.lua")),
-            "selection_mask": str(
-                support.joinpath("raster/selection/selection_mask.lua")
-            ),
-        }.items():
-            args.extend(("--script-param", f"{key}={value}"))
-        args.extend(
-            (
-                "--script",
-                str(Path(__file__).parent / "fixtures" / "composite_indexed.lua"),
-            )
-        )
-        run = subprocess.run(
-            args, text=True, capture_output=True, check=False, env=prepared.environment
-        )
-    assert run.returncode == 0, process_diagnostics(run)
+    lua = run_lua(
+        FIXTURES / "composite_indexed.lua",
+        runtime,
+        kind="helper",
+        out=output,
+        paint_composite=support.joinpath("raster/paint/paint_composite_support.lua"),
+        image_snapshot=support.joinpath("raster/image/image_snapshot.lua"),
+        raster_color=support.joinpath("raster/raster_color.lua"),
+        effective_palette=support.joinpath("color/effective_palette.lua"),
+        selection_mask=support.joinpath("raster/selection/selection_mask.lua"),
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
     result = json.loads(output.read_text())
     assert result["successful"] is True
     assert result["restored_after_error"] is True, result

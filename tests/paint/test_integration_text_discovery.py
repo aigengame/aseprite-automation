@@ -1,5 +1,6 @@
 """Text guidance describes SPA availability and preserves selected runtime identity."""
 
+import json
 from dataclasses import replace
 
 import pytest
@@ -7,7 +8,7 @@ import pytest
 from spa import SPA_BASELINE_ASEPRITE_VESION
 from spa.application.surface import info_result, schema_result
 from spa.contracts.public import RuntimeRequest
-from tests.support import operation_services, runtime_observation
+from tests.support import operation_services, runtime_observation, spa
 
 
 @pytest.mark.parametrize(
@@ -23,14 +24,24 @@ def test_text_gap_reports_availability_without_research_narrative(
     services = operation_services(lambda _: observation)
     info = info_result(RuntimeRequest(), services)
     schema = schema_result(RuntimeRequest(), services)
-    gap = next(
+    gaps = [
         gap
         for gap in info.capability_gaps
         if gap.capability == "native text rasterization"
-    )
+    ]
+    assert len(gaps) == 1
+    gap = gaps[0]
     assert gap in schema.capability_gaps
     assert gap.aseprite_version == selected_version
     assert "SPA does not provide text rasterization" in gap.reason
     assert "Import prepared raster text" in gap.reason
     assert "spa paint line" in info.supported_capabilities
+    assert not any("text" in name.split() for name in info.supported_capabilities)
     assert not any("text" in item.operation.split() for item in schema.operations)
+
+
+@pytest.mark.parametrize("command", [("text",), ("paint", "text")])
+def test_text_command_is_not_callable(command: tuple[str, ...]) -> None:
+    attempt = spa(*command, "--schema")
+    assert attempt.returncode == 2, attempt.stdout + attempt.stderr
+    assert json.loads(attempt.stdout)["code"] == "invalid_request"

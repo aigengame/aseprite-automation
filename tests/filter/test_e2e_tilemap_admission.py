@@ -1,19 +1,22 @@
 """Real Kernel admission and staged publication with selected-runtime capabilities."""
 
 from dataclasses import replace
-from pathlib import Path
 
 import pytest
 
 from spa.adapters.aseprite.aseprite import invoke
 from spa.adapters.files import LocalTargetFiles
-from spa.authoring.raster.filter import (
-    FILTER_RESOURCES,
-    BrightnessContrastRequest,
-    brightness_contrast,
-)
+from spa.authoring.raster.filter import BrightnessContrastRequest, brightness_contrast
 from spa.contracts.ports import OperationIssue, OperationServices
-from tests.filter.support import native_script, observe_images, pixels
+from tests.filter.support import (
+    FIXTURES,
+    filter_handler,
+    kernel_resources,
+    observe_images,
+    pixels,
+)
+from tests.native_invocation import run_lua
+from tests.support import process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
@@ -44,7 +47,8 @@ def execute(runtime, source, target, application):
 
 def test_missing_tile_capability_rejects_whole_mixed_request(tmp_path, runtime):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "tilemap.lua", source=source, mode="rgb")
+    lua = run_lua(FIXTURES / "tilemap.lua", runtime, source=source, mode="rgb")
+    assert lua.returncode == 0, process_diagnostics(lua)
     original = source.read_bytes()
     target.write_bytes(b"prior target")
     with pytest.raises(OperationIssue) as caught:
@@ -65,13 +69,14 @@ def test_missing_tile_capability_keeps_ordinary_and_palette_only_available(
     tmp_path, runtime, palette_only
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(
+    lua = run_lua(
+        FIXTURES / "tilemap.lua",
         runtime,
-        "tilemap.lua",
         source=source,
         mode="indexed",
-        only=str(palette_only).lower(),
+        only=palette_only,
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     before = observe_images(runtime, source)
     application = (
         {
@@ -91,12 +96,9 @@ def test_missing_tile_capability_keeps_ordinary_and_palette_only_available(
 
 
 def test_native_mode_mismatch_is_refused_without_mode_switch(tmp_path, runtime):
-    kernel = Path(__file__).resolve().parents[2] / "src" / "spa" / "kernel"
-    native_script(
+    lua = run_lua(
+        FIXTURES / "tilemap_admission.lua",
         runtime,
-        "tilemap_admission.lua",
-        **{
-            resource.parameter_name: kernel / resource.package_path
-            for resource in FILTER_RESOURCES
-        },
+        **kernel_resources(filter_handler("brightness-contrast")),
     )
+    assert lua.returncode == 0, process_diagnostics(lua)

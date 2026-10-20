@@ -1,6 +1,5 @@
 """Controlled native process boundary for script transport tests."""
 
-import json
 import shlex
 import sys
 from pathlib import Path
@@ -9,26 +8,13 @@ from tests.support import (
     CONTROLLED_PYTHON_PRELUDE,
     CONTROLLED_SHELL_PRELUDE,
     controlled_aseprite,
+    probe_answer,
 )
 
 
 def script_runtime(tmp_path: Path, body: str) -> Path:
     """Answer the runtime probe, then run body as the caller's script process."""
-    probe = json.dumps(
-        {
-            "kernel_protocol_version": 1,
-            "status": "ok",
-            "aseprite_version": "test",
-            "api_version": 41,
-            "lua_version": "Lua 5.4",
-            "verified_prerequisites": [
-                "aseprite_scripting",
-                "lua_file_io",
-                "aseprite_json",
-            ],
-            "verified_capabilities": ["aseprite_runtime_introspection"],
-        }
-    )
+    probe = probe_answer(["aseprite_runtime_introspection"])
     driver = tmp_path / "runtime.py"
     driver.write_text(CONTROLLED_PYTHON_PRELUDE + body + "\n", encoding="utf-8")
     # On POSIX, keep the protocol stub independent of Python startup. The caller

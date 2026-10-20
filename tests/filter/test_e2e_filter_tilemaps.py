@@ -2,7 +2,9 @@
 
 import pytest
 
-from tests.filter.support import apply, native_script, observe_images, pixels
+from tests.filter.support import FIXTURES, apply, observe_images, pixels
+from tests.native_invocation import run_lua
+from tests.support import process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
@@ -18,7 +20,10 @@ PARTIAL_MASK = {
 
 def test_manual_rgb_tile_filter_preserves_map_empty_and_unused_tiles(tmp_path, runtime):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "tilemap.lua", source=source, mode="rgb", only="true")
+    lua = run_lua(
+        FIXTURES / "tilemap.lua", runtime, source=source, mode="rgb", only="true"
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
     original = source.read_bytes()
     before = observe_images(runtime, source)
     code, result = apply(
@@ -50,9 +55,10 @@ def test_shared_tile_reports_all_cels_and_native_cel_image_dedup(
     tmp_path, runtime, linked, red, processed
 ):
     source, target = tmp_path / "shared.aseprite", tmp_path / "target.aseprite"
-    native_script(
-        runtime, "tilemap_sharing.lua", source=source, linked=str(linked).lower()
+    lua = run_lua(
+        FIXTURES / "tilemap_sharing.lua", runtime, source=source, linked=linked
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     before = observe_images(runtime, source)
     code, result = apply(
         source,
@@ -116,10 +122,18 @@ def test_partial_selection_flags_offsets_and_clipping_match_native(
         tmp_path / name
         for name in ("source.aseprite", "target.aseprite", "native.aseprite")
     )
-    native_script(
-        runtime, "tilemap_spatial.lua", source=source, flags=flags, offset=offset
+    lua = run_lua(
+        FIXTURES / "tilemap_spatial.lua",
+        runtime,
+        source=source,
+        flags=flags,
+        offset=offset,
     )
-    native_script(runtime, "tilemap_spatial.lua", source=source, target=reference)
+    assert lua.returncode == 0, process_diagnostics(lua)
+    lua = run_lua(
+        FIXTURES / "tilemap_spatial.lua", runtime, source=source, target=reference
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
     before = observe_images(runtime, source)
     code, result = apply(
         source,
@@ -143,15 +157,19 @@ def test_rectangular_diagonal_tile_matches_native(tmp_path, runtime):
         tmp_path / name
         for name in ("source.aseprite", "target.aseprite", "native.aseprite")
     )
-    native_script(
+    lua = run_lua(
+        FIXTURES / "tilemap_spatial.lua",
         runtime,
-        "tilemap_spatial.lua",
         source=source,
         flags=0x20000000,
         offset=-1,
         width=3,
     )
-    native_script(runtime, "tilemap_spatial.lua", source=source, target=reference)
+    assert lua.returncode == 0, process_diagnostics(lua)
+    lua = run_lua(
+        FIXTURES / "tilemap_spatial.lua", runtime, source=source, target=reference
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
     code, result = apply(
         source,
         target,
@@ -167,7 +185,10 @@ def test_rectangular_diagonal_tile_matches_native(tmp_path, runtime):
 
 def test_empty_selection_preserves_shared_tiles(tmp_path, runtime):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "tilemap_sharing.lua", source=source, linked="false")
+    lua = run_lua(
+        FIXTURES / "tilemap_sharing.lua", runtime, source=source, linked="false"
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
     before = observe_images(runtime, source)
     code, result = apply(
         source,
@@ -186,7 +207,8 @@ def test_empty_selection_preserves_shared_tiles(tmp_path, runtime):
 
 def test_mixed_image_and_tilemap_targets_publish_together(tmp_path, runtime):
     source, target = tmp_path / "mixed.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "tilemap.lua", source=source, mode="rgb")
+    lua = run_lua(FIXTURES / "tilemap.lua", runtime, source=source, mode="rgb")
+    assert lua.returncode == 0, process_diagnostics(lua)
     original = source.read_bytes()
     target.write_bytes(b"replace old target")
     code, result = apply(
@@ -215,7 +237,10 @@ def test_all_excludes_noneditable_targets_but_reports_shared_tile_effects(
     tmp_path, runtime
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "tilemap_sharing.lua", source=source, linked="false")
+    lua = run_lua(
+        FIXTURES / "tilemap_sharing.lua", runtime, source=source, linked="false"
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
     code, result = apply(
         source, target, pixels(tileset_mode="manual", cels_target={"kind": "all"})
     )

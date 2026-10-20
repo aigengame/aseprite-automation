@@ -146,10 +146,8 @@ def test_gradient_gap_does_not_hide_verified_contour_or_blur() -> None:
     gaps = {gap.capability: gap for gap in result.capability_gaps}
     assert "Gradient Type" in gaps["spa paint gradient"].reason
     assert "Dithering Matrix" in gaps["spa paint gradient"].reason
-    assert (
-        gaps["spa paint contour: Paint Dynamics"].aseprite_version
-        == result.runtime.aseprite_version
-    )
+    for capability in ("spa paint gradient", "spa paint contour: Paint Dynamics"):
+        assert gaps[capability].aseprite_version == result.runtime.aseprite_version
 
 
 def test_blur_has_fixed_effect_ink_and_explicit_tiled_mode() -> None:
