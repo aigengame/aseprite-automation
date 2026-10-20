@@ -368,14 +368,16 @@ def test_windows_interruption_retires_owned_workers_and_children(suite: Path) ->
 @pytest.mark.parametrize(
     "args",
     [
-        ("--shards", "0"),
-        ("--workers", "-1"),
-        ("--shards", "bad"),
+        ("matrix", "--shards", "0"),
+        ("run", "--workers", "0"),
+        ("matrix", "--shards", "bad"),
     ],
 )
 def test_invalid_configuration_is_rejected_before_execution(suite: Path, args) -> None:
-    result = run(suite, "matrix", *args)
+    result = run(suite, *args)
     assert result.returncode != 0
+    if args[-1] == "0":
+        assert "shards and workers must be positive integers" in result.stderr
     assert not list(suite.glob("shard-*"))
 
 

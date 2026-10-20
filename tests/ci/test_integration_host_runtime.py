@@ -28,12 +28,14 @@ def test_host_runtime_requires_a_working_batch_script(tmp_path: Path, runtime) -
         "if '--version' in sys.argv:\n"
         "    print('Aseprite test runtime')\n"
         "    sys.exit(0)\n"
+        # The crash writes the expected result, so only its exit status fails the step.
         + (
             "output = next(a.removeprefix('output=') for a in sys.argv if a.startswith('output='))\n"
             "Path(output).write_text('spa-aseprite-script-ok\\n')\n"
-            if runtime == "script"
-            else f"sys.exit({1 if runtime == 'crash' else 0})\n"
+            if runtime in {"script", "crash"}
+            else ""
         )
+        + f"sys.exit({1 if runtime == 'crash' else 0})\n"
     )
     executable.chmod(0o755)
     env = {

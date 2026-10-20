@@ -251,12 +251,14 @@ def test_api_failure_cannot_validate_previous_success(candidate) -> None:
     assert "this run cannot admit merge" in result.stderr
 
 
+@pytest.mark.parametrize("job", ["PREPARE", "SHARDS"])
 @pytest.mark.parametrize("state", ["success", "failure", "cancelled", "skipped"])
 def test_native_aggregate_requires_every_shard_to_succeed(
-    candidate, state: str
+    candidate, job: str, state: str
 ) -> None:
     repository, env, _ = candidate
-    env.update(SPA_PREPARE_RESULT="success", SPA_SHARDS_RESULT=state)
+    env.update(SPA_PREPARE_RESULT="success", SPA_SHARDS_RESULT="success")
+    env[f"SPA_{job}_RESULT"] = state
     result = run_step("Require successful preparation and every shard", repository, env)
     assert (result.returncode == 0) == (state == "success")
 

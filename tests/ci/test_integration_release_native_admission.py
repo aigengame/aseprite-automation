@@ -136,6 +136,10 @@ def test_untrusted_caller_or_target_cannot_emit_an_admission(admission, change) 
     admission.update(change)
     result = run(admission)
     assert result.returncode != 0
+    if "SPA_NATIVE_TARGET_JSON" not in change:
+        assert (
+            "Only the main Release workflow may use the native runner" in result.stderr
+        )
     assert not Path(admission["GITHUB_OUTPUT"]).exists()
 
 
