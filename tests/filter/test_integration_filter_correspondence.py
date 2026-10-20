@@ -4,7 +4,6 @@ from copy import deepcopy
 
 import pytest
 
-from spa.application.surface import OPERATIONS
 from spa.authoring.raster.despeckle import DespeckleRequest, despeckle
 from spa.authoring.raster.filter import BrightnessContrastRequest, brightness_contrast
 from spa.authoring.raster.hue_saturation import HueSaturationRequest, hue_saturation
@@ -22,6 +21,7 @@ from tests.filter.support import (
     filter_cel_evidence,
     hue_evidence,
     operation_case,
+    operation_filter_names,
     response_for,
     setup_filter_staging,
 )
@@ -61,11 +61,7 @@ PARAMETER_MISMATCHES = {
 
 
 def test_filter_tables_name_every_operation_filter():
-    names = sorted(
-        descriptor.name.removeprefix("filter ")
-        for descriptor in OPERATIONS
-        if descriptor.name.startswith("filter ")
-    )
+    names = sorted(operation_filter_names())
     assert sorted(FILTERS) == names
     assert sorted(PALETTE_CAUSES) == names
     assert sorted(PARAMETER_MISMATCHES) == sorted(set(names) - {"invert-color"})

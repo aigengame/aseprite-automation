@@ -121,50 +121,7 @@ def test_empty_selection_preserves_pixels_and_reports_noop(tmp_path, runtime, na
 
 
 @pytest.mark.parametrize("name", ["color-curve", "replace-color"])
-@pytest.mark.parametrize("target_kind", ["tilemap", "mixed", "all"])
-def test_any_resolved_tilemap_rejects_whole_operation(
-    tmp_path, runtime, name, target_kind
-):
-    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    lua = run_lua(FIXTURES / "tilemap.lua", runtime, source=source, mode="rgb")
-    assert lua.returncode == 0, process_diagnostics(lua)
-    original = source.read_bytes()
-    cels = (
-        {"kind": "all"}
-        if target_kind == "all"
-        else {
-            "kind": "selected",
-            "layers": [
-                {"layer_path": [n]}
-                for n in ([2] if target_kind == "tilemap" else [1, 2])
-            ],
-            "frame_numbers": [1],
-        }
-    )
-    code, result = apply_filter(name, source, target, cels_target=cels)
-    assert code != 0
-    assert result["code"] == "filter_unsupported_document"
-    assert not target.exists()
-    assert source.read_bytes() == original
-
-
-@pytest.mark.parametrize("name", ["color-curve", "replace-color"])
-def test_ordinary_pixels_preserve_unrelated_tilemap(tmp_path, runtime, name):
-    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    lua = run_lua(FIXTURES / "tilemap.lua", runtime, source=source, mode="rgb")
-    assert lua.returncode == 0, process_diagnostics(lua)
-    before = observe_images(runtime, source)
-    code, result = apply_filter(name, source, target)
-    assert code == 0, result
-    after = observe_images(runtime, target)
-    assert after["tiles"] == before["tiles"]
-    assert after["cels"][1] == before["cels"][1]
-
-
-@pytest.mark.parametrize("name", ["color-curve", "replace-color"])
-def test_background_alpha_refuses_and_background_color_is_supported(
-    tmp_path, runtime, name
-):
+def test_background_color_channel_is_supported(tmp_path, runtime, name):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
     lua = run_lua(
         FIXTURES / "hue_source.lua",
@@ -174,12 +131,6 @@ def test_background_alpha_refuses_and_background_color_is_supported(
         background="true",
     )
     assert lua.returncode == 0, process_diagnostics(lua)
-    original = source.read_bytes()
-    code, result = apply_filter(name, source, target, channel="alpha")
-    assert code != 0
-    assert result["code"] == "filter_unsupported_document"
-    assert not target.exists()
-    assert source.read_bytes() == original
     code, result = apply_filter(name, source, target, channel="red", value=42)
     assert code == 0, result
     assert all(

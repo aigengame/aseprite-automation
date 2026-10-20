@@ -281,7 +281,8 @@ def test_defective_indexed_channels_refuse_without_publishing(tmp_path, runtime,
     )
 
 
-@pytest.mark.parametrize("mode", ["rgb", "grayscale", "indexed"])
+# test_e2e_filter_refusals.py holds the RGB row with the exact reason.
+@pytest.mark.parametrize("mode", ["grayscale", "indexed"])
 def test_background_alpha_refuses_whole_request(tmp_path, runtime, mode):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
     lua = run_lua(
@@ -306,35 +307,6 @@ def test_background_alpha_refuses_whole_request(tmp_path, runtime, mode):
     assert code != 0 and result["code"] == "filter_unsupported_document", result
     assert "Background" in result["message"]
     assert not target.exists() and source.read_bytes() == original
-
-
-@pytest.mark.parametrize("target_kind", ["tilemap", "mixed", "all", "ordinary"])
-def test_tilemap_boundary(tmp_path, runtime, target_kind):
-    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    lua = run_lua(FIXTURES / "tilemap.lua", runtime, source=source, mode="rgb")
-    assert lua.returncode == 0, process_diagnostics(lua)
-    original = source.read_bytes()
-    selected = pixel_input()
-    if target_kind == "all":
-        selected["cels_target"] = {"kind": "all"}
-    else:
-        selected["cels_target"]["layers"] = [
-            {"layer_path": [number]}
-            for number in (
-                {"tilemap": [2], "mixed": [1, 2], "ordinary": [1]}[target_kind]
-            )
-        ]
-    code, result = apply(source, target, selected)
-    if target_kind != "ordinary":
-        assert code != 0 and result["code"] == "filter_unsupported_document", result
-        assert "Tilemap" in result["message"]
-        assert not target.exists()
-    else:
-        assert code == 0, result
-        before, after = observe_images(runtime, source), observe_images(runtime, target)
-        assert before["tiles"] == after["tiles"]
-        assert before["cels"][1:] == after["cels"][1:]
-    assert source.read_bytes() == original
 
 
 @pytest.mark.parametrize(

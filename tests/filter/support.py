@@ -217,6 +217,15 @@ def setup_filter_staging(tmp_path, response=None, crash=False):
     return services, source, target, staged
 
 
+def operation_filter_names():
+    """Return the `spa filter` operation names in OPERATIONS, in order."""
+    return [
+        descriptor.name.removeprefix("filter ")
+        for descriptor in OPERATIONS
+        if descriptor.name.startswith("filter ")
+    ]
+
+
 def assert_malformed(caught, cause):
     """Assert a `response_malformed` RuntimeIssue whose cause contains cause.
 
