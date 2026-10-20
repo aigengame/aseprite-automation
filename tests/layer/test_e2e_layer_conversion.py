@@ -13,6 +13,17 @@ from tests.support import process_diagnostics
 pytestmark = pytest.mark.e2e
 
 FIXTURES = Path(__file__).parent / "fixtures"
+INELIGIBLE_SOURCE = (
+    "Background conversion requires a visible, editable regular Transparent Image Layer"
+)
+EXISTING_BACKGROUND = "Sprite already has a Background Layer"
+INCOMPATIBLE_FILL = (
+    "background_color is incompatible with Sprite Color Mode or an Effective Palette "
+    "at a Frame"
+)
+INELIGIBLE_BACKGROUND = (
+    "Transparent conversion requires a visible, editable Background Layer"
+)
 
 
 def _assert_native_fill(runtime: RuntimeObservation, source: Path, mode: str) -> None:
@@ -295,13 +306,23 @@ def test_ineligible_source_fails_without_publishing_or_mutating_source(
     result = outcome.envelope
     assert outcome.returncode == 2, result
     assert result["code"] == "layer_unsupported_target"
+    assert result["message"] == INELIGIBLE_SOURCE
     assert not target.exists()
     assert hashlib.sha256(source.read_bytes()).hexdigest() == source_sha
 
 
-@pytest.mark.parametrize("path", [[1], [2], [2, 1], [2, 2]])
+@pytest.mark.parametrize(
+    ("path", "message"),
+    [
+        ([1], INELIGIBLE_SOURCE),
+        ([2], INELIGIBLE_SOURCE),
+        ([2, 1], INELIGIBLE_SOURCE),
+        ([2, 2], EXISTING_BACKGROUND),
+    ],
+    ids=["background", "group", "tilemap", "regular"],
+)
 def test_existing_background_or_unsupported_kind_blocks_forward_conversion(
-    runtime: RuntimeObservation, tmp_path: Path, path: list[int]
+    runtime: RuntimeObservation, tmp_path: Path, path: list[int], message: str
 ) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "target.aseprite"
@@ -328,6 +349,7 @@ def test_existing_background_or_unsupported_kind_blocks_forward_conversion(
     result = outcome.envelope
     assert outcome.returncode == 2, result
     assert result["code"] == "layer_unsupported_target"
+    assert result["message"] == message
     assert not target.exists()
     assert hashlib.sha256(source.read_bytes()).hexdigest() == source_sha
 
@@ -383,6 +405,7 @@ def test_incompatible_fill_rejects_before_publication(
     result = outcome.envelope
     assert outcome.returncode == 2, result
     assert result["code"] == expected_code
+    assert result["message"] == INCOMPATIBLE_FILL
     assert not target.exists()
     assert hashlib.sha256(source.read_bytes()).hexdigest() == source_sha
 
@@ -414,6 +437,7 @@ def test_ineligible_background_fails_without_mutating_source(
     result = outcome.envelope
     assert outcome.returncode == 2, result
     assert result["code"] == "layer_unsupported_target"
+    assert result["message"] == INELIGIBLE_BACKGROUND
     assert not target.exists()
     assert hashlib.sha256(source.read_bytes()).hexdigest() == source_sha
 
@@ -443,6 +467,7 @@ def test_indexed_fill_must_be_opaque_in_every_frame_palette(
     result = outcome.envelope
     assert outcome.returncode == 2, result
     assert result["code"] == "layer_unsupported_target"
+    assert result["message"] == INCOMPATIBLE_FILL
     assert not target.exists()
     assert hashlib.sha256(source.read_bytes()).hexdigest() == source_sha
 
@@ -474,4 +499,5 @@ def test_invalid_in_place_conversion_does_not_change_source(
     result = outcome.envelope
     assert outcome.returncode == 2, result
     assert result["code"] == "layer_unsupported_target"
+    assert result["message"] == INCOMPATIBLE_FILL
     assert hashlib.sha256(source.read_bytes()).hexdigest() == source_sha
