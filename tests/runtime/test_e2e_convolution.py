@@ -13,6 +13,8 @@ pytestmark = pytest.mark.e2e
 
 
 def test_installed_convolution_reports_sources_defaults_and_native_evidence():
+    # The probe is the claim, so this test probes itself and does not use the
+    # session runtime.
     request = RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"])
     observation = probe(request, PROBE_RESOURCES)
     facts = observation.convolution

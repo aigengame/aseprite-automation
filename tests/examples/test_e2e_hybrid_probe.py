@@ -6,14 +6,13 @@ from pathlib import Path
 import pytest
 
 from examples.wizard_cast_v2.probe import build_probe
+from tests.support import installed_cli
 
 pytestmark = pytest.mark.e2e
 
 
 def test_generated_pose_pixel_handoff_and_independent_placement(tmp_path: Path) -> None:
-    executable = os.environ.get(
-        "SPA_TEST_INSTALLED_CLI", str(Path(".venv/bin/spa").resolve())
-    )
+    executable = installed_cli()
     result = build_probe(
         executable, os.environ["SPA_TEST_ASEPRITE"], tmp_path / "probe"
     )

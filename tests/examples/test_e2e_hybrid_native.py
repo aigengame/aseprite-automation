@@ -10,6 +10,7 @@ from PIL import Image
 from examples.wizard_cast_v2.native_inspection import compare_native
 from examples.wizard_cast_v2.probe import build_probe
 from examples.wizard_cast_v2.workflow import Spa, paint_steps
+from tests.support import installed_cli
 
 pytestmark = pytest.mark.e2e
 
@@ -17,9 +18,7 @@ pytestmark = pytest.mark.e2e
 def test_native_comparison_detects_hidden_pixels_with_unchanged_exports(
     tmp_path: Path,
 ) -> None:
-    executable = os.environ.get(
-        "SPA_TEST_INSTALLED_CLI", str(Path(".venv/bin/spa").resolve())
-    )
+    executable = installed_cli()
     aseprite = os.environ["SPA_TEST_ASEPRITE"]
     build_probe(executable, aseprite, tmp_path / "probe")
     original = tmp_path / "probe/handoff.aseprite"
