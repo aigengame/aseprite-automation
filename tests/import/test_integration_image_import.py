@@ -200,10 +200,12 @@ def _native_result(indexed):
             z_index=None,
         ),
         "before_cel_count": 0,
+        # Each bounds field gets its own copy, so a corruption changes only its field
+        # and only this result.
         "cel": _cel_state(
             exists=True,
             content="nonempty",
-            image_bounds=_BOUNDS,
+            image_bounds=dict(_BOUNDS),
             opacity=255,
             position={"x": -1, "y": 1},
             z_index=0,
@@ -230,7 +232,7 @@ def _native_result(indexed):
                 {
                     "layer_path": [1],
                     "frame_number": 2,
-                    "bounds": _BOUNDS,
+                    "bounds": dict(_BOUNDS),
                     "opacity": 255,
                     "z_index": 0,
                 }
