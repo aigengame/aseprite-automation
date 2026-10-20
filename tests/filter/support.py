@@ -1,71 +1,76 @@
-"""Filter staging evidence and real Aseprite command helpers."""
+"""Filter staging evidence and real Aseprite request and fixture helpers."""
 
 import json
-import os
-import subprocess
-import tempfile
+import sys
 from copy import deepcopy
 from dataclasses import replace
+from importlib.resources import files
 from pathlib import Path
 
-from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.adapters.files import LocalTargetFiles
-from spa.contracts.ports import KernelInvocationResult
+from spa.application.surface import OPERATIONS
+from spa.contracts.ports import KernelInvocationResult, PackagedHandler
 from spa.contracts.public import Diagnostics
+from tests.native_invocation import run, run_lua
 from tests.support import (
+    inject_palette_change,
     operation_services,
     process_diagnostics,
     runtime_observation,
-    spa,
 )
 
-
-def native_script(runtime, script, **params):
-    with tempfile.TemporaryDirectory(prefix="spa-filter-fixture-") as work:
-        prepared = prepare_invocation(
-            Path(runtime.canonical_path), Path(runtime.resource_path), Path(work)
-        )
-        args = [str(prepared.executable), "--batch"]
-        for name, value in params.items():
-            args.extend(["--script-param", f"{name}={value}"])
-        result = subprocess.run(
-            [*args, "--script", str(Path(__file__).parent / "fixtures" / script)],
-            env=prepared.environment,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    assert result.returncode == 0, process_diagnostics(result)
+FIXTURES = Path(__file__).parent / "fixtures"
+# The Aseprite adapter resolves Kernel resources in the same package.
+KERNEL = Path(str(files("spa.kernel")))
 
 
-def run(*command, **request):
-    result = spa(
-        *command,
-        "--input-json",
-        json.dumps(
-            {
-                **request,
-                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-            }
-        ),
-    )
-    assert result.stdout, process_diagnostics(result)
-    return result.returncode, json.loads(result.stdout)
+def filter_handler(operation: str) -> PackagedHandler:
+    """Return the Kernel handler of `spa filter <operation>`.
+
+    The handler is the `<operation>_run` PackagedHandler in the module that
+    defines the execute function of the descriptor. A new Filter that follows
+    this name rule needs no edit in the tests that use this function.
+    """
+    (descriptor,) = (item for item in OPERATIONS if item.name == f"filter {operation}")
+    module = sys.modules[descriptor.execute.__module__]
+    name = f"{operation.replace('-', '_')}_run"
+    handlers = {
+        id(value): value
+        for value in vars(module).values()
+        if isinstance(value, PackagedHandler) and value.name == name
+    }
+    assert len(handlers) == 1, (operation, module.__name__, list(handlers.values()))
+    return next(iter(handlers.values()))
+
+
+def kernel_resources(handler: PackagedHandler) -> dict[str, Path]:
+    """Map each support resource parameter of handler to its Kernel source file."""
+    return {
+        resource.parameter_name: KERNEL / resource.package_path
+        for resource in handler.support_resources
+    }
 
 
 def apply(source, target, application, brightness=50, contrast=0, **intent):
-    return run(
-        "filter",
-        "brightness-contrast",
-        source_sprite_file=str(source),
-        target_sprite_file=str(target),
-        in_place=intent.pop("in_place", False),
-        overwrite=intent.pop("overwrite", False),
-        application=application,
-        brightness=brightness,
-        contrast=contrast,
-        **intent,
+    """Run `spa filter brightness-contrast` and return `(returncode, envelope)`.
+
+    This adds the Source and Target fields, `in_place` and `overwrite` from
+    intent (default False), and the brightness and contrast defaults.
+    """
+    outcome = run(
+        "filter brightness-contrast",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": intent.pop("in_place", False),
+            "overwrite": intent.pop("overwrite", False),
+            "application": application,
+            "brightness": brightness,
+            "contrast": contrast,
+            **intent,
+        },
     )
+    return outcome.returncode, outcome.envelope
 
 
 def pixels(mode="rgb", **options):
@@ -86,8 +91,35 @@ def pixels(mode="rgb", **options):
 
 
 def observe_images(runtime, source):
+    """Run `observe.lua` on source and return the Image observation it writes."""
     response = source.with_suffix(".observed.json")
-    native_script(runtime, "observe.lua", source=source, response=response)
+    lua = run_lua(FIXTURES / "observe.lua", runtime, source=source, response=response)
+    assert lua.returncode == 0, process_diagnostics(lua)
+    return json.loads(response.read_text())
+
+
+def palette_source(runtime, source, mode):
+    """Create the Palette basis scene, then add a Palette change at Frame 2."""
+    lua = run_lua(
+        FIXTURES / "target_palette_basis.lua", runtime, source=source, mode=mode
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
+    colors = [(0, 0, 0, 0), (20, 0, 0, 255)]
+    if mode == "indexed":
+        colors.append((120, 0, 0, 255))
+    inject_palette_change(source, colors, frame_number=2)
+
+
+def palette_observation(runtime, source):
+    """Run `target_palette_observe.lua` on source and return its observation."""
+    response = source.with_suffix(".basis.json")
+    lua = run_lua(
+        FIXTURES / "target_palette_observe.lua",
+        runtime,
+        source=source,
+        response=response,
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
     return json.loads(response.read_text())
 
 

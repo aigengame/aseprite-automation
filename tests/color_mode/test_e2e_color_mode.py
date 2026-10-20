@@ -3,9 +3,7 @@
 import json
 import os
 import shutil
-import subprocess
 import sys
-import tempfile
 from collections.abc import Iterator
 from contextlib import ExitStack, contextmanager
 from importlib.resources import files
@@ -13,14 +11,13 @@ from pathlib import Path
 
 import pytest
 
-from spa.adapters.aseprite.aseprite import probe
-from spa.adapters.aseprite.invocation import prepare_invocation
-from spa.application.surface import PROBE_RESOURCES
-from spa.contracts.public import RuntimeRequest
 from tests.host_permissions import deny_access
-from tests.support import inject_palette_change, process_diagnostics, spa
+from tests.native_invocation import expect_success, run, run_lua
+from tests.support import inject_palette_change, process_diagnostics
 
 pytestmark = pytest.mark.e2e
+
+FIXTURES = Path(__file__).parent / "fixtures"
 
 
 @contextmanager
@@ -36,47 +33,16 @@ def _deny_file_reading(file: Path) -> Iterator[None]:
         yield
 
 
-def run(*command: str, **request: object) -> tuple[int, dict]:
-    result = spa(
-        *command,
-        "--input-json",
-        json.dumps({**request, "aseprite": os.environ["SPA_TEST_ASEPRITE"]}),
-    )
-    assert result.stdout, process_diagnostics(result)
-    return result.returncode, json.loads(result.stdout)
-
-
-@pytest.fixture(scope="module")
-def runtime():
-    return probe(
-        RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
-    )
-
-
-def native_script(runtime, script: str, **params: object) -> None:
-    with tempfile.TemporaryDirectory(prefix="spa-color-mode-fixture-") as work:
-        prepared = prepare_invocation(
-            Path(runtime.canonical_path), Path(runtime.resource_path), Path(work)
-        )
-        arguments = [str(prepared.executable), "--batch"]
-        for name, value in params.items():
-            arguments.extend(["--script-param", f"{name}={value}"])
-        result = subprocess.run(
-            [*arguments, "--script", str(Path(__file__).parent / "fixtures" / script)],
-            env=prepared.environment,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    assert result.returncode == 0, process_diagnostics(result)
-
-
 def make_source(
     source: Path, runtime, mode: str = "rgb", *, scene: bool = False
 ) -> None:
-    native_script(
-        runtime, "scene.lua" if scene else "source.lua", source=source, mode=mode
+    lua = run_lua(
+        FIXTURES / ("scene.lua" if scene else "source.lua"),
+        runtime,
+        source=source,
+        mode=mode,
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     if scene:
         inject_palette_change(
             source,
@@ -93,15 +59,22 @@ def make_source(
 
 
 def convert(source: Path, target: Path, conversion: dict) -> tuple[int, dict]:
-    return run(
-        "sprite",
-        "change-color-mode",
-        source_sprite_file=str(source),
-        target_sprite_file=str(target),
-        in_place=False,
-        overwrite=False,
-        conversion=conversion,
+    """Run `spa sprite change-color-mode` and return `(returncode, envelope)`.
+
+    This adds the Source and Target fields with `in_place` and `overwrite`
+    False. The export tests also use it.
+    """
+    outcome = run(
+        "sprite change-color-mode",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": False,
+            "overwrite": False,
+            "conversion": conversion,
+        },
     )
+    return outcome.returncode, outcome.envelope
 
 
 def test_rgb_to_grayscale_preserves_source_and_reports_reopened_images(
@@ -129,10 +102,10 @@ def test_rgb_to_grayscale_preserves_source_and_reports_reopened_images(
         result["before"]["images"][0]["content"]
         != result["after"]["images"][0]["content"]
     )
-    code, inspected = run(
-        "sprite", "get", sprite_file=str(target), inspection_scope=["cels", "palettes"]
+    inspected = expect_success(
+        "sprite get",
+        {"sprite_file": str(target), "inspection_scope": ["cels", "palettes"]},
     )
-    assert code == 0, inspected
     assert inspected["metadata"]["color_mode"] == "grayscale"
     assert source.read_bytes() == original
 
@@ -225,22 +198,22 @@ def test_standalone_and_plan_share_the_conversion_owner(tmp_path, runtime):
     }
     code, one = convert(source, standalone, conversion)
     assert code == 0, one
-    code, result = run(
-        "plan",
-        "run",
-        plan={
-            "source_sprite_file": str(source),
-            "target_sprite_file": str(planned),
-            "steps": [
-                {
-                    "operation": "sprite change-color-mode",
-                    "input": {"conversion": conversion},
-                }
-            ],
-            "postconditions": {"color_mode": "indexed"},
+    result = expect_success(
+        "plan run",
+        {
+            "plan": {
+                "source_sprite_file": str(source),
+                "target_sprite_file": str(planned),
+                "steps": [
+                    {
+                        "operation": "sprite change-color-mode",
+                        "input": {"conversion": conversion},
+                    }
+                ],
+                "postconditions": {"color_mode": "indexed"},
+            }
         },
     )
-    assert code == 0, result
     step = result["steps"][0]["result"]
     assert step["persisted_reopen_verified"] is False
     for field in ("before", "after", "mapping", "dithering", "changed"):
@@ -288,28 +261,29 @@ def test_plan_combines_color_mode_and_profile_steps(
     current = source
     for number, step in enumerate(steps):
         target = tmp_path / f"standalone-{number}.aseprite"
-        code, result = run(
-            *step["operation"].split(),
-            source_sprite_file=str(current),
-            target_sprite_file=str(target),
-            in_place=False,
-            overwrite=False,
-            **step["input"],
+        result = expect_success(
+            step["operation"],
+            {
+                "source_sprite_file": str(current),
+                "target_sprite_file": str(target),
+                "in_place": False,
+                "overwrite": False,
+                **step["input"],
+            },
         )
-        assert code == 0, result
         expected.append(result)
         current = target
-    code, result = run(
-        "plan",
-        "run",
-        plan={
-            "source_sprite_file": str(source),
-            "target_sprite_file": str(planned),
-            "steps": steps,
-            "postconditions": {"color_mode": "indexed"},
+    result = expect_success(
+        "plan run",
+        {
+            "plan": {
+                "source_sprite_file": str(source),
+                "target_sprite_file": str(planned),
+                "steps": steps,
+                "postconditions": {"color_mode": "indexed"},
+            }
         },
     )
-    assert code == 0, result
     assert [step["operation"] for step in result["steps"]] == [
         step["operation"] for step in steps
     ]
@@ -392,13 +366,14 @@ def assert_native_reference(tmp_path, runtime, source, result, options):
         for name in ("options.json", "reference.aseprite", "receipt.aseprite")
     ]
     options_file.write_text(json.dumps(options))
-    native_script(
+    lua = run_lua(
+        FIXTURES / "native_reference.lua",
         runtime,
-        "native_reference.lua",
         source=source,
         target=reference,
         options=options_file,
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     mode = result["target_color_mode"]
     code, observed = convert(reference, receipt, conversion_for(mode, mode))
     assert code == 0, observed
@@ -527,13 +502,14 @@ def test_matrix_image_can_extend_beyond_canvas(tmp_path, runtime, algorithm, via
     original = source.read_bytes()
     matrices = [tmp_path / f"matrix-{size}.aseprite" for size in (2, 4)]
     for matrix, size in zip(matrices, (2, 4), strict=True):
-        native_script(
+        lua = run_lua(
+            FIXTURES / "matrix_coverage.lua",
             runtime,
-            "matrix_coverage.lua",
             target=matrix,
             image_width=size,
             image_height=size,
         )
+        assert lua.returncode == 0, process_diagnostics(lua)
     conversion = conversion_for("rgb", "indexed")
     conversion["target"]["dithering"] = {"algorithm": algorithm}
     code, default = convert(source, tmp_path / "default.aseprite", conversion)
@@ -566,23 +542,24 @@ def test_matrix_image_can_extend_beyond_canvas(tmp_path, runtime, algorithm, via
     conversion["target"]["dithering"]["matrix"]["path"] = str(matrices[1])
     target = tmp_path / "target.aseprite"
     if via_plan:
-        code, result = run(
-            "plan",
-            "run",
-            plan={
-                "source_sprite_file": str(source),
-                "target_sprite_file": str(target),
-                "steps": [
-                    {
-                        "operation": "sprite change-color-mode",
-                        "input": {"conversion": conversion},
-                    }
-                ],
+        result = expect_success(
+            "plan run",
+            {
+                "plan": {
+                    "source_sprite_file": str(source),
+                    "target_sprite_file": str(target),
+                    "steps": [
+                        {
+                            "operation": "sprite change-color-mode",
+                            "input": {"conversion": conversion},
+                        }
+                    ],
+                },
             },
         )
     else:
         code, result = convert(source, target, conversion)
-    assert code == 0, result
+        assert code == 0, result
     assert result["persisted_reopen_verified"] is True
     evidence = result["steps"][0]["result"] if via_plan else result
     assert evidence["after"] == equivalent["after"]
@@ -617,13 +594,14 @@ def test_preflight_failure_preserves_existing_source_and_target(
     matrix = tmp_path / "matrix.bmp"
     if failure.startswith("undersized-"):
         matrix = matrix.with_suffix(".aseprite")
-        native_script(
+        lua = run_lua(
+            FIXTURES / "matrix_coverage.lua",
             runtime,
-            "matrix_coverage.lua",
             target=matrix,
             image_width=1 if failure == "undersized-width" else 2,
             image_height=1 if failure == "undersized-height" else 2,
         )
+        assert lua.returncode == 0, process_diagnostics(lua)
     if failure == "missing-id":
         selected = {"kind": "installed", "id": "Bayer8x8-does-not-exist"}
     else:
@@ -637,36 +615,39 @@ def test_preflight_failure_preserves_existing_source_and_target(
         if failure == "unreadable":
             permissions.enter_context(_deny_file_reading(matrix))
         if via_plan:
-            code, result = run(
-                "plan",
-                "run",
-                plan={
-                    "source_sprite_file": str(source),
-                    "target_sprite_file": str(target),
-                    "overwrite": True,
-                    "steps": [
-                        {
-                            "operation": "frame add",
-                            "input": {"frame_number": 2, "duration_ms": 100},
-                        },
-                        {
-                            "operation": "sprite change-color-mode",
-                            "input": {"conversion": conversion},
-                        },
-                    ],
+            refused = run(
+                "plan run",
+                {
+                    "plan": {
+                        "source_sprite_file": str(source),
+                        "target_sprite_file": str(target),
+                        "overwrite": True,
+                        "steps": [
+                            {
+                                "operation": "frame add",
+                                "input": {"frame_number": 2, "duration_ms": 100},
+                            },
+                            {
+                                "operation": "sprite change-color-mode",
+                                "input": {"conversion": conversion},
+                            },
+                        ],
+                    },
                 },
             )
         else:
-            code, result = run(
-                "sprite",
-                "change-color-mode",
-                source_sprite_file=str(source),
-                target_sprite_file=str(target),
-                in_place=False,
-                overwrite=True,
-                conversion=conversion,
+            refused = run(
+                "sprite change-color-mode",
+                {
+                    "source_sprite_file": str(source),
+                    "target_sprite_file": str(target),
+                    "in_place": False,
+                    "overwrite": True,
+                    "conversion": conversion,
+                },
             )
-    assert code != 0, result
+    result = refused.envelope
+    assert refused.returncode != 0, result
     assert result["code"] == (
         "color_mode_mismatch"
         if failure == "wrong-source"
@@ -748,35 +729,38 @@ def test_ambiguous_installed_matrix_is_rejected_before_publication(tmp_path, run
 
 def test_plan_create_then_convert_uses_final_mode_for_postconditions(tmp_path):
     target = tmp_path / "target.aseprite"
-    code, result = run(
-        "plan",
-        "run",
-        plan={
-            "target_sprite_file": str(target),
-            "steps": [
-                {
-                    "operation": "sprite create",
-                    "input": {
-                        "width": 2,
-                        "height": 2,
-                        "color_mode": "rgb",
-                        "initial_layer": {"kind": "transparent"},
+    result = expect_success(
+        "plan run",
+        {
+            "plan": {
+                "target_sprite_file": str(target),
+                "steps": [
+                    {
+                        "operation": "sprite create",
+                        "input": {
+                            "width": 2,
+                            "height": 2,
+                            "color_mode": "rgb",
+                            "initial_layer": {"kind": "transparent"},
+                        },
                     },
-                },
-                {
-                    "operation": "sprite change-color-mode",
-                    "input": {"conversion": conversion_for("rgb", "grayscale")},
-                },
-                {
-                    "operation": "sprite change-color-mode",
-                    "input": {"conversion": conversion_for("grayscale", "indexed")},
-                },
-                {"operation": "sprite get", "input": {"inspection_scope": ["cels"]}},
-            ],
-            "postconditions": {"color_mode": "indexed"},
+                    {
+                        "operation": "sprite change-color-mode",
+                        "input": {"conversion": conversion_for("rgb", "grayscale")},
+                    },
+                    {
+                        "operation": "sprite change-color-mode",
+                        "input": {"conversion": conversion_for("grayscale", "indexed")},
+                    },
+                    {
+                        "operation": "sprite get",
+                        "input": {"inspection_scope": ["cels"]},
+                    },
+                ],
+                "postconditions": {"color_mode": "indexed"},
+            }
         },
     )
-    assert code == 0, result
     assert result["steps"][0]["result"]["sprite"]["metadata"]["color_mode"] == "rgb"
     assert result["final_sprite"]["metadata"]["color_mode"] == "indexed"
     assert result["persisted_reopen_verified"] is True
@@ -787,23 +771,27 @@ def test_failed_postcondition_after_conversion_rolls_back_target(tmp_path, runti
     make_source(source, runtime)
     original = source.read_bytes()
     target.write_bytes(b"previous target")
-    code, result = run(
-        "plan",
-        "run",
-        plan={
-            "source_sprite_file": str(source),
-            "target_sprite_file": str(target),
-            "overwrite": True,
-            "steps": [
-                {
-                    "operation": "sprite change-color-mode",
-                    "input": {"conversion": conversion_for("rgb", "grayscale")},
-                }
-            ],
-            "postconditions": {"color_mode": "rgb"},
+    failed = run(
+        "plan run",
+        {
+            "plan": {
+                "source_sprite_file": str(source),
+                "target_sprite_file": str(target),
+                "overwrite": True,
+                "steps": [
+                    {
+                        "operation": "sprite change-color-mode",
+                        "input": {"conversion": conversion_for("rgb", "grayscale")},
+                    }
+                ],
+                "postconditions": {"color_mode": "rgb"},
+            },
         },
     )
-    assert code != 0 and result["code"] == "kernel_execution_failed", result
+    result = failed.envelope
+    assert failed.returncode != 0 and result["code"] == "kernel_execution_failed", (
+        result
+    )
     assert source.read_bytes() == original
     assert target.read_bytes() == b"previous target"
 
@@ -812,29 +800,33 @@ def test_in_place_conversion_commits_only_after_verified_reopen(tmp_path, runtim
     source = tmp_path / "source.aseprite"
     make_source(source, runtime)
     original = source.read_bytes()
-    code, result = run(
-        "sprite",
-        "change-color-mode",
-        source_sprite_file=str(source),
-        target_sprite_file=str(source),
-        in_place=True,
-        overwrite=True,
-        conversion=conversion_for("rgb", "indexed"),
+    result = expect_success(
+        "sprite change-color-mode",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(source),
+            "in_place": True,
+            "overwrite": True,
+            "conversion": conversion_for("rgb", "indexed"),
+        },
     )
-    assert code == 0, result
     assert result["persisted_reopen_verified"] is True
     assert source.read_bytes() != original
     stable = source.read_bytes()
-    code, rejected = run(
-        "sprite",
-        "change-color-mode",
-        source_sprite_file=str(source),
-        target_sprite_file=str(source),
-        in_place=True,
-        overwrite=True,
-        conversion=conversion_for("rgb", "grayscale"),
+    refused = run(
+        "sprite change-color-mode",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(source),
+            "in_place": True,
+            "overwrite": True,
+            "conversion": conversion_for("rgb", "grayscale"),
+        },
     )
-    assert code != 0 and rejected["code"] == "color_mode_mismatch", rejected
+    rejected = refused.envelope
+    assert refused.returncode != 0 and rejected["code"] == "color_mode_mismatch", (
+        rejected
+    )
     assert source.read_bytes() == stable
 
 
@@ -847,9 +839,9 @@ def test_shared_owner_restores_editor_state_on_success_and_failure(tmp_path, run
     make_source(source, runtime)
     original = source.read_bytes()
     invalid.write_bytes(b"invalid image")
-    native_script(
+    lua = run_lua(
+        FIXTURES / "state_restoration.lua",
         runtime,
-        "state_restoration.lua",
         source=source,
         invalid_matrix=invalid,
         workspace=tmp_path,
@@ -861,4 +853,5 @@ def test_shared_owner_restores_editor_state_on_success_and_failure(tmp_path, run
             for resource in COLOR_MODE_RESOURCES
         },
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     assert source.read_bytes() == original

@@ -4,16 +4,22 @@ import json
 
 import pytest
 
-from tests.filter.support import apply, native_script, pixels, rgb_palette_colors
-from tests.support import inject_palette_change
+from tests.filter.support import FIXTURES, apply, pixels, rgb_palette_colors
+from tests.native_invocation import run_lua
+from tests.support import inject_palette_change, process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
 
 def create(runtime, source, mode):
-    native_script(
-        runtime, "tilemap_applications.lua", action="create", source=source, mode=mode
+    lua = run_lua(
+        FIXTURES / "tilemap_applications.lua",
+        runtime,
+        action="create",
+        source=source,
+        mode=mode,
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     inject_palette_change(
         source,
         [
@@ -29,14 +35,15 @@ def create(runtime, source, mode):
 
 def observe(runtime, source, mode):
     response = source.with_suffix(".json")
-    native_script(
+    lua = run_lua(
+        FIXTURES / "tilemap_applications.lua",
         runtime,
-        "tilemap_applications.lua",
         action="observe",
         source=source,
         mode=mode,
         response=response,
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     return json.loads(response.read_text())
 
 
@@ -47,15 +54,16 @@ def test_gray_tile_channels_and_alpha_match_native(tmp_path, runtime):
     create(runtime, source, "grayscale")
     original = source.read_bytes()
     before = observe(runtime, source, "grayscale")
-    native_script(
+    lua = run_lua(
+        FIXTURES / "tilemap_applications.lua",
         runtime,
-        "tilemap_applications.lua",
         action="native",
         source=source,
         target=oracle,
         mode="grayscale",
         brightness=50,
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     code, result = apply(
         source,
         target,
@@ -100,17 +108,18 @@ def test_tile_application_palette_basis_and_native_alpha(
         application = pixels(mode, palette_frame_number=2, **options)
     else:
         application = pixels(mode, **options)
-    native_script(
+    lua = run_lua(
+        FIXTURES / "tilemap_applications.lua",
         runtime,
-        "tilemap_applications.lua",
         action="native",
         source=source,
         target=oracle,
         mode=mode,
         brightness=50,
-        palette=str(kind == "rgb-palette-colors").lower(),
+        palette=kind == "rgb-palette-colors",
         channels=",".join(channels),
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     code, result = apply(source, target, application)
     assert code == 0, result
     after = observe(runtime, target, mode)
