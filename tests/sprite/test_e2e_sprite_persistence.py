@@ -15,7 +15,6 @@ from tests.support import motion_curves, motion_sprite, observe_cli, process_dia
 pytestmark = pytest.mark.e2e
 
 FIXTURES = Path(__file__).parent / "fixtures"
-OBSERVER = FIXTURES / "observe_persistence_cli.py"
 
 
 @pytest.mark.parametrize(
@@ -149,7 +148,7 @@ def test_handlers_gate_commit_and_restore_editor_on_persistence_failure(
         **inputs,
     }
     _, outcome, observations = observe_cli(
-        OBSERVER, case, operation, request, tmp_path / "observations.json"
+        case, operation, request, tmp_path / "observations.json", seam="run"
     )
     assert observations["handler_invocations"] == observations["saves"] == 1
     assert observations["probe_invocations"] == 1
@@ -192,7 +191,6 @@ def test_cel_and_motion_plan_saves_only_after_all_steps(
     source = motion_sprite(runtime, tmp_path, uuids="true")
     before_source = source.read_bytes()
     _, outcome, observations = observe_cli(
-        OBSERVER,
         "success",
         "plan run",
         {
@@ -212,6 +210,7 @@ def test_cel_and_motion_plan_saves_only_after_all_steps(
             },
         },
         tmp_path / "observations.json",
+        seam="run",
     )
     assert outcome["status"] == "success", outcome
     assert outcome["persisted_reopen_verified"] is True

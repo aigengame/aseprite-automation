@@ -354,11 +354,11 @@ def test_plan_adds_cel_then_paints_it_in_one_commit(
         },
     }
     process, result, observations = observe_cli(
-        Path(__file__).parents[1] / "plan" / "fixtures" / "observe_cli.py",
         "valid",
         "plan run",
         request,
         tmp_path / "observations.json",
+        seam="invoke_direct",
     )
     assert process.returncode == 0, process_diagnostics(process)
     assert observations == {

@@ -492,6 +492,7 @@ def controlled_runtime(binary: Path) -> RuntimeObservation:
 # their bodies.
 _MOTION_FIXTURES = Path(__file__).parent / "motion" / "fixtures"
 _CEL_FIXTURES = Path(__file__).parent / "cel" / "fixtures"
+_OBSERVER = Path(__file__).parent / "fixtures" / "observe_cli.py"
 
 
 def motion_sprite(
@@ -566,24 +567,33 @@ def cel_relationships_sprite(runtime: RuntimeObservation, target: Path) -> None:
 
 
 def observe_cli(
-    observer: Path,
     case: str,
     command: str,
     request: dict[str, Any],
     observations: Path,
+    *,
+    seam: str,
 ) -> tuple[subprocess.CompletedProcess[str], dict[str, Any], dict[str, Any]]:
-    """Run `spa <command>` in an observer script, and return its process and records.
+    """Run `spa <command>` in the observer script, and return its process and records.
 
-    The observer is a Python fixture. It patches SPA adapters in the CLI process
-    before the entry point runs, injects the fault of case, and writes what it
-    observed to observations. This runner adds the `SPA_TEST_ASEPRITE` value to
-    request, and validates the envelope against the schema of command. Return the
-    process, its envelope, and the observations.
+    `tests/fixtures/observe_cli.py` replaces the SPA adapters of seam in the CLI
+    process before the entry point runs, injects the fault of case, and writes
+    what it observed to observations. The seams are:
+
+    - "invoke_direct": count Plan native invocations and Target Commits, and
+      change the native Plan response.
+    - "run": count probe and handler processes and Target Commits, and run each
+      handler in the native I/O wrapper `tests/fixtures/observe_cli.lua`.
+
+    This runner adds the `SPA_TEST_ASEPRITE` value to request, and validates the
+    envelope against the schema of command. Return the process, its envelope, and
+    the observations.
     """
     from jsonschema import ValidationError
 
     from tests.native_invocation import validate_envelope
 
+    assert seam in ("invoke_direct", "run"), f"unknown observer seam {seam!r}"
     assert "aseprite" not in request, "the runner adds the Aseprite path"
     cli = shutil.which("spa")
     assert cli, "run tests in an installed SPA environment"
@@ -591,7 +601,8 @@ def observe_cli(
     process = subprocess.run(
         [
             sys.executable,
-            str(observer),
+            str(_OBSERVER),
+            seam,
             case,
             str(observations),
             cli,

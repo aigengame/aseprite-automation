@@ -10,7 +10,7 @@ from spa.contracts.ports import RuntimeObservation
 from tests.image.test_e2e_image_orientation import _fixture as _image_fixture
 from tests.image.test_e2e_image_orientation import _inspect
 from tests.native_invocation import expect_success, run
-from tests.plan.support import FIXTURES, plan_request, red_pixel
+from tests.plan.support import plan_request, red_pixel
 from tests.support import cel_relationships_sprite, observe_cli, spa
 
 pytestmark = pytest.mark.e2e
@@ -358,7 +358,6 @@ def test_cel_plan_has_one_native_invocation_and_gates_target_commit(
             "input": {"inspection_scope": ["frames"]},
         }
     process, outcome, observations = observe_cli(
-        FIXTURES / "observe_cli.py",
         case,
         "plan run",
         {
@@ -371,6 +370,7 @@ def test_cel_plan_has_one_native_invocation_and_gates_target_commit(
             },
         },
         tmp_path / "observations.json",
+        seam="invoke_direct",
     )
     assert observations["native_invocations"] == 1
     assert source.read_bytes() == source_before

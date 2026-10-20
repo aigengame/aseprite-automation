@@ -182,7 +182,6 @@ def test_plan_verifies_step_time_tileset_evidence_before_its_only_commit(
     original = source.read_bytes()
     target.write_bytes(b"Previous Target")
     executed, result, observations = observe_cli(
-        FIXTURES / "observe_tileset_cli.py",
         case,
         "plan run",
         {
@@ -206,6 +205,7 @@ def test_plan_verifies_step_time_tileset_evidence_before_its_only_commit(
             },
         },
         tmp_path / "observations.json",
+        seam="invoke_direct",
     )
     assert observations["native_invocations"] == 1
     assert source.read_bytes() == original

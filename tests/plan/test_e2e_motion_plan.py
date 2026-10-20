@@ -8,7 +8,7 @@ from jsonschema import validate
 
 from spa.contracts.ports import RuntimeObservation
 from tests.native_invocation import expect_success, run
-from tests.plan.support import FIXTURES, plan_request, red_pixel
+from tests.plan.support import plan_request, red_pixel
 from tests.support import (
     inspect_motion,
     motion_curves,
@@ -156,7 +156,6 @@ def test_motion_plan_uses_one_process_and_gates_publication(
     target = tmp_path / "existing.aseprite"
     target.write_bytes(b"prior Target")
     process, result, observations = observe_cli(
-        FIXTURES / "observe_cli.py",
         case,
         "plan run",
         {
@@ -168,6 +167,7 @@ def test_motion_plan_uses_one_process_and_gates_publication(
             }
         },
         tmp_path / "observations.json",
+        seam="invoke_direct",
     )
     assert observations["native_invocations"] == 1
     if case == "success":
