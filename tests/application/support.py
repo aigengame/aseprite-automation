@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from tests.motion.test_e2e_motion import curves
+from tests.support import motion_curves
 
 OPERATIONS = (
     "cel set",
@@ -54,7 +54,7 @@ def completion_request(
 ) -> dict[str, Any]:
     """Return a request of operation that may overwrite target."""
     inputs = {
-        "motion apply": curves(),
+        "motion apply": motion_curves(),
         "tag add": {
             "name": "new",
             "from_frame": 1,
