@@ -4,7 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from tests.tile.support import fixture, run
+from tests.native_invocation import expect_success, run
+from tests.tile.support import cel_creation_sprite, verify_cel_creation
 
 pytestmark = pytest.mark.e2e
 
@@ -16,7 +17,7 @@ def test_create_empty_tilemap_cel(
     tmp_path: Path, runtime, plan: bool, mode: str, frame_number: int
 ) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    fixture(source, runtime, script="cel_creation.lua", mode=mode)
+    cel_creation_sprite(runtime, source, mode=mode)
     before = source.read_bytes()
     address = {"layer": {"layer_path": [2]}, "frame_number": frame_number}
     files = {
@@ -26,29 +27,27 @@ def test_create_empty_tilemap_cel(
         "overwrite": False,
     }
     inputs = {"target": address, "tilemap_size": {"width": 2, "height": 3}}
-    code, result = (
-        run(
-            "plan",
-            "run",
-            plan=files | {"steps": [{"operation": "cel add", "input": inputs}]},
+    result = (
+        expect_success(
+            "plan run",
+            {"plan": files | {"steps": [{"operation": "cel add", "input": inputs}]}},
         )
         if plan
-        else run("cel", "add", **files, **inputs)
+        else expect_success("cel add", {**files, **inputs})
     )
-    assert code == 0, result
     assert result["persisted_reopen_verified"] is True
     added = result["steps"][0]["result"] if plan else result
     assert added["cel"]["is_tilemap"] is True
     assert added["cel"]["image_bounds"] is None
     assert added["cel"]["content"] == "transparent"
-    code, observation = run(
-        "tilemap",
-        "get",
-        sprite_file=str(target),
-        target=address,
-        rectangle={"x": 0, "y": 0, "width": 2, "height": 3},
+    observation = expect_success(
+        "tilemap get",
+        {
+            "sprite_file": str(target),
+            "target": address,
+            "rectangle": {"x": 0, "y": 0, "width": 2, "height": 3},
+        },
     )
-    assert code == 0, observation
     assert observation["snapshot"]["entries"] == []
     assert observation["snapshot"]["complete"] is True
     assert observation["tilemap"]["cell_size"] == {"width": 2, "height": 3}
@@ -58,7 +57,7 @@ def test_create_empty_tilemap_cel(
         "width": 4,
         "height": 6,
     }
-    fixture(source, runtime, script="cel_creation.lua", result=target)
+    verify_cel_creation(runtime, source, result=target)
     assert source.read_bytes() == before
 
 
@@ -102,7 +101,7 @@ def test_creation_refusal_preserves_files(
     tmp_path: Path, runtime, plan: bool, address: dict, geometry: dict, expected: str
 ) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    fixture(source, runtime, script="cel_creation.lua")
+    cel_creation_sprite(runtime, source)
     before = source.read_bytes()
     target.write_bytes(b"preserve prior Target")
     files = {
@@ -112,16 +111,16 @@ def test_creation_refusal_preserves_files(
         "overwrite": True,
     }
     inputs = {"target": address, **geometry}
-    code, result = (
+    outcome = (
         run(
-            "plan",
-            "run",
-            plan=files | {"steps": [{"operation": "cel add", "input": inputs}]},
+            "plan run",
+            {"plan": files | {"steps": [{"operation": "cel add", "input": inputs}]}},
         )
         if plan
-        else run("cel", "add", **files, **inputs)
+        else run("cel add", {**files, **inputs})
     )
-    assert code == 2, result
+    result = outcome.envelope
+    assert outcome.returncode == 2, result
     assert result["code"] == expected, result
     if plan:
         assert result["details"]["step_number"] == 1
@@ -134,7 +133,7 @@ def test_plan_creates_independent_cels_at_first_and_later_frame(
     tmp_path: Path, runtime
 ) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    fixture(source, runtime, script="cel_creation.lua", mode="indexed")
+    cel_creation_sprite(runtime, source, mode="indexed")
     steps = [
         {
             "operation": "cel add",
@@ -145,27 +144,27 @@ def test_plan_creates_independent_cels_at_first_and_later_frame(
         }
         for number in (1, 3)
     ]
-    code, result = run(
-        "plan",
-        "run",
-        plan={
-            "source_sprite_file": str(source),
-            "target_sprite_file": str(target),
-            "in_place": False,
-            "overwrite": False,
-            "steps": steps,
+    result = expect_success(
+        "plan run",
+        {
+            "plan": {
+                "source_sprite_file": str(source),
+                "target_sprite_file": str(target),
+                "in_place": False,
+                "overwrite": False,
+                "steps": steps,
+            }
         },
     )
-    assert code == 0, result
     assert all(step["result"]["cel"]["linked_cels"] == [] for step in result["steps"])
-    fixture(source, runtime, script="cel_creation.lua", result=target, added_count=2)
+    verify_cel_creation(runtime, source, result=target, added_count=2)
 
 
 def test_failed_later_step_does_not_publish_added_tilemap(
     tmp_path: Path, runtime
 ) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    fixture(source, runtime, script="cel_creation.lua")
+    cel_creation_sprite(runtime, source)
     before = source.read_bytes()
     target.write_bytes(b"unchanged Target")
     step = {
@@ -175,18 +174,20 @@ def test_failed_later_step_does_not_publish_added_tilemap(
             "tilemap_size": {"width": 2, "height": 3},
         },
     }
-    code, result = run(
-        "plan",
-        "run",
-        plan={
-            "source_sprite_file": str(source),
-            "target_sprite_file": str(target),
-            "in_place": False,
-            "overwrite": True,
-            "steps": [step, step],
+    outcome = run(
+        "plan run",
+        {
+            "plan": {
+                "source_sprite_file": str(source),
+                "target_sprite_file": str(target),
+                "in_place": False,
+                "overwrite": True,
+                "steps": [step, step],
+            }
         },
     )
-    assert code == 2 and result["code"] == "cel_already_exists", result
+    result = outcome.envelope
+    assert outcome.returncode == 2 and result["code"] == "cel_already_exists", result
     assert result["details"]["step_number"] == 2
     assert source.read_bytes() == before
     assert target.read_bytes() == b"unchanged Target"
@@ -197,38 +198,38 @@ def test_later_step_can_link_the_new_cel_without_rechecking_initial_independence
     tmp_path: Path, runtime
 ) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    fixture(source, runtime, script="cel_creation.lua")
-    code, result = run(
-        "plan",
-        "run",
-        plan={
-            "source_sprite_file": str(source),
-            "target_sprite_file": str(target),
-            "in_place": False,
-            "overwrite": False,
-            "steps": [
-                {
-                    "operation": "cel add",
-                    "input": {
-                        "target": {"layer": {"layer_path": [2]}, "frame_number": 1},
-                        "tilemap_size": {"width": 2, "height": 3},
+    cel_creation_sprite(runtime, source)
+    result = expect_success(
+        "plan run",
+        {
+            "plan": {
+                "source_sprite_file": str(source),
+                "target_sprite_file": str(target),
+                "in_place": False,
+                "overwrite": False,
+                "steps": [
+                    {
+                        "operation": "cel add",
+                        "input": {
+                            "target": {"layer": {"layer_path": [2]}, "frame_number": 1},
+                            "tilemap_size": {"width": 2, "height": 3},
+                        },
                     },
-                },
-                {
-                    "operation": "frame duplicate",
-                    "input": {"source_frame_number": 1, "cel_mode": "link"},
-                },
-            ],
+                    {
+                        "operation": "frame duplicate",
+                        "input": {"source_frame_number": 1, "cel_mode": "link"},
+                    },
+                ],
+            }
         },
     )
-    assert code == 0, result
     assert result["steps"][0]["result"]["cel"]["linked_cels"] == []
     assert result["persisted_reopen_verified"] is True
-    code, observed = run(
-        "cel",
-        "get",
-        sprite_file=str(target),
-        target={"layer": {"layer_path": [2]}, "frame_number": 1},
+    observed = expect_success(
+        "cel get",
+        {
+            "sprite_file": str(target),
+            "target": {"layer": {"layer_path": [2]}, "frame_number": 1},
+        },
     )
-    assert code == 0, observed
     assert observed["cel"]["linked_cels"] == [{"layer_path": [2], "frame_number": 2}]
