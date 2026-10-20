@@ -18,7 +18,7 @@ from spa.contracts.ports import OperationServices, RuntimeIssue, TargetCommitEvi
 from tests.host_permissions import symlink_creation_permission
 from tests.support import process_diagnostics, spa
 
-from .test_e2e_image_import import _create
+from .test_e2e_image_import import _create, _indexed
 from .test_e2e_image_import import runtime as runtime  # noqa: PLC0414
 
 pytestmark = pytest.mark.e2e
@@ -75,13 +75,16 @@ def _dispatch(source, raster, target, runtime, files, invoker):
     return result.model_dump(mode="json")
 
 
-def _inputs(tmp_path, runtime):
+def _inputs(tmp_path, runtime, *, indexed=False):
     source, raster, target = (
         tmp_path / name for name in ("source.aseprite", "input.png", "target.aseprite")
     )
-    _create(runtime, source)
+    _create(runtime, source, **({"mode": "indexed"} if indexed else {}))
     target.write_bytes(source.read_bytes())
-    Image.new("RGBA", (2, 1), (17, 31, 53, 128)).save(raster)
+    if indexed:
+        _indexed(raster, [1, 1])
+    else:
+        Image.new("RGBA", (2, 1), (17, 31, 53, 128)).save(raster)
     return source, raster, target
 
 
