@@ -4,6 +4,7 @@ from copy import deepcopy
 
 import pytest
 
+from spa.application.surface import OPERATIONS
 from spa.authoring.raster.despeckle import DespeckleRequest, despeckle
 from spa.authoring.raster.filter import BrightnessContrastRequest, brightness_contrast
 from spa.authoring.raster.hue_saturation import HueSaturationRequest, hue_saturation
@@ -15,6 +16,8 @@ from spa.authoring.raster.invert_outline import (
 )
 from spa.contracts.ports import RuntimeIssue
 from tests.filter.support import (
+    assert_malformed,
+    assert_unpublished,
     evidence,
     filter_cel_evidence,
     hue_evidence,
@@ -23,18 +26,52 @@ from tests.filter.support import (
     setup_filter_staging,
 )
 
+FILTERS = [
+    "brightness-contrast",
+    "hue-saturation",
+    "color-curve",
+    "replace-color",
+    "invert-color",
+    "outline",
+    "despeckle",
+]
+APPLICATION_MISMATCH = "Filter evidence disagrees with the requested application"
+TARGET_MISMATCH = "Filter target intersections disagree with existing Cels"
+# Each Filter refuses a pixel application that changes a Palette entry.
+PALETTE_CAUSES = {
+    "brightness-contrast": APPLICATION_MISMATCH,
+    "hue-saturation": APPLICATION_MISMATCH,
+    "color-curve": "Pixel Filter cannot mutate Palettes",
+    "replace-color": "Pixel Filter cannot mutate Palettes",
+    "invert-color": "Pixel-only Filters must preserve the Palette",
+    "outline": "Pixel-only Filters must preserve the Palette",
+    "despeckle": "Despeckle observations disagree with its native pixel path",
+}
+# One evidence parameter that differs from the request. Invert Color has none.
+PARAMETER_MISMATCHES = {
+    "brightness-contrast": {"brightness": 11},
+    "hue-saturation": {
+        "adjustment": {"mode": "hsl-add", "hue": 0, "saturation": 0, "lightness": 10}
+    },
+    "color-curve": {"points": [{"input": 0, "output": 128}]},
+    "replace-color": {"tolerance": 1},
+    "outline": {"place": "inside"},
+    "despeckle": {"tiled_mode": "both"},
+}
 
-@pytest.fixture(
-    params=[
-        "brightness-contrast",
-        "hue-saturation",
-        "color-curve",
-        "replace-color",
-        "invert-color",
-        "outline",
-        "despeckle",
-    ]
-)
+
+def test_filter_tables_name_every_operation_filter():
+    names = sorted(
+        descriptor.name.removeprefix("filter ")
+        for descriptor in OPERATIONS
+        if descriptor.name.startswith("filter ")
+    )
+    assert sorted(FILTERS) == names
+    assert sorted(PALETTE_CAUSES) == names
+    assert sorted(PARAMETER_MISMATCHES) == sorted(set(names) - {"invert-color"})
+
+
+@pytest.fixture(params=FILTERS)
 def filter_case(request):
     name = request.param
     if name == "brightness-contrast":
@@ -105,7 +142,9 @@ def filter_case(request):
 
 
 @pytest.mark.parametrize("target_exists", [False, True])
-@pytest.mark.parametrize("contradiction", ["omitted-selection", "selected-frame"])
+@pytest.mark.parametrize(
+    "contradiction", ["omitted-selection", "selected-frame", "empty-request"]
+)
 def test_contradictory_targets_or_selection_cannot_publish(
     tmp_path, filter_case, target_exists, contradiction
 ):
@@ -113,6 +152,8 @@ def test_contradictory_targets_or_selection_cannot_publish(
     intent = {}
     if contradiction == "omitted-selection":
         response["selection"] = {"kind": "empty"}
+    elif contradiction == "empty-request":
+        intent["selection"] = {"kind": "empty"}
     else:
         response["cels_target_kind"] = "selected"
         intent["cels_target"] = {
@@ -127,7 +168,7 @@ def test_contradictory_targets_or_selection_cannot_publish(
     with pytest.raises(RuntimeIssue) as caught:
         execute(request_for(source, target, **intent), services)
 
-    assert caught.value.kind == "response_malformed"
+    assert_malformed(caught, APPLICATION_MISMATCH)
     assert source.read_bytes() == b"original source"
     if target_exists:
         assert target.read_bytes() == b"preexisting target"
@@ -135,6 +176,69 @@ def test_contradictory_targets_or_selection_cannot_publish(
         assert not target.exists()
     assert len(staged) == 1
     assert not staged[0].exists()
+
+
+@pytest.mark.parametrize(
+    "layers, frames",
+    [
+        ([{"layer_path": [2]}], [1]),
+        ([{"layer_path": [1]}], [1, 2]),
+        ([{"layer_path": [1]}, {"layer_path": [2]}], [1]),
+        ([{"layer_name": "Ink"}], [2]),
+        ([{"layer_uuid": "persisted-layer"}], [2]),
+    ],
+    ids=["path", "missing-frame", "missing-layer", "name-frame", "uuid-frame"],
+)
+def test_selected_targets_cannot_publish_different_intersections(
+    tmp_path, filter_case, layers, frames
+):
+    response, request_for, execute = filter_case
+    response["cels_target_kind"] = "selected"
+    services, source, target, staged = setup_filter_staging(tmp_path, response)
+    chosen = {"kind": "selected", "layers": layers, "frame_numbers": frames}
+
+    with pytest.raises(RuntimeIssue) as caught:
+        execute(request_for(source, target, cels_target=chosen), services)
+
+    assert_malformed(caught, APPLICATION_MISMATCH)
+    assert_unpublished(source, target, staged)
+
+
+@pytest.mark.parametrize(
+    "filter_case, cause",
+    list(PALETTE_CAUSES.items()),
+    ids=list(PALETTE_CAUSES),
+    indirect=["filter_case"],
+)
+def test_pixel_application_cannot_publish_palette_change(tmp_path, filter_case, cause):
+    response, request_for, execute = filter_case
+    entry = response["palette_after"]["palette_changes"][0]["entries"][0]
+    entry["color"]["red"] = 80
+    services, source, target, staged = setup_filter_staging(tmp_path, response)
+
+    with pytest.raises(RuntimeIssue) as caught:
+        execute(request_for(source, target), services)
+
+    assert_malformed(caught, cause)
+    assert_unpublished(source, target, staged)
+
+
+@pytest.mark.parametrize(
+    "filter_case, mismatch",
+    list(PARAMETER_MISMATCHES.items()),
+    ids=list(PARAMETER_MISMATCHES),
+    indirect=["filter_case"],
+)
+def test_evidence_parameters_must_match_the_request(tmp_path, filter_case, mismatch):
+    response, request_for, execute = filter_case
+    response.update(deepcopy(mismatch))
+    services, source, target, staged = setup_filter_staging(tmp_path, response)
+
+    with pytest.raises(RuntimeIssue) as caught:
+        execute(request_for(source, target), services)
+
+    assert_malformed(caught, APPLICATION_MISMATCH)
+    assert_unpublished(source, target, staged)
 
 
 @pytest.mark.parametrize(
@@ -171,6 +275,7 @@ def test_resolved_targets_preserve_empty_intersections_and_linked_effects(
         services,
     )
 
+    assert result.requested_intersections[0].layer_path == [1]
     assert result.requested_intersections[1].image_number is None
     assert result.affected_cels[-1].frame_number == 3
     assert target.read_bytes() == b"native staged output"
@@ -304,6 +409,7 @@ def test_palette_only_can_publish_without_pixel_target_evidence(
         "duplicate-request",
         "duplicate-existing",
         "disagreement",
+        "different-frame",
         "missing-existing",
         "empty-target",
     ],
@@ -319,6 +425,10 @@ def test_target_intersections_must_agree_before_publication(
     elif contradiction == "disagreement":
         response["requested_intersections"] = [
             {"layer_path": [1], "frame_number": 1, "image_number": 2}
+        ]
+    elif contradiction == "different-frame":
+        response["requested_intersections"] = [
+            {"layer_path": [1], "frame_number": 2, "image_number": 1}
         ]
     elif contradiction == "missing-existing":
         response["existing_target_cels"] = []
@@ -341,8 +451,5 @@ def test_target_intersections_must_agree_before_publication(
     with pytest.raises(RuntimeIssue) as caught:
         execute(request_for(source, target), services)
 
-    assert caught.value.kind == "response_malformed"
-    assert source.read_bytes() == b"original source"
-    assert target.read_bytes() == b"preexisting target"
-    assert len(staged) == 1
-    assert not staged[0].exists()
+    assert_malformed(caught, TARGET_MISMATCH)
+    assert_unpublished(source, target, staged)

@@ -3,36 +3,32 @@
 import pytest
 
 from spa.contracts.ports import RuntimeIssue
-from tests.filter.support import assert_unpublished, operation_case, setup_operation
+from tests.filter.support import (
+    assert_malformed,
+    assert_unpublished,
+    operation_case,
+    setup_operation,
+)
+
+# The validator text that refuses each corrupted evidence field.
+CORRUPTION_CAUSES = {
+    "channels": "Filter evidence disagrees with the requested application",
+    "cel_survival": "Image survival disagrees with affected Cels",
+    "processing": "Pixel Filter must process every distinct target Image",
+    "persisted": "persisted_reopen_verified\n  Input should be True",
+}
 
 
 @pytest.mark.parametrize("name", ["color-curve", "replace-color"])
-@pytest.mark.parametrize(
-    "corruption",
-    [
-        None,
-        "channels",
-        "palette",
-        "cel_survival",
-        "processing",
-        "parameters",
-        "persisted",
-    ],
-)
+@pytest.mark.parametrize("corruption", [None, *CORRUPTION_CAUSES])
 def test_pixel_filter_commit_requires_consistent_evidence(tmp_path, name, corruption):
     response, parameters, request_type, execute = operation_case(name)
     if corruption == "channels":
         response["channels"] = {"kind": "components", "names": ["alpha"]}
-    elif corruption == "palette":
-        response["palette_after"]["frame_count"] += 1
     elif corruption == "cel_survival":
         response["cel_effects"][0]["after"] = None
     elif corruption == "processing":
         response["processed_image_numbers"] = []
-    elif corruption == "parameters":
-        response["points" if name == "color-curve" else "tolerance"] = (
-            [] if name == "color-curve" else 1
-        )
     elif corruption == "persisted":
         response["persisted_reopen_verified"] = False
     brightness, services, source, target, staged = setup_operation(tmp_path, response)
@@ -42,8 +38,9 @@ def test_pixel_filter_commit_requires_consistent_evidence(tmp_path, name, corrup
     )
     request = request_type.model_validate({**fields, **application, **parameters})
     if corruption:
-        with pytest.raises(RuntimeIssue):
+        with pytest.raises(RuntimeIssue) as caught:
             execute(request, services)
+        assert_malformed(caught, CORRUPTION_CAUSES[corruption])
         assert_unpublished(source, target, staged)
     else:
         execute(request, services)
@@ -64,6 +61,9 @@ def test_impossible_changed_count_cannot_publish(tmp_path):
             **parameters,
         }
     )
-    with pytest.raises(RuntimeIssue):
+    with pytest.raises(RuntimeIssue) as caught:
         execute(request, services)
+    assert_malformed(
+        caught, "Changed pixel count disagrees with observed native writeback"
+    )
     assert_unpublished(source, target, staged)

@@ -217,6 +217,16 @@ def setup_filter_staging(tmp_path, response=None, crash=False):
     return services, source, target, staged
 
 
+def assert_malformed(caught, cause):
+    """Assert a `response_malformed` RuntimeIssue whose cause contains cause.
+
+    caught is the `pytest.raises` result. cause is the text of the validator
+    that refused the evidence.
+    """
+    assert caught.value.kind == "response_malformed"
+    assert cause in str(caught.value.__cause__), caught.value.__cause__
+
+
 def assert_unpublished(source, target, staged):
     assert source.read_bytes() == b"original source"
     assert target.read_bytes() == b"preexisting target"

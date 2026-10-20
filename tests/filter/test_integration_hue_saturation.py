@@ -4,7 +4,21 @@ import pytest
 
 from spa.authoring.raster.hue_saturation import HueSaturationRequest, hue_saturation
 from spa.contracts.ports import RuntimeIssue
-from tests.filter.support import assert_unpublished, hue_evidence, setup_operation
+from tests.filter.support import (
+    assert_malformed,
+    assert_unpublished,
+    hue_evidence,
+    setup_operation,
+)
+
+# The validator text that refuses each corrupted evidence field.
+CORRUPTION_CAUSES = {
+    "missing_adjustment": "Filter processing disagrees with the declared adjustment",
+    "wrong_alpha": "Filter evidence disagrees with the requested application",
+    "missing_cel_effect": "Cel effects must cover every affected Cel",
+    "changed_flag": "Filter change disagrees with observed Images and Palettes",
+    "deleted_cel_with_existing_image": "Image survival disagrees with affected Cels",
+}
 
 
 def hue_request(brightness_request):
@@ -38,22 +52,10 @@ def test_valid_hue_evidence_publishes_target(tmp_path):
     assert not staged[0].exists()
 
 
-@pytest.mark.parametrize(
-    "corruption",
-    [
-        "wrong_adjustment",
-        "missing_adjustment",
-        "wrong_alpha",
-        "missing_cel_effect",
-        "changed_flag",
-        "deleted_cel_with_existing_image",
-    ],
-)
+@pytest.mark.parametrize("corruption", list(CORRUPTION_CAUSES))
 def test_mismatched_hue_evidence_cannot_publish(tmp_path, corruption):
     response = hue_evidence()
-    if corruption == "wrong_adjustment":
-        response["adjustment"]["mode"] = "hsl-add"
-    elif corruption == "missing_adjustment":
+    if corruption == "missing_adjustment":
         response["adjustment"] = None
     elif corruption == "wrong_alpha":
         response["alpha"] = 10
@@ -66,5 +68,5 @@ def test_mismatched_hue_evidence_cannot_publish(tmp_path, corruption):
     request, services, source, target, staged = setup_operation(tmp_path, response)
     with pytest.raises(RuntimeIssue) as caught:
         hue_saturation(hue_request(request), services)
-    assert caught.value.kind == "response_malformed"
+    assert_malformed(caught, CORRUPTION_CAUSES[corruption])
     assert_unpublished(source, target, staged)

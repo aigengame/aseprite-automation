@@ -6,8 +6,26 @@ from spa.application.surface import info_result, schema_result
 from spa.authoring.raster.filter import BrightnessContrastRequest, brightness_contrast
 from spa.contracts.ports import RuntimeIssue
 from spa.contracts.public import RuntimeRequest
-from tests.filter.support import assert_unpublished, evidence, setup_operation
+from tests.filter.support import (
+    assert_malformed,
+    assert_unpublished,
+    evidence,
+    setup_operation,
+)
 from tests.support import operation_services, runtime_observation
+
+# The validator text that refuses each corrupted evidence field.
+CONTRADICTION_CAUSES = {
+    "missing_evidence": "images\n  Field required",
+    "changed_flag": "Filter Image change disagrees with its content digests",
+    "application": "Filter evidence disagrees with the requested application",
+}
+TILE_REFERENCE_CAUSES = {
+    "missing_direct": "Tile references disagree with Filter Cel Image targets",
+    "image_number": "Tile references disagree with Filter Cel Image targets",
+    "duplicate": "Tile references disagree with Filter Cel Image targets",
+    "empty_tile": "tile_index\n  Input should be greater than or equal to 1",
+}
 
 
 def test_valid_persisted_evidence_publishes_target(tmp_path):
@@ -20,31 +38,37 @@ def test_valid_persisted_evidence_publishes_target(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "rejection",
+    "rejection, cause",
     [
-        {"code": "filter_invalid_target"},
-        {"code": "filter_invalid_target", "message": "bad target", "details": {}},
-        {
-            "code": "filter_invalid_target",
-            "message": 1,
-            "details": {"kind": "filter", "reason": "locked"},
-        },
+        pytest.param({"code": "filter_invalid_target"}, "'message'", id="rejection0"),
+        pytest.param(
+            {"code": "filter_invalid_target", "message": "bad target", "details": {}},
+            "reason\n  Field required",
+            id="rejection1",
+        ),
+        pytest.param(
+            {
+                "code": "filter_invalid_target",
+                "message": 1,
+                "details": {"kind": "filter", "reason": "locked"},
+            },
+            "Invalid Filter rejection",
+            id="rejection2",
+        ),
     ],
 )
-def test_malformed_rejection_is_typed_and_does_not_publish(tmp_path, rejection):
+def test_malformed_rejection_is_typed_and_does_not_publish(tmp_path, rejection, cause):
     request, services, source, target, staged = setup_operation(
         tmp_path,
         {"rejection": rejection},
     )
     with pytest.raises(RuntimeIssue) as caught:
         brightness_contrast(request, services)
-    assert caught.value.kind == "response_malformed"
+    assert_malformed(caught, cause)
     assert_unpublished(source, target, staged)
 
 
-@pytest.mark.parametrize(
-    "corruption", ["missing_evidence", "changed_flag", "application"]
-)
+@pytest.mark.parametrize("corruption", list(CONTRADICTION_CAUSES))
 def test_contradictory_evidence_cannot_publish(tmp_path, corruption):
     response = evidence()
     if corruption == "missing_evidence":
@@ -57,7 +81,7 @@ def test_contradictory_evidence_cannot_publish(tmp_path, corruption):
     request, services, source, target, staged = setup_operation(tmp_path, response)
     with pytest.raises(RuntimeIssue) as caught:
         brightness_contrast(request, services)
-    assert caught.value.kind == "response_malformed"
+    assert_malformed(caught, CONTRADICTION_CAUSES[corruption])
     assert_unpublished(source, target, staged)
 
 
@@ -68,9 +92,7 @@ def test_kernel_exception_discards_stage_and_preserves_both_files(tmp_path):
     assert_unpublished(source, target, staged)
 
 
-@pytest.mark.parametrize(
-    "corruption", ["none", "missing_direct", "image_number", "duplicate", "empty_tile"]
-)
+@pytest.mark.parametrize("corruption", ["none", *TILE_REFERENCE_CAUSES])
 def test_tile_reference_evidence_controls_publication(tmp_path, corruption):
     response = evidence()
     response["requested_tileset_mode"] = response["observed_tileset_mode"] = "manual"
@@ -115,7 +137,7 @@ def test_tile_reference_evidence_controls_publication(tmp_path, corruption):
     else:
         with pytest.raises(RuntimeIssue) as caught:
             brightness_contrast(request, services)
-        assert caught.value.kind == "response_malformed"
+        assert_malformed(caught, TILE_REFERENCE_CAUSES[corruption])
         assert_unpublished(source, target, staged)
 
 
