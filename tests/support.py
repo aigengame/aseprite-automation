@@ -862,8 +862,8 @@ def observe_cli(
       change the native Plan response.
     - "run": count probe and handler processes and Target Commits, and run each
       handler in the native I/O wrapper `tests/fixtures/observe_cli.lua`.
-    - "staged_path": block each staged path so the native save fails, and count
-      Target Commits and the discard.
+    - "staged_path": block each staged path so the native save fails, count
+      Target Commits, and record that the discard returned with no staged file.
 
     This runner adds aseprite, or the `SPA_TEST_ASEPRITE` value, to request, and
     validates the envelope against the schema of command. Return the process, its

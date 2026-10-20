@@ -118,9 +118,9 @@ requires, and refuse a separate probe or standalone handler. With the `run` seam
 they count the probe and handler processes and run each handler inside
 `tests/fixtures/observe_cli.lua`, which injects the native I/O fault of the case.
 With the `staged_path` seam, they give each staged path below a regular file, so the
-native save after the native work fails, and record whether the discard removed the
-staged file. On each seam they count Target Commits and write the observations to a
-JSON file.
+native save after the native work fails, and record that the discard returned with
+no staged file. On each seam they count Target Commits and write the observations to
+a JSON file.
 `observe_cli` adds `aseprite` and validates the envelope as `run` does; a test can
 give its own Aseprite as `aseprite=`.
 

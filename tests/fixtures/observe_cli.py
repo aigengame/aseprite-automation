@@ -16,8 +16,8 @@ stops. The seam selects what else the observers do:
   `observe_cli.lua`. That wrapper injects the native I/O fault of case and
   records what the handler did.
 - `staged_path`: give each staged path below a regular file, so the native save
-  after the native work fails, and record whether the discard removed the staged
-  file. The only case is `blocked_stage`.
+  after the native work fails, and record that the discard returned with no
+  staged file. The only case is `blocked_stage`.
 """
 
 import json
