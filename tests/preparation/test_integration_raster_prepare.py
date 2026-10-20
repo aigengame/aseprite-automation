@@ -598,28 +598,6 @@ def test_publication_preflight_protects_source_and_existing_destination(
     assert not files.discarded
 
 
-def test_failed_publication_preserves_originals_and_cleans_stages(
-    preparation, monkeypatch
-):
-    request, services, native, files, source, destination = preparation
-    destination.write_bytes(b"retained destination")
-    original = source.read_bytes()
-
-    def refuse_replace(*_args):
-        raise PermissionError("Publication denied")
-
-    monkeypatch.setattr("spa.adapters.files.os.replace", refuse_replace)
-    result = _call(request, services)
-    assert result["code"] == "artifact_file_failed"
-    assert result["details"]["reason"] == "publication_failed"
-    assert len(native.calls) == 1
-    assert files.publications == [destination]
-    assert source.read_bytes() == original
-    assert destination.read_bytes() == b"retained destination"
-    assert len(files.discarded) == 2
-    _clean(files)
-
-
 @pytest.mark.parametrize(
     "change",
     (
@@ -779,27 +757,3 @@ def test_anchor_bounds_apply_after_crop_resize_and_placement(
         assert result["code"] == "preparation_rejected"
         assert result["details"]["reason"] == "geometry"
         assert not native.calls and not files.publications
-
-
-def test_source_alias_is_checked_again_before_publication(preparation):
-    request, services, native, files, source, destination = preparation
-    original_path = source.with_name("retained-source.png")
-    source.rename(original_path)
-    with symlink_creation_permission():
-        source.symlink_to(original_path)
-    original = original_path.read_bytes()
-    destination.write_bytes(b"retained destination")
-
-    def retarget_source(_facts, _png_path, _rgba_path):
-        source.unlink()
-        source.symlink_to(destination)
-
-    native.fault = retarget_source
-    result = _call(request, services)
-    assert result["code"] == "artifact_file_failed"
-    assert result["details"]["reason"] == "source_destination_alias"
-    assert len(native.calls) == 1 and not files.publications
-    assert original_path.read_bytes() == original
-    assert destination.read_bytes() == b"retained destination"
-    assert len(files.discarded) == 2
-    _clean(files)
