@@ -329,6 +329,8 @@ def test_gif_refuses_native_alpha_residue_and_subcentisecond_input(
     assert source.read_bytes() == original
     if scenario == "residual":
         assert "alpha" in result["message"]
+    else:
+        assert result["details"]["reason"] == "gif_duration"
 
 
 def test_gif_reports_allowed_native_rgb_loss(
