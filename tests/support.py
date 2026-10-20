@@ -848,6 +848,7 @@ def observe_cli(
     observations: Path,
     *,
     seam: str,
+    aseprite: str | Path | None = None,
 ) -> tuple[subprocess.CompletedProcess[str], dict[str, Any], dict[str, Any]]:
     """Run `spa <command>` in the observer script, and return its process and records.
 
@@ -855,24 +856,27 @@ def observe_cli(
     process before the entry point runs, injects the fault of case, and writes
     what it observed to observations. The seams are:
 
+    - "invoke": record the completion events of a standalone mutation, and count
+      its native invocations and Target Commits.
     - "invoke_direct": count Plan native invocations and Target Commits, and
       change the native Plan response.
     - "run": count probe and handler processes and Target Commits, and run each
       handler in the native I/O wrapper `tests/fixtures/observe_cli.lua`.
 
-    This runner adds the `SPA_TEST_ASEPRITE` value to request, and validates the
-    envelope against the schema of command. Return the process, its envelope, and
-    the observations.
+    This runner adds aseprite, or the `SPA_TEST_ASEPRITE` value, to request, and
+    validates the envelope against the schema of command. Return the process, its
+    envelope, and the observations.
     """
     from jsonschema import ValidationError
 
     from tests.native_invocation import validate_envelope
 
-    assert seam in ("invoke_direct", "run"), f"unknown observer seam {seam!r}"
-    assert "aseprite" not in request, "the runner adds the Aseprite path"
+    assert seam in ("invoke", "invoke_direct", "run"), f"unknown observer seam {seam!r}"
+    assert "aseprite" not in request, "give the Aseprite path as aseprite="
     cli = shutil.which("spa")
     assert cli, "run tests in an installed SPA environment"
-    payload = json.dumps({**request, "aseprite": os.environ["SPA_TEST_ASEPRITE"]})
+    selected = os.environ["SPA_TEST_ASEPRITE"] if aseprite is None else aseprite
+    payload = json.dumps({**request, "aseprite": str(selected)})
     process = subprocess.run(
         [
             sys.executable,
