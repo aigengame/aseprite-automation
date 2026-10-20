@@ -125,13 +125,29 @@ def test_inconsistent_slice_response_cannot_publish(tmp_path, corruption):
     elif corruption == "coverage":
         after["slices"][0]["keys"][0]["effective_frame_range"]["to_frame"] = 1
     elif corruption == "keys":
-        after["slices"][0]["keys"].append(deepcopy(after["slices"][0]["keys"][0]))
+        # Two Keys at Frame 2. Each range ends one Frame before the next Key, or at
+        # the last Frame, so the range check accepts them and only the Key order
+        # check refuses them.
+        keys = after["slices"][0]["keys"]
+        keys[0]["effective_frame_range"]["to_frame"] = 1
+        for to_frame in (1, 2):
+            keys.append(
+                {
+                    **deepcopy(keys[0]),
+                    "frame_number": 2,
+                    "effective_frame_range": {"from_frame": 2, "to_frame": to_frame},
+                }
+            )
     elif corruption == "rejection":
         evidence["rejection"] = {"code": "invented", "message": "refused"}
     services, request, source, target, stages = staging(tmp_path, evidence)
     with pytest.raises(RuntimeIssue) as caught:
         set_slice(request, services)
     assert caught.value.kind == "response_malformed"
+    if corruption == "keys":
+        assert "Slice Keys and effective Frame Ranges disagree" in str(
+            caught.value.__cause__
+        )
     assert target.read_bytes() == b"existing" and source.read_bytes() == b"original"
     assert not stages[0].exists()
 
