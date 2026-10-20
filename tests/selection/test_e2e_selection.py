@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import tempfile
 from pathlib import Path
 
@@ -373,7 +374,13 @@ def test_validate_returns_findings_without_repair() -> None:
         ),
     )
     assert result["valid"] is False
-    assert "selection_out_of_bounds" in {item["kind"] for item in result["findings"]}
+    assert result["findings"] == [
+        {
+            "kind": "selection_out_of_bounds",
+            "subject": "selection",
+            "message": "Selected coverage is outside the declared Canvas Rectangle",
+        }
+    ]
 
 
 @pytest.mark.parametrize("spelling", ["absolute", "tilde"])
@@ -582,6 +589,13 @@ def test_created_combined_transformed_selection_is_consumed_by_paint(tmp_path) -
     } == {(2, 1)}
 
 
+# The Lua refusal measured with Aseprite 1.3.18.5, after its source location.
+NATIVE_COORDINATES = re.compile(
+    r".*selection_mask\.lua:\d+: "
+    r"Selection Rectangle cannot be represented exactly by native coordinates"
+)
+
+
 def test_native_coordinate_overflow_cannot_return_wrapped_success() -> None:
     area = {"x": 2**31, "y": 20, "width": 1, "height": 1}
     outcome = run(
@@ -591,6 +605,7 @@ def test_native_coordinate_overflow_cannot_return_wrapped_success() -> None:
     result = outcome.envelope
     assert outcome.returncode != 0, result
     assert result["code"] == "kernel_execution_failed"
+    assert NATIVE_COORDINATES.fullmatch(result["details"]["reason"]), result
 
 
 @pytest.mark.parametrize("operation", ["grow", "shrink"])
@@ -611,6 +626,7 @@ def test_morphology_refuses_unrepresentable_native_footprint(operation) -> None:
     assert outcome.returncode != 0 and result["code"] == "kernel_execution_failed", (
         result
     )
+    assert NATIVE_COORDINATES.fullmatch(result["details"]["reason"]), result
     assert result["diagnostics"]["exit_status"] == 0
 
 

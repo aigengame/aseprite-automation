@@ -41,17 +41,27 @@ def selection(aseprite: Path, operation: str, **values) -> Outcome:
 
 
 @pytest.mark.parametrize(
-    ("value", "space", "finding"),
+    ("value", "space", "finding", "message"),
     [
-        (
+        pytest.param(
             {**MASK, "rows": list(reversed(MASK["rows"]))},
             "canvas-pixel",
             "selection_encoding_invalid",
+            "Mask Selection bounds are not tight",
+            id="encoding",
         ),
-        (MASK, "image-pixel", "selection_coordinate_space_invalid"),
+        pytest.param(
+            MASK,
+            "image-pixel",
+            "selection_coordinate_space_invalid",
+            "Selection uses Canvas Pixel coordinates",
+            id="coordinate-space",
+        ),
     ],
 )
-def test_validate_returns_findings_without_repair(tmp_path, value, space, finding):
+def test_validate_returns_findings_without_repair(
+    tmp_path, value, space, finding, message
+):
     outcome = selection(
         probe_only_aseprite(tmp_path),
         "validate",
@@ -61,7 +71,11 @@ def test_validate_returns_findings_without_repair(tmp_path, value, space, findin
     )
     assert outcome.returncode == 0, outcome.envelope
     assert outcome.envelope["valid"] is False
-    assert finding in {item["kind"] for item in outcome.envelope["findings"]}
+    findings = outcome.envelope["findings"]
+    assert [(item["kind"], item["subject"]) for item in findings] == [
+        (finding, "selection")
+    ], findings
+    assert message in findings[0]["message"]
 
 
 def test_invalid_artifact_is_a_finding_for_validate_and_failure_for_consumers(
