@@ -1,8 +1,6 @@
 """Preparation fixes effective choices and restores ambient native editor state."""
 
 import json
-import os
-import subprocess
 import sys
 from importlib.resources import files
 from pathlib import Path
@@ -10,34 +8,25 @@ from pathlib import Path
 import pytest
 from PIL import Image, PngImagePlugin
 
-from spa.adapters.aseprite.aseprite import probe
-from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.adapters.png_input import decode_png_input
-from spa.application.surface import PROBE_RESOURCES
-from spa.contracts.public import RuntimeRequest
+from spa.contracts.ports import RuntimeObservation
 from spa.preparation.contracts import (
     ExplicitCrop,
     PreparationSpecification,
     preparation_geometry,
 )
 from spa.preparation.raster import PREPARATION_HANDLER, NativePreparation
+from tests.native_invocation import run, run_lua
 from tests.preparation.support import specification
-from tests.support import process_diagnostics, spa
+from tests.support import process_diagnostics
 
 pytestmark = pytest.mark.e2e
-
-
-@pytest.fixture(scope="module")
-def runtime():
-    return probe(
-        RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
-    )
 
 
 @pytest.mark.parametrize("mode", ["rgba", "indexed"])
 @pytest.mark.parametrize("source_kind", ["none", "srgb", "display_p3_cc0"])
 def test_preparation_ignores_and_restores_editor_preferences(
-    tmp_path: Path, runtime, mode: str, source_kind: str
+    tmp_path: Path, runtime: RuntimeObservation, mode: str, source_kind: str
 ) -> None:
     source = tmp_path / "source.png"
     image = Image.new("RGBA", (3, 2))
@@ -76,22 +65,17 @@ def test_preparation_ignores_and_restores_editor_preferences(
         # Exercise the actual public capability refusal on that Linux runtime.
         assert sys.platform == "linux", "Expected the proven native macOS converter"
         target = tmp_path / "refused.png"
-        result = spa(
-            "raster",
-            "prepare",
-            "--input-json",
-            json.dumps(
-                {
-                    "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-                    "raster_file": str(source),
-                    "intent": {"kind": "initial"},
-                    "specification": spec,
-                    "destination": {"path": str(target), "if_exists": "fail"},
-                }
-            ),
+        outcome = run(
+            "raster prepare",
+            {
+                "raster_file": str(source),
+                "intent": {"kind": "initial"},
+                "specification": spec,
+                "destination": {"path": str(target), "if_exists": "fail"},
+            },
         )
-        assert result.returncode != 0, process_diagnostics(result)
-        failure = json.loads(result.stdout)
+        assert outcome.returncode != 0, process_diagnostics(outcome.process)
+        failure = outcome.envelope
         assert failure["code"] == "runtime_incompatible", failure
         assert failure["details"]["missing_capabilities"] == [
             "aseprite_convert_color_profile"
@@ -104,9 +88,6 @@ def test_preparation_ignores_and_restores_editor_preferences(
     geometry = preparation_geometry(declared, declared.crop.rectangle).model_dump()
     workspace = tmp_path / "native"
     workspace.mkdir()
-    prepared = prepare_invocation(
-        Path(runtime.canonical_path), Path(runtime.resource_path), workspace
-    )
     params = {
         "workspace": str(workspace),
         "aseprite_data": str(Path(runtime.resource_path).parent),
@@ -146,24 +127,12 @@ def test_preparation_ignores_and_restores_editor_preferences(
         params[prefix] = str(request)
         prefix = f"response_{number}" if number < 3 else "refused_response"
         params[prefix] = str(response)
-    command = [str(prepared.executable), "--batch"]
-    for key, value in params.items():
-        command.extend(["--script-param", f"{key}={value}"])
-    command.extend(
-        [
-            "--script",
-            str(Path(__file__).parent / "fixtures/preparation_preferences.lua"),
-        ]
+    lua = run_lua(
+        Path(__file__).parent / "fixtures" / "preparation_preferences.lua",
+        runtime,
+        **params,
     )
-    run = subprocess.run(
-        command,
-        env=prepared.environment,
-        text=True,
-        capture_output=True,
-        timeout=60,
-        check=False,
-    )
-    assert run.returncode == 0, process_diagnostics(run)
+    assert lua.returncode == 0, process_diagnostics(lua)
     observations = []
     expected = [(0, 0, 0, 0)] * 20
     color = (195, 60, 2, 255) if source_kind == "display_p3_cc0" else (180, 70, 30, 255)

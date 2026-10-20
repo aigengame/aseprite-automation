@@ -2,45 +2,29 @@
 
 import hashlib
 import json
-import os
 from pathlib import Path
 
 import pytest
 from PIL import Image, PngImagePlugin
 
-from spa.adapters.aseprite.aseprite import probe
-from spa.application.surface import PROBE_RESOURCES
-from spa.contracts.public import RuntimeRequest
+from tests.native_invocation import expect_success, run
 from tests.preparation.support import specification
-from tests.support import icc_fixture_path, spa
+from tests.support import icc_fixture_path, process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
 
-@pytest.fixture(scope="module")
-def runtime():
-    return probe(
-        RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
-    )
+def prepare_request(source, target, spec, *, intent=None):
+    """Return a `raster prepare` request that must not replace target.
 
-
-def prepare(source, target, spec, *, intent=None):
-    run = spa(
-        "raster",
-        "prepare",
-        "--input-json",
-        json.dumps(
-            {
-                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-                "raster_file": str(source),
-                "intent": intent or {"kind": "initial"},
-                "specification": spec,
-                "destination": {"path": str(target), "if_exists": "fail"},
-            }
-        ),
-    )
-    assert run.stdout, run.stderr
-    return run.returncode, json.loads(run.stdout)
+    The intent is `initial` when the caller gives none.
+    """
+    return {
+        "raster_file": str(source),
+        "intent": intent or {"kind": "initial"},
+        "specification": spec,
+        "destination": {"path": str(target), "if_exists": "fail"},
+    }
 
 
 def save_rgba(path, size, pixels, **options):
@@ -83,15 +67,12 @@ def test_prepare_rgba_thresholds_aligns_and_publishes(tmp_path):
     image.save(source)
     original = source.read_bytes()
     request = {
-        "aseprite": os.environ["SPA_TEST_ASEPRITE"],
         "raster_file": str(source),
         "intent": {"kind": "initial"},
         "specification": specification(),
         "destination": {"path": str(target), "if_exists": "fail"},
     }
-    run = spa("raster", "prepare", "--input-json", json.dumps(request))
-    assert run.returncode == 0, run.stdout + run.stderr
-    result = json.loads(run.stdout)
+    result = expect_success("raster prepare", request)
     facts = result["reproduction"]
     assert facts["source_identity"]["sha256"] == hashlib.sha256(original).hexdigest()
     assert facts["geometry"]["offset"] == {"x": 1, "y": 1}
@@ -122,8 +103,7 @@ def test_prepare_rgb_input_nearest_resizes_complete_pixels(tmp_path):
     spec["mapping"].update(
         rgb_map_algorithm="default", color_best_fit_criteria="default"
     )
-    code, result = prepare(source, target, spec)
-    assert code == 0, result
+    result = expect_success("raster prepare", prepare_request(source, target, spec))
     assert result["reproduction"]["mapping"]["requested_rgb_map_algorithm"] == "default"
     assert result["reproduction"]["mapping"]["effective_rgb_map_algorithm"] == "octree"
     assert (
@@ -164,8 +144,7 @@ def test_prepare_preserves_complete_palette_and_both_formats_match(
             "transparent_index": transparent_index,
         }
         target = tmp_path / f"{mode}.png"
-        code, result = prepare(source, target, spec)
-        assert code == 0, result
+        result = expect_success("raster prepare", prepare_request(source, target, spec))
         assert result["reproduction"]["content"]["palette"] == spec["palette"]
         decoded.append(rgba_pixels(target, mode))
         if mode == "indexed":
@@ -192,15 +171,13 @@ def test_prepare_threshold_edges_and_empty_explicit_crop(tmp_path, threshold):
     spec = origin_spec(4, 1)
     spec["alpha_threshold"] = threshold
     target = tmp_path / "threshold.png"
-    code, result = prepare(source, target, spec)
-    assert code == 0, result
+    result = expect_success("raster prepare", prepare_request(source, target, spec))
     assert rgba_pixels(target, "rgba") == [(0, 0, 0, 0)] * 2 + [(180, 70, 30, 255)] * 2
     spec["crop"]["rectangle"]["width"] = 2
     spec["resize"]["width"] = 2
     spec["canvas"]["width"] = 2
     empty = tmp_path / "empty.png"
-    code, result = prepare(source, empty, spec)
-    assert code == 0, result
+    result = expect_success("raster prepare", prepare_request(source, empty, spec))
     assert rgba_pixels(empty, "rgba") == [(0, 0, 0, 0)] * 2
     assert result["reproduction"]["content"]["alpha_max"] == 0
 
@@ -231,8 +208,7 @@ def test_automatic_crop_fractional_scale_and_outside_anchors(
         alignment={"primary_anchor": "foot", "position": {"x": 0, "y": 0}},
     )
     target = tmp_path / "prepared.png"
-    code, result = prepare(source, target, spec)
-    assert code == 0, result
+    result = expect_success("raster prepare", prepare_request(source, target, spec))
     geometry = result["reproduction"]["geometry"]
     assert geometry["crop"] == {"x": 1, "y": 1, "width": 2, "height": 1}
     assert geometry["resized"] == {"width": 3, "height": height}
@@ -283,15 +259,18 @@ def test_prepare_normalizes_color_before_threshold_and_mapping(
             {"red": 195, "green": 60, "blue": 2, "alpha": 255}
         )
         target = tmp_path / f"{mode}.png"
-        code, result = prepare(source, target, spec)
+        outcome = run("raster prepare", prepare_request(source, target, spec))
+        result = outcome.envelope
         if (
             source_kind in ("display_p3_cc0", "display_p3")
             and "aseprite_convert_color_profile" not in runtime.verified_capabilities
         ):
-            assert code != 0 and result["code"] == "runtime_incompatible", result
+            assert (
+                outcome.returncode != 0 and result["code"] == "runtime_incompatible"
+            ), result
             assert not target.exists()
             continue
-        assert code == 0, result
+        assert outcome.returncode == 0, process_diagnostics(outcome.process)
         assert result["reproduction"]["profile"] == {
             "source_kind": "icc"
             if source_kind in ("display_p3_cc0", "display_p3")
@@ -336,8 +315,7 @@ def test_prepare_wizard_frozen_source_and_reproduce(tmp_path):
         },
     )
     first, second = tmp_path / "wizard.png", tmp_path / "reproduced.png"
-    code, result = prepare(source, first, spec)
-    assert code == 0, result
+    result = expect_success("raster prepare", prepare_request(source, first, spec))
     retained = result["reproduction"]
     assert retained["geometry"]["resized"] == {"width": 133, "height": 186}
     assert retained["geometry"]["offset"] == {"x": 17, "y": 33}
@@ -345,10 +323,12 @@ def test_prepare_wizard_frozen_source_and_reproduce(tmp_path):
         {"name": "foot", "x": 84, "y": 212},
         {"name": "gem", "x": 123, "y": 59},
     ]
-    code, reproduced = prepare(
-        source, second, spec, intent={"kind": "reproduce", "expected": retained}
+    reproduced = expect_success(
+        "raster prepare",
+        prepare_request(
+            source, second, spec, intent={"kind": "reproduce", "expected": retained}
+        ),
     )
-    assert code == 0, reproduced
     assert reproduced["reproduction"] == retained
     assert rgba_pixels(first, "indexed") == rgba_pixels(second, "indexed")
     assert set(rgba_pixels(first, "indexed")) <= set(colors)

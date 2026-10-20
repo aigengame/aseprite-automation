@@ -4,8 +4,10 @@ from pathlib import Path
 
 import pytest
 
-from tests.paint.test_e2e_native_paint import RED, _call, _native_fixture, _pixels
-from tests.support import inject_palette_change
+from spa.contracts.ports import RuntimeObservation
+from tests.native_invocation import Outcome, run
+from tests.paint.support import RED, native_fixture, read_pixels
+from tests.support import inject_palette_change, process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
@@ -14,7 +16,12 @@ POINTS = [{"x": 2, "y": 1}, {"x": 5, "y": 1}, {"x": 5, "y": 4}, {"x": 2, "y": 4}
 
 def _gesture(
     source: Path, destination: Path, operation: str = "contour", **options: object
-):
+) -> Outcome:
+    """Run `spa paint <operation>` along POINTS on Layer 1, Frame 1 of source.
+
+    It uses a 1 px circle brush at full opacity, and a red simple Ink for Contour.
+    The options replace these fields.
+    """
     request = {
         "source_sprite_file": str(source),
         "target_sprite_file": str(destination),
@@ -30,7 +37,7 @@ def _gesture(
     }
     if operation == "contour":
         request |= {"color": RED, "ink": "simple"}
-    return _call("paint", operation, **(request | options))
+    return run(f"paint {operation}", request | options)
 
 
 @pytest.mark.parametrize("algorithm", ["regular", "pixel-perfect"])
@@ -39,9 +46,10 @@ def _gesture(
 )
 @pytest.mark.parametrize("opacity", [0, 128, 255])
 def test_contour_persists_one_native_gesture(
-    tmp_path: Path, algorithm: str, ink: str, opacity: int
+    runtime: RuntimeObservation, tmp_path: Path, algorithm: str, ink: str, opacity: int
 ) -> None:
-    source, expected = _native_fixture(
+    source, expected = native_fixture(
+        runtime,
         tmp_path,
         reference=True,
         tool="contour",
@@ -53,11 +61,12 @@ def test_contour_persists_one_native_gesture(
     )
     original = source.read_bytes()
     target = tmp_path / "contour.aseprite"
-    run, result = _gesture(
+    outcome = _gesture(
         source, target, ink=ink, opacity=opacity, freehand_algorithm=algorithm
     )
-    assert run.returncode == 0, run.stdout + run.stderr
-    assert _pixels(target) == _pixels(expected)
+    result = outcome.envelope
+    assert outcome.returncode == 0, process_diagnostics(outcome.process)
+    assert read_pixels(target) == read_pixels(expected)
     assert source.read_bytes() == original
     assert result["points"] == POINTS
     assert result["freehand_algorithm"] == algorithm
@@ -72,11 +81,16 @@ def test_contour_persists_one_native_gesture(
 @pytest.mark.parametrize("opacity", [0, 128, 255])
 @pytest.mark.parametrize("algorithm", ["regular", "pixel-perfect"])
 def test_blur_uses_the_native_document_edge_for_tiled_sampling(
-    tmp_path: Path, tiled: str, opacity: int, algorithm: str
+    runtime: RuntimeObservation,
+    tmp_path: Path,
+    tiled: str,
+    opacity: int,
+    algorithm: str,
 ) -> None:
     points = [{"x": 0, "y": 0}, {"x": 1, "y": 0}, {"x": 1, "y": 1}]
     brush = {"kind": "circle", "size": 3}
-    source, expected = _native_fixture(
+    source, expected = native_fixture(
+        runtime,
         tmp_path,
         reference=True,
         tool="blur",
@@ -88,7 +102,7 @@ def test_blur_uses_the_native_document_edge_for_tiled_sampling(
         pattern=True,
     )
     target = tmp_path / "blurred.aseprite"
-    run, result = _gesture(
+    outcome = _gesture(
         source,
         target,
         "blur",
@@ -99,8 +113,9 @@ def test_blur_uses_the_native_document_edge_for_tiled_sampling(
         freehand_algorithm=algorithm,
         clipping="clip",
     )
-    assert run.returncode == 0, run.stdout + run.stderr
-    assert _pixels(target) == _pixels(expected)
+    result = outcome.envelope
+    assert outcome.returncode == 0, process_diagnostics(outcome.process)
+    assert read_pixels(target) == read_pixels(expected)
     assert result["ink"] == "blur" and "color" not in result
     assert result["tiled_mode"] == tiled
     assert result["points"] == points
@@ -114,11 +129,12 @@ def test_blur_uses_the_native_document_edge_for_tiled_sampling(
 @pytest.mark.parametrize("mode", ["grayscale", "indexed"])
 @pytest.mark.parametrize("tiled", ["none", "x", "y", "both"])
 def test_blur_color_modes_and_oriented_brushes_match_native(
-    tmp_path: Path, algorithm: str, mode: str, tiled: str
+    runtime: RuntimeObservation, tmp_path: Path, algorithm: str, mode: str, tiled: str
 ) -> None:
     brush = {"kind": "line", "size": 5, "angle": -45}
     points = [{"x": 0, "y": 0}, {"x": 1, "y": 1}, {"x": 0, "y": 1}]
-    source, expected = _native_fixture(
+    source, expected = native_fixture(
+        runtime,
         tmp_path,
         reference=True,
         tool="blur",
@@ -131,7 +147,7 @@ def test_blur_color_modes_and_oriented_brushes_match_native(
         pattern=True,
     )
     target = tmp_path / "blurred.aseprite"
-    run, result = _gesture(
+    outcome = _gesture(
         source,
         target,
         "blur",
@@ -142,19 +158,21 @@ def test_blur_color_modes_and_oriented_brushes_match_native(
         tiled_mode=tiled,
         clipping="clip",
     )
-    assert run.returncode == 0, run.stdout + run.stderr
-    assert _pixels(target) == _pixels(expected)
+    result = outcome.envelope
+    assert outcome.returncode == 0, process_diagnostics(outcome.process)
+    assert read_pixels(target) == read_pixels(expected)
     assert result["color_mode"] == mode
     assert bool(result["effective_palettes"]) == (mode == "indexed")
 
 
 @pytest.mark.parametrize("tiled", ["none", "x", "y", "both"])
 def test_blur_offset_linked_cel_preserves_original_geometry_and_native_coverage(
-    tmp_path: Path, tiled: str
+    runtime: RuntimeObservation, tmp_path: Path, tiled: str
 ) -> None:
     points = [{"x": 2, "y": 0}]
     brush = {"kind": "square", "size": 3, "angle": 0}
-    source, expected = _native_fixture(
+    source, expected = native_fixture(
+        runtime,
         tmp_path,
         reference=True,
         tool="blur",
@@ -168,9 +186,9 @@ def test_blur_offset_linked_cel_preserves_original_geometry_and_native_coverage(
         linked=True,
         preserve_geometry=True,
     )
-    original = _pixels(source)
+    original = read_pixels(source)
     target = tmp_path / "blurred.aseprite"
-    run, result = _gesture(
+    outcome = _gesture(
         source,
         target,
         "blur",
@@ -179,11 +197,12 @@ def test_blur_offset_linked_cel_preserves_original_geometry_and_native_coverage(
         tiled_mode=tiled,
         clipping="clip",
     )
-    assert run.returncode == 0, run.stdout + run.stderr
-    actual = _pixels(target)
-    assert actual == _pixels(expected)
-    assert actual == _pixels(target, frame=2)
-    assert _pixels(target, frame=3) == original
+    result = outcome.envelope
+    assert outcome.returncode == 0, process_diagnostics(outcome.process)
+    actual = read_pixels(target)
+    assert actual == read_pixels(expected)
+    assert actual == read_pixels(target, frame=2)
+    assert read_pixels(target, frame=3) == original
     assert result["linked_cels_preserved"] and result["geometry_unchanged"]
     assert all(cel["position"] == {"x": -2, "y": 3} for cel in result["affected_cels"])
 
@@ -213,9 +232,10 @@ def test_blur_offset_linked_cel_preserves_original_geometry_and_native_coverage(
 )
 @pytest.mark.parametrize("algorithm", ["regular", "pixel-perfect"])
 def test_contour_degenerate_repeated_and_crossing_gestures_match_native(
-    tmp_path: Path, points: list[dict], algorithm: str
+    runtime: RuntimeObservation, tmp_path: Path, points: list[dict], algorithm: str
 ) -> None:
-    source, expected = _native_fixture(
+    source, expected = native_fixture(
+        runtime,
         tmp_path,
         reference=True,
         tool="contour",
@@ -226,18 +246,20 @@ def test_contour_degenerate_repeated_and_crossing_gestures_match_native(
         freehand_algorithm=algorithm,
     )
     target = tmp_path / "contour.aseprite"
-    run, result = _gesture(source, target, points=points, freehand_algorithm=algorithm)
-    assert run.returncode == 0, run.stdout + run.stderr
+    outcome = _gesture(source, target, points=points, freehand_algorithm=algorithm)
+    result = outcome.envelope
+    assert outcome.returncode == 0, process_diagnostics(outcome.process)
     assert result["points"] == points
-    assert _pixels(target) == _pixels(expected)
+    assert read_pixels(target) == read_pixels(expected)
 
 
 @pytest.mark.parametrize("operation", ["contour", "blur"])
 def test_gesture_selection_filters_writes_without_changing_native_pixels(
-    tmp_path: Path, operation: str
+    runtime: RuntimeObservation, tmp_path: Path, operation: str
 ) -> None:
     brush = {"kind": "square", "size": 3, "angle": 45}
-    source, expected = _native_fixture(
+    source, expected = native_fixture(
+        runtime,
         tmp_path,
         reference=True,
         tool=operation,
@@ -248,10 +270,10 @@ def test_gesture_selection_filters_writes_without_changing_native_pixels(
         pattern=True,
         tiled_mode="none",
     )
-    original, reference = _pixels(source), _pixels(expected)
+    original, reference = read_pixels(source), read_pixels(expected)
     target = tmp_path / "selected.aseprite"
     options = {"tiled_mode": "none"} if operation == "blur" else {}
-    run, result = _gesture(
+    outcome = _gesture(
         source,
         target,
         operation,
@@ -263,8 +285,9 @@ def test_gesture_selection_filters_writes_without_changing_native_pixels(
         },
         **options,
     )
-    assert run.returncode == 0, run.stdout + run.stderr
-    pixels = _pixels(target)
+    result = outcome.envelope
+    assert outcome.returncode == 0, process_diagnostics(outcome.process)
+    pixels = read_pixels(target)
     for y in range(6):
         for x in range(8):
             assert pixels[y][x] == (
@@ -275,9 +298,11 @@ def test_gesture_selection_filters_writes_without_changing_native_pixels(
 
 @pytest.mark.parametrize("operation", ["contour", "blur"])
 def test_gesture_uses_the_addressed_frames_effective_palette(
-    tmp_path: Path, operation: str
+    runtime: RuntimeObservation, tmp_path: Path, operation: str
 ) -> None:
-    source, _ = _native_fixture(tmp_path, mode="indexed", pattern=True, linked=True)
+    source, _ = native_fixture(
+        runtime, tmp_path, mode="indexed", pattern=True, linked=True
+    )
     inject_palette_change(
         source,
         [
@@ -294,7 +319,8 @@ def test_gesture_uses_the_addressed_frames_effective_palette(
     reference_dir = tmp_path / "oracle"
     reference_dir.mkdir()
     brush = {"kind": "circle", "size": 1}
-    _, expected = _native_fixture(
+    _, expected = native_fixture(
+        runtime,
         reference_dir,
         reference=True,
         source_sprite_file=str(source),
@@ -317,7 +343,7 @@ def test_gesture_uses_the_addressed_frames_effective_palette(
         }
     )
     target = tmp_path / "frame-2.aseprite"
-    run, result = _gesture(
+    outcome = _gesture(
         source,
         target,
         operation,
@@ -325,9 +351,10 @@ def test_gesture_uses_the_addressed_frames_effective_palette(
         target={"layer": {"layer_path": [1]}, "frame_number": 2},
         **options,
     )
-    assert run.returncode == 0, run.stdout + run.stderr
-    assert _pixels(target, frame=2) == _pixels(expected, frame=2)
-    assert _pixels(target) == _pixels(target, frame=2)
+    result = outcome.envelope
+    assert outcome.returncode == 0, process_diagnostics(outcome.process)
+    assert read_pixels(target, frame=2) == read_pixels(expected, frame=2)
+    assert read_pixels(target) == read_pixels(target, frame=2)
     assert {
         (item["frame_number"], item["palette_frame_number"])
         for item in result["effective_palettes"]
@@ -335,8 +362,11 @@ def test_gesture_uses_the_addressed_frames_effective_palette(
 
 
 @pytest.mark.parametrize("operation", ["contour", "blur"])
-def test_gesture_preserves_background_opacity(tmp_path: Path, operation: str) -> None:
-    source, expected = _native_fixture(
+def test_gesture_preserves_background_opacity(
+    runtime: RuntimeObservation, tmp_path: Path, operation: str
+) -> None:
+    source, expected = native_fixture(
+        runtime,
         tmp_path,
         reference=True,
         tool=operation,
@@ -350,7 +380,8 @@ def test_gesture_preserves_background_opacity(tmp_path: Path, operation: str) ->
     )
     target = tmp_path / "background.aseprite"
     options = {"tiled_mode": "both"} if operation == "blur" else {}
-    run, result = _gesture(source, target, operation, opacity=128, **options)
-    assert run.returncode == 0, run.stdout + run.stderr
-    assert _pixels(target) == _pixels(expected)
+    outcome = _gesture(source, target, operation, opacity=128, **options)
+    result = outcome.envelope
+    assert outcome.returncode == 0, process_diagnostics(outcome.process)
+    assert read_pixels(target) == read_pixels(expected)
     assert result["background_opaque"] is True

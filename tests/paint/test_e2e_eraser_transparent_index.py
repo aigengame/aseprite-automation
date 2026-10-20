@@ -1,54 +1,25 @@
 """An Indexed erase uses the Sprite mask, even without a matching Palette Entry."""
 
-import os
-import subprocess
-import tempfile
 from pathlib import Path
 
 import pytest
 
-from spa.adapters.aseprite.aseprite import probe
-from spa.adapters.aseprite.invocation import prepare_invocation
-from spa.application.surface import PROBE_RESOURCES
-from spa.contracts.public import RuntimeRequest
-from tests.paint.support import call_spa
+from spa.contracts.ports import RuntimeObservation
+from tests.native_invocation import expect_success, run, run_lua
+from tests.paint.support import FIXTURES
 from tests.support import process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
-
-def _native(**parameters: object) -> None:
-    observation = probe(
-        RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
-    )
-    with tempfile.TemporaryDirectory(prefix="spa-eraser-mask-") as work:
-        prepared = prepare_invocation(
-            Path(observation.canonical_path),
-            Path(observation.resource_path),
-            Path(work),
-        )
-        arguments = [str(prepared.executable), "--batch"]
-        for name, value in parameters.items():
-            arguments.extend(["--script-param", f"{name}={value}"])
-        arguments.extend(
-            [
-                "--script",
-                str(
-                    Path(__file__).parent / "fixtures" / "eraser_transparent_index.lua"
-                ),
-            ]
-        )
-        run = subprocess.run(
-            arguments,
-            capture_output=True,
-            text=True,
-            env=prepared.environment,
-            check=False,
-        )
-    assert run.returncode == 0, process_diagnostics(run)
+NATIVE = FIXTURES / "eraser_transparent_index.lua"
 
 
-def _erase(source: Path, target: Path, *, frame: int = 1, **changes: object):
+def _erase(source: Path, target: Path, *, frame: int = 1, **changes: object) -> dict:
+    """Return a `paint eraser` request for one erase at (1, 0) on Layer 1.
+
+    The request writes a new target at full opacity. The changes replace these
+    fields.
+    """
     request = {
         "source_sprite_file": str(source),
         "target_sprite_file": str(target),
@@ -62,26 +33,24 @@ def _erase(source: Path, target: Path, *, frame: int = 1, **changes: object):
         "opacity": 255,
         "behavior": {"kind": "erase"},
     }
-    return call_spa(
-        "paint",
-        "eraser",
-        **(request | changes),
-    )
+    return request | changes
 
 
 @pytest.mark.parametrize("linked", [False, True])
 def test_erase_uses_transparent_index_outside_effective_palette(
-    tmp_path: Path, linked: bool
+    runtime: RuntimeObservation, tmp_path: Path, linked: bool
 ) -> None:
     source = tmp_path / "source.aseprite"
     reference = tmp_path / "native.aseprite"
     target = tmp_path / "erased.aseprite"
-    _native(source=source, reference=reference, linked=str(linked).lower())
+    lua = run_lua(NATIVE, runtime, source=source, reference=reference, linked=linked)
+    assert lua.returncode == 0, process_diagnostics(lua)
     original = source.read_bytes()
 
-    code, result = _erase(source, target, frame=2 if linked else 1)
+    result = expect_success(
+        "paint eraser", _erase(source, target, frame=2 if linked else 1)
+    )
 
-    assert code == 0, result
     assert result["native_behavior"] == "transparent-index"
     assert result["transparent_index"] == 7
     assert result["pixels_changed"] == 1
@@ -100,27 +69,39 @@ def test_erase_uses_transparent_index_outside_effective_palette(
     assert result["linked_cels_preserved"] and result["geometry_unchanged"]
     assert result["persisted_reopen_verified"]
     assert source.read_bytes() == original
-    _native(reference=reference, target=target)
+    lua = run_lua(NATIVE, runtime, reference=reference, target=target)
+    assert lua.returncode == 0, process_diagnostics(lua)
 
 
-def test_eraser_still_rejects_missing_palette_backed_color(tmp_path: Path) -> None:
+def test_eraser_still_rejects_missing_palette_backed_color(
+    runtime: RuntimeObservation, tmp_path: Path
+) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    _native(source=source, reference=tmp_path / "native.aseprite")
+    lua = run_lua(
+        NATIVE, runtime, source=source, reference=tmp_path / "native.aseprite"
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
     original = source.read_bytes()
     target.write_bytes(original)
 
-    code, result = _erase(
-        source,
-        target,
-        overwrite=True,
-        behavior={
-            "kind": "replace-foreground-with-background",
-            "foreground_color": {"kind": "palette-index", "index": 1},
-            "background_color": {"kind": "palette-index", "index": 2},
-        },
+    outcome = run(
+        "paint eraser",
+        _erase(
+            source,
+            target,
+            overwrite=True,
+            behavior={
+                "kind": "replace-foreground-with-background",
+                "foreground_color": {"kind": "palette-index", "index": 1},
+                "background_color": {"kind": "palette-index", "index": 2},
+            },
+        ),
     )
+    result = outcome.envelope
 
-    assert code == 1 and result["code"] == "kernel_execution_failed", result
+    assert outcome.returncode == 1 and result["code"] == "kernel_execution_failed", (
+        result
+    )
     assert "Palette Index does not exist" in result["details"]["reason"]
     assert source.read_bytes() == target.read_bytes() == original
     assert not list(tmp_path.rglob("*.staged.aseprite"))

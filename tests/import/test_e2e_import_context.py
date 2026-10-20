@@ -12,13 +12,12 @@ from spa.adapters.aseprite import aseprite
 from spa.adapters.png_input import decode_png_input
 from spa.contracts.digest import fnv1a64
 
-from .test_e2e_image_import import _create
-from .test_e2e_image_import import runtime as runtime  # noqa: PLC0414
-from .test_e2e_import_boundaries import (
-    _assert_unpublished,
-    _dispatch,
-    _inputs,
-    _ObservedTargetFiles,
+from .support import (
+    ObservedTargetFiles,
+    assert_unpublished,
+    dispatch_import,
+    import_inputs,
+    import_target,
 )
 
 pytestmark = pytest.mark.e2e
@@ -38,17 +37,19 @@ pytestmark = pytest.mark.e2e
 def test_import_restores_native_context_and_preserves_encoded_meaning(
     tmp_path, runtime, monkeypatch, profile_name, fault
 ):
-    source, raster, target = _inputs(tmp_path, runtime, indexed=fault == "refusal")
+    source, raster, target = import_inputs(
+        tmp_path, runtime, indexed=fault == "refusal"
+    )
     if profile_name != "none":
         kwargs = {}
         if profile_name == "srgb":
-            _create(runtime, source, profile="srgb")
+            import_target(runtime, source, profile="srgb")
             info = PngInfo()
             info.add(b"sRGB", b"\0")
             kwargs["pnginfo"] = info
         else:
             icc = files("spa.kernel").joinpath("color/profiles/linear_srgb.icc")
-            _create(runtime, source, profile="icc", icc=str(icc))
+            import_target(runtime, source, profile="icc", icc=str(icc))
             kwargs["icc_profile"] = icc.read_bytes()
         Image.new("RGBA", (2, 1), (17, 31, 53, 128)).save(raster, **kwargs)
         target.write_bytes(source.read_bytes())
@@ -56,7 +57,7 @@ def test_import_restores_native_context_and_preserves_encoded_meaning(
         # Leave an Indexed target but consume an RGB PNG: native refusal.
         Image.new("RGBA", (2, 1), (17, 31, 53, 128)).save(raster)
     original = source.read_bytes(), raster.read_bytes(), target.read_bytes()
-    observed_files = _ObservedTargetFiles()
+    observed_files = ObservedTargetFiles()
     context_report = tmp_path / "context.json"
     original_run = aseprite._run
     launches = []
@@ -86,7 +87,9 @@ def test_import_restores_native_context_and_preserves_encoded_meaning(
         )
 
     monkeypatch.setattr(aseprite, "_run", context_launch)
-    result = _dispatch(source, raster, target, runtime, observed_files, aseprite.invoke)
+    result = dispatch_import(
+        source, raster, target, runtime, observed_files, aseprite.invoke
+    )
     assert len(launches) == 1
     assert context_report.is_file(), result
     context = json.loads(context_report.read_text())
@@ -122,7 +125,7 @@ def test_import_restores_native_context_and_preserves_encoded_meaning(
         )
         assert result.get("code") == expected, result
         assert not observed_files.commits
-        _assert_unpublished(source, raster, target, original, observed_files)
+        assert_unpublished(source, raster, target, original, observed_files)
         if fault == "refusal":
             assert result["details"]["reason"] == "color_mode"
             assert context["fault_injected"] is False
