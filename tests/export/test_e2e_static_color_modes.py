@@ -7,10 +7,15 @@ from PIL import Image
 
 from spa.contracts.digest import fnv1a64
 from spa.contracts.ports import RuntimeObservation
-from tests.color_mode.test_e2e_color_mode import conversion_for, convert
 from tests.export.support import export_verified_image
 from tests.native_invocation import run
-from tests.support import export_image_choices, inject_palette_change, source_sprite
+from tests.support import (
+    change_sprite_color_mode,
+    color_mode_conversion,
+    export_image_choices,
+    inject_palette_change,
+    source_sprite,
+)
 
 pytestmark = pytest.mark.e2e
 MODES = ("rgb", "grayscale", "indexed")
@@ -46,7 +51,7 @@ def test_explicit_conversion_and_same_mode_preserve_neutral_samples_and_alpha(
     source = _source(runtime, tmp_path, source_mode)
     before = source.read_bytes()
     destination = tmp_path / "converted.png"
-    choices = {"color_mode": conversion_for(source_mode, target_mode)}
+    choices = {"color_mode": color_mode_conversion(source_mode, target_mode)}
     if source_mode != "indexed" and target_mode == "indexed":
         choices["palette_preparation"] = {"kind": "current"}
     result = export_verified_image(export_image_choices(source, destination, **choices))
@@ -76,9 +81,11 @@ def test_dithering_matches_existing_native_conversion_and_one_file_matrix(
         dithering["matrix"] = {"kind": "installed", "id": "bayer4x4"}
     elif algorithm == "error-diffusion":
         dithering["dithering_factor"] = 0.5
-    conversion = conversion_for("rgb", "indexed")
+    conversion = color_mode_conversion("rgb", "indexed")
     conversion["target"]["dithering"] = dithering
-    code, native = convert(source, tmp_path / "native.aseprite", conversion)
+    code, native = change_sprite_color_mode(
+        source, tmp_path / "native.aseprite", conversion
+    )
     assert code == 0, native
     destination = tmp_path / "dithered.png"
     result = export_verified_image(
@@ -150,7 +157,7 @@ def test_palette_preparation_uses_only_selected_frame_and_rectangle(
                 "kind": "rectangle",
                 "rectangle": {"x": 2, "y": 0, "width": 2, "height": 1},
             },
-            color_mode=conversion_for("rgb", "indexed"),
+            color_mode=color_mode_conversion("rgb", "indexed"),
             palette_preparation=palette,
         )
     )
@@ -186,10 +193,10 @@ def test_conversion_refusal_preserves_source_and_existing_destination(
     before = source.read_bytes()
     destination = tmp_path / "preserved.png"
     destination.write_bytes(b"existing destination")
-    conversion = conversion_for("indexed", "rgb")
+    conversion = color_mode_conversion("indexed", "rgb")
     choices: dict = {}
     if fault == "missing_matrix":
-        conversion = conversion_for("rgb", "indexed")
+        conversion = color_mode_conversion("rgb", "indexed")
         conversion["target"]["dithering"] = {
             "algorithm": "ordered",
             "matrix": {"kind": "installed", "id": "missing-export-matrix"},

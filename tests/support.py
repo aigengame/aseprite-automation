@@ -672,3 +672,46 @@ def tileset_lifecycle_sprite(
         _TILE_FIXTURES / "tileset_lifecycle.lua", runtime, source=source, **params
     )
     assert lua.returncode == 0, process_diagnostics(lua)
+
+
+def color_mode_conversion(source: str, target: str) -> dict:
+    """Return the `conversion` object that changes source to target Color Mode.
+
+    A change to grayscale uses `luma`. A change to indexed uses the default RGB
+    map algorithm and best-fit criteria; from RGB it also uses no dithering.
+    The same mode gives only the target `color_mode`.
+    """
+    options: dict = {"color_mode": target}
+    if source != target:
+        if target == "grayscale":
+            options["to_gray"] = "luma"
+        if target == "indexed":
+            options.update(
+                rgb_map_algorithm="default", color_best_fit_criteria="default"
+            )
+            if source == "rgb":
+                options["dithering"] = {"algorithm": "none"}
+    return {"source_color_mode": source, "target": options}
+
+
+def change_sprite_color_mode(
+    source: Path, target: Path, conversion: dict
+) -> tuple[int, dict]:
+    """Run `spa sprite change-color-mode` and return `(returncode, envelope)`.
+
+    This adds the Source and Target fields with `in_place` and `overwrite`
+    False. The envelope gets the schema check of `run`.
+    """
+    from tests.native_invocation import run
+
+    outcome = run(
+        "sprite change-color-mode",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": False,
+            "overwrite": False,
+            "conversion": conversion,
+        },
+    )
+    return outcome.returncode, outcome.envelope

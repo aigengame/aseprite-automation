@@ -13,7 +13,12 @@ import pytest
 
 from tests.host_permissions import deny_access
 from tests.native_invocation import expect_success, run, run_lua
-from tests.support import inject_palette_change, process_diagnostics
+from tests.support import (
+    change_sprite_color_mode,
+    color_mode_conversion,
+    inject_palette_change,
+    process_diagnostics,
+)
 
 pytestmark = pytest.mark.e2e
 
@@ -58,32 +63,13 @@ def make_source(
         )
 
 
-def convert(source: Path, target: Path, conversion: dict) -> tuple[int, dict]:
-    """Run `spa sprite change-color-mode` and return `(returncode, envelope)`.
-
-    This adds the Source and Target fields with `in_place` and `overwrite`
-    False. The export tests also use it.
-    """
-    outcome = run(
-        "sprite change-color-mode",
-        {
-            "source_sprite_file": str(source),
-            "target_sprite_file": str(target),
-            "in_place": False,
-            "overwrite": False,
-            "conversion": conversion,
-        },
-    )
-    return outcome.returncode, outcome.envelope
-
-
 def test_rgb_to_grayscale_preserves_source_and_reports_reopened_images(
     tmp_path, runtime
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
     make_source(source, runtime)
     original = source.read_bytes()
-    code, result = convert(
+    code, result = change_sprite_color_mode(
         source,
         target,
         {
@@ -110,27 +96,15 @@ def test_rgb_to_grayscale_preserves_source_and_reports_reopened_images(
     assert source.read_bytes() == original
 
 
-def conversion_for(source: str, target: str) -> dict:
-    options: dict = {"color_mode": target}
-    if source != target:
-        if target == "grayscale":
-            options["to_gray"] = "luma"
-        if target == "indexed":
-            options.update(
-                rgb_map_algorithm="default", color_best_fit_criteria="default"
-            )
-            if source == "rgb":
-                options["dithering"] = {"algorithm": "none"}
-    return {"source_color_mode": source, "target": options}
-
-
 @pytest.mark.parametrize("source_mode", ["rgb", "grayscale", "indexed"])
 @pytest.mark.parametrize("target_mode", ["rgb", "grayscale", "indexed"])
 def test_every_color_mode_pair(tmp_path, runtime, source_mode, target_mode):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
     make_source(source, runtime, source_mode)
     original = source.read_bytes()
-    code, result = convert(source, target, conversion_for(source_mode, target_mode))
+    code, result = change_sprite_color_mode(
+        source, target, color_mode_conversion(source_mode, target_mode)
+    )
     assert code == 0, result
     assert result["after"]["color_mode"] == target_mode
     assert result["changed"] == (source_mode != target_mode)
@@ -170,11 +144,11 @@ def test_every_color_mode_pair(tmp_path, runtime, source_mode, target_mode):
 def test_dithering_matrix_resolution(tmp_path, runtime, algorithm, matrix, size):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
     make_source(source, runtime)
-    conversion = conversion_for("rgb", "indexed")
+    conversion = color_mode_conversion("rgb", "indexed")
     conversion["target"]["dithering"] = {"algorithm": algorithm}
     if matrix is not None:
         conversion["target"]["dithering"]["matrix"] = matrix
-    code, result = convert(source, target, conversion)
+    code, result = change_sprite_color_mode(source, target, conversion)
     assert code == 0, result
     facts = result["dithering"]
     assert facts["effective_algorithm"] == algorithm
@@ -191,12 +165,12 @@ def test_standalone_and_plan_share_the_conversion_owner(tmp_path, runtime):
         tmp_path / f"{name}.aseprite" for name in ("source", "standalone", "plan")
     ]
     make_source(source, runtime)
-    conversion = conversion_for("rgb", "indexed")
+    conversion = color_mode_conversion("rgb", "indexed")
     conversion["target"]["dithering"] = {
         "algorithm": "ordered",
         "matrix": {"kind": "installed", "id": "bayer4x4"},
     }
-    code, one = convert(source, standalone, conversion)
+    code, one = change_sprite_color_mode(source, standalone, conversion)
     assert code == 0, one
     result = expect_success(
         "plan run",
@@ -252,7 +226,7 @@ def test_plan_combines_color_mode_and_profile_steps(
         },
         {
             "operation": "sprite change-color-mode",
-            "input": {"conversion": conversion_for("rgb", "indexed")},
+            "input": {"conversion": color_mode_conversion("rgb", "indexed")},
         },
     ]
     if not profile_first:
@@ -322,7 +296,9 @@ def test_complete_sprite_images_palette_basis_and_links(
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
     make_source(source, runtime, source_mode, scene=True)
     original = source.read_bytes()
-    code, result = convert(source, target, conversion_for(source_mode, target_mode))
+    code, result = change_sprite_color_mode(
+        source, target, color_mode_conversion(source_mode, target_mode)
+    )
     assert code == 0, result
     before, after = result["before"], result["after"]
     assert len(before["palettes"]["palette_changes"]) == 2
@@ -375,7 +351,9 @@ def assert_native_reference(tmp_path, runtime, source, result, options):
     )
     assert lua.returncode == 0, process_diagnostics(lua)
     mode = result["target_color_mode"]
-    code, observed = convert(reference, receipt, conversion_for(mode, mode))
+    code, observed = change_sprite_color_mode(
+        reference, receipt, color_mode_conversion(mode, mode)
+    )
     assert code == 0, observed
     assert observed["after"] == result["after"]
 
@@ -390,11 +368,11 @@ def test_mapping_choices_match_direct_native_command(
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
     make_source(source, runtime, source_mode, scene=True)
-    conversion = conversion_for(source_mode, "indexed")
+    conversion = color_mode_conversion(source_mode, "indexed")
     conversion["target"].update(
         rgb_map_algorithm=mapping, color_best_fit_criteria=criteria
     )
-    code, result = convert(source, target, conversion)
+    code, result = change_sprite_color_mode(source, target, conversion)
     assert code == 0, result
     assert result["mapping"]["requested_rgb_map_algorithm"] == mapping
     assert result["mapping"]["color_best_fit_criteria"] == criteria
@@ -419,9 +397,9 @@ def test_to_gray_choices_match_direct_native_command(
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
     make_source(source, runtime, source_mode, scene=True)
-    conversion = conversion_for(source_mode, "grayscale")
+    conversion = color_mode_conversion(source_mode, "grayscale")
     conversion["target"]["to_gray"] = to_gray
-    code, result = convert(source, target, conversion)
+    code, result = change_sprite_color_mode(source, target, conversion)
     assert code == 0, result
     assert_native_reference(
         tmp_path, runtime, source, result, {"format": "gray", "toGray": to_gray}
@@ -434,12 +412,12 @@ def test_error_diffusion_factor_matches_native_and_reports_effective_percent(
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
     make_source(source, runtime, scene=True)
-    conversion = conversion_for("rgb", "indexed")
+    conversion = color_mode_conversion("rgb", "indexed")
     conversion["target"]["dithering"] = {
         "algorithm": "error-diffusion",
         "dithering_factor": factor,
     }
-    code, result = convert(source, target, conversion)
+    code, result = change_sprite_color_mode(source, target, conversion)
     assert code == 0, result
     assert result["dithering"]["dithering_factor"] == factor
     assert result["dithering"]["effective_factor_percent"] == int(factor * 100)
@@ -465,16 +443,20 @@ def test_file_matrix_matches_installed_matrix_and_native_pixels(
 ):
     source = tmp_path / "source.aseprite"
     make_source(source, runtime, scene=True)
-    conversion = conversion_for("rgb", "indexed")
+    conversion = color_mode_conversion("rgb", "indexed")
     conversion["target"]["dithering"] = {
         "algorithm": algorithm,
         "matrix": {"kind": "installed", "id": "bayer4x4"},
     }
-    code, installed = convert(source, tmp_path / "installed.aseprite", conversion)
+    code, installed = change_sprite_color_mode(
+        source, tmp_path / "installed.aseprite", conversion
+    )
     assert code == 0, installed
     path = installed["dithering"]["matrix"]["resolved_path"]
     conversion["target"]["dithering"]["matrix"] = {"kind": "file", "path": path}
-    code, explicit = convert(source, tmp_path / "explicit.aseprite", conversion)
+    code, explicit = change_sprite_color_mode(
+        source, tmp_path / "explicit.aseprite", conversion
+    )
     assert code == 0, explicit
     assert explicit["after"] == installed["after"]
     assert explicit["dithering"]["matrix"]["provenance"] == "file"
@@ -510,15 +492,19 @@ def test_matrix_image_can_extend_beyond_canvas(tmp_path, runtime, algorithm, via
             image_height=size,
         )
         assert lua.returncode == 0, process_diagnostics(lua)
-    conversion = conversion_for("rgb", "indexed")
+    conversion = color_mode_conversion("rgb", "indexed")
     conversion["target"]["dithering"] = {"algorithm": algorithm}
-    code, default = convert(source, tmp_path / "default.aseprite", conversion)
+    code, default = change_sprite_color_mode(
+        source, tmp_path / "default.aseprite", conversion
+    )
     assert code == 0, default
     conversion["target"]["dithering"]["matrix"] = {
         "kind": "file",
         "path": str(matrices[0]),
     }
-    code, equivalent = convert(source, tmp_path / "equivalent.aseprite", conversion)
+    code, equivalent = change_sprite_color_mode(
+        source, tmp_path / "equivalent.aseprite", conversion
+    )
     assert code == 0, equivalent
     assert equivalent["after"] != default["after"]
     for matrix in matrices:
@@ -558,7 +544,7 @@ def test_matrix_image_can_extend_beyond_canvas(tmp_path, runtime, algorithm, via
             },
         )
     else:
-        code, result = convert(source, target, conversion)
+        code, result = change_sprite_color_mode(source, target, conversion)
         assert code == 0, result
     assert result["persisted_reopen_verified"] is True
     evidence = result["steps"][0]["result"] if via_plan else result
@@ -590,7 +576,7 @@ def test_preflight_failure_preserves_existing_source_and_target(
     make_source(source, runtime)
     original = source.read_bytes()
     target.write_bytes(b"existing target must survive")
-    conversion = conversion_for("rgb", "indexed")
+    conversion = color_mode_conversion("rgb", "indexed")
     matrix = tmp_path / "matrix.bmp"
     if failure.startswith("undersized-"):
         matrix = matrix.with_suffix(".aseprite")
@@ -610,7 +596,7 @@ def test_preflight_failure_preserves_existing_source_and_target(
             matrix.write_bytes(b"not a native image")
     conversion["target"]["dithering"] = {"algorithm": "ordered", "matrix": selected}
     if failure == "wrong-source":
-        conversion = conversion_for("indexed", "rgb")
+        conversion = color_mode_conversion("indexed", "rgb")
     with ExitStack() as permissions:
         if failure == "unreadable":
             permissions.enter_context(_deny_file_reading(matrix))
@@ -705,7 +691,7 @@ def test_ambiguous_installed_matrix_is_rejected_before_publication(tmp_path, run
         )
     selected = replace(runtime, resource_path=str(data / "gui.xml"))
     services = OperationServices(lambda _request: selected, invoke, LocalTargetFiles())
-    conversion = conversion_for("rgb", "indexed")
+    conversion = color_mode_conversion("rgb", "indexed")
     conversion["target"]["dithering"] = {
         "algorithm": "ordered",
         "matrix": {"kind": "installed", "id": "duplicate"},
@@ -746,11 +732,15 @@ def test_plan_create_then_convert_uses_final_mode_for_postconditions(tmp_path):
                     },
                     {
                         "operation": "sprite change-color-mode",
-                        "input": {"conversion": conversion_for("rgb", "grayscale")},
+                        "input": {
+                            "conversion": color_mode_conversion("rgb", "grayscale")
+                        },
                     },
                     {
                         "operation": "sprite change-color-mode",
-                        "input": {"conversion": conversion_for("grayscale", "indexed")},
+                        "input": {
+                            "conversion": color_mode_conversion("grayscale", "indexed")
+                        },
                     },
                     {
                         "operation": "sprite get",
@@ -781,7 +771,9 @@ def test_failed_postcondition_after_conversion_rolls_back_target(tmp_path, runti
                 "steps": [
                     {
                         "operation": "sprite change-color-mode",
-                        "input": {"conversion": conversion_for("rgb", "grayscale")},
+                        "input": {
+                            "conversion": color_mode_conversion("rgb", "grayscale")
+                        },
                     }
                 ],
                 "postconditions": {"color_mode": "rgb"},
@@ -807,7 +799,7 @@ def test_in_place_conversion_commits_only_after_verified_reopen(tmp_path, runtim
             "target_sprite_file": str(source),
             "in_place": True,
             "overwrite": True,
-            "conversion": conversion_for("rgb", "indexed"),
+            "conversion": color_mode_conversion("rgb", "indexed"),
         },
     )
     assert result["persisted_reopen_verified"] is True
@@ -820,7 +812,7 @@ def test_in_place_conversion_commits_only_after_verified_reopen(tmp_path, runtim
             "target_sprite_file": str(source),
             "in_place": True,
             "overwrite": True,
-            "conversion": conversion_for("rgb", "grayscale"),
+            "conversion": color_mode_conversion("rgb", "grayscale"),
         },
     )
     rejected = refused.envelope
