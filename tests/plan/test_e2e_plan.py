@@ -158,6 +158,7 @@ def test_plan_failed_dynamic_postcondition_leaves_target_absent(tmp_path: Path) 
     assert outcome.returncode == 1, failure
     assert failure["code"] == "kernel_execution_failed"
     assert failure["details"]["failed_step"] is None
+    assert failure["details"]["reason"].endswith("Plan width Postcondition failed")
     assert not target.exists()
 
 
