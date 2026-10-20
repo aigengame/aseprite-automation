@@ -414,6 +414,7 @@ def test_target_intersections_must_agree_before_publication(
     tmp_path, filter_case, contradiction
 ):
     response, request_for, execute = filter_case
+    intent = {}
     if contradiction == "duplicate-request":
         response["requested_intersections"] *= 2
     elif contradiction == "duplicate-existing":
@@ -423,9 +424,17 @@ def test_target_intersections_must_agree_before_publication(
             {"layer_path": [1], "frame_number": 1, "image_number": 2}
         ]
     elif contradiction == "different-frame":
+        # The request and its intersection name Frame 2; the existing Cel is
+        # at Frame 1.
+        response["cels_target_kind"] = "selected"
         response["requested_intersections"] = [
             {"layer_path": [1], "frame_number": 2, "image_number": 1}
         ]
+        intent["cels_target"] = {
+            "kind": "selected",
+            "layers": [{"layer_path": [1]}],
+            "frame_numbers": [2],
+        }
     elif contradiction == "missing-existing":
         response["existing_target_cels"] = []
     else:
@@ -445,7 +454,7 @@ def test_target_intersections_must_agree_before_publication(
     services, source, target, staged = setup_filter_staging(tmp_path, response)
 
     with pytest.raises(RuntimeIssue) as caught:
-        execute(request_for(source, target), services)
+        execute(request_for(source, target, **intent), services)
 
     assert_malformed(caught, TARGET_MISMATCH)
     assert_unpublished(source, target, staged)
