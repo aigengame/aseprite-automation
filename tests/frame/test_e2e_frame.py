@@ -239,7 +239,11 @@ def test_remove_frame_shifts_retained_content_and_rejects_final_frame(
             "frame_number": 1,
         },
     )
-    assert failed.returncode != 0
+    assert failed.returncode == 1, failed.envelope
+    assert failed.envelope["code"] == "kernel_execution_failed"
+    assert failed.envelope["details"]["reason"].endswith(
+        ": cannot remove the final Frame"
+    )
     assert not final_target.exists()
     assert expect_success("frame list", {"sprite_file": str(one)})["frames"] == [
         {"frame_number": 1, "duration_ms": 100}
@@ -405,16 +409,37 @@ def test_move_background_cel_preserves_opaque_content(
 
 
 @pytest.mark.parametrize(
-    ("operation", "fields"),
+    ("operation", "fields", "reason"),
     [
-        ("set", {"frame_number": 5, "duration_ms": 100}),
-        ("move", {"source_frame_number": 5, "target_frame_number": 1}),
-        ("move", {"source_frame_number": 1, "target_frame_number": 5}),
-        ("remove", {"frame_number": 5}),
+        (
+            "set",
+            {"frame_number": 5, "duration_ms": 100},
+            ": Frame Number is outside the Sprite timeline",
+        ),
+        (
+            "move",
+            {"source_frame_number": 5, "target_frame_number": 1},
+            ": Frame Number is outside the Sprite timeline",
+        ),
+        (
+            "move",
+            {"source_frame_number": 1, "target_frame_number": 5},
+            ": target Frame Number is outside the Sprite timeline",
+        ),
+        (
+            "remove",
+            {"frame_number": 5},
+            ": Frame Number is outside the Sprite timeline",
+        ),
     ],
+    ids=["set", "move-source", "move-target", "remove"],
 )
 def test_invalid_frame_edit_does_not_publish_target(
-    runtime: RuntimeObservation, tmp_path: Path, operation: str, fields: dict[str, int]
+    runtime: RuntimeObservation,
+    tmp_path: Path,
+    operation: str,
+    fields: dict[str, int],
+    reason: str,
 ) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "unpublished.aseprite"
@@ -429,7 +454,9 @@ def test_invalid_frame_edit_does_not_publish_target(
             **fields,
         },
     )
-    assert invocation.returncode != 0
+    assert invocation.returncode == 1, invocation.envelope
+    assert invocation.envelope["code"] == "kernel_execution_failed"
+    assert invocation.envelope["details"]["reason"].endswith(reason)
     assert not target.exists()
     assert [
         frame["duration_ms"]
@@ -742,7 +769,11 @@ def test_invalid_add_never_publishes_target(
         "duration_ms": 100,
     }
     result = run("frame add", request)
-    assert result.returncode != 0
+    assert result.returncode == 1, result.envelope
+    assert result.envelope["code"] == "kernel_execution_failed"
+    assert result.envelope["details"]["reason"].endswith(
+        ": Frame insertion position is out of range"
+    )
     assert not target.exists()
     assert expect_success("frame list", {"sprite_file": str(source)})["frames"] == [
         {"frame_number": 1, "duration_ms": 120},
