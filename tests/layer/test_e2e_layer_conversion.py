@@ -1,14 +1,13 @@
 """Explicit Background Layer conversion through the installed CLI."""
 
 import hashlib
-import struct
 from pathlib import Path
 
 import pytest
 
 from spa.contracts.ports import RuntimeObservation
 from tests.native_invocation import expect_success, render_frame, run, run_lua
-from tests.support import process_diagnostics
+from tests.support import inject_palette_change, process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
@@ -35,29 +34,6 @@ def _assert_native_fill(runtime: RuntimeObservation, source: Path, mode: str) ->
         FIXTURES / "assert_conversion_fill.lua", runtime, source=source, mode=mode
     )
     assert lua.returncode == 0, process_diagnostics(lua)
-
-
-def _make_second_frame_fill_index_transparent(source: Path) -> None:
-    """Write a frame-local Palette Chunk; the Lua API cannot author one."""
-    payload = bytearray(source.read_bytes())
-    frame_offset = 128 + struct.unpack_from("<I", payload, 128)[0]
-    entries = b"".join(
-        struct.pack("<HBBBB", 0, *rgba)
-        for rgba in ((0, 0, 0, 0), (241, 82, 65, 255), (20, 40, 200, 0))
-    )
-    chunk_data = struct.pack("<III8x", 3, 0, 2) + entries
-    chunk = struct.pack("<IH", len(chunk_data) + 6, 0x2019) + chunk_data
-    frame_size = struct.unpack_from("<I", payload, frame_offset)[0]
-    chunk_count = struct.unpack_from("<H", payload, frame_offset + 6)[0]
-    extended_count = struct.unpack_from("<I", payload, frame_offset + 12)[0]
-    struct.pack_into("<I", payload, frame_offset, frame_size + len(chunk))
-    if extended_count:
-        struct.pack_into("<I", payload, frame_offset + 12, extended_count + 1)
-    else:
-        struct.pack_into("<H", payload, frame_offset + 6, chunk_count + 1)
-    payload[frame_offset + 16 : frame_offset + 16] = chunk
-    struct.pack_into("<I", payload, 0, len(payload))
-    source.write_bytes(payload)
 
 
 def test_convert_transparent_layer_to_background_persists_full_canvas_cels(
@@ -451,7 +427,10 @@ def test_indexed_fill_must_be_opaque_in_every_frame_palette(
         FIXTURES / "conversion_modes.lua", runtime, out=source, mode="indexed"
     )
     assert lua.returncode == 0, process_diagnostics(lua)
-    _make_second_frame_fill_index_transparent(source)
+    # Frame 2 gets a Palette Change that makes index 2 transparent.
+    inject_palette_change(
+        source, [(0, 0, 0, 0), (241, 82, 65, 255), (20, 40, 200, 0)], frame_number=2
+    )
     source_sha = hashlib.sha256(source.read_bytes()).hexdigest()
     outcome = run(
         "layer convert-to-background",
