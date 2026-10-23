@@ -173,19 +173,21 @@ READ_STANDALONE_ONLY = {"status", "operation", "sprite_file"}
 STEP_COMPLETION = {"persisted_reopen_verified": False, "sprite": None}
 MUTATION_COMPLETION = set(STEP_COMPLETION)
 READ_COMPLETION: set[str] = set()
-# Findings: these Operations do not fit their family projection. The values are
-# the fields that still differ after the projection. The PR records them as open.
-MISFITS = {
+# Operation-specific projections. The values are the fields that still differ
+# after the family projection; each row asserts this exact set and compares the
+# fields with each other.
+OPERATION_DIFFERENCES = {
     # The Step result has `initial_layer`; the standalone result has
-    # `persisted_initial_layer`. The completion group also removes `sprite`, the
-    # main fact, and the live Step palette differs from the persisted one.
+    # `persisted_initial_layer`. The values must be equal.
     "sprite create": {"initial_layer", "persisted_initial_layer"},
-    # The Step result nests the read sections under `sprite`.
+    # The Step result nests the read sections under `sprite`. The values must be
+    # equal after nesting.
     "sprite get": {"sprite", "metadata", *ALL_SECTIONS},
 }
-# Findings: completion fields whose Step value is not the Step completion value. The
-# first Step result has the live Sprite inspection in `sprite`, not null.
-COMPLETION_MISFITS = {"sprite create": {"sprite"}}
+# Operation-specific completion values: {operation: {field: sections not compared}}.
+# The first Step result has the live Sprite inspection in `sprite`, not null. It must
+# equal the standalone Sprite inspection, except the live palettes.
+OPERATION_COMPLETION_DIFFERENCES = {"sprite create": {"sprite": {"palettes"}}}
 
 
 @dataclass(frozen=True)
@@ -349,16 +351,19 @@ def test_r1_step_result_equals_standalone_result(
     assert standalone_only <= expected.keys()
     assert not step.keys() & standalone_only
     excluded = standalone_only | completion
-    assert _differing(step, expected, excluded) == MISFITS.get(operation, set())
-    misfits = COMPLETION_MISFITS.get(operation, set())
-    for field in completion & step.keys() - misfits:
+    differences = OPERATION_DIFFERENCES.get(operation, set())
+    assert _differing(step, expected, excluded) == differences
+    live = OPERATION_COMPLETION_DIFFERENCES.get(operation, {})
+    for field in completion & step.keys() - live.keys():
         assert step[field] is STEP_COMPLETION[field], field
-    for field in misfits:
-        assert isinstance(step[field], dict), field
+    for field, left_out in live.items():
+        assert {key: step[field][key] for key in step[field].keys() - left_out} == {
+            key: expected[field][key] for key in expected[field].keys() - left_out
+        }, field
     if "sprite" in completion & expected.keys():
         assert isinstance(expected["sprite"], dict)
     if operation == "sprite get":
-        sections = MISFITS[operation] - {"sprite"}
+        sections = differences - {"sprite"}
         assert step["sprite"] == {key: expected[key] for key in sections}
     if operation == "sprite create":
         assert step["initial_layer"] == expected["persisted_initial_layer"]
@@ -468,7 +473,8 @@ def test_rule_table_covers_each_plan_eligible_operation() -> None:
     for operation, case in CASES.items():
         fields = ELIGIBLE_OPERATIONS[operation].request_type.model_fields
         assert case.reads == ("sprite_file" in fields), operation
-    assert set(MISFITS) | set(COMPLETION_MISFITS) <= set(CASES)
+    projected = set(OPERATION_DIFFERENCES) | set(OPERATION_COMPLETION_DIFFERENCES)
+    assert projected <= set(CASES)
 
 
 def test_refusal_rows_cover_each_operation_with_a_typed_refusal() -> None:
