@@ -12,7 +12,7 @@ from tests.filter.support import (
     assert_malformed,
     assert_unpublished,
     operation_case,
-    setup_operation,
+    setup_brightness_contrast,
 )
 
 # The validator text that refuses each corrupted evidence field.
@@ -36,7 +36,9 @@ def test_pixel_filter_commit_requires_consistent_evidence(tmp_path, name, corrup
         response["processed_image_numbers"] = []
     elif corruption == "persisted":
         response["persisted_reopen_verified"] = False
-    brightness, services, source, target, staged = setup_operation(tmp_path, response)
+    brightness, services, source, target, staged = setup_brightness_contrast(
+        tmp_path, response
+    )
     fields = brightness.model_dump(exclude={"application", "brightness", "contrast"})
     application = brightness.application.model_dump(
         exclude={"kind", "tileset_mode"}, exclude_none=True
@@ -56,7 +58,9 @@ def test_pixel_filter_commit_requires_consistent_evidence(tmp_path, name, corrup
 def test_impossible_changed_count_cannot_publish(tmp_path):
     response, parameters, request_type, execute = operation_case("replace-color")
     response["changed_pixel_count"] = 2
-    brightness, services, source, target, staged = setup_operation(tmp_path, response)
+    brightness, services, source, target, staged = setup_brightness_contrast(
+        tmp_path, response
+    )
     request = request_type.model_validate(
         {
             **brightness.model_dump(exclude={"application", "brightness", "contrast"}),

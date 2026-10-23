@@ -8,7 +8,7 @@ from tests.filter.support import (
     assert_malformed,
     assert_unpublished,
     hue_evidence,
-    setup_operation,
+    setup_brightness_contrast,
 )
 
 # The validator text that refuses each corrupted evidence field.
@@ -42,7 +42,7 @@ def hue_request(brightness_request):
 
 
 def test_valid_hue_evidence_publishes_target(tmp_path):
-    request, services, source, target, staged = setup_operation(
+    request, services, source, target, staged = setup_brightness_contrast(
         tmp_path, hue_evidence()
     )
     result = hue_saturation(hue_request(request), services)
@@ -65,7 +65,9 @@ def test_mismatched_hue_evidence_cannot_publish(tmp_path, corruption):
         response["cel_effects"][0]["after"] = None
     else:
         response["changed"] = False
-    request, services, source, target, staged = setup_operation(tmp_path, response)
+    request, services, source, target, staged = setup_brightness_contrast(
+        tmp_path, response
+    )
     with pytest.raises(RuntimeIssue) as caught:
         hue_saturation(hue_request(request), services)
     assert_malformed(caught, CORRUPTION_CAUSES[corruption])

@@ -243,7 +243,7 @@ def assert_unpublished(source, target, staged):
     assert not staged[0].exists()
 
 
-def evidence():
+def brightness_contrast_evidence():
     """Return valid `spa filter brightness-contrast` evidence for one RGB Cel."""
     result = filter_evidence()
     result.update(
@@ -295,7 +295,7 @@ def operation_case(name):
     return response, parameters, request_type, execute
 
 
-def response_for():
+def despeckle_evidence():
     """Return valid `spa filter despeckle` evidence for a 3-by-1 window."""
     response = filter_cel_evidence()
     response.update(
@@ -304,7 +304,7 @@ def response_for():
     return response
 
 
-def setup_operation(tmp_path, response=None, crash=False):
+def setup_brightness_contrast(tmp_path, response=None, crash=False):
     """Return a Brightness/Contrast request and the staging of setup_filter_staging."""
     services, source, target, staged = setup_filter_staging(tmp_path, response, crash)
     request = BrightnessContrastRequest.model_validate(

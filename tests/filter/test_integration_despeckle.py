@@ -9,7 +9,7 @@ from spa.contracts.public import RuntimeRequest
 from tests.filter.support import (
     assert_malformed,
     assert_unpublished,
-    response_for,
+    despeckle_evidence,
     setup_filter_staging,
 )
 
@@ -47,7 +47,9 @@ def request_for(source, target):
 
 
 def test_matched_native_observations_publish(tmp_path):
-    services, source, target, staged = setup_filter_staging(tmp_path, response_for())
+    services, source, target, staged = setup_filter_staging(
+        tmp_path, despeckle_evidence()
+    )
     result = despeckle(request_for(source, target), services)
     assert result.persisted_reopen_verified
     assert target.read_bytes() == b"native staged output"
@@ -111,7 +113,7 @@ def test_matched_native_observations_publish(tmp_path):
 def test_impossible_selection_observations_cannot_publish(
     tmp_path, requested, observed
 ):
-    response = response_for()
+    response = despeckle_evidence()
     response["selection"] = observed
     services, source, target, staged = setup_filter_staging(tmp_path, response)
     data = request_for(source, target).model_dump()
@@ -124,7 +126,7 @@ def test_impossible_selection_observations_cannot_publish(
 
 @pytest.mark.parametrize("corruption", list(EVIDENCE_CAUSES))
 def test_inconsistent_native_evidence_cannot_publish(tmp_path, corruption):
-    response = response_for()
+    response = despeckle_evidence()
     invalid = {
         "width": 4,
         "height": 2,

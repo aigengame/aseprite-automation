@@ -17,12 +17,12 @@ from spa.contracts.ports import RuntimeIssue
 from tests.filter.support import (
     assert_malformed,
     assert_unpublished,
-    evidence,
+    brightness_contrast_evidence,
+    despeckle_evidence,
     filter_cel_evidence,
     hue_evidence,
     operation_case,
     operation_filter_names,
-    response_for,
     setup_filter_staging,
 )
 
@@ -71,7 +71,10 @@ def test_filter_tables_name_every_operation_filter():
 def filter_case(request):
     name = request.param
     if name == "brightness-contrast":
-        response, parameters = evidence(), {"brightness": 10, "contrast": 0}
+        response, parameters = (
+            brightness_contrast_evidence(),
+            {"brightness": 10, "contrast": 0},
+        )
         request_type, execute = BrightnessContrastRequest, brightness_contrast
     elif name == "hue-saturation":
         response = hue_evidence()
@@ -80,7 +83,7 @@ def filter_case(request):
     elif name in {"color-curve", "replace-color"}:
         response, parameters, request_type, execute = operation_case(name)
     elif name == "despeckle":
-        response = response_for()
+        response = despeckle_evidence()
         parameters = {"width": 3, "height": 1, "tiled_mode": "none"}
         request_type, execute = DespeckleRequest, despeckle
     else:
@@ -330,7 +333,7 @@ def test_feasible_native_selection_can_publish(
         (
             BrightnessContrastRequest,
             brightness_contrast,
-            evidence,
+            brightness_contrast_evidence,
             {"brightness": 10, "contrast": 0},
         ),
         (

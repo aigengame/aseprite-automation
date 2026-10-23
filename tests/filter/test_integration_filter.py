@@ -9,8 +9,8 @@ from spa.contracts.public import RuntimeRequest
 from tests.filter.support import (
     assert_malformed,
     assert_unpublished,
-    evidence,
-    setup_operation,
+    brightness_contrast_evidence,
+    setup_brightness_contrast,
 )
 from tests.support import operation_services, runtime_observation
 
@@ -29,7 +29,9 @@ TILE_REFERENCE_CAUSES = {
 
 
 def test_valid_persisted_evidence_publishes_target(tmp_path):
-    request, services, source, target, staged = setup_operation(tmp_path, evidence())
+    request, services, source, target, staged = setup_brightness_contrast(
+        tmp_path, brightness_contrast_evidence()
+    )
     result = brightness_contrast(request, services)
     assert result.target_commit.target_sprite_file == str(target)
     assert target.read_bytes() == b"native staged output"
@@ -58,7 +60,7 @@ def test_valid_persisted_evidence_publishes_target(tmp_path):
     ],
 )
 def test_malformed_rejection_is_typed_and_does_not_publish(tmp_path, rejection, cause):
-    request, services, source, target, staged = setup_operation(
+    request, services, source, target, staged = setup_brightness_contrast(
         tmp_path,
         {"rejection": rejection},
     )
@@ -70,7 +72,7 @@ def test_malformed_rejection_is_typed_and_does_not_publish(tmp_path, rejection, 
 
 @pytest.mark.parametrize("corruption", list(CONTRADICTION_CAUSES))
 def test_contradictory_evidence_cannot_publish(tmp_path, corruption):
-    response = evidence()
+    response = brightness_contrast_evidence()
     if corruption == "missing_evidence":
         del response["images"]
     elif corruption == "changed_flag":
@@ -78,7 +80,9 @@ def test_contradictory_evidence_cannot_publish(tmp_path, corruption):
         response["changed"] = False
     else:
         response["application"] = "rgb-palette-colors"
-    request, services, source, target, staged = setup_operation(tmp_path, response)
+    request, services, source, target, staged = setup_brightness_contrast(
+        tmp_path, response
+    )
     with pytest.raises(RuntimeIssue) as caught:
         brightness_contrast(request, services)
     assert_malformed(caught, CONTRADICTION_CAUSES[corruption])
@@ -86,7 +90,9 @@ def test_contradictory_evidence_cannot_publish(tmp_path, corruption):
 
 
 def test_kernel_exception_discards_stage_and_preserves_both_files(tmp_path):
-    request, services, source, target, staged = setup_operation(tmp_path, crash=True)
+    request, services, source, target, staged = setup_brightness_contrast(
+        tmp_path, crash=True
+    )
     with pytest.raises(RuntimeError, match="kernel interrupted after staging"):
         brightness_contrast(request, services)
     assert_unpublished(source, target, staged)
@@ -94,7 +100,7 @@ def test_kernel_exception_discards_stage_and_preserves_both_files(tmp_path):
 
 @pytest.mark.parametrize("corruption", ["none", *TILE_REFERENCE_CAUSES])
 def test_tile_reference_evidence_controls_publication(tmp_path, corruption):
-    response = evidence()
+    response = brightness_contrast_evidence()
     response["requested_tileset_mode"] = response["observed_tileset_mode"] = "manual"
     image = response["images"][0]
     image.update(image_kind="tilemap-placement", changed=False)
@@ -121,7 +127,9 @@ def test_tile_reference_evidence_controls_publication(tmp_path, corruption):
         response["changed_tiles"][0]["referencing_cels"].append(reference.copy())
     elif corruption == "empty_tile":
         response["changed_tiles"][0]["tile_index"] = 0
-    request, services, source, target, staged = setup_operation(tmp_path, response)
+    request, services, source, target, staged = setup_brightness_contrast(
+        tmp_path, response
+    )
     request = BrightnessContrastRequest.model_validate(
         {
             **request.model_dump(),
