@@ -6,7 +6,22 @@ from importlib.resources import files
 import pytest
 
 from spa.application.surface import OPERATIONS, PROBE_RESOURCES
+from spa.authoring.raster.selection import SELECTION_SUPPORT_RESOURCE
 from spa.contracts.ports import PackagedHandler, PackagedResource
+from spa.contracts.raster import SELECTION_MASK_RESOURCE
+
+# Selection builds its handlers in `_invoke` at call time, so they are not module
+# values. These are the handler names that the Selection Operations pass to `_invoke`.
+SELECTION_HANDLERS = (
+    "selection_create",
+    "selection_combine",
+    "selection_invert",
+    "selection_grow",
+    "selection_shrink",
+    "selection_transform",
+    "selection_export",
+    "selection_preview",
+)
 
 
 @pytest.mark.parametrize(
@@ -42,7 +57,7 @@ def test_resource_parameters_remain_independent_of_package_paths() -> None:
 
 def test_probe_and_handler_resources_are_packaged() -> None:
     kernel = files("spa.kernel")
-    # Each handler is a module value of the module that defines its execute function.
+    # Other handlers are module values of the module that defines their execute function.
     handlers = {
         value
         for descriptor in OPERATIONS
@@ -54,6 +69,9 @@ def test_probe_and_handler_resources_are_packaged() -> None:
     for handler in handlers:
         paths.add(handler.package_path)
         paths.update(resource.package_path for resource in handler.support_resources)
+    paths.update(f"raster/selection/{name}.lua" for name in SELECTION_HANDLERS)
+    paths.add(SELECTION_MASK_RESOURCE.package_path)
+    paths.add(SELECTION_SUPPORT_RESOURCE.package_path)
 
     for name in sorted(paths):
         resource = kernel.joinpath(name)
