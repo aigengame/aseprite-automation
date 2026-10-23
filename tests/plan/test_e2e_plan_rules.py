@@ -1,7 +1,8 @@
 """Plan rule table: each Plan-eligible Operation keeps its standalone semantics in a Plan.
 
 - R1: a Step result equals the standalone result, after the projection of its result
-  family removes the fields that only one side has.
+  family removes two named groups of fields: the standalone-only fields, and the
+  completion fields that both sides can have with values that differ by design.
 - R2: a Step refusal has the standalone code and details, plus `step_number`.
 - R3: a Plan uses one native invocation, and commits its Target only after a verified
   save. One row for each Kernel handler family.
@@ -157,30 +158,34 @@ CASES = {
     )
 }
 
-# R1 projections, from the result schemas: the fields that only the Step result or
-# only the standalone result of a family has. A mutation Step result keeps its live
-# facts (`persisted_reopen_verified` is false and `sprite` is null); the Plan result
-# owns the Target Commit. A read Step result has no file or envelope fields.
-MUTATION_ONE_SIDED = {
-    "status",
-    "operation",
-    "target_commit",
-    "persisted_reopen_verified",
-    "sprite",
-}
-READ_ONE_SIDED = {"status", "operation", "sprite_file"}
-# The one-sided fields that a Step result of either family never has.
-STANDALONE_ONLY = {"status", "operation", "target_commit", "sprite_file"}
+# R1 projections, from the result schemas and the docs. Each result family lists the
+# fields that the row does not compare, in two groups.
+# Group 1, standalone only: the envelope and file fields of the standalone result. A
+# Step result never has them; the Plan result owns the Target Commit.
+MUTATION_STANDALONE_ONLY = {"status", "operation", "target_commit"}
+READ_STANDALONE_ONLY = {"status", "operation", "sprite_file"}
+# Group 2, completion values: fields that both results can have, with values that
+# differ by completion semantics. The standalone result is complete after its save:
+# `persisted_reopen_verified` is true and `sprite` is the Sprite inspection. A Step
+# result is not: `persisted_reopen_verified` is false and `sprite` is null. A read
+# Step does not save, so the read family has no completion field. The rows check
+# the completion value of each such field that a side has.
+STEP_COMPLETION = {"persisted_reopen_verified": False, "sprite": None}
+MUTATION_COMPLETION = set(STEP_COMPLETION)
+READ_COMPLETION: set[str] = set()
 # Findings: these Operations do not fit their family projection. The values are
 # the fields that still differ after the projection. The PR records them as open.
 MISFITS = {
     # The Step result has `initial_layer`; the standalone result has
-    # `persisted_initial_layer`. The projection also removes `sprite`, the main
-    # fact, and the live Step palette differs from the persisted one.
+    # `persisted_initial_layer`. The completion group also removes `sprite`, the
+    # main fact, and the live Step palette differs from the persisted one.
     "sprite create": {"initial_layer", "persisted_initial_layer"},
     # The Step result nests the read sections under `sprite`.
     "sprite get": {"sprite", "metadata", *ALL_SECTIONS},
 }
+# Findings: completion fields whose Step value is not the Step completion value. The
+# first Step result has the live Sprite inspection in `sprite`, not null.
+COMPLETION_MISFITS = {"sprite create": {"sprite"}}
 
 
 @dataclass(frozen=True)
@@ -337,9 +342,21 @@ def test_r1_step_result_equals_standalone_result(
         "plan run", _plan(source, None if case.reads else planned, [_step(case)])
     )
     step = result["steps"][0]["result"]
-    one_sided = READ_ONE_SIDED if case.reads else MUTATION_ONE_SIDED
-    assert _differing(step, expected, one_sided) == MISFITS.get(operation, set())
-    assert not step.keys() & STANDALONE_ONLY
+    if case.reads:
+        standalone_only, completion = READ_STANDALONE_ONLY, READ_COMPLETION
+    else:
+        standalone_only, completion = MUTATION_STANDALONE_ONLY, MUTATION_COMPLETION
+    assert standalone_only <= expected.keys()
+    assert not step.keys() & standalone_only
+    excluded = standalone_only | completion
+    assert _differing(step, expected, excluded) == MISFITS.get(operation, set())
+    misfits = COMPLETION_MISFITS.get(operation, set())
+    for field in completion & step.keys() - misfits:
+        assert step[field] is STEP_COMPLETION[field], field
+    for field in misfits:
+        assert isinstance(step[field], dict), field
+    if "sprite" in completion & expected.keys():
+        assert isinstance(expected["sprite"], dict)
     if operation == "sprite get":
         sections = MISFITS[operation] - {"sprite"}
         assert step["sprite"] == {key: expected[key] for key in sections}
@@ -348,9 +365,8 @@ def test_r1_step_result_equals_standalone_result(
     if case.reads:
         assert result["target_commit"] is None
     else:
-        assert step.get("persisted_reopen_verified", False) is False
-        assert result["persisted_reopen_verified"] is True
         assert expected["persisted_reopen_verified"] is True
+        assert result["persisted_reopen_verified"] is True
     assert source is None or source.read_bytes() == frozen
 
 
@@ -452,7 +468,7 @@ def test_rule_table_covers_each_plan_eligible_operation() -> None:
     for operation, case in CASES.items():
         fields = ELIGIBLE_OPERATIONS[operation].request_type.model_fields
         assert case.reads == ("sprite_file" in fields), operation
-    assert set(MISFITS) <= set(CASES)
+    assert set(MISFITS) | set(COMPLETION_MISFITS) <= set(CASES)
 
 
 def test_refusal_rows_cover_each_operation_with_a_typed_refusal() -> None:
