@@ -8,13 +8,12 @@ from jsonschema import validate
 
 from spa.contracts.ports import RuntimeObservation
 from tests.native_invocation import expect_success, run
-from tests.plan.support import plan_request, red_pixel
+from tests.plan.support import observe_plan, plan_request, red_pixel
 from tests.support import (
     inspect_motion,
     motion_curves,
     motion_request,
     motion_sprite,
-    observe_cli,
     spa,
 )
 
@@ -155,9 +154,8 @@ def test_motion_plan_uses_one_process_and_gates_publication(
     source = motion_sprite(runtime, tmp_path)
     target = tmp_path / "existing.aseprite"
     target.write_bytes(b"prior Target")
-    process, result, observations = observe_cli(
+    process, result, _ = observe_plan(
         case,
-        "plan run",
         {
             "plan": {
                 "source_sprite_file": str(source),
@@ -166,16 +164,11 @@ def test_motion_plan_uses_one_process_and_gates_publication(
                 "steps": [{"operation": "motion apply", "input": motion_curves()}],
             }
         },
-        tmp_path / "observations.json",
-        seam="invoke_direct",
+        tmp_path,
     )
-    assert observations["native_invocations"] == 1
     if case == "success":
         assert process.returncode == 0, result
-        assert observations["commits"] == 1
     else:
         assert process.returncode != 0, result
-        assert observations["commits"] == 0
         assert result["code"] == "kernel_response_invalid"
         assert target.read_bytes() == b"prior Target"
-    assert not list(tmp_path.glob(".*.staged.aseprite"))

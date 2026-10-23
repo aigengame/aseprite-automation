@@ -8,11 +8,10 @@ from jsonschema import validate
 
 from spa.contracts.ports import RuntimeObservation
 from tests.native_invocation import expect_success, run
-from tests.plan.support import plan_request, red_pixel
+from tests.plan.support import observe_plan, plan_request, red_pixel
 from tests.support import (
     cel_relationships_sprite,
     inspect_orientation,
-    observe_cli,
     orientation_fixture,
     spa,
 )
@@ -361,9 +360,8 @@ def test_cel_plan_has_one_native_invocation_and_gates_target_commit(
             "operation": "sprite get",
             "input": {"inspection_scope": ["frames"]},
         }
-    process, outcome, observations = observe_cli(
+    process, outcome, _ = observe_plan(
         case,
-        "plan run",
         {
             "plan": {
                 "source_sprite_file": str(source),
@@ -373,22 +371,17 @@ def test_cel_plan_has_one_native_invocation_and_gates_target_commit(
                 "steps": steps,
             },
         },
-        tmp_path / "observations.json",
-        seam="invoke_direct",
+        tmp_path,
     )
-    assert observations["native_invocations"] == 1
     assert source.read_bytes() == source_before
-    assert not list(tmp_path.glob(".*.staged.aseprite"))
     if case == "success":
         assert process.returncode == 0, outcome
         assert outcome["persisted_reopen_verified"] is True
-        assert observations["commits"] == 1
     else:
         assert process.returncode != 0, outcome
         assert outcome["code"] == (
             "cel_not_found" if case == "later_failure" else "kernel_response_invalid"
         )
-        assert observations["commits"] == 0
         assert target.read_bytes() == target_before
         if case in ("contradictory_count", "contradictory_high_count"):
             assert outcome["details"]["failed_step"] == 1

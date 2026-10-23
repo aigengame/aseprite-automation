@@ -1,7 +1,10 @@
-"""Request builders that more than one Plan e2e module uses."""
+"""Request builders and the Plan observer that more than one Plan e2e module uses."""
 
+import subprocess
 from pathlib import Path
 from typing import Any
+
+from tests.support import observe_cli
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -46,3 +49,24 @@ def plan_request(source: Path, target: Path, steps: list[dict]) -> dict[str, Any
             "steps": steps,
         }
     }
+
+
+def observe_plan(
+    case: str, request: dict[str, Any], tmp_path: Path
+) -> tuple[subprocess.CompletedProcess[str], dict[str, Any], dict[str, Any]]:
+    """Run `spa plan run` with request in the observer, at the "invoke_direct" seam.
+
+    The observer counts the native invocations and Target Commits, and changes the
+    native Plan response as case requires (`tests/fixtures/observe_cli.py`). The
+    request must name a Target. This asserts the rules of each Plan run: one native
+    invocation, one Target Commit when the Plan succeeds and none when it fails, and
+    no staged file in tmp_path. Return the process, its envelope, and the
+    observations.
+    """
+    process, envelope, observations = observe_cli(
+        case, "plan run", request, tmp_path / "observations.json", seam="invoke_direct"
+    )
+    assert observations["native_invocations"] == 1, observations
+    assert observations["commits"] == int(process.returncode == 0), observations
+    assert not list(tmp_path.glob(".*.staged.aseprite"))
+    return process, envelope, observations
