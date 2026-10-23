@@ -3,11 +3,17 @@
 - R1: a Step result equals the standalone result, after the projection of its result
   family removes the fields that only one side has.
 - R2: a Step refusal has the standalone code and details, plus `step_number`.
+- R3: a Plan uses one native invocation, and commits its Target only after a verified
+  save. One row for each Kernel handler family.
+- R4: a failed later Step keeps the Source and an existing Target. One row for each
+  Kernel handler family, for each `in_place` value.
 
 The guards at the end are fast: they compare the table with the Plan-eligible
 descriptors. Each case names the Lua fixture that writes its Source.
 """
 
+import ast
+import hashlib
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -15,11 +21,12 @@ from typing import Any
 
 import pytest
 
+import spa.application.plan as plan_module
 from spa.application.plan import ELIGIBLE_OPERATIONS
 from spa.contracts.operation import RUNTIME_FAILURE_CODES
 from spa.contracts.ports import RuntimeObservation
 from tests.native_invocation import expect_success, run, run_lua
-from tests.plan.support import red_pixel
+from tests.plan.support import observe_plan, red_pixel
 from tests.support import icc_fixture_path, motion_curves, process_diagnostics
 
 TESTS = Path(__file__).parents[1]
@@ -227,6 +234,23 @@ REFUSALS = (
 # ICC that passes verification but that Aseprite cannot load.
 PREFLIGHT_REFUSAL_ONLY = {"sprite assign-color-profile"}
 
+# R3 and R4: one mutating Operation for each Kernel handler family.
+FAMILIES = {
+    "SPRITE": "sprite create",
+    "PROFILE": "sprite assign-color-profile",
+    "PAINT": "paint apply",
+    "FRAME": "frame add",
+    "CEL": "cel add",
+    "CEL_RELATIONSHIP": "cel set",
+    "MOTION": "motion apply",
+    "COLOR_MODE": "sprite change-color-mode",
+    "TILESET_LIFECYCLE": "tileset remove",
+}
+# A later Step that the Kernel refuses: Layer 9 does not exist in a family Source.
+REFUSED_STEP = {
+    "operation": "paint apply",
+    "input": {**red_pixel(), "target": {"layer_path": [9], "frame_number": 1}},
+}
 SPRITE_GET_FRAMES = {
     "operation": "sprite get",
     "input": {"inspection_scope": ["frames"]},
@@ -353,6 +377,72 @@ def test_r2_step_refusal_equals_standalone_refusal(
     assert not alone.exists() and not planned.exists()
 
 
+@pytest.mark.e2e
+@pytest.mark.parametrize("save", ["verified", "unverified_save"])
+@pytest.mark.parametrize("family", sorted(FAMILIES))
+def test_r3_plan_uses_one_invocation_and_commits_only_a_verified_save(
+    family: str, save: str, runtime: RuntimeObservation, tmp_path: Path
+) -> None:
+    case = CASES[FAMILIES[family]]
+    _require(case.capability, runtime)
+    source = _source(case.fixture, runtime, tmp_path)
+    frozen = None if source is None else source.read_bytes()
+    target = tmp_path / "target.aseprite"
+    target.write_bytes(b"prior Target")
+
+    # The observer case "none" keeps the native response and checks the staged file.
+    observer_case = "none" if save == "verified" else save
+    process, result, _ = observe_plan(
+        observer_case, _plan(source, target, [_step(case)]), tmp_path
+    )
+    assert source is None or source.read_bytes() == frozen
+    if save == "verified":
+        assert process.returncode == 0, result
+        assert result["persisted_reopen_verified"] is True
+        digest = hashlib.sha256(target.read_bytes()).hexdigest()
+        assert result["target_commit"]["sha256"] == digest
+    else:
+        assert process.returncode == 1, result
+        assert result["code"] == "kernel_response_invalid"
+        assert target.read_bytes() == b"prior Target"
+
+
+@pytest.mark.e2e
+@pytest.mark.parametrize(
+    ("family", "in_place"),
+    [
+        (family, in_place)
+        for family in sorted(FAMILIES)
+        for in_place in (False, True)
+        # A Plan that creates its Sprite has no Source to change in place.
+        if not (family == "SPRITE" and in_place)
+    ],
+)
+def test_r4_failed_later_step_keeps_source_and_target_bytes(
+    family: str, in_place: bool, runtime: RuntimeObservation, tmp_path: Path
+) -> None:
+    case = CASES[FAMILIES[family]]
+    _require(case.capability, runtime)
+    source = _source(case.fixture, runtime, tmp_path)
+    frozen = None if source is None else source.read_bytes()
+    target = tmp_path / "target.aseprite"
+    if in_place:
+        assert source is not None
+        target = source
+    else:
+        target.write_bytes(b"prior Target")
+    prior = target.read_bytes()
+
+    outcome = run("plan run", _plan(source, target, [_step(case), REFUSED_STEP]))
+    failure = outcome.envelope
+    assert outcome.returncode == 1, failure
+    assert failure["code"] == "kernel_execution_failed"
+    assert failure["details"]["failed_step"] == 2
+    assert source is None or source.read_bytes() == frozen
+    assert target.read_bytes() == prior
+    assert not list(tmp_path.glob(".*.staged.aseprite"))
+
+
 def test_rule_table_covers_each_plan_eligible_operation() -> None:
     assert set(CASES) == set(ELIGIBLE_OPERATIONS)
     for operation, case in CASES.items():
@@ -375,3 +465,34 @@ def test_refusal_rows_cover_each_operation_with_a_typed_refusal() -> None:
     for refusal in REFUSALS:
         codes = ELIGIBLE_OPERATIONS[refusal.operation].failure_codes
         assert refusal.code in set(codes) - common
+
+
+def test_family_rows_cover_each_group_with_plan_eligible_operations() -> None:
+    # Read the descriptor groups that ELIGIBLE_OPERATIONS is built from.
+    tree = ast.parse(Path(plan_module.__file__).read_text(encoding="utf-8"))
+    (built,) = [
+        node.value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Assign)
+        and [getattr(target, "id", None) for target in node.targets]
+        == ["ELIGIBLE_OPERATIONS"]
+    ]
+    assert isinstance(built, ast.DictComp)
+    names = [
+        element.value.id
+        for element in ast.walk(built.generators[0].iter)
+        if isinstance(element, ast.Starred) and isinstance(element.value, ast.Name)
+    ]
+    groups = {
+        name.removesuffix("_OPERATIONS"): {
+            descriptor.name
+            for descriptor in getattr(plan_module, name)
+            if descriptor.plan_eligible
+        }
+        for name in names
+    }
+    eligible = {group for group, operations in groups.items() if operations}
+    assert set(FAMILIES) == eligible
+    for family, operation in FAMILIES.items():
+        assert operation in groups[family]
+        assert not CASES[operation].reads
