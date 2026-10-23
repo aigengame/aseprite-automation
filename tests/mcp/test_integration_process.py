@@ -117,12 +117,8 @@ def test_missing_runtime_fails_discovery_without_an_empty_tool_surface(tmp_path)
 @pytest.mark.parametrize("parent_exits", [False, True])
 def test_cancellation_stops_cli_and_its_native_child(tmp_path, parent_exits):
     marker = tmp_path / "child-pids.json"
-    pending_marker = marker.with_suffix(".tmp") if os.name == "nt" else marker
-    marker_ready = (
-        f"os.replace({str(pending_marker)!r}, {str(marker)!r})"
-        if os.name == "nt"
-        else ""
-    )
+    # The helper renames a complete file, so the marker never exists without the PIDs.
+    pending_marker = marker.with_suffix(".tmp")
     interpreter = sys._base_executable if os.name == "nt" else sys.executable
     program = tmp_path / "waiting-cli.py"
     program.write_text(
@@ -131,7 +127,7 @@ import json, os, subprocess, sys, time
 child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])
 with open({str(pending_marker)!r}, 'w') as target:
     json.dump([os.getpid(), child.pid], target)
-{marker_ready}
+os.replace({str(pending_marker)!r}, {str(marker)!r})
 if not {parent_exits!r}:
     time.sleep(60)
 """,
