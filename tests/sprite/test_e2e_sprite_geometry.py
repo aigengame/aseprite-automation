@@ -177,11 +177,17 @@ def test_geometry_rejects_tilesets_and_tilemap_content_before_mutation(
         json.loads(spa("sprite", operation, "--schema").stdout)["failure_schema"],
     )
     assert failure["code"] == "sprite_geometry_unsupported_content"
-    assert failure["details"]["tileset_count"] > 0
-    if fixture == "tilemap_sprite.lua":
-        assert failure["details"]["tilemap_layer_count"] > 0
-        assert failure["details"]["tilemap_cel_count"] > 0
-        assert failure["details"]["tilemap_image_count"] > 0
+    # Each fixture authors one Tileset; only tilemap_sprite.lua paints one
+    # Tilemap Cel in one Tilemap Layer.
+    tilemap_content = 1 if fixture == "tilemap_sprite.lua" else 0
+    assert failure["details"] == {
+        "kind": "sprite_content",
+        "source_sprite_file": str(source),
+        "tileset_count": 1,
+        "tilemap_layer_count": tilemap_content,
+        "tilemap_cel_count": tilemap_content,
+        "tilemap_image_count": tilemap_content,
+    }
     assert "target_commit" not in failure
     assert not target.exists()
     assert source.read_bytes() == original

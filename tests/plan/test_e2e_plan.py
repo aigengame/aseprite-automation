@@ -54,7 +54,7 @@ def test_plan_run_reads_one_sprite_across_two_steps(tmp_path: Path) -> None:
 
 
 @pytest.mark.e2e
-def test_plan_run_creates_paints_and_commits_once(tmp_path: Path) -> None:
+def test_plan_run_creates_paints_and_commits_target(tmp_path: Path) -> None:
     target = tmp_path / "created.aseprite"
     result = expect_success(
         "plan run",
@@ -89,7 +89,15 @@ def test_plan_run_creates_paints_and_commits_once(tmp_path: Path) -> None:
     assert result["persisted_reopen_verified"] is True
     assert result["steps"][1]["result"]["pixels_written"] == 1
     assert result["steps"][1]["result"]["persisted_reopen_verified"] is False
-    assert result["steps"][2]["result"]["sprite"]["cels"]
+    assert result["steps"][2]["result"]["sprite"]["cels"] == [
+        {
+            "layer_path": [1],
+            "frame_number": 1,
+            "bounds": {"x": 0, "y": 0, "width": 3, "height": 2},
+            "opacity": 255,
+            "z_index": 0,
+        }
+    ]
 
 
 @pytest.mark.e2e
@@ -158,6 +166,7 @@ def test_plan_failed_dynamic_postcondition_leaves_target_absent(tmp_path: Path) 
     assert outcome.returncode == 1, failure
     assert failure["code"] == "kernel_execution_failed"
     assert failure["details"]["failed_step"] is None
+    assert failure["details"]["reason"].endswith("Plan width Postcondition failed")
     assert not target.exists()
 
 

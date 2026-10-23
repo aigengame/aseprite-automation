@@ -386,32 +386,6 @@ def test_plan_adds_cel_then_paints_it_in_one_commit(
     assert reopened["cel"]["content"] == "nonempty"
 
 
-def test_paint_requires_existing_cel_and_does_not_create_one(
-    runtime: RuntimeObservation, tmp_path: Path
-) -> None:
-    source = tmp_path / "source.aseprite"
-    target_file = tmp_path / "painted.aseprite"
-    _cels_sprite(runtime, source)
-    outcome = run(
-        "paint apply",
-        {
-            "source_sprite_file": str(source),
-            "target_sprite_file": str(target_file),
-            "in_place": False,
-            "overwrite": False,
-            "target": {"layer_path": [1], "frame_number": 1},
-            "patch": {
-                "coordinate_space": "image-pixel",
-                "rectangle": {"x": 0, "y": 0, "width": 1, "height": 1},
-                "runs": [],
-            },
-        },
-    )
-    assert outcome.returncode == 2, outcome.envelope
-    assert outcome.envelope["code"] == "cel_not_found"
-    assert not target_file.exists()
-
-
 def test_clear_preserves_regular_cel_and_image_bounds(
     runtime: RuntimeObservation, tmp_path: Path
 ) -> None:
@@ -443,71 +417,46 @@ def test_plan_paint_without_cel_fails_with_typed_outcome(
     runtime: RuntimeObservation, tmp_path: Path
 ) -> None:
     source = tmp_path / "source.aseprite"
-    target_file = tmp_path / "painted.aseprite"
+    standalone_target = tmp_path / "standalone.aseprite"
+    plan_target = tmp_path / "plan.aseprite"
     _cels_sprite(runtime, source)
+    paint = {
+        "target": {"layer_path": [1], "frame_number": 1},
+        "patch": {
+            "coordinate_space": "image-pixel",
+            "rectangle": {"x": 0, "y": 0, "width": 1, "height": 1},
+            "runs": [],
+        },
+    }
+    outcome = run(
+        "paint apply",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(standalone_target),
+            "in_place": False,
+            "overwrite": False,
+            **paint,
+        },
+    )
+    standalone = outcome.envelope
+    assert outcome.returncode == 2, standalone
+    assert standalone["code"] == "cel_not_found"
+    assert not standalone_target.exists()
     outcome = run(
         "plan run",
         {
             "plan": {
                 "source_sprite_file": str(source),
-                "target_sprite_file": str(target_file),
-                "steps": [
-                    {
-                        "operation": "paint apply",
-                        "input": {
-                            "target": {"layer_path": [1], "frame_number": 1},
-                            "patch": {
-                                "coordinate_space": "image-pixel",
-                                "rectangle": {
-                                    "x": 0,
-                                    "y": 0,
-                                    "width": 1,
-                                    "height": 1,
-                                },
-                                "runs": [],
-                            },
-                        },
-                    }
-                ],
+                "target_sprite_file": str(plan_target),
+                "steps": [{"operation": "paint apply", "input": paint}],
             },
         },
     )
-    assert outcome.returncode == 2, outcome.envelope
-    assert outcome.envelope["code"] == "cel_not_found"
-    assert not target_file.exists()
-
-
-def test_plan_duplicate_cel_add_rejects_without_commit(
-    runtime: RuntimeObservation, tmp_path: Path
-) -> None:
-    source = tmp_path / "source.aseprite"
-    target_file = tmp_path / "duplicate.aseprite"
-    _cels_sprite(runtime, source)
-    outcome = run(
-        "plan run",
-        {
-            "plan": {
-                "source_sprite_file": str(source),
-                "target_sprite_file": str(target_file),
-                "steps": [
-                    {
-                        "operation": "cel add",
-                        "input": {
-                            "target": {
-                                "layer": {"layer_path": [1]},
-                                "frame_number": 2,
-                            }
-                        },
-                    }
-                ],
-            },
-        },
-    )
-    assert outcome.returncode == 2, outcome.envelope
     failure = outcome.envelope
-    assert failure["code"] == "cel_already_exists"
-    assert failure["details"]["step_number"] == 1
-    assert not target_file.exists()
+    assert outcome.returncode == 2, failure
+    assert failure["code"] == standalone["code"]
+    assert failure["details"] == standalone["details"] | {"step_number": 1}
+    assert not plan_target.exists()
 
 
 @pytest.mark.parametrize(
@@ -606,8 +555,8 @@ def test_plan_cel_add_preserves_standalone_typed_refusal(
     assert outcome.returncode == 2, outcome.envelope
     failure = outcome.envelope
     assert failure["code"] == standalone["code"]
-    assert failure["details"]["kind"] == details_kind
-    assert failure["details"]["step_number"] == 1
+    assert standalone["details"]["kind"] == details_kind
+    assert failure["details"] == standalone["details"] | {"step_number": 1}
     assert plan_target.read_bytes() == b"prior Plan Target"
     assert source.read_bytes() == source_bytes
 

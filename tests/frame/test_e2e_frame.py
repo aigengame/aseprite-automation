@@ -239,7 +239,11 @@ def test_remove_frame_shifts_retained_content_and_rejects_final_frame(
             "frame_number": 1,
         },
     )
-    assert failed.returncode != 0
+    assert failed.returncode == 1, failed.envelope
+    assert failed.envelope["code"] == "kernel_execution_failed"
+    assert failed.envelope["details"]["reason"].endswith(
+        ": cannot remove the final Frame"
+    )
     assert not final_target.exists()
     assert expect_success("frame list", {"sprite_file": str(one)})["frames"] == [
         {"frame_number": 1, "duration_ms": 100}
@@ -405,16 +409,37 @@ def test_move_background_cel_preserves_opaque_content(
 
 
 @pytest.mark.parametrize(
-    ("operation", "fields"),
+    ("operation", "fields", "reason"),
     [
-        ("set", {"frame_number": 5, "duration_ms": 100}),
-        ("move", {"source_frame_number": 5, "target_frame_number": 1}),
-        ("move", {"source_frame_number": 1, "target_frame_number": 5}),
-        ("remove", {"frame_number": 5}),
+        (
+            "set",
+            {"frame_number": 5, "duration_ms": 100},
+            ": Frame Number is outside the Sprite timeline",
+        ),
+        (
+            "move",
+            {"source_frame_number": 5, "target_frame_number": 1},
+            ": Frame Number is outside the Sprite timeline",
+        ),
+        (
+            "move",
+            {"source_frame_number": 1, "target_frame_number": 5},
+            ": target Frame Number is outside the Sprite timeline",
+        ),
+        (
+            "remove",
+            {"frame_number": 5},
+            ": Frame Number is outside the Sprite timeline",
+        ),
     ],
+    ids=["set", "move-source", "move-target", "remove"],
 )
 def test_invalid_frame_edit_does_not_publish_target(
-    runtime: RuntimeObservation, tmp_path: Path, operation: str, fields: dict[str, int]
+    runtime: RuntimeObservation,
+    tmp_path: Path,
+    operation: str,
+    fields: dict[str, int],
+    reason: str,
 ) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "unpublished.aseprite"
@@ -429,7 +454,9 @@ def test_invalid_frame_edit_does_not_publish_target(
             **fields,
         },
     )
-    assert invocation.returncode != 0
+    assert invocation.returncode == 1, invocation.envelope
+    assert invocation.envelope["code"] == "kernel_execution_failed"
+    assert invocation.envelope["details"]["reason"].endswith(reason)
     assert not target.exists()
     assert [
         frame["duration_ms"]
@@ -625,7 +652,60 @@ def test_add_reports_native_tag_range_adjustment(
     assert added["sprite"]["tags"][0]["to_frame"] == 3
 
 
+def _step_evidence(result: dict[str, object]) -> dict[str, object]:
+    """Return the Frame mutation evidence that a Step and a standalone run share."""
+    standalone_only = {"status", "operation", "target_commit"}
+    # Both results have these fields. A Step reports False and None because the
+    # Plan saves and reopens the Target only after its last Step.
+    completion = {"persisted_reopen_verified", "sprite"}
+    return {
+        key: value
+        for key, value in result.items()
+        if key not in standalone_only | completion
+    }
+
+
 def test_plan_frame_steps_match_standalone_semantics(tmp_path: Path) -> None:
+    created = tmp_path / "created.aseprite"
+    added = tmp_path / "added.aseprite"
+    duplicated = tmp_path / "duplicated.aseprite"
+    expect_success(
+        "sprite create",
+        {
+            "target_sprite_file": str(created),
+            "width": 3,
+            "height": 2,
+            "color_mode": "rgb",
+            "initial_layer": {"kind": "transparent"},
+            "overwrite": False,
+        },
+    )
+    files = {"in_place": False, "overwrite": False}
+    add = expect_success(
+        "frame add",
+        {
+            "source_sprite_file": str(created),
+            "target_sprite_file": str(added),
+            **files,
+            "frame_number": 2,
+            "duration_ms": 340,
+        },
+    )
+    listed = expect_success("frame list", {"sprite_file": str(added)})
+    duplicate = expect_success(
+        "frame duplicate",
+        {
+            "source_sprite_file": str(added),
+            "target_sprite_file": str(duplicated),
+            **files,
+            "source_frame_number": 1,
+            "cel_mode": "link",
+        },
+    )
+    got = expect_success(
+        "frame get", {"sprite_file": str(duplicated), "frame_number": 2}
+    )
+
     target = tmp_path / "plan.aseprite"
     result = expect_success(
         "plan run",
@@ -657,20 +737,12 @@ def test_plan_frame_steps_match_standalone_semantics(tmp_path: Path) -> None:
             }
         },
     )
+    steps = [step["result"] for step in result["steps"]]
     assert result["persisted_reopen_verified"] is True
-    assert result["steps"][1]["result"]["inserted_frame"] == {
-        "frame_number": 2,
-        "duration_ms": 340,
-    }
-    assert len(result["steps"][2]["result"]["frames"]) == 2
-    assert result["steps"][3]["result"]["inserted_frame"] == {
-        "frame_number": 2,
-        "duration_ms": 100,
-    }
-    assert result["steps"][3]["result"]["cel_relationships"] == [
-        {"layer_path": [1], "source_frame_number": 1, "kind": "link"}
-    ]
-    assert result["steps"][4]["result"]["frame"]["duration_ms"] == 100
+    assert _step_evidence(steps[1]) == _step_evidence(add)
+    assert steps[2]["frames"] == listed["frames"]
+    assert _step_evidence(steps[3]) == _step_evidence(duplicate)
+    assert steps[4]["frame"] == got["frame"]
     assert expect_success("frame list", {"sprite_file": str(target)})["frames"] == [
         {"frame_number": 1, "duration_ms": 100},
         {"frame_number": 2, "duration_ms": 100},
@@ -742,7 +814,11 @@ def test_invalid_add_never_publishes_target(
         "duration_ms": 100,
     }
     result = run("frame add", request)
-    assert result.returncode != 0
+    assert result.returncode == 1, result.envelope
+    assert result.envelope["code"] == "kernel_execution_failed"
+    assert result.envelope["details"]["reason"].endswith(
+        ": Frame insertion position is out of range"
+    )
     assert not target.exists()
     assert expect_success("frame list", {"sprite_file": str(source)})["frames"] == [
         {"frame_number": 1, "duration_ms": 120},

@@ -2,6 +2,7 @@
 
 import json
 import os
+import subprocess
 from importlib.resources import files
 from pathlib import Path
 
@@ -389,12 +390,13 @@ def test_plan_check_rejects_unknown_step_and_operation_owned_pixel_limit(
         assert json.loads(run.stdout)["code"] == "invalid_request"
 
 
-def test_plan_step_limit_admits_the_issue_reference_size(tmp_path: Path) -> None:
+def test_plan_step_limit_admits_64_steps_and_rejects_65(tmp_path: Path) -> None:
     source = tmp_path / "source.aseprite"
     source.write_bytes(b"unused by static preflight")
     steps = [{"operation": "sprite get", "input": {"inspection_scope": ["frames"]}}]
-    for count, expected in ((42, 0), (65, 2)):
-        run = spa(
+    runs = {}
+    for count in (64, 65):
+        runs[count] = spa(
             "plan",
             "check",
             "--input-json",
@@ -405,7 +407,14 @@ def test_plan_step_limit_admits_the_issue_reference_size(tmp_path: Path) -> None
             ),
             env=os.environ | {"SPA_ASEPRITE_EXECUTABLE": "/missing/aseprite"},
         )
-        assert run.returncode == expected, run.stdout
+    assert runs[64].returncode == 0, runs[64].stdout
+    assert json.loads(runs[64].stdout)["step_count"] == 64
+    assert runs[65].returncode == 2, runs[65].stdout
+    error = json.loads(runs[65].stdout)["details"]["errors"][0]
+    assert error["location"] == ["plan", "steps"]
+    assert error["message"] == (
+        "List should have at most 64 items after validation, not 65"
+    )
 
 
 def test_plan_check_reports_decidable_path_failures_without_aseprite(
@@ -424,15 +433,29 @@ def test_plan_check_reports_decidable_path_failures_without_aseprite(
         },
     }
     cases = [
-        {"source_sprite_file": str(source), "steps": [get]},
-        {
-            "target_sprite_file": str(tmp_path / "missing" / "target.aseprite"),
-            "steps": [create],
-        },
+        (
+            {"source_sprite_file": str(source), "steps": [get]},
+            ["plan", "source_sprite_file"],
+            "source_not_file",
+        ),
+        (
+            {
+                "target_sprite_file": str(tmp_path / "missing" / "target.aseprite"),
+                "steps": [create],
+            },
+            ["plan", "target_sprite_file"],
+            "target_not_writable",
+        ),
     ]
     target.write_bytes(b"existing target")
-    cases.append({"target_sprite_file": str(target), "steps": [create]})
-    for plan in cases:
+    cases.append(
+        (
+            {"target_sprite_file": str(target), "steps": [create]},
+            ["plan", "target_sprite_file"],
+            "target_not_writable",
+        )
+    )
+    for plan, location, issue_code in cases:
         run = spa(
             "plan",
             "check",
@@ -441,7 +464,10 @@ def test_plan_check_reports_decidable_path_failures_without_aseprite(
             env=os.environ | {"SPA_ASEPRITE_EXECUTABLE": "/missing/aseprite"},
         )
         assert run.returncode == 2, run.stdout
-        assert json.loads(run.stdout)["code"] == "invalid_request"
+        failure = json.loads(run.stdout)
+        assert failure["code"] == "invalid_request"
+        error = failure["details"]["errors"][0]
+        assert (error["location"], error["code"]) == (location, issue_code)
 
 
 def test_plan_run_rejects_missing_source_before_aseprite_discovery(
@@ -576,13 +602,9 @@ def test_plan_check_rejects_known_creation_postcondition_conflicts(
             "initial_layer": {"kind": "transparent"},
         },
     }
-    for conditions in (
-        {"width": 3},
-        {"height": 3},
-        {"color_mode": "grayscale"},
-        {"frame_count": 2},
-    ):
-        run = spa(
+
+    def check(conditions: dict[str, object]) -> subprocess.CompletedProcess[str]:
+        return spa(
             "plan",
             "check",
             "--input-json",
@@ -597,8 +619,29 @@ def test_plan_check_rejects_known_creation_postcondition_conflicts(
             ),
             env=os.environ | {"SPA_ASEPRITE_EXECUTABLE": "/missing/aseprite"},
         )
+
+    for field, conditions in (
+        ("width", {"width": 3}),
+        ("height", {"height": 3}),
+        ("color_mode", {"color_mode": "grayscale"}),
+        ("frame_count", {"frame_count": 2}),
+    ):
+        run = check(conditions)
         assert run.returncode == 2, run.stdout + run.stderr
-        assert json.loads(run.stdout)["code"] == "invalid_request"
+        failure = json.loads(run.stdout)
+        assert failure["code"] == "invalid_request"
+        assert failure["details"]["errors"] == [
+            {
+                "location": ["plan"],
+                "code": "value_error",
+                "message": (
+                    f"Value error, Plan {field} Postcondition contradicts "
+                    "Sprite creation"
+                ),
+            }
+        ]
+    accepted = check({"width": 2, "height": 2, "color_mode": "rgb", "frame_count": 1})
+    assert accepted.returncode == 0, accepted.stdout + accepted.stderr
 
 
 def test_plan_step_validation_reports_index_after_one_process(tmp_path: Path) -> None:

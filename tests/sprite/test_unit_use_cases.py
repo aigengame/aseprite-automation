@@ -206,6 +206,8 @@ def test_crop_requires_kernel_clipping_evidence_before_target_commit() -> None:
         crop_sprite(request, services)
 
     assert failure.value.kind == "response_malformed"
+    cause = failure.value.__cause__
+    assert isinstance(cause, KeyError) and cause.args == ("clipped_cels",)
     assert files.commits == 0
 
 
