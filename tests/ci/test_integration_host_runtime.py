@@ -4,10 +4,11 @@ import json
 import os
 import subprocess
 import sys
-import textwrap
 from pathlib import Path
 
 import pytest
+
+from tests.support import workflow_step
 
 ACTION = (
     Path(__file__).resolve().parents[2] / ".github/actions/aseprite-runtime/action.yml"
@@ -28,12 +29,14 @@ def test_host_runtime_requires_a_working_batch_script(tmp_path: Path, runtime) -
         "if '--version' in sys.argv:\n"
         "    print('Aseprite test runtime')\n"
         "    sys.exit(0)\n"
+        # The crash writes the expected result, so only its exit status fails the step.
         + (
             "output = next(a.removeprefix('output=') for a in sys.argv if a.startswith('output='))\n"
             "Path(output).write_text('spa-aseprite-script-ok\\n')\n"
-            if runtime == "script"
-            else f"sys.exit({1 if runtime == 'crash' else 0})\n"
+            if runtime in {"script", "crash"}
+            else ""
         )
+        + f"sys.exit({1 if runtime == 'crash' else 0})\n"
     )
     executable.chmod(0o755)
     env = {
@@ -44,7 +47,7 @@ def test_host_runtime_requires_a_working_batch_script(tmp_path: Path, runtime) -
         "DISPLAY": "",
         "WAYLAND_DISPLAY": "",
     }
-    body = textwrap.dedent(ACTION.read_text().split("      run: |\n", 1)[1])
+    body = workflow_step(ACTION, "Validate and expose the headless Aseprite executable")
     result = subprocess.run(
         ["bash", "-e", "-o", "pipefail", "-c", body],
         env=env,

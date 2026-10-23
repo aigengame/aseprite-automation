@@ -5,10 +5,11 @@ import os
 import shutil
 import subprocess
 import sys
-import textwrap
 from pathlib import Path
 
 import pytest
+
+from tests.support import workflow_step
 
 ACTION = (
     Path(__file__).resolve().parents[2]
@@ -189,12 +190,11 @@ def test_maintenance_dispatches_only_when_the_pushed_head_matches(
         else None
     )
 
-    step = ACTION.read_text().split(
-        "    - name: Refresh the generated lockfile and dispatch exact-head CI\n", 1
-    )[1]
-    run_body = step.split("      run: |\n", 1)[1].split("\n    - ", 1)[0]
+    run_body = workflow_step(
+        ACTION, "Refresh the generated lockfile and dispatch exact-head CI"
+    )
     result = subprocess.run(
-        ["bash", "-e", "-o", "pipefail", "-c", textwrap.dedent(run_body)],
+        ["bash", "-e", "-o", "pipefail", "-c", run_body],
         cwd=repository,
         env=dispatch_environment(tmp_path, heads, remote, lock_changes, ci_runs),
         capture_output=True,

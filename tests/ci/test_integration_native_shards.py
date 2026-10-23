@@ -5,10 +5,11 @@ import os
 import shutil
 import subprocess
 import sys
-import textwrap
 from pathlib import Path
 
 import pytest
+
+from tests.support import workflow_step
 
 ROOT = Path(__file__).resolve().parents[2]
 RUNNER = ROOT / "scripts/native_e2e.py"
@@ -201,7 +202,7 @@ def test_aggregate_action_checks_reports_and_preserves_failure_through_tee(
     for name in ("native_e2e.py", "verify_pytest_execution.py"):
         shutil.copyfile(ROOT / "scripts" / name, suite / "scripts" / name)
     action = ROOT / ".github/actions/verify-native-e2e/action.yml"
-    body = textwrap.dedent(action.read_text().split("      run: |\n", 1)[1])
+    body = workflow_step(action, "Verify complete native execution")
     env = {
         **os.environ,
         "PATH": str(Path(sys.executable).parent) + os.pathsep + os.environ["PATH"],
@@ -368,14 +369,16 @@ def test_windows_interruption_retires_owned_workers_and_children(suite: Path) ->
 @pytest.mark.parametrize(
     "args",
     [
-        ("--shards", "0"),
-        ("--workers", "-1"),
-        ("--shards", "bad"),
+        ("matrix", "--shards", "0"),
+        ("run", "--workers", "0"),
+        ("matrix", "--shards", "bad"),
     ],
 )
 def test_invalid_configuration_is_rejected_before_execution(suite: Path, args) -> None:
-    result = run(suite, "matrix", *args)
+    result = run(suite, *args)
     assert result.returncode != 0
+    if args[-1] == "0":
+        assert "shards and workers must be positive integers" in result.stderr
     assert not list(suite.glob("shard-*"))
 
 

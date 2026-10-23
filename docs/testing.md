@@ -494,6 +494,10 @@ Use a new output directory for each run. For complete installed-wheel CLI covera
 build the current wheel, install it with the locked runtime dependencies in a separate
 environment, and set `SPA_TEST_INSTALLED_CLI` to its installed `spa` executable.
 Otherwise the existing wheel-only cases report their environment skips.
+Routine CI and the Release fast tests do not set `SPA_TEST_INSTALLED_CLI`, so these
+cases skip there. The Release quality job adds the `mcp` extra to its wheel smoke
+install and runs the 11 `wheel` cases of `tests/cli/test_integration_commands.py`
+and `tests/mcp/test_integration_process.py` against it.
 
 The [installed distribution record](evidence/issue-54-installed-distributions.md)
 records the tested macOS profile, the isolated-wheel replay, and the remaining
@@ -840,6 +844,12 @@ Verification tier, host platform, and display capability are separate properties
 Place a platform condition on the smallest test that needs it. A passing macOS test is
 macOS evidence; it is not Linux evidence. The macOS bundle and restricted-agent cases
 remain macOS-specific. Issue #69 owns Linux CI and Linux real-Aseprite evidence.
+CI runs the fast tier only on Linux. Thus these fast cases give local evidence only:
+`tests/runtime/test_integration_windows_capture.py` and the Windows interruption case
+of `tests/ci/test_integration_native_shards.py` (Windows),
+`tests/runtime/test_integration_aseprite.py::test_unwritable_bundle_link_has_typed_start_failure`
+(macOS), and the case-variant cases of
+`tests/application/test_unit_publication_identity.py` (a case-insensitive file system).
 
 Aseprite `--batch` does not start the UI. A test that produces or inspects image files
 through that path is not windowed unless it actually needs a display. When a

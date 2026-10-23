@@ -16,7 +16,8 @@ def test_generated_pose_pixel_handoff_and_independent_placement(tmp_path: Path) 
     result = build_probe(
         executable, os.environ["SPA_TEST_ASEPRITE"], tmp_path / "probe"
     )
-    assert result["pixel_correspondence"]
+    # build_probe compares each exported Frame with the input placed at its Cel
+    # position, and raises on a mismatch. Its "pixel_correspondence" is a literal.
     cels = result["reopened"]["cels"]
     assert [{"x": cel["bounds"]["x"], "y": cel["bounds"]["y"]} for cel in cels] == [
         {"x": 0, "y": 0},

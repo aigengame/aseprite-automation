@@ -908,3 +908,27 @@ def observe_cli(
         error.add_note(process_diagnostics(process))
         raise
     return process, envelope, json.loads(observations.read_text())
+
+
+def workflow_step(workflow: Path, name: str) -> str:
+    """Return the `run: |` block of the one workflow or action step named `name`.
+
+    The block stops at the next key of the step, at the next step, or at the end of
+    the file. A step that has no `run: |` block is an error.
+    """
+    lines = workflow.read_text().splitlines(keepends=True)
+    starts = [i for i, line in enumerate(lines) if line.strip() == f"- name: {name}"]
+    assert len(starts) == 1, f"{workflow.name}: {len(starts)} steps named {name!r}"
+    step_indent = len(lines[starts[0]]) - len(lines[starts[0]].lstrip())
+    key_indent = step_indent + 2
+    body: list[str] | None = None
+    for line in lines[starts[0] + 1 :]:
+        indent = len(line) - len(line.lstrip())
+        if line.strip() and indent <= (step_indent if body is None else key_indent):
+            break
+        if body is not None:
+            body.append(line)
+        elif indent == key_indent and line.strip() == "run: |":
+            body = []
+    assert body is not None, f"{workflow.name}: step {name!r} has no run block"
+    return textwrap.dedent("".join(body)).rstrip("\n") + "\n"
