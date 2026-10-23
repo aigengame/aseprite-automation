@@ -105,7 +105,12 @@ def test_invalid_geometry_preserves_files_before_native_launch(
         json.dumps(request),
     )
     assert result.returncode == 2, result.stdout + result.stderr
-    assert json.loads(result.stdout)["code"] == "invalid_request"
+    failure = json.loads(result.stdout)
+    assert failure["code"] == "invalid_request"
+    if geometry.get("tilemap_size") == {"width": 1025, "height": 1024}:
+        assert [error["message"] for error in failure["details"]["errors"]] == [
+            "Value error, Tilemap size exceeds the 1048576-Tile Cell Operation Limit"
+        ]
     assert source.read_bytes() == b"Source"
     assert target.read_bytes() == b"Target"
     assert set(tmp_path.iterdir()) == {source, target}

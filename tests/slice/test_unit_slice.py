@@ -21,11 +21,13 @@ from spa.authoring.document.slice import (
         {"slice_index": 0},
         {"slice_index": "1"},
         {"slice_name": "x\x00y"},
-        {"id": "native"},
+        {"slice_index": 1, "id": "native"},
     ],
 )
 def test_slice_addresses_reject_inexact_or_nonpublic_forms(address):
-    with pytest.raises(ValidationError):
+    # A valid address with a native ID fails only for the extra field.
+    message = "Extra inputs are not permitted" if "id" in address else None
+    with pytest.raises(ValidationError, match=message):
         SliceAddress.model_validate(address)
 
 

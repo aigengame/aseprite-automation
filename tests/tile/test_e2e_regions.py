@@ -1,6 +1,7 @@
 """Tilemap region writes through the public CLI and persisted native Images."""
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -689,7 +690,9 @@ def test_native_save_failure_rolls_back_file_publication(
     )
 
     def fail_save(observation, handler, payload, timeout):
-        # The real Kernel performs the mutation, then native save cannot create this path.
+        # The staged path is below a regular file, so native save cannot write it.
+        # Native `Sprite:saveAs` returns true even then; the Kernel detects the
+        # failed save when it reopens the staged Sprite, after the mutation.
         return invoke(
             observation,
             handler,
@@ -705,6 +708,11 @@ def test_native_save_failure_rolls_back_file_publication(
     with pytest.raises(RuntimeIssue) as caught:
         fill_tilemap(request, services)
     assert caught.value.kind == "handler_rejected"
+    # The Lua refusal measured with Aseprite 1.3.18.5, after its source location.
+    reason = getattr(caught.value.evidence, "reason", "")
+    assert re.fullmatch(
+        r".*sprite_persistence\.lua:\d+: could not reopen staged Sprite", reason
+    ), reason
     assert source.read_bytes() == before and target.read_bytes() == b"prior Target"
     assert set(tmp_path.iterdir()) == {source, target}
 

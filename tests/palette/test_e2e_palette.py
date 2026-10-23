@@ -1,5 +1,6 @@
 """Public Palette operations against native Frame-based Palette Changes."""
 
+import re
 from pathlib import Path
 
 import pytest
@@ -192,6 +193,17 @@ def test_set_validates_every_address_before_publication(
     ]
 
 
+# Measured with Aseprite 1.3.18.5. Each case makes two adjacent Palette Changes
+# equal, so native save keeps 2 of the 3 Palette Changes. The Kernel reports the
+# first difference that Lua `pairs` finds, and `pairs` order is not specified.
+# The reported fact changed between runs: the Palette count or a fact below
+# `palettes`.
+ELIMINATED_CHANGE = re.compile(
+    r".*sprite_persistence\.lua:\d+: persisted Palette set differs at document\.sprite\."
+    r"(metadata\.palette_count \(number:3 / number:2\)|palettes\..+)"
+)
+
+
 @pytest.mark.parametrize(
     "change_frame,red,green,blue",
     [(1, 40, 80, 220), (3, 240, 40, 60), (3, 220, 100, 30)],
@@ -224,7 +236,7 @@ def test_set_refuses_native_save_that_eliminates_a_palette_change(
     assert outcome.returncode != 0 and result["code"] == "kernel_execution_failed", (
         result
     )
-    assert "palette" in result["details"]["reason"].lower()
+    assert ELIMINATED_CHANGE.fullmatch(result["details"]["reason"]), result
     assert source.read_bytes() == original and target.read_bytes() == original
     assert sorted(path.name for path in tmp_path.iterdir()) == [
         "source.aseprite",
