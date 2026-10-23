@@ -149,6 +149,39 @@ def test_cel_set_resolves_a_cel_created_by_earlier_steps(tmp_path: Path) -> None
     assert reopened["cel"]["z_index"] == -3
 
 
+@pytest.mark.parametrize("in_place", [False, True])
+def test_later_cel_refusal_reports_step_and_preserves_files(
+    runtime: RuntimeObservation, tmp_path: Path, in_place: bool
+) -> None:
+    source = tmp_path / "source.aseprite"
+    cel_relationships_sprite(runtime, source)
+    target = source if in_place else tmp_path / "existing.aseprite"
+    if not in_place:
+        target.write_bytes(b"prior Target bytes")
+    source_before, target_before = source.read_bytes(), target.read_bytes()
+    first = {"layer": {"layer_path": [1]}, "frame_number": 1}
+    absent = {"layer": {"layer_path": [1]}, "frame_number": 2}
+
+    outcome = run(
+        "plan run",
+        _cel_set_plan(
+            source,
+            target,
+            [
+                {"target": first, "opacity": 0},
+                {"target": first, "position": {"x": -2, "y": 3}},
+                {"target": absent, "z_index": 1},
+            ],
+        ),
+    )
+    result = outcome.envelope
+    assert outcome.returncode == 2, result
+    assert result["code"] == "cel_not_found"
+    assert result["details"]["step_number"] == 3
+    assert source.read_bytes() == source_before
+    assert target.read_bytes() == target_before
+
+
 @pytest.mark.parametrize("mode", ["rgb", "grayscale", "indexed"])
 def test_plan_preserves_linked_pixels_on_hidden_locked_layers(
     tmp_path: Path, runtime, mode: str

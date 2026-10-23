@@ -96,7 +96,9 @@ def test_motion_uses_step_start_baselines_across_layers_and_later_edits(
 
 
 @pytest.mark.parametrize("in_place", [False, True])
-@pytest.mark.parametrize(("kind", "code"), [("linked", "motion_linked_cel")])
+@pytest.mark.parametrize(
+    ("kind", "code"), [("missing", "cel_not_found"), ("linked", "motion_linked_cel")]
+)
 def test_motion_failure_after_prior_plan_work_does_not_publish(
     runtime: RuntimeObservation, tmp_path: Path, in_place: bool, kind: str, code: str
 ) -> None:
@@ -106,9 +108,10 @@ def test_motion_failure_after_prior_plan_work_does_not_publish(
         target.write_bytes(b"existing Target")
     frozen, prior = source.read_bytes(), target.read_bytes()
     inputs = motion_curves()
-    inputs["to_frame"] = 1
-    for name in ("position_offsets", "opacity"):
-        inputs[name]["keys"] = inputs[name]["keys"][:1]
+    if kind == "linked":
+        inputs["to_frame"] = 1
+        for name in ("position_offsets", "opacity"):
+            inputs[name]["keys"] = inputs[name]["keys"][:1]
     outcome = run(
         "plan run",
         plan_request(
