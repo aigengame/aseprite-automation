@@ -203,8 +203,6 @@ def test_sequence_preserves_native_mode_alpha_and_full_palette(
 def test_sequence_preserves_supported_profiles(
     tmp_path: Path, runtime: RuntimeObservation, mode: str, profile: str
 ):
-    from spa.adapters.sequence_png import decode_sequence_png
-
     profile_path = Path("src/spa/kernel/color/profiles") / f"{profile}.icc"
     options = {"icc_file": str(profile_path.resolve())} if profile != "srgb" else {}
     source = source_sprite(
@@ -223,15 +221,18 @@ def test_sequence_preserves_supported_profiles(
     }
     result = expect_success("export sequence", request)
     for item in result["artifacts"]:
-        observed = decode_sequence_png(Path(item["path"]).read_bytes())
-        assert observed.color_profile == ("srgb" if profile == "srgb" else "icc")
+        # Pillow reads the profile facts, not the decoder that the product uses.
+        with Image.open(item["path"]) as image:
+            info = dict(image.info)
         if profile != "srgb":
-            assert observed.icc_bytes == profile_path.read_bytes()
+            assert "srgb" not in info
+            assert info.get("icc_profile") == profile_path.read_bytes()
             assert png_icc_label(Path(item["path"]).read_bytes()) == profile.encode(
                 "ascii"
             )
         else:
-            assert observed.srgb_rendering_intent == 0
+            assert "icc_profile" not in info
+            assert info.get("srgb") == 0
     assert source.read_bytes() == original
 
 
@@ -286,8 +287,10 @@ def test_gif_tag_traversal_quantizes_time_and_reports_infinite_loop(
     result = expect_success("export gif", request)
     assert result["loop"] == {"mode": "infinite", "encoded_count": 0}
     assert result["playback"]["tag"]["repeats"] == 0
+    # Pillow reads the NETSCAPE loop count, not the decoder that the product uses.
+    with Image.open(tmp_path / "cast.gif") as image:
+        assert image.info.get("loop") == 0
     decoded = decode_gif((tmp_path / "cast.gif").read_bytes())
-    assert decoded.loop_count == 0
     assert [frame.duration_ms for frame in decoded.frames] == [10, 20, 100, 20]
     assert [frame.rgba_bytes[:4] for frame in decoded.frames] == [
         bytes([red, 10, 20, 255]) for red in [40, 80, 120, 80]
@@ -329,6 +332,8 @@ def test_gif_refuses_native_alpha_residue_and_subcentisecond_input(
     assert source.read_bytes() == original
     if scenario == "residual":
         assert "alpha" in result["message"]
+    else:
+        assert result["details"]["reason"] == "gif_duration"
 
 
 def test_gif_reports_allowed_native_rgb_loss(

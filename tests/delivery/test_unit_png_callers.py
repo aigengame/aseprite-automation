@@ -1,15 +1,18 @@
-"""Behavioral baseline for both callers of staged PNG publication."""
+"""Behavioral baseline for the three callers of staged PNG publication.
+
+The callers are Export Image, Animation Preview and raster prepare.
+"""
 
 import hashlib
 from dataclasses import dataclass, replace
 from pathlib import Path
 
 import pytest
-from PIL import Image
+from PIL import Image, ImageCms, PngImagePlugin
 
 from spa.adapters.files import LocalArtifactFiles, LocalTargetFiles
 from spa.adapters.png import verify_png
-from spa.adapters.png_input import decode_png_artifact
+from spa.adapters.png_input import decode_png_artifact, decode_png_input
 from spa.authoring.document.animation import AnimationPreviewRequest, preview_animation
 from spa.contracts.digest import fnv1a64
 from spa.contracts.ports import (
@@ -22,11 +25,20 @@ from spa.contracts.ports import (
 )
 from spa.contracts.public import Diagnostics
 from spa.delivery.export import ExportImageRequest, export_image
+from spa.preparation.contracts import PrepareRasterRequest
+from spa.preparation.raster import prepare_raster
 from tests.host_permissions import symlink_creation_permission
 from tests.support import runtime_observation
 
 RGBA = bytes((1, 2, 3, 128))
+# Raster prepare admits only declared opaque or RGBA0 Palette colors.
+PREPARED_RGBA = bytes((180, 70, 30, 255))
+PREPARED_PALETTE = [
+    {"red": 0, "green": 0, "blue": 0, "alpha": 0},
+    {"red": 180, "green": 70, "blue": 30, "alpha": 255},
+]
 DIAGNOSTICS = Diagnostics(exit_status=0, stderr="native evidence")
+EXPORT_REPRESENTATION = "PNG representation differs from native export facts"
 
 
 @dataclass
@@ -36,11 +48,50 @@ class Caller:
     original_source: Path
     destination: Path
     native: dict
+    source_bytes: bytes
+    rgba: bytes
 
     def run(self, services):
+        destination = {"path": str(self.destination), "if_exists": "replace"}
+        if self.name == "prepare":
+            return prepare_raster(
+                PrepareRasterRequest.model_validate(
+                    {
+                        "raster_file": str(self.source),
+                        "intent": {"kind": "initial"},
+                        "specification": {
+                            "alpha_threshold": 128,
+                            "crop": {
+                                "kind": "rectangle",
+                                "rectangle": {"x": 0, "y": 0, "width": 1, "height": 1},
+                            },
+                            "resize": {"kind": "size", "width": 1, "height": 1},
+                            "rounding": "nearest-away-from-zero",
+                            "palette": {
+                                "entries": PREPARED_PALETTE,
+                                "transparent_index": 0,
+                            },
+                            "mapping": {
+                                "rgb_map_algorithm": "octree",
+                                "color_best_fit_criteria": "rgb",
+                                "dithering": "none",
+                            },
+                            "canvas": {"width": 1, "height": 1},
+                            "anchors": [{"name": "origin", "x": 0, "y": 0}],
+                            "alignment": {
+                                "primary_anchor": "origin",
+                                "position": {"x": 0, "y": 0},
+                            },
+                            "output_mode": "rgba",
+                        },
+                        "destination": destination,
+                    }
+                ),
+                services,
+            )
         fields = {
             "source_sprite_file": str(self.source),
-            "destination": {"path": str(self.destination), "if_exists": "replace"},
+            "destination": destination,
         }
         if self.name == "export":
             return export_image(
@@ -66,24 +117,60 @@ class Caller:
         )
 
 
-@pytest.fixture(params=("export", "preview"))
+@pytest.fixture(params=("export", "preview", "prepare"))
 def caller(request, tmp_path):
     original = tmp_path / "original.aseprite"
-    original.write_bytes(b"source bytes")
     source = tmp_path / "source.aseprite"
-    with symlink_creation_permission():
-        source.symlink_to(original)
     destination = tmp_path / "image.png"
     destination.write_bytes(b"existing destination")
-    native = {
-        "width": 1,
-        "height": 1,
-        "color_mode": "rgb",
-        "color_profile": "none",
-        "alpha_min": 128,
-        "alpha_max": 128,
-        "rendered_byte_size": 4,
-    }
+    native = {"width": 1, "height": 1, "rendered_byte_size": 4}
+    rgba = RGBA
+    if request.param == "prepare":
+        original, source = tmp_path / "original.png", tmp_path / "source.png"
+        Image.frombytes("RGBA", (1, 1), PREPARED_RGBA).save(original)
+        rgba = PREPARED_RGBA
+        native.update(
+            color_profile="srgb",
+            alpha_min=255,
+            alpha_max=255,
+            source_rgba_digest=fnv1a64(PREPARED_RGBA),
+            normalized_rgba_digest=fnv1a64(PREPARED_RGBA),
+            normalized_alpha_preserved=True,
+            profile={
+                "source_kind": "none",
+                "source_icc_identity": None,
+                "assumption": "srgb",
+                "effective": "srgb",
+                "converted": False,
+            },
+            crop={"x": 0, "y": 0, "width": 1, "height": 1},
+            resized={"width": 1, "height": 1},
+            offset={"x": 0, "y": 0},
+            mapping={
+                "requested_rgb_map_algorithm": "octree",
+                "effective_rgb_map_algorithm": "octree",
+                "color_best_fit_criteria": "rgb",
+            },
+            dithering={
+                "requested_algorithm": "none",
+                "effective_algorithm": "none",
+                "matrix": None,
+                "dithering_factor": None,
+                "effective_factor_percent": None,
+            },
+            palette_entries=PREPARED_PALETTE,
+            transparent_index=0,
+            output_mode="rgba",
+            stored_content_digest=fnv1a64(PREPARED_RGBA),
+            rgba_content_digest=fnv1a64(PREPARED_RGBA),
+        )
+    else:
+        original.write_bytes(b"source bytes")
+        native.update(
+            color_mode="rgb", color_profile="none", alpha_min=128, alpha_max=128
+        )
+    with symlink_creation_permission():
+        source.symlink_to(original)
     if request.param == "export":
         native.update(
             frame_number=1,
@@ -98,7 +185,7 @@ def caller(request, tmp_path):
             effective_background=False,
             stored_content_digest=fnv1a64(RGBA),
         )
-    else:
+    elif request.param == "preview":
         native.update(
             earlier_frame=1,
             later_frame=2,
@@ -106,7 +193,15 @@ def caller(request, tmp_path):
             earlier_blend_mode="normal",
             earlier_opacity=128,
         )
-    return Caller(request.param, source, original, destination, native)
+    return Caller(
+        request.param,
+        source,
+        original,
+        destination,
+        native,
+        original.read_bytes(),
+        rgba,
+    )
 
 
 class RecordingFiles(LocalArtifactFiles):
@@ -123,22 +218,27 @@ class RecordingFiles(LocalArtifactFiles):
         super().discard(staged)
 
 
-def write_render(payload):
+def write_render(payload, caller):
     png = Path(payload["staged_png_file"])
     rgba = Path(payload["staged_rgba_file"])
-    Image.frombytes("RGBA", (1, 1), RGBA).save(png)
-    rgba.write_bytes(RGBA)
+    metadata = PngImagePlugin.PngInfo()
+    if caller.name == "prepare":
+        # Raster prepare admits only sRGB output with rendering intent 0.
+        metadata.add(b"sRGB", b"\x00")
+    Image.frombytes("RGBA", (1, 1), caller.rgba).save(png, pnginfo=metadata)
+    rgba.write_bytes(caller.rgba)
     return png, rgba
 
 
-def services(invoke, files, verifier=verify_png, decoder=decode_png_artifact):
+def services(invoke, files, verifier=verify_png, decoder=None):
     return OperationServices(
         probe_runtime=lambda _request: runtime_observation("aseprite_export_image"),
         invoke_kernel=invoke,
         target_files=LocalTargetFiles(),
         artifact_files=files,
         verify_png=verifier,
-        decode_png_artifact=decoder,
+        decode_png_artifact=decoder or decode_png_artifact,
+        decode_png_input=decoder or decode_png_input,
     )
 
 
@@ -202,7 +302,7 @@ def test_failure_preserves_destination_and_cleans_both_stages(
 
     def invoke(_observation, _handler, payload, _timeout):
         invocations.append(payload)
-        png, rgba = write_render(payload)
+        png, rgba = write_render(payload, caller)
         if fault == "native_rejected":
             raise RuntimeIssue(
                 "handler_rejected",
@@ -223,13 +323,18 @@ def test_failure_preserves_destination_and_cleans_both_stages(
         elif fault == "empty_rgba":
             rgba.write_bytes(b"")
         elif fault == "short_rgba":
-            rgba.write_bytes(RGBA[:-1])
+            rgba.write_bytes(caller.rgba[:-1])
         elif fault == "different_rgba":
             rgba.write_bytes(bytes((9, 2, 3, 128)))
         elif fault == "wrong_width":
             caller.native["width"] = 2
         elif fault == "wrong_profile":
-            caller.native["color_profile"] = "srgb"
+            caller.native["color_profile"] = (
+                "none" if caller.name == "prepare" else "srgb"
+            )
+        elif fault == "wrong_frame" and caller.name == "prepare":
+            # Raster prepare has no Frame; its native crop names the source region.
+            caller.native["crop"] = {"x": 0, "y": 0, "width": 1, "height": 2}
         elif fault == "wrong_frame":
             caller.native[
                 "frame_number" if caller.name == "export" else "later_frame"
@@ -254,9 +359,14 @@ def test_failure_preserves_destination_and_cleans_both_stages(
         return facts
 
     def decoder(payload):
+        if not invocations:
+            # Raster prepare also decodes its input before the native call.
+            return decode_png_input(payload)
         if fault == "decoder_rejected":
             raise PngInputError("decoder refused")
-        facts = decode_png_artifact(payload)
+        facts = (decode_png_input if caller.name == "prepare" else decode_png_artifact)(
+            payload
+        )
         if fault == "png_changed":
             Path(invocations[-1]["staged_png_file"]).write_bytes(
                 payload + b"changed after verification"
@@ -275,13 +385,87 @@ def test_failure_preserves_destination_and_cleans_both_stages(
     assert caught.value.kind == kind
     if reason is not None:
         if fault == "wrong_profile" and caller.name == "export":
-            reason = "PNG representation differs from native export facts"
+            reason = EXPORT_REPRESENTATION
         assert caught.value.evidence.reason == reason
     assert len(invocations) == 1
-    assert len(files.publications) == publication_attempts
+    assert files.publications == [caller.destination] * publication_attempts
     assert caller.destination.read_bytes() == b"existing destination"
-    assert caller.original_source.read_bytes() == b"source bytes"
-    assert {path.suffix for path in files.discarded} == {".png", ".rgba"}
+    assert caller.original_source.read_bytes() == caller.source_bytes
+    assert sorted(path.suffix for path in files.discarded) == [".png", ".rgba"]
+    assert all(not path.exists() for path in files.discarded)
+
+
+@pytest.mark.parametrize("caller", ["export"], indirect=True)
+@pytest.mark.parametrize(
+    "term",
+    [
+        "mismatch",
+        "stored_digest",
+        "color_mode",
+        "palette",
+        "icc_identity",
+        "icc_identity_without_icc",
+        "srgb_intent",
+        "grayscale_icc",
+    ],
+)
+def test_export_refuses_each_png_representation_difference(caller, term):
+    """Each row except `mismatch` keeps the PNG and RGBA stages in agreement."""
+    files = RecordingFiles()
+    unlisted_icc = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
+
+    def invoke(_observation, _handler, payload, _timeout):
+        png, rgba = write_render(payload, caller)
+        if term == "mismatch":
+            # The PNG pixels differ from the native render and its digest.
+            Image.new("RGB", (1, 1), (1, 2, 3)).save(png)
+            rgba.write_bytes(bytes((0, 0, 0, 255)))
+            caller.native.update(
+                alpha_min=255,
+                alpha_max=255,
+                stored_content_digest=fnv1a64(bytes((0, 0, 0, 255))),
+            )
+        elif term == "stored_digest":
+            caller.native["stored_content_digest"] = fnv1a64(bytes((9, 2, 3, 128)))
+        elif term == "color_mode":
+            caller.native.update(source_color_mode="grayscale", color_mode="grayscale")
+        elif term == "palette":
+            caller.native["palette_entries"] = [
+                {"red": 1, "green": 2, "blue": 3, "alpha": 128}
+            ]
+        elif term == "icc_identity":
+            Image.frombytes("RGBA", (1, 1), caller.rgba).save(
+                png, icc_profile=unlisted_icc
+            )
+            caller.native.update(color_profile="icc", icc_identity="linear_srgb")
+        elif term == "icc_identity_without_icc":
+            caller.native["icc_identity"] = "linear_srgb"
+        elif term == "srgb_intent":
+            metadata = PngImagePlugin.PngInfo()
+            metadata.add(b"sRGB", b"\x01")
+            Image.frombytes("RGBA", (1, 1), caller.rgba).save(png, pnginfo=metadata)
+            caller.native["color_profile"] = "srgb"
+        else:
+            # An unlisted ICC has no identity, so the identity term agrees.
+            Image.new("L", (1, 1), 7).save(png, icc_profile=unlisted_icc)
+            rgba.write_bytes(bytes((7, 7, 7, 255)))
+            caller.native.update(
+                source_color_mode="grayscale",
+                color_mode="grayscale",
+                color_profile="icc",
+                alpha_min=255,
+                alpha_max=255,
+                stored_content_digest=fnv1a64(bytes((7, 255))),
+            )
+        return KernelInvocationResult(caller.native, "/response.json", DIAGNOSTICS)
+
+    with pytest.raises(RuntimeIssue) as caught:
+        caller.run(services(invoke, files))
+    assert caught.value.kind == "artifact_verification_failed"
+    assert caught.value.evidence.reason == EXPORT_REPRESENTATION
+    assert not files.publications
+    assert caller.destination.read_bytes() == b"existing destination"
+    assert sorted(path.suffix for path in files.discarded) == [".png", ".rgba"]
     assert all(not path.exists() for path in files.discarded)
 
 
@@ -293,14 +477,14 @@ def test_alpha_bounds_classification_and_order_remain_operation_owned(
     caller.native.update(alpha_min=200, alpha_max=100)
 
     def invoke(_observation, _handler, payload, _timeout):
-        _, rgba = write_render(payload)
+        _, rgba = write_render(payload, caller)
         if also_mismatch:
             rgba.write_bytes(bytes((9, 2, 3, 128)))
         return KernelInvocationResult(caller.native, "/response.json", DIAGNOSTICS)
 
     def verifier(payload, staged):
-        # Preview retains its verifier port. Export uses the real artifact decoder,
-        # whose alpha bounds are always computed from the independently decoded pixels.
+        # Preview retains its verifier port. Export and raster prepare use their real
+        # decoders, whose alpha bounds always come from the independently decoded pixels.
         return replace(verify_png(payload, staged), alpha_min=200, alpha_max=100)
 
     with pytest.raises(RuntimeIssue) as caught:
@@ -319,7 +503,7 @@ def test_verified_callers_publish_once_and_report_actual_bytes(caller):
 
     def invoke(_observation, _handler, payload, _timeout):
         invocations.append(payload)
-        write_render(payload)
+        write_render(payload, caller)
         return KernelInvocationResult(caller.native, "/response.json", DIAGNOSTICS)
 
     result = caller.run(services(invoke, files))
@@ -328,7 +512,7 @@ def test_verified_callers_publish_once_and_report_actual_bytes(caller):
     assert files.publications == [caller.destination]
     assert result.artifact.byte_size == len(actual)
     assert result.artifact.sha256 == hashlib.sha256(actual).hexdigest()
-    assert result.artifact.role == ("image" if caller.name == "export" else "preview")
-    assert caller.original_source.read_bytes() == b"source bytes"
+    assert result.artifact.role == ("preview" if caller.name == "preview" else "image")
+    assert caller.original_source.read_bytes() == caller.source_bytes
     assert len(files.discarded) == 2
     assert all(not path.exists() for path in files.discarded)

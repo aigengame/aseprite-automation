@@ -199,6 +199,7 @@ def test_export_rejects_unlisted_icc_source_before_encoding(
 
     assert outcome.returncode != 0
     assert outcome.envelope["code"] == "export_image_invalid"
+    assert outcome.envelope["details"]["reason"] == "color_profile"
     assert not destination.exists()
     assert not list(tmp_path.glob("*.staged.png"))
 
@@ -225,6 +226,9 @@ def test_export_rejects_gamma_profile_before_encoding(
 
     assert outcome.returncode != 0
     assert outcome.envelope["code"] == "kernel_execution_failed"
+    assert outcome.envelope["details"]["reason"].endswith(
+        ": unsupported Source Sprite Color Profile"
+    )
     assert not destination.exists()
     assert not list(tmp_path.glob("*.staged.png"))
 
@@ -260,6 +264,7 @@ def test_export_rejects_out_of_range_frame_before_encoding(
 
     assert outcome.returncode != 0
     assert outcome.envelope["code"] == "export_image_invalid"
+    assert outcome.envelope["details"]["reason"] == "frame_number"
     assert not destination.exists()
     assert not list(tmp_path.glob("*.staged.png"))
 
@@ -297,6 +302,9 @@ def test_export_cannot_publish_when_source_is_missing(tmp_path: Path) -> None:
 
     assert outcome.returncode != 0
     assert outcome.envelope["code"] == "kernel_execution_failed"
+    assert outcome.envelope["details"]["reason"].endswith(
+        ": could not open Source Sprite"
+    )
     assert not destination.exists()
     assert not list(tmp_path.glob("*.staged.png"))
     assert not list(tmp_path.glob("*.staged.rgba"))

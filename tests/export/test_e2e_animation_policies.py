@@ -79,6 +79,7 @@ def test_animation_reuses_native_tilemap_group_and_reference_selection(
         assert (
             outcome.returncode == 2 and result["code"] == "animation_export_invalid"
         ), result
+        assert result["details"]["reason"] == "layer_composition"
     assert source.read_bytes() == original
 
 
@@ -148,6 +149,7 @@ def test_sequence_rejects_unsupported_names_without_final_output(
     assert outcome.returncode == 2 and result["code"] == "animation_export_invalid", (
         result
     )
+    assert result["details"]["reason"] == "filename_format"
     assert {p.name for p in tmp_path.iterdir()} == {"source.aseprite"}
 
 
@@ -168,4 +170,5 @@ def test_sequence_rejects_rgb_icc_on_grayscale_without_discarding_profile(
     assert outcome.returncode == 2 and result["code"] == "animation_export_invalid", (
         result
     )
+    assert result["details"]["reason"] == "color_profile"
     assert {p.name for p in tmp_path.iterdir()} == {"source.aseprite"}
