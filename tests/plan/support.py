@@ -34,21 +34,24 @@ def red_pixel(x: int = 0) -> dict[str, object]:
     }
 
 
-def plan_request(source: Path, target: Path, steps: list[dict]) -> dict[str, Any]:
+def plan_request(
+    source: Path | None, target: Path | None, steps: list[dict]
+) -> dict[str, Any]:
     """Return a `plan run` request that runs steps from source to target.
 
-    `in_place` is true when target is source, and `overwrite` is true when target
-    already exists.
+    source is None for a Plan that creates its Sprite, and target is None for a Plan
+    that only reads. `in_place` is true when target is source, and `overwrite` is
+    true when target already exists.
     """
-    return {
-        "plan": {
-            "source_sprite_file": str(source),
-            "target_sprite_file": str(target),
-            "in_place": source == target,
-            "overwrite": target.exists(),
-            "steps": steps,
-        }
-    }
+    body: dict[str, Any] = {}
+    if source is not None:
+        body["source_sprite_file"] = str(source)
+    if target is not None:
+        body["target_sprite_file"] = str(target)
+        body["in_place"] = source == target
+        body["overwrite"] = target.exists()
+    body["steps"] = steps
+    return {"plan": body}
 
 
 def observe_plan(

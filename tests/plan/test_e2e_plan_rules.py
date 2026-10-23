@@ -27,7 +27,7 @@ from spa.application.plan import ELIGIBLE_OPERATIONS
 from spa.contracts.operation import RUNTIME_FAILURE_CODES
 from spa.contracts.ports import RuntimeObservation
 from tests.native_invocation import expect_success, run, run_lua
-from tests.plan.support import observe_plan, red_pixel
+from tests.plan.support import observe_plan, plan_request, red_pixel
 from tests.support import icc_fixture_path, motion_curves, process_diagnostics
 
 TESTS = Path(__file__).parents[1]
@@ -316,18 +316,6 @@ def _standalone(
     }
 
 
-def _plan(source: Path | None, target: Path | None, steps: list[dict]) -> dict:
-    """Return a `plan run` request; an existing Target is overwritten."""
-    body: dict[str, Any] = {"steps": steps}
-    if source is not None:
-        body["source_sprite_file"] = str(source)
-    if target is not None:
-        body["target_sprite_file"] = str(target)
-        body["in_place"] = source == target
-        body["overwrite"] = target.exists()
-    return {"plan": body}
-
-
 def _step(case: Case) -> dict[str, Any]:
     return {"operation": case.operation, "input": case.step_input}
 
@@ -358,7 +346,7 @@ def test_r1_step_result_equals_standalone_result(
     )
 
     result = expect_success(
-        "plan run", _plan(source, None if case.reads else planned, [_step(case)])
+        "plan run", plan_request(source, None if case.reads else planned, [_step(case)])
     )
     step = result["steps"][0]["result"]
     if case.reads:
@@ -412,7 +400,7 @@ def test_r2_step_refusal_equals_standalone_refusal(
     assert standalone.envelope["code"] == refusal.code
 
     step = {"operation": refusal.operation, "input": refusal.step_input}
-    outcome = run("plan run", _plan(source, planned, [SPRITE_GET_FRAMES, step]))
+    outcome = run("plan run", plan_request(source, planned, [SPRITE_GET_FRAMES, step]))
     failure = outcome.envelope
     assert outcome.returncode == 2, failure
     assert failure["code"] == refusal.code
@@ -438,7 +426,9 @@ def test_r3_plan_uses_one_invocation_and_commits_only_a_verified_save(
     # The read Step makes the Plan have two Steps in its one invocation.
     observer_case = "none" if save == "verified" else save
     process, result, _ = observe_plan(
-        observer_case, _plan(source, target, [_step(case), SPRITE_GET_FRAMES]), tmp_path
+        observer_case,
+        plan_request(source, target, [_step(case), SPRITE_GET_FRAMES]),
+        tmp_path,
     )
     assert source is None or source.read_bytes() == frozen
     if save == "verified":
@@ -478,7 +468,7 @@ def test_r4_failed_later_step_keeps_source_and_target_bytes(
         target.write_bytes(b"prior Target")
     prior = target.read_bytes()
 
-    outcome = run("plan run", _plan(source, target, [_step(case), REFUSED_STEP]))
+    outcome = run("plan run", plan_request(source, target, [_step(case), REFUSED_STEP]))
     failure = outcome.envelope
     assert outcome.returncode == 1, failure
     assert failure["code"] == "kernel_execution_failed"
