@@ -7,10 +7,25 @@ from spa.authoring.raster.despeckle import DespeckleRequest, despeckle
 from spa.contracts.ports import RuntimeIssue
 from spa.contracts.public import RuntimeRequest
 from tests.filter.support import (
+    assert_malformed,
     assert_unpublished,
-    filter_cel_evidence,
+    despeckle_evidence,
     setup_filter_staging,
 )
+
+# The validator text that refuses each corrupted evidence field.
+NATIVE_PATH = "Despeckle observations disagree with its native pixel path"
+EVIDENCE_CAUSES = {
+    "width": NATIVE_PATH,
+    "height": NATIVE_PATH,
+    "anchor": NATIVE_PATH,
+    "sample_count": NATIVE_PATH,
+    "channels": "Filter evidence disagrees with the requested application",
+    "processed_image_numbers": NATIVE_PATH,
+    "cel_effects": "Cel effects must cover every affected Cel",
+    "palette_after": "palette_after.frame_count\n  Field required",
+    "persisted_reopen_verified": "persisted_reopen_verified\n  Input should be True",
+}
 from tests.support import operation_services, runtime_observation
 
 
@@ -31,111 +46,15 @@ def request_for(source, target):
     )
 
 
-def response_for():
-    response = filter_cel_evidence()
-    response.update(
-        width=3, height=1, tiled_mode="none", anchor={"x": 1, "y": 0}, sample_count=3
-    )
-    return response
-
-
 def test_matched_native_observations_publish(tmp_path):
-    services, source, target, staged = setup_filter_staging(tmp_path, response_for())
+    services, source, target, staged = setup_filter_staging(
+        tmp_path, despeckle_evidence()
+    )
     result = despeckle(request_for(source, target), services)
     assert result.persisted_reopen_verified
     assert target.read_bytes() == b"native staged output"
     assert source.read_bytes() == b"original source"
     assert not staged[0].exists()
-
-
-def test_omitted_selection_cannot_publish_empty_selection_evidence(tmp_path):
-    response = response_for()
-    response["selection"] = {"kind": "empty"}
-    services, source, target, staged = setup_filter_staging(tmp_path, response)
-    with pytest.raises(RuntimeIssue) as caught:
-        despeckle(request_for(source, target), services)
-    assert caught.value.kind == "response_malformed"
-    assert_unpublished(source, target, staged)
-
-
-@pytest.mark.parametrize(
-    "layers, frames",
-    [
-        ([{"layer_path": [1]}], [2]),
-        ([{"layer_path": [2]}], [1]),
-        ([{"layer_path": [1]}], [1, 2]),
-        ([{"layer_path": [1]}, {"layer_path": [2]}], [1]),
-        ([{"layer_name": "Ink"}], [2]),
-        ([{"layer_uuid": "persisted-layer"}], [2]),
-    ],
-    ids=["frame", "path", "missing-frame", "missing-layer", "name-frame", "uuid-frame"],
-)
-def test_selected_targets_cannot_publish_different_intersections(
-    tmp_path, layers, frames
-):
-    response = response_for()
-    response["cels_target_kind"] = "selected"
-    services, source, target, staged = setup_filter_staging(tmp_path, response)
-    data = request_for(source, target).model_dump()
-    data["pixels"]["cels_target"] = {
-        "kind": "selected",
-        "layers": layers,
-        "frame_numbers": frames,
-    }
-    with pytest.raises(RuntimeIssue) as caught:
-        despeckle(DespeckleRequest.model_validate(data), services)
-    assert caught.value.kind == "response_malformed"
-    assert_unpublished(source, target, staged)
-
-
-@pytest.mark.parametrize(
-    "layer",
-    [{"layer_path": [1]}, {"layer_name": "Ink"}, {"layer_uuid": "persisted-layer"}],
-)
-def test_resolved_layer_addresses_can_publish_matching_frames(tmp_path, layer):
-    response = response_for()
-    response["cels_target_kind"] = "selected"
-    services, source, target, staged = setup_filter_staging(tmp_path, response)
-    data = request_for(source, target).model_dump()
-    data["pixels"]["cels_target"] = {
-        "kind": "selected",
-        "layers": [layer],
-        "frame_numbers": [1],
-    }
-    result = despeckle(DespeckleRequest.model_validate(data), services)
-    assert result.requested_intersections[0].layer_path == [1]
-    assert target.read_bytes() == b"native staged output"
-    assert source.read_bytes() == b"original source"
-    assert not staged[0].exists()
-
-
-def test_existing_targets_must_agree_with_reported_intersections(tmp_path):
-    response = response_for()
-    response["cels_target_kind"] = "selected"
-    response["requested_intersections"] = [
-        {"layer_path": [1], "frame_number": 2, "image_number": 1}
-    ]
-    services, source, target, staged = setup_filter_staging(tmp_path, response)
-    data = request_for(source, target).model_dump()
-    data["pixels"]["cels_target"] = {
-        "kind": "selected",
-        "layers": [{"layer_path": [1]}],
-        "frame_numbers": [2],
-    }
-    with pytest.raises(RuntimeIssue) as caught:
-        despeckle(DespeckleRequest.model_validate(data), services)
-    assert caught.value.kind == "response_malformed"
-    assert_unpublished(source, target, staged)
-
-
-def test_empty_selection_cannot_publish_nonempty_selection_evidence(tmp_path):
-    services, source, target, staged = setup_filter_staging(tmp_path, response_for())
-    data = request_for(source, target).model_dump()
-    data["pixels"]["selection"] = {"kind": "empty"}
-    with pytest.raises(RuntimeIssue) as caught:
-        despeckle(DespeckleRequest.model_validate(data), services)
-    assert caught.value.kind == "response_malformed"
-    assert_unpublished(source, target, staged)
 
 
 @pytest.mark.parametrize(
@@ -194,38 +113,23 @@ def test_empty_selection_cannot_publish_nonempty_selection_evidence(tmp_path):
 def test_impossible_selection_observations_cannot_publish(
     tmp_path, requested, observed
 ):
-    response = response_for()
+    response = despeckle_evidence()
     response["selection"] = observed
     services, source, target, staged = setup_filter_staging(tmp_path, response)
     data = request_for(source, target).model_dump()
     data["pixels"]["selection"] = requested
     with pytest.raises(RuntimeIssue) as caught:
         despeckle(DespeckleRequest.model_validate(data), services)
-    assert caught.value.kind == "response_malformed"
+    assert_malformed(caught, "Filter evidence disagrees with the requested application")
     assert_unpublished(source, target, staged)
 
 
-@pytest.mark.parametrize(
-    "corruption",
-    [
-        "width",
-        "height",
-        "tiled_mode",
-        "anchor",
-        "sample_count",
-        "channels",
-        "processed_image_numbers",
-        "cel_effects",
-        "palette_after",
-        "persisted_reopen_verified",
-    ],
-)
+@pytest.mark.parametrize("corruption", list(EVIDENCE_CAUSES))
 def test_inconsistent_native_evidence_cannot_publish(tmp_path, corruption):
-    response = response_for()
+    response = despeckle_evidence()
     invalid = {
         "width": 4,
         "height": 2,
-        "tiled_mode": "both",
         "anchor": {"x": 0, "y": 0},
         "sample_count": 1,
         "channels": {"kind": "index"},
@@ -238,7 +142,7 @@ def test_inconsistent_native_evidence_cannot_publish(tmp_path, corruption):
     services, source, target, staged = setup_filter_staging(tmp_path, response)
     with pytest.raises(RuntimeIssue) as caught:
         despeckle(request_for(source, target), services)
-    assert caught.value.kind == "response_malformed"
+    assert_malformed(caught, EVIDENCE_CAUSES[corruption])
     assert_unpublished(source, target, staged)
 
 

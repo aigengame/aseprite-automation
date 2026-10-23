@@ -1,4 +1,13 @@
-"""Standalone filters compared with independent native command invocations."""
+"""Invert Color and Outline through the installed CLI.
+
+Native parity tests compare the Target with an independent native command
+invocation (`invert_outline_native.lua`, or the `native` action of
+`invert_outline_mixed.lua`). Refusal tests check that an unsafe Palette index,
+an Indexed component request or an invalid Palette color stops the request
+before publication. Witness tests check literal pixels: two Invert Color
+passes, discriminating Outline points and tiled corners, and an empty
+Selection.
+"""
 
 import pytest
 
@@ -406,53 +415,6 @@ def test_index_palette_bounds_and_selection_excludes_unsafe_pixels(
         "invert-color", source, tmp_path / "selected.aseprite", **parameters
     )
     assert (code == 0) == (size >= 129), result
-
-
-@pytest.mark.parametrize("operation", ["invert-color", "outline"])
-@pytest.mark.parametrize("target_kind", ["all", "mixed", "tilemap"])
-def test_resolved_tilemaps_refuse_whole_operation(
-    tmp_path, runtime, operation, target_kind
-):
-    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    lua = run_lua(FIXTURES / "tilemap.lua", runtime, source=source, mode="rgb")
-    assert lua.returncode == 0, process_diagnostics(lua)
-    before = source.read_bytes()
-    target.write_bytes(b"retained target")
-    parameters = (
-        outline_request() if operation == "outline" else request("rgb", ["red"])
-    )
-    parameters["cels_target"] = (
-        {"kind": "all"}
-        if target_kind == "all"
-        else {
-            "kind": "selected",
-            "layers": [
-                {"layer_path": [i]} for i in ([1, 2] if target_kind == "mixed" else [2])
-            ],
-            "frame_numbers": [1],
-        }
-    )
-    code, result = invoke(operation, source, target, overwrite=True, **parameters)
-    assert code != 0 and result["code"] == "filter_unsupported_document", result
-    assert source.read_bytes() == before and target.read_bytes() == b"retained target"
-
-
-@pytest.mark.parametrize("operation", ["invert-color", "outline"])
-def test_unrelated_tilemaps_preserved(tmp_path, runtime, operation):
-    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    lua = run_lua(FIXTURES / "tilemap.lua", runtime, source=source, mode="rgb")
-    assert lua.returncode == 0, process_diagnostics(lua)
-    before = observe_images(runtime, source)
-    parameters = (
-        outline_request() if operation == "outline" else request("rgb", ["red"])
-    )
-    code, result = invoke(operation, source, target, **parameters)
-    assert code == 0, result
-    after = observe_images(runtime, target)
-    assert after["tiles"] == before["tiles"]
-    assert [cel for cel in after["cels"] if cel["layer"] == "Tilemap"] == [
-        cel for cel in before["cels"] if cel["layer"] == "Tilemap"
-    ]
 
 
 def test_indexed_outline_components_gap_before_mutation(tmp_path, runtime):

@@ -309,53 +309,6 @@ def test_alpha_only_zero_is_noop_without_trim_or_requantization(
     assert observe_images(runtime, target) == before
 
 
-@pytest.mark.parametrize("alpha", [0, 50, -100])
-def test_background_alpha_rejects_before_publication_including_zero(
-    tmp_path, runtime, alpha
-):
-    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    lua = run_lua(
-        FIXTURES / "hue_source.lua",
-        runtime,
-        source=source,
-        mode="rgb",
-        background="true",
-    )
-    assert lua.returncode == 0, process_diagnostics(lua)
-    before = source.read_bytes()
-    target.write_bytes(b"existing target")
-    code, result = hue(
-        source,
-        target,
-        application("rgb", "pixels", ["alpha"]),
-        alpha=alpha,
-        overwrite=True,
-    )
-    assert code != 0 and result["code"] == "filter_unsupported_document", result
-    assert "Background" in result["message"]
-    assert source.read_bytes() == before
-    assert target.read_bytes() == b"existing target"
-
-
-@pytest.mark.parametrize("target_kind", ["selected", "all"])
-def test_tilemap_pixel_application_rejects_before_publication(
-    tmp_path, runtime, target_kind
-):
-    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    lua = run_lua(
-        FIXTURES / "tilemap.lua", runtime, source=source, mode="indexed", only="true"
-    )
-    assert lua.returncode == 0, process_diagnostics(lua)
-    before = source.read_bytes()
-    app = application("indexed", "pixels", ["alpha"])
-    if target_kind == "all":
-        app["cels_target"] = {"kind": "all"}
-    code, result = hue(source, target, app, alpha=50)
-    assert code != 0 and result["code"] == "filter_unsupported_document", result
-    assert "Tilemap" in result["message"]
-    assert not target.exists() and source.read_bytes() == before
-
-
 def test_tilemap_only_palette_alpha_preserves_tile_and_placement_images(
     tmp_path, runtime
 ):

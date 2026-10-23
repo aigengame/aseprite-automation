@@ -7,50 +7,31 @@ from spa.authoring.raster.filter import BrightnessContrastRequest, brightness_co
 from spa.contracts.ports import RuntimeIssue
 from spa.contracts.public import RuntimeRequest
 from tests.filter.support import (
+    assert_malformed,
     assert_unpublished,
-    filter_evidence,
-    setup_filter_staging,
+    brightness_contrast_evidence,
+    setup_brightness_contrast,
 )
 from tests.support import operation_services, runtime_observation
 
-
-def evidence():
-    result = filter_evidence()
-    result.update(
-        brightness=10,
-        contrast=0,
-        requested_tileset_mode=None,
-        observed_tileset_mode=None,
-        changed_tiles=[],
-    )
-    for image in result["images"]:
-        image["image_kind"] = "ordinary"
-    return result
-
-
-def setup_operation(tmp_path, response=None, crash=False):
-    services, source, target, staged = setup_filter_staging(tmp_path, response, crash)
-    request = BrightnessContrastRequest.model_validate(
-        {
-            "source_sprite_file": str(source),
-            "target_sprite_file": str(target),
-            "in_place": False,
-            "overwrite": True,
-            "brightness": 10,
-            "contrast": 0,
-            "application": {
-                "kind": "pixels",
-                "color_mode": "rgb",
-                "channels": {"kind": "components", "names": ["red"]},
-                "cels_target": {"kind": "all"},
-            },
-        }
-    )
-    return request, services, source, target, staged
+# The validator text that refuses each corrupted evidence field.
+CONTRADICTION_CAUSES = {
+    "missing_evidence": "images\n  Field required",
+    "changed_flag": "Filter Image change disagrees with its content digests",
+    "application": "Filter evidence disagrees with the requested application",
+}
+TILE_REFERENCE_CAUSES = {
+    "missing_direct": "Tile references disagree with Filter Cel Image targets",
+    "image_number": "Tile references disagree with Filter Cel Image targets",
+    "duplicate": "Tile references disagree with Filter Cel Image targets",
+    "empty_tile": "tile_index\n  Input should be greater than or equal to 1",
+}
 
 
 def test_valid_persisted_evidence_publishes_target(tmp_path):
-    request, services, source, target, staged = setup_operation(tmp_path, evidence())
+    request, services, source, target, staged = setup_brightness_contrast(
+        tmp_path, brightness_contrast_evidence()
+    )
     result = brightness_contrast(request, services)
     assert result.target_commit.target_sprite_file == str(target)
     assert target.read_bytes() == b"native staged output"
@@ -59,33 +40,39 @@ def test_valid_persisted_evidence_publishes_target(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "rejection",
+    "rejection, cause",
     [
-        {"code": "filter_invalid_target"},
-        {"code": "filter_invalid_target", "message": "bad target", "details": {}},
-        {
-            "code": "filter_invalid_target",
-            "message": 1,
-            "details": {"kind": "filter", "reason": "locked"},
-        },
+        pytest.param({"code": "filter_invalid_target"}, "'message'", id="rejection0"),
+        pytest.param(
+            {"code": "filter_invalid_target", "message": "bad target", "details": {}},
+            "reason\n  Field required",
+            id="rejection1",
+        ),
+        pytest.param(
+            {
+                "code": "filter_invalid_target",
+                "message": 1,
+                "details": {"kind": "filter", "reason": "locked"},
+            },
+            "Invalid Filter rejection",
+            id="rejection2",
+        ),
     ],
 )
-def test_malformed_rejection_is_typed_and_does_not_publish(tmp_path, rejection):
-    request, services, source, target, staged = setup_operation(
+def test_malformed_rejection_is_typed_and_does_not_publish(tmp_path, rejection, cause):
+    request, services, source, target, staged = setup_brightness_contrast(
         tmp_path,
         {"rejection": rejection},
     )
     with pytest.raises(RuntimeIssue) as caught:
         brightness_contrast(request, services)
-    assert caught.value.kind == "response_malformed"
+    assert_malformed(caught, cause)
     assert_unpublished(source, target, staged)
 
 
-@pytest.mark.parametrize(
-    "corruption", ["missing_evidence", "changed_flag", "application"]
-)
+@pytest.mark.parametrize("corruption", list(CONTRADICTION_CAUSES))
 def test_contradictory_evidence_cannot_publish(tmp_path, corruption):
-    response = evidence()
+    response = brightness_contrast_evidence()
     if corruption == "missing_evidence":
         del response["images"]
     elif corruption == "changed_flag":
@@ -93,25 +80,27 @@ def test_contradictory_evidence_cannot_publish(tmp_path, corruption):
         response["changed"] = False
     else:
         response["application"] = "rgb-palette-colors"
-    request, services, source, target, staged = setup_operation(tmp_path, response)
+    request, services, source, target, staged = setup_brightness_contrast(
+        tmp_path, response
+    )
     with pytest.raises(RuntimeIssue) as caught:
         brightness_contrast(request, services)
-    assert caught.value.kind == "response_malformed"
+    assert_malformed(caught, CONTRADICTION_CAUSES[corruption])
     assert_unpublished(source, target, staged)
 
 
 def test_kernel_exception_discards_stage_and_preserves_both_files(tmp_path):
-    request, services, source, target, staged = setup_operation(tmp_path, crash=True)
+    request, services, source, target, staged = setup_brightness_contrast(
+        tmp_path, crash=True
+    )
     with pytest.raises(RuntimeError, match="kernel interrupted after staging"):
         brightness_contrast(request, services)
     assert_unpublished(source, target, staged)
 
 
-@pytest.mark.parametrize(
-    "corruption", ["none", "missing_direct", "image_number", "duplicate", "empty_tile"]
-)
+@pytest.mark.parametrize("corruption", ["none", *TILE_REFERENCE_CAUSES])
 def test_tile_reference_evidence_controls_publication(tmp_path, corruption):
-    response = evidence()
+    response = brightness_contrast_evidence()
     response["requested_tileset_mode"] = response["observed_tileset_mode"] = "manual"
     image = response["images"][0]
     image.update(image_kind="tilemap-placement", changed=False)
@@ -138,7 +127,9 @@ def test_tile_reference_evidence_controls_publication(tmp_path, corruption):
         response["changed_tiles"][0]["referencing_cels"].append(reference.copy())
     elif corruption == "empty_tile":
         response["changed_tiles"][0]["tile_index"] = 0
-    request, services, source, target, staged = setup_operation(tmp_path, response)
+    request, services, source, target, staged = setup_brightness_contrast(
+        tmp_path, response
+    )
     request = BrightnessContrastRequest.model_validate(
         {
             **request.model_dump(),
@@ -154,7 +145,7 @@ def test_tile_reference_evidence_controls_publication(tmp_path, corruption):
     else:
         with pytest.raises(RuntimeIssue) as caught:
             brightness_contrast(request, services)
-        assert caught.value.kind == "response_malformed"
+        assert_malformed(caught, TILE_REFERENCE_CAUSES[corruption])
         assert_unpublished(source, target, staged)
 
 

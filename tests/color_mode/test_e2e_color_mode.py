@@ -336,6 +336,44 @@ def test_complete_sprite_images_palette_basis_and_links(
     assert source.read_bytes() == original
 
 
+def fnv1a64(data: bytes) -> str:
+    """Return the FNV-1a 64-bit digest of data as 16 lowercase hex digits."""
+    value = 0xCBF29CE484222325
+    for byte in data:
+        value = (value ^ byte) * 0x100000001B3 % 2**64
+    return f"{value:016x}"
+
+
+def dump_cels(runtime, sprite_file: Path) -> dict:
+    """Return the `cel_dump.lua` record of each Cel and Tile in sprite_file."""
+    response = sprite_file.with_suffix(".cels.json")
+    lua = run_lua(
+        FIXTURES / "cel_dump.lua", runtime, source=sprite_file, response=response
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
+    return json.loads(response.read_text())
+
+
+def assert_reported_digests(after: dict, dumped: dict) -> None:
+    """Assert that each reported content digest hashes the dumped raw bytes."""
+    contents = {image["image_number"]: image["content"] for image in after["images"]}
+    cels = {(cel["frame_number"], *cel["layer_path"]): cel for cel in dumped["cels"]}
+    tiles = {
+        (tile["tileset_number"], tile["tile_index"]): tile for tile in dumped["tiles"]
+    }
+    assert len(after["cels"]) == len(cels)
+    for cel in after["cels"]:
+        raw = cels[(cel["frame_number"], *cel["layer_path"])]["bytes"]
+        assert contents[cel["image_number"]] == fnv1a64(bytes.fromhex(raw))
+    for tileset in after["tilesets"]:
+        for tile in tileset["tiles"]:
+            raw = tiles[(tileset["tileset_number"], tile["tile_index"])]["bytes"]
+            if tile["image_number"] is None:
+                assert raw is None
+            else:
+                assert contents[tile["image_number"]] == fnv1a64(bytes.fromhex(raw))
+
+
 def assert_native_reference(tmp_path, runtime, source, result, options):
     options_file, reference, receipt = [
         tmp_path / name
@@ -356,6 +394,11 @@ def assert_native_reference(tmp_path, runtime, source, result, options):
     )
     assert code == 0, observed
     assert observed["after"] == result["after"]
+    # The SPA observer reads both sides above. The independent dump compares
+    # Cel position and raw bytes, and checks each reported digest.
+    dumped = dump_cels(runtime, Path(result["target_commit"]["target_sprite_file"]))
+    assert dumped == dump_cels(runtime, reference)
+    assert_reported_digests(result["after"], dumped)
 
 
 @pytest.mark.parametrize("source_mode", ["rgb", "grayscale"])
@@ -784,6 +827,8 @@ def test_failed_postcondition_after_conversion_rolls_back_target(tmp_path, runti
     assert failed.returncode != 0 and result["code"] == "kernel_execution_failed", (
         result
     )
+    assert result["details"]["failed_step"] is None, result
+    assert result["details"]["reason"].endswith("Plan color_mode Postcondition failed")
     assert source.read_bytes() == original
     assert target.read_bytes() == b"previous target"
 
