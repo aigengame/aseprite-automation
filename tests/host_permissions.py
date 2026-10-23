@@ -1,4 +1,9 @@
-"""Host-permission fixtures with one call shape on every platform."""
+"""Host-permission fixtures with one call shape on every platform.
+
+A process that runs as root can still list or read a denied path. Thus
+`deny_directory_listing`, and each caller of `deny_access` that needs a working
+denial, probe the denial and skip the case when it does not apply.
+"""
 
 import os
 import stat

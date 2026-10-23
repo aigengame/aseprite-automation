@@ -1,4 +1,11 @@
-"""PNG profile preparation preserves native values without trusting backend names."""
+"""PNG profile preparation preserves native values without trusting backend names.
+
+Aseprite's `none` color backend leaves the display name of a loaded ICC profile
+empty. Native PNG uses that name as the iCCP keyword, and libpng rejects an empty
+keyword. Export gives only its private PNG copy of the profile a nonempty name. The
+Source and the ICC bytes do not change, and independent decoding still requires
+the exact ICC bytes. The color converter capability does not affect this name.
+"""
 
 from importlib.resources import files
 from pathlib import Path
