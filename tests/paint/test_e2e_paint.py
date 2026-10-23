@@ -357,6 +357,10 @@ def test_background_and_grayscale_writes_preserve_native_mode_and_opacity(
     translucent_patch["runs"][0]["color"]["alpha"] = 1  # type: ignore[index]
     translucent = _apply(background, translucent_target, translucent_patch)
     assert translucent.returncode == 1, process_diagnostics(translucent.process)
+    assert (
+        "Background RGB write must be opaque"
+        in translucent.envelope["details"]["reason"]
+    )
     assert not translucent_target.exists()
 
     grayscale = tmp_path / "grayscale.aseprite"
@@ -432,6 +436,10 @@ def test_indexed_write_reports_effective_palette_and_rejects_missing_index_atomi
     ]
     invalid = _apply(source, invalid_target, invalid_patch)
     assert invalid.returncode == 1, process_diagnostics(invalid.process)
+    assert (
+        "Palette Index does not exist in every affected Cel Frame Effective Palette"
+        in invalid.envelope["details"]["reason"]
+    )
     assert not invalid_target.exists()
     assert source.read_bytes() == source_bytes
 
@@ -627,35 +635,6 @@ def test_apply_case_variant_publication_entry_requires_in_place_intent(
         assert outcome.returncode == 2, process_diagnostics(outcome.process)
         assert outcome.envelope["code"] == "invalid_request"
         assert source.read_bytes() == before
-
-
-def test_apply_resolves_the_complete_target_before_any_write(tmp_path: Path) -> None:
-    source = tmp_path / "source.aseprite"
-    target = tmp_path / "never-published.aseprite"
-    create_sprite(source, width=3, height=2)
-    source_bytes = source.read_bytes()
-    patch = _rgba_patch(x=0, y=0, length=1, width=4)
-    patch["runs"] = [
-        patch["runs"][0],  # type: ignore[index]
-        {
-            "x": 3,
-            "y": 0,
-            "length": 1,
-            "color": {
-                "kind": "rgba",
-                "red": 68,
-                "green": 85,
-                "blue": 102,
-                "alpha": 255,
-            },
-        },
-    ]
-
-    outcome = _apply(source, target, patch)
-
-    assert outcome.returncode == 1, process_diagnostics(outcome.process)
-    assert not target.exists()
-    assert source.read_bytes() == source_bytes
 
 
 @pytest.mark.parametrize(

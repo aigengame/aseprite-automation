@@ -323,6 +323,11 @@ def test_rejects_off_image_footprint_without_publishing(
     }
     original = source.read_bytes()
     outcome = run(f"paint {tool}", request)
-    assert outcome.returncode != 0, outcome.envelope
+    assert outcome.returncode == 1, process_diagnostics(outcome.process)
+    assert outcome.envelope["code"] == "kernel_execution_failed"
+    assert (
+        "Native Brush footprint is outside Image bounds"
+        in outcome.envelope["details"]["reason"]
+    )
     assert not target.exists()
     assert source.read_bytes() == original
