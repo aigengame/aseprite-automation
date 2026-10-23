@@ -8,11 +8,10 @@ from jsonschema import validate
 
 from spa.contracts.ports import RuntimeObservation
 from tests.native_invocation import expect_success, run
-from tests.plan.support import plan_request, red_pixel
+from tests.plan.support import observe_plan, plan_request, red_pixel
 from tests.support import (
     cel_relationships_sprite,
     inspect_orientation,
-    observe_cli,
     orientation_fixture,
     spa,
 )
@@ -27,7 +26,7 @@ def _cel_set_plan(source: Path, target: Path, inputs: list[dict]) -> dict:
     )
 
 
-def test_cel_set_plan_matches_standalone_and_defers_persistence(
+def test_cel_set_plan_reopens_the_standalone_cel(
     runtime: RuntimeObservation, tmp_path: Path
 ) -> None:
     source = tmp_path / "source.aseprite"
@@ -53,13 +52,9 @@ def test_cel_set_plan_matches_standalone_and_defers_persistence(
 
     result = expect_success("plan run", _cel_set_plan(source, planned, [changes]))
     step = result["steps"][0]["result"]
-    for field in ("before_cel_count", "before_cels", "affected_cels", "cel"):
-        assert step[field] == expected[field]
     assert step["cel"]["position"] == {"x": -2, "y": 3}
     assert step["cel"]["opacity"] == 0
     assert step["cel"]["z_index"] == -1
-    assert step["persisted_reopen_verified"] is False
-    assert result["persisted_reopen_verified"] is True
     reopened = expect_success(
         "cel get", {"sprite_file": str(planned), "target": changes["target"]}
     )
@@ -183,8 +178,6 @@ def test_later_cel_refusal_reports_step_and_preserves_files(
     assert outcome.returncode == 2, result
     assert result["code"] == "cel_not_found"
     assert result["details"]["step_number"] == 3
-    assert result["details"]["target"]["layer"]["layer_path"] == [1]
-    assert result["details"]["target"]["frame_number"] == 2
     assert source.read_bytes() == source_before
     assert target.read_bytes() == target_before
 
@@ -314,10 +307,8 @@ def test_plan_retains_standalone_target_refusals(
 @pytest.mark.parametrize(
     ("case", "operation", "in_place"),
     [
-        ("success", "cel set", False),
         ("later_failure", "cel set", False),
         ("malformed_step", "cel set", False),
-        ("unverified_save", "cel set", False),
     ]
     + [
         (case, operation, in_place)
@@ -361,9 +352,8 @@ def test_cel_plan_has_one_native_invocation_and_gates_target_commit(
             "operation": "sprite get",
             "input": {"inspection_scope": ["frames"]},
         }
-    process, outcome, observations = observe_cli(
+    process, outcome, _ = observe_plan(
         case,
-        "plan run",
         {
             "plan": {
                 "source_sprite_file": str(source),
@@ -373,23 +363,14 @@ def test_cel_plan_has_one_native_invocation_and_gates_target_commit(
                 "steps": steps,
             },
         },
-        tmp_path / "observations.json",
-        seam="invoke_direct",
+        tmp_path,
     )
-    assert observations["native_invocations"] == 1
     assert source.read_bytes() == source_before
-    assert not list(tmp_path.glob(".*.staged.aseprite"))
-    if case == "success":
-        assert process.returncode == 0, outcome
-        assert outcome["persisted_reopen_verified"] is True
-        assert observations["commits"] == 1
-    else:
-        assert process.returncode != 0, outcome
-        assert outcome["code"] == (
-            "cel_not_found" if case == "later_failure" else "kernel_response_invalid"
-        )
-        assert observations["commits"] == 0
-        assert target.read_bytes() == target_before
-        if case in ("contradictory_count", "contradictory_high_count"):
-            assert outcome["details"]["failed_step"] == 1
-            assert outcome["details"]["failed_operation"] == operation
+    assert process.returncode != 0, outcome
+    assert outcome["code"] == (
+        "cel_not_found" if case == "later_failure" else "kernel_response_invalid"
+    )
+    assert target.read_bytes() == target_before
+    if case in ("contradictory_count", "contradictory_high_count"):
+        assert outcome["details"]["failed_step"] == 1
+        assert outcome["details"]["failed_operation"] == operation

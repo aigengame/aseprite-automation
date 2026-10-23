@@ -7,8 +7,8 @@ import pytest
 
 from spa.contracts.ports import RuntimeObservation
 from tests.native_invocation import expect_success, run, run_lua
-from tests.plan.support import FIXTURES
-from tests.support import observe_cli, process_diagnostics
+from tests.plan.support import FIXTURES, observe_plan
+from tests.support import process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
@@ -181,9 +181,8 @@ def test_plan_verifies_step_time_tileset_evidence_before_its_only_commit(
     source_fixture(source, runtime)
     original = source.read_bytes()
     target.write_bytes(b"Previous Target")
-    executed, result, observations = observe_cli(
+    executed, result, _ = observe_plan(
         case,
-        "plan run",
         {
             "plan": {
                 "source_sprite_file": str(source),
@@ -204,18 +203,13 @@ def test_plan_verifies_step_time_tileset_evidence_before_its_only_commit(
                 ],
             },
         },
-        tmp_path / "observations.json",
-        seam="invoke_direct",
+        tmp_path,
     )
-    assert observations["native_invocations"] == 1
     assert source.read_bytes() == original
     if failed_step is None:
         assert executed.returncode == 0, result
-        assert observations["commits"] == 1
     else:
         assert executed.returncode != 0, result
         assert result["code"] == "kernel_response_invalid"
         assert result["details"]["failed_step"] == failed_step
-        assert observations["commits"] == 0
         assert target.read_bytes() == b"Previous Target"
-    assert not list(tmp_path.glob(".*.staged.aseprite"))

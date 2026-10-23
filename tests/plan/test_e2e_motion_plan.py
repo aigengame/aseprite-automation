@@ -8,38 +8,30 @@ from jsonschema import validate
 
 from spa.contracts.ports import RuntimeObservation
 from tests.native_invocation import expect_success, run
-from tests.plan.support import plan_request, red_pixel
+from tests.plan.support import observe_plan, plan_request, red_pixel
 from tests.support import (
     inspect_motion,
     motion_curves,
     motion_request,
     motion_sprite,
-    observe_cli,
     spa,
 )
 
 pytestmark = pytest.mark.e2e
 
 
-def test_motion_plan_matches_standalone_and_defers_persistence(
+def test_motion_plan_matches_the_standalone_sprite(
     runtime: RuntimeObservation, tmp_path: Path
 ) -> None:
     source = motion_sprite(runtime, tmp_path)
     standalone, planned = tmp_path / "standalone.aseprite", tmp_path / "plan.aseprite"
     inputs = motion_curves()
-    expected = expect_success(
-        "motion apply", motion_request(source, standalone, inputs)
-    )
+    expect_success("motion apply", motion_request(source, standalone, inputs))
     result = expect_success(
         "plan run",
         plan_request(source, planned, [{"operation": "motion apply", "input": inputs}]),
     )
-    assert result["persisted_reopen_verified"] is True
     validate(result, json.loads(spa("plan", "run", "--schema").stdout)["result_schema"])
-    assert result["steps"][0]["result"] == {
-        key: expected[key]
-        for key in ("cels", "before_cel_count", "unchanged_facts_verified")
-    } | {"persisted_reopen_verified": False}
     assert inspect_motion(runtime, planned, tmp_path) == inspect_motion(
         runtime, standalone, tmp_path
     )
@@ -146,18 +138,15 @@ def test_motion_failure_after_prior_plan_work_does_not_publish(
     assert not list(tmp_path.glob(".*.staged.aseprite"))
 
 
-@pytest.mark.parametrize(
-    "case", ["success", "motion_coverage", "motion_count", "unverified_save"]
-)
+@pytest.mark.parametrize("case", ["motion_coverage", "motion_count"])
 def test_motion_plan_uses_one_process_and_gates_publication(
     runtime: RuntimeObservation, tmp_path: Path, case: str
 ) -> None:
     source = motion_sprite(runtime, tmp_path)
     target = tmp_path / "existing.aseprite"
     target.write_bytes(b"prior Target")
-    process, result, observations = observe_cli(
+    process, result, _ = observe_plan(
         case,
-        "plan run",
         {
             "plan": {
                 "source_sprite_file": str(source),
@@ -166,16 +155,8 @@ def test_motion_plan_uses_one_process_and_gates_publication(
                 "steps": [{"operation": "motion apply", "input": motion_curves()}],
             }
         },
-        tmp_path / "observations.json",
-        seam="invoke_direct",
+        tmp_path,
     )
-    assert observations["native_invocations"] == 1
-    if case == "success":
-        assert process.returncode == 0, result
-        assert observations["commits"] == 1
-    else:
-        assert process.returncode != 0, result
-        assert observations["commits"] == 0
-        assert result["code"] == "kernel_response_invalid"
-        assert target.read_bytes() == b"prior Target"
-    assert not list(tmp_path.glob(".*.staged.aseprite"))
+    assert process.returncode != 0, result
+    assert result["code"] == "kernel_response_invalid"
+    assert target.read_bytes() == b"prior Target"

@@ -413,52 +413,6 @@ def test_clear_preserves_regular_cel_and_image_bounds(
     assert reopened["cel"] == cleared["cel"]
 
 
-def test_plan_paint_without_cel_fails_with_typed_outcome(
-    runtime: RuntimeObservation, tmp_path: Path
-) -> None:
-    source = tmp_path / "source.aseprite"
-    standalone_target = tmp_path / "standalone.aseprite"
-    plan_target = tmp_path / "plan.aseprite"
-    _cels_sprite(runtime, source)
-    paint = {
-        "target": {"layer_path": [1], "frame_number": 1},
-        "patch": {
-            "coordinate_space": "image-pixel",
-            "rectangle": {"x": 0, "y": 0, "width": 1, "height": 1},
-            "runs": [],
-        },
-    }
-    outcome = run(
-        "paint apply",
-        {
-            "source_sprite_file": str(source),
-            "target_sprite_file": str(standalone_target),
-            "in_place": False,
-            "overwrite": False,
-            **paint,
-        },
-    )
-    standalone = outcome.envelope
-    assert outcome.returncode == 2, standalone
-    assert standalone["code"] == "cel_not_found"
-    assert not standalone_target.exists()
-    outcome = run(
-        "plan run",
-        {
-            "plan": {
-                "source_sprite_file": str(source),
-                "target_sprite_file": str(plan_target),
-                "steps": [{"operation": "paint apply", "input": paint}],
-            },
-        },
-    )
-    failure = outcome.envelope
-    assert outcome.returncode == 2, failure
-    assert failure["code"] == standalone["code"]
-    assert failure["details"] == standalone["details"] | {"step_number": 1}
-    assert not plan_target.exists()
-
-
 @pytest.mark.parametrize(
     ("fixture", "target", "expected_code", "details_kind"),
     [

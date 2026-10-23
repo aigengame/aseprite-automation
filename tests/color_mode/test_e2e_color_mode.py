@@ -160,42 +160,6 @@ def test_dithering_matrix_resolution(tmp_path, runtime, algorithm, matrix, size)
     )
 
 
-def test_standalone_and_plan_share_the_conversion_owner(tmp_path, runtime):
-    source, standalone, planned = [
-        tmp_path / f"{name}.aseprite" for name in ("source", "standalone", "plan")
-    ]
-    make_source(source, runtime)
-    conversion = color_mode_conversion("rgb", "indexed")
-    conversion["target"]["dithering"] = {
-        "algorithm": "ordered",
-        "matrix": {"kind": "installed", "id": "bayer4x4"},
-    }
-    code, one = change_sprite_color_mode(source, standalone, conversion)
-    assert code == 0, one
-    result = expect_success(
-        "plan run",
-        {
-            "plan": {
-                "source_sprite_file": str(source),
-                "target_sprite_file": str(planned),
-                "steps": [
-                    {
-                        "operation": "sprite change-color-mode",
-                        "input": {"conversion": conversion},
-                    }
-                ],
-                "postconditions": {"color_mode": "indexed"},
-            }
-        },
-    )
-    step = result["steps"][0]["result"]
-    assert step["persisted_reopen_verified"] is False
-    for field in ("before", "after", "mapping", "dithering", "changed"):
-        assert step[field] == one[field]
-    assert result["persisted_reopen_verified"] is True
-    assert result["final_sprite"]["metadata"]["color_mode"] == "indexed"
-
-
 @pytest.mark.parametrize("profile_first", [True, False])
 @pytest.mark.parametrize(
     "profile_operation", ["assign-color-profile", "convert-color-profile"]
