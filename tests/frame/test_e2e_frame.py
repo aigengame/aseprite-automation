@@ -655,11 +655,13 @@ def test_add_reports_native_tag_range_adjustment(
 def _step_evidence(result: dict[str, object]) -> dict[str, object]:
     """Return the Frame mutation evidence that a Step and a standalone run share."""
     standalone_only = {"status", "operation", "target_commit"}
-    step_only = {"persisted_reopen_verified", "sprite"}
+    # Both results have these fields. A Step reports False and None because the
+    # Plan saves and reopens the Target only after its last Step.
+    completion = {"persisted_reopen_verified", "sprite"}
     return {
         key: value
         for key, value in result.items()
-        if key not in standalone_only | step_only
+        if key not in standalone_only | completion
     }
 
 
