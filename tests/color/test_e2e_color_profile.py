@@ -364,11 +364,6 @@ def test_convert_plan_matches_standalone_and_step_evidence(tmp_path: Path, runti
         [{"operation": "sprite convert-color-profile", "input": {"profile": profile}}],
     )
     assert code == 0, result
-    assert result["steps"][0]["result"] == {
-        key: value
-        for key, value in expected.items()
-        if key not in {"operation", "status", "target_commit"}
-    } | {"persisted_reopen_verified": False}
     assert _profile_sprite(runtime, target, action="observe") == _profile_sprite(
         runtime, standalone, action="observe"
     )

@@ -169,6 +169,8 @@ MUTATION_ONE_SIDED = {
     "sprite",
 }
 READ_ONE_SIDED = {"status", "operation", "sprite_file"}
+# The one-sided fields that a Step result of either family never has.
+STANDALONE_ONLY = {"status", "operation", "target_commit", "sprite_file"}
 # Findings: these Operations do not fit their family projection. The values are
 # the fields that still differ after the projection. The PR records them as open.
 MISFITS = {
@@ -337,6 +339,7 @@ def test_r1_step_result_equals_standalone_result(
     step = result["steps"][0]["result"]
     one_sided = READ_ONE_SIDED if case.reads else MUTATION_ONE_SIDED
     assert _differing(step, expected, one_sided) == MISFITS.get(operation, set())
+    assert not step.keys() & STANDALONE_ONLY
     if operation == "sprite get":
         sections = MISFITS[operation] - {"sprite"}
         assert step["sprite"] == {key: expected[key] for key in sections}
@@ -391,9 +394,10 @@ def test_r3_plan_uses_one_invocation_and_commits_only_a_verified_save(
     target.write_bytes(b"prior Target")
 
     # The observer case "none" keeps the native response and checks the staged file.
+    # The read Step makes the Plan have two Steps in its one invocation.
     observer_case = "none" if save == "verified" else save
     process, result, _ = observe_plan(
-        observer_case, _plan(source, target, [_step(case)]), tmp_path
+        observer_case, _plan(source, target, [_step(case), SPRITE_GET_FRAMES]), tmp_path
     )
     assert source is None or source.read_bytes() == frozen
     if save == "verified":

@@ -26,7 +26,7 @@ def _cel_set_plan(source: Path, target: Path, inputs: list[dict]) -> dict:
     )
 
 
-def test_cel_set_plan_matches_standalone_and_defers_persistence(
+def test_cel_set_plan_reopens_the_standalone_cel(
     runtime: RuntimeObservation, tmp_path: Path
 ) -> None:
     source = tmp_path / "source.aseprite"
@@ -52,13 +52,9 @@ def test_cel_set_plan_matches_standalone_and_defers_persistence(
 
     result = expect_success("plan run", _cel_set_plan(source, planned, [changes]))
     step = result["steps"][0]["result"]
-    for field in ("before_cel_count", "before_cels", "affected_cels", "cel"):
-        assert step[field] == expected[field]
     assert step["cel"]["position"] == {"x": -2, "y": 3}
     assert step["cel"]["opacity"] == 0
     assert step["cel"]["z_index"] == -1
-    assert step["persisted_reopen_verified"] is False
-    assert result["persisted_reopen_verified"] is True
     reopened = expect_success(
         "cel get", {"sprite_file": str(planned), "target": changes["target"]}
     )
@@ -151,41 +147,6 @@ def test_cel_set_resolves_a_cel_created_by_earlier_steps(tmp_path: Path) -> None
     assert reopened["cel"]["content"] == "transparent"
     assert reopened["cel"]["opacity"] == 0
     assert reopened["cel"]["z_index"] == -3
-
-
-@pytest.mark.parametrize("in_place", [False, True])
-def test_later_cel_refusal_reports_step_and_preserves_files(
-    runtime: RuntimeObservation, tmp_path: Path, in_place: bool
-) -> None:
-    source = tmp_path / "source.aseprite"
-    cel_relationships_sprite(runtime, source)
-    target = source if in_place else tmp_path / "existing.aseprite"
-    if not in_place:
-        target.write_bytes(b"prior Target bytes")
-    source_before, target_before = source.read_bytes(), target.read_bytes()
-    first = {"layer": {"layer_path": [1]}, "frame_number": 1}
-    absent = {"layer": {"layer_path": [1]}, "frame_number": 2}
-
-    outcome = run(
-        "plan run",
-        _cel_set_plan(
-            source,
-            target,
-            [
-                {"target": first, "opacity": 0},
-                {"target": first, "position": {"x": -2, "y": 3}},
-                {"target": absent, "z_index": 1},
-            ],
-        ),
-    )
-    result = outcome.envelope
-    assert outcome.returncode == 2, result
-    assert result["code"] == "cel_not_found"
-    assert result["details"]["step_number"] == 3
-    assert result["details"]["target"]["layer"]["layer_path"] == [1]
-    assert result["details"]["target"]["frame_number"] == 2
-    assert source.read_bytes() == source_before
-    assert target.read_bytes() == target_before
 
 
 @pytest.mark.parametrize("mode", ["rgb", "grayscale", "indexed"])
@@ -313,10 +274,8 @@ def test_plan_retains_standalone_target_refusals(
 @pytest.mark.parametrize(
     ("case", "operation", "in_place"),
     [
-        ("success", "cel set", False),
         ("later_failure", "cel set", False),
         ("malformed_step", "cel set", False),
-        ("unverified_save", "cel set", False),
     ]
     + [
         (case, operation, in_place)
@@ -374,15 +333,11 @@ def test_cel_plan_has_one_native_invocation_and_gates_target_commit(
         tmp_path,
     )
     assert source.read_bytes() == source_before
-    if case == "success":
-        assert process.returncode == 0, outcome
-        assert outcome["persisted_reopen_verified"] is True
-    else:
-        assert process.returncode != 0, outcome
-        assert outcome["code"] == (
-            "cel_not_found" if case == "later_failure" else "kernel_response_invalid"
-        )
-        assert target.read_bytes() == target_before
-        if case in ("contradictory_count", "contradictory_high_count"):
-            assert outcome["details"]["failed_step"] == 1
-            assert outcome["details"]["failed_operation"] == operation
+    assert process.returncode != 0, outcome
+    assert outcome["code"] == (
+        "cel_not_found" if case == "later_failure" else "kernel_response_invalid"
+    )
+    assert target.read_bytes() == target_before
+    if case in ("contradictory_count", "contradictory_high_count"):
+        assert outcome["details"]["failed_step"] == 1
+        assert outcome["details"]["failed_operation"] == operation

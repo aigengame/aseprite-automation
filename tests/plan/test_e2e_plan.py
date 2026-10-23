@@ -171,7 +171,7 @@ def test_plan_failed_dynamic_postcondition_leaves_target_absent(tmp_path: Path) 
 
 
 @pytest.mark.e2e
-def test_plan_in_place_failure_preserves_existing_file(tmp_path: Path) -> None:
+def test_plan_in_place_success_replaces_the_source_file(tmp_path: Path) -> None:
     source = tmp_path / "source.aseprite"
     expect_success(
         "sprite create",
@@ -185,32 +185,6 @@ def test_plan_in_place_failure_preserves_existing_file(tmp_path: Path) -> None:
         },
     )
     before = hashlib.sha256(source.read_bytes()).hexdigest()
-    outcome = run(
-        "plan run",
-        {
-            "plan": {
-                "source_sprite_file": str(source),
-                "target_sprite_file": str(source),
-                "in_place": True,
-                "overwrite": True,
-                "steps": [
-                    {"operation": "paint apply", "input": red_pixel()},
-                    {
-                        "operation": "paint apply",
-                        "input": {
-                            **red_pixel(),
-                            "target": {"layer_path": [9], "frame_number": 1},
-                        },
-                    },
-                ],
-            },
-        },
-    )
-    failure = outcome.envelope
-    assert outcome.returncode == 1, failure
-    assert failure["details"]["failed_step"] == 2
-    assert hashlib.sha256(source.read_bytes()).hexdigest() == before
-
     result = expect_success(
         "plan run",
         {

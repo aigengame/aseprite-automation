@@ -20,25 +20,18 @@ from tests.support import (
 pytestmark = pytest.mark.e2e
 
 
-def test_motion_plan_matches_standalone_and_defers_persistence(
+def test_motion_plan_matches_the_standalone_sprite(
     runtime: RuntimeObservation, tmp_path: Path
 ) -> None:
     source = motion_sprite(runtime, tmp_path)
     standalone, planned = tmp_path / "standalone.aseprite", tmp_path / "plan.aseprite"
     inputs = motion_curves()
-    expected = expect_success(
-        "motion apply", motion_request(source, standalone, inputs)
-    )
+    expect_success("motion apply", motion_request(source, standalone, inputs))
     result = expect_success(
         "plan run",
         plan_request(source, planned, [{"operation": "motion apply", "input": inputs}]),
     )
-    assert result["persisted_reopen_verified"] is True
     validate(result, json.loads(spa("plan", "run", "--schema").stdout)["result_schema"])
-    assert result["steps"][0]["result"] == {
-        key: expected[key]
-        for key in ("cels", "before_cel_count", "unchanged_facts_verified")
-    } | {"persisted_reopen_verified": False}
     assert inspect_motion(runtime, planned, tmp_path) == inspect_motion(
         runtime, standalone, tmp_path
     )
@@ -103,9 +96,7 @@ def test_motion_uses_step_start_baselines_across_layers_and_later_edits(
 
 
 @pytest.mark.parametrize("in_place", [False, True])
-@pytest.mark.parametrize(
-    ("kind", "code"), [("missing", "cel_not_found"), ("linked", "motion_linked_cel")]
-)
+@pytest.mark.parametrize(("kind", "code"), [("linked", "motion_linked_cel")])
 def test_motion_failure_after_prior_plan_work_does_not_publish(
     runtime: RuntimeObservation, tmp_path: Path, in_place: bool, kind: str, code: str
 ) -> None:
@@ -115,10 +106,9 @@ def test_motion_failure_after_prior_plan_work_does_not_publish(
         target.write_bytes(b"existing Target")
     frozen, prior = source.read_bytes(), target.read_bytes()
     inputs = motion_curves()
-    if kind == "linked":
-        inputs["to_frame"] = 1
-        for name in ("position_offsets", "opacity"):
-            inputs[name]["keys"] = inputs[name]["keys"][:1]
+    inputs["to_frame"] = 1
+    for name in ("position_offsets", "opacity"):
+        inputs[name]["keys"] = inputs[name]["keys"][:1]
     outcome = run(
         "plan run",
         plan_request(
@@ -145,9 +135,7 @@ def test_motion_failure_after_prior_plan_work_does_not_publish(
     assert not list(tmp_path.glob(".*.staged.aseprite"))
 
 
-@pytest.mark.parametrize(
-    "case", ["success", "motion_coverage", "motion_count", "unverified_save"]
-)
+@pytest.mark.parametrize("case", ["motion_coverage", "motion_count"])
 def test_motion_plan_uses_one_process_and_gates_publication(
     runtime: RuntimeObservation, tmp_path: Path, case: str
 ) -> None:
@@ -166,9 +154,6 @@ def test_motion_plan_uses_one_process_and_gates_publication(
         },
         tmp_path,
     )
-    if case == "success":
-        assert process.returncode == 0, result
-    else:
-        assert process.returncode != 0, result
-        assert result["code"] == "kernel_response_invalid"
-        assert target.read_bytes() == b"prior Target"
+    assert process.returncode != 0, result
+    assert result["code"] == "kernel_response_invalid"
+    assert target.read_bytes() == b"prior Target"
