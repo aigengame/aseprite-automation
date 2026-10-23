@@ -169,10 +169,27 @@ READ_STANDALONE_ONLY = {"status", "operation", "sprite_file"}
 # `persisted_reopen_verified` is true and `sprite` is the Sprite inspection. A Step
 # result is not: `persisted_reopen_verified` is false and `sprite` is null. A read
 # Step does not save, so the read family has no completion field. The rows check
-# the completion value of each such field that a side has.
+# the presence of each completion field on each side, and its value.
 STEP_COMPLETION = {"persisted_reopen_verified": False, "sprite": None}
 MUTATION_COMPLETION = set(STEP_COMPLETION)
 READ_COMPLETION: set[str] = set()
+# Completion presence, measured with real Aseprite: {operation: (completion fields
+# that the Step result has, completion fields that the standalone result has)}.
+VERIFIED, SPRITE = "persisted_reopen_verified", "sprite"
+COMPLETION_PRESENCE = {
+    "sprite create": ({SPRITE}, {VERIFIED, SPRITE}),
+    "sprite assign-color-profile": ({VERIFIED}, {VERIFIED}),
+    "sprite convert-color-profile": ({VERIFIED}, {VERIFIED}),
+    "paint apply": ({VERIFIED}, {VERIFIED}),
+    "frame add": ({VERIFIED, SPRITE}, {VERIFIED, SPRITE}),
+    "frame duplicate": ({VERIFIED, SPRITE}, {VERIFIED, SPRITE}),
+    "cel add": (set(), {VERIFIED, SPRITE}),
+    "cel set": ({VERIFIED}, {VERIFIED, SPRITE}),
+    "motion apply": ({VERIFIED}, {VERIFIED, SPRITE}),
+    "sprite change-color-mode": ({VERIFIED}, {VERIFIED}),
+    "tileset remove": ({VERIFIED}, {VERIFIED, SPRITE}),
+    "layer set-tileset": ({VERIFIED}, {VERIFIED, SPRITE}),
+}
 # Operation-specific projections. The values are the fields that still differ
 # after the family projection; each row asserts this exact set and compares the
 # fields with each other.
@@ -351,6 +368,9 @@ def test_r1_step_result_equals_standalone_result(
     assert standalone_only <= expected.keys()
     assert not step.keys() & standalone_only
     excluded = standalone_only | completion
+    step_fields, standalone_fields = COMPLETION_PRESENCE.get(operation, (set(), set()))
+    assert step.keys() & completion == step_fields
+    assert expected.keys() & completion == standalone_fields
     differences = OPERATION_DIFFERENCES.get(operation, set())
     assert _differing(step, expected, excluded) == differences
     live = OPERATION_COMPLETION_DIFFERENCES.get(operation, {})
@@ -475,6 +495,8 @@ def test_rule_table_covers_each_plan_eligible_operation() -> None:
         assert case.reads == ("sprite_file" in fields), operation
     projected = set(OPERATION_DIFFERENCES) | set(OPERATION_COMPLETION_DIFFERENCES)
     assert projected <= set(CASES)
+    mutations = {operation for operation, case in CASES.items() if not case.reads}
+    assert set(COMPLETION_PRESENCE) == mutations
 
 
 def test_refusal_rows_cover_each_operation_with_a_typed_refusal() -> None:
