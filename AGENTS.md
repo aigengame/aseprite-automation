@@ -6,6 +6,8 @@ Read @CONTEXT.md for the project scope and shared domain language. Use
 @ARCHITECTURE.md for the current system view and the relevant records in `docs/adr/`
 for architecture decisions and their rationale.
 
+Read `docs/test-standards.md` before you write or change a test.
+
 `README.md` is user-facing onboarding (installation, usage, and contributing).
 Read the sections relevant to the task; read the full file when the task requires it.
 
