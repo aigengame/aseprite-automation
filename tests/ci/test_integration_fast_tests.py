@@ -64,4 +64,15 @@ def test_release_quality_tests_the_release_source_with_trusted_actions() -> None
         for step in local
         if "working-directory: release-source" not in step
     ] == ["Set up Lua quality tools"]
+    assert set(re.findall(r"working-directory: (\S+)", quality)) == {"release-source"}
     assert "path: release-source/dist/" in quality
+
+    # An action step without the input would test the trusted tree instead.
+    for step in local:
+        if "working-directory: release-source" not in step:
+            continue
+        action = ROOT / step.split("uses: ./", 1)[1].split("\n", 1)[0] / "action.yml"
+        for inner in action.read_text().split("\n    - name: ")[1:]:
+            # `uv python install 3.13` names its version and reads no project file.
+            if "\n      run:" in inner and not inner.startswith("Install Python\n"):
+                assert "working-directory: ${{ inputs.working-directory }}" in inner
