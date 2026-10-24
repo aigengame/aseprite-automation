@@ -1,15 +1,23 @@
-"""Native animation delivery through the public CLI and independent decoders."""
+"""Native animation delivery through the public CLI and independent decoders.
 
-import json
+The `residual` GIF case plays opaque red, fully transparent, then opaque green.
+One bounded observation, on macOS arm64 with Aseprite 1.3.18.5-dev (API 41), found
+residual opaque pixels in the blank occurrence of the native GIF. Independent
+per-Frame alpha verification refuses that staged GIF and keeps the existing
+destination. The case shows the refusal for the observed encoding path. It does
+not show a limit of all releases, and SPA does not repair the GIF.
+"""
+
 import os
 from pathlib import Path
 
 import pytest
 from PIL import Image
 
+from spa.contracts.ports import RuntimeObservation
 from tests.export.support import png_icc_label
-from tests.export.test_e2e_export_image import _source
-from tests.support import spa
+from tests.native_invocation import expect_success, run
+from tests.support import source_sprite
 
 pytestmark = pytest.mark.e2e
 
@@ -23,13 +31,14 @@ pytestmark = pytest.mark.e2e
         "literal-{path}-{frame01}-{tag}",
     ],
 )
-def test_sequence_treats_output_directory_as_literal(tmp_path: Path, directory: str):
-    source = _source(tmp_path)
+def test_sequence_treats_output_directory_as_literal(
+    tmp_path: Path, runtime: RuntimeObservation, directory: str
+):
+    source = source_sprite(runtime, tmp_path)
     original = source.read_bytes()
     output = tmp_path / directory
     output.mkdir()
     request = {
-        "aseprite": os.environ["SPA_TEST_ASEPRITE"],
         "source_sprite_file": os.path.relpath(source),
         "playback": {"kind": "frames", "frame_numbers": [1, 1]},
         "layer_composition": {"mode": "visible"},
@@ -40,15 +49,13 @@ def test_sequence_treats_output_directory_as_literal(tmp_path: Path, directory: 
         },
     }
 
-    run = spa("export", "sequence", "--input-json", json.dumps(request))
+    outcome = run("export sequence", request)
 
     pngs = set(tmp_path.rglob("*.png"))
-    assert run.returncode == 0, (run.stdout, sorted(map(str, pngs)))
+    assert outcome.returncode == 0, (outcome.envelope, sorted(map(str, pngs)))
     expected = [output / "frame1.png", output / "frame2.png"]
     assert pngs == set(expected)
-    assert [
-        Path(item["path"]) for item in json.loads(run.stdout)["artifacts"]
-    ] == expected
+    assert [Path(item["path"]) for item in outcome.envelope["artifacts"]] == expected
     assert {item.name for item in output.iterdir()} == {"frame1.png", "frame2.png"}
     assert {item.name for item in tmp_path.iterdir()} == {"source.aseprite", directory}
     for path in expected:
@@ -58,25 +65,25 @@ def test_sequence_treats_output_directory_as_literal(tmp_path: Path, directory: 
     assert source.read_bytes() == original
 
     # A second export applies the same literal directory and preflight policy.
-    refused = spa("export", "sequence", "--input-json", json.dumps(request))
-    assert refused.returncode == 1, refused.stdout
-    assert json.loads(refused.stdout)["details"]["reason"] == "destination_exists"
+    refused = run("export sequence", request)
+    assert refused.returncode == 1, refused.envelope
+    assert refused.envelope["details"]["reason"] == "destination_exists"
     request["destination"]["if_exists"] = "replace"
-    replaced = spa("export", "sequence", "--input-json", json.dumps(request))
-    assert replaced.returncode == 0, replaced.stdout
+    expect_success("export sequence", request)
     assert set(tmp_path.rglob("*.png")) == set(expected)
     assert {item.name for item in output.iterdir()} == {"frame1.png", "frame2.png"}
     assert {item.name for item in tmp_path.iterdir()} == {"source.aseprite", directory}
     assert source.read_bytes() == original
 
 
-def test_sequence_keeps_order_repeated_occurrences_and_full_canvas(tmp_path: Path):
-    source = _source(tmp_path)
+def test_sequence_keeps_order_repeated_occurrences_and_full_canvas(
+    tmp_path: Path, runtime: RuntimeObservation
+):
+    source = source_sprite(runtime, tmp_path)
     original = source.read_bytes()
     output = tmp_path / "sequence"
     output.mkdir()
     request = {
-        "aseprite": os.environ["SPA_TEST_ASEPRITE"],
         "source_sprite_file": str(source),
         "playback": {"kind": "frames", "frame_numbers": [2, 1, 2]},
         "layer_composition": {"mode": "visible"},
@@ -86,9 +93,7 @@ def test_sequence_keeps_order_repeated_occurrences_and_full_canvas(tmp_path: Pat
             "if_exists": "fail",
         },
     }
-    run = spa("export", "sequence", "--input-json", json.dumps(request))
-    assert run.returncode == 0, run.stdout
-    result = json.loads(run.stdout)
+    result = expect_success("export sequence", request)
     assert [
         item["source_frame_number"] for item in result["playback"]["occurrences"]
     ] == [2, 1, 2]
@@ -111,10 +116,11 @@ def test_sequence_keeps_order_repeated_occurrences_and_full_canvas(tmp_path: Pat
     assert source.read_bytes() == original
 
 
-def test_sequence_tag_traversal_does_not_expand_stored_repeats(tmp_path: Path):
-    source = _source(tmp_path, "animation_frames.lua")
+def test_sequence_tag_traversal_does_not_expand_stored_repeats(
+    tmp_path: Path, runtime: RuntimeObservation
+):
+    source = source_sprite(runtime, tmp_path, "animation_frames.lua")
     request = {
-        "aseprite": os.environ["SPA_TEST_ASEPRITE"],
         "source_sprite_file": str(source),
         "playback": {"kind": "tag", "tag": {"tag_name": "cast"}},
         "layer_composition": {"mode": "visible"},
@@ -124,9 +130,7 @@ def test_sequence_tag_traversal_does_not_expand_stored_repeats(tmp_path: Path):
             "if_exists": "fail",
         },
     }
-    run = spa("export", "sequence", "--input-json", json.dumps(request))
-    assert run.returncode == 0, run.stdout
-    result = json.loads(run.stdout)
+    result = expect_success("export sequence", request)
     assert result["playback"]["mode"] == "tag_traversal"
     assert result["playback"]["tag"]["direction"] == "ping_pong"
     assert result["playback"]["tag"]["repeats"] == 0
@@ -151,9 +155,10 @@ def test_sequence_tag_traversal_does_not_expand_stored_repeats(tmp_path: Path):
     "mode,background", [("grayscale", False), ("indexed", False), ("indexed", True)]
 )
 def test_sequence_preserves_native_mode_alpha_and_full_palette(
-    tmp_path: Path, mode: str, background: bool
+    tmp_path: Path, runtime: RuntimeObservation, mode: str, background: bool
 ):
-    source = _source(
+    source = source_sprite(
+        runtime,
         tmp_path,
         "animation_representation.lua",
         mode=mode,
@@ -162,7 +167,6 @@ def test_sequence_preserves_native_mode_alpha_and_full_palette(
     )
     original = source.read_bytes()
     request = {
-        "aseprite": os.environ["SPA_TEST_ASEPRITE"],
         "source_sprite_file": str(source),
         "playback": {"kind": "frames", "frame_numbers": [2, 1, 2]},
         "layer_composition": {"mode": "visible"},
@@ -172,9 +176,7 @@ def test_sequence_preserves_native_mode_alpha_and_full_palette(
             "if_exists": "fail",
         },
     }
-    run = spa("export", "sequence", "--input-json", json.dumps(request))
-    assert run.returncode == 0, run.stdout
-    result = json.loads(run.stdout)
+    result = expect_success("export sequence", request)
     for artifact, facts in zip(result["artifacts"], result["frames"], strict=True):
         assert facts["color_mode"] == mode
         assert facts["color_profile"] == "none"
@@ -206,15 +208,16 @@ def test_sequence_preserves_native_mode_alpha_and_full_palette(
         ("grayscale", "srgb"),
     ],
 )
-def test_sequence_preserves_supported_profiles(tmp_path: Path, mode: str, profile: str):
-    from spa.adapters.sequence_png import decode_sequence_png
-
+def test_sequence_preserves_supported_profiles(
+    tmp_path: Path, runtime: RuntimeObservation, mode: str, profile: str
+):
     profile_path = Path("src/spa/kernel/color/profiles") / f"{profile}.icc"
     options = {"icc_file": str(profile_path.resolve())} if profile != "srgb" else {}
-    source = _source(tmp_path, "animation_representation.lua", mode=mode, **options)
+    source = source_sprite(
+        runtime, tmp_path, "animation_representation.lua", mode=mode, **options
+    )
     original = source.read_bytes()
     request = {
-        "aseprite": os.environ["SPA_TEST_ASEPRITE"],
         "source_sprite_file": str(source),
         "playback": {"kind": "frames", "frame_numbers": [2, 1]},
         "layer_composition": {"mode": "visible"},
@@ -224,31 +227,35 @@ def test_sequence_preserves_supported_profiles(tmp_path: Path, mode: str, profil
             "if_exists": "fail",
         },
     }
-    run = spa("export", "sequence", "--input-json", json.dumps(request))
-    assert run.returncode == 0, run.stdout
-    result = json.loads(run.stdout)
+    result = expect_success("export sequence", request)
     for item in result["artifacts"]:
-        observed = decode_sequence_png(Path(item["path"]).read_bytes())
-        assert observed.color_profile == ("srgb" if profile == "srgb" else "icc")
+        # Pillow reads the profile facts, not the decoder that the product uses.
+        with Image.open(item["path"]) as image:
+            info = dict(image.info)
         if profile != "srgb":
-            assert observed.icc_bytes == profile_path.read_bytes()
+            assert "srgb" not in info
+            assert info.get("icc_profile") == profile_path.read_bytes()
             assert png_icc_label(Path(item["path"]).read_bytes()) == profile.encode(
                 "ascii"
             )
         else:
-            assert observed.srgb_rendering_intent == 0
+            assert "icc_profile" not in info
+            assert info.get("srgb") == 0
     assert source.read_bytes() == original
 
 
-def test_sequence_resolves_linked_cels_palette_per_occurrence(tmp_path: Path):
+def test_sequence_resolves_linked_cels_palette_per_occurrence(
+    tmp_path: Path, runtime: RuntimeObservation
+):
     from tests.support import inject_palette_change
 
-    source = _source(tmp_path, "animation_representation.lua", mode="indexed")
+    source = source_sprite(
+        runtime, tmp_path, "animation_representation.lua", mode="indexed"
+    )
     entries = [(i * 20, 30, 40, 255) for i in range(8)]
     entries[1] = entries[2] = (0, 50, 200, 128)
     inject_palette_change(source, entries, frame_number=2)
     request = {
-        "aseprite": os.environ["SPA_TEST_ASEPRITE"],
         "source_sprite_file": str(source),
         "playback": {"kind": "frames", "frame_numbers": [2, 1, 2]},
         "layer_composition": {"mode": "visible"},
@@ -258,9 +265,7 @@ def test_sequence_resolves_linked_cels_palette_per_occurrence(tmp_path: Path):
             "if_exists": "fail",
         },
     }
-    run = spa("export", "sequence", "--input-json", json.dumps(request))
-    assert run.returncode == 0, run.stdout
-    result = json.loads(run.stdout)
+    result = expect_success("export sequence", request)
     assert [
         f["effective_palette"]["palette_frame_number"] for f in result["frames"]
     ] == [2, 1, 2]
@@ -274,25 +279,26 @@ def test_sequence_resolves_linked_cels_palette_per_occurrence(tmp_path: Path):
             assert image.convert("RGBA").getpixel((1, 0)) == expected
 
 
-def test_gif_tag_traversal_quantizes_time_and_reports_infinite_loop(tmp_path: Path):
+def test_gif_tag_traversal_quantizes_time_and_reports_infinite_loop(
+    tmp_path: Path, runtime: RuntimeObservation
+):
     from spa.adapters.gif import decode_gif
 
-    source = _source(tmp_path, "animation_frames.lua")
+    source = source_sprite(runtime, tmp_path, "animation_frames.lua")
     original = source.read_bytes()
     request = {
-        "aseprite": os.environ["SPA_TEST_ASEPRITE"],
         "source_sprite_file": str(source),
         "playback": {"kind": "tag", "tag": {"tag_name": "cast"}},
         "layer_composition": {"mode": "visible"},
         "destination": {"path": str(tmp_path / "cast.gif"), "if_exists": "fail"},
     }
-    run = spa("export", "gif", "--input-json", json.dumps(request))
-    assert run.returncode == 0, run.stdout
-    result = json.loads(run.stdout)
+    result = expect_success("export gif", request)
     assert result["loop"] == {"mode": "infinite", "encoded_count": 0}
     assert result["playback"]["tag"]["repeats"] == 0
+    # Pillow reads the NETSCAPE loop count, not the decoder that the product uses.
+    with Image.open(tmp_path / "cast.gif") as image:
+        assert image.info.get("loop") == 0
     decoded = decode_gif((tmp_path / "cast.gif").read_bytes())
-    assert decoded.loop_count == 0
     assert [frame.duration_ms for frame in decoded.frames] == [10, 20, 100, 20]
     assert [frame.rgba_bytes[:4] for frame in decoded.frames] == [
         bytes([red, 10, 20, 255]) for red in [40, 80, 120, 80]
@@ -312,41 +318,45 @@ def test_gif_tag_traversal_quantizes_time_and_reports_infinite_loop(tmp_path: Pa
     ],
 )
 def test_gif_refuses_native_alpha_residue_and_subcentisecond_input(
-    tmp_path: Path, scenario: str, code: str
+    tmp_path: Path, runtime: RuntimeObservation, scenario: str, code: str
 ):
-    source = _source(tmp_path, "animation_gif_cases.lua", scenario=scenario)
+    source = source_sprite(
+        runtime, tmp_path, "animation_gif_cases.lua", scenario=scenario
+    )
     original = source.read_bytes()
     destination = tmp_path / "untouched.gif"
     destination.write_bytes(b"existing destination")
     request = {
-        "aseprite": os.environ["SPA_TEST_ASEPRITE"],
         "source_sprite_file": str(source),
         "playback": {"kind": "frames", "frame_numbers": [1, 2, 3]},
         "layer_composition": {"mode": "visible"},
         "destination": {"path": str(destination), "if_exists": "replace"},
     }
-    run = spa("export", "gif", "--input-json", json.dumps(request))
-    result = json.loads(run.stdout)
-    assert run.returncode != 0 and result["code"] == code, result
+    outcome = run("export gif", request)
+    result = outcome.envelope
+    assert outcome.returncode != 0 and result["code"] == code, result
     assert "artifacts" not in result
     assert destination.read_bytes() == b"existing destination"
     assert source.read_bytes() == original
     if scenario == "residual":
         assert "alpha" in result["message"]
+    else:
+        assert result["details"]["reason"] == "gif_duration"
 
 
-def test_gif_reports_allowed_native_rgb_loss(tmp_path: Path):
-    source = _source(tmp_path, "animation_gif_cases.lua", scenario="lossy")
+def test_gif_reports_allowed_native_rgb_loss(
+    tmp_path: Path, runtime: RuntimeObservation
+):
+    source = source_sprite(
+        runtime, tmp_path, "animation_gif_cases.lua", scenario="lossy"
+    )
     request = {
-        "aseprite": os.environ["SPA_TEST_ASEPRITE"],
         "source_sprite_file": str(source),
         "playback": {"kind": "frames", "frame_numbers": [3, 1, 3]},
         "layer_composition": {"mode": "visible"},
         "destination": {"path": str(tmp_path / "lossy.gif"), "if_exists": "fail"},
     }
-    run = spa("export", "gif", "--input-json", json.dumps(request))
-    assert run.returncode == 0, run.stdout
-    result = json.loads(run.stdout)
+    result = expect_success("export gif", request)
     assert result["quantization"] == "aseprite_native_lossy"
     assert len(result["frames"]) == 3
     assert all(f["changed_rgb_pixels"] > 0 for f in result["frames"])

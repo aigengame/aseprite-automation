@@ -1,70 +1,50 @@
 """Public Paint request validation without a running Aseprite executable."""
 
-import json
 from pathlib import Path
 
-import pytest
-
 from tests.host_permissions import symlink_creation_permission
-from tests.support import spa
+from tests.native_invocation import run
 
 
-@pytest.mark.parametrize("in_place", [False, True])
-def test_apply_rejects_source_alias_before_runtime_probe(
-    tmp_path: Path, in_place: bool
-) -> None:
+def test_apply_rejects_source_alias_to_a_target_symlink(tmp_path: Path) -> None:
+    # The Target entry is itself a symlink, so Source and Target resolve to one file.
+    # tests/contracts holds the form where the Target entry is a regular file.
+    real = tmp_path / "real.aseprite"
+    real.write_bytes(b"committed Sprite")
     target = tmp_path / "target.aseprite"
-    target.write_bytes(b"unchanged")
     source = tmp_path / "source.aseprite"
     with symlink_creation_permission():
+        target.symlink_to(real)
         source.symlink_to(target)
-    request = {
-        "aseprite": "/missing/aseprite",
-        "source_sprite_file": str(source),
-        "target_sprite_file": str(target),
-        "in_place": in_place,
-        "overwrite": True,
-        "target": {"layer_path": [1], "frame_number": 1},
-        "patch": {
-            "coordinate_space": "image-pixel",
-            "rectangle": {"x": 0, "y": 0, "width": 1, "height": 1},
-            "runs": [],
-        },
-    }
 
-    run = spa("paint", "apply", "--input-json", json.dumps(request))
+    for in_place in (False, True):
+        outcome = run(
+            "paint apply",
+            {
+                "source_sprite_file": str(source),
+                "target_sprite_file": str(target),
+                "in_place": in_place,
+                "overwrite": True,
+                "target": {"layer_path": [1], "frame_number": 1},
+                "patch": {
+                    "coordinate_space": "image-pixel",
+                    "rectangle": {"x": 0, "y": 0, "width": 1, "height": 1},
+                    "runs": [],
+                },
+                "clipping": "reject",
+            },
+            aseprite="/missing/aseprite",
+        )
 
-    assert run.returncode == 2, run.stdout + run.stderr
-    assert json.loads(run.stdout)["code"] == "invalid_request"
-    assert source.is_symlink()
-    assert source.read_bytes() == b"unchanged"
-
-
-@pytest.mark.parametrize("in_place", [False, True])
-def test_apply_rejects_intent_that_disagrees_with_publication_entry(
-    tmp_path: Path, in_place: bool
-) -> None:
-    source = tmp_path / "source.aseprite"
-    source.write_bytes(b"unchanged")
-    target = tmp_path / "target.aseprite" if in_place else source
-    request = {
-        "aseprite": "/missing/aseprite",
-        "source_sprite_file": str(source),
-        "target_sprite_file": str(target),
-        "in_place": in_place,
-        "overwrite": True,
-        "target": {"layer_path": [1], "frame_number": 1},
-        "patch": {
-            "coordinate_space": "image-pixel",
-            "rectangle": {"x": 0, "y": 0, "width": 1, "height": 1},
-            "runs": [],
-        },
-    }
-
-    run = spa("paint", "apply", "--input-json", json.dumps(request))
-
-    assert run.returncode == 2, run.stdout + run.stderr
-    failure = json.loads(run.stdout)
-    assert failure["code"] == "invalid_request"
-    assert failure["details"]["errors"][0]["location"] == ["in_place"]
-    assert source.read_bytes() == b"unchanged"
+        # The runtime probe would refuse the missing executable with exit 1.
+        assert outcome.returncode == 2, outcome.envelope
+        assert outcome.envelope["code"] == "invalid_request"
+        assert outcome.envelope["details"]["errors"] == [
+            {
+                "location": ["source_sprite_file"],
+                "code": "source_target_identity",
+                "message": "Source alias traverses the Target publication entry",
+            }
+        ]
+        assert source.is_symlink() and target.is_symlink()
+        assert real.read_bytes() == b"committed Sprite"

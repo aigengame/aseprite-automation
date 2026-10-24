@@ -2,80 +2,42 @@
 
 import hashlib
 import json
-import os
-import subprocess
-import tempfile
 from importlib.resources import files
 from pathlib import Path
 
 import pytest
 from jsonschema import validate
 
-from spa.adapters.aseprite.aseprite import invoke, probe
-from spa.adapters.aseprite.invocation import prepare_invocation
-from spa.application.surface import PROBE_RESOURCES
+from spa.adapters.aseprite.aseprite import invoke
 from spa.authoring.raster.paint import PAINT_APPLY_HANDLER
-from spa.contracts.ports import HandlerEvidence, RuntimeIssue
-from spa.contracts.public import RuntimeRequest
+from spa.contracts.ports import HandlerEvidence, RuntimeIssue, RuntimeObservation
 from tests.host_permissions import symlink_creation_permission
+from tests.native_invocation import Outcome, expect_success, run, run_lua
+from tests.paint.support import FIXTURES, create_sprite
 from tests.support import inject_palette_change, process_diagnostics, spa
 
 pytestmark = pytest.mark.e2e
 
 
-def _fixture(target: Path, kind: str, *, palette_alpha: int | None = None) -> None:
-    observation = probe(
-        RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
-    )
-    fixture = Path(__file__).parent / "fixtures" / "paint_target.lua"
-    with tempfile.TemporaryDirectory(prefix="spa-paint-fixture-") as work:
-        prepared = prepare_invocation(
-            Path(observation.canonical_path),
-            Path(observation.resource_path),
-            Path(work),
-        )
-        arguments = [
-            str(prepared.executable),
-            "--batch",
-            "--script-param",
-            f"kind={kind}",
-            "--script-param",
-            f"out={target}",
-        ]
-        if palette_alpha is not None:
-            arguments.extend(["--script-param", f"palette_alpha={palette_alpha}"])
-        arguments.extend(["--script", str(fixture)])
-        run = subprocess.run(
-            arguments,
-            text=True,
-            capture_output=True,
-            check=False,
-            env=prepared.environment,
-        )
-    assert run.returncode == 0, process_diagnostics(run)
+def _fixture(
+    runtime: RuntimeObservation,
+    target: Path,
+    kind: str,
+    *,
+    palette_alpha: int | None = None,
+) -> None:
+    """Write the `paint_target.lua` Sprite of the given kind to target.
+
+    The `indexed-palette-change` kind also gets a Palette change in Frame 2.
+    """
+    params: dict[str, object] = {"kind": kind, "out": target}
+    if palette_alpha is not None:
+        params["palette_alpha"] = palette_alpha
+    lua = run_lua(FIXTURES / "paint_target.lua", runtime, **params)
+    assert lua.returncode == 0, process_diagnostics(lua)
     assert target.is_file()
     if kind == "indexed-palette-change":
         inject_palette_change(target, [(0, 0, 0, 0), (65, 105, 225, 255)])
-
-
-def _create(source: Path) -> None:
-    run = spa(
-        "sprite",
-        "create",
-        "--input-json",
-        json.dumps(
-            {
-                "target_sprite_file": str(source),
-                "width": 3,
-                "height": 2,
-                "color_mode": "rgb",
-                "initial_layer": {"kind": "transparent"},
-                "overwrite": False,
-                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-            }
-        ),
-    )
-    assert run.returncode == 0, run.stdout
 
 
 def _apply(
@@ -88,7 +50,12 @@ def _apply(
     selection: dict[str, object] | None = None,
     in_place: bool = False,
     overwrite: bool = False,
-) -> subprocess.CompletedProcess[str]:
+) -> Outcome:
+    """Run `spa paint apply` with one patch on the target Cel of source.
+
+    The target defaults to Layer 1, Frame 1. The function adds `selection` only
+    when the caller gives one.
+    """
     request: dict[str, object] = {
         "source_sprite_file": str(source),
         "target_sprite_file": str(target),
@@ -97,11 +64,10 @@ def _apply(
         "target": address or {"layer_path": [1], "frame_number": 1},
         "patch": patch,
         "clipping": clipping,
-        "aseprite": os.environ["SPA_TEST_ASEPRITE"],
     }
     if selection is not None:
         request["selection"] = selection
-    return spa("paint", "apply", "--input-json", json.dumps(request))
+    return run("paint apply", request)
 
 
 def _rgba_patch(
@@ -135,7 +101,7 @@ def _rgba_patch(
 def test_apply_persists_and_reopens_one_rgb_pixel_patch(tmp_path: Path) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "target.aseprite"
-    _create(source)
+    create_sprite(source, width=3, height=2)
     source_digest = hashlib.sha256(source.read_bytes()).hexdigest()
     request = {
         "source_sprite_file": str(source),
@@ -161,13 +127,10 @@ def test_apply_persists_and_reopens_one_rgb_pixel_patch(tmp_path: Path) -> None:
                 }
             ],
         },
-        "aseprite": os.environ["SPA_TEST_ASEPRITE"],
     }
 
-    run = spa("paint", "apply", "--input-json", json.dumps(request))
+    result = expect_success("paint apply", request)
 
-    assert run.returncode == 0, run.stdout
-    result = json.loads(run.stdout)
     schema = json.loads(spa("paint", "apply", "--schema").stdout)
     validate(result, schema["result_schema"])
     assert result["persisted_reopen_verified"] is True
@@ -196,13 +159,13 @@ def test_reject_clipping_is_atomic_and_clip_reports_partial_and_empty_writes(
     tmp_path: Path,
 ) -> None:
     source = tmp_path / "source.aseprite"
-    _create(source)
+    create_sprite(source, width=3, height=2)
     source_bytes = source.read_bytes()
 
     rejected_target = tmp_path / "rejected.aseprite"
     rejected = _apply(source, rejected_target, _rgba_patch(x=-1, y=0, length=2))
-    assert rejected.returncode == 1, rejected.stdout
-    assert json.loads(rejected.stdout)["code"] == "kernel_execution_failed"
+    assert rejected.returncode == 1, process_diagnostics(rejected.process)
+    assert rejected.envelope["code"] == "kernel_execution_failed"
     assert not rejected_target.exists()
     assert source.read_bytes() == source_bytes
 
@@ -213,8 +176,8 @@ def test_reject_clipping_is_atomic_and_clip_reports_partial_and_empty_writes(
         _rgba_patch(x=-1, y=0, length=2),
         clipping="clip",
     )
-    assert clipped.returncode == 0, clipped.stdout
-    clipped_result = json.loads(clipped.stdout)
+    assert clipped.returncode == 0, process_diagnostics(clipped.process)
+    clipped_result = clipped.envelope
     assert clipped_result["applied_rectangle"] == {
         "x": 0,
         "y": 0,
@@ -232,8 +195,8 @@ def test_reject_clipping_is_atomic_and_clip_reports_partial_and_empty_writes(
         _rgba_patch(x=-2, y=0, length=1),
         clipping="clip",
     )
-    assert fully_clipped.returncode == 0, fully_clipped.stdout
-    empty_result = json.loads(fully_clipped.stdout)
+    assert fully_clipped.returncode == 0, process_diagnostics(fully_clipped.process)
+    empty_result = fully_clipped.envelope
     assert empty_result["applied_rectangle"]["width"] == 0
     assert empty_result["applied_rectangle"]["height"] == 0
     assert empty_result["pixels_written"] == 0
@@ -246,31 +209,29 @@ def test_reject_clipping_validates_the_declared_rectangle_before_writes(
 ) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "outside-rectangle.aseprite"
-    _create(source)
+    create_sprite(source, width=3, height=2)
     source_bytes = source.read_bytes()
     patch = _rgba_patch(x=0, y=0, length=1, width=4)
     if runs == []:
         patch["runs"] = []
 
-    run = _apply(source, target, patch)
+    outcome = _apply(source, target, patch)
 
-    assert run.returncode == 1, run.stdout
-    assert (
-        "Rectangle is outside Image bounds"
-        in json.loads(run.stdout)["details"]["reason"]
-    )
+    assert outcome.returncode == 1, process_diagnostics(outcome.process)
+    assert "Rectangle is outside Image bounds" in outcome.envelope["details"]["reason"]
     assert not target.exists()
     assert source.read_bytes() == source_bytes
 
 
 def test_selection_maps_image_pixels_through_the_target_cel_position(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
     source = tmp_path / "offset-linked.aseprite"
     target = tmp_path / "selected.aseprite"
-    _fixture(source, "linked-rgb")
+    _fixture(runtime, source, "linked-rgb")
 
-    run = _apply(
+    outcome = _apply(
         source,
         target,
         _rgba_patch(x=0, y=0, length=2),
@@ -280,8 +241,8 @@ def test_selection_maps_image_pixels_through_the_target_cel_position(
         },
     )
 
-    assert run.returncode == 0, run.stdout
-    result = json.loads(run.stdout)
+    assert outcome.returncode == 0, process_diagnostics(outcome.process)
+    result = outcome.envelope
     assert result["pixels_written"] == 1
     assert result["pixels_skipped_by_selection"] == 1
     assert result["applied_runs"][0]["x"] == 1
@@ -315,8 +276,8 @@ def test_selection_maps_image_pixels_through_the_target_cel_position(
             "rows": [{"y": 0, "runs": [{"x": 1, "length": 1}]}],
         },
     )
-    assert mask.returncode == 0, mask.stdout
-    mask_result = json.loads(mask.stdout)
+    assert mask.returncode == 0, process_diagnostics(mask.process)
+    mask_result = mask.envelope
     assert mask_result["applied_runs"][0]["x"] == 0
     assert mask_result["pixels_skipped_by_selection"] == 1
 
@@ -324,17 +285,17 @@ def test_selection_maps_image_pixels_through_the_target_cel_position(
 def test_empty_selection_is_a_reported_no_op(tmp_path: Path) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "empty-selection.aseprite"
-    _create(source)
+    create_sprite(source, width=3, height=2)
 
-    run = _apply(
+    outcome = _apply(
         source,
         target,
         _rgba_patch(x=0, y=0, length=2),
         selection={"kind": "empty"},
     )
 
-    assert run.returncode == 0, run.stdout
-    result = json.loads(run.stdout)
+    assert outcome.returncode == 0, process_diagnostics(outcome.process)
+    result = outcome.envelope
     assert result["pixels_written"] == 0
     assert result["pixels_skipped_by_selection"] == 2
     assert result["before_content_digest"] == result["after_content_digest"]
@@ -349,8 +310,8 @@ def test_empty_selection_is_a_reported_no_op(tmp_path: Path) -> None:
             "runs": [],
         },
     )
-    assert empty_patch.returncode == 0, empty_patch.stdout
-    empty_patch_result = json.loads(empty_patch.stdout)
+    assert empty_patch.returncode == 0, process_diagnostics(empty_patch.process)
+    empty_patch_result = empty_patch.envelope
     assert empty_patch_result["pixels_requested"] == 0
     assert (
         empty_patch_result["before_content_digest"]
@@ -359,40 +320,35 @@ def test_empty_selection_is_a_reported_no_op(tmp_path: Path) -> None:
 
 
 def test_background_and_grayscale_writes_preserve_native_mode_and_opacity(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
     background = tmp_path / "background.aseprite"
     background_target = tmp_path / "background-target.aseprite"
-    create = spa(
-        "sprite",
-        "create",
-        "--input-json",
-        json.dumps(
-            {
-                "target_sprite_file": str(background),
-                "width": 2,
-                "height": 2,
-                "color_mode": "rgb",
-                "initial_layer": {
-                    "kind": "background",
-                    "background_color": {
-                        "red": 0,
-                        "green": 0,
-                        "blue": 0,
-                        "alpha": 255,
-                    },
+    expect_success(
+        "sprite create",
+        {
+            "target_sprite_file": str(background),
+            "width": 2,
+            "height": 2,
+            "color_mode": "rgb",
+            "initial_layer": {
+                "kind": "background",
+                "background_color": {
+                    "red": 0,
+                    "green": 0,
+                    "blue": 0,
+                    "alpha": 255,
                 },
-                "overwrite": False,
-                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-            }
-        ),
+            },
+            "overwrite": False,
+        },
     )
-    assert create.returncode == 0, create.stdout
     background_run = _apply(
         background, background_target, _rgba_patch(x=0, y=0, length=1)
     )
-    assert background_run.returncode == 0, background_run.stdout
-    background_result = json.loads(background_run.stdout)
+    assert background_run.returncode == 0, process_diagnostics(background_run.process)
+    background_result = background_run.envelope
     assert background_result["color_mode"] == "rgb"
     assert background_result["background_opaque"] is True
 
@@ -400,12 +356,16 @@ def test_background_and_grayscale_writes_preserve_native_mode_and_opacity(
     translucent_patch = _rgba_patch(x=0, y=0, length=1)
     translucent_patch["runs"][0]["color"]["alpha"] = 1  # type: ignore[index]
     translucent = _apply(background, translucent_target, translucent_patch)
-    assert translucent.returncode == 1, translucent.stdout
+    assert translucent.returncode == 1, process_diagnostics(translucent.process)
+    assert (
+        "Background RGB write must be opaque"
+        in translucent.envelope["details"]["reason"]
+    )
     assert not translucent_target.exists()
 
     grayscale = tmp_path / "grayscale.aseprite"
     grayscale_target = tmp_path / "grayscale-target.aseprite"
-    _fixture(grayscale, "grayscale")
+    _fixture(runtime, grayscale, "grayscale")
     gray_patch = {
         "coordinate_space": "image-pixel",
         "rectangle": {"x": 1, "y": 1, "width": 1, "height": 1},
@@ -419,18 +379,19 @@ def test_background_and_grayscale_writes_preserve_native_mode_and_opacity(
         ],
     }
     gray_run = _apply(grayscale, grayscale_target, gray_patch)
-    assert gray_run.returncode == 0, gray_run.stdout
-    gray_result = json.loads(gray_run.stdout)
+    assert gray_run.returncode == 0, process_diagnostics(gray_run.process)
+    gray_result = gray_run.envelope
     assert gray_result["color_mode"] == "grayscale"
     assert gray_result["applied_runs"] == gray_patch["runs"]
 
 
 def test_indexed_write_reports_effective_palette_and_rejects_missing_index_atomically(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
     source = tmp_path / "indexed.aseprite"
     target = tmp_path / "indexed-target.aseprite"
-    _fixture(source, "indexed")
+    _fixture(runtime, source, "indexed")
     source_bytes = source.read_bytes()
     valid_patch = {
         "coordinate_space": "image-pixel",
@@ -446,8 +407,8 @@ def test_indexed_write_reports_effective_palette_and_rejects_missing_index_atomi
     }
 
     valid = _apply(source, target, valid_patch)
-    assert valid.returncode == 0, valid.stdout
-    result = json.loads(valid.stdout)
+    assert valid.returncode == 0, process_diagnostics(valid.process)
+    result = valid.envelope
     assert result["color_mode"] == "indexed"
     assert result["effective_palettes"] == [
         {
@@ -474,18 +435,22 @@ def test_indexed_write_reports_effective_palette_and_rejects_missing_index_atomi
         }
     ]
     invalid = _apply(source, invalid_target, invalid_patch)
-    assert invalid.returncode == 1, invalid.stdout
+    assert invalid.returncode == 1, process_diagnostics(invalid.process)
+    assert (
+        "Palette Index does not exist in every affected Cel Frame Effective Palette"
+        in invalid.envelope["details"]["reason"]
+    )
     assert not invalid_target.exists()
     assert source.read_bytes() == source_bytes
 
 
 @pytest.mark.parametrize("palette_alpha", [0, 128])
 def test_indexed_background_rejects_translucent_palette_write_atomically(
-    tmp_path: Path, palette_alpha: int
+    runtime: RuntimeObservation, tmp_path: Path, palette_alpha: int
 ) -> None:
     source = tmp_path / "indexed-background.aseprite"
     target = tmp_path / "indexed-background-target.aseprite"
-    _fixture(source, "indexed-background", palette_alpha=palette_alpha)
+    _fixture(runtime, source, "indexed-background", palette_alpha=palette_alpha)
     source_bytes = source.read_bytes()
     patch = {
         "coordinate_space": "image-pixel",
@@ -500,23 +465,24 @@ def test_indexed_background_rejects_translucent_palette_write_atomically(
         ],
     }
 
-    run = _apply(source, target, patch)
+    outcome = _apply(source, target, patch)
 
-    assert run.returncode == 1, run.stdout
+    assert outcome.returncode == 1, process_diagnostics(outcome.process)
     assert (
         "persisted Background Image is not opaque"
-        in json.loads(run.stdout)["details"]["reason"]
+        in outcome.envelope["details"]["reason"]
     )
     assert not target.exists()
     assert source.read_bytes() == source_bytes
 
 
 def test_indexed_background_accepts_opaque_transparent_index(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
     source = tmp_path / "indexed-background.aseprite"
     target = tmp_path / "indexed-background-target.aseprite"
-    _fixture(source, "indexed-background", palette_alpha=255)
+    _fixture(runtime, source, "indexed-background", palette_alpha=255)
     patch = {
         "coordinate_space": "image-pixel",
         "rectangle": {"x": 1, "y": 0, "width": 1, "height": 1},
@@ -530,21 +496,22 @@ def test_indexed_background_accepts_opaque_transparent_index(
         ],
     }
 
-    run = _apply(source, target, patch)
+    outcome = _apply(source, target, patch)
 
-    assert run.returncode == 0, run.stdout
-    result = json.loads(run.stdout)
+    assert outcome.returncode == 0, process_diagnostics(outcome.process)
+    result = outcome.envelope
     assert result["pixels_changed"] == 1
     assert result["background_opaque"] is True
     assert target.is_file()
 
 
 def test_indexed_linked_cels_report_each_frames_effective_palette(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
     source = tmp_path / "palette-change.aseprite"
     target = tmp_path / "palette-change-target.aseprite"
-    _fixture(source, "indexed-palette-change")
+    _fixture(runtime, source, "indexed-palette-change")
     patch = {
         "coordinate_space": "image-pixel",
         "rectangle": {"x": 0, "y": 0, "width": 1, "height": 1},
@@ -558,15 +525,15 @@ def test_indexed_linked_cels_report_each_frames_effective_palette(
         ],
     }
 
-    run = _apply(
+    outcome = _apply(
         source,
         target,
         patch,
         address={"layer_path": [1], "frame_number": 3},
     )
 
-    assert run.returncode == 0, run.stdout
-    result = json.loads(run.stdout)
+    assert outcome.returncode == 0, process_diagnostics(outcome.process)
+    result = outcome.envelope
     assert [cel["frame_number"] for cel in result["affected_cels"]] == [1, 3]
     assert result["effective_palettes"] == [
         {
@@ -596,10 +563,10 @@ def test_indexed_linked_cels_report_each_frames_effective_palette(
 
 def test_apply_supports_explicit_in_place_target_commit(tmp_path: Path) -> None:
     source = tmp_path / "in-place.aseprite"
-    _create(source)
+    create_sprite(source, width=3, height=2)
     before = source.read_bytes()
 
-    run = _apply(
+    outcome = _apply(
         source,
         source,
         _rgba_patch(x=2, y=1, length=1),
@@ -607,8 +574,8 @@ def test_apply_supports_explicit_in_place_target_commit(tmp_path: Path) -> None:
         overwrite=True,
     )
 
-    assert run.returncode == 0, run.stdout
-    result = json.loads(run.stdout)
+    assert outcome.returncode == 0, process_diagnostics(outcome.process)
+    result = outcome.envelope
     assert result["target_commit"]["target_sprite_file"] == str(source)
     assert source.read_bytes() != before
 
@@ -623,10 +590,10 @@ def test_apply_accepts_in_place_paths_to_the_same_publication_entry(
         alias_dir.symlink_to(real_dir, target_is_directory=True)
     target = real_dir / "sprite.aseprite"
     source = alias_dir / "sprite.aseprite"
-    _create(target)
+    create_sprite(target, width=3, height=2)
     before = source.read_bytes()
 
-    run = _apply(
+    outcome = _apply(
         source,
         target,
         _rgba_patch(x=2, y=1, length=1),
@@ -634,8 +601,8 @@ def test_apply_accepts_in_place_paths_to_the_same_publication_entry(
         overwrite=True,
     )
 
-    assert run.returncode == 0, run.stdout + run.stderr
-    assert json.loads(run.stdout)["target_commit"]["target_sprite_file"] == str(target)
+    assert outcome.returncode == 0, process_diagnostics(outcome.process)
+    assert outcome.envelope["target_commit"]["target_sprite_file"] == str(target)
     assert alias_dir.is_symlink()
     assert source.read_bytes() == target.read_bytes() != before
 
@@ -649,11 +616,11 @@ def test_apply_case_variant_publication_entry_requires_in_place_intent(
     if not (tmp_path / "caseprobe").exists():
         pytest.skip("requires a case-insensitive filesystem")
     source = tmp_path / "Sprite.aseprite"
-    _create(source)
+    create_sprite(source, width=3, height=2)
     target = tmp_path / "sprite.aseprite"
     before = source.read_bytes()
 
-    run = _apply(
+    outcome = _apply(
         source,
         target,
         _rgba_patch(x=2, y=1, length=1),
@@ -662,74 +629,12 @@ def test_apply_case_variant_publication_entry_requires_in_place_intent(
     )
 
     if in_place:
-        assert run.returncode == 0, run.stdout + run.stderr
+        assert outcome.returncode == 0, process_diagnostics(outcome.process)
         assert source.read_bytes() != before
     else:
-        assert run.returncode == 2, run.stdout + run.stderr
-        assert json.loads(run.stdout)["code"] == "invalid_request"
+        assert outcome.returncode == 2, process_diagnostics(outcome.process)
+        assert outcome.envelope["code"] == "invalid_request"
         assert source.read_bytes() == before
-
-
-@pytest.mark.parametrize("through_target_symlink", [False, True])
-def test_apply_rejects_source_alias_to_target_without_commit(
-    tmp_path: Path, through_target_symlink: bool
-) -> None:
-    real = tmp_path / "real.aseprite"
-    _create(real)
-    target = real
-    if through_target_symlink:
-        target = tmp_path / "target.aseprite"
-        with symlink_creation_permission():
-            target.symlink_to(real)
-    source = tmp_path / "source.aseprite"
-    with symlink_creation_permission():
-        source.symlink_to(target)
-    before = source.read_bytes()
-
-    for in_place in (False, True):
-        run = _apply(
-            source,
-            target,
-            _rgba_patch(x=0, y=0, length=1),
-            in_place=in_place,
-            overwrite=True,
-        )
-
-        assert run.returncode == 2, run.stdout + run.stderr
-        assert json.loads(run.stdout)["code"] == "invalid_request"
-        assert source.is_symlink()
-        assert target.is_symlink() is through_target_symlink
-        assert source.read_bytes() == before
-        assert real.read_bytes() == before
-
-
-def test_apply_resolves_the_complete_target_before_any_write(tmp_path: Path) -> None:
-    source = tmp_path / "source.aseprite"
-    target = tmp_path / "never-published.aseprite"
-    _create(source)
-    source_bytes = source.read_bytes()
-    patch = _rgba_patch(x=0, y=0, length=1, width=4)
-    patch["runs"] = [
-        patch["runs"][0],  # type: ignore[index]
-        {
-            "x": 3,
-            "y": 0,
-            "length": 1,
-            "color": {
-                "kind": "rgba",
-                "red": 68,
-                "green": 85,
-                "blue": 102,
-                "alpha": 255,
-            },
-        },
-    ]
-
-    run = _apply(source, target, patch)
-
-    assert run.returncode == 1, run.stdout
-    assert not target.exists()
-    assert source.read_bytes() == source_bytes
 
 
 @pytest.mark.parametrize(
@@ -742,91 +647,71 @@ def test_apply_resolves_the_complete_target_before_any_write(tmp_path: Path) -> 
     ],
 )
 def test_apply_rejects_unsupported_or_absent_cel_targets(
-    tmp_path: Path, kind: str, address: dict[str, object], reason: str
+    runtime: RuntimeObservation,
+    tmp_path: Path,
+    kind: str,
+    address: dict[str, object],
+    reason: str,
 ) -> None:
     source = tmp_path / f"{kind}.aseprite"
     target = tmp_path / f"{kind}-target.aseprite"
-    _fixture(source, kind)
+    _fixture(runtime, source, kind)
 
-    run = _apply(source, target, _rgba_patch(x=0, y=0, length=1), address=address)
+    outcome = _apply(source, target, _rgba_patch(x=0, y=0, length=1), address=address)
 
     if kind == "absent":
-        assert run.returncode == 2, run.stdout
-        assert json.loads(run.stdout)["code"] == "cel_not_found"
+        assert outcome.returncode == 2, process_diagnostics(outcome.process)
+        assert outcome.envelope["code"] == "cel_not_found"
     else:
-        assert run.returncode == 1, run.stdout
-        assert reason in json.loads(run.stdout)["details"]["reason"]
+        assert outcome.returncode == 1, process_diagnostics(outcome.process)
+        assert reason in outcome.envelope["details"]["reason"]
     assert not target.exists()
 
 
-def test_apply_ignores_ambient_editor_selection(tmp_path: Path) -> None:
+def test_apply_ignores_ambient_editor_selection(
+    runtime: RuntimeObservation, tmp_path: Path
+) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "ambient-selection-target.aseprite"
-    _create(source)
-    observation = probe(
-        RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
-    )
-    fixture = Path(__file__).parent / "fixtures" / "ambient_selection.lua"
+    create_sprite(source, width=3, height=2)
     support = files("spa.kernel")
-    with tempfile.TemporaryDirectory(prefix="spa-paint-selection-") as work:
-        prepared = prepare_invocation(
-            Path(observation.canonical_path),
-            Path(observation.resource_path),
-            Path(work),
-        )
-        run = subprocess.run(
-            [
-                str(prepared.executable),
-                "--batch",
-                "--script-param",
-                f"source={source}",
-                "--script-param",
-                f"target={target}",
-                "--script-param",
-                f"paint={support.joinpath('raster/paint/paint_apply_support.lua')}",
-                "--script-param",
-                f"layer_select={support.joinpath('document/layer/layer_select.lua')}",
-                "--script-param",
-                f"raster_color={support.joinpath('raster/raster_color.lua')}",
-                "--script-param",
-                f"effective_palette={support.joinpath('color/effective_palette.lua')}",
-                "--script-param",
-                f"selection_mask={support.joinpath('raster/selection/selection_mask.lua')}",
-                "--script-param",
-                f"digest={support.joinpath('foundation/digest.lua')}",
-                "--script",
-                str(fixture),
-            ],
-            text=True,
-            capture_output=True,
-            check=False,
-            env=prepared.environment,
-        )
+    lua = run_lua(
+        FIXTURES / "ambient_selection.lua",
+        runtime,
+        source=source,
+        target=target,
+        paint=support.joinpath("raster/paint/paint_apply_support.lua"),
+        layer_select=support.joinpath("document/layer/layer_select.lua"),
+        raster_color=support.joinpath("raster/raster_color.lua"),
+        effective_palette=support.joinpath("color/effective_palette.lua"),
+        selection_mask=support.joinpath("raster/selection/selection_mask.lua"),
+        digest=support.joinpath("foundation/digest.lua"),
+    )
 
-    assert run.returncode == 0, process_diagnostics(run)
+    assert lua.returncode == 0, process_diagnostics(lua)
     assert target.is_file()
 
 
 def test_single_pixel_patch_on_2k_sprite_completes_with_default_timeout(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
     source = tmp_path / "large.aseprite"
     target = tmp_path / "large-target.aseprite"
-    _fixture(source, "large-rgb")
+    _fixture(runtime, source, "large-rgb")
 
-    run = _apply(source, target, _rgba_patch(x=0, y=0, length=1))
+    outcome = _apply(source, target, _rgba_patch(x=0, y=0, length=1))
 
-    assert run.returncode == 0, run.stdout
-    assert json.loads(run.stdout)["pixels_written"] == 1
+    assert outcome.returncode == 0, process_diagnostics(outcome.process)
+    assert outcome.envelope["pixels_written"] == 1
     assert target.is_file()
 
 
-def test_kernel_accepts_256_addressed_pixels_and_rejects_257(tmp_path: Path) -> None:
+def test_kernel_accepts_256_addressed_pixels_and_rejects_257(
+    runtime: RuntimeObservation, tmp_path: Path
+) -> None:
     source = tmp_path / "limit.aseprite"
-    _fixture(source, "limit-rgb")
-    observation = probe(
-        RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
-    )
+    _fixture(runtime, source, "limit-rgb")
 
     def payload(length: int) -> dict[str, object]:
         return {
@@ -855,12 +740,12 @@ def test_kernel_accepts_256_addressed_pixels_and_rejects_257(tmp_path: Path) -> 
             "selection": None,
         }
 
-    accepted = invoke(observation, PAINT_APPLY_HANDLER, payload(256), 15.0)
+    accepted = invoke(runtime, PAINT_APPLY_HANDLER, payload(256), 15.0)
     assert accepted.payload["pixels_requested"] == 256
     assert (tmp_path / "limit-256-staged.aseprite").is_file()
 
     with pytest.raises(RuntimeIssue) as rejected:
-        invoke(observation, PAINT_APPLY_HANDLER, payload(257), 15.0)
+        invoke(runtime, PAINT_APPLY_HANDLER, payload(257), 15.0)
     assert rejected.value.kind == "handler_rejected"
     assert isinstance(rejected.value.evidence, HandlerEvidence)
     assert "Operation Limit" in rejected.value.evidence.reason

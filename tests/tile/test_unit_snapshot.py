@@ -47,6 +47,7 @@ def snapshot() -> dict:
 def test_snapshot_rejects_ambiguous_or_incomplete_representation(defect: str) -> None:
     value = snapshot()
     entry = value["entries"][0]
+    message = None
     if defect == "duplicate":
         value["entries"].append(deepcopy(entry))
     elif defect == "order":
@@ -62,8 +63,10 @@ def test_snapshot_rejects_ambiguous_or_incomplete_representation(defect: str) ->
     elif defect == "incomplete":
         value["complete"] = False
     else:
-        value["rectangle"]["x"] = -1
-    with pytest.raises(ValidationError):
+        # The entry stays inside the Rectangle, so only the origin rule refuses it.
+        value["rectangle"].update(x=-1, width=4)
+        message = "Tile Region origin must be Cel-local and nonnegative"
+    with pytest.raises(ValidationError, match=message):
         TileRegionSnapshot.model_validate(value)
 
 

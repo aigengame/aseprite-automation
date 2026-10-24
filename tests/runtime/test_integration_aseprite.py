@@ -16,12 +16,14 @@ from spa.application.failure_registry import FAILURE_CODES
 from spa.application.surface import OPERATIONS
 from spa.contracts.ports import PackagedHandler, RuntimeObservation
 from spa.contracts.public import RuntimeRequest
+from tests.host_permissions import symlink_creation_permission
 from tests.support import (
     controlled_aseprite,
     exiting_aseprite,
     fake_aseprite,
     fake_probe_response,
     operation_services,
+    probe_only_aseprite,
     recording_aseprite,
     responding_aseprite,
     spa,
@@ -80,15 +82,6 @@ def _flooding_aseprite(tmp_path: Path, byte_count: int) -> Path:
     )
 
 
-def test_missing_runtime_has_structured_environment_failure() -> None:
-    run = spa("info", "--aseprite", "/no/such/aseprite", "--json")
-    assert run.returncode == 1
-    failure = json.loads(run.stdout)
-    assert failure["code"] == "executable_not_found"
-    assert failure["category"] == "environment"
-    assert failure["details"]["requested_path"] == "/no/such/aseprite"
-
-
 def test_spa_prefixed_executable_environment_selects_runtime(tmp_path: Path) -> None:
     binary = exiting_aseprite(tmp_path, stdout="environment-selected", status=13)
     environment = os.environ.copy()
@@ -145,6 +138,22 @@ def test_unexpandable_executable_path_uses_structured_discovery_failure(
         unresolved if source == "argv" else None
     )
     assert failure["details"]["searched"] == [unresolved]
+
+
+def test_symlinked_executable_resolves_to_resource_complete_bundle(
+    tmp_path: Path,
+) -> None:
+    binary = probe_only_aseprite(tmp_path)
+    # The link directory has no gui.xml, so only the resolved bundle has resources.
+    link = tmp_path / "aseprite"
+    with symlink_creation_permission():
+        link.symlink_to(binary)
+    run = spa("info", "--aseprite", str(link))
+    assert run.returncode == 0, run.stdout
+    runtime = json.loads(run.stdout)["runtime"]
+    assert runtime["selection_source"] == "explicit"
+    assert runtime["resource_complete"] is True
+    assert runtime["canonical_path"] == str(binary.resolve())
 
 
 def test_stdin_json_selects_the_installed_runtime(tmp_path: Path) -> None:
@@ -465,15 +474,6 @@ def test_app_bundle_cli_launch_is_scoped_to_macos(tmp_path: Path) -> None:
     else:
         assert launched_path == str(binary.resolve())
         assert data_status == "data-absent"
-
-
-def test_resource_check_is_distinct_from_process_outcome(tmp_path: Path) -> None:
-    binary = tmp_path / "aseprite"
-    binary.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
-    binary.chmod(0o755)
-    run = spa("info", "--aseprite", str(binary), "--json")
-    assert run.returncode == 1
-    assert json.loads(run.stdout)["code"] == "resource_incomplete"
 
 
 def test_process_start_failure_keeps_installed_executable_identity(

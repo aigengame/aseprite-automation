@@ -1,79 +1,15 @@
-"""Real-runtime Image fixtures and independent native/export observations."""
+"""Independent native observations of Image results."""
 
 import json
-import os
-import subprocess
-import tempfile
 from pathlib import Path
 
-from PIL import Image
-
-from spa.adapters.aseprite.aseprite import probe
-from spa.adapters.aseprite.invocation import prepare_invocation
-from spa.application.surface import PROBE_RESOURCES
-from spa.contracts.public import RuntimeRequest
-from tests.support import process_diagnostics, spa
-
-
-def image_fixture(tmp_path: Path, mode: str = "rgb") -> Path:
-    source = tmp_path / "source.aseprite"
-    observation = probe(
-        RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
-    )
-    with tempfile.TemporaryDirectory(prefix="spa-image-fixture-") as work:
-        prepared = prepare_invocation(
-            Path(observation.canonical_path),
-            Path(observation.resource_path),
-            Path(work),
-        )
-        run = subprocess.run(
-            [
-                str(prepared.executable),
-                "--batch",
-                "--script-param",
-                f"out={source}",
-                "--script-param",
-                f"mode={mode}",
-                "--script",
-                str(Path(__file__).parent / "fixtures" / "resize_targets.lua"),
-            ],
-            text=True,
-            capture_output=True,
-            check=False,
-            env=prepared.environment,
-        )
-    assert run.returncode == 0, process_diagnostics(run)
-    assert source.is_file()
-    return source
-
-
-def export_image(source: Path, output: Path, frame_number: int = 1) -> Image.Image:
-    run = spa(
-        "export",
-        "image",
-        "--input-json",
-        json.dumps(
-            {
-                "source_sprite_file": str(source),
-                "destination": {"path": str(output), "if_exists": "fail"},
-                "frame_number": frame_number,
-                "export_image_area": {"kind": "canvas"},
-                "layer_composition": {"mode": "visible"},
-                "composition_color_mode": "preserve",
-                "color_mode": "preserve",
-                "color_profile": "preserve",
-                "transparency": "preserve",
-                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-            }
-        ),
-    )
-    assert run.returncode == 0, run.stdout
-    with Image.open(output) as image:
-        image.load()
-        return image.convert("RGBA")
+from spa.contracts.ports import RuntimeObservation
+from tests.native_invocation import run_lua
+from tests.support import process_diagnostics
 
 
 def inspect_native(
+    runtime: RuntimeObservation,
     source: Path,
     tmp_path: Path,
     x: int,
@@ -82,35 +18,21 @@ def inspect_native(
     *,
     row: bool = False,
 ) -> dict:
-    observation = probe(
-        RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
-    )
+    """Return the pixel at x, y of frame_number that `inspect_image.lua` reads.
+
+    With row, the result also has the pixels of row y. The fixture writes
+    `pixel-<frame>-<x>-<y>.json` in tmp_path.
+    """
     output = tmp_path / f"pixel-{frame_number}-{x}-{y}.json"
-    with tempfile.TemporaryDirectory(prefix="spa-image-inspect-") as work:
-        prepared = prepare_invocation(
-            Path(observation.canonical_path),
-            Path(observation.resource_path),
-            Path(work),
-        )
-        arguments = [str(prepared.executable), "--batch"]
-        for key, value in {
-            "source": source,
-            "frame": frame_number,
-            "x": x,
-            "y": y,
-            "out": output,
-            "row": "true" if row else "false",
-        }.items():
-            arguments.extend(("--script-param", f"{key}={value}"))
-        arguments.extend(
-            ("--script", str(Path(__file__).parent / "fixtures" / "inspect_image.lua"))
-        )
-        run = subprocess.run(
-            arguments,
-            text=True,
-            capture_output=True,
-            check=False,
-            env=prepared.environment,
-        )
-    assert run.returncode == 0, process_diagnostics(run)
+    lua = run_lua(
+        Path(__file__).parent / "fixtures" / "inspect_image.lua",
+        runtime,
+        source=source,
+        frame=frame_number,
+        x=x,
+        y=y,
+        out=output,
+        row=row,
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
     return json.loads(output.read_text())

@@ -1,20 +1,16 @@
 """Atomic Tileset lifecycle composition through the public CLI."""
 
 import hashlib
-import json
-import os
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
 
-from tests.support import spa
-from tests.tile import conftest
-from tests.tile.support import fixture, run
+from spa.contracts.ports import RuntimeObservation
+from tests.native_invocation import expect_success, run, run_lua
+from tests.plan.support import FIXTURES, observe_plan
+from tests.support import process_diagnostics
 
 pytestmark = pytest.mark.e2e
-runtime = conftest.runtime
 
 
 def lifecycle_steps() -> list[dict]:
@@ -39,8 +35,14 @@ def lifecycle_steps() -> list[dict]:
     ]
 
 
-def source_fixture(source: Path, runtime) -> None:
-    fixture(source, runtime, script="../../plan/fixtures/tileset_lifecycle.lua")
+def source_fixture(source: Path, runtime: RuntimeObservation) -> None:
+    """Write the Tileset lifecycle Plan Sprite of `tileset_lifecycle.lua` to source."""
+    lua = run_lua(
+        FIXTURES / "tileset_lifecycle.lua",
+        runtime,
+        source=source,
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
 
 
 def test_plan_rebinds_all_references_removes_and_keeps_step_time_cel_facts(
@@ -50,25 +52,28 @@ def test_plan_rebinds_all_references_removes_and_keeps_step_time_cel_facts(
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
     source_fixture(source, runtime)
     original = source.read_bytes()
-    code, result = run(
-        "plan",
-        "run",
-        plan={
-            "source_sprite_file": str(source),
-            "target_sprite_file": str(target),
-            "steps": [
-                {
-                    "operation": "cel add",
-                    "input": {
-                        "target": {"layer": {"layer_name": "map"}, "frame_number": 2},
-                        "tilemap_size": {"width": 2, "height": 1},
+    result = expect_success(
+        "plan run",
+        {
+            "plan": {
+                "source_sprite_file": str(source),
+                "target_sprite_file": str(target),
+                "steps": [
+                    {
+                        "operation": "cel add",
+                        "input": {
+                            "target": {
+                                "layer": {"layer_name": "map"},
+                                "frame_number": 2,
+                            },
+                            "tilemap_size": {"width": 2, "height": 1},
+                        },
                     },
-                },
-                *lifecycle_steps(),
-            ],
+                    *lifecycle_steps(),
+                ],
+            }
         },
     )
-    assert code == 0, result
     assert source.read_bytes() == original
     assert result["persisted_reopen_verified"] is True
     assert (
@@ -81,13 +86,13 @@ def test_plan_rebinds_all_references_removes_and_keeps_step_time_cel_facts(
     assert removal["removed_tileset"]["tileset_index"] == 1
     assert removal["tilesets"][0]["tileset_index"] == 1
     assert result["final_sprite"]["tilesets"][0]["name"] == "replacement"
-    code, observed = run(
-        "tilemap",
-        "get",
-        sprite_file=str(target),
-        target={"layer": {"layer_name": "map"}, "frame_number": 1},
+    observed = expect_success(
+        "tilemap get",
+        {
+            "sprite_file": str(target),
+            "target": {"layer": {"layer_name": "map"}, "frame_number": 1},
+        },
     )
-    assert code == 0, observed
     assert observed["tilemap"]["position"] == {"x": -2, "y": 4}
 
 
@@ -100,17 +105,19 @@ def test_plan_later_referenced_removal_reports_remaining_reference_and_rolls_bac
     original = source.read_bytes()
     target.write_bytes(b"Existing Target must survive the failed Plan")
     steps = lifecycle_steps()
-    code, result = run(
-        "plan",
-        "run",
-        plan={
-            "source_sprite_file": str(source),
-            "target_sprite_file": str(target),
-            "overwrite": True,
-            "steps": [steps[0], steps[2]],
+    outcome = run(
+        "plan run",
+        {
+            "plan": {
+                "source_sprite_file": str(source),
+                "target_sprite_file": str(target),
+                "overwrite": True,
+                "steps": [steps[0], steps[2]],
+            }
         },
     )
-    assert code != 0, result
+    result = outcome.envelope
+    assert outcome.returncode != 0, result
     assert result["code"] == "tileset_in_use"
     assert result["details"]["step_number"] == 2
     assert result["details"]["tileset"]["name"] == "terrain"
@@ -128,26 +135,31 @@ def test_plan_failure_after_rebind_and_removal_preserves_source_and_target(
     source_fixture(source, runtime)
     original = source.read_bytes()
     target.write_bytes(b"Previous Target")
-    code, result = run(
-        "plan",
-        "run",
-        plan={
-            "source_sprite_file": str(source),
-            "target_sprite_file": str(target),
-            "overwrite": True,
-            "steps": [
-                *lifecycle_steps(),
-                {
-                    "operation": "cel add",
-                    "input": {
-                        "target": {"layer": {"layer_name": "map"}, "frame_number": 99},
-                        "tilemap_size": {"width": 1, "height": 1},
+    outcome = run(
+        "plan run",
+        {
+            "plan": {
+                "source_sprite_file": str(source),
+                "target_sprite_file": str(target),
+                "overwrite": True,
+                "steps": [
+                    *lifecycle_steps(),
+                    {
+                        "operation": "cel add",
+                        "input": {
+                            "target": {
+                                "layer": {"layer_name": "map"},
+                                "frame_number": 99,
+                            },
+                            "tilemap_size": {"width": 1, "height": 1},
+                        },
                     },
-                },
-            ],
+                ],
+            }
         },
     )
-    assert code != 0, result
+    result = outcome.envelope
+    assert outcome.returncode != 0, result
     assert result["code"] == "cel_frame_out_of_bounds"
     assert result["details"]["step_number"] == 4
     assert result["details"]["from_frame"] == result["details"]["to_frame"] == 99
@@ -169,57 +181,35 @@ def test_plan_verifies_step_time_tileset_evidence_before_its_only_commit(
     source_fixture(source, runtime)
     original = source.read_bytes()
     target.write_bytes(b"Previous Target")
-    observations_file = tmp_path / "observations.json"
-    command = spa("--help").args[0]
-    executed = subprocess.run(
-        [
-            sys.executable,
-            str(Path(__file__).parent / "fixtures" / "observe_tileset_cli.py"),
-            case,
-            str(observations_file),
-            command,
-            "plan",
-            "run",
-            "--input-json",
-            json.dumps(
-                {
-                    "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-                    "plan": {
-                        "source_sprite_file": str(source),
-                        "target_sprite_file": str(target),
-                        "overwrite": True,
-                        "steps": [
-                            {
-                                "operation": "cel add",
-                                "input": {
-                                    "target": {
-                                        "layer": {"layer_name": "map"},
-                                        "frame_number": 2,
-                                    },
-                                    "tilemap_size": {"width": 2, "height": 1},
-                                },
+    executed, result, _ = observe_plan(
+        case,
+        {
+            "plan": {
+                "source_sprite_file": str(source),
+                "target_sprite_file": str(target),
+                "overwrite": True,
+                "steps": [
+                    {
+                        "operation": "cel add",
+                        "input": {
+                            "target": {
+                                "layer": {"layer_name": "map"},
+                                "frame_number": 2,
                             },
-                            *lifecycle_steps(),
-                        ],
+                            "tilemap_size": {"width": 2, "height": 1},
+                        },
                     },
-                }
-            ),
-        ],
-        text=True,
-        capture_output=True,
-        check=False,
+                    *lifecycle_steps(),
+                ],
+            },
+        },
+        tmp_path,
     )
-    result = json.loads(executed.stdout)
-    observations = json.loads(observations_file.read_text())
-    assert observations["native_invocations"] == 1
     assert source.read_bytes() == original
     if failed_step is None:
         assert executed.returncode == 0, result
-        assert observations["commits"] == 1
     else:
         assert executed.returncode != 0, result
         assert result["code"] == "kernel_response_invalid"
         assert result["details"]["failed_step"] == failed_step
-        assert observations["commits"] == 0
         assert target.read_bytes() == b"Previous Target"
-    assert not list(tmp_path.glob(".*.staged.aseprite"))

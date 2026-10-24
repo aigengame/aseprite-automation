@@ -1,8 +1,19 @@
-"""Standalone filters compared with independent native command invocations."""
+"""Invert Color and Outline through the installed CLI.
+
+Native parity tests compare the Target with an independent native command
+invocation (`invert_outline_native.lua`, or the `native` action of
+`invert_outline_mixed.lua`). Refusal tests check that an unsafe Palette index,
+an Indexed component request or an invalid Palette color stops the request
+before publication. Witness tests check literal pixels: two Invert Color
+passes, discriminating Outline points and tiled corners, and an empty
+Selection.
+"""
 
 import pytest
 
-from tests.filter.support import native_script, observe_images, run
+from tests.filter.support import FIXTURES, observe_images
+from tests.native_invocation import expect_success, run, run_lua
+from tests.support import process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
@@ -23,30 +34,41 @@ def request(mode, names, **extra):
 
 
 def invoke(operation, source, target, **parameters):
-    return run(
-        "filter",
-        operation,
-        source_sprite_file=str(source),
-        target_sprite_file=str(target),
-        in_place=False,
-        overwrite=parameters.pop("overwrite", False),
-        **parameters,
+    """Run `spa filter <operation>` and return `(returncode, envelope)`.
+
+    This adds the Source and Target fields, `in_place` False, and `overwrite`
+    from parameters (default False).
+    """
+    outcome = run(
+        f"filter {operation}",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": False,
+            "overwrite": parameters.pop("overwrite", False),
+            **parameters,
+        },
     )
+    return outcome.returncode, outcome.envelope
 
 
 def test_rgb_invert_tracer(tmp_path, runtime):
     source, target, oracle = (
         tmp_path / n for n in ["source.aseprite", "target.aseprite", "oracle.aseprite"]
     )
-    native_script(runtime, "invert_outline_source.lua", source=source, mode="rgb")
-    native_script(
+    lua = run_lua(
+        FIXTURES / "invert_outline_source.lua", runtime, source=source, mode="rgb"
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
+    lua = run_lua(
+        FIXTURES / "invert_outline_native.lua",
         runtime,
-        "invert_outline_native.lua",
         source=source,
         target=oracle,
         operation="invert-color",
         channels=1,
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     code, result = invoke("invert-color", source, target, **request("rgb", ["red"]))
     assert code == 0, result
     assert observe_images(runtime, target) == observe_images(runtime, oracle)
@@ -76,16 +98,20 @@ def test_invert_channels_native_parity(tmp_path, runtime, mode, names, flags):
     source, target, oracle = (
         tmp_path / n for n in ["source.aseprite", "target.aseprite", "oracle.aseprite"]
     )
-    native_script(runtime, "invert_outline_source.lua", source=source, mode=mode)
+    lua = run_lua(
+        FIXTURES / "invert_outline_source.lua", runtime, source=source, mode=mode
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
     before = source.read_bytes()
-    native_script(
+    lua = run_lua(
+        FIXTURES / "invert_outline_native.lua",
         runtime,
-        "invert_outline_native.lua",
         source=source,
         target=oracle,
         operation="invert-color",
         channels=flags,
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     code, result = invoke("invert-color", source, target, **request(mode, names))
     assert code == 0, result
     assert result["channels"] == {"kind": "components", "names": names}
@@ -106,9 +132,14 @@ def test_invert_two_pass_valid_paths_restore_pixels(tmp_path, runtime, mode, nam
     source, first, second = (
         tmp_path / n for n in ["source.aseprite", "first.aseprite", "second.aseprite"]
     )
-    native_script(
-        runtime, "invert_outline_source.lua", source=source, mode=mode, opaque="true"
+    lua = run_lua(
+        FIXTURES / "invert_outline_source.lua",
+        runtime,
+        source=source,
+        mode=mode,
+        opaque="true",
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     parameters = request(mode, names or ["red"])
     if names is None:
         parameters["channels"] = {"kind": "index"}
@@ -183,11 +214,14 @@ def test_outline_every_preset_and_place_native_parity(
     source, target, oracle = (
         tmp_path / n for n in ["source.aseprite", "target.aseprite", "oracle.aseprite"]
     )
-    native_script(runtime, "invert_outline_source.lua", source=source, mode=mode)
+    lua = run_lua(
+        FIXTURES / "invert_outline_source.lua", runtime, source=source, mode=mode
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
     original = source.read_bytes()
-    native_script(
+    lua = run_lua(
+        FIXTURES / "invert_outline_native.lua",
         runtime,
-        "invert_outline_native.lua",
         source=source,
         target=oracle,
         operation="outline",
@@ -196,6 +230,7 @@ def test_outline_every_preset_and_place_native_parity(
         matrix=native_matrix,
         tiled=0,
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     parameters = outline_request(
         mode, place=place, matrix={"kind": "preset", "name": name}
     )
@@ -227,10 +262,13 @@ def test_outline_asymmetric_custom_and_tiled_edges(
     source, target, oracle = (
         tmp_path / n for n in ["source.aseprite", "target.aseprite", "oracle.aseprite"]
     )
-    native_script(runtime, "invert_outline_source.lua", source=source, mode="rgb")
-    native_script(
+    lua = run_lua(
+        FIXTURES / "invert_outline_source.lua", runtime, source=source, mode="rgb"
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
+    lua = run_lua(
+        FIXTURES / "invert_outline_native.lua",
         runtime,
-        "invert_outline_native.lua",
         source=source,
         target=oracle,
         operation="outline",
@@ -239,6 +277,7 @@ def test_outline_asymmetric_custom_and_tiled_edges(
         matrix=65,
         tiled=native_tiled,
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     code, result = invoke(
         "outline",
         source,
@@ -262,10 +301,13 @@ def test_outline_component_projection_native_parity(
     source, target, oracle = (
         tmp_path / n for n in ["source.aseprite", "target.aseprite", "oracle.aseprite"]
     )
-    native_script(runtime, "invert_outline_source.lua", source=source, mode=mode)
-    native_script(
+    lua = run_lua(
+        FIXTURES / "invert_outline_source.lua", runtime, source=source, mode=mode
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
+    lua = run_lua(
+        FIXTURES / "invert_outline_native.lua",
         runtime,
-        "invert_outline_native.lua",
         source=source,
         target=oracle,
         operation="outline",
@@ -274,6 +316,7 @@ def test_outline_component_projection_native_parity(
         matrix=170,
         tiled=0,
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     code, result = invoke("outline", source, target, **outline_request(mode, names))
     assert code == 0, result
     assert observe_images(runtime, target) == observe_images(runtime, oracle)
@@ -285,7 +328,10 @@ def test_selection_limits_native_mutation(tmp_path, runtime, operation, mode):
     source, target, oracle = (
         tmp_path / n for n in ["source.aseprite", "target.aseprite", "oracle.aseprite"]
     )
-    native_script(runtime, "invert_outline_source.lua", source=source, mode=mode)
+    lua = run_lua(
+        FIXTURES / "invert_outline_source.lua", runtime, source=source, mode=mode
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
     parameters = (
         outline_request(mode)
         if operation == "outline"
@@ -300,9 +346,9 @@ def test_selection_limits_native_mutation(tmp_path, runtime, operation, mode):
         "kind": "all",
         "rectangle": {"x": 2, "y": 2, "width": 1, "height": 1},
     }
-    native_script(
+    lua = run_lua(
+        FIXTURES / "invert_outline_native.lua",
         runtime,
-        "invert_outline_native.lua",
         source=source,
         target=oracle,
         operation=operation,
@@ -312,6 +358,7 @@ def test_selection_limits_native_mutation(tmp_path, runtime, operation, mode):
         tiled=0,
         selection="center",
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     code, result = invoke(operation, source, target, **parameters)
     assert code == 0, result
     assert observe_images(runtime, target) == observe_images(runtime, oracle)
@@ -322,14 +369,15 @@ def test_index_palette_bounds_and_selection_excludes_unsafe_pixels(
     tmp_path, runtime, size
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(
+    lua = run_lua(
+        FIXTURES / "invert_outline_source.lua",
         runtime,
-        "invert_outline_source.lua",
         source=source,
         mode="indexed",
         palette_size=size,
         unsafe="true",
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     before = source.read_bytes()
     parameters = request("indexed", ["red"], channels={"kind": "index"})
     code, result = invoke("invert-color", source, target, **parameters)
@@ -369,54 +417,12 @@ def test_index_palette_bounds_and_selection_excludes_unsafe_pixels(
     assert (code == 0) == (size >= 129), result
 
 
-@pytest.mark.parametrize("operation", ["invert-color", "outline"])
-@pytest.mark.parametrize("target_kind", ["all", "mixed", "tilemap"])
-def test_resolved_tilemaps_refuse_whole_operation(
-    tmp_path, runtime, operation, target_kind
-):
-    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "tilemap.lua", source=source, mode="rgb")
-    before = source.read_bytes()
-    target.write_bytes(b"retained target")
-    parameters = (
-        outline_request() if operation == "outline" else request("rgb", ["red"])
-    )
-    parameters["cels_target"] = (
-        {"kind": "all"}
-        if target_kind == "all"
-        else {
-            "kind": "selected",
-            "layers": [
-                {"layer_path": [i]} for i in ([1, 2] if target_kind == "mixed" else [2])
-            ],
-            "frame_numbers": [1],
-        }
-    )
-    code, result = invoke(operation, source, target, overwrite=True, **parameters)
-    assert code != 0 and result["code"] == "filter_unsupported_document", result
-    assert source.read_bytes() == before and target.read_bytes() == b"retained target"
-
-
-@pytest.mark.parametrize("operation", ["invert-color", "outline"])
-def test_unrelated_tilemaps_preserved(tmp_path, runtime, operation):
-    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "tilemap.lua", source=source, mode="rgb")
-    before = observe_images(runtime, source)
-    parameters = (
-        outline_request() if operation == "outline" else request("rgb", ["red"])
-    )
-    code, result = invoke(operation, source, target, **parameters)
-    assert code == 0, result
-    after = observe_images(runtime, target)
-    assert after["tiles"] == before["tiles"]
-    assert [cel for cel in after["cels"] if cel["layer"] == "Tilemap"] == [
-        cel for cel in before["cels"] if cel["layer"] == "Tilemap"
-    ]
-
-
 def test_indexed_outline_components_gap_before_mutation(tmp_path, runtime):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "invert_outline_source.lua", source=source, mode="indexed")
+    lua = run_lua(
+        FIXTURES / "invert_outline_source.lua", runtime, source=source, mode="indexed"
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
     before = source.read_bytes()
     code, result = invoke(
         "outline",
@@ -430,8 +436,7 @@ def test_indexed_outline_components_gap_before_mutation(tmp_path, runtime):
     assert result["message"] == result["details"]["reason"]
     assert "Use explicit Index Channels" in result["message"]
     assert "Baseline" not in result["message"]
-    code, info = run("info")
-    assert code == 0, info
+    info = expect_success("info", {})
     gap = next(
         gap
         for gap in info["capability_gaps"]
@@ -449,17 +454,18 @@ def test_background_and_links_preserve_native_effects(
     source, target, oracle = (
         tmp_path / n for n in ["source.aseprite", "target.aseprite", "oracle.aseprite"]
     )
-    native_script(
+    lua = run_lua(
+        FIXTURES / "invert_outline_source.lua",
         runtime,
-        "invert_outline_source.lua",
         source=source,
         mode="rgb",
-        background=str(background).lower(),
+        background=background,
         linked="true",
     )
-    native_script(
+    assert lua.returncode == 0, process_diagnostics(lua)
+    lua = run_lua(
+        FIXTURES / "invert_outline_native.lua",
         runtime,
-        "invert_outline_native.lua",
         source=source,
         target=oracle,
         operation=operation,
@@ -468,6 +474,7 @@ def test_background_and_links_preserve_native_effects(
         matrix=170,
         tiled=0,
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     parameters = (
         outline_request(names=["red", "green", "blue"])
         if operation == "outline"
@@ -481,14 +488,15 @@ def test_background_and_links_preserve_native_effects(
 
 def test_index_padding_participates_in_palette_safety(tmp_path, runtime):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(
+    lua = run_lua(
+        FIXTURES / "invert_outline_source.lua",
         runtime,
-        "invert_outline_source.lua",
         source=source,
         mode="indexed",
         palette_size=255,
         trimmed="true",
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     before = source.read_bytes()
     parameters = request("indexed", ["red"], channels={"kind": "index"})
     code, result = invoke("invert-color", source, target, **parameters)
@@ -526,13 +534,14 @@ def test_outline_discriminating_point_witness(
     tmp_path, runtime, matrix, expected_offsets
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(
+    lua = run_lua(
+        FIXTURES / "invert_outline_source.lua",
         runtime,
-        "invert_outline_source.lua",
         source=source,
         mode="rgb",
         point_only="true",
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     code, result = invoke("outline", source, target, **outline_request(matrix=matrix))
     assert code == 0, result
     cel = observe_images(runtime, target)["cels"][0]
@@ -552,9 +561,14 @@ def test_explicit_empty_selection_preserves_every_image(
     tmp_path, runtime, operation, mode, width
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(
-        runtime, "invert_outline_source.lua", source=source, mode=mode, width=width
+    lua = run_lua(
+        FIXTURES / "invert_outline_source.lua",
+        runtime,
+        source=source,
+        mode=mode,
+        width=width,
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     before = observe_images(runtime, source)
     parameters = (
         outline_request(mode)
@@ -571,7 +585,10 @@ def test_explicit_empty_selection_preserves_every_image(
 
 def test_tiled_axes_have_discriminating_corner_witnesses(tmp_path, runtime):
     source = tmp_path / "source.aseprite"
-    native_script(runtime, "invert_outline_source.lua", source=source, mode="rgb")
+    lua = run_lua(
+        FIXTURES / "invert_outline_source.lua", runtime, source=source, mode="rgb"
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
     observations = []
     for tiled in ["none", "x", "y", "both"]:
         target = tmp_path / f"{tiled}.aseprite"
@@ -601,14 +618,18 @@ def test_mixed_background_outline_uses_ordinary_color_anchor(
         tmp_path / name
         for name in ["source.aseprite", "target.aseprite", "oracle.aseprite"]
     )
-    native_script(runtime, "invert_outline_mixed.lua", action="source", source=source)
-    native_script(
+    lua = run_lua(
+        FIXTURES / "invert_outline_mixed.lua", runtime, action="source", source=source
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
+    lua = run_lua(
+        FIXTURES / "invert_outline_mixed.lua",
         runtime,
-        "invert_outline_mixed.lua",
         action="native",
         source=source,
         target=oracle,
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     parameters = outline_request(names=["red", "green", "blue"], place="inside")
     parameters["background_color"]["alpha"] = 0
     parameters["cels_target"]["layers"] = [
@@ -629,16 +650,22 @@ def test_background_only_outline_retains_native_opaque_color_projection(
         tmp_path / name
         for name in ["source.aseprite", "target.aseprite", "oracle.aseprite"]
     )
-    native_script(
-        runtime, "invert_outline_mixed.lua", action="source", source=source, only="true"
-    )
-    native_script(
+    lua = run_lua(
+        FIXTURES / "invert_outline_mixed.lua",
         runtime,
-        "invert_outline_mixed.lua",
+        action="source",
+        source=source,
+        only="true",
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
+    lua = run_lua(
+        FIXTURES / "invert_outline_mixed.lua",
+        runtime,
         action="native",
         source=source,
         target=oracle,
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     parameters = outline_request(names=["red", "green", "blue"], place="inside")
     parameters["background_color"]["alpha"] = 0
     code, result = invoke("outline", source, target, **parameters)
@@ -653,13 +680,14 @@ def test_outline_invalid_palette_color_preserves_source_and_existing_target(
     tmp_path, runtime, field
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(
+    lua = run_lua(
+        FIXTURES / "invert_outline_source.lua",
         runtime,
-        "invert_outline_source.lua",
         source=source,
         mode="indexed",
         palette_size=130,
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     original = source.read_bytes()
     target.write_bytes(b"preserved destination")
     parameters = outline_request("indexed")

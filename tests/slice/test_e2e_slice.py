@@ -1,18 +1,21 @@
 """Slice snapshot reads and bounded mutations through the installed public CLI."""
 
+import re
+
 import pytest
 
-from tests.slice.support import fixture, mutation, native_script, run
+from tests.native_invocation import expect_success, run, run_lua
+from tests.slice.support import FIXTURES, UNESCAPED_LINE_BREAK, fixture, mutation
+from tests.support import process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
 
-def test_complete_slice_reads_report_ordered_keys_and_exact_coverage(tmp_path):
+def test_complete_slice_reads_report_ordered_keys_and_exact_coverage(tmp_path, runtime):
     source = tmp_path / "source.aseprite"
-    fixture(source)
+    fixture(runtime, source)
     original = source.read_bytes()
-    code, listed = run("slice", "list", sprite_file=str(source))
-    assert code == 0, listed
+    listed = expect_success("slice list", {"sprite_file": str(source)})
     assert listed["frame_count"] == 6
     assert listed["coordinate_space"] == "canvas-pixel"
     assert [item["slice_index"] for item in listed["slices"]] == [1, 2, 3, 4]
@@ -30,48 +33,46 @@ def test_complete_slice_reads_report_ordered_keys_and_exact_coverage(tmp_path):
     assert [key["effective_frame_range"] for key in late["keys"]] == [
         {"from_frame": 3, "to_frame": 6}
     ]
-    code, got = run(
-        "slice", "get", sprite_file=str(source), target={"slice_name": "multi"}
+    got = expect_success(
+        "slice get", {"sprite_file": str(source), "target": {"slice_name": "multi"}}
     )
-    assert code == 0 and got["slice"] == multi, got
-    code, got = run(
-        "slice",
-        "get",
-        sprite_file=str(source),
-        target={"slice_index": multi["slice_index"]},
+    assert got["slice"] == multi, got
+    got = expect_success(
+        "slice get",
+        {"sprite_file": str(source), "target": {"slice_index": multi["slice_index"]}},
     )
-    assert code == 0 and got["slice"] == multi, got
-    code, failure = run(
-        "slice", "get", sprite_file=str(source), target={"slice_name": "same"}
+    assert got["slice"] == multi, got
+    outcome = run(
+        "slice get", {"sprite_file": str(source), "target": {"slice_name": "same"}}
     )
-    assert code != 0 and failure["code"] == "slice_ambiguous", failure
+    failure = outcome.envelope
+    assert outcome.returncode != 0 and failure["code"] == "slice_ambiguous", failure
     assert source.read_bytes() == original
 
 
-def test_set_static_geometry_and_metadata_survives_reopen(tmp_path):
+def test_set_static_geometry_and_metadata_survives_reopen(tmp_path, runtime):
     source, target = tmp_path / "source.aseprite", tmp_path / "edited.aseprite"
-    fixture(source)
-    _, before = run("slice", "list", sprite_file=str(source))
+    fixture(runtime, source)
+    before = expect_success("slice list", {"sprite_file": str(source)})
     selected = next(item for item in before["slices"] if item["data"] == "first")
-    code, changed = run(
-        "slice",
-        "set",
-        **mutation(source, target),
-        target={"slice_index": selected["slice_index"]},
-        properties={
-            "name": "",
-            "data": "",
-            "bounds": {"x": 3, "y": -4, "width": 5, "height": 7},
-            "center": None,
-            "pivot": {"x": 2, "y": -3},
+    changed = expect_success(
+        "slice set",
+        {
+            **mutation(source, target),
+            "target": {"slice_index": selected["slice_index"]},
+            "properties": {
+                "name": "",
+                "data": "",
+                "bounds": {"x": 3, "y": -4, "width": 5, "height": 7},
+                "center": None,
+                "pivot": {"x": 2, "y": -3},
+            },
         },
     )
-    assert code == 0, changed
     assert changed["previous_slice"] == selected
-    code, reopened = run(
-        "slice", "get", sprite_file=str(target), target={"slice_name": ""}
+    reopened = expect_success(
+        "slice get", {"sprite_file": str(target), "target": {"slice_name": ""}}
     )
-    assert code == 0, reopened
     edited = reopened["slice"]
     assert edited in changed["slices"]
     assert edited["data"] == "" and edited["color"] == selected["color"]
@@ -84,29 +85,32 @@ def test_set_static_geometry_and_metadata_survives_reopen(tmp_path):
             "pivot": {"x": 2, "y": -3},
         }
     ]
-    native_script("preserved.lua", source=target)
+    lua = run_lua(FIXTURES / "preserved.lua", runtime, source=target)
+    assert lua.returncode == 0, process_diagnostics(lua)
 
 
-def test_add_returns_reopened_addresses_and_preserves_existing_slice_keys(tmp_path):
+def test_add_returns_reopened_addresses_and_preserves_existing_slice_keys(
+    tmp_path, runtime
+):
     source, target = tmp_path / "source.aseprite", tmp_path / "added.aseprite"
-    fixture(source)
+    fixture(runtime, source)
     original = source.read_bytes()
-    _, before = run("slice", "list", sprite_file=str(source))
-    code, added = run(
-        "slice",
-        "add",
-        **mutation(source, target),
-        name="panel",
-        data="interactive",
-        color={"red": 12, "green": 34, "blue": 56, "alpha": 78},
-        bounds={"x": -3, "y": 2, "width": 8, "height": 6},
-        center={"x": 1, "y": 2, "width": 3, "height": 2},
-        pivot={"x": -1, "y": 7},
+    before = expect_success("slice list", {"sprite_file": str(source)})
+    added = expect_success(
+        "slice add",
+        {
+            **mutation(source, target),
+            "name": "panel",
+            "data": "interactive",
+            "color": {"red": 12, "green": 34, "blue": 56, "alpha": 78},
+            "bounds": {"x": -3, "y": 2, "width": 8, "height": 6},
+            "center": {"x": 1, "y": 2, "width": 3, "height": 2},
+            "pivot": {"x": -1, "y": 7},
+        },
     )
-    assert code == 0, added
     assert added["persisted_reopen_verified"] is True
-    code, reopened = run("slice", "list", sprite_file=str(target))
-    assert code == 0 and added["slices"] == reopened["slices"]
+    reopened = expect_success("slice list", {"sprite_file": str(target)})
+    assert added["slices"] == reopened["slices"]
     panel = next(item for item in added["slices"] if item["name"] == "panel")
     assert panel["data"] == "interactive"
     assert panel["color"] == {"red": 12, "green": 34, "blue": 56, "alpha": 78}
@@ -127,67 +131,68 @@ def test_add_returns_reopened_addresses_and_preserves_existing_slice_keys(tmp_pa
     assert source.read_bytes() == original
 
 
-def test_remove_exact_duplicate_and_reread_current_indexes(tmp_path):
+def test_remove_exact_duplicate_and_reread_current_indexes(tmp_path, runtime):
     source, target = tmp_path / "source.aseprite", tmp_path / "removed.aseprite"
-    fixture(source)
+    fixture(runtime, source)
     original = source.read_bytes()
-    _, before = run("slice", "list", sprite_file=str(source))
+    before = expect_success("slice list", {"sprite_file": str(source)})
     selected = next(item for item in before["slices"] if item["data"] == "second")
-    code, removed = run(
-        "slice",
-        "remove",
-        **mutation(source, target),
-        target={"slice_index": selected["slice_index"]},
+    removed = expect_success(
+        "slice remove",
+        {
+            **mutation(source, target),
+            "target": {"slice_index": selected["slice_index"]},
+        },
     )
-    assert code == 0, removed
     assert removed["previous_slice"] == selected
     assert len(removed["slices"]) == 3
     assert [item["data"] for item in removed["slices"] if item["name"] == "same"] == [
         "first"
     ]
-    _, reopened = run("slice", "list", sprite_file=str(target))
+    reopened = expect_success("slice list", {"sprite_file": str(target)})
     assert removed["slices"] == reopened["slices"]
     assert source.read_bytes() == original
 
 
 @pytest.mark.parametrize("name", ["multi", "late"])
 def test_metadata_edits_preserve_all_keys_and_remove_whole_animated_slice(
-    tmp_path, name
+    tmp_path, runtime, name
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "edited.aseprite"
-    fixture(source)
-    _, before = run(
-        "slice", "get", sprite_file=str(source), target={"slice_name": name}
+    fixture(runtime, source)
+    before = expect_success(
+        "slice get", {"sprite_file": str(source), "target": {"slice_name": name}}
     )
-    code, edited = run(
-        "slice",
-        "set",
-        **mutation(source, target),
-        target={"slice_name": name},
-        properties={
-            "name": "renamed",
-            "data": "complete keys",
-            "color": {"red": 10, "green": 20, "blue": 30, "alpha": 0},
+    edited = expect_success(
+        "slice set",
+        {
+            **mutation(source, target),
+            "target": {"slice_name": name},
+            "properties": {
+                "name": "renamed",
+                "data": "complete keys",
+                "color": {"red": 10, "green": 20, "blue": 30, "alpha": 0},
+            },
         },
     )
-    assert code == 0, edited
     fact = next(item for item in edited["slices"] if item["name"] == "renamed")
     assert fact["keys"] == before["slice"]["keys"]
     assert fact["data"] == "complete keys"
     assert fact["color"] == {"red": 0, "green": 0, "blue": 0, "alpha": 0}
-    code, removed = run(
-        "slice",
-        "remove",
-        source_sprite_file=str(target),
-        target_sprite_file=str(target),
-        in_place=True,
-        overwrite=True,
-        target={"slice_name": "renamed"},
+    removed = expect_success(
+        "slice remove",
+        {
+            "source_sprite_file": str(target),
+            "target_sprite_file": str(target),
+            "in_place": True,
+            "overwrite": True,
+            "target": {"slice_name": "renamed"},
+        },
     )
-    assert code == 0, removed
     assert len(removed["slices"]) == 3
     assert not any(item["name"] == "renamed" for item in removed["slices"])
-    native_script("preserved.lua", source=target)
+    lua = run_lua(FIXTURES / "preserved.lua", runtime, source=target)
+    assert lua.returncode == 0, process_diagnostics(lua)
 
 
 @pytest.mark.parametrize("name", ["multi", "late"])
@@ -199,17 +204,22 @@ def test_metadata_edits_preserve_all_keys_and_remove_whole_animated_slice(
         {"pivot": {"x": 1, "y": 2}},
     ],
 )
-def test_nonstatic_geometry_rejected_without_publishing(tmp_path, name, properties):
+def test_nonstatic_geometry_rejected_without_publishing(
+    tmp_path, runtime, name, properties
+):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    fixture(source)
+    fixture(runtime, source)
     original = source.read_bytes()
     target.write_bytes(b"existing target")
     request = mutation(
         source, target, target={"slice_name": name}, properties=properties
     )
     request["overwrite"] = True
-    code, failure = run("slice", "set", **request)
-    assert code == 2 and failure["code"] == "slice_geometry_unsupported", failure
+    outcome = run("slice set", request)
+    failure = outcome.envelope
+    assert (
+        outcome.returncode == 2 and failure["code"] == "slice_geometry_unsupported"
+    ), failure
     assert source.read_bytes() == original
     assert target.read_bytes() == b"existing target"
     assert sorted(path.name for path in tmp_path.iterdir()) == [
@@ -219,9 +229,11 @@ def test_nonstatic_geometry_rejected_without_publishing(tmp_path, name, properti
 
 
 @pytest.mark.parametrize("operation", ["get", "set", "remove"])
-def test_names_and_indexes_resolve_exactly_before_mutation(tmp_path, operation):
+def test_names_and_indexes_resolve_exactly_before_mutation(
+    tmp_path, runtime, operation
+):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    fixture(source)
+    fixture(runtime, source)
     original = source.read_bytes()
     request = (
         {"sprite_file": str(source)} if operation == "get" else mutation(source, target)
@@ -233,35 +245,37 @@ def test_names_and_indexes_resolve_exactly_before_mutation(tmp_path, operation):
         ({"slice_name": "missing"}, "slice_missing"),
         ({"slice_index": 99}, "slice_missing"),
     ]:
-        code, failure = run("slice", operation, **request, target=address)
-        assert code == 2 and failure["code"] == expected, failure
+        outcome = run(f"slice {operation}", {**request, "target": address})
+        failure = outcome.envelope
+        assert outcome.returncode == 2 and failure["code"] == expected, failure
     assert source.read_bytes() == original and not target.exists()
 
 
-def test_remove_last_slice_returns_empty_current_snapshot(tmp_path):
+def test_remove_last_slice_returns_empty_current_snapshot(tmp_path, runtime):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    fixture(source, animated=False)
-    code, removed = run(
-        "slice", "remove", **mutation(source, target), target={"slice_index": 1}
+    fixture(runtime, source, animated=False)
+    removed = expect_success(
+        "slice remove", {**mutation(source, target), "target": {"slice_index": 1}}
     )
-    assert code == 0 and len(removed["slices"]) == 1, removed
-    code, empty = run(
-        "slice",
-        "remove",
-        source_sprite_file=str(target),
-        target_sprite_file=str(target),
-        in_place=True,
-        overwrite=True,
-        target={"slice_index": 1},
+    assert len(removed["slices"]) == 1, removed
+    empty = expect_success(
+        "slice remove",
+        {
+            "source_sprite_file": str(target),
+            "target_sprite_file": str(target),
+            "in_place": True,
+            "overwrite": True,
+            "target": {"slice_index": 1},
+        },
     )
-    assert code == 0 and empty["slices"] == [], empty
-    code, listed = run("slice", "list", sprite_file=str(target))
-    assert code == 0 and listed["slices"] == [], listed
+    assert empty["slices"] == [], empty
+    listed = expect_success("slice list", {"sprite_file": str(target)})
+    assert listed["slices"] == [], listed
 
 
-def test_native_malformed_user_data_cannot_publish_target(tmp_path):
+def test_native_malformed_user_data_cannot_publish_target(tmp_path, runtime):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    fixture(source)
+    fixture(runtime, source)
     original = source.read_bytes()
     target.write_bytes(b"existing target")
     request = mutation(
@@ -271,6 +285,14 @@ def test_native_malformed_user_data_cannot_publish_target(tmp_path):
         properties={"data": "line\nbreak"},
     )
     request["overwrite"] = True
-    code, failure = run("slice", "set", **request)
-    assert code != 0 and failure["code"] == "kernel_execution_failed", failure
+    outcome = run("slice set", request)
+    failure = outcome.envelope
+    assert outcome.returncode != 0 and failure["code"] == "kernel_execution_failed", (
+        failure
+    )
+    # The Slice reader cannot decode the native vendor data with the line break.
+    assert re.fullmatch(
+        rf".*slice_inspect\.lua:\d+: {re.escape(UNESCAPED_LINE_BREAK)}",
+        failure["details"]["reason"],
+    ), failure
     assert source.read_bytes() == original and target.read_bytes() == b"existing target"

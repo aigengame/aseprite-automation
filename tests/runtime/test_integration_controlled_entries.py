@@ -5,8 +5,15 @@ import subprocess
 
 import pytest
 
-from tests.script.support import script_runtime
-from tests.support import fake_probe_response, process_diagnostics, python_aseprite
+from tests.support import (
+    PROBE_ONLY_REFUSAL,
+    fake_probe_response,
+    probe_only_aseprite,
+    process_diagnostics,
+    python_aseprite,
+    script_runtime,
+    spa,
+)
 
 
 @pytest.mark.parametrize("status", [0, 13])
@@ -52,6 +59,26 @@ def test_probe_fixture_copies_request_bytes_and_response(tmp_path):
     )
     assert echo.read_bytes() == request.read_bytes()
     assert result.read_bytes() == response.encode("utf-8")
+
+
+def test_probe_only_fixture_answers_the_probe_and_refuses_other_calls(tmp_path):
+    binary = probe_only_aseprite(tmp_path, ["aseprite_runtime_introspection"])
+    info = spa("info", "--aseprite", str(binary), "--json")
+    assert info.returncode == 0, process_diagnostics(info)
+    runtime = json.loads(info.stdout)["runtime"]
+    assert runtime["verified_capabilities"] == ["aseprite_runtime_introspection"]
+    request, result = tmp_path / "request", tmp_path / "result"
+    request.write_bytes(b"{}")
+    kernel = subprocess.run(
+        [str(binary), f"request={request}", f"response={result}"],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert (kernel.returncode, kernel.stdout) == (97, ""), process_diagnostics(kernel)
+    assert kernel.stderr.strip() == PROBE_ONLY_REFUSAL
+    assert not result.exists()
 
 
 def test_script_fixture_keeps_probe_separate_from_caller(tmp_path):

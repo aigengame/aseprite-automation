@@ -6,8 +6,8 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from tests.export.support import export_image_request as _request
-from tests.export.test_e2e_static_geometry import _export
+from tests.export.support import export_verified_image
+from tests.support import export_image_choices
 
 pytestmark = pytest.mark.e2e
 EXAMPLE = Path(__file__).resolve().parents[2] / "examples/wizard_cast_v2"
@@ -27,8 +27,8 @@ def test_retained_wizard_scene_exports_gem_component_without_authoring_copy(
     destination = tmp_path / "gem.png"
     # Frame 1 has no camera shake or pulse. Its gem world position already equals
     # the component recipe's local position, so export needs no motion edit.
-    result = _export(
-        _request(
+    result = export_verified_image(
+        export_image_choices(
             source,
             destination,
             frame_number=1,

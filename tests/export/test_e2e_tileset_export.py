@@ -1,29 +1,25 @@
 """Verified Tileset atlas and map pairs through the installed public CLI."""
 
 import json
-import os
 from pathlib import Path
 
 import pytest
 from PIL import Image
 
-from spa.adapters.aseprite.aseprite import probe
-from spa.application.surface import PROBE_RESOURCES
-from spa.contracts.public import RuntimeRequest
 from tests.export.support import png_icc_label
-from tests.tile.support import fixture, run
+from tests.native_invocation import expect_success, run, run_lua
+from tests.support import process_diagnostics, tileset_lifecycle_sprite
 
 pytestmark = pytest.mark.e2e
 
 
-@pytest.fixture(scope="module")
-def runtime():
-    return probe(
-        RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
-    )
-
-
 def request(source: Path, root: Path, **overrides: object) -> dict:
+    """Return an Export Tileset request of the `source` Tileset.
+
+    The request exports the `map` Layer at Frame 1, rectangle 3 x 1 at 0, 0, in
+    3 columns, to `atlas.png` and `map.json` in root. Each override replaces one
+    field.
+    """
     return {
         "source_sprite_file": str(source),
         "tileset": {"tileset_name": "source"},
@@ -38,10 +34,9 @@ def request(source: Path, root: Path, **overrides: object) -> dict:
 
 def test_export_full_keyed_tileset_and_one_map_region(tmp_path: Path, runtime) -> None:
     source = tmp_path / "source.aseprite"
-    fixture(source, runtime, script="tileset_lifecycle.lua")
+    tileset_lifecycle_sprite(runtime, source)
     before = source.read_bytes()
-    code, result = run("export", "tileset", **request(source, tmp_path))
-    assert code == 0, result
+    result = expect_success("export tileset", request(source, tmp_path))
     assert source.read_bytes() == before
     assert [item["role"] for item in result["artifacts"]] == [
         "tileset-image",
@@ -98,6 +93,12 @@ PALETTE = [
 def matrix_source(
     tmp_path: Path, runtime, mode="rgb", profile="none", **params
 ) -> Path:
+    """Write `source.aseprite` in tmp_path with `tileset_export.lua`.
+
+    This gives the fixture the ICC file of a linear sRGB or Display P3 profile.
+    An indexed source without palette_size gets a native Palette Change at
+    Frame 2.
+    """
     from importlib.resources import files
 
     from spa.authoring.color.profile import PROFILE_ICC_RESOURCES
@@ -111,20 +112,22 @@ def matrix_source(
             if item.parameter_name == "profile_" + profile
         )
         params["icc_file"] = str(files("spa.kernel").joinpath(resource.package_path))
-    fixture(
-        source,
+    lua = run_lua(
+        Path(__file__).parent / "fixtures" / "tileset_export.lua",
         runtime,
-        script=str(Path(__file__).parent / "fixtures" / "tileset_export.lua"),
+        source=source,
         mode=mode,
         profile=profile,
         **params,
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     if mode == "indexed" and "palette_size" not in params:
         inject_palette_change(source, PALETTE, frame_number=2)
     return source
 
 
 def matrix_request(source: Path, tmp_path: Path) -> dict:
+    """Return the `request` of the `terrain` Tileset at Frame 2, 3 x 2, 2 columns."""
     return request(
         source,
         tmp_path,
@@ -147,15 +150,18 @@ def test_preserve_mode_palette_profile_and_exact_tile_channels(
 
     source = matrix_source(tmp_path, runtime, mode, profile)
     before = source.read_bytes()
-    code, result = run("export", "tileset", **matrix_request(source, tmp_path))
+    outcome = run("export tileset", matrix_request(source, tmp_path))
+    result = outcome.envelope
     assert source.read_bytes() == before
     if mode == "grayscale" and profile in ("linear_srgb", "display_p3_cc0"):
-        assert code != 0 and result["code"] == "tileset_export_unsupported", result
+        assert (
+            outcome.returncode != 0 and result["code"] == "tileset_export_unsupported"
+        ), result
         assert result["details"]["reason"] == "color_profile"
         assert not (tmp_path / "atlas.png").exists()
         assert not (tmp_path / "map.json").exists()
         return
-    assert code == 0, json.dumps(result, indent=2)
+    assert outcome.returncode == 0, json.dumps(result, indent=2)
     decoded = decode_png_artifact((tmp_path / "atlas.png").read_bytes())
     assert (decoded.width, decoded.height, decoded.color_mode) == (4, 4, mode)
     assert decoded.color_profile == (
@@ -211,8 +217,7 @@ def test_rgb_tiles_with_more_than_256_colors_do_not_quantize(
     tmp_path: Path, runtime
 ) -> None:
     source = matrix_source(tmp_path, runtime, large_colors="true")
-    code, result = run("export", "tileset", **matrix_request(source, tmp_path))
-    assert code == 0, result
+    expect_success("export tileset", matrix_request(source, tmp_path))
     with Image.open(tmp_path / "atlas.png") as image:
         assert image.mode in ("RGB", "RGBA")
         pixels = image.convert("RGBA")
@@ -241,8 +246,11 @@ def test_unkeyed_unused_tiles_bad_placements_and_incomplete_palettes_refuse(
 ) -> None:
     source = matrix_source(tmp_path, runtime, **params)
     before = source.read_bytes()
-    code, result = run("export", "tileset", **matrix_request(source, tmp_path))
-    assert code != 0 and result["code"] == "tileset_export_unsupported", result
+    outcome = run("export tileset", matrix_request(source, tmp_path))
+    result = outcome.envelope
+    assert outcome.returncode != 0 and result["code"] == "tileset_export_unsupported", (
+        result
+    )
     assert result["details"]["reason"] == reason
     assert source.read_bytes() == before
     assert (
@@ -260,8 +268,11 @@ def test_unknown_rgb_icc_refuses_without_implicit_profile_loss(
     icc.write_bytes(ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes())
     source = matrix_source(tmp_path, runtime, profile="custom", icc_file=str(icc))
     before = source.read_bytes()
-    code, result = run("export", "tileset", **matrix_request(source, tmp_path))
-    assert code != 0 and result["code"] == "tileset_export_unsupported", result
+    outcome = run("export tileset", matrix_request(source, tmp_path))
+    result = outcome.envelope
+    assert outcome.returncode != 0 and result["code"] == "tileset_export_unsupported", (
+        result
+    )
     assert result["details"]["reason"] == "color_profile"
     assert source.read_bytes() == before
     assert (
@@ -275,8 +286,7 @@ def test_subregion_retains_full_atlas_and_reports_selected_coordinates(
     source = matrix_source(tmp_path, runtime)
     inputs = matrix_request(source, tmp_path)
     inputs["rectangle"] = {"x": 1, "y": 0, "width": 2, "height": 2}
-    code, result = run("export", "tileset", **inputs)
-    assert code == 0, result
+    result = expect_success("export tileset", inputs)
     assert len(result["map"]["atlas"]["tiles"]) == 3
     assert result["map"]["snapshot"]["rectangle"] == inputs["rectangle"]
     assert [
@@ -302,10 +312,9 @@ def test_invalid_target_or_region_refuses_without_output(
     tmp_path: Path, runtime, change: dict, code: str
 ) -> None:
     source = matrix_source(tmp_path, runtime)
-    code_number, result = run(
-        "export", "tileset", **(matrix_request(source, tmp_path) | change)
-    )
-    assert code_number != 0 and result["code"] == code, result
+    outcome = run("export tileset", matrix_request(source, tmp_path) | change)
+    result = outcome.envelope
+    assert outcome.returncode != 0 and result["code"] == code, result
     assert (
         not (tmp_path / "atlas.png").exists() and not (tmp_path / "map.json").exists()
     )
@@ -317,8 +326,11 @@ def test_oversized_atlas_reports_allowed_dimensions_without_publication(
     source = matrix_source(tmp_path, runtime)
     before = source.read_bytes()
     inputs = matrix_request(source, tmp_path) | {"columns": 2147483647}
-    code, result = run("export", "tileset", **inputs)
-    assert code == 2 and result["code"] == "tileset_export_unsupported", result
+    outcome = run("export tileset", inputs)
+    result = outcome.envelope
+    assert outcome.returncode == 2 and result["code"] == "tileset_export_unsupported", (
+        result
+    )
     assert result["details"] == {"kind": "tileset_export", "reason": "atlas_layout"}
     assert "1..2147483647 pixels" in result["message"]
     assert source.read_bytes() == before

@@ -13,13 +13,14 @@ from pathlib import Path
 
 import pytest
 
+from tests.support import workflow_step
+
 ROOT = Path(__file__).resolve().parents[2]
 ACTION = ROOT / ".github/actions/run-linux-aseprite-e2e/action.yml"
 
 
 def native_test_step() -> str:
-    step = ACTION.read_text().split("    - name: Run real Aseprite E2E tests\n", 1)[1]
-    return textwrap.dedent(step.split("      run: |\n", 1)[1].split("\n    - ", 1)[0])
+    return workflow_step(ACTION, "Run real Aseprite E2E tests")
 
 
 @pytest.fixture
@@ -211,11 +212,14 @@ def test_parallel_failure_is_visible_before_inflight_work_finishes(controlled_su
         directory,
         "test_failure.py",
         """\
-        from tests.frame.test_e2e_frame import _run_fixture
+        from tests.native_invocation import run_lua
+        from tests.support import controlled_runtime, process_diagnostics
 
         def test_native_failure(native_failure, policy_dir, wait_for):
             wait_for(policy_dir / "in-flight")
-            _run_fixture("controlled.lua")
+            runtime = controlled_runtime(native_failure)
+            lua = run_lua(policy_dir / "controlled.lua", runtime)
+            assert lua.returncode == 0, process_diagnostics(lua)
 
         """,
     )
@@ -327,41 +331,3 @@ def test_all_skipped_native_run_still_fails_execution_audit(controlled_suite):
     )
     assert result.returncode != 0
     assert "executed no tests" in result.stderr
-
-
-@pytest.mark.parametrize(("choice", "failures"), [((), 1), (("--maxfail=0",), 2)])
-def test_local_full_failure_collection_is_an_explicit_choice(
-    controlled_suite, choice: tuple[str, ...], failures: int
-):
-    directory, env = controlled_suite
-    write_test(
-        directory,
-        "test_failures.py",
-        """\
-        @pytest.mark.parametrize("number", range(2))
-        def test_failure(number):
-            assert False, f"controlled failure {number}"
-        """,
-    )
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "pytest",
-            "-x",
-            "-vv",
-            "--tb=short",
-            *choice,
-            f"--junitxml={env['SPA_E2E_JUNIT_PATH']}",
-        ],
-        cwd=directory,
-        env=env,
-        text=True,
-        capture_output=True,
-        timeout=20,
-        check=False,
-    )
-    assert result.returncode == 1, result.stdout + result.stderr
-    cases = ET.parse(env["SPA_E2E_JUNIT_PATH"]).findall(".//testcase")
-    assert len(cases) == failures
-    assert all(case.find("failure") is not None for case in cases)

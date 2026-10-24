@@ -7,6 +7,7 @@ import pytest
 from PIL import Image
 
 from examples.wizard_cast.probe import build_probe
+from tests.support import installed_cli
 
 pytestmark = pytest.mark.e2e
 
@@ -14,7 +15,7 @@ pytestmark = pytest.mark.e2e
 def test_component_pulse_preserves_other_frames_and_local_anchor(
     tmp_path: Path,
 ) -> None:
-    cli = os.environ.get("SPA_TEST_INSTALLED_CLI", str(Path(".venv/bin/spa").resolve()))
+    cli = installed_cli()
     evidence = build_probe(cli, os.environ["SPA_TEST_ASEPRITE"], tmp_path / "probe")
     images = []
     for filename in evidence["frames"]:

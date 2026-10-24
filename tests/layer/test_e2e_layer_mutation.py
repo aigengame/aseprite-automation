@@ -1,55 +1,42 @@
 """Layer mutations through the installed CLI and real Aseprite."""
 
 import json
-import os
-import subprocess
-import tempfile
 from importlib.resources import files
 from pathlib import Path
 
 import pytest
 
-from spa.adapters.aseprite.invocation import prepare_invocation
 from spa.authoring.document.sprite import SPRITE_INSPECTION_RESOURCES
-from tests.support import process_diagnostics, spa
+from spa.contracts.ports import RuntimeObservation
+from tests.native_invocation import expect_success, run, run_lua
+from tests.support import native_link_status, process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
-
-def _fixture(target: Path, name: str = "mutations.lua") -> None:
-    aseprite = Path(os.environ["SPA_TEST_ASEPRITE"]).resolve()
-    resource = aseprite.parent.parent / "Resources" / "data" / "gui.xml"
-    script = Path(__file__).parent / "fixtures" / name
-    with tempfile.TemporaryDirectory(prefix="spa-layer-mutation-fixture-") as work:
-        prepared = prepare_invocation(aseprite, resource, Path(work))
-        run = subprocess.run(
-            [
-                str(prepared.executable),
-                "--batch",
-                "--script-param",
-                f"out={target}",
-                "--script",
-                str(script),
-            ],
-            text=True,
-            capture_output=True,
-            env=prepared.environment,
-            check=False,
-        )
-    assert run.returncode == 0, process_diagnostics(run)
+FIXTURES = Path(__file__).parent / "fixtures"
 
 
-def _run(command: str, request: dict[str, object]) -> tuple[int, dict]:
-    result = spa(
-        "layer",
-        command,
-        "--input-json",
-        json.dumps({**request, "aseprite": os.environ["SPA_TEST_ASEPRITE"]}),
-    )
-    return result.returncode, json.loads(result.stdout)
+def _mutations_sprite(runtime: RuntimeObservation, target: Path) -> None:
+    """Write the regular, group and nested Layer Sprite of `mutations.lua` to target."""
+    lua = run_lua(FIXTURES / "mutations.lua", runtime, out=target)
+    assert lua.returncode == 0, process_diagnostics(lua)
+
+
+def _affected(
+    layer_paths: list[list[int]], cels: list[tuple[list[int], int]]
+) -> dict[str, object]:
+    """Return the exact affected set of the Layer paths and (Layer path, Frame) Cels."""
+    return {
+        "layer_paths": layer_paths,
+        "cels": [
+            {"layer_path": layer_path, "frame_number": frame_number}
+            for layer_path, frame_number in cels
+        ],
+    }
 
 
 def _mutation_request(source: Path, target: Path) -> dict[str, object]:
+    """Return the file fields of a Layer mutation from source to a new target."""
     return {
         "source_sprite_file": str(source),
         "target_sprite_file": str(target),
@@ -58,12 +45,14 @@ def _mutation_request(source: Path, target: Path) -> dict[str, object]:
     }
 
 
-def test_set_layer_properties_and_report_rendered_change(tmp_path: Path) -> None:
+def test_set_layer_properties_and_report_rendered_change(
+    runtime: RuntimeObservation, tmp_path: Path
+) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "target.aseprite"
-    _fixture(source)
-    code, result = _run(
-        "set",
+    _mutations_sprite(runtime, source)
+    result = expect_success(
+        "layer set",
         {
             **_mutation_request(source, target),
             "target": {"layer_path": [2]},
@@ -76,7 +65,6 @@ def test_set_layer_properties_and_report_rendered_change(tmp_path: Path) -> None
             },
         },
     )
-    assert code == 0, result
     assert result["persisted_reopen_verified"] is True
     assert result["before"]["layers"][1]["name"] == "upper"
     changed = result["after"]["layers"][1]
@@ -85,8 +73,8 @@ def test_set_layer_properties_and_report_rendered_change(tmp_path: Path) -> None
     assert changed["is_editable"] is False
     assert changed["opacity"] == 128
     assert changed["blend_mode"] == "multiply"
-    assert [2] in result["affected_before"]["layer_paths"]
-    assert [2] in result["affected_after"]["layer_paths"]
+    for phase in ("affected_before", "affected_after"):
+        assert result[phase] == _affected([[2]], [([2], 1), ([2], 2)])
     assert len(result["rendered_frames"]) == 2
     assert all(
         frame["before_digest"] != frame["after_digest"]
@@ -96,20 +84,20 @@ def test_set_layer_properties_and_report_rendered_change(tmp_path: Path) -> None
 
 
 def test_move_reorders_one_sibling_and_reports_shifted_addresses(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "moved.aseprite"
-    _fixture(source)
-    code, result = _run(
-        "move",
+    _mutations_sprite(runtime, source)
+    result = expect_success(
+        "layer move",
         {
             **_mutation_request(source, target),
             "target": {"layer_path": [2]},
             "stack_index": 1,
         },
     )
-    assert code == 0, result
     assert [layer["name"] for layer in result["before"]["layers"]] == [
         "lower",
         "upper",
@@ -120,35 +108,30 @@ def test_move_reorders_one_sibling_and_reports_shifted_addresses(
         "lower",
         "group",
     ]
-    assert {tuple(path) for path in result["affected_before"]["layer_paths"]} >= {
-        (1,),
-        (2,),
-    }
-    assert {tuple(path) for path in result["affected_after"]["layer_paths"]} >= {
-        (1,),
-        (2,),
-    }
+    assert result["affected_before"] == _affected(
+        [[1], [2]], [([1], 1), ([2], 1), ([2], 2)]
+    )
+    assert result["affected_after"] == _affected(
+        [[1], [2]], [([1], 1), ([1], 2), ([2], 1)]
+    )
     assert result["persisted_reopen_verified"] is True
 
 
-def test_remove_group_reports_complete_deleted_subtree_and_cels(tmp_path: Path) -> None:
+def test_remove_group_reports_complete_deleted_subtree_and_cels(
+    runtime: RuntimeObservation, tmp_path: Path
+) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "removed.aseprite"
-    _fixture(source)
-    code, result = _run(
-        "remove",
+    _mutations_sprite(runtime, source)
+    result = expect_success(
+        "layer remove",
         {
             **_mutation_request(source, target),
             "target": {"layer_path": [3]},
         },
     )
-    assert code == 0, result
     assert result["after"]["metadata"]["layer_count"] == 2
-    assert [3] in result["affected_before"]["layer_paths"]
-    assert [3, 1] in result["affected_before"]["layer_paths"]
-    assert {"layer_path": [3, 1], "frame_number": 1} in result["affected_before"][
-        "cels"
-    ]
+    assert result["affected_before"] == _affected([[3], [3, 1]], [([3, 1], 1)])
     assert result["affected_after"]["layer_paths"] == []
     assert (
         result["rendered_frames"][0]["before_digest"]
@@ -157,27 +140,30 @@ def test_remove_group_reports_complete_deleted_subtree_and_cels(tmp_path: Path) 
 
 
 def test_merge_down_preserves_lower_identity_and_persisted_pixels(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "merged.aseprite"
-    _fixture(source)
-    code, result = _run(
-        "merge",
+    _mutations_sprite(runtime, source)
+    result = expect_success(
+        "layer merge",
         {
             **_mutation_request(source, target),
             "target": {"layer_path": [2]},
         },
     )
-    assert code == 0, result
     assert result["after"]["metadata"]["layer_count"] == 3
     assert [layer["name"] for layer in result["after"]["layers"]] == [
         "lower",
         "group",
     ]
-    assert [1] in result["affected_before"]["layer_paths"]
-    assert [2] in result["affected_before"]["layer_paths"]
-    assert [1] in result["affected_after"]["layer_paths"]
+    assert result["affected_before"] == _affected(
+        [[1], [2], [3], [3, 1]], [([1], 1), ([2], 1), ([2], 2), ([3, 1], 1)]
+    )
+    assert result["affected_after"] == _affected(
+        [[1], [2], [2, 1]], [([1], 1), ([1], 2), ([2, 1], 1)]
+    )
     assert result["persisted_reopen_verified"] is True
 
 
@@ -199,26 +185,35 @@ def test_merge_down_preserves_lower_identity_and_persisted_pixels(
     ],
 )
 def test_rejected_layer_mutation_leaves_no_target(
-    tmp_path: Path, command: str, details: dict, expected_code: str
+    runtime: RuntimeObservation,
+    tmp_path: Path,
+    command: str,
+    details: dict,
+    expected_code: str,
 ) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "rejected.aseprite"
-    _fixture(source)
-    code, result = _run(command, {**_mutation_request(source, target), **details})
-    assert code == 2, result
+    _mutations_sprite(runtime, source)
+    outcome = run(f"layer {command}", {**_mutation_request(source, target), **details})
+    result = outcome.envelope
+    assert outcome.returncode == 2, result
     assert result["code"] == expected_code
     assert not target.exists()
 
 
-def test_remove_rejects_group_containing_tilemap(tmp_path: Path) -> None:
+def test_remove_rejects_group_containing_tilemap(
+    runtime: RuntimeObservation, tmp_path: Path
+) -> None:
     source = tmp_path / "tilemap.aseprite"
     target = tmp_path / "rejected.aseprite"
-    _fixture(source, "tilemap_subtree.lua")
-    code, result = _run(
-        "remove",
+    lua = run_lua(FIXTURES / "tilemap_subtree.lua", runtime, out=source)
+    assert lua.returncode == 0, process_diagnostics(lua)
+    outcome = run(
+        "layer remove",
         {**_mutation_request(source, target), "target": {"layer_path": [2]}},
     )
-    assert code == 2, result
+    result = outcome.envelope
+    assert outcome.returncode == 2, result
     assert result["code"] == "layer_unsupported_target"
     assert not target.exists()
 
@@ -232,73 +227,59 @@ def test_remove_rejects_group_containing_tilemap(tmp_path: Path) -> None:
     ],
 )
 def test_background_is_not_an_eligible_mutation_target(
-    tmp_path: Path, command: str, extra: dict
+    runtime: RuntimeObservation, tmp_path: Path, command: str, extra: dict
 ) -> None:
     source = tmp_path / "unsupported.aseprite"
     target = tmp_path / "rejected.aseprite"
-    _fixture(source, "tilemap_subtree.lua")
-    code, result = _run(
-        command,
+    lua = run_lua(FIXTURES / "tilemap_subtree.lua", runtime, out=source)
+    assert lua.returncode == 0, process_diagnostics(lua)
+    outcome = run(
+        f"layer {command}",
         {
             **_mutation_request(source, target),
             "target": {"layer_path": [1]},
             **extra,
         },
     )
-    assert code == 2, result
+    result = outcome.envelope
+    assert outcome.returncode == 2, result
     assert result["code"] == "layer_unsupported_target"
     assert not target.exists()
 
 
 def test_merge_compositing_ignores_both_ambient_preference_values(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
     source = tmp_path / "source.aseprite"
-    _fixture(source, "merge_composite.lua")
-    aseprite = Path(os.environ["SPA_TEST_ASEPRITE"]).resolve()
-    resource = aseprite.parent.parent / "Resources" / "data" / "gui.xml"
+    lua = run_lua(FIXTURES / "merge_composite.lua", runtime, out=source)
+    assert lua.returncode == 0, process_diagnostics(lua)
     kernel = files("spa.kernel")
-    script = Path(__file__).parent / "fixtures" / "merge_under_ambient.lua"
     reports = []
     for ambient in (False, True):
         target = tmp_path / f"merged-{ambient}.aseprite"
         report = tmp_path / f"merged-{ambient}.json"
-        with tempfile.TemporaryDirectory(prefix="spa-layer-merge-ambient-") as work:
-            prepared = prepare_invocation(aseprite, resource, Path(work))
-            params = {
-                "ambient": str(ambient).lower(),
-                "source": str(source),
-                "target": str(target),
-                "report": str(report),
-                **{
-                    resource.parameter_name: str(kernel.joinpath(resource.package_path))
-                    for resource in SPRITE_INSPECTION_RESOURCES
-                },
-                "cel": str(kernel.joinpath("document/cel/cel_support.lua")),
-                "mutation": str(
-                    kernel.joinpath("document/layer/layer_mutation_support.lua")
-                ),
-                "effective_palette": str(
-                    kernel.joinpath("color/effective_palette.lua")
-                ),
-                "digest": str(kernel.joinpath("foundation/digest.lua")),
-                "persistence": str(
-                    kernel.joinpath("document/sprite/sprite_persistence.lua")
-                ),
-                "workspace": str(work),
-            }
-            command = [str(prepared.executable), "--batch"]
-            for key, value in params.items():
-                command.extend(["--script-param", f"{key}={value}"])
-            command.extend(["--script", str(script)])
-            run = subprocess.run(
-                command,
-                text=True,
-                capture_output=True,
-                env=prepared.environment,
-                check=False,
-            )
-        assert run.returncode == 0, process_diagnostics(run)
+        workspace = tmp_path / f"workspace-{ambient}"
+        workspace.mkdir()
+        lua = run_lua(
+            FIXTURES / "merge_under_ambient.lua",
+            runtime,
+            ambient=ambient,
+            source=source,
+            target=target,
+            report=report,
+            **{
+                resource.parameter_name: kernel.joinpath(resource.package_path)
+                for resource in SPRITE_INSPECTION_RESOURCES
+            },
+            cel=kernel.joinpath("document/cel/cel_support.lua"),
+            mutation=kernel.joinpath("document/layer/layer_mutation_support.lua"),
+            effective_palette=kernel.joinpath("color/effective_palette.lua"),
+            digest=kernel.joinpath("foundation/digest.lua"),
+            persistence=kernel.joinpath("document/sprite/sprite_persistence.lua"),
+            workspace=workspace,
+        )
+        assert lua.returncode == 0, process_diagnostics(lua)
         reports.append(json.loads(report.read_text()))
     assert (
         reports[0]
@@ -314,36 +295,38 @@ def test_merge_compositing_ignores_both_ambient_preference_values(
 
 
 def test_nested_move_stays_within_group_and_merge_targets_adjacent_sibling(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
     source = tmp_path / "nested.aseprite"
     moved = tmp_path / "moved.aseprite"
     merged = tmp_path / "merged.aseprite"
-    _fixture(source, "nested_mutations.lua")
-    code, move = _run(
-        "move",
+    lua = run_lua(FIXTURES / "nested_mutations.lua", runtime, out=source)
+    assert lua.returncode == 0, process_diagnostics(lua)
+    move = expect_success(
+        "layer move",
         {
             **_mutation_request(source, moved),
             "target": {"layer_path": [2, 2]},
             "stack_index": 1,
         },
     )
-    assert code == 0, move
     assert [layer["name"] for layer in move["after"]["layers"][1]["children"]] == [
         "nested-upper",
         "nested-lower",
     ]
-    assert [2, 1] in move["affected_after"]["layer_paths"]
-    assert [2, 2] in move["affected_after"]["layer_paths"]
+    for phase in ("affected_before", "affected_after"):
+        assert move[phase] == _affected(
+            [[2], [2, 1], [2, 2]], [([2, 1], 1), ([2, 2], 1)]
+        )
 
-    code, merge = _run(
-        "merge",
+    merge = expect_success(
+        "layer merge",
         {
             **_mutation_request(source, merged),
             "target": {"layer_path": [2, 2]},
         },
     )
-    assert code == 0, merge
     assert [layer["name"] for layer in merge["after"]["layers"][1]["children"]] == [
         "nested-lower"
     ]
@@ -351,12 +334,15 @@ def test_nested_move_stays_within_group_and_merge_targets_adjacent_sibling(
     assert [2, 1] in merge["affected_after"]["layer_paths"]
 
 
-def test_set_group_properties_without_image_only_fields(tmp_path: Path) -> None:
+def test_set_group_properties_without_image_only_fields(
+    runtime: RuntimeObservation, tmp_path: Path
+) -> None:
     source = tmp_path / "nested.aseprite"
     target = tmp_path / "group-set.aseprite"
-    _fixture(source, "nested_mutations.lua")
-    code, result = _run(
-        "set",
+    lua = run_lua(FIXTURES / "nested_mutations.lua", runtime, out=source)
+    assert lua.returncode == 0, process_diagnostics(lua)
+    result = expect_success(
+        "layer set",
         {
             **_mutation_request(source, target),
             "target": {"layer_path": [2]},
@@ -367,16 +353,14 @@ def test_set_group_properties_without_image_only_fields(tmp_path: Path) -> None:
             },
         },
     )
-    assert code == 0, result
     group = result["after"]["layers"][1]
     assert group["name"] == "renamed-group"
     assert group["is_visible"] is False
     assert group["is_editable"] is False
-    assert {tuple(path) for path in result["affected_after"]["layer_paths"]} >= {
-        (2,),
-        (2, 1),
-        (2, 2),
-    }
+    for phase in ("affected_before", "affected_after"):
+        assert result[phase] == _affected(
+            [[2], [2, 1], [2, 2]], [([2, 1], 1), ([2, 2], 1)]
+        )
 
 
 @pytest.mark.parametrize(
@@ -384,20 +368,19 @@ def test_set_group_properties_without_image_only_fields(tmp_path: Path) -> None:
     [([2], "renamed-image"), ([3], "renamed-group")],
 )
 def test_rename_reports_only_the_changed_layer(
-    tmp_path: Path, path: list[int], name: str
+    runtime: RuntimeObservation, tmp_path: Path, path: list[int], name: str
 ) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "renamed.aseprite"
-    _fixture(source)
-    code, result = _run(
-        "set",
+    _mutations_sprite(runtime, source)
+    result = expect_success(
+        "layer set",
         {
             **_mutation_request(source, target),
             "target": {"layer_path": path},
             "properties": {"name": name},
         },
     )
-    assert code == 0, result
     assert result["affected_before"]["layer_paths"] == [path]
     assert result["affected_after"]["layer_paths"] == [path]
     assert result["affected_before"]["cels"] == []
@@ -413,16 +396,15 @@ def test_rename_reports_only_the_changed_layer(
     [("set", {"properties": {"name": "upper"}}), ("move", {"stack_index": 2})],
 )
 def test_noop_reports_no_changed_objects(
-    tmp_path: Path, command: str, extra: dict
+    runtime: RuntimeObservation, tmp_path: Path, command: str, extra: dict
 ) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "noop.aseprite"
-    _fixture(source)
-    code, result = _run(
-        command,
+    _mutations_sprite(runtime, source)
+    result = expect_success(
+        f"layer {command}",
         {**_mutation_request(source, target), "target": {"layer_path": [2]}, **extra},
     )
-    assert code == 0, result
     for phase in ("affected_before", "affected_after"):
         assert result[phase] == {"layer_paths": [], "cels": []}
     assert all(
@@ -431,49 +413,51 @@ def test_noop_reports_no_changed_objects(
     )
 
 
-def test_move_rejects_crossing_background_before_publishing(tmp_path: Path) -> None:
+def test_move_rejects_crossing_background_before_publishing(
+    runtime: RuntimeObservation, tmp_path: Path
+) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "rejected.aseprite"
-    _fixture(source, "tilemap_subtree.lua")
-    code, result = _run(
-        "move",
+    lua = run_lua(FIXTURES / "tilemap_subtree.lua", runtime, out=source)
+    assert lua.returncode == 0, process_diagnostics(lua)
+    outcome = run(
+        "layer move",
         {
             **_mutation_request(source, target),
             "target": {"layer_path": [2]},
             "stack_index": 1,
         },
     )
-    assert code == 2, result
+    result = outcome.envelope
+    assert outcome.returncode == 2, result
     assert result["code"] == "layer_invalid_position"
     assert not target.exists()
 
 
 @pytest.mark.parametrize("field", ["is_visible", "is_editable"])
 def test_group_flag_change_omits_descendants_already_effectively_disabled(
-    tmp_path: Path, field: str
+    runtime: RuntimeObservation, tmp_path: Path, field: str
 ) -> None:
     source = tmp_path / "source.aseprite"
     child_disabled = tmp_path / "child-disabled.aseprite"
     group_disabled = tmp_path / "group-disabled.aseprite"
-    _fixture(source)
-    code, child = _run(
-        "set",
+    _mutations_sprite(runtime, source)
+    expect_success(
+        "layer set",
         {
             **_mutation_request(source, child_disabled),
             "target": {"layer_path": [3, 1]},
             "properties": {field: False},
         },
     )
-    assert code == 0, child
-    code, group = _run(
-        "set",
+    group = expect_success(
+        "layer set",
         {
             **_mutation_request(child_disabled, group_disabled),
             "target": {"layer_path": [3]},
             "properties": {field: False},
         },
     )
-    assert code == 0, group
     for phase in ("affected_before", "affected_after"):
         assert group[phase] == {"layer_paths": [[3]], "cels": []}
     assert all(
@@ -483,20 +467,21 @@ def test_group_flag_change_omits_descendants_already_effectively_disabled(
 
 
 def test_regular_move_can_cross_tilemap_sibling_without_editing_its_content(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "moved.aseprite"
-    _fixture(source, "tilemap_subtree.lua")
-    code, result = _run(
-        "move",
+    lua = run_lua(FIXTURES / "tilemap_subtree.lua", runtime, out=source)
+    assert lua.returncode == 0, process_diagnostics(lua)
+    result = expect_success(
+        "layer move",
         {
             **_mutation_request(source, target),
             "target": {"layer_path": [2, 2]},
             "stack_index": 1,
         },
     )
-    assert code == 0, result
     assert [layer["name"] for layer in result["after"]["layers"][1]["children"]] == [
         "regular",
         "Tilemap 1",
@@ -505,51 +490,21 @@ def test_regular_move_can_cross_tilemap_sibling_without_editing_its_content(
     assert result["after"]["metadata"]["tileset_count"] == 1
 
 
-def _linked_cels(sprite_file: Path) -> bool:
-    aseprite = Path(os.environ["SPA_TEST_ASEPRITE"]).resolve()
-    resource = aseprite.parent.parent / "Resources" / "data" / "gui.xml"
-    script = Path(__file__).parents[1] / "frame" / "fixtures" / "inspect_links.lua"
-    with tempfile.TemporaryDirectory(prefix="spa-layer-links-") as work:
-        report = Path(work) / "links.json"
-        prepared = prepare_invocation(aseprite, resource, Path(work))
-        run = subprocess.run(
-            [
-                str(prepared.executable),
-                "--batch",
-                "--script-param",
-                f"source={sprite_file}",
-                "--script-param",
-                f"out={report}",
-                "--script",
-                str(script),
-            ],
-            text=True,
-            capture_output=True,
-            env=prepared.environment,
-            check=False,
-        )
-        assert run.returncode == 0, process_diagnostics(run)
-        return json.loads(report.read_text())["linked"]
-
-
 def test_merge_reports_unlinked_surviving_cels_even_when_pixels_match(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
     source = tmp_path / "linked.aseprite"
     target = tmp_path / "merged.aseprite"
-    _fixture(source, "linked_merge.lua")
-    assert _linked_cels(source) is True
-    code, result = _run(
-        "merge",
+    lua = run_lua(FIXTURES / "linked_merge.lua", runtime, out=source)
+    assert lua.returncode == 0, process_diagnostics(lua)
+    assert native_link_status(runtime, source, tmp_path / "source-links.json") is True
+    result = expect_success(
+        "layer merge",
         {**_mutation_request(source, target), "target": {"layer_path": [2]}},
     )
-    assert code == 0, result
-    assert _linked_cels(target) is False
-    for phase in ("affected_before", "affected_after"):
-        assert {
-            tuple(cel["layer_path"] + [cel["frame_number"]])
-            for cel in result[phase]["cels"]
-        } >= {
-            (1, 1),
-            (1, 2),
-        }
+    assert native_link_status(runtime, target, tmp_path / "target-links.json") is False
+    assert result["affected_before"] == _affected(
+        [[1], [2]], [([1], 1), ([1], 2), ([2], 1)]
+    )
+    assert result["affected_after"] == _affected([[1]], [([1], 1), ([1], 2)])

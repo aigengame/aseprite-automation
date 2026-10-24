@@ -1,47 +1,28 @@
 """Native Slice fixtures, including Keys unavailable through public Lua setters."""
 
-import json
 import os
 import struct
-import subprocess
-import tempfile
 from pathlib import Path
 
-from spa.adapters.aseprite.invocation import prepare_invocation
-from tests.support import process_diagnostics, spa
+from spa.contracts.ports import RuntimeObservation
+from tests.native_invocation import run_lua
+from tests.support import process_diagnostics
+
+FIXTURES = Path(__file__).parent / "fixtures"
+# Aseprite 1.3.18.5 writes Slice user data unescaped to its sprite sheet data
+# file, in text mode. On Windows, text mode writes a line feed as CR LF. The
+# Slice reader reads the file as bytes, so it first finds CR (13) on Windows
+# and LF (10) on other systems.
+UNESCAPED_LINE_BREAK = f"unescaped ({13 if os.name == 'nt' else 10}) in string"
 
 
-def run(*command, **request):
-    result = spa(
-        *command,
-        "--input-json",
-        json.dumps({**request, "aseprite": os.environ["SPA_TEST_ASEPRITE"]}),
-    )
-    assert result.stdout, process_diagnostics(result)
-    return result.returncode, json.loads(result.stdout)
+def fixture(runtime: RuntimeObservation, target: Path, *, animated=True) -> None:
+    """Write the Slice Sprite of `slices.lua` to target.
 
-
-def native_script(script, **params):
-    executable = Path(os.environ["SPA_TEST_ASEPRITE"])
-    with tempfile.TemporaryDirectory(prefix="spa-slice-fixture-") as work:
-        prepared = prepare_invocation(
-            executable, executable.parent.parent / "Resources/data/gui.xml", Path(work)
-        )
-        args = [str(prepared.executable), "--batch"]
-        for name, value in params.items():
-            args.extend(["--script-param", f"{name}={value}"])
-        result = subprocess.run(
-            [*args, "--script", str(Path(__file__).parent / "fixtures" / script)],
-            env=prepared.environment,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    assert result.returncode == 0, process_diagnostics(result)
-
-
-def fixture(target, *, animated=True):
-    native_script("slices.lua", target=target)
+    When animated, also add native Slice Keys that public Lua setters cannot write.
+    """
+    lua = run_lua(FIXTURES / "slices.lua", runtime, target=target)
+    assert lua.returncode == 0, process_diagnostics(lua)
     if not animated:
         return
     # Only fixture construction uses file-format chunks. Product mutations use
@@ -68,6 +49,7 @@ def fixture(target, *, animated=True):
 
 
 def mutation(source, destination, **fields):
+    """Return a copy-to-target Slice mutation request with fields."""
     return dict(
         source_sprite_file=str(source),
         target_sprite_file=str(destination),

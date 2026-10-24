@@ -10,13 +10,14 @@ from examples.wizard_cast_v2.build import build
 from examples.wizard_cast_v2.native_inspection import compare_native
 from examples.wizard_cast_v2.verify import compare_delivery
 from examples.wizard_cast_v2.workflow import Spa
+from tests.support import installed_cli
 
 pytestmark = [pytest.mark.e2e, pytest.mark.slow]
 EXAMPLE = Path(__file__).resolve().parents[2] / "examples/wizard_cast_v2"
 
 
 def test_complete_hybrid_recipe_reproduces_delivery(tmp_path: Path) -> None:
-    cli = os.environ.get("SPA_TEST_INSTALLED_CLI", str(Path(".venv/bin/spa").resolve()))
+    cli = installed_cli()
     aseprite = os.environ["SPA_TEST_ASEPRITE"]
     fresh = tmp_path / "fresh"
     build(cli, aseprite, fresh)

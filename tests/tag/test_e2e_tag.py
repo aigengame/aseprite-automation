@@ -1,51 +1,26 @@
 """Tag facts and mutation contracts against a real Aseprite Sprite."""
 
-import json
-import os
-import subprocess
-import tempfile
 from pathlib import Path
 
 import pytest
 
-from spa.adapters.aseprite.invocation import prepare_invocation
-from tests.support import process_diagnostics, spa
+from spa.contracts.ports import RuntimeObservation
+from tests.native_invocation import expect_success, run, run_lua
+from tests.support import process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
-
-def _run(*command: str, request: dict[str, object]) -> tuple[int, dict]:
-    result = spa(
-        *command,
-        "--input-json",
-        json.dumps({**request, "aseprite": os.environ["SPA_TEST_ASEPRITE"]}),
-    )
-    return result.returncode, json.loads(result.stdout)
+FIXTURES = Path(__file__).parent / "fixtures"
 
 
-def _fixture(target: Path) -> None:
-    binary = Path(os.environ["SPA_TEST_ASEPRITE"])
-    resource = binary.parent.parent / "Resources" / "data" / "gui.xml"
-    with tempfile.TemporaryDirectory(prefix="spa-tag-fixture-") as work:
-        prepared = prepare_invocation(binary, resource, Path(work))
-        run = subprocess.run(
-            [
-                str(prepared.executable),
-                "--batch",
-                "--script-param",
-                f"out={target}",
-                "--script",
-                str(Path(__file__).parent / "fixtures" / "tags.lua"),
-            ],
-            text=True,
-            capture_output=True,
-            check=False,
-            env=prepared.environment,
-        )
-    assert run.returncode == 0, process_diagnostics(run)
+def _tags_sprite(runtime: RuntimeObservation, target: Path) -> None:
+    """Write the four-Frame Sprite of `tags.lua`, with two Tags named "same"."""
+    lua = run_lua(FIXTURES / "tags.lua", runtime, out=target)
+    assert lua.returncode == 0, process_diagnostics(lua)
 
 
 def _mutation(source: Path, destination: Path, **fields: object) -> dict[str, object]:
+    """Return a Tag mutation request that writes source to a new destination."""
     return {
         "source_sprite_file": str(source),
         "target_sprite_file": str(destination),
@@ -55,11 +30,12 @@ def _mutation(source: Path, destination: Path, **fields: object) -> dict[str, ob
     }
 
 
-def test_list_get_and_duplicate_name_rejection(tmp_path: Path) -> None:
+def test_list_get_and_duplicate_name_rejection(
+    runtime: RuntimeObservation, tmp_path: Path
+) -> None:
     source = tmp_path / "source.aseprite"
-    _fixture(source)
-    code, listed = _run("tag", "list", request={"sprite_file": str(source)})
-    assert code == 0
+    _tags_sprite(runtime, source)
+    listed = expect_success("tag list", {"sprite_file": str(source)})
     assert [
         (tag["tag_index"], tag["name"], tag["direction"], tag["repeats"])
         for tag in listed["tags"]
@@ -67,20 +43,17 @@ def test_list_get_and_duplicate_name_rejection(tmp_path: Path) -> None:
         (1, "same", "forward", 0),
         (2, "same", "reverse", 1),
     ]
-    code, got = _run(
-        "tag", "get", request={"sprite_file": str(source), "target": {"tag_index": 2}}
+    got = expect_success(
+        "tag get", {"sprite_file": str(source), "target": {"tag_index": 2}}
     )
-    assert code == 0 and got["tag"] == listed["tags"][1]
-    code, ambiguous = _run(
-        "tag",
-        "get",
-        request={"sprite_file": str(source), "target": {"tag_name": "same"}},
+    assert got["tag"] == listed["tags"][1]
+    ambiguous = run(
+        "tag get", {"sprite_file": str(source), "target": {"tag_name": "same"}}
     )
-    assert code != 0 and ambiguous["code"] == "tag_ambiguous"
-    code, missing = _run(
-        "tag", "get", request={"sprite_file": str(source), "target": {"tag_index": 3}}
-    )
-    assert code != 0 and missing["code"] == "tag_missing"
+    assert ambiguous.returncode != 0
+    assert ambiguous.envelope["code"] == "tag_ambiguous"
+    missing = run("tag get", {"sprite_file": str(source), "target": {"tag_index": 3}})
+    assert missing.returncode != 0 and missing.envelope["code"] == "tag_missing"
 
 
 @pytest.mark.parametrize(
@@ -88,15 +61,14 @@ def test_list_get_and_duplicate_name_rejection(tmp_path: Path) -> None:
 )
 @pytest.mark.parametrize("repeats", [0, 1])
 def test_add_roundtrips_native_direction_and_repeat(
-    tmp_path: Path, direction: str, repeats: int
+    runtime: RuntimeObservation, tmp_path: Path, direction: str, repeats: int
 ) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "target.aseprite"
-    _fixture(source)
-    code, added = _run(
-        "tag",
-        "add",
-        request=_mutation(
+    _tags_sprite(runtime, source)
+    added = expect_success(
+        "tag add",
+        _mutation(
             source,
             target,
             name="new",
@@ -106,7 +78,6 @@ def test_add_roundtrips_native_direction_and_repeat(
             repeats=repeats,
         ),
     )
-    assert code == 0, added
     assert added["persisted_reopen_verified"] is True
     assert added["tag"]["name"] == "new"
     assert added["tag"]["direction"] == direction
@@ -114,22 +85,21 @@ def test_add_roundtrips_native_direction_and_repeat(
     assert added["tag"]["from_frame"] == 2
     assert added["tag"]["to_frame"] == 3
     assert "playback_frames" not in added and "loop_count" not in added
-    code, reopened = _run("tag", "list", request={"sprite_file": str(target)})
-    assert code == 0 and reopened["tags"] == added["tags"]
+    reopened = expect_success("tag list", {"sprite_file": str(target)})
+    assert reopened["tags"] == added["tags"]
     assert reopened["tags"][added["tag"]["tag_index"] - 1] == added["tag"]
 
 
 def test_set_range_rereads_current_index_and_remove_exact_target(
-    tmp_path: Path,
+    runtime: RuntimeObservation, tmp_path: Path
 ) -> None:
     source = tmp_path / "source.aseprite"
     changed = tmp_path / "changed.aseprite"
     removed = tmp_path / "removed.aseprite"
-    _fixture(source)
-    code, set_result = _run(
-        "tag",
-        "set",
-        request=_mutation(
+    _tags_sprite(runtime, source)
+    set_result = expect_success(
+        "tag set",
+        _mutation(
             source,
             changed,
             target={"tag_index": 1},
@@ -141,37 +111,35 @@ def test_set_range_rereads_current_index_and_remove_exact_target(
             },
         ),
     )
-    assert code == 0, set_result
     assert set_result["tag"]["from_frame"] == 4
     assert set_result["tag"]["tag_index"] == 2
     assert set_result["tag"]["direction"] == "ping_pong_reverse"
-    code, reopened = _run("tag", "list", request={"sprite_file": str(changed)})
-    assert code == 0 and reopened["tags"] == set_result["tags"]
-    code, ambiguous = _run(
-        "tag",
-        "remove",
-        request=_mutation(changed, removed, target={"tag_name": "same"}),
+    reopened = expect_success("tag list", {"sprite_file": str(changed)})
+    assert reopened["tags"] == set_result["tags"]
+    ambiguous = run(
+        "tag remove", _mutation(changed, removed, target={"tag_name": "same"})
     )
-    assert code != 0 and ambiguous["code"] == "tag_ambiguous"
+    assert ambiguous.returncode != 0
+    assert ambiguous.envelope["code"] == "tag_ambiguous"
     assert not removed.exists()
-    code, result = _run(
-        "tag", "remove", request=_mutation(changed, removed, target={"tag_index": 2})
+    result = expect_success(
+        "tag remove", _mutation(changed, removed, target={"tag_index": 2})
     )
-    assert code == 0, result
     assert result["removed_tag"] == set_result["tag"]
     assert len(result["tags"]) == 1
-    code, reopened = _run("tag", "list", request={"sprite_file": str(removed)})
-    assert code == 0 and reopened["tags"] == result["tags"]
+    reopened = expect_success("tag list", {"sprite_file": str(removed)})
+    assert reopened["tags"] == result["tags"]
 
 
-def test_rejects_range_outside_sprite_without_publication(tmp_path: Path) -> None:
+def test_rejects_range_outside_sprite_without_publication(
+    runtime: RuntimeObservation, tmp_path: Path
+) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "target.aseprite"
-    _fixture(source)
-    code, rejected = _run(
-        "tag",
-        "add",
-        request=_mutation(
+    _tags_sprite(runtime, source)
+    rejected = run(
+        "tag add",
+        _mutation(
             source,
             target,
             name="new",
@@ -181,17 +149,19 @@ def test_rejects_range_outside_sprite_without_publication(tmp_path: Path) -> Non
             repeats=0,
         ),
     )
-    assert code != 0 and rejected["code"] == "tag_range_out_of_bounds"
+    assert rejected.returncode != 0
+    assert rejected.envelope["code"] == "tag_range_out_of_bounds"
     assert not target.exists()
 
 
-def test_unique_name_partial_set_color_and_explicit_in_place(tmp_path: Path) -> None:
+def test_unique_name_partial_set_color_and_explicit_in_place(
+    runtime: RuntimeObservation, tmp_path: Path
+) -> None:
     source = tmp_path / "source.aseprite"
-    _fixture(source)
-    code, changed = _run(
-        "tag",
-        "set",
-        request={
+    _tags_sprite(runtime, source)
+    changed = expect_success(
+        "tag set",
+        {
             "source_sprite_file": str(source),
             "target_sprite_file": str(source),
             "in_place": True,
@@ -206,7 +176,6 @@ def test_unique_name_partial_set_color_and_explicit_in_place(tmp_path: Path) -> 
             },
         },
     )
-    assert code == 0, changed
     assert changed["tag"]["name"] == "unique"
     assert changed["tag"]["from_frame"] == 2
     assert changed["tag"]["to_frame"] == 4
@@ -218,27 +187,25 @@ def test_unique_name_partial_set_color_and_explicit_in_place(tmp_path: Path) -> 
         "blue": 200,
         "alpha": 255,
     }
-    code, got = _run(
-        "tag",
-        "get",
-        request={"sprite_file": str(source), "target": {"tag_name": "unique"}},
+    got = expect_success(
+        "tag get", {"sprite_file": str(source), "target": {"tag_name": "unique"}}
     )
-    assert code == 0 and got["tag"] == changed["tag"]
+    assert got["tag"] == changed["tag"]
     target = tmp_path / "removed.aseprite"
-    code, removed = _run(
-        "tag",
-        "remove",
-        request=_mutation(source, target, target={"tag_name": "unique"}),
+    removed = expect_success(
+        "tag remove", _mutation(source, target, target={"tag_name": "unique"})
     )
-    assert code == 0 and removed["removed_tag"] == changed["tag"]
+    assert removed["removed_tag"] == changed["tag"]
     assert [tag["name"] for tag in removed["tags"]] == ["same"]
 
 
-def test_empty_names_are_preserved_and_addressed_exactly(tmp_path: Path) -> None:
+def test_empty_names_are_preserved_and_addressed_exactly(
+    runtime: RuntimeObservation, tmp_path: Path
+) -> None:
     source = tmp_path / "source.aseprite"
     first = tmp_path / "first.aseprite"
     second = tmp_path / "second.aseprite"
-    _fixture(source)
+    _tags_sprite(runtime, source)
     add = {
         "name": "",
         "from_frame": 1,
@@ -246,15 +213,14 @@ def test_empty_names_are_preserved_and_addressed_exactly(tmp_path: Path) -> None
         "direction": "forward",
         "repeats": 0,
     }
-    code, result = _run("tag", "add", request=_mutation(source, first, **add))
-    assert code == 0 and result["tag"]["name"] == ""
-    code, got = _run(
-        "tag", "get", request={"sprite_file": str(first), "target": {"tag_name": ""}}
+    result = expect_success("tag add", _mutation(source, first, **add))
+    assert result["tag"]["name"] == ""
+    got = expect_success(
+        "tag get", {"sprite_file": str(first), "target": {"tag_name": ""}}
     )
-    assert code == 0 and got["tag"] == result["tag"]
-    code, added = _run("tag", "add", request=_mutation(first, second, **add))
-    assert code == 0 and added["tag"]["name"] == ""
-    code, ambiguous = _run(
-        "tag", "get", request={"sprite_file": str(second), "target": {"tag_name": ""}}
-    )
-    assert code != 0 and ambiguous["code"] == "tag_ambiguous"
+    assert got["tag"] == result["tag"]
+    added = expect_success("tag add", _mutation(first, second, **add))
+    assert added["tag"]["name"] == ""
+    ambiguous = run("tag get", {"sprite_file": str(second), "target": {"tag_name": ""}})
+    assert ambiguous.returncode != 0
+    assert ambiguous.envelope["code"] == "tag_ambiguous"

@@ -2,7 +2,9 @@
 
 import pytest
 
-from tests.filter.support import native_script, observe_images, pixels, run
+from tests.filter.support import FIXTURES, observe_images, pixels
+from tests.native_invocation import expect_success, run, run_lua
+from tests.support import process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
@@ -10,20 +12,26 @@ pytestmark = pytest.mark.e2e
 def test_zero_hsl_adjustment_preserves_native_pixels_and_palette(tmp_path, runtime):
     source = tmp_path / "source.aseprite"
     target = tmp_path / "target.aseprite"
-    native_script(runtime, "noop.lua", source=source, mode="rgb")
+    lua = run_lua(FIXTURES / "noop.lua", runtime, source=source, mode="rgb")
+    assert lua.returncode == 0, process_diagnostics(lua)
     original = source.read_bytes()
     before = observe_images(runtime, source)
-    code, result = run(
-        "filter",
-        "hue-saturation",
-        source_sprite_file=str(source),
-        target_sprite_file=str(target),
-        in_place=False,
-        overwrite=False,
-        application=pixels(),
-        adjustment={"mode": "hsl-multiply", "hue": 0, "saturation": 0, "lightness": 0},
+    result = expect_success(
+        "filter hue-saturation",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": False,
+            "overwrite": False,
+            "application": pixels(),
+            "adjustment": {
+                "mode": "hsl-multiply",
+                "hue": 0,
+                "saturation": 0,
+                "lightness": 0,
+            },
+        },
     )
-    assert code == 0, result
     assert result["operation"] == "spa filter hue-saturation"
     assert result["changed"] is False
     assert result["processed_image_numbers"] == []
@@ -36,19 +44,20 @@ def test_alpha_minus_100_reports_native_deletion_including_link_outside_target(
     tmp_path, runtime
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "target_scene.lua", source=source, mode="linked")
+    lua = run_lua(FIXTURES / "target_scene.lua", runtime, source=source, mode="linked")
+    assert lua.returncode == 0, process_diagnostics(lua)
     before = source.read_bytes()
-    code, result = run(
-        "filter",
-        "hue-saturation",
-        source_sprite_file=str(source),
-        target_sprite_file=str(target),
-        in_place=False,
-        overwrite=False,
-        application=pixels(channels={"kind": "components", "names": ["alpha"]}),
-        alpha=-100,
+    result = expect_success(
+        "filter hue-saturation",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": False,
+            "overwrite": False,
+            "application": pixels(channels={"kind": "components", "names": ["alpha"]}),
+            "alpha": -100,
+        },
     )
-    assert code == 0, result
     assert result["changed"] is True
     assert result["images"][0]["after_content_digest"] is None
     assert result["processed_image_numbers"] == [1]
@@ -70,16 +79,23 @@ MODES = [
 
 
 def hue(source, target, application, **parameters):
-    return run(
-        "filter",
-        "hue-saturation",
-        source_sprite_file=str(source),
-        target_sprite_file=str(target),
-        in_place=parameters.pop("in_place", False),
-        overwrite=parameters.pop("overwrite", False),
-        application=application,
-        **parameters,
+    """Run `spa filter hue-saturation` and return `(returncode, envelope)`.
+
+    This adds the Source and Target fields, and `in_place` and `overwrite`
+    from parameters (default False).
+    """
+    outcome = run(
+        "filter hue-saturation",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": parameters.pop("in_place", False),
+            "overwrite": parameters.pop("overwrite", False),
+            "application": application,
+            **parameters,
+        },
     )
+    return outcome.returncode, outcome.envelope
 
 
 def application(mode, kind, names):
@@ -122,11 +138,12 @@ def test_four_modes_match_direct_native_command_in_each_application(
         tmp_path / name
         for name in ("source.aseprite", "target.aseprite", "baseline.aseprite")
     )
-    native_script(runtime, "hue_source.lua", source=source, mode=color_mode)
+    lua = run_lua(FIXTURES / "hue_source.lua", runtime, source=source, mode=color_mode)
+    assert lua.returncode == 0, process_diagnostics(lua)
     original = source.read_bytes()
-    native_script(
+    lua = run_lua(
+        FIXTURES / "hue_native_baseline.lua",
         runtime,
-        "hue_native_baseline.lua",
         source=source,
         target=baseline,
         kind=kind,
@@ -137,6 +154,7 @@ def test_four_modes_match_direct_native_command_in_each_application(
         lightness=20,
         alpha=0,
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     adjustment = {
         "mode": public_mode,
         "hue": 0,
@@ -191,7 +209,8 @@ def test_each_color_and_alpha_channel_matches_direct_native_command(
         tmp_path / name
         for name in ("source.aseprite", "target.aseprite", "baseline.aseprite")
     )
-    native_script(runtime, "hue_source.lua", source=source, mode=mode)
+    lua = run_lua(FIXTURES / "hue_source.lua", runtime, source=source, mode=mode)
+    assert lua.returncode == 0, process_diagnostics(lua)
     parameters = {}
     if any(name != "alpha" for name in names):
         parameters["adjustment"] = (
@@ -205,9 +224,9 @@ def test_each_color_and_alpha_channel_matches_direct_native_command(
         {"red": 1, "green": 2, "blue": 4, "alpha": 8, "gray": 16}[name]
         for name in names
     )
-    native_script(
+    lua = run_lua(
+        FIXTURES / "hue_native_baseline.lua",
         runtime,
-        "hue_native_baseline.lua",
         source=source,
         target=baseline,
         kind=kind,
@@ -218,6 +237,7 @@ def test_each_color_and_alpha_channel_matches_direct_native_command(
         lightness=50 if parameters.get("adjustment") else 0,
         alpha=parameters.get("alpha", 0),
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     code, result = hue(source, target, application(mode, kind, names), **parameters)
     assert code == 0, result
     assert observe_images(runtime, target) == observe_images(runtime, baseline)
@@ -230,9 +250,14 @@ def test_alpha_adjustment_keeps_transparency_and_reports_native_cel_trim(
     tmp_path, runtime, mode
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(
-        runtime, "hue_source.lua", source=source, mode=mode, transparent="true"
+    lua = run_lua(
+        FIXTURES / "hue_source.lua",
+        runtime,
+        source=source,
+        mode=mode,
+        transparent="true",
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     before = source.read_bytes()
     code, result = hue(source, target, application(mode, "pixels", ["alpha"]), alpha=50)
     assert code == 0, result
@@ -268,9 +293,14 @@ def test_alpha_only_zero_is_noop_without_trim_or_requantization(
     tmp_path, runtime, mode
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(
-        runtime, "hue_source.lua", source=source, mode=mode, transparent="true"
+    lua = run_lua(
+        FIXTURES / "hue_source.lua",
+        runtime,
+        source=source,
+        mode=mode,
+        transparent="true",
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     before = observe_images(runtime, source)
     code, result = hue(source, target, application(mode, "pixels", ["alpha"]), alpha=0)
     assert code == 0, result
@@ -279,50 +309,14 @@ def test_alpha_only_zero_is_noop_without_trim_or_requantization(
     assert observe_images(runtime, target) == before
 
 
-@pytest.mark.parametrize("alpha", [0, 50, -100])
-def test_background_alpha_rejects_before_publication_including_zero(
-    tmp_path, runtime, alpha
-):
-    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(
-        runtime, "hue_source.lua", source=source, mode="rgb", background="true"
-    )
-    before = source.read_bytes()
-    target.write_bytes(b"existing target")
-    code, result = hue(
-        source,
-        target,
-        application("rgb", "pixels", ["alpha"]),
-        alpha=alpha,
-        overwrite=True,
-    )
-    assert code != 0 and result["code"] == "filter_unsupported_document", result
-    assert "Background" in result["message"]
-    assert source.read_bytes() == before
-    assert target.read_bytes() == b"existing target"
-
-
-@pytest.mark.parametrize("target_kind", ["selected", "all"])
-def test_tilemap_pixel_application_rejects_before_publication(
-    tmp_path, runtime, target_kind
-):
-    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "tilemap.lua", source=source, mode="indexed", only="true")
-    before = source.read_bytes()
-    app = application("indexed", "pixels", ["alpha"])
-    if target_kind == "all":
-        app["cels_target"] = {"kind": "all"}
-    code, result = hue(source, target, app, alpha=50)
-    assert code != 0 and result["code"] == "filter_unsupported_document", result
-    assert "Tilemap" in result["message"]
-    assert not target.exists() and source.read_bytes() == before
-
-
 def test_tilemap_only_palette_alpha_preserves_tile_and_placement_images(
     tmp_path, runtime
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "tilemap.lua", source=source, mode="indexed", only="true")
+    lua = run_lua(
+        FIXTURES / "tilemap.lua", runtime, source=source, mode="indexed", only="true"
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
     before = observe_images(runtime, source)
     app = application("indexed", "indexed-palette-entries", ["alpha"])
     app["entries"] = {"kind": "all"}
@@ -339,7 +333,8 @@ def test_empty_selection_protects_pixels_while_palette_application_remains_expli
     tmp_path, runtime, kind
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "hue_source.lua", source=source, mode="rgb")
+    lua = run_lua(FIXTURES / "hue_source.lua", runtime, source=source, mode="rgb")
+    assert lua.returncode == 0, process_diagnostics(lua)
     before = observe_images(runtime, source)
     app = application("rgb", kind, ["alpha"])
     app["selection"] = {"kind": "empty"}
@@ -354,9 +349,14 @@ def test_empty_selection_protects_pixels_while_palette_application_remains_expli
 @pytest.mark.parametrize("alpha", [0, 50])
 def test_palette_only_alpha_needs_a_non_background_anchor(tmp_path, runtime, alpha):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(
-        runtime, "hue_source.lua", source=source, mode="indexed", background="true"
+    lua = run_lua(
+        FIXTURES / "hue_source.lua",
+        runtime,
+        source=source,
+        mode="indexed",
+        background="true",
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     before = source.read_bytes()
     code, result = hue(
         source,
@@ -376,14 +376,15 @@ def test_palette_alpha_uses_alternate_anchor_instead_of_ignoring_channel(
     tmp_path, runtime, mode, kind
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(
+    lua = run_lua(
+        FIXTURES / "hue_source.lua",
         runtime,
-        "hue_source.lua",
         source=source,
         mode=mode,
         background="true",
         alternate="true",
     )
+    assert lua.returncode == 0, process_diagnostics(lua)
     before = observe_images(runtime, source)
     app = application(mode, kind, ["alpha"])
     if kind == "rgb-palette-colors":

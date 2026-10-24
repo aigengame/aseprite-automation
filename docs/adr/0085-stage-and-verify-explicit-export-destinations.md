@@ -20,9 +20,10 @@ or Artifact-registry subsystem.
 - Every Export Operation declares its final Export Destinations and existing-file
   intent. It does not inherit an editor prompt, preference, recent-file state, or an
   implicit overwrite default.
-- Before native execution, the Operation resolves its complete bounded expected output
-  set. Empty expansions, duplicate or colliding destinations, unsupported naming, and
-  incompatible existing-file intent fail before export.
+- Before the Kernel writes an export file, the Operation resolves its complete bounded
+  expected output set. Empty expansions, duplicate or colliding destinations,
+  unsupported naming, and incompatible existing-file intent fail before export. A
+  runtime probe, or a native resolution of file names, can run Aseprite before that.
 - The File Adapter maps final destinations to an operation-owned staging location and
   owns domain-neutral path, existence, byte size, digest, publication, and cleanup
   mechanics. It does not decode a File Format or interpret Sprite semantics.
@@ -61,7 +62,8 @@ or Artifact-registry subsystem.
 ## Consequences
 
 - Agents can distinguish a verified export from native false success or partial output.
-- Existing-file behavior and the expected file set are explicit before Aseprite runs.
+- Existing-file behavior and the expected file set are explicit before the Kernel writes
+  an export file.
 - A caller can distinguish failure before publication from known or indeterminate
   partial publication and can see which existing destinations were replaced.
 - Native behavior stays in the Lua Kernel. Artifact Verifiers decode staged bytes, the

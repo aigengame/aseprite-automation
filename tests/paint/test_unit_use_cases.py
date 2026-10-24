@@ -201,7 +201,24 @@ def test_apply_commits_only_validated_persisted_evidence() -> None:
         {
             "source_sprite_file": "source.aseprite",
             "target": {"layer_path": [1], "frame_number": 1},
-            "patch": _request().patch.model_dump(mode="json"),
+            "patch": {
+                "coordinate_space": "image-pixel",
+                "rectangle": {"x": 0, "y": 0, "width": 2, "height": 1},
+                "runs": [
+                    {
+                        "x": 0,
+                        "y": 0,
+                        "length": 2,
+                        "color": {
+                            "kind": "rgba",
+                            "red": 1,
+                            "green": 2,
+                            "blue": 3,
+                            "alpha": 255,
+                        },
+                    }
+                ],
+            },
             "clipping": "reject",
             "selection": None,
             "staged_sprite_file": "target.staged.aseprite",

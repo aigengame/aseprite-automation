@@ -2,56 +2,35 @@
 
 import json
 import os
-import subprocess
-import tempfile
 from importlib.resources import files
 from pathlib import Path
 
 import pytest
 from jsonschema import validate
 
-from spa.adapters.aseprite.aseprite import probe
-from spa.adapters.aseprite.invocation import prepare_invocation
-from spa.application.surface import PROBE_RESOURCES
-from spa.contracts.public import RuntimeRequest
+from spa.contracts.ports import RuntimeObservation
+from tests.native_invocation import expect_success, run, run_lua
 from tests.support import isolated_wheel_cli, process_diagnostics, spa
 
 pytestmark = pytest.mark.e2e
 
+FIXTURES = Path(__file__).parent / "fixtures"
 
-def _populated_sprite(target: Path) -> None:
-    observation = probe(
-        RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]),
-        PROBE_RESOURCES,
-    )
-    fixture = Path(__file__).parent / "fixtures" / "populated_sprite.lua"
-    with tempfile.TemporaryDirectory(prefix="spa-populated-fixture-") as work:
-        prepared = prepare_invocation(
-            Path(observation.canonical_path),
-            Path(observation.resource_path),
-            Path(work),
-        )
-        run = subprocess.run(
-            [
-                str(prepared.executable),
-                "--batch",
-                "--script-param",
-                f"out={target}",
-                "--script",
-                str(fixture),
-            ],
-            text=True,
-            capture_output=True,
-            check=False,
-            env=prepared.environment,
-        )
-    assert run.returncode == 0, process_diagnostics(run)
+
+def _populated_sprite(runtime: RuntimeObservation, target: Path) -> None:
+    """Write the populated Sprite of `populated_sprite.lua` to target."""
+    lua = run_lua(FIXTURES / "populated_sprite.lua", runtime, out=target)
+    assert lua.returncode == 0, process_diagnostics(lua)
     assert target.is_file()
 
 
 def _create(
     target: Path, initial_layer: dict[str, object], *, overwrite: bool = False
 ) -> dict[str, object]:
+    """Create a 3x2 RGB Sprite at target with initial_layer.
+
+    Check the result schema, the Target Commit and the persisted Sprite facts.
+    """
     request = {
         "target_sprite_file": str(target),
         "width": 3,
@@ -59,11 +38,8 @@ def _create(
         "color_mode": "rgb",
         "initial_layer": initial_layer,
         "overwrite": overwrite,
-        "aseprite": os.environ["SPA_TEST_ASEPRITE"],
     }
-    run = spa("sprite", "create", "--input-json", json.dumps(request))
-    assert run.returncode == 0, run.stdout
-    result = json.loads(run.stdout)
+    result = expect_success("sprite create", request)
     validate(
         result, json.loads(spa("sprite", "create", "--schema").stdout)["result_schema"]
     )
@@ -98,41 +74,21 @@ def test_create_persists_explicit_transparent_and_background_layer_choices(
 
 
 def test_background_postcondition_rejects_a_nonuniform_reopened_fill(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
-    observation = probe(
-        RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]),
-        PROBE_RESOURCES,
-    )
-    fixture = Path(__file__).parent / "fixtures" / "reject_nonuniform_background.lua"
     target = tmp_path / "nonuniform-background.aseprite"
     response = tmp_path / "verification.json"
-    with tempfile.TemporaryDirectory(prefix="spa-background-postcondition-") as work:
-        prepared = prepare_invocation(
-            Path(observation.canonical_path),
-            Path(observation.resource_path),
-            Path(work),
-        )
-        run = subprocess.run(
-            [
-                str(prepared.executable),
-                "--batch",
-                "--script-param",
-                f"creation={files('spa.kernel').joinpath('document/sprite/sprite_create_support.lua')}",
-                "--script-param",
-                f"target={target}",
-                "--script-param",
-                f"response={response}",
-                "--script",
-                str(fixture),
-            ],
-            text=True,
-            capture_output=True,
-            check=False,
-            env=prepared.environment,
-        )
-
-    assert run.returncode == 0, process_diagnostics(run)
+    lua = run_lua(
+        FIXTURES / "reject_nonuniform_background.lua",
+        runtime,
+        creation=files("spa.kernel").joinpath(
+            "document/sprite/sprite_create_support.lua"
+        ),
+        target=target,
+        response=response,
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
     verification = json.loads(response.read_text(encoding="utf-8"))
     assert verification["accepted"] is False
     assert "Background fill differs" in verification["message"]
@@ -144,20 +100,13 @@ def test_get_reports_complete_requested_sections_and_explicit_omissions(
     target = tmp_path / "inspect.aseprite"
     _create(target, {"kind": "transparent"})
     sections = ["frames", "tags", "palettes", "layers", "cels", "slices", "tilesets"]
-    run = spa(
-        "sprite",
-        "get",
-        "--input-json",
-        json.dumps(
-            {
-                "sprite_file": str(target),
-                "inspection_scope": sections,
-                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-            }
-        ),
+    result = expect_success(
+        "sprite get",
+        {
+            "sprite_file": str(target),
+            "inspection_scope": sections,
+        },
     )
-    assert run.returncode == 0, run.stdout
-    result = json.loads(run.stdout)
     validate(
         result, json.loads(spa("sprite", "get", "--schema").stdout)["result_schema"]
     )
@@ -181,20 +130,13 @@ def test_get_reports_complete_requested_sections_and_explicit_omissions(
     assert result["slices"] == []
     assert result["tilesets"] == []
 
-    partial = spa(
-        "sprite",
-        "get",
-        "--input-json",
-        json.dumps(
-            {
-                "sprite_file": str(target),
-                "inspection_scope": ["frames"],
-                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-            }
-        ),
+    partial_result = expect_success(
+        "sprite get",
+        {
+            "sprite_file": str(target),
+            "inspection_scope": ["frames"],
+        },
     )
-    assert partial.returncode == 0, partial.stdout
-    partial_result = json.loads(partial.stdout)
     assert partial_result["scope"]["complete_sections"] == ["frames"]
     assert partial_result["scope"]["unrequested_sections"] == [
         "tags",
@@ -255,11 +197,10 @@ def test_invalid_existing_target_fails_without_target_commit(tmp_path: Path) -> 
         "color_mode": "rgb",
         "initial_layer": {"kind": "transparent"},
         "overwrite": False,
-        "aseprite": os.environ["SPA_TEST_ASEPRITE"],
     }
-    run = spa("sprite", "create", "--input-json", json.dumps(request))
-    assert run.returncode == 1, run.stdout
-    failure = json.loads(run.stdout)
+    outcome = run("sprite create", request)
+    failure = outcome.envelope
+    assert outcome.returncode == 1, failure
     validate(
         failure,
         json.loads(spa("sprite", "create", "--schema").stdout)["failure_schema"],
@@ -287,13 +228,12 @@ def test_create_requires_explicit_permission_to_replace_an_existing_target(
         "color_mode": "rgb",
         "initial_layer": {"kind": "transparent"},
         "overwrite": False,
-        "aseprite": os.environ["SPA_TEST_ASEPRITE"],
     }
 
-    refused = spa("sprite", "create", "--input-json", json.dumps(request))
+    refused = run("sprite create", request)
 
-    assert refused.returncode == 1, refused.stdout
-    failure = json.loads(refused.stdout)
+    failure = refused.envelope
+    assert refused.returncode == 1, failure
     assert failure["code"] == "target_commit_failed"
     assert failure["details"]["reason"] == "overwrite_not_allowed"
     assert target.read_bytes() == b"existing"
@@ -303,24 +243,19 @@ def test_create_requires_explicit_permission_to_replace_an_existing_target(
     assert target.read_bytes() != b"existing"
 
 
-def test_get_reports_populated_native_structures_completely(tmp_path: Path) -> None:
+def test_get_reports_populated_native_structures_completely(
+    runtime: RuntimeObservation, tmp_path: Path
+) -> None:
     target = tmp_path / "populated.aseprite"
-    _populated_sprite(target)
+    _populated_sprite(runtime, target)
     sections = ["frames", "tags", "palettes", "layers", "cels", "slices", "tilesets"]
-    run = spa(
-        "sprite",
-        "get",
-        "--input-json",
-        json.dumps(
-            {
-                "sprite_file": str(target),
-                "inspection_scope": sections,
-                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-            }
-        ),
+    result = expect_success(
+        "sprite get",
+        {
+            "sprite_file": str(target),
+            "inspection_scope": sections,
+        },
     )
-    assert run.returncode == 0, run.stdout
-    result = json.loads(run.stdout)
     assert result["frames"] == [
         {"frame_number": 1, "duration_ms": 120},
         {"frame_number": 2, "duration_ms": 340},

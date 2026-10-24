@@ -1,11 +1,18 @@
 """Tilemap region writes through the public CLI and persisted native Images."""
 
 import json
+import re
 from pathlib import Path
 
 import pytest
 
-from tests.tile.support import fixture, run
+from tests.native_invocation import expect_success, run
+from tests.tile.support import (
+    cel_creation_sprite,
+    lifecycle_limits_sprite,
+    lifecycle_sprite,
+    verify_lifecycle,
+)
 
 pytestmark = pytest.mark.e2e
 
@@ -36,40 +43,38 @@ def test_set_replaces_sparse_region_and_preserves_linked_cels(
     tmp_path: Path, runtime
 ) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    fixture(source, runtime, script="lifecycle.lua")
+    lifecycle_sprite(runtime, source)
     before = source.read_bytes()
-    code, result = run(
-        "tilemap",
-        "set",
-        **files(source, target),
-        snapshot={
-            "coordinate_space": "tile-cell",
-            "rectangle": {"x": 1, "y": 0, "width": 3, "height": 1},
-            "complete": True,
-            "default": {"kind": "empty"},
-            "entries": [
-                {"tile_x": 2, "tile_y": 0, "placement": placement("b", flip_y=True)}
-            ],
+    result = expect_success(
+        "tilemap set",
+        {
+            **files(source, target),
+            "snapshot": {
+                "coordinate_space": "tile-cell",
+                "rectangle": {"x": 1, "y": 0, "width": 3, "height": 1},
+                "complete": True,
+                "default": {"kind": "empty"},
+                "entries": [
+                    {"tile_x": 2, "tile_y": 0, "placement": placement("b", flip_y=True)}
+                ],
+            },
         },
     )
-    assert code == 0, result
     assert result["persisted_reopen_verified"] is True
     assert result["cells_written"] == 3
     assert result["cells_changed"] == 3
     assert [cel["frame_number"] for cel in result["affected_cels"]] == [1, 2]
     assert source.read_bytes() == before
-    fixture(
-        target, runtime, script="verify_lifecycle.lua", order=json.dumps([1, 2, 3, 4])
-    )
+    verify_lifecycle(runtime, target, order=json.dumps([1, 2, 3, 4]))
     for frame in (1, 2):
-        code, observed = run(
-            "tilemap",
-            "get",
-            sprite_file=str(target),
-            target={"layer": {"layer_name": "map"}, "frame_number": frame},
-            rectangle={"x": 0, "y": 0, "width": 5, "height": 1},
+        observed = expect_success(
+            "tilemap get",
+            {
+                "sprite_file": str(target),
+                "target": {"layer": {"layer_name": "map"}, "frame_number": frame},
+                "rectangle": {"x": 0, "y": 0, "width": 5, "height": 1},
+            },
         )
-        assert code == 0, observed
         assert observed["tilemap"]["position"] == {"x": -3, "y": 7}
         entries = observed["snapshot"]["entries"]
         assert [entry["tile_x"] for entry in entries] == [0, 2, 4]
@@ -85,29 +90,33 @@ def test_set_replaces_sparse_region_and_preserves_linked_cels(
 
 def test_patch_changes_only_explicit_cells(tmp_path: Path, runtime) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    fixture(source, runtime, script="lifecycle.lua")
-    code, result = run(
-        "tilemap",
-        "patch",
-        **files(source, target, frame=2),
-        patch={
-            "coordinate_space": "tile-cell",
-            "entries": [
-                {"tile_x": 4, "tile_y": 0, "placement": placement("a", flip_x=True)},
-                {"tile_x": 2, "tile_y": 0, "placement": {"kind": "empty"}},
-            ],
+    lifecycle_sprite(runtime, source)
+    result = expect_success(
+        "tilemap patch",
+        {
+            **files(source, target, frame=2),
+            "patch": {
+                "coordinate_space": "tile-cell",
+                "entries": [
+                    {
+                        "tile_x": 4,
+                        "tile_y": 0,
+                        "placement": placement("a", flip_x=True),
+                    },
+                    {"tile_x": 2, "tile_y": 0, "placement": {"kind": "empty"}},
+                ],
+            },
         },
     )
-    assert code == 0, result
     assert result["cells_written"] == result["cells_changed"] == 2
-    code, observed = run(
-        "tilemap",
-        "get",
-        sprite_file=str(target),
-        target={"layer": {"layer_name": "map"}, "frame_number": 1},
-        rectangle={"x": 0, "y": 0, "width": 5, "height": 1},
+    observed = expect_success(
+        "tilemap get",
+        {
+            "sprite_file": str(target),
+            "target": {"layer": {"layer_name": "map"}, "frame_number": 1},
+            "rectangle": {"x": 0, "y": 0, "width": 5, "height": 1},
+        },
     )
-    assert code == 0, observed
     entries = observed["snapshot"]["entries"]
     assert [entry["tile_x"] for entry in entries] == [0, 1, 3, 4]
     assert entries[-1]["placement"] == placement("a", flip_x=True) | {"tile_index": 1}
@@ -131,50 +140,51 @@ def test_fill_one_placement_and_empty_whole_image(
     tmp_path: Path, runtime, mode: str, flags: tuple
 ) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    fixture(source, runtime, script="lifecycle.lua", mode=mode)
+    lifecycle_sprite(runtime, source, mode=mode)
     value = placement("d", flip_x=flags[0], flip_y=flags[1], flip_diagonal=flags[2])
     rectangle = {"x": 0, "y": 0, "width": 5, "height": 1}
-    code, result = run(
-        "tilemap",
-        "fill",
-        **files(source, target),
-        coordinate_space="tile-cell",
-        rectangle=rectangle,
-        placement=value,
+    result = expect_success(
+        "tilemap fill",
+        {
+            **files(source, target),
+            "coordinate_space": "tile-cell",
+            "rectangle": rectangle,
+            "placement": value,
+        },
     )
-    assert code == 0, result
     assert result["cells_written"] == 5
-    code, observed = run(
-        "tilemap",
-        "get",
-        sprite_file=str(target),
-        target=files(source, target)["target"],
-        rectangle=rectangle,
+    observed = expect_success(
+        "tilemap get",
+        {
+            "sprite_file": str(target),
+            "target": files(source, target)["target"],
+            "rectangle": rectangle,
+        },
     )
-    assert code == 0, observed
     assert [entry["placement"] for entry in observed["snapshot"]["entries"]] == [
         value | {"tile_index": 4}
     ] * 5
-    code, result = run(
-        "tilemap",
-        "fill",
-        **files(target, target, in_place=True, overwrite=True),
-        coordinate_space="tile-cell",
-        rectangle=rectangle,
-        placement={"kind": "empty"},
+    result = expect_success(
+        "tilemap fill",
+        {
+            **files(target, target, in_place=True, overwrite=True),
+            "coordinate_space": "tile-cell",
+            "rectangle": rectangle,
+            "placement": {"kind": "empty"},
+        },
     )
-    assert code == 0, result
     assert result["cells_changed"] == 5
     assert result["tilemap"]["cell_size"] == {"width": 5, "height": 1}
     assert result["tilemap"]["position"] == {"x": -3, "y": 7}
-    code, observed = run(
-        "tilemap",
-        "get",
-        sprite_file=str(target),
-        target=files(source, target)["target"],
-        rectangle=rectangle,
+    observed = expect_success(
+        "tilemap get",
+        {
+            "sprite_file": str(target),
+            "target": files(source, target)["target"],
+            "rectangle": rectangle,
+        },
     )
-    assert code == 0 and observed["snapshot"]["entries"] == [], observed
+    assert observed["snapshot"]["entries"] == [], observed
 
 
 def test_indexed_write_validates_linked_frame_not_tile_creation_basis(
@@ -187,39 +197,40 @@ def test_indexed_write_validates_linked_frame_not_tile_creation_basis(
         tmp_path / name
         for name in ("source.aseprite", "keyed.aseprite", "target.aseprite")
     )
-    fixture(source, runtime, script="lifecycle.lua", mode="indexed", palette_size=10)
+    lifecycle_sprite(runtime, source, mode="indexed", palette_size=10)
     image = snapshot("indexed")
     for row in image["rows"]:
         row[0]["color"]["index"] = 9
-    code, added = run(
-        "tileset",
-        "tile",
-        "add",
-        source_sprite_file=str(source),
-        target_sprite_file=str(keyed),
-        in_place=False,
-        overwrite=False,
-        target={"tileset_index": 1},
-        tile_key="new",
-        image=image,
-        palette_frame_number=1,
+    added = expect_success(
+        "tileset tile add",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(keyed),
+            "in_place": False,
+            "overwrite": False,
+            "target": {"tileset_index": 1},
+            "tile_key": "new",
+            "image": image,
+            "palette_frame_number": 1,
+        },
     )
-    assert code == 0, json.dumps(added, indent=2)
     assert added["effective_palette"]["frame_number"] == 1
     inject_palette_change(
         keyed, [(20 + i, 40, 60, 255) for i in range(8)], frame_number=2
     )
     before = keyed.read_bytes()
     target.write_bytes(b"prior Target")
-    code, refused = run(
-        "tilemap",
-        "fill",
-        **files(keyed, target, overwrite=True),
-        coordinate_space="tile-cell",
-        rectangle={"x": 0, "y": 0, "width": 1, "height": 1},
-        placement=placement("new"),
+    outcome = run(
+        "tilemap fill",
+        {
+            **files(keyed, target, overwrite=True),
+            "coordinate_space": "tile-cell",
+            "rectangle": {"x": 0, "y": 0, "width": 1, "height": 1},
+            "placement": placement("new"),
+        },
     )
-    assert code == 2, refused
+    refused = outcome.envelope
+    assert outcome.returncode == 2, refused
     assert refused["code"] == "tilemap_region_invalid"
     assert refused["details"]["reason"] == "palette_incompatible"
     assert refused["details"]["frame_number"] == 2
@@ -235,21 +246,21 @@ def test_indexed_write_reports_different_valid_frame_palettes_without_remap(
     from tests.support import inject_palette_change
 
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    fixture(source, runtime, script="lifecycle.lua", mode="indexed", palette_size=8)
+    lifecycle_sprite(runtime, source, mode="indexed", palette_size=8)
     inject_palette_change(
         source, [(20 + i, 40, 60, 255) for i in range(8)], frame_number=2
     )
-    code, result = run(
-        "tilemap",
-        "patch",
-        **files(source, target, frame=2),
-        patch={
-            "entries": [
-                {"tile_x": 0, "tile_y": 0, "placement": placement("d")},
-            ]
+    result = expect_success(
+        "tilemap patch",
+        {
+            **files(source, target, frame=2),
+            "patch": {
+                "entries": [
+                    {"tile_x": 0, "tile_y": 0, "placement": placement("d")},
+                ]
+            },
         },
     )
-    assert code == 0, json.dumps(result, indent=2)
     assert result["written_tiles"] == [
         {"tile_key": "d", "tile_index": 4, "palette_indexes": [4]}
     ]
@@ -267,15 +278,14 @@ def test_indexed_write_reports_different_valid_frame_palettes_without_remap(
         "blue": 60,
         "alpha": 255,
     }
-    code, tile = run(
-        "tileset",
-        "tile",
-        "get",
-        sprite_file=str(target),
-        target={"tileset_index": 1},
-        tile={"tile_key": "d"},
+    tile = expect_success(
+        "tileset tile get",
+        {
+            "sprite_file": str(target),
+            "target": {"tileset_index": 1},
+            "tile": {"tile_key": "d"},
+        },
     )
-    assert code == 0, tile
     assert all(
         row == [{"length": 2, "color": {"kind": "palette-index", "index": 4}}]
         for row in tile["snapshot"]["rows"]
@@ -320,11 +330,12 @@ def test_transparent_index_is_required_even_when_tile_does_not_use_it(
     from tests.support import inject_palette_change
 
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    fixture(source, runtime, script="lifecycle.lua", mode="indexed", palette_size=8)
+    lifecycle_sprite(runtime, source, mode="indexed", palette_size=8)
     inject_palette_change(source, [(i, 40, 60, 255) for i in range(3)], frame_number=2)
     before = source.read_bytes()
-    code, result = run("tilemap", operation, **files(source, target), **inputs)
-    assert code == 2, result
+    outcome = run(f"tilemap {operation}", {**files(source, target), **inputs})
+    result = outcome.envelope
+    assert outcome.returncode == 2, result
     assert result["details"]["undefined_indexes"] == [7]
     assert result["details"]["frame_number"] == 2
     assert source.read_bytes() == before and not target.exists()
@@ -335,34 +346,33 @@ def test_explicit_cel_creation_composes_with_keyed_set(
     tmp_path: Path, runtime, frame: int
 ) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    fixture(source, runtime, script="cel_creation.lua")
+    cel_creation_sprite(runtime, source)
     arguments = files(source, target, frame=frame)
-    code, added = run("cel", "add", **arguments, tilemap_size={"width": 2, "height": 3})
-    assert code == 0, added
-    code, changed = run(
-        "tilemap",
-        "set",
-        **files(target, target, frame=frame, in_place=True, overwrite=True),
-        snapshot={
-            "rectangle": {"x": 0, "y": 0, "width": 2, "height": 3},
-            "entries": [
-                {
-                    "tile_x": 1,
-                    "tile_y": 2,
-                    "placement": placement("stone", flip_diagonal=True),
-                }
-            ],
+    expect_success("cel add", {**arguments, "tilemap_size": {"width": 2, "height": 3}})
+    expect_success(
+        "tilemap set",
+        {
+            **files(target, target, frame=frame, in_place=True, overwrite=True),
+            "snapshot": {
+                "rectangle": {"x": 0, "y": 0, "width": 2, "height": 3},
+                "entries": [
+                    {
+                        "tile_x": 1,
+                        "tile_y": 2,
+                        "placement": placement("stone", flip_diagonal=True),
+                    }
+                ],
+            },
         },
     )
-    assert code == 0, changed
-    code, observed = run(
-        "tilemap",
-        "get",
-        sprite_file=str(target),
-        target=arguments["target"],
-        rectangle={"x": 0, "y": 0, "width": 2, "height": 3},
+    observed = expect_success(
+        "tilemap get",
+        {
+            "sprite_file": str(target),
+            "target": arguments["target"],
+            "rectangle": {"x": 0, "y": 0, "width": 2, "height": 3},
+        },
     )
-    assert code == 0, observed
     assert observed["snapshot"]["entries"] == [
         {
             "tile_x": 1,
@@ -482,13 +492,14 @@ def test_rejected_region_preserves_source_and_existing_target(
     expected: str,
 ) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    fixture(source, runtime, script="lifecycle.lua", **fixture_options)
+    lifecycle_sprite(runtime, source, **fixture_options)
     before = source.read_bytes()
     target.write_bytes(b"prior Target")
-    code, result = run(
-        "tilemap", operation, **files(source, target, overwrite=True), **inputs
+    outcome = run(
+        f"tilemap {operation}", {**files(source, target, overwrite=True), **inputs}
     )
-    assert code == 2 and result["code"] == expected, result
+    result = outcome.envelope
+    assert outcome.returncode == 2 and result["code"] == expected, result
     assert source.read_bytes() == before
     assert target.read_bytes() == b"prior Target"
     assert set(tmp_path.iterdir()) == {source, target}
@@ -521,25 +532,26 @@ def test_absent_cel_stays_absent_in_summary_and_cannot_be_mutated(
     tmp_path: Path, runtime, operation: str, inputs: dict
 ) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    fixture(source, runtime, script="cel_creation.lua")
+    cel_creation_sprite(runtime, source)
     before = source.read_bytes()
-    code, result = run(
-        "tilemap",
-        "get",
-        sprite_file=str(source),
-        target=files(source, target)["target"],
+    result = expect_success(
+        "tilemap get",
+        {"sprite_file": str(source), "target": files(source, target)["target"]},
     )
-    assert code == 0 and result["tilemap"]["exists"] is False, result
-    code, result = run("tilemap", operation, **files(source, target), **inputs)
-    assert code == 2 and result["code"] == "tilemap_cel_missing", result
-    code, result = run(
-        "tilemap",
-        "get",
-        sprite_file=str(source),
-        target=files(source, target)["target"],
-        rectangle={"x": 0, "y": 0, "width": 1, "height": 1},
+    assert result["tilemap"]["exists"] is False, result
+    outcome = run(f"tilemap {operation}", {**files(source, target), **inputs})
+    result = outcome.envelope
+    assert outcome.returncode == 2 and result["code"] == "tilemap_cel_missing", result
+    outcome = run(
+        "tilemap get",
+        {
+            "sprite_file": str(source),
+            "target": files(source, target)["target"],
+            "rectangle": {"x": 0, "y": 0, "width": 1, "height": 1},
+        },
     )
-    assert code == 2 and result["code"] == "tilemap_cel_missing", result
+    result = outcome.envelope
+    assert outcome.returncode == 2 and result["code"] == "tilemap_cel_missing", result
     assert source.read_bytes() == before and not target.exists()
 
 
@@ -547,42 +559,40 @@ def test_empty_and_noop_patches_do_not_repair_unrelated_placements(
     tmp_path: Path, runtime
 ) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    fixture(source, runtime, script="lifecycle.lua", unkeyed="3", invalid="true")
-    code, result = run(
-        "tilemap", "patch", **files(source, target), patch={"entries": []}
+    lifecycle_sprite(runtime, source, unkeyed="3", invalid="true")
+    result = expect_success(
+        "tilemap patch", {**files(source, target), "patch": {"entries": []}}
     )
-    assert code == 0, result
     assert result["cells_written"] == result["cells_changed"] == 0
     assert result["written_tiles"] == result["effective_palettes"] == []
-    code, observed = run(
-        "tilemap",
-        "get",
-        sprite_file=str(target),
-        target=files(source, target)["target"],
-        rectangle={"x": 0, "y": 0, "width": 5, "height": 1},
-    )
-    assert code == 0, observed
-    assert observed["snapshot"]["entries"][0]["placement"]["tile_index"] == 99
-    assert observed["snapshot"]["entries"][2]["placement"]["tile_key"] is None
-    code, result = run(
-        "tilemap",
-        "patch",
-        **files(target, target, in_place=True, overwrite=True),
-        patch={
-            "entries": [
-                {
-                    "tile_x": 1,
-                    "tile_y": 0,
-                    "placement": placement(
-                        "b", flip_x=True, flip_y=True, flip_diagonal=True
-                    ),
-                }
-            ]
+    observed = expect_success(
+        "tilemap get",
+        {
+            "sprite_file": str(target),
+            "target": files(source, target)["target"],
+            "rectangle": {"x": 0, "y": 0, "width": 5, "height": 1},
         },
     )
-    assert (
-        code == 0 and result["cells_written"] == 1 and result["cells_changed"] == 0
-    ), result
+    assert observed["snapshot"]["entries"][0]["placement"]["tile_index"] == 99
+    assert observed["snapshot"]["entries"][2]["placement"]["tile_key"] is None
+    result = expect_success(
+        "tilemap patch",
+        {
+            **files(target, target, in_place=True, overwrite=True),
+            "patch": {
+                "entries": [
+                    {
+                        "tile_x": 1,
+                        "tile_y": 0,
+                        "placement": placement(
+                            "b", flip_x=True, flip_y=True, flip_diagonal=True
+                        ),
+                    }
+                ]
+            },
+        },
+    )
+    assert result["cells_written"] == 1 and result["cells_changed"] == 0, result
 
 
 @pytest.mark.parametrize(
@@ -611,7 +621,7 @@ def test_contradictory_region_evidence_never_publishes(
     )
 
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    fixture(source, runtime, script="lifecycle.lua", mode="indexed", palette_size=8)
+    lifecycle_sprite(runtime, source, mode="indexed", palette_size=8)
     before = source.read_bytes()
     target.write_bytes(b"prior Target")
     request = TilemapFillRequest.model_validate(
@@ -667,7 +677,7 @@ def test_native_save_failure_rolls_back_file_publication(
     from spa.contracts.ports import OperationServices, RuntimeIssue
 
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    fixture(source, runtime, script="lifecycle.lua")
+    lifecycle_sprite(runtime, source)
     before = source.read_bytes()
     target.write_bytes(b"prior Target")
     request = TilemapFillRequest.model_validate(
@@ -680,7 +690,9 @@ def test_native_save_failure_rolls_back_file_publication(
     )
 
     def fail_save(observation, handler, payload, timeout):
-        # The real Kernel performs the mutation, then native save cannot create this path.
+        # The staged path is below a regular file, so native save cannot write it.
+        # Native `Sprite:saveAs` returns true even then; the Kernel detects the
+        # failed save when it reopens the staged Sprite, after the mutation.
         return invoke(
             observation,
             handler,
@@ -696,6 +708,11 @@ def test_native_save_failure_rolls_back_file_publication(
     with pytest.raises(RuntimeIssue) as caught:
         fill_tilemap(request, services)
     assert caught.value.kind == "handler_rejected"
+    # The Lua refusal measured with Aseprite 1.3.18.5, after its source location.
+    reason = getattr(caught.value.evidence, "reason", "")
+    assert re.fullmatch(
+        r".*sprite_persistence\.lua:\d+: could not reopen staged Sprite", reason
+    ), reason
     assert source.read_bytes() == before and target.read_bytes() == b"prior Target"
     assert set(tmp_path.iterdir()) == {source, target}
 
@@ -704,26 +721,23 @@ def test_whole_image_limit_is_explicit_even_for_one_cell_write(
     tmp_path: Path, runtime
 ) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    fixture(
-        source,
-        runtime,
-        script="lifecycle_limits.lua",
-        tile_count=2,
-        frames=1,
-        image_width=2049,
-    )
+    lifecycle_limits_sprite(runtime, source, tile_count=2, frames=1, image_width=2049)
     before = source.read_bytes()
-    code, result = run(
-        "tilemap",
-        "fill",
-        **files(
-            source, target, target={"layer": {"layer_path": [2]}, "frame_number": 1}
-        ),
-        coordinate_space="tile-cell",
-        rectangle={"x": 0, "y": 0, "width": 1, "height": 1},
-        placement={"kind": "empty"},
+    outcome = run(
+        "tilemap fill",
+        {
+            **files(
+                source, target, target={"layer": {"layer_path": [2]}, "frame_number": 1}
+            ),
+            "coordinate_space": "tile-cell",
+            "rectangle": {"x": 0, "y": 0, "width": 1, "height": 1},
+            "placement": {"kind": "empty"},
+        },
     )
-    assert code == 2 and result["code"] == "tilemap_region_invalid", result
+    result = outcome.envelope
+    assert outcome.returncode == 2 and result["code"] == "tilemap_region_invalid", (
+        result
+    )
     assert result["details"]["reason"] == "tile_cells_limit"
     assert "maximum 1048576 Tile Cells" in result["details"]["message"]
     assert source.read_bytes() == before and not target.exists()

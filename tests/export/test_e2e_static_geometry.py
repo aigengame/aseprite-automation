@@ -1,47 +1,33 @@
 """Explicit static PNG area and composition through the installed public CLI."""
 
-import hashlib
-import json
-import os
 import struct
 from pathlib import Path
 
 import pytest
 from PIL import Image
 
-from tests.export.support import export_image_request as _request
-from tests.export.support import source_sprite
-from tests.support import spa
+from spa.contracts.ports import RuntimeObservation
+from tests.export.support import export_verified_image
+from tests.native_invocation import expect_success, run
+from tests.support import (
+    export_image_choices,
+    source_sprite,
+    write_group_opacity_and_blend,
+)
 
 pytestmark = pytest.mark.e2e
 
 
-def _export(request: dict) -> dict:
-    run = spa("export", "image", "--input-json", json.dumps(request))
-    assert run.returncode == 0, run.stdout + run.stderr
-    result = json.loads(run.stdout)
-    destination = Path(request["destination"]["path"])
-    payload = destination.read_bytes()
-    assert result["artifact"] == {
-        "role": "image",
-        "path": str(destination),
-        "media_type": "image/png",
-        "format": "png",
-        "byte_size": len(payload),
-        "sha256": hashlib.sha256(payload).hexdigest(),
-    }
-    return result
-
-
 def test_rectangle_rebases_source_canvas_pixels_to_output_origin(
     tmp_path: Path,
+    runtime: RuntimeObservation,
 ) -> None:
-    source = source_sprite(tmp_path, "static_geometry.lua")
+    source = source_sprite(runtime, tmp_path, "static_geometry.lua")
     before = source.read_bytes()
     destination = tmp_path / "crop.png"
     rectangle = {"x": 2, "y": 1, "width": 2, "height": 2}
-    result = _export(
-        _request(
+    result = export_verified_image(
+        export_image_choices(
             source,
             destination,
             frame_number=2,
@@ -63,14 +49,15 @@ def test_rectangle_rebases_source_canvas_pixels_to_output_origin(
 
 def test_opaque_request_keeps_existing_indexed_background_mask_pixels(
     tmp_path: Path,
+    runtime: RuntimeObservation,
 ) -> None:
     source = source_sprite(
-        tmp_path, "static_geometry.lua", variant="indexed_background"
+        runtime, tmp_path, "static_geometry.lua", variant="indexed_background"
     )
     before = source.read_bytes()
     destination = tmp_path / "opaque-background.png"
-    result = _export(
-        _request(
+    result = export_verified_image(
+        export_image_choices(
             source,
             destination,
             layer_composition={"mode": "include", "layers": [{"layer_path": [1]}]},
@@ -94,15 +81,15 @@ def test_opaque_request_keeps_existing_indexed_background_mask_pixels(
 
 @pytest.mark.parametrize("partial_content", [False, True])
 def test_existing_background_still_checks_color_and_encoded_opacity(
-    tmp_path, partial_content
+    tmp_path, runtime: RuntimeObservation, partial_content
 ):
     source = source_sprite(
-        tmp_path, "static_geometry.lua", variant="indexed_background"
+        runtime, tmp_path, "static_geometry.lua", variant="indexed_background"
     )
     before = source.read_bytes()
     destination = tmp_path / "existing-background.png"
     destination.write_bytes(b"keep destination")
-    request = _request(
+    request = export_image_choices(
         source,
         destination,
         layer_composition=(
@@ -119,9 +106,9 @@ def test_existing_background_still_checks_color_and_encoded_opacity(
         },
     )
     request["destination"]["if_exists"] = "replace"
-    run = spa("export", "image", "--input-json", json.dumps(request))
-    assert run.returncode != 0
-    failure = json.loads(run.stdout)
+    outcome = run("export image", request)
+    assert outcome.returncode != 0
+    failure = outcome.envelope
     assert failure["code"] == "export_image_invalid"
     assert failure["details"]["reason"] == "background"
     assert (
@@ -184,36 +171,27 @@ def _animated_slices(source: Path) -> None:
 )
 def test_slice_uses_effective_animated_key(
     tmp_path: Path,
+    runtime: RuntimeObservation,
     frame: int,
     address: dict,
     key_frame: int,
     rectangle: dict,
     pixels: list,
 ) -> None:
-    source = source_sprite(tmp_path, "static_geometry.lua")
+    source = source_sprite(runtime, tmp_path, "static_geometry.lua")
     _animated_slices(source)
     before = source.read_bytes()
     destination = tmp_path / "slice.png"
-    snapshot = spa(
-        "slice",
-        "list",
-        "--input-json",
-        json.dumps(
-            {"sprite_file": str(source), "aseprite": os.environ["SPA_TEST_ASEPRITE"]}
-        ),
-    )
-    assert snapshot.returncode == 0, snapshot.stdout + snapshot.stderr
+    snapshot = expect_success("slice list", {"sprite_file": str(source)})
     # Slice indexes address the current snapshot. Native import need not preserve
     # the order of Slice chunks in a file.
     index = next(
-        item["slice_index"]
-        for item in json.loads(snapshot.stdout)["slices"]
-        if item["name"] == "animated"
+        item["slice_index"] for item in snapshot["slices"] if item["name"] == "animated"
     )
     if "slice_index" in address:
         address = {"slice_index": index}
-    result = _export(
-        _request(
+    result = export_verified_image(
+        export_image_choices(
             source,
             destination,
             frame_number=frame,
@@ -254,48 +232,34 @@ def test_slice_uses_effective_animated_key(
 )
 @pytest.mark.parametrize("replace", [False, True])
 def test_invalid_area_keeps_source_and_destination_unchanged(
-    tmp_path: Path, area: dict, reason: str, replace: bool
+    tmp_path: Path, runtime: RuntimeObservation, area: dict, reason: str, replace: bool
 ) -> None:
-    source = source_sprite(tmp_path, "static_geometry.lua")
+    source = source_sprite(runtime, tmp_path, "static_geometry.lua")
     _animated_slices(source)
     before = source.read_bytes()
     destination = tmp_path / "failed.png"
     prior = b"existing destination must survive rejected export"
     if replace:
         destination.write_bytes(prior)
-    request = _request(source, destination, export_image_area=area)
+    request = export_image_choices(source, destination, export_image_area=area)
     request["destination"]["if_exists"] = "replace" if replace else "fail"
-    run = spa("export", "image", "--input-json", json.dumps(request))
-    assert run.returncode != 0, run.stdout
-    failure = json.loads(run.stdout)
+    outcome = run("export image", request)
+    assert outcome.returncode != 0, outcome.envelope
+    failure = outcome.envelope
     assert failure["code"] == "export_image_invalid", failure
     assert failure["details"]["reason"] == reason
     assert source.read_bytes() == before
     assert destination.read_bytes() == prior if replace else not destination.exists()
 
 
-def _persist_group_opacity(source: Path) -> None:
-    # #117: native batch SaveAs drops persisted Group opacity. Independent test
-    # fixture data sets the documented flag and bytes; no production repair.
-    raw = bytearray(source.read_bytes())
-    struct.pack_into("<I", raw, 14, struct.unpack_from("<I", raw, 14)[0] | 2)
-    offset = 144
-    group_number = 0
-    for _ in range(struct.unpack_from("<H", raw, 134)[0]):
-        size, kind = struct.unpack_from("<IH", raw, offset)
-        if kind == 0x2004 and struct.unpack_from("<H", raw, offset + 8)[0] == 1:
-            group_number += 1
-            raw[offset + 18] = 128 if group_number == 1 else 255
-        offset += size
-    source.write_bytes(raw)
-
-
 @pytest.mark.parametrize("selection", ["group", "leaf"])
 def test_exact_group_or_layer_keeps_hidden_ancestor_opacity_context(
-    tmp_path: Path, selection: str
+    tmp_path: Path, runtime: RuntimeObservation, selection: str
 ) -> None:
-    source = source_sprite(tmp_path, "sheet_sources.lua", variant="hidden_group")
-    _persist_group_opacity(source)
+    source = source_sprite(
+        runtime, tmp_path, "sheet_sources.lua", variant="hidden_group"
+    )
+    write_group_opacity_and_blend(source, (128, 255))
     before = source.read_bytes()
     destination = tmp_path / "group.png"
     address = (
@@ -303,8 +267,8 @@ def test_exact_group_or_layer_keeps_hidden_ancestor_opacity_context(
         if selection == "group"
         else {"layer_path": [2, 1, 1]}
     )
-    result = _export(
-        _request(
+    result = export_verified_image(
+        export_image_choices(
             source,
             destination,
             layer_composition={"mode": "include", "layers": [address]},
@@ -322,12 +286,13 @@ def test_exact_group_or_layer_keeps_hidden_ancestor_opacity_context(
 
 def test_visible_reference_exclusion_and_direct_reference_refusal(
     tmp_path: Path,
+    runtime: RuntimeObservation,
 ) -> None:
-    source = source_sprite(tmp_path, "sheet_sources.lua", variant="reference")
+    source = source_sprite(runtime, tmp_path, "sheet_sources.lua", variant="reference")
     before = source.read_bytes()
     destination = tmp_path / "reference.png"
-    request = _request(source, destination)
-    _export(request)
+    request = export_image_choices(source, destination)
+    export_verified_image(request)
     with Image.open(destination) as image:
         assert list(image.convert("RGBA").get_flattened_data()) == [
             (200, 0, 0, 255),
@@ -339,21 +304,25 @@ def test_visible_reference_exclusion_and_direct_reference_refusal(
         "mode": "include",
         "layers": [{"layer_name": "reference"}],
     }
-    run = spa("export", "image", "--input-json", json.dumps(request))
-    assert run.returncode != 0
-    failure = json.loads(run.stdout)
+    outcome = run("export image", request)
+    assert outcome.returncode != 0
+    failure = outcome.envelope
     assert failure["code"] == "export_image_invalid", failure
     assert failure["details"]["reason"] == "layer_composition"
     assert destination.read_bytes() == previous
     assert source.read_bytes() == before
 
 
-def test_ordinary_and_tilemap_content_share_selected_rectangle(tmp_path: Path) -> None:
-    source = source_sprite(tmp_path, "static_geometry.lua", variant="mixed_tilemap")
+def test_ordinary_and_tilemap_content_share_selected_rectangle(
+    tmp_path: Path, runtime: RuntimeObservation
+) -> None:
+    source = source_sprite(
+        runtime, tmp_path, "static_geometry.lua", variant="mixed_tilemap"
+    )
     before = source.read_bytes()
     destination = tmp_path / "tiles.png"
-    result = _export(
-        _request(
+    result = export_verified_image(
+        export_image_choices(
             source,
             destination,
             export_image_area={
@@ -378,16 +347,17 @@ def test_ordinary_and_tilemap_content_share_selected_rectangle(tmp_path: Path) -
 
 @pytest.mark.parametrize("background", [False, True])
 def test_indexed_preservation_and_rgb_visual_composition_are_explicit_paths(
-    tmp_path: Path, background: bool
+    tmp_path: Path, runtime: RuntimeObservation, background: bool
 ) -> None:
     source = source_sprite(
+        runtime,
         tmp_path,
         "static_geometry.lua",
         variant="indexed_background" if background else "indexed",
     )
     before = source.read_bytes()
     preserved = tmp_path / "preserved.png"
-    result = _export(_request(source, preserved))
+    result = export_verified_image(export_image_choices(source, preserved))
     assert result["source_color_mode"] == result["color_mode"] == "indexed"
     assert result["transparent_index"] == 7
     assert result["effective_background"] is background
@@ -420,7 +390,9 @@ def test_indexed_preservation_and_rgb_visual_composition_are_explicit_paths(
             (200, 0, 0, 255),
         ]
     visual = tmp_path / "visual.png"
-    result = _export(_request(source, visual, composition_color_mode="rgb"))
+    result = export_verified_image(
+        export_image_choices(source, visual, composition_color_mode="rgb")
+    )
     assert result["color_mode"] == "rgb" and result["source_color_mode"] == "indexed"
     assert result["transparent_index"] is None and result["palette_entries"] == []
     assert result["effective_background"] is background
@@ -438,23 +410,23 @@ def test_indexed_preservation_and_rgb_visual_composition_are_explicit_paths(
     ("name", "code"), [("same", "slice_ambiguous"), ("absent", "slice_missing")]
 )
 def test_slice_address_refusal_preserves_owner_failure_and_existing_destination(
-    tmp_path: Path, name: str, code: str
+    tmp_path: Path, runtime: RuntimeObservation, name: str, code: str
 ) -> None:
-    source = source_sprite(tmp_path, "static_geometry.lua")
+    source = source_sprite(runtime, tmp_path, "static_geometry.lua")
     _animated_slices(source)
     before = source.read_bytes()
     destination = tmp_path / "existing.png"
     prior = b"existing destination"
     destination.write_bytes(prior)
-    request = _request(
+    request = export_image_choices(
         source,
         destination,
         export_image_area={"kind": "slice", "slice": {"slice_name": name}},
     )
     request["destination"]["if_exists"] = "replace"
-    run = spa("export", "image", "--input-json", json.dumps(request))
-    assert run.returncode != 0
-    failure = json.loads(run.stdout)
+    outcome = run("export image", request)
+    assert outcome.returncode != 0
+    failure = outcome.envelope
     assert failure["code"] == code, failure
     assert failure["details"]["kind"] == "slice_target"
     assert failure["details"]["address"]["slice_name"] == name
@@ -466,22 +438,24 @@ def test_slice_address_refusal_preserves_owner_failure_and_existing_destination(
     ("name", "code"), [("pattern", "layer_ambiguous"), ("absent", "layer_missing")]
 )
 def test_layer_address_refusal_preserves_owner_failure_and_existing_destination(
-    tmp_path: Path, name: str, code: str
+    tmp_path: Path, runtime: RuntimeObservation, name: str, code: str
 ) -> None:
-    source = source_sprite(tmp_path, "static_geometry.lua", variant="ambiguous_layer")
+    source = source_sprite(
+        runtime, tmp_path, "static_geometry.lua", variant="ambiguous_layer"
+    )
     before = source.read_bytes()
     destination = tmp_path / "existing.png"
     prior = b"existing destination"
     destination.write_bytes(prior)
-    request = _request(
+    request = export_image_choices(
         source,
         destination,
         layer_composition={"mode": "include", "layers": [{"layer_name": name}]},
     )
     request["destination"]["if_exists"] = "replace"
-    run = spa("export", "image", "--input-json", json.dumps(request))
-    assert run.returncode != 0
-    failure = json.loads(run.stdout)
+    outcome = run("export image", request)
+    assert outcome.returncode != 0
+    failure = outcome.envelope
     assert failure["code"] == code, failure
     assert failure["details"]["kind"] == "layer_target"
     assert failure["details"]["address_role"] == "target"

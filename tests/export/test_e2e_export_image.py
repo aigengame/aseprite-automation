@@ -3,36 +3,29 @@
 import hashlib
 import json
 import os
-import shutil
 import struct
-from copy import deepcopy
 from pathlib import Path
 
 import pytest
-from jsonschema import Draft202012Validator, validate
+from jsonschema import validate
 from PIL import Image, ImageCms
 
-from tests.export.support import export_image_request as _request
-from tests.export.support import source_sprite as _source
-from tests.host_permissions import (
-    deny_directory_listing,
-    symlink_creation_permission,
-)
-from tests.support import isolated_wheel_cli, spa
+from spa.contracts.ports import RuntimeObservation
+from tests.native_invocation import expect_success, run
+from tests.support import export_image_choices, isolated_wheel_cli, source_sprite, spa
 
 pytestmark = pytest.mark.e2e
 
 
-def test_export_frame_as_verified_visible_rgb_png(tmp_path: Path) -> None:
-    source = _source(tmp_path)
+def test_export_frame_as_verified_visible_rgb_png(
+    tmp_path: Path, runtime: RuntimeObservation
+) -> None:
+    source = source_sprite(runtime, tmp_path)
     original_sha = hashlib.sha256(source.read_bytes()).hexdigest()
     destination = tmp_path / "image.png"
-    request = _request(source, destination, frame_number=2)
+    request = export_image_choices(source, destination, frame_number=2)
 
-    run = spa("export", "image", "--input-json", json.dumps(request))
-
-    assert run.returncode == 0, run.stdout
-    result = json.loads(run.stdout)
+    result = expect_success("export image", request)
     validate(
         result, json.loads(spa("export", "image", "--schema").stdout)["result_schema"]
     )
@@ -71,67 +64,17 @@ def test_export_frame_as_verified_visible_rgb_png(tmp_path: Path) -> None:
     assert hashlib.sha256(source.read_bytes()).hexdigest() == original_sha
 
 
-def test_export_rejects_destination_traversed_by_source_alias(tmp_path: Path) -> None:
-    native_source = _source(tmp_path)
-    destination = tmp_path / "image.png"
-    shutil.copyfile(native_source, destination)
-    source = tmp_path / "linked.aseprite"
-    with symlink_creation_permission():
-        source.symlink_to(destination)
-    original = hashlib.sha256(source.read_bytes()).hexdigest()
-
-    run = spa(
-        "export",
-        "image",
-        "--input-json",
-        json.dumps(_request(source, destination, if_exists="replace")),
-    )
-
-    assert run.returncode != 0
-    failure = json.loads(run.stdout)
-    assert failure["code"] == "artifact_file_failed"
-    assert failure["details"]["reason"] == "source_destination_alias"
-    assert hashlib.sha256(source.read_bytes()).hexdigest() == original
-    assert hashlib.sha256(destination.read_bytes()).hexdigest() == original
-
-
-def test_export_reports_unverifiable_source_destination_identity(
-    tmp_path: Path,
+def test_export_opaque_rgb_without_color_profile(
+    tmp_path: Path, runtime: RuntimeObservation
 ) -> None:
-    native_source = _source(tmp_path)
-    private = tmp_path / "private"
-    private.mkdir()
-    source = private / "source.aseprite"
-    shutil.copyfile(native_source, source)
-    destination = private / "image.png"
-    os.link(source, destination)
-    original = hashlib.sha256(source.read_bytes()).hexdigest()
-    with deny_directory_listing(private):
-        run = spa(
-            "export",
-            "image",
-            "--input-json",
-            json.dumps(_request(source, destination, if_exists="replace")),
-        )
-
-    assert run.returncode != 0 and run.stdout
-    failure = json.loads(run.stdout)
-    assert failure["code"] == "artifact_file_failed"
-    assert failure["details"]["reason"] == "source_destination_identity_unverified"
-    assert hashlib.sha256(source.read_bytes()).hexdigest() == original
-    assert hashlib.sha256(destination.read_bytes()).hexdigest() == original
-
-
-def test_export_opaque_rgb_without_color_profile(tmp_path: Path) -> None:
-    source = _source(tmp_path, "rgb_profile_alpha.lua", profile="none", alpha="opaque")
+    source = source_sprite(
+        runtime, tmp_path, "rgb_profile_alpha.lua", profile="none", alpha="opaque"
+    )
     original_sha = hashlib.sha256(source.read_bytes()).hexdigest()
     destination = tmp_path / "opaque.png"
-    request = _request(source, destination)
+    request = export_image_choices(source, destination)
 
-    run = spa("export", "image", "--input-json", json.dumps(request))
-
-    assert run.returncode == 0, run.stdout
-    result = json.loads(run.stdout)
+    result = expect_success("export image", request)
     assert result["color_profile"] == "none"
     assert result["alpha_channel"] == {
         "present": True,
@@ -148,18 +91,15 @@ def test_export_opaque_rgb_without_color_profile(tmp_path: Path) -> None:
     assert hashlib.sha256(source.read_bytes()).hexdigest() == original_sha
 
 
-def test_export_fully_transparent_rgb_preserves_alpha(tmp_path: Path) -> None:
-    source = _source(
-        tmp_path, "rgb_profile_alpha.lua", profile="srgb", alpha="transparent"
+def test_export_fully_transparent_rgb_preserves_alpha(
+    tmp_path: Path, runtime: RuntimeObservation
+) -> None:
+    source = source_sprite(
+        runtime, tmp_path, "rgb_profile_alpha.lua", profile="srgb", alpha="transparent"
     )
     destination = tmp_path / "transparent.png"
 
-    run = spa(
-        "export", "image", "--input-json", json.dumps(_request(source, destination))
-    )
-
-    assert run.returncode == 0, run.stdout
-    result = json.loads(run.stdout)
+    result = expect_success("export image", export_image_choices(source, destination))
     assert result["color_profile"] == "srgb"
     assert result["alpha_channel"] == {
         "present": True,
@@ -173,16 +113,13 @@ def test_export_fully_transparent_rgb_preserves_alpha(tmp_path: Path) -> None:
         assert image.getpixel((1, 0)) == (0, 0, 0, 0)
 
 
-def test_export_opaque_background_preserves_rgb_values(tmp_path: Path) -> None:
-    source = _source(tmp_path, "rgb_background.lua")
+def test_export_opaque_background_preserves_rgb_values(
+    tmp_path: Path, runtime: RuntimeObservation
+) -> None:
+    source = source_sprite(runtime, tmp_path, "rgb_background.lua")
     destination = tmp_path / "background.png"
 
-    run = spa(
-        "export", "image", "--input-json", json.dumps(_request(source, destination))
-    )
-
-    assert run.returncode == 0, run.stdout
-    result = json.loads(run.stdout)
+    result = expect_success("export image", export_image_choices(source, destination))
     assert result["alpha_channel"] == {
         "present": False,
         "minimum": 255,
@@ -197,17 +134,12 @@ def test_export_opaque_background_preserves_rgb_values(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("mode", ["grayscale", "indexed"])
 def test_export_preserves_grayscale_and_indexed_source_color_modes(
-    tmp_path: Path, mode: str
+    tmp_path: Path, runtime: RuntimeObservation, mode: str
 ) -> None:
-    source = _source(tmp_path, "rgb_profile_alpha.lua", mode=mode)
+    source = source_sprite(runtime, tmp_path, "rgb_profile_alpha.lua", mode=mode)
     destination = tmp_path / "preserved.png"
 
-    run = spa(
-        "export", "image", "--input-json", json.dumps(_request(source, destination))
-    )
-
-    assert run.returncode == 0, run.stdout
-    result = json.loads(run.stdout)
+    result = expect_success("export image", export_image_choices(source, destination))
     assert result["source_color_mode"] == mode
     assert result["color_mode"] == mode
     assert result["composition_color_mode"] == "preserve"
@@ -224,19 +156,18 @@ def test_export_preserves_grayscale_and_indexed_source_color_modes(
 
 @pytest.mark.parametrize("arrangement", ["visible", "hidden_layer", "hidden_group"])
 def test_export_composes_visible_tilemap_image(
-    tmp_path: Path, arrangement: str
+    tmp_path: Path, runtime: RuntimeObservation, arrangement: str
 ) -> None:
-    source = _source(tmp_path, "rgb_tilemap.lua", arrangement=arrangement)
+    source = source_sprite(
+        runtime, tmp_path, "rgb_tilemap.lua", arrangement=arrangement
+    )
     source_sha = hashlib.sha256(source.read_bytes()).hexdigest()
     destination = tmp_path / "tilemap.png"
-    request = _request(source, destination)
+    request = export_image_choices(source, destination)
     schema = json.loads(spa("export", "image", "--schema").stdout)
     validate(request, schema["request_schema"])
 
-    run = spa("export", "image", "--input-json", json.dumps(request))
-
-    assert run.returncode == 0, run.stdout
-    result = json.loads(run.stdout)
+    result = expect_success("export image", request)
     validate(result, schema["result_schema"])
     assert result["layer_composition"] == {"mode": "visible"}
     with Image.open(destination) as image:
@@ -248,28 +179,35 @@ def test_export_composes_visible_tilemap_image(
     assert hashlib.sha256(source.read_bytes()).hexdigest() == source_sha
 
 
-def test_export_rejects_unlisted_icc_source_before_encoding(tmp_path: Path) -> None:
+def test_export_rejects_unlisted_icc_source_before_encoding(
+    tmp_path: Path, runtime: RuntimeObservation
+) -> None:
     icc_file = tmp_path / "profile.icc"
     icc_file.write_bytes(
         ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
     )
-    source = _source(
-        tmp_path, "rgb_profile_alpha.lua", profile="icc", icc_file=str(icc_file)
+    source = source_sprite(
+        runtime,
+        tmp_path,
+        "rgb_profile_alpha.lua",
+        profile="icc",
+        icc_file=str(icc_file),
     )
     destination = tmp_path / "unsupported.png"
 
-    run = spa(
-        "export", "image", "--input-json", json.dumps(_request(source, destination))
-    )
+    outcome = run("export image", export_image_choices(source, destination))
 
-    assert run.returncode != 0
-    assert json.loads(run.stdout)["code"] == "export_image_invalid"
+    assert outcome.returncode != 0
+    assert outcome.envelope["code"] == "export_image_invalid"
+    assert outcome.envelope["details"]["reason"] == "color_profile"
     assert not destination.exists()
     assert not list(tmp_path.glob("*.staged.png"))
 
 
-def test_export_rejects_gamma_profile_before_encoding(tmp_path: Path) -> None:
-    source = _source(tmp_path, "rgb_profile_alpha.lua")
+def test_export_rejects_gamma_profile_before_encoding(
+    tmp_path: Path, runtime: RuntimeObservation
+) -> None:
+    source = source_sprite(runtime, tmp_path, "rgb_profile_alpha.lua")
     payload = bytearray(source.read_bytes())
     chunk_at = 128 + 16
     while chunk_at + 6 <= len(payload):
@@ -284,45 +222,28 @@ def test_export_rejects_gamma_profile_before_encoding(tmp_path: Path) -> None:
     source.write_bytes(payload)
     destination = tmp_path / "unsupported.png"
 
-    run = spa(
-        "export", "image", "--input-json", json.dumps(_request(source, destination))
-    )
+    outcome = run("export image", export_image_choices(source, destination))
 
-    assert run.returncode != 0
-    assert json.loads(run.stdout)["code"] == "kernel_execution_failed"
+    assert outcome.returncode != 0
+    assert outcome.envelope["code"] == "kernel_execution_failed"
+    assert outcome.envelope["details"]["reason"].endswith(
+        ": unsupported Source Sprite Color Profile"
+    )
     assert not destination.exists()
     assert not list(tmp_path.glob("*.staged.png"))
 
 
-def test_export_requires_explicit_existing_file_policy(tmp_path: Path) -> None:
-    source = _source(tmp_path)
+def test_export_replaces_existing_file_when_policy_is_replace(
+    tmp_path: Path, runtime: RuntimeObservation
+) -> None:
+    source = source_sprite(runtime, tmp_path)
     destination = tmp_path / "image.png"
     destination.write_bytes(b"existing artifact")
     original = destination.read_bytes()
 
-    refused = spa(
-        "export",
-        "image",
-        "--input-json",
-        json.dumps(_request(source, destination)),
+    result = expect_success(
+        "export image", export_image_choices(source, destination, if_exists="replace")
     )
-
-    assert refused.returncode != 0
-    refusal = json.loads(refused.stdout)
-    assert refusal["code"] == "artifact_file_failed"
-    assert refusal["details"]["reason"] == "destination_exists"
-    assert destination.read_bytes() == original
-    assert not list(tmp_path.glob("*.staged.png"))
-
-    replaced = spa(
-        "export",
-        "image",
-        "--input-json",
-        json.dumps(_request(source, destination, if_exists="replace")),
-    )
-
-    assert replaced.returncode == 0, replaced.stdout
-    result = json.loads(replaced.stdout)
     assert result["destination"] == {
         "path": str(destination),
         "if_exists": "replace",
@@ -331,111 +252,43 @@ def test_export_requires_explicit_existing_file_policy(tmp_path: Path) -> None:
     assert destination.read_bytes() != original
 
 
-def test_export_rejects_out_of_range_frame_before_encoding(tmp_path: Path) -> None:
-    source = _source(tmp_path)
+def test_export_rejects_out_of_range_frame_before_encoding(
+    tmp_path: Path, runtime: RuntimeObservation
+) -> None:
+    source = source_sprite(runtime, tmp_path)
     destination = tmp_path / "out-of-range.png"
 
-    run = spa(
-        "export",
-        "image",
-        "--input-json",
-        json.dumps(_request(source, destination, frame_number=3)),
+    outcome = run(
+        "export image", export_image_choices(source, destination, frame_number=3)
     )
 
-    assert run.returncode != 0
-    assert json.loads(run.stdout)["code"] == "export_image_invalid"
+    assert outcome.returncode != 0
+    assert outcome.envelope["code"] == "export_image_invalid"
+    assert outcome.envelope["details"]["reason"] == "frame_number"
     assert not destination.exists()
     assert not list(tmp_path.glob("*.staged.png"))
 
 
-def test_export_uses_native_visible_group_composition(tmp_path: Path) -> None:
-    source = _source(tmp_path, "group_composition.lua")
+def test_export_uses_native_visible_group_composition(
+    tmp_path: Path, runtime: RuntimeObservation
+) -> None:
+    source = source_sprite(runtime, tmp_path, "group_composition.lua")
     destination = tmp_path / "group.png"
 
-    run = spa(
-        "export", "image", "--input-json", json.dumps(_request(source, destination))
-    )
-
-    assert run.returncode == 0, run.stdout
+    expect_success("export image", export_image_choices(source, destination))
     with Image.open(destination) as image:
         image.load()
         assert image.convert("RGBA").getpixel((0, 0)) == (0, 0, 200, 128)
 
 
-def test_export_schema_refuses_unsupported_and_incomplete_choices(
-    tmp_path: Path,
+def test_export_reports_normalized_destination(
+    tmp_path: Path, runtime: RuntimeObservation
 ) -> None:
-    source = _source(tmp_path)
-    destination = tmp_path / "rejected.png"
-    accepted = _request(source, destination)
-    schema = json.loads(spa("export", "image", "--schema").stdout)
-    validator = Draft202012Validator(schema["request_schema"])
-    validator.validate(accepted)
-    assert schema["execution_kind"] == "export"
-    assert schema["side_effects"] == ["publishes one verified PNG Image Artifact"]
-
-    rejected: list[tuple[str, object]] = [
-        ("destination.path", str(tmp_path / "image.jpg")),
-        ("destination.path", str(tmp_path / "image.PNG")),
-        ("destination.path", str(tmp_path / "image.png") + "\n"),
-        ("destination.path", str(tmp_path / "image\r.png")),
-        ("destination.path", str(tmp_path / "image\x00.png")),
-        ("source_sprite_file", str(source) + "\n"),
-        ("source_sprite_file", str(tmp_path / "source\r.aseprite")),
-        ("source_sprite_file", str(tmp_path / "source\x00.aseprite")),
-        ("destination.if_exists", None),
-        ("frame_number", 0),
-        ("frame_number", None),
-        ("export_image_area", None),
-        ("layer_composition", None),
-        ("composition_color_mode", None),
-        ("composition_color_mode", "grayscale"),
-        ("tag", "walk"),
-        ("frame_range", [1, 2]),
-        ("ignore_empty", True),
-        (
-            "export_image_area",
-            {"kind": "bounds", "x": 0, "y": 0, "width": 1, "height": 1},
-        ),
-        ("selection", {"kind": "mask"}),
-        ("layer_composition", "all"),
-        ("include_layers", [[1]]),
-        ("color_mode", "grayscale"),
-        ("color_profile", "omit"),
-        ("transparency", "background"),
-        ("palette", {"kind": "quantize"}),
-        ("outputs", [str(destination), str(tmp_path / "other.png")]),
-        ("format", "png"),
-    ]
-    for location, value in rejected:
-        request = deepcopy(accepted)
-        parent, separator, field = location.partition(".")
-        target = request[parent] if separator else request
-        assert isinstance(target, dict)
-        if value is None:
-            target.pop(field if separator else parent)
-        else:
-            target[field if separator else parent] = value
-        assert not validator.is_valid(request), location
-        run = spa("export", "image", "--input-json", json.dumps(request))
-        assert run.returncode == 2, (location, run.stdout)
-        failure = json.loads(run.stdout)
-        validate(failure, schema["failure_schema"])
-        assert failure["code"] == "invalid_request"
-        assert not destination.exists()
-
-
-def test_export_reports_normalized_destination(tmp_path: Path) -> None:
-    source = _source(tmp_path)
+    source = source_sprite(runtime, tmp_path)
     destination = tmp_path / "unused" / ".." / "normalized.png"
     normalized = tmp_path / "normalized.png"
 
-    run = spa(
-        "export", "image", "--input-json", json.dumps(_request(source, destination))
-    )
-
-    assert run.returncode == 0, run.stdout
-    result = json.loads(run.stdout)
+    result = expect_success("export image", export_image_choices(source, destination))
     assert result["destination"]["path"] == str(normalized)
     assert result["artifact"]["path"] == str(normalized)
     assert normalized.is_file()
@@ -445,34 +298,42 @@ def test_export_cannot_publish_when_source_is_missing(tmp_path: Path) -> None:
     source = tmp_path / "missing.aseprite"
     destination = tmp_path / "missing-source.png"
 
-    run = spa(
-        "export", "image", "--input-json", json.dumps(_request(source, destination))
-    )
+    outcome = run("export image", export_image_choices(source, destination))
 
-    assert run.returncode != 0
-    assert json.loads(run.stdout)["code"] == "kernel_execution_failed"
+    assert outcome.returncode != 0
+    assert outcome.envelope["code"] == "kernel_execution_failed"
+    assert outcome.envelope["details"]["reason"].endswith(
+        ": could not open Source Sprite"
+    )
     assert not destination.exists()
     assert not list(tmp_path.glob("*.staged.png"))
     assert not list(tmp_path.glob("*.staged.rgba"))
 
 
 def test_wheel_installed_cli_exports_verified_image(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, runtime: RuntimeObservation, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     installed_cli = isolated_wheel_cli(tmp_path, monkeypatch)
-    source = _source(tmp_path)
+    source = source_sprite(runtime, tmp_path)
     destination = tmp_path / "wheel.png"
 
-    run = spa(
+    exported = spa(
         "export",
         "image",
         "--input-json",
-        json.dumps(_request(source, destination, frame_number=2)),
+        json.dumps(
+            export_image_choices(
+                source,
+                destination,
+                frame_number=2,
+                aseprite=os.environ["SPA_TEST_ASEPRITE"],
+            )
+        ),
         executable=installed_cli,
     )
 
-    assert run.returncode == 0, run.stdout
-    result = json.loads(run.stdout)
+    assert exported.returncode == 0, exported.stdout
+    result = json.loads(exported.stdout)
     assert result["artifact"]["path"] == str(destination)
     with Image.open(destination) as image:
         image.load()

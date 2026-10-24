@@ -3,19 +3,22 @@
 import pytest
 
 from tests.filter.support import (
+    FIXTURES,
     apply,
-    native_script,
     observe_images,
     pixels,
     rgb_palette_colors,
 )
+from tests.native_invocation import run_lua
+from tests.support import process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
 
 def test_rgb_palette_matching_includes_alpha(tmp_path, runtime):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "boundary.lua", source=source)
+    lua = run_lua(FIXTURES / "boundary.lua", runtime, source=source)
+    assert lua.returncode == 0, process_diagnostics(lua)
     before = observe_images(runtime, source)
     code, result = apply(source, target, rgb_palette_colors())
     assert code == 0, result
@@ -27,7 +30,8 @@ def test_rgb_palette_matching_includes_alpha(tmp_path, runtime):
 
 def test_background_accepts_green_blue_and_preserves_red_alpha(tmp_path, runtime):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "boundary.lua", source=source, background="true")
+    lua = run_lua(FIXTURES / "boundary.lua", runtime, source=source, background="true")
+    assert lua.returncode == 0, process_diagnostics(lua)
     code, result = apply(
         source,
         target,
@@ -43,7 +47,8 @@ def test_background_accepts_green_blue_and_preserves_red_alpha(tmp_path, runtime
 
 def test_palette_all_reports_every_entry_and_preserves_all_images(tmp_path, runtime):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "tilemap.lua", source=source, mode="indexed")
+    lua = run_lua(FIXTURES / "tilemap.lua", runtime, source=source, mode="indexed")
+    assert lua.returncode == 0, process_diagnostics(lua)
     before = observe_images(runtime, source)
     code, result = apply(
         source,
@@ -83,7 +88,8 @@ def test_native_address_refusal_preserves_source_and_existing_target(
     tmp_path, runtime, options
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "boundary.lua", source=source)
+    lua = run_lua(FIXTURES / "boundary.lua", runtime, source=source)
+    assert lua.returncode == 0, process_diagnostics(lua)
     before = source.read_bytes()
     target.write_bytes(b"existing target")
     code, result = apply(source, target, rgb_palette_colors(**options), overwrite=True)

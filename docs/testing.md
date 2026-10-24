@@ -1,38 +1,30 @@
 # Test suite
 
-For native text, `tests/paint/test_e2e_text_discovery.py` verifies the installed
-Capability Gap and absence of false callability. The [issue #47 investigation](evidence/issue-47-native-text.md)
-retains manual native pixel and save/reopen observations. Its text fixture is not
-part of routine discovery or pytest; neither installed discovery nor CI needs to
-repeat the known crash.
-
 SPA organizes tests first by the behavior owner and then names each test file by its
 verification tier. The layout does not mirror source packages or CLI Command Groups.
 
-Tileset lifecycle #45 adds public rebind/remove E2E and an independent native oracle
-for flags, Linked Cels, unchanged shared Layers, native properties, and save/reopen.
-Indexed tests cover Palette validity in each actual usage Frame, including linked
-Frames and different valid Palettes. Fixtures with different Palette lengths use
-an alpha-bearing entry so native serialization retains the modern Palette chunk;
-all-opaque legacy chunks do not encode length. A failed persistence check still
-refuses publication. Plan tests cover rebind-all/remove, collection reindexing,
-Step-time Cel creation receipts, one commit, malformed evidence, and later failure
-with Source and an existing Target preserved.
-
 ## Ownership areas
+
+Each row points to the tests of one behavior owner. The tests and their module
+docstrings state what each area covers. This guide does not repeat it. Feature
+history and manual native observations are in [`docs/evidence/`](evidence/).
 
 | Directory | Behavior owner |
 | --- | --- |
+| `tests/animation/` | Animation audit, compare, and preview. |
 | `tests/application/` | Application orchestration, including compatibility checks before Operation execution. |
+| `tests/cel/` | Cel lifecycle, placement, copy/link relationships, Cel Image size, and document Target facts. |
 | `tests/ci/` | README translation freshness, Release admission, native test execution policy, and shard evidence checks. |
 | `tests/cli/` | Access Projection through the installed CLI and its in-process projections. |
+| `tests/color/` | Color Profile commands and their native stored color facts. |
 | `tests/color_mode/` | Conditional Color Mode choices, native mapping/Dithering, complete Sprite and Plan conversion evidence. |
-| `tests/contracts/` | Shared Published Language rules, including Failure Code registration and Operation Descriptor constraints. |
+| `tests/contracts/` | Shared Published Language rules, including Failure Code registration, Operation Descriptor constraints, and the rules that every command shares, as one table for each rule over the command tree, and the checks of `tests/native_invocation.py`. |
 | `tests/delivery/` | Shared Artifact staging, verification/publication lifecycles, and real filesystem publication boundaries. |
-| `tests/export/` | Image, GIF and PNG sequence Export contracts, independent format verification, and real Aseprite output evidence. |
 | `tests/examples/` | Installed-CLI workflows, deterministic asset production, and checked-in downstream asset agreement. |
-| `tests/frame/` | Frame timing, insertion, Cel copy/link intent, Tag adjustment, and native persistence. |
+| `tests/export/` | Image, sprite sheet, GIF, PNG sequence and Tileset Export contracts, independent format verification, and real Aseprite output evidence. |
 | `tests/filter/` | Native Filter application, Channels, Cel targets, Palette basis, state restoration, and verified publication. |
+| `tests/frame/` | Frame timing, insertion, Cel copy/link intent, Tag adjustment, and native persistence. |
+| `tests/image/` | Image crop, canvas resize, orientation, resize, and Snapshots. |
 | `tests/import/` | Encoded PNG facts, compatible native Cel insertion, frozen input identity, and publication refusal. |
 | `tests/layer/` | Layer hierarchy, exact addressing, and native addition evidence. |
 | `tests/mcp/` | MCP protocol projection, CLI process lifecycle, Artifact content, and installed native workflows. |
@@ -43,7 +35,8 @@ with Source and an existing Target preserved.
 | `tests/preparation/` | Frozen input/specification checks, geometry and anchors, native preparation, exact PNG facts, reproduction, and publication gates. |
 | `tests/release/` | Release metadata and publication gates. |
 | `tests/runtime/` | Aseprite Runtime Integration, including discovery, launch, private Kernel transport, and real-runtime evidence. |
-| `tests/script/` | Exact caller-owned Lua transport, process/file facts, bounds, and exclusion from core identities and Plans. |
+| `tests/script/` | Exact caller-owned Lua transport (`spa script run`), process/file facts, bounds, and exclusion from core identities and Plans. |
+| `tests/selection/` | Explicit Selection values and native Selection operations. |
 | `tests/slice/` | Complete Slice Keys and coverage, exact addressing, bounded native authoring, exporter validation, and save/reopen evidence. |
 | `tests/sprite/` | Sprite Domain Module contracts plus real creation, copy, flatten, bounded validation, persisted reopen, structural inspection, and Target Commit evidence. |
 | `tests/tag/` | Tag stored facts, exact current addressing, native mutation, and save/reopen evidence. |
@@ -53,104 +46,37 @@ Add an ownership directory only when tests for that behavior exist. Keep a helpe
 the narrowest ownership directory that uses it. Move a helper to `tests/support.py`
 only when more than one ownership area needs it. Each directory is a Python package,
 so different owners can safely use the same focused file name later.
-`tests/host_permissions.py` holds the host-permission fixtures that several owners
-share: `symlink_creation_permission`, `deny_directory_listing`, and the public
-`deny_access` step that saves, denies, and restores one access right. Callers use them
-the same way on every platform and do not test `os.name`. On Windows they change ACLs
-and skip a case only for WinError 1314; elsewhere they change file modes and pass
-errors through. A denial fixture skips the case when the process can still list or
-read, for example when it runs as root. The Windows-only `directory_junction` helper
-stays in the same module. A single-consumer fixture, such as Color Mode's
-unreadable-file condition, stays with its owning tests and builds on `deny_access`.
-`tests/native_entry.py::python_entry` makes a native executable entry from a Python
-body on every platform: a distlib launcher on Windows and an interpreter-shebang file
-elsewhere. Only Windows installs the distlib test dependency. The controlled Aseprite
-fixtures in `tests/support.py`, such as `exiting_aseprite` and `responding_aseprite`,
-each name one behaviour and keep the macOS-style resource layout. They use a shell
-body on POSIX and a Python body on Windows, so test files do not test `os.name` to
-select a fixture. A single-consumer behaviour stays in its test file and builds on
-`controlled_aseprite`.
 
-Native Paint #26 has separate Line, Rectangle, and Ellipse runtime gates. Its
-real-runtime suite compares saved pixels with direct `app.useTool` references for
-all four color-paint Inks at opacity 0, 128, and 255. It also covers native Brush
-footprints, degenerate shapes, RGB/Grayscale/Indexed (including transparent index 7),
-Background and linked Cels, off-canvas Cel placement, explicit Selection, refusal
-without publication, post-write save/reopen failure, and state restoration after
-success and failure. These tests
-use `--batch --script` and require no display. They establish batch native pixel
-parity; they do not certify windowed UI interactions. Run the focused slice with:
+### Shared test modules
 
-```sh
-SPA_TEST_ASEPRITE=/absolute/path/to/aseprite \
-  uv run --frozen --group test pytest tests/paint -x -vv --tb=short -rs
-```
+These modules hold the helpers that more than one ownership area uses. The
+docstrings of each module and helper state its contract.
 
-Native Paint #28 adds independent Contour and Blur gates. Contour tests compare
-complete ordered gestures, degenerates, repeated Points, both Freehand Algorithms,
-and all four color-paint Inks at opacity 0, 128, and 255. Blur tests compare native
-effect pixels across four Tiled Modes, three opacities, both algorithms, and all
-three Color Modes, including offset linked Cels and Frame-varying Palettes. A
-same-process fixture verifies ambient state and file preservation after success,
-bounds rejection, an injected failure after native invocation, and failed reopen.
-Discovery tests require the caller-oriented Gradient Capability Gap reason and callable
-Contour/Blur without invoking Gradient's unsafe headless Context Bar path. This
-delivery combination follows issue #28; it does not establish a callable Gradient.
+| Module | Holds |
+| --- | --- |
+| `tests/native_invocation.py` | `run` and `expect_success` for the installed `spa` command, `run_lua` for Lua fixtures, and the `render_frame` render oracle. |
+| `tests/conftest.py` | The session `runtime` fixture, the e2e gate, and the native failure report hook. |
+| `tests/support.py` | Controlled Aseprite executables, `controlled_runtime`, `observe_cli`, `process_diagnostics`, and the fixture builders that several areas share. |
+| `tests/fixtures/observe_cli.py` | The observers that `observe_cli` puts on one SPA adapter seam. |
+| `tests/host_permissions.py` | Host-permission fixtures with one call shape on every platform. |
+| `tests/native_entry.py` | `python_entry`, which makes a native executable entry from a Python body. |
 
-Change Color Mode #33 compares conversion output with independent native
-`app.command.ChangePixelFormat` calls for every RGB Map and Color Best Fit choice,
-To Gray choice, Dithering algorithm, and Factor boundaries. Fixtures include
-Frame-varying Palettes, Alpha/Transparent Color Index, Background and linked Cels,
-Tilemaps, and unreferenced Tilesets. Tests cover all source/target pairs, typed
-Matrix resolution failures, standalone/Plan parity, in-place intent, rollback, and
-save/close/reopen. These are batch tests and require no windowed graphics session.
+Use these rules when you write a test:
 
-Brightness/Contrast #35 covers RGB/Grayscale/Indexed pixels, Indexed Palette-only,
-and RGB Palette plus matching pixels. Native fixtures verify component Alpha
-preservation separately from Indexed RGB Map quantization, Cartesian targets,
-Linked Cel Image deduplication, Selection, Palette basis, and exact Palette Changes.
-Tilemap pixel targets require the explicit Manual extension delivered by #152;
-without it, the whole pixel application is refused. Palette-only Tilemap anchors
-preserve ordinary Images, placement bytes, and all Tile bitmaps including Empty
-Tile 0. Direct native calls supply boundary-value parity; injected post-command
-failures verify transaction rollback and active Sprite, range, Palette Picks, and
-Selection restoration. All cases use batch scripting without a graphical display.
-
-Explicit Tilemap Cel creation (#165) lives in `tests/tile/test_e2e_cel_creation.py`.
-The independent `cel_creation.lua` fixture creates a native Layer/Tileset without
-SPA Layer creation, then verifies saved Cells, native Image independence, existing
-links, Tile Images/Keys/properties, Palette, binding, and Grid. The matrix covers
-RGB/Grayscale/Indexed (Transparent Color Index 7), first/later Frames, and both
-standalone and Plan creation. Refusals and a later failing Step preserve Source
-and an existing Target; a later successful Step may change the initial links.
-Contract tests cover installed schemas, geometry bounds, conditional runtime
-capability, and contradictory creation evidence without launching Aseprite,
-including Tileset ordinals and Grid facts that disagree with complete Sprite
-inspection. Positive controls include a valid second Tileset.
-These are batch E2E tests: local macOS results do not establish Linux verification.
-
-Tile lifecycle #43 uses `test_e2e_lifecycle.py` with public CLI requests and an
-independent native oracle. It checks opaque plugin data, Linked Cels across shared
-and nested Layers, explicit removal replacements above/below the removed index,
-Empty versus flagged index 0, orphan reorder cleanup, all three Image Color Modes,
-Frame-varying Palettes, and Source/Target preservation on refusal. The same tests
-belong to `e2e and not slow` on macOS and Linux; no display is required. Fast tests
-check schema and preflight behavior. Boundary fixtures cover inline pixels,
-before/after Tile counts, and referenced Cell totals across shared Layers and
-Linked Cels, including unchanged Empty Cells. They also verify explicit refusal
-of transparent hidden RGB/Gray and the accepted transparent-zero case. See
-[native mechanism evidence](evidence/issue-43-tiles.md).
-
-External raster import #46 checks 8-bit PNG metadata independently of native
-loading, then compares full RGBA and stored indexes through real insertion and
-save/reopen. Fixtures cover used-index Palette equality at the selected Frame,
-mask collisions, partial alpha and transparent hidden RGB, None/sRGB/supported ICC,
-empty-slot eligibility, signed Cel positions, and independent Images beside linked
-Cels. Failure cases preserve inputs and any previous Target, discard staging, and
-refuse inconsistent native evidence or output aliases of the raster. These tests
-use the existing local macOS and Linux `--batch --script` lanes without a display;
-they do not exercise the editor UI. Run `pytest tests/import` with the same runtime
-configuration as other native owners.
+- Run the `spa` command with `run` or `expect_success`, and a Lua fixture with
+  `run_lua`. A test module keeps its own CLI or Lua fixture helper only when the
+  helper adds test-specific steps to `run`, `expect_success`, or `run_lua`, and its
+  docstring states those steps.
+- A fixture builder takes `runtime` as a parameter and does not probe. A test whose
+  claim is the probe calls `probe` itself.
+- A test that uses a controlled executable uses `controlled_runtime`, not the
+  session `runtime` fixture.
+- A test of a refusal after the probe and before the Kernel uses
+  `probe_only_aseprite`, so the test fails when the request gets to the Kernel.
+- Test files do not test `os.name` to select a controlled Aseprite fixture or a
+  host-permission step. The shared fixtures have one call shape on every platform.
+- A single-consumer fixture stays with its owning tests. It builds on
+  `controlled_aseprite` or `deny_access`.
 
 ## README translations
 
@@ -181,64 +107,6 @@ judge translation accuracy or prove that prose was reviewed. Do not refresh mark
 as a substitute for reviewing and updating translations. This follows
 [godot-agent's README sync workflow](https://github.com/aigengame/godot-agent/blob/94ed02142b989d51d4cc036b6f993b219bea3049/scripts/update_readme_i18n.py).
 
-## Animation export
-
-`tests/export/test_e2e_animation_export.py` exercises the public GIF and PNG sequence
-Operations independently. Native fixtures check explicit and repeated Frames, one
-Tag direction traversal without repeat expansion, full Canvas, occurrence naming,
-PNG Color Mode and alpha, per-Frame Indexed Palettes with Linked Cels, supported
-profiles, GIF duration truncation, infinite looping, and allowed native color loss.
-The accepted representation matrix is documented in the [usage guide](usage.md#export).
-Unknown profiles, unsupported representation combinations and GIF Frames below
-10 ms are refused before publication. ICC-to-sRGB GIF conversion remains conditional
-on the actual runtime's separately observed Color Profile capability; macOS evidence
-does not remove the Linux conversion Capability Gap.
-
-The native `opaque red → fully transparent → opaque green` GIF regression retains
-a bounded macOS arm64 Aseprite 1.3.18.5-dev / API 41 observation: the blank occurrence
-can contain residual opaque pixels. Independent per-Frame alpha verification rejects
-that staged output and preserves any existing final destination. This verifies refusal
-for the observed encoding path, not a limitation across all releases or a repaired GIF.
-Future accepted requirements and reliable native evidence can extend this boundary.
-
-`test_unit_animation_decoders.py` separately verifies encoded PNG samples, Palette,
-profile and transparency facts and GIF blocks, color tables, disposal, timing and
-loop observations, including malformed bytes. Real filesystem tests in
-`tests/delivery/test_integration_artifact_set.py` check complete-set preflight, exact
-regular-file staging, digest tampering, Source alias refusal and allocation cleanup.
-Failure injection after one replacement checks every ordered publication state;
-an exception after a final write reports the current path as `indeterminate`.
-Published files are retained and no successful Artifact set is returned.
-
-PNG ICC tests cover the bundled linear-sRGB and CC0 Display P3 identities in RGB and Indexed modes. Aseprite's
-`none` backend leaves the loaded ICC display name empty, which libpng rejects as an
-empty iCCP keyword. Export assigns a nonempty label to the private PNG container's
-profile copy. This changes neither the Source nor the ICC payload; independent
-decoding still requires exact ICC bytes. The converter capability is unrelated to
-this encoding label.
-
-Optional caller-supplied Apple P3 checks require `SPA_TEST_APPLE_P3_ICC` to point to
-the exact previously admitted local file. They skip when it is unset; tests do not
-search the host or download that file. Normal CI needs only the bundled CC0 reference.
-The optional checks exercise the caller's original bytes through native conversion,
-live Plans, Preparation, Import, and PNG export, including refusal between the distinct P3 identities. A successful
-CC0 probe alone does not establish Apple conversion on a new runtime. See
-[#194 evidence](evidence/issue-194-redistributable-profile.md).
-
-`tests/export/test_e2e_wizard_animation_export.py` reuses the retained v2 Sources and
-delivery PNGs. It exports all 193 retained outputs: 32 Frames each for Scene,
-Background, Wizard, Gem, Burst and Projectile, plus the single Target Frame.
-Ten additional Gem and Projectile occurrences check repeated and nonmonotonic
-playback around blank Frames, scale pulses and emission. The tests independently
-compare all 203 PNGs, filenames, playback, profiles and Source bytes. A separate
-five-occurrence Gem GIF checks binary alpha, duration, infinite looping and exact
-visible colors on that finite fixture. These are bounded `e2e` batch tests in
-`e2e and not slow`; they reuse the saved Sources without rebuilding the authoring
-recipe, running Godot, or claiming visual/play acceptance. Fetch the retained Git
-LFS assets first.
-Run `pytest tests/export tests/delivery` with the normal `SPA_TEST_ASEPRITE`
-configuration. Results apply to the actual tested runtime and platform.
-
 ## Verification tiers
 
 Workflow tests distinguish portable Python rules from hosted Linux shell
@@ -246,19 +114,6 @@ composition. Shared admission and runner rules use native Python. Tests that
 execute Linux action Bash bodies are scoped off Windows; those skips are not
 passes. Native report or archive checks cover their own rules, not pipeline,
 publication or GitHub workflow effects.
-
-Frozen raster preparation #103 has fast public-dispatch tests for malformed input,
-geometry/Palette rules, reproduction mismatch, contradictory native/PNG evidence,
-alias safety, and publication failure cleanup. Installed-CLI native cases use an
-independent small raster and the existing frozen wizard input. They cover all four
-rounding policies, threshold boundaries, empty explicit crops, outside anchors,
-exact PLTE/tRNS with transparent indices 0/7/255, complete RGBA/Indexed parity,
-and reproduction. The wider-gamut ICC counterexample checks conversion before
-mapping; runtimes without native conversion must report `runtime_incompatible`.
-These are bounded `e2e` batch tests, not windowed UI or complete example rebuilds.
-Run `pytest tests/preparation` with the normal `SPA_TEST_ASEPRITE` configuration;
-local macOS evidence and unexecuted Linux coverage are distinguished in
-[the preparation report](evidence/issue-103-raster-preparation.md).
 
 Use the tier in the file name:
 
@@ -268,76 +123,13 @@ Use the tier in the file name:
   Aseprite behavior.
 - `test_e2e_*.py` invokes the installed `spa` CLI with a real Aseprite executable,
   or exercises a shared packaged Kernel Interface directly with native fixtures.
-  Mark the module or each test with `pytest.mark.e2e`.
+  Mark the module or each test with `pytest.mark.e2e`. A refusal that SPA decides
+  before the Kernel call is not an e2e case: test it in the fast tier with a missing
+  Aseprite path or a controlled executable.
 
 `pytest.mark.slow` is an additional cost marker, not a verification tier. Use it
 for complete example rebuilds, which run locally on demand. Automated CI and
 Release exclude these tests. The small wizard probes remain only `e2e`.
-
-Runtime integration fixtures cover incompatible Lua and API observations and structured
-failure without claiming native execution. Real-runtime tests execute the packaged
-probe and assert its observed embedded Lua version, `app.apiVersion`, JSON round trip,
-file I/O, and scripting evidence. These three facilities are prerequisites of a complete
-probe response. Runtime capabilities are reported independently: omitting a known
-capability does not invalidate the probe, while the Application rejects it before
-execution when the selected Descriptor requires it. Each later Operation adds
-real-runtime evidence for the native capabilities named by its Descriptor.
-The Sprite E2E fixture covers nonempty Frames, Tags, Palettes, nested Layers, Cels,
-Slices, and Tilesets in addition to empty-section and unrequested-section semantics.
-The Palette fixture checks the shared resolver before, at, and after a Palette Change,
-with literal expected Frame and color facts and unrelated active editor state. Operation
-E2E tests retain coverage of caller-specific validation, resource loading, and publication.
-Slice inspection uses Aseprite's native sprite-sheet metadata export to observe the
-complete ordered Key list, converts its zero-based Frames to the public one-based model,
-and combines it with public Slice text and color data. The private metadata stays in
-the invocation workspace; the reader requests no texture output. The Slice suite
-uses native fixtures plus test-only file-format construction for multi-Key input
-that public Lua cannot create. Product handlers never patch the file format.
-`test_e2e_vendor.py` wraps the native export boundary to check malformed and stale
-metadata refusal. `test_e2e_slice.py` verifies CLI addressing, complete Frame
-coverage, static geometry, metadata-only edits on animated Slices, whole deletion,
-reopened addresses, custom property retention, and failure without Target publication.
-The runtime probe separately checks whole-Slice add/set/remove with real
-save/close/reopen. These are batch tests on local macOS and Linux CI; they make no
-windowed GUI claim. See [Slice evidence](evidence/issue-40-slices.md).
-The Export Image E2E fixtures cover native visible Layer composition, RGB Alpha
-values, no-profile and sRGB files, unsupported source modes, Tilemap Images on visible
-and hidden Layers, unsupported Color Profiles, and explicit replacement. A wheel-installed
-test verifies the packaged Export handler and Pillow decoder on Linux CI.
-Paint E2E cases reject direct and two-link Source aliases for both `in_place` values
-without a Target Commit. Static integration cases confirm rejection before the
-runtime probe. A real Aseprite case accepts explicit in-place Paint through two path
-spellings of the same publication entry. On a case-insensitive filesystem, real
-Paint cases also check file-name case variants under both `in_place` values.
-Plan E2E cases cover read-only composition, create/paint/get on one live Sprite,
-failed-Step and failed-Postcondition publication gates, and in-place failure
-preserving the original file digest. A wheel-installed case verifies the packaged
-Plan handler. Static Plan checks execute without Aseprite and report missing Source,
-invalid Target parent, and existing Target conflicts. A controlled transport case
-verifies one process and typed failed-Step evidence; the real runtime verifies the
-shared capability probe before Plan Steps.
-Plan preflight also rejects Source aliases that would be replaced by Target Commit and
-Postconditions that contradict a first Sprite creation Step. Real Aseprite cases
-verify alias rejection with both `in_place` values, same-entry in-place success, and
-that a document-dependent Postcondition failure leaves the Target absent.
-Aggregate discovery conservatively requires every eligible Plan Step capability;
-the Plan execution gate checks selected Step requirements plus mandatory final Sprite
-inspection in its one Aseprite process.
-The Cel Plan tests compare standalone and Plan properties, linked Image facts, and
-stored pixels for hidden and zero-opacity Cels. A CLI subprocess fixture observes
-the real invocation and commit adapters and injects invalid native evidence to test
-the publication gate. The bounded [Cel Plan profile](evidence/issue-105-profile.md)
-records one fixed wizard workload, stage timings, and its measurement limits.
-
-Motion tests use generated wizard poses and a floating emblem. Native inspection
-compares every stored pixel, including alpha-zero values, in RGB, Grayscale, and
-Indexed fixtures with transparent index 7. Cases cover exact rational sampling,
-all interpolation/rounding policies, signed position boundaries, missing and linked
-targets, whole-range refusal, and 65 existing targets without a Plan-Step quota.
-Plan cases verify Step-start baselines, multiple Layers, later Paint/Frame edits,
-one native invocation and Target Commit, and rejected incomplete/contradictory
-evidence. [Motion measurements](evidence/issue-104-motion-performance.md) retain
-the real persisted verification path; visual continuity remains a human check.
 
 The Baseline Aseprite definition is `SPA_BASELINE_ASEPRITE_VESION` in
 `src/spa/__init__.py`. The selected macOS and Linux execution profiles expose
@@ -368,46 +160,40 @@ unavailable prerequisite is not a product failure or a pass. Unlistable-director
 and unreadable-file tests retain POSIX permissions on macOS/Linux; their private
 Windows fixtures use `powershell.exe` to deny only directory listing or file data
 reads and restore the temporary access rules. They do not change host policy.
-The caller-supplied ICC identity and separate wheel consumer configuration remain
-as documented in this file.
+The caller-supplied ICC identity is described below. The separate wheel consumer
+configuration is in [CLI and MCP text entries](#cli-and-mcp-text-entries).
 See [#232 Windows observations](evidence/issue-232-windows-prerequisites.md)
 for historical prerequisite measurements and the
 [Windows integration measurements (#234)](evidence/issue-234-windows-acceptance.md)
 for the full-suite/GUI results at `ad07fb4` and the separate packaging check at
 `bdaac25`. Neither measurement implies a new full-suite result at a later revision.
 
+Optional caller-supplied Apple P3 checks require `SPA_TEST_APPLE_P3_ICC` to point to
+the exact previously admitted local file. They skip when it is unset; tests do not
+search the host or download that file. Normal CI needs only the bundled CC0 reference.
+See [#194 evidence](evidence/issue-194-redistributable-profile.md).
+
+Tests that read retained example PNGs, such as the wizard tests in `tests/export/`,
+need the Git LFS content. Fetch the Git LFS assets first.
+
 ### CLI and MCP text entries
 
 The [process text policy](usage.md#process-text-encoding) applies to the CLI and
-optional MCP entries. Tests verify configuration before parsing, unchanged stream
-error policies and no stream side effects on import. SPA-owned subprocess readers,
-including `tests.support.spa`, read and write UTF-8 explicitly.
-
-`tests/cli/test_integration_commands.py` checks raw UTF-8 and ASCII-escaped JSON
-stdin, Unicode argv, typed failures and usage errors through real console and
-`main()` entries. `tests/mcp/test_integration_process.py` checks early MCP stderr
-and the actual MCP `Cli`-to-SPA child boundary. These tests use strict raw-byte
-readback, preserve original Unicode field locations, and need no Aseprite.
-UTF-8 decoding by `tests.support.spa` is tested separately from raw CLI output.
-
-The CLI module also compares literal JSON fields received through argv and stdin,
-including variable-like strings, through the same real entries. It preserves
-the complete typed failure and validates it against each entry's installed schema.
-The existing runtime discovery tests retain original requested and searched paths.
+optional MCP entries. SPA-owned subprocess readers, including `tests.support.spa`,
+read and write UTF-8 explicitly.
 
 Select a candidate wheel with `SPA_TEST_INSTALLED_CLI` to include the isolated
 installed entries. Set it to the candidate installation's `spa` executable.
-Wheel consumers run outside the checkout. Run the same entry regression modules
+Wheel consumers run outside the checkout. Run the entry regression modules
 on macOS, Linux and Windows:
 
 ```text
 uv run --frozen --group test --extra mcp pytest tests/cli/test_integration_commands.py tests/mcp/test_integration_process.py
 ```
 
-The regressions verify the source-owned UTF-8 policy without relying on the host
-locale or a global encoding override. Full MCP wire/native delivery remains a
-separate runtime-dependent check. Measured host setup, execution restrictions
-and results are recorded in [issue #235 validation](evidence/issue-235-utf8-entries.md).
+Full MCP wire/native delivery remains a separate runtime-dependent check. Measured
+host setup, execution restrictions and results are recorded in
+[issue #235 validation](evidence/issue-235-utf8-entries.md).
 Literal-input and discovery results are recorded in
 [issue #226 validation](evidence/issue-226-literal-cli-input.md).
 
@@ -439,15 +225,25 @@ Use a new output directory for each run. For complete installed-wheel CLI covera
 build the current wheel, install it with the locked runtime dependencies in a separate
 environment, and set `SPA_TEST_INSTALLED_CLI` to its installed `spa` executable.
 Otherwise the existing wheel-only cases report their environment skips.
+Routine CI and the Release fast tests do not set `SPA_TEST_INSTALLED_CLI`, so these
+cases skip there. The Release quality job adds the `mcp` extra to its wheel smoke
+install and runs the `wheel` cases of `tests/cli/test_integration_commands.py`
+and `tests/mcp/test_integration_process.py` against it.
 
 The [installed distribution record](evidence/issue-54-installed-distributions.md)
 records the tested macOS profile, the isolated-wheel replay, and the remaining
 Linux evidence for the Release-only runner. Its earlier Linux build/cache profile
-is historical. `scripts/verify_installed_cli.py` rejects
-editable/source-tree imports and checks all packaged Kernel resources. Both the
-distribution smoke action and the Linux native action reuse that verifier. The
-native wheel cases cover `info`, Plan creation/painting/inspection, PNG export
-and a typed failure; they run consumer calls outside the checkout.
+is historical. `scripts/verify_installed_cli.py` rejects editable/source-tree
+imports and checks all packaged Kernel resources. Both the distribution smoke action
+and the Linux native action reuse that verifier.
+
+To run one ownership area, give its directory. Add `-m "not e2e"` to run only its
+fast tiers:
+
+```sh
+SPA_TEST_ASEPRITE=/absolute/path/to/aseprite \
+  uv run --frozen --group test pytest tests/paint -x -vv --tb=short -rs
+```
 
 ### Shared native parallel execution
 
@@ -669,9 +465,8 @@ uv run --frozen --group test pytest tests/ci tests/release -q
 it to check embedded shell too. It does not validate composite actions, so also
 inspect changed composite YAML and run its shell/behavior checks. The regression
 suite executes the actual workflow/action shell with real Git and controlled GitHub
-responses. It covers stale PR targets, merge-parent mismatches, main-only routing,
-API failures, Release PR head convergence and metadata checks. These tests do not
-establish runner-group enforcement, token permissions or Linux native execution.
+responses. These tests do not establish runner-group enforcement, token permissions
+or Linux native execution.
 
 Run affected native tests locally before requesting Linux verification. For CI
 infrastructure, resolve syntax, shell and branch/dispatch logic locally first.
@@ -785,6 +580,12 @@ Verification tier, host platform, and display capability are separate properties
 Place a platform condition on the smallest test that needs it. A passing macOS test is
 macOS evidence; it is not Linux evidence. The macOS bundle and restricted-agent cases
 remain macOS-specific. Issue #69 owns Linux CI and Linux real-Aseprite evidence.
+CI runs the fast tier only on Linux. Thus these fast cases give local evidence only:
+`tests/runtime/test_integration_windows_capture.py` and the Windows interruption case
+of `tests/ci/test_integration_native_shards.py` (Windows),
+`tests/runtime/test_integration_aseprite.py::test_unwritable_bundle_link_has_typed_start_failure`
+(macOS), and the case-variant cases of
+`tests/application/test_unit_publication_identity.py` (a case-insensitive file system).
 
 Aseprite `--batch` does not start the UI. A test that produces or inspects image files
 through that path is not windowed unless it actually needs a display. When a
@@ -796,9 +597,7 @@ tests do not execute.
 
 The [wizard example](../examples/wizard_cast/README.md) has two real-runtime tests:
 a small component geometry proof and one complete fresh build against the checked-in
-delivery. The latter independently decodes every PNG, checks hidden stored pixels,
-compares the complete manifest, and reopens the delivered Aseprite source to compare
-metadata, Frames, Layers, Cels, and Tags. Fetch its Git LFS assets before this local
+delivery. Fetch its Git LFS assets before this local
 check. The full build is marked `e2e` and `slow` and follows the opt-in policy above.
 A reference macOS build takes about four minutes; one
 Linux CI observation took 329.6 seconds, compared with 6.7 seconds for the small
@@ -823,29 +622,13 @@ remains separate developer evidence; it cannot replace the Linux release gate.
 Windowed Aseprite behavior has no CI coverage until a
 dedicated display-capable job is added with an execution-count gate.
 
-Manual Tilemap Brightness/Contrast tests live in `tests/filter/`. They compare the
-installed Operation with an independent native batch command using the same Manual
-mode, Channels, Palette basis, and Canvas Selection. They cover shared Tiles across
-linked and distinct Cel Images, hidden/locked references, placement flags and clipping,
-the four pixel application branches, and Indexed RGB Map Alpha quantization.
-Failure injection checks mixed-target rollback and editor-state restoration. Native
-User Data serialization checks retain plugin metadata without interpreting its values.
-These tests run in the required macOS/Linux batch scope; they do not claim windowed
-editor coverage or support for AUTO/STACK mode. Grid origin evidence starts with the
-reopened Source: native ASE serialization itself does not retain a live nonzero Tileset
-Grid origin, including in a no-Filter control.
-
 The [hybrid wizard example](../examples/wizard_cast_v2/README.md) uses frozen local
-imagegen inputs. Its routine `e2e` probe checks the prepared raster handoff through
-public Pixel Patches, native save/reopen, independent Frame placement, binary alpha,
-and decoded export pixels. Its full test is also marked `slow`: one fresh build
-must match the retained v2 delivery and all seven reopened native documents,
-including the RGBA values of hidden stored pixels. It checks the actual v2 recipe
-geometry, 32 Frames at 100 ms, four fixed phase ranges, and native gem pulse
-independence. This complete rebuild runs locally on demand. Automated tests need no
-imagegen service or generation credentials. macOS build
-cost and Godot evidence are recorded separately in the v2 example's dogfooding
-report; Linux asset CI does not establish graphical or gameplay acceptance.
+imagegen inputs. Its routine probe is an `e2e` test. Its full test is also marked
+`slow`: one fresh build must match the retained v2 delivery. This complete rebuild
+runs locally on demand. Automated tests need no imagegen service or generation
+credentials. macOS build cost and Godot evidence are recorded separately in the v2
+example's dogfooding report; Linux asset CI does not establish graphical or gameplay
+acceptance.
 
 ## Local windowed Tilemap Filter comparison
 
@@ -914,94 +697,127 @@ fixtures. Record the actual GUI Aseprite version and host; do not report these l
 results as Linux or automated CI coverage. Restore the prior Timeline visibility
 and Tileset mode after completing the local session if they were changed.
 
-## Despeckle and Convolution discovery
+## Test quality checks
 
-The #39 slice uses `tests/filter/test_unit_despeckle.py` for strict request/schema
-parity and `test_integration_despeckle.py` for evidence validation before Target
-Commit. `test_e2e_despeckle.py` exercises native RGB and Grayscale Channel subsets,
-Indexed stored-index and supported component paths, window boundaries, tiled
-edges, 1×1 RGB Map behavior, Selection, linked Cels, Background and Tilemap refusal,
-and reopened output. `test_e2e_filter_state.py` injects a post-command failure to
-prove rollback after native mutation and restoration of the previous editor site.
+These checks get the evidence that the [test standards](test-standards.md) ask for.
+The commands are for a POSIX shell on macOS or Linux. Run them in the project
+environment ([routine commands](#routine-verification-commands)).
 
-`tests/runtime/test_unit_convolution.py` checks bounded declaration scanning,
-lookup paths, duplicates, defaults and incomplete input reporting.
-`tests/runtime/test_e2e_convolution.py` checks internal native observations and the
-feature-owned Gap reason projected through info/schema. Raw probe pixels are not public
-discovery fields. No Convolution callable capability is
-inferred from a resource name or a small successful probe. The evidence record is
-[issue-39-native-filters.md](evidence/issue-39-native-filters.md). Batch/native-command
-parity and any local windowed comparison are reported separately there.
+### Mutant check
 
+A mutant is the code under test, made wrong on purpose. A test that passes against it
+cannot find that defect.
 
-## Tileset atlas and normalized map export
+1. Run `git status --short -- src`. If it shows a change, save a copy of the file first.
+2. Find the line in `src/` that the claim of the test depends on. For a Kernel rule, the
+   line can be in a Lua file under `src/spa/kernel/`.
+3. Change only that line to the wrong behavior that the test must find. Keep the path of
+   the result, and change only the fact that the test claims.
+4. Remove the bytecode cache:
 
-`tests/export/test_e2e_tileset_export.py` exercises `spa export tileset` with a real
-Aseprite process. It verifies complete Tileset coverage, unused keyed Tiles, Tile 0,
-explicit-column layout and padding, Cel-local regions and placement flags, exact RGB
-and Grayscale channels, and Indexed Frame-based Palette selection. The Indexed fixture
-has two Palette Changes, a nonzero Transparent Color Index, duplicate and unused
-entries, and partial alpha. A 257-color RGB Tile guards against implicit quantization.
-The accepted Profile matrix includes None and sRGB in all three modes, and the fixed
-linear-sRGB/Display P3 ICC files in RGB/Indexed. Grayscale with these ICC files and
-other Profiles are refused before publication. Tests independently decode PNG and JSON
-and check Source bytes after execution.
+   ```sh
+   find src tests -name __pycache__ -prune -exec rm -rf {} +
+   ```
 
-Fast integration tests corrupt staged outputs and inject publication failures through
-the Kernel/File boundaries. They verify that missing, malformed or inconsistent pairs
-never publish, and that failure after the image publishes reports both path states
-without rollback or cleanup. The native suite uses batch scripting and requires no
-windowed UI. Evidence applies to the runtime on which it was executed; these tests do
-not establish a separate Aseprite version matrix.
+   CPython uses a cached `.pyc` file when the source has the same size and the same
+   modification time in whole seconds. A mutant of the same length that you make in the
+   same second then does not run.
+5. Make sure that `SPA_TEST_INSTALLED_CLI` is not set. A wheel-installed CLI does not
+   run the code of your checkout.
+6. Run the test. It must fail. When the test replaces an old test, run the old test
+   against the same mutant too.
+7. Read the `E` line of the failure. It must be the assertion of the claim. These do not
+   show that the test finds the defect:
+   - an import error or a crash;
+   - a `runtime_incompatible` failure from the runtime probe. A mutant in a Lua module
+     that the probe loads stops the probe. Change the handler entry file instead;
+   - a failure that the old test and the new test both have. Such a mutant does not
+     show a difference between them. Choose a mutant that keeps the failure path.
+8. When the mutant does not change the result for the input of the test, it is an
+   equivalent mutant. Choose another mutant.
+9. Restore the file from Git or from your copy, and remove the cache again. Make sure
+   that `git status --short -- src` shows what it showed in step 1.
+10. Record each mutant, the result of the old test and the result of the new test in the
+    pull request description. When no mutant can isolate a check, write that under "Not
+    verified".
 
-```sh
-uv run --frozen --group test pytest tests/export -m "not e2e"
-SPA_TEST_ASEPRITE=/absolute/path/to/aseprite \
-  uv run --frozen --group test pytest tests/export/test_e2e_tileset_export.py -x -vv --tb=short -rs
-```
+### Stand-in Aseprite run
 
+The stand-in is an executable that forwards the runtime probe to the real Aseprite. It
+records the test that makes a Kernel call, and it fails that call with exit status 1. It
+runs every other call, for example a Lua fixture, with the real Aseprite. An e2e test
+that passes on the stand-in with no Kernel call did not need the Kernel.
 
-## Caller-owned Lua
+The stand-in tells the calls apart by their arguments. The probe runs the packaged
+`runtime/probe.lua`. The probe and each Kernel call pass a script parameter `request=`,
+so the stand-in checks for the probe first. A Lua fixture can pass `response=`, so that
+argument does not identify a Kernel call.
 
-Issue #51 tests the separate installed `spa script run` path. Contract tests cover
-all Execution Kind / Determinism pairings in both model validation and JSON Schema.
-Installed discovery reports `script-run` / `caller-defined`, while request and Plan
-tests prevent caller source or printed JSON from becoming an Ordinary Core Operation.
+1. Set `SPA_TEST_ASEPRITE` to your real Aseprite executable. Make the stand-in:
 
-Controlled process tests cover timeout, the 65,536-byte per-stream guard, nonzero
-exit, exact UTF-8 materialization, and typed failures. The CLI timeout case permits
-a process to reach its deadline before producing output. A separate invocation
-test uses real pipes with controlled time and process completion to verify that
-early closure of both output streams preserves the remaining deadline and captured
-diagnostics. These tests verify execution guards without assuming a host startup
-speed. Real batch E2E covers native Lua and syntax errors, unchanged
-BOM rejection, file bytes and CRLF preservation, script-relative `require`, explicit
-parameters, binary-to-text replacement, and declared file facts. These are batch
-tests, with no windowed UI requirement or claim. Current macOS and Linux profiles
-run them through the existing `e2e and not slow` selection; one profile's evidence
-does not establish the other.
+   ```sh
+   standin_dir=$(mktemp -d)
+   real_aseprite=$(realpath "$SPA_TEST_ASEPRITE")
+   for resource_dir in "${real_aseprite%/*}/../Resources/data" \
+     "${real_aseprite%/*}/../data" "${real_aseprite%/*}/data"; do
+     if [ -f "$resource_dir/gui.xml" ]; then
+       ln -s "$(realpath "$resource_dir")" "$standin_dir/data"
+       break
+     fi
+   done
+   cat > "$standin_dir/aseprite" <<EOS
+   #!/bin/sh
+   case " \$* " in
+     */runtime/probe.lua*) exec "$real_aseprite" "\$@" ;;
+     *" request="*)
+       printf '%s\n' "\$PYTEST_CURRENT_TEST" >> "$standin_dir/calls.log"
+       exit 1 ;;
+     *) exec "$real_aseprite" "\$@" ;;
+   esac
+   EOS
+   chmod +x "$standin_dir/aseprite"
+   ```
 
-```sh
-uv run --frozen --group test pytest tests/script tests/contracts/test_unit_determinism.py -m "not e2e"
-SPA_TEST_ASEPRITE=/absolute/path/to/aseprite \
-  uv run --frozen --group test pytest tests/script -m e2e -x -vv --tb=short
-```
+   The stand-in must be a regular file. Runtime discovery looks for `data/gui.xml`
+   next to it, so the loop links the `data` directory of the real Aseprite there.
+2. Run the e2e tier against the stand-in, with a summary line for each passed case:
 
-## MCP Access Projection
+   ```sh
+   SPA_TEST_ASEPRITE="$standin_dir/aseprite" uv run --frozen --group test \
+     pytest -m "e2e and not slow" -n 0 -rp > "$standin_dir/run.txt"
+   ```
 
-`tests/mcp/` uses real stdio clients pinned separately to `2026-07-28` and the
-SDK legacy `2025-11-25` path. Controlled CLI subprocesses test wire projection,
-diagnostics and cleanup. The native tests compare every tool schema with the
-installed Manifest, then create, inspect, validate and export through real
-Aseprite. They decode ImageContent and compare bytes, digest and pixels; ordinary
-fast tests cover removed/changed Artifact files and distinguish projection failure
-from a completed Operation.
+   On macOS, an Aseprite launch can stop before its script runs. When a case stops,
+   run it again alone.
+3. Compare the passed cases with the cases that made a Kernel call:
 
-```sh
-SPA_TEST_ASEPRITE=/absolute/path/to/aseprite \
-  uv run --frozen --group test pytest tests/mcp -q
-```
+   ```sh
+   sed -n 's/^PASSED //p' "$standin_dir/run.txt" | LC_ALL=C sort -u \
+     > "$standin_dir/passed.txt"
+   sed 's/ ([a-z]*)$//' "$standin_dir/calls.log" | LC_ALL=C sort -u \
+     > "$standin_dir/called.txt"
+   # Passed, no Kernel call:
+   LC_ALL=C comm -23 "$standin_dir/passed.txt" "$standin_dir/called.txt"
+   # Passed, Kernel called:
+   LC_ALL=C comm -12 "$standin_dir/passed.txt" "$standin_dir/called.txt"
+   ```
 
-The test dependency group includes the optional MCP SDK. Routine CI still runs
-`not e2e`; the installed native paths join the existing `e2e and not slow` selection.
-No new workflow, example rebuild or automatic native trigger is added.
+4. Examine each listed case:
+   - Passed with no Kernel call: the test did not need the Kernel. When its claim is
+     the runtime probe, a caller-owned Lua script or a behavior of Aseprite itself, it
+     stays in the e2e tier.
+     Otherwise delete it when a fast test holds its claim, or move it to the fast tier.
+     Read its Lua fixture first: a fixture that runs a Kernel handler with `dofile`
+     passes no `request=` argument, so the stand-in does not see that Kernel call.
+   - Passed with a Kernel call: the test does not check what the Kernel did. Assert a
+     fact that only a real run gives. A test that asserts that the Kernel call fails
+     passes here correctly.
+
+The run has limits:
+
+- A process that does not get `PYTEST_CURRENT_TEST` from pytest, for example an MCP
+  server process, writes an empty line to the log. The log does not name the case of
+  that Kernel call.
+- The run lists only cases that pass. A test that fails on the stand-in for an unrelated
+  reason, for example an error in a test helper, is not in the lists. Read why such a
+  case fails.

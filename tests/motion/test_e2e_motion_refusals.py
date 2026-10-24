@@ -4,8 +4,14 @@ from pathlib import Path
 
 import pytest
 
-from tests.image.test_e2e_image_orientation import _fixture as unsupported_fixture
-from tests.motion.test_e2e_motion import curves, fixture, run_motion
+from spa.contracts.ports import RuntimeObservation
+from tests.native_invocation import run
+from tests.support import (
+    motion_curves,
+    motion_request,
+    motion_sprite,
+    orientation_fixture,
+)
 
 pytestmark = pytest.mark.e2e
 
@@ -21,15 +27,20 @@ pytestmark = pytest.mark.e2e
     ],
 )
 def test_range_failure_preserves_target(
-    tmp_path: Path, in_place: bool, case: str, expected: str, frame: int | None
+    runtime: RuntimeObservation,
+    tmp_path: Path,
+    in_place: bool,
+    case: str,
+    expected: str,
+    frame: int | None,
 ) -> None:
-    source = fixture(tmp_path, kind=case)
+    source = motion_sprite(runtime, tmp_path, kind=case)
     frozen = source.read_bytes()
     target = source if in_place else tmp_path / "existing.aseprite"
     if not in_place:
         target.write_bytes(b"prior Target")
     prior = target.read_bytes()
-    inputs = curves()
+    inputs = motion_curves()
     if case == "linked":
         # Only Frame 1 is addressed; its linked peer is outside the range.
         inputs["to_frame"] = 1
@@ -42,8 +53,9 @@ def test_range_failure_preserves_target(
         inputs["to_frame"] = 6
         for name in ("position_offsets", "opacity"):
             inputs[name]["keys"][-1]["frame_number"] = 6
-    status, result = run_motion(source, target, inputs)
-    assert status == 2, result
+    outcome = run("motion apply", motion_request(source, target, inputs))
+    result = outcome.envelope
+    assert outcome.returncode == 2, result
     assert result["code"] == expected
     if frame is not None:
         assert result["details"]["target"]["frame_number"] == frame
@@ -57,9 +69,9 @@ def test_range_failure_preserves_target(
     [("background", 1), ("reference", 1), ("tilemap", 2), ("group", 2)],
 )
 def test_motion_retains_cel_set_layer_eligibility(
-    tmp_path: Path, kind: str, layer: int
+    tmp_path: Path, runtime: RuntimeObservation, kind: str, layer: int
 ) -> None:
-    source = unsupported_fixture(tmp_path, kind=kind)
+    source = orientation_fixture(runtime, tmp_path, kind=kind)
     target = tmp_path / "target.aseprite"
     inputs = {
         "layer": {"layer_path": [layer]},
@@ -71,7 +83,8 @@ def test_motion_retains_cel_set_layer_eligibility(
             "keys": [{"frame_number": 1, "opacity": 0}],
         },
     }
-    status, result = run_motion(source, target, inputs)
-    assert status == 2, result
+    outcome = run("motion apply", motion_request(source, target, inputs))
+    result = outcome.envelope
+    assert outcome.returncode == 2, result
     assert result["code"] == "cel_unsupported_target"
     assert not target.exists()

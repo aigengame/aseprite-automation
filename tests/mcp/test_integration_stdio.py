@@ -1,7 +1,8 @@
-"""Public MCP wire behavior with a controlled external CLI process."""
+"""Public MCP wire behavior with a controlled CLI process or a controlled Aseprite."""
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -11,7 +12,7 @@ import pytest
 from mcp import Client, StdioServerParameters
 
 from tests.native_entry import python_entry
-from tests.support import process_diagnostics
+from tests.support import probe_only_aseprite, process_diagnostics
 
 
 @pytest.fixture
@@ -149,6 +150,27 @@ def test_stdio_projects_manifest_and_preserves_request_and_result(cli, mode, pro
             expected = {"status": "success", "operation": "spa echo", "value": value}
             assert called.structured_content == expected
             assert json.loads(called.content[0].text) == expected
+
+    anyio.run(exercise)
+
+
+def test_installed_legacy_handshake_and_typed_failure(tmp_path):
+    aseprite = probe_only_aseprite(tmp_path)
+
+    async def exercise():
+        params = StdioServerParameters(
+            command=shutil.which("spa-mcp"), args=["--aseprite", str(aseprite)]
+        )
+        async with Client(params, mode="legacy", read_timeout_seconds=120) as client:
+            assert client.protocol_version == "2025-11-25"
+            listing = await client.list_tools()
+            assert any(tool.name == "sprite_create" for tool in listing.tools)
+            good = await client.call_tool("version", {})
+            assert not good.is_error
+            assert good.structured_content["operation"] == "spa version"
+            bad = await client.call_tool("version", {"unexpected": True})
+            assert bad.is_error and bad.structured_content is None
+            assert json.loads(bad.content[0].text)["code"] == "invalid_request"
 
     anyio.run(exercise)
 

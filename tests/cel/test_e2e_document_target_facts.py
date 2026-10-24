@@ -4,19 +4,14 @@ from pathlib import Path
 
 import pytest
 
-from tests.cel.test_e2e_cel import _fixture
-from tests.paint.support import call_spa
+from spa.contracts.ports import RuntimeObservation
+from tests.native_invocation import expect_success, run, run_lua
+from tests.support import process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
 COLOR = {"kind": "rgba", "red": 17, "green": 34, "blue": 51, "alpha": 255}
 AREA = {"x": 0, "y": 0, "width": 2, "height": 2}
-
-
-def _success(*command: str, **request: object) -> dict:
-    code, result = call_spa(*command, **request)
-    assert code == 0, result
-    return result
 
 
 def _mutation(source: Path, target: Path) -> dict:
@@ -28,37 +23,38 @@ def _mutation(source: Path, target: Path) -> dict:
     }
 
 
-def _reordered_links(tmp_path: Path) -> tuple[Path, str]:
+def _reordered_links(runtime: RuntimeObservation, tmp_path: Path) -> tuple[Path, str]:
+    """Write `target_facts.lua`, link Frame 2 to Frame 1, and move Layer [2] to 1.
+
+    Check each step, and return the moved Sprite and the UUID of its leaf Layer.
+    """
     source = tmp_path / "source.aseprite"
-    _fixture(source, "target_facts.lua")
-    original = _success("layer", "list", sprite_file=str(source))
+    lua = run_lua(
+        Path(__file__).parent / "fixtures" / "target_facts.lua", runtime, out=source
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
+    original = expect_success("layer list", {"sprite_file": str(source)})
     leaf = original["layers"][1]["children"][0]["children"][0]
     assert leaf["path"] == [2, 1, 1]
     uuid = leaf["layer_uuid"]
     assert isinstance(uuid, str)
 
     linked = tmp_path / "linked.aseprite"
-    duplicated = _success(
-        "frame",
-        "duplicate",
-        **_mutation(source, linked),
-        source_frame_number=1,
-        cel_mode="link",
+    duplicated = expect_success(
+        "frame duplicate",
+        {**_mutation(source, linked), "source_frame_number": 1, "cel_mode": "link"},
     )
     assert duplicated["cel_relationships"] == [
         {"layer_path": [2, 1, 1], "source_frame_number": 1, "kind": "link"}
     ]
     assert duplicated["persisted_reopen_verified"] is True
     moved = tmp_path / "moved.aseprite"
-    _success(
-        "layer",
-        "move",
-        **_mutation(linked, moved),
-        target={"layer_path": [2]},
-        stack_index=1,
+    expect_success(
+        "layer move",
+        {**_mutation(linked, moved), "target": {"layer_path": [2]}, "stack_index": 1},
     )
-    addressed = _success(
-        "layer", "get", sprite_file=str(moved), target={"layer_uuid": uuid}
+    addressed = expect_success(
+        "layer get", {"sprite_file": str(moved), "target": {"layer_uuid": uuid}}
     )
     assert addressed["layer"]["path"] == [1, 1, 1]
     assert addressed["layer"]["layer_uuid"] == uuid
@@ -67,30 +63,34 @@ def _reordered_links(tmp_path: Path) -> tuple[Path, str]:
 
 @pytest.mark.parametrize("paint", ["apply", "line"])
 def test_reordered_nested_cels_keep_identity_paths_and_linked_raster_scope(
+    runtime: RuntimeObservation,
     tmp_path: Path,
     paint: str,
 ) -> None:
-    source, uuid = _reordered_links(tmp_path)
+    source, uuid = _reordered_links(runtime, tmp_path)
     before = source.read_bytes()
     address = {"layer": {"layer_uuid": uuid}, "frame_number": 1}
-    cel = _success("cel", "get", sprite_file=str(source), target=address)["cel"]
+    cel = expect_success("cel get", {"sprite_file": str(source), "target": address})[
+        "cel"
+    ]
     assert cel["layer_path"] == [1, 1, 1]
     assert cel["linked_cels"] == [{"layer_path": [1, 1, 1], "frame_number": 2}]
     assert cel["position"] == {"x": 2, "y": 1}
     assert cel["image_bounds"] == {"x": 2, "y": 1, "width": 2, "height": 2}
     assert cel["opacity"] == 210 and cel["z_index"] == 2
-    inspected = _success(
-        "sprite", "get", sprite_file=str(source), inspection_scope=["cels"]
+    inspected = expect_success(
+        "sprite get", {"sprite_file": str(source), "inspection_scope": ["cels"]}
     )
     assert [item["layer_path"] for item in inspected["cels"]] == [[1, 1, 1], [1, 1, 1]]
 
-    code, ambiguous = call_spa(
-        "cel",
-        "get",
-        sprite_file=str(source),
-        target={"layer": {"layer_name": "ink"}, "frame_number": 1},
+    ambiguous = run(
+        "cel get",
+        {
+            "sprite_file": str(source),
+            "target": {"layer": {"layer_name": "ink"}, "frame_number": 1},
+        },
     )
-    assert code != 0 and ambiguous["code"] == "layer_ambiguous"
+    assert ambiguous.returncode != 0 and ambiguous.envelope["code"] == "layer_ambiguous"
     output = tmp_path / "painted.aseprite"
     if paint == "apply":
         request = {
@@ -112,7 +112,7 @@ def test_reordered_nested_cels_keep_identity_paths_and_linked_raster_scope(
             "opacity": 255,
             "color": COLOR,
         }
-    result = _success("paint", paint, **_mutation(source, output), **request)
+    result = expect_success(f"paint {paint}", {**_mutation(source, output), **request})
     assert {
         (tuple(item["layer_path"]), item["frame_number"])
         for item in result["affected_cels"]
@@ -123,22 +123,24 @@ def test_reordered_nested_cels_keep_identity_paths_and_linked_raster_scope(
     assert result["linked_cels_preserved"] is True
     assert result["geometry_unchanged"] is True
     for number in (1, 2):
-        reopened = _success(
-            "cel",
-            "get",
-            sprite_file=str(output),
-            target={"layer": {"layer_uuid": uuid}, "frame_number": number},
+        reopened = expect_success(
+            "cel get",
+            {
+                "sprite_file": str(output),
+                "target": {"layer": {"layer_uuid": uuid}, "frame_number": number},
+            },
         )["cel"]
         for field in ("layer_path", "position", "image_bounds", "opacity", "z_index"):
             assert reopened[field] == cel[field]
-        snapshot = _success(
-            "image",
-            "get",
-            sprite_file=str(output),
-            source={
-                "kind": "individual",
-                "target": {"layer": {"layer_uuid": uuid}, "frame_number": number},
-                "rectangle": AREA,
+        snapshot = expect_success(
+            "image get",
+            {
+                "sprite_file": str(output),
+                "source": {
+                    "kind": "individual",
+                    "target": {"layer": {"layer_uuid": uuid}, "frame_number": number},
+                    "rectangle": AREA,
+                },
             },
         )["snapshot"]
         assert snapshot["rows"][0][0]["color"] == COLOR
@@ -158,32 +160,37 @@ def test_reordered_nested_cels_keep_identity_paths_and_linked_raster_scope(
 
 
 def test_plan_reports_reordered_document_paths_and_preserves_uuid_after_reopen(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
-    source, uuid = _reordered_links(tmp_path)
+    source, uuid = _reordered_links(runtime, tmp_path)
     target = tmp_path / "planned.aseprite"
-    result = _success(
-        "plan",
-        "run",
-        plan={
-            **_mutation(source, target),
-            "steps": [
-                {
-                    "operation": "frame duplicate",
-                    "input": {"source_frame_number": 2, "cel_mode": "link"},
-                },
-                {
-                    "operation": "cel set",
-                    "input": {
-                        "target": {"layer": {"layer_uuid": uuid}, "frame_number": 3},
-                        "position": {"x": 1, "y": 0},
+    result = expect_success(
+        "plan run",
+        {
+            "plan": {
+                **_mutation(source, target),
+                "steps": [
+                    {
+                        "operation": "frame duplicate",
+                        "input": {"source_frame_number": 2, "cel_mode": "link"},
                     },
-                },
-                {
-                    "operation": "sprite get",
-                    "input": {"inspection_scope": ["layers", "cels"]},
-                },
-            ],
+                    {
+                        "operation": "cel set",
+                        "input": {
+                            "target": {
+                                "layer": {"layer_uuid": uuid},
+                                "frame_number": 3,
+                            },
+                            "position": {"x": 1, "y": 0},
+                        },
+                    },
+                    {
+                        "operation": "sprite get",
+                        "input": {"inspection_scope": ["layers", "cels"]},
+                    },
+                ],
+            }
         },
     )
     duplicate = result["steps"][0]["result"]
@@ -196,13 +203,14 @@ def test_plan_reports_reordered_document_paths_and_preserves_uuid_after_reopen(
     assert {tuple(item["layer_path"]) for item in changed["affected_cels"]} == {
         (1, 1, 1)
     }
-    reopened = _success(
-        "cel",
-        "list",
-        sprite_file=str(target),
-        layer={"layer_uuid": uuid},
-        from_frame=1,
-        to_frame=3,
+    reopened = expect_success(
+        "cel list",
+        {
+            "sprite_file": str(target),
+            "layer": {"layer_uuid": uuid},
+            "from_frame": 1,
+            "to_frame": 3,
+        },
     )
     assert len(reopened["cels"]) == 3
     for cel in reopened["cels"]:

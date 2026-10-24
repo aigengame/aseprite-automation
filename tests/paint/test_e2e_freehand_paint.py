@@ -1,17 +1,13 @@
 """Compare public freehand Paint with an independent native Aseprite stroke."""
 
 import json
-import os
-import subprocess
 from pathlib import Path
 
 import pytest
 
-from spa.adapters.aseprite.aseprite import probe
-from spa.adapters.aseprite.invocation import prepare_invocation
-from spa.application.surface import PROBE_RESOURCES
-from spa.contracts.public import RuntimeRequest
-from tests.paint.support import call_spa
+from spa.contracts.ports import RuntimeObservation
+from tests.native_invocation import expect_success, run, run_lua
+from tests.paint.support import FIXTURES, read_pixels
 from tests.support import process_diagnostics
 
 pytestmark = pytest.mark.e2e
@@ -45,58 +41,29 @@ def _points(name: str) -> list[dict[str, int]]:
     return [{"x": x, "y": y} for x, y in PATHS[name]]
 
 
-def _pixels(sprite: Path, frame: int = 1) -> list[list[dict]]:
-    code, result = call_spa(
-        "image",
-        "get",
-        sprite_file=str(sprite),
-        source={
-            "kind": "individual",
-            "target": {"layer": {"layer_path": [1]}, "frame_number": frame},
-            "rectangle": {"x": 0, "y": 0, "width": 8, "height": 6},
-        },
-    )
-    assert code == 0, result
-    return [
-        [run["color"] for run in row for _ in range(run["length"])]
-        for row in result["snapshot"]["rows"]
-    ]
+def _fixture(
+    runtime: RuntimeObservation, tmp_path: Path, config: dict
+) -> tuple[Path, Path]:
+    """Write the freehand source Sprite and its native stroke reference.
 
-
-def _fixture(tmp_path: Path, config: dict) -> tuple[Path, Path]:
+    `freehand_paint_reference.lua` reads config from a JSON file.
+    """
     source, reference = tmp_path / "source.aseprite", tmp_path / "reference.aseprite"
     config_path = tmp_path / "reference.json"
     config_path.write_text(json.dumps(config))
-    binary = Path(os.environ["SPA_TEST_ASEPRITE"]).resolve()
-    selected = probe(RuntimeRequest(aseprite=str(binary)), PROBE_RESOURCES)
-    work = tmp_path / "native-runtime"
-    work.mkdir()
-    prepared = prepare_invocation(
-        Path(selected.canonical_path), Path(selected.resource_path), work
+    lua = run_lua(
+        FIXTURES / "freehand_paint_reference.lua",
+        runtime,
+        input=config_path,
+        source=source,
+        reference=reference,
     )
-    run = subprocess.run(
-        [
-            str(prepared.executable),
-            "--batch",
-            "--script-param",
-            f"input={config_path}",
-            "--script-param",
-            f"source={source}",
-            "--script-param",
-            f"reference={reference}",
-            "--script",
-            str(Path(__file__).parent / "fixtures" / "freehand_paint_reference.lua"),
-        ],
-        text=True,
-        capture_output=True,
-        env=prepared.environment,
-        check=False,
-    )
-    assert run.returncode == 0, process_diagnostics(run)
+    assert lua.returncode == 0, process_diagnostics(lua)
     return source, reference
 
 
 def _case(
+    runtime: RuntimeObservation,
     tmp_path: Path,
     *,
     tool: str,
@@ -112,6 +79,10 @@ def _case(
     clipping: str = "reject",
     brush: dict | None = None,
 ) -> tuple[dict, list[list[dict]], Path, Path]:
+    """Run one public freehand Paint against its native stroke and check the claims.
+
+    It returns the result, the painted pixels, the source and the target.
+    """
     fg, bg = COLORS[mode]
     points = _points(path)
     brush = brush or {"kind": "circle", "size": 1}
@@ -140,7 +111,7 @@ def _case(
         "fallback_foreground": fg,
         "fallback_background": bg,
     }
-    source, reference = _fixture(tmp_path, config)
+    source, reference = _fixture(runtime, tmp_path, config)
     original = source.read_bytes()
     target = tmp_path / "actual.aseprite"
     request = {
@@ -158,8 +129,7 @@ def _case(
         **({"selection": selection} if selection else {}),
         **({"color": fg, "ink": ink} if tool == "pencil" else {"behavior": behavior}),
     }
-    code, result = call_spa("paint", tool, **request)
-    assert code == 0, result
+    result = expect_success(f"paint {tool}", request)
     assert source.read_bytes() == original
     assert result["persisted_reopen_verified"] is True
     assert result["points"] == points
@@ -170,9 +140,9 @@ def _case(
     assert result["pixels_requested"] == result["requested_region"]["pixel_count"]
     assert result["pixels_written"] == result["applied_region"]["pixel_count"]
     assert result["pixels_changed"] <= result["pixels_written"]
-    actual, expected = _pixels(target), _pixels(reference)
+    actual, expected = read_pixels(target), read_pixels(reference)
     assert actual == expected
-    original_pixels = _pixels(source)
+    original_pixels = read_pixels(source)
     changed = sum(
         actual[y][x] != original_pixels[y][x] for y in range(6) for x in range(8)
     )
@@ -190,9 +160,10 @@ def _case(
     "path", ["single", "straight", "reverse", "repeat", "corner", "corner_reversed"]
 )
 def test_pencil_path_and_algorithm_match_native(
-    tmp_path: Path, algorithm: str, path: str
+    runtime: RuntimeObservation, tmp_path: Path, algorithm: str, path: str
 ) -> None:
     result, actual, _, _ = _case(
+        runtime,
         tmp_path,
         tool="pencil",
         algorithm=algorithm,
@@ -212,9 +183,9 @@ def test_pencil_path_and_algorithm_match_native(
 )
 @pytest.mark.parametrize("opacity", [0, 128, 255])
 def test_pencil_ink_opacity_match_native(
-    tmp_path: Path, ink: str, opacity: int
+    runtime: RuntimeObservation, tmp_path: Path, ink: str, opacity: int
 ) -> None:
-    _case(tmp_path, tool="pencil", ink=ink, opacity=opacity)
+    _case(runtime, tmp_path, tool="pencil", ink=ink, opacity=opacity)
 
 
 @pytest.mark.parametrize("mode", ["rgb", "grayscale", "indexed"])
@@ -222,9 +193,15 @@ def test_pencil_ink_opacity_match_native(
 @pytest.mark.parametrize("replace", [False, True])
 @pytest.mark.parametrize("opacity", [0, 128, 255])
 def test_eraser_behavior_mode_layer_and_opacity_match_native(
-    tmp_path: Path, mode: str, background: bool, replace: bool, opacity: int
+    runtime: RuntimeObservation,
+    tmp_path: Path,
+    mode: str,
+    background: bool,
+    replace: bool,
+    opacity: int,
 ) -> None:
     result, _, _, _ = _case(
+        runtime,
         tmp_path,
         tool="eraser",
         mode=mode,
@@ -253,9 +230,10 @@ def test_eraser_behavior_mode_layer_and_opacity_match_native(
 @pytest.mark.parametrize("algorithm", ["regular", "pixel-perfect", "dots"])
 @pytest.mark.parametrize("replace", [False, True])
 def test_eraser_algorithm_and_replacement_match_native(
-    tmp_path: Path, algorithm: str, replace: bool
+    runtime: RuntimeObservation, tmp_path: Path, algorithm: str, replace: bool
 ) -> None:
     _case(
+        runtime,
         tmp_path,
         tool="eraser",
         algorithm=algorithm,
@@ -266,8 +244,11 @@ def test_eraser_algorithm_and_replacement_match_native(
 
 
 @pytest.mark.parametrize("tool", ["pencil", "eraser"])
-def test_linked_cels_preserve_native_pixels(tmp_path: Path, tool: str) -> None:
+def test_linked_cels_preserve_native_pixels(
+    runtime: RuntimeObservation, tmp_path: Path, tool: str
+) -> None:
     result, _, _, target = _case(
+        runtime,
         tmp_path,
         tool=tool,
         linked=True,
@@ -276,13 +257,16 @@ def test_linked_cels_preserve_native_pixels(tmp_path: Path, tool: str) -> None:
     )
     assert [cel["frame_number"] for cel in result["affected_cels"]] == [1, 2]
     assert result["linked_cels_preserved"] is True
-    assert _pixels(target, 1) == _pixels(target, 2)
+    assert read_pixels(target, frame=1) == read_pixels(target, frame=2)
 
 
 @pytest.mark.parametrize("tool", ["pencil", "eraser"])
-def test_clipped_and_selected_gesture_matches_native(tmp_path: Path, tool: str) -> None:
+def test_clipped_and_selected_gesture_matches_native(
+    runtime: RuntimeObservation, tmp_path: Path, tool: str
+) -> None:
     selection = {"kind": "all", "rectangle": {"x": 0, "y": 2, "width": 2, "height": 1}}
     result, _, _, _ = _case(
+        runtime,
         tmp_path,
         tool=tool,
         path="edge",
@@ -296,9 +280,10 @@ def test_clipped_and_selected_gesture_matches_native(tmp_path: Path, tool: str) 
 
 @pytest.mark.parametrize("tool", ["pencil", "eraser"])
 def test_rejects_off_image_footprint_without_publishing(
-    tmp_path: Path, tool: str
+    runtime: RuntimeObservation, tmp_path: Path, tool: str
 ) -> None:
     source, _ = _fixture(
+        runtime,
         tmp_path,
         {
             "mode": "rgb",
@@ -337,7 +322,12 @@ def test_rejects_off_image_footprint_without_publishing(
         ),
     }
     original = source.read_bytes()
-    code, result = call_spa("paint", tool, **request)
-    assert code != 0, result
+    outcome = run(f"paint {tool}", request)
+    assert outcome.returncode == 1, process_diagnostics(outcome.process)
+    assert outcome.envelope["code"] == "kernel_execution_failed"
+    assert (
+        "Native Brush footprint is outside Image bounds"
+        in outcome.envelope["details"]["reason"]
+    )
     assert not target.exists()
     assert source.read_bytes() == original

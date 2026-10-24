@@ -1,18 +1,13 @@
 """Compare public Paint Composite with independent native drawImage observations."""
 
 import json
-import os
-import subprocess
-import tempfile
 from pathlib import Path
 
 import pytest
 
-from spa.adapters.aseprite.aseprite import probe
-from spa.adapters.aseprite.invocation import prepare_invocation
-from spa.application.surface import PROBE_RESOURCES
-from spa.contracts.public import RuntimeRequest
-from tests.paint.support import call_spa
+from spa.contracts.ports import RuntimeObservation
+from tests.native_invocation import expect_success, run_lua
+from tests.paint.support import FIXTURES
 from tests.support import process_diagnostics
 
 pytestmark = pytest.mark.e2e
@@ -70,69 +65,65 @@ def _composite(
     blend: str = "normal",
     opacity: int = 127,
     selection: dict | None = None,
-) -> tuple[int, dict]:
-    return call_spa(
-        "paint",
-        "composite",
-        source_sprite_file=str(source),
-        target_sprite_file=str(target),
-        in_place=False,
-        overwrite=False,
-        target={"layer": {"layer_path": [1]}, "frame_number": 1},
-        input={"kind": "inline", "snapshot": _snapshot(mode, colors)},
-        position={"x": 0, "y": 0},
-        opacity=opacity,
-        blend_mode=blend,
-        selection=selection,
+) -> dict:
+    """Composite one row of colors at (0, 0) on Layer 1, Frame 1 into a new target.
+
+    It returns the success envelope.
+    """
+    return expect_success(
+        "paint composite",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": False,
+            "overwrite": False,
+            "target": {"layer": {"layer_path": [1]}, "frame_number": 1},
+            "input": {"kind": "inline", "snapshot": _snapshot(mode, colors)},
+            "position": {"x": 0, "y": 0},
+            "opacity": opacity,
+            "blend_mode": blend,
+            "selection": selection,
+        },
     )
 
 
 def _pixel(path: Path, *, frame: int = 1, x: int = 0) -> dict:
-    code, result = call_spa(
-        "image",
-        "get",
-        sprite_file=str(path),
-        source={
-            "kind": "individual",
-            "target": {"layer": {"layer_path": [1]}, "frame_number": frame},
-            "rectangle": {"x": x, "y": 0, "width": 1, "height": 1},
+    """Return the color of one Layer 1 pixel in row 0."""
+    result = expect_success(
+        "image get",
+        {
+            "sprite_file": str(path),
+            "source": {
+                "kind": "individual",
+                "target": {"layer": {"layer_path": [1]}, "frame_number": frame},
+                "rectangle": {"x": x, "y": 0, "width": 1, "height": 1},
+            },
         },
     )
-    assert code == 0, result
     return result["snapshot"]["rows"][0][0]["color"]
 
 
 @pytest.fixture(scope="module")
-def native(tmp_path_factory: pytest.TempPathFactory) -> dict:
+def native(
+    runtime: RuntimeObservation, tmp_path_factory: pytest.TempPathFactory
+) -> dict:
+    """Write the `composite_modes.lua` Sprites and read its drawImage oracle.
+
+    It checks three known oracle values before a test uses the oracle.
+    """
     directory = tmp_path_factory.mktemp("composite-modes")
     paths = {
         name: directory / f"{name}.aseprite"
         for name in ("rgb", "grayscale", "linked", "background")
     }
     oracle_file = directory / "oracle.json"
-    observation = probe(
-        RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
+    lua = run_lua(
+        FIXTURES / "composite_modes.lua",
+        runtime,
+        **{f"{name}_file": path for name, path in paths.items()},
+        oracle=oracle_file,
     )
-    with tempfile.TemporaryDirectory(prefix="spa-composite-modes-") as work:
-        prepared = prepare_invocation(
-            Path(observation.canonical_path),
-            Path(observation.resource_path),
-            Path(work),
-        )
-        args = [str(prepared.executable), "--batch"]
-        for name, path in paths.items():
-            args.extend(("--script-param", f"{name}_file={path}"))
-        args.extend(("--script-param", f"oracle={oracle_file}"))
-        args.extend(
-            (
-                "--script",
-                str(Path(__file__).parent / "fixtures" / "composite_modes.lua"),
-            )
-        )
-        run = subprocess.run(
-            args, text=True, capture_output=True, check=False, env=prepared.environment
-        )
-    assert run.returncode == 0, process_diagnostics(run)
+    assert lua.returncode == 0, process_diagnostics(lua)
     assert all(path.is_file() for path in paths.values())
     oracle = json.loads(oracle_file.read_text())
     assert oracle["matrix"]["rgb"]["normal"]["127"] == {
@@ -170,11 +161,8 @@ def test_supported_mode_matches_native_draw_image(
     front = RGB_FRONT if mode == "rgb" else GRAY_FRONT
     original = source.read_bytes()
 
-    code, result = _composite(
-        source, target, mode, [front], blend=blend, opacity=opacity
-    )
+    result = _composite(source, target, mode, [front], blend=blend, opacity=opacity)
 
-    assert code == 0, result
     assert result["persisted_reopen_verified"] is True
     assert result["blend_mode"] == blend
     assert result["opacity"] == opacity
@@ -186,9 +174,8 @@ def test_background_native_composite_stays_opaque(native: dict, tmp_path: Path) 
     source = native["paths"]["background"]
     target = tmp_path / "background-out.aseprite"
 
-    code, result = _composite(source, target, "rgb", [RGB_FRONT])
+    result = _composite(source, target, "rgb", [RGB_FRONT])
 
-    assert code == 0, result
     assert result["background_opaque"] is True
     assert _pixel(target) == native["oracle"]["background"]
     assert _pixel(target)["alpha"] == 255
@@ -198,9 +185,8 @@ def test_linked_cels_share_one_native_composite(native: dict, tmp_path: Path) ->
     source = native["paths"]["linked"]
     target = tmp_path / "linked-out.aseprite"
 
-    code, result = _composite(source, target, "rgb", [RGB_FRONT])
+    result = _composite(source, target, "rgb", [RGB_FRONT])
 
-    assert code == 0, result
     assert result["native_sharing_preserved"] is True
     assert [cel["frame_number"] for cel in result["affected_cels"]] == [1, 2]
     assert [
@@ -222,11 +208,10 @@ def test_selection_maps_canvas_to_offset_linked_cel(
         "rectangle": {"x": 2, "y": 0, "width": 1, "height": 1},
     }
 
-    code, result = _composite(
+    result = _composite(
         source, target, "rgb", [RGB_FRONT, RGB_FRONT], selection=selection
     )
 
-    assert code == 0, result
     assert result["pixels_written"] == 1
     assert result["pixels_skipped_by_selection"] == 1
     assert result["applied_runs"] == [{"x": 1, "y": 0, "length": 1}]

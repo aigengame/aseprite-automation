@@ -1,69 +1,44 @@
-"""The shared Palette resolver observes native changes through its consumer Interface."""
+"""The shared Palette resolver observes native changes through its consumer Interface.
+
+These tests check the shared resolver only. The E2E tests of each Operation keep
+its caller-specific validation, resource loading, and publication.
+"""
 
 import json
-import os
-import subprocess
-import tempfile
 from importlib.resources import files
 from pathlib import Path
 
 import pytest
 
-from spa.adapters.aseprite.aseprite import probe
-from spa.adapters.aseprite.invocation import prepare_invocation
-from spa.application.surface import PROBE_RESOURCES
-from spa.contracts.public import RuntimeRequest
+from spa.contracts.ports import RuntimeObservation
+from tests.native_invocation import run_lua
+from tests.palette.support import FIXTURES
 from tests.support import inject_palette_change, process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
 
 def test_effective_palette_resolves_change_points_without_active_frame_state(
-    tmp_path: Path,
+    tmp_path: Path, runtime: RuntimeObservation
 ) -> None:
-    observation = probe(
-        RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
-    )
     source = tmp_path / "changes.aseprite"
     output = tmp_path / "observed.json"
+    parameters = {
+        "source": source,
+        "out": output,
+        "effective_palette": files("spa.kernel").joinpath(
+            "color/effective_palette.lua"
+        ),
+    }
+    script = FIXTURES / "effective_palette.lua"
 
-    def run_fixture(mode: str) -> None:
-        with tempfile.TemporaryDirectory(prefix="spa-palette-fixture-") as work:
-            prepared = prepare_invocation(
-                Path(observation.canonical_path),
-                Path(observation.resource_path),
-                Path(work),
-            )
-            arguments = [str(prepared.executable), "--batch"]
-            for key, value in {
-                "mode": mode,
-                "source": source,
-                "out": output,
-                "effective_palette": files("spa.kernel").joinpath(
-                    "color/effective_palette.lua"
-                ),
-            }.items():
-                arguments.extend(("--script-param", f"{key}={value}"))
-            arguments.extend(
-                (
-                    "--script",
-                    str(Path(__file__).parent / "fixtures" / "effective_palette.lua"),
-                )
-            )
-            run = subprocess.run(
-                arguments,
-                text=True,
-                capture_output=True,
-                check=False,
-                env=prepared.environment,
-            )
-        assert run.returncode == 0, process_diagnostics(run)
-
-    run_fixture("create")
+    lua = run_lua(script, runtime, mode="create", **parameters)
+    assert lua.returncode == 0, process_diagnostics(lua)
     inject_palette_change(source, [(0, 0, 0, 0), (20, 40, 200, 255)], frame_number=3)
     original = source.read_bytes()
 
-    run_fixture("observe")
+    lua = run_lua(script, runtime, mode="observe", **parameters)
+    assert lua.returncode == 0, process_diagnostics(lua)
 
     result = json.loads(output.read_text())
     assert [

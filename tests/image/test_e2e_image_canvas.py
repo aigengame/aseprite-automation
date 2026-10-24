@@ -1,73 +1,62 @@
 """Crop and canvas-resize through the CLI, with persisted pixel observations."""
 
-import json
-import os
 from pathlib import Path
 
 import pytest
 
-from tests.image.support import export_image, image_fixture, inspect_native
-from tests.support import inject_palette_change, spa
+from spa.contracts.ports import RuntimeObservation
+from tests.image.support import inspect_native
+from tests.native_invocation import expect_success, render_frame, run
+from tests.support import image_fixture, inject_palette_change
 
 pytestmark = pytest.mark.e2e
 
 
-def transform(
-    source: Path, output: Path, operation: str, **options
-) -> tuple[int, dict]:
-    run = spa(
-        "image",
-        operation,
-        "--input-json",
-        json.dumps(
-            {
-                "source_sprite_file": str(source),
-                "target_sprite_file": str(output),
-                "in_place": False,
-                "overwrite": False,
-                "target": {"layer": {"layer_path": [1]}, "frame_number": 1},
-                "coordinate_space": "image-pixel",
-                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-                **options,
-            }
-        ),
-    )
-    return run.returncode, json.loads(run.stdout)
+def transform_request(source: Path, output: Path, **options) -> dict:
+    """Return an Image crop or canvas-resize request for Layer 1, Frame 1.
+
+    The request writes output, not in place and without overwrite, in
+    `image-pixel` coordinates. Each option replaces one field.
+    """
+    return {
+        "source_sprite_file": str(source),
+        "target_sprite_file": str(output),
+        "in_place": False,
+        "overwrite": False,
+        "target": {"layer": {"layer_path": [1]}, "frame_number": 1},
+        "coordinate_space": "image-pixel",
+        **options,
+    }
 
 
 def assert_persisted_link(source: Path) -> None:
-    run = spa(
-        "cel",
-        "get",
-        "--input-json",
-        json.dumps(
-            {
-                "sprite_file": str(source),
-                "target": {"layer": {"layer_path": [1]}, "frame_number": 2},
-                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-            }
-        ),
+    """Check that the Frame 2 Cel of Layer 1 in source links to Frame 1."""
+    result = expect_success(
+        "cel get",
+        {
+            "sprite_file": str(source),
+            "target": {"layer": {"layer_path": [1]}, "frame_number": 2},
+        },
     )
-    assert run.returncode == 0, run.stdout
-    assert json.loads(run.stdout)["cel"]["linked_cels"] == [
-        {"layer_path": [1], "frame_number": 1}
-    ]
+    assert result["cel"]["linked_cels"] == [{"layer_path": [1], "frame_number": 1}]
 
 
-def test_crop_preserves_canvas_pixels_and_linked_cels(tmp_path: Path) -> None:
-    source = image_fixture(tmp_path, "linked")
+def test_crop_preserves_canvas_pixels_and_linked_cels(
+    tmp_path: Path, runtime: RuntimeObservation
+) -> None:
+    source = image_fixture(runtime, tmp_path, "linked")
     original = source.read_bytes()
     target = tmp_path / "crop.aseprite"
 
-    code, result = transform(
-        source,
-        target,
-        "crop",
-        rectangle={"x": 1, "y": 0, "width": 1, "height": 2},
-        position_policy="preserve_canvas_pixels",
+    result = expect_success(
+        "image crop",
+        transform_request(
+            source,
+            target,
+            rectangle={"x": 1, "y": 0, "width": 1, "height": 2},
+            position_policy="preserve_canvas_pixels",
+        ),
     )
-
-    assert code == 0, result
     assert source.read_bytes() == original
     assert result["copied_source_rectangle"] == {
         "x": 1,
@@ -95,31 +84,32 @@ def test_crop_preserves_canvas_pixels_and_linked_cels(tmp_path: Path) -> None:
     assert_persisted_link(target)
     assert result["persisted_reopen_verified"] is True
     for frame in (1, 2):
-        png = export_image(target, tmp_path / f"frame-{frame}.png", frame)
+        png = render_frame(target, frame)
         assert png.getpixel((2, 2)) == (0, 0, 255, 255)
         assert png.getpixel((1, 2))[3] == 0
-        stored = inspect_native(target, tmp_path, 0, 0, frame)
+        stored = inspect_native(runtime, target, tmp_path, 0, 0, frame)
         assert stored["width"] == 1
         assert stored["height"] == 2
 
 
 def test_canvas_resize_clips_and_fills_without_moving_copied_canvas_pixels(
     tmp_path: Path,
+    runtime: RuntimeObservation,
 ) -> None:
-    source = image_fixture(tmp_path, "linked")
+    source = image_fixture(runtime, tmp_path, "linked")
     target = tmp_path / "canvas.aseprite"
-    code, result = transform(
-        source,
-        target,
-        "canvas-resize",
-        width=3,
-        height=3,
-        offset={"x": -1, "y": 1},
-        fill={"kind": "rgba", "red": 0, "green": 255, "blue": 0, "alpha": 255},
-        position_policy="preserve_source_canvas",
+    result = expect_success(
+        "image canvas-resize",
+        transform_request(
+            source,
+            target,
+            width=3,
+            height=3,
+            offset={"x": -1, "y": 1},
+            fill={"kind": "rgba", "red": 0, "green": 255, "blue": 0, "alpha": 255},
+            position_policy="preserve_source_canvas",
+        ),
     )
-
-    assert code == 0, result
     assert result["copied_source_rectangle"] == {
         "x": 1,
         "y": 0,
@@ -146,32 +136,37 @@ def test_canvas_resize_clips_and_fills_without_moving_copied_canvas_pixels(
     assert result["native_sharing_preserved"] is True
     assert_persisted_link(target)
     for frame in (1, 2):
-        png = export_image(target, tmp_path / f"canvas-{frame}.png", frame)
+        png = render_frame(target, frame)
         assert png.getpixel((2, 2)) == (0, 0, 255, 255)
         assert png.getpixel((2, 1)) == (0, 255, 0, 255)
         # Transparent stored source pixels replace fill; this is not compositing.
         assert png.getpixel((2, 3))[3] == 0
 
 
-def test_fill_index_must_exist_in_every_sharing_frame_palette(tmp_path: Path) -> None:
-    source = image_fixture(tmp_path, "indexed-linked")
+def test_fill_index_must_exist_in_every_sharing_frame_palette(
+    tmp_path: Path, runtime: RuntimeObservation
+) -> None:
+    source = image_fixture(runtime, tmp_path, "indexed-linked")
     # Frame 1 has four entries. Frame 2 changes to only three entries.
     inject_palette_change(source, [(0, 0, 0, 0), (255, 0, 0, 255), (0, 0, 255, 255)])
     original = source.read_bytes()
     assert_persisted_link(source)
-    code, result = transform(
-        source,
-        source,
-        "canvas-resize",
-        width=3,
-        height=3,
-        offset={"x": 0, "y": 0},
-        fill={"kind": "palette-index", "index": 3},
-        position_policy="keep_cel_position",
-        in_place=True,
-        overwrite=True,
+    outcome = run(
+        "image canvas-resize",
+        transform_request(
+            source,
+            source,
+            width=3,
+            height=3,
+            offset={"x": 0, "y": 0},
+            fill={"kind": "palette-index", "index": 3},
+            position_policy="keep_cel_position",
+            in_place=True,
+            overwrite=True,
+        ),
     )
-    assert code == 2, result
+    result = outcome.envelope
+    assert outcome.returncode == 2, result
     assert result["code"] == "image_canvas_fill_invalid"
     assert source.read_bytes() == original
 
@@ -200,40 +195,47 @@ def test_fill_index_must_exist_in_every_sharing_frame_palette(tmp_path: Path) ->
     ],
 )
 def test_transforms_keep_native_transparency_and_hidden_channels(
-    tmp_path: Path, mode: str, fill: dict, source_pixel: dict, fill_pixel: dict
+    tmp_path: Path,
+    runtime: RuntimeObservation,
+    mode: str,
+    fill: dict,
+    source_pixel: dict,
+    fill_pixel: dict,
 ) -> None:
-    source = image_fixture(tmp_path, mode)
+    source = image_fixture(runtime, tmp_path, mode)
     original = source.read_bytes()
     crop = tmp_path / "single-pixel.aseprite"
-    code, cropped = transform(
-        source,
-        crop,
-        "crop",
-        rectangle={"x": 1, "y": 1, "width": 1, "height": 1},
-        position_policy="keep_cel_position",
+    cropped = expect_success(
+        "image crop",
+        transform_request(
+            source,
+            crop,
+            rectangle={"x": 1, "y": 1, "width": 1, "height": 1},
+            position_policy="keep_cel_position",
+        ),
     )
-    assert code == 0, cropped
     assert cropped["affected_cels"][0]["after_position"] == {"x": 1, "y": 2}
-    pixel = inspect_native(crop, tmp_path, 0, 0)
+    pixel = inspect_native(runtime, crop, tmp_path, 0, 0)
     assert {key: pixel[key] for key in source_pixel} == source_pixel
 
     canvas = tmp_path / "padded.aseprite"
-    code, padded = transform(
-        source,
-        canvas,
-        "canvas-resize",
-        width=4,
-        height=4,
-        offset={"x": 1, "y": 1},
-        fill=fill,
-        position_policy="keep_cel_position",
+    padded = expect_success(
+        "image canvas-resize",
+        transform_request(
+            source,
+            canvas,
+            width=4,
+            height=4,
+            offset={"x": 1, "y": 1},
+            fill=fill,
+            position_policy="keep_cel_position",
+        ),
     )
-    assert code == 0, padded
     assert padded["discarded_source_regions"] == []
     assert padded["affected_cels"][0]["after_position"] == {"x": 1, "y": 2}
-    pixel = inspect_native(canvas, tmp_path, 2, 2)
+    pixel = inspect_native(runtime, canvas, tmp_path, 2, 2)
     assert {key: pixel[key] for key in source_pixel} == source_pixel
-    pixel = inspect_native(canvas, tmp_path, 0, 0)
+    pixel = inspect_native(runtime, canvas, tmp_path, 0, 0)
     assert {key: pixel[key] for key in fill_pixel} == fill_pixel
     assert source.read_bytes() == original
 
@@ -262,21 +264,27 @@ def test_transforms_keep_native_transparency_and_hidden_channels(
     ],
 )
 def test_no_intersection_is_a_persisted_fill_only_image(
-    tmp_path: Path, mode: str, fill: dict, expected: dict, offset: dict
+    tmp_path: Path,
+    runtime: RuntimeObservation,
+    mode: str,
+    fill: dict,
+    expected: dict,
+    offset: dict,
 ) -> None:
-    source = image_fixture(tmp_path, mode)
+    source = image_fixture(runtime, tmp_path, mode)
     target = tmp_path / "fill-only.aseprite"
-    code, result = transform(
-        source,
-        target,
-        "canvas-resize",
-        width=3,
-        height=2,
-        offset=offset,
-        fill=fill,
-        position_policy="keep_cel_position",
+    result = expect_success(
+        "image canvas-resize",
+        transform_request(
+            source,
+            target,
+            width=3,
+            height=2,
+            offset=offset,
+            fill=fill,
+            position_policy="keep_cel_position",
+        ),
     )
-    assert code == 0, result
     assert (
         result["copied_source_rectangle"]
         == result["copied_target_rectangle"]
@@ -289,7 +297,7 @@ def test_no_intersection_is_a_persisted_fill_only_image(
         {"x": 0, "y": 0, "width": 3, "height": 2}
     ]
     for x, y in ((0, 0), (2, 1)):
-        pixel = inspect_native(target, tmp_path, x, y)
+        pixel = inspect_native(runtime, target, tmp_path, x, y)
         assert {key: pixel[key] for key in expected} == expected
         assert (pixel["width"], pixel["height"]) == (3, 2)
 
@@ -303,20 +311,23 @@ def test_no_intersection_is_a_persisted_fill_only_image(
     ],
 )
 def test_crop_outside_source_cannot_pad_or_modify_source(
-    tmp_path: Path, rectangle: dict
+    tmp_path: Path, runtime: RuntimeObservation, rectangle: dict
 ) -> None:
-    source = image_fixture(tmp_path)
+    source = image_fixture(runtime, tmp_path)
     original = source.read_bytes()
-    code, result = transform(
-        source,
-        source,
-        "crop",
-        rectangle=rectangle,
-        position_policy="keep_cel_position",
-        in_place=True,
-        overwrite=True,
+    outcome = run(
+        "image crop",
+        transform_request(
+            source,
+            source,
+            rectangle=rectangle,
+            position_policy="keep_cel_position",
+            in_place=True,
+            overwrite=True,
+        ),
     )
-    assert code == 2, result
+    result = outcome.envelope
+    assert outcome.returncode == 2, result
     assert result["code"] == "image_crop_out_of_bounds"
     assert source.read_bytes() == original
 
@@ -333,9 +344,15 @@ def test_crop_outside_source_cannot_pad_or_modify_source(
     ],
 )
 def test_unsupported_targets_do_not_publish(
-    tmp_path: Path, operation: str, mode: str, layer: int, frame: int, failure: str
+    tmp_path: Path,
+    runtime: RuntimeObservation,
+    operation: str,
+    mode: str,
+    layer: int,
+    frame: int,
+    failure: str,
 ) -> None:
-    source = image_fixture(tmp_path, mode)
+    source = image_fixture(runtime, tmp_path, mode)
     original = source.read_bytes()
     target = tmp_path / "rejected.aseprite"
     options = (
@@ -348,15 +365,18 @@ def test_unsupported_targets_do_not_publish(
             "fill": {"kind": "rgba", "red": 0, "green": 0, "blue": 0, "alpha": 0},
         }
     )
-    code, result = transform(
-        source,
-        target,
-        operation,
-        **options,
-        target={"layer": {"layer_path": [layer]}, "frame_number": frame},
-        position_policy="keep_cel_position",
+    outcome = run(
+        f"image {operation}",
+        transform_request(
+            source,
+            target,
+            **options,
+            target={"layer": {"layer_path": [layer]}, "frame_number": frame},
+            position_policy="keep_cel_position",
+        ),
     )
-    assert code == 2, result
+    result = outcome.envelope
+    assert outcome.returncode == 2, result
     assert result["code"] == failure
     assert not target.exists()
     assert source.read_bytes() == original
@@ -385,14 +405,18 @@ def test_unsupported_targets_do_not_publish(
     ],
 )
 def test_position_overflow_leaves_source_and_existing_target_unchanged(
-    tmp_path: Path, operation: str, options: dict
+    tmp_path: Path, runtime: RuntimeObservation, operation: str, options: dict
 ) -> None:
-    source = image_fixture(tmp_path, "position-limit")
+    source = image_fixture(runtime, tmp_path, "position-limit")
     original = source.read_bytes()
     output = tmp_path / "existing.aseprite"
     output.write_bytes(b"existing target must survive")
-    code, result = transform(source, output, operation, **options, overwrite=True)
-    assert code == 2, result
+    outcome = run(
+        f"image {operation}",
+        transform_request(source, output, **options, overwrite=True),
+    )
+    result = outcome.envelope
+    assert outcome.returncode == 2, result
     assert result["code"] == "image_transform_position_out_of_bounds"
     assert source.read_bytes() == original
     assert output.read_bytes() == b"existing target must survive"
@@ -408,22 +432,25 @@ def test_position_overflow_leaves_source_and_existing_target_unchanged(
     ],
 )
 def test_incompatible_fill_is_rejected_before_publication(
-    tmp_path: Path, mode: str, fill: dict
+    tmp_path: Path, runtime: RuntimeObservation, mode: str, fill: dict
 ) -> None:
-    source = image_fixture(tmp_path, mode)
+    source = image_fixture(runtime, tmp_path, mode)
     original = source.read_bytes()
     output = tmp_path / "rejected.aseprite"
-    code, result = transform(
-        source,
-        output,
-        "canvas-resize",
-        width=1,
-        height=1,
-        offset={"x": 100, "y": -100},
-        fill=fill,
-        position_policy="keep_cel_position",
+    outcome = run(
+        "image canvas-resize",
+        transform_request(
+            source,
+            output,
+            width=1,
+            height=1,
+            offset={"x": 100, "y": -100},
+            fill=fill,
+            position_policy="keep_cel_position",
+        ),
     )
-    assert code == 2, result
+    result = outcome.envelope
+    assert outcome.returncode == 2, result
     assert result["code"] == "image_canvas_fill_invalid"
     assert source.read_bytes() == original
     assert not output.exists()

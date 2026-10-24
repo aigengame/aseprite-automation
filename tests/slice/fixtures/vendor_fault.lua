@@ -49,11 +49,11 @@ local wrapped = {
     elseif mode == "outside_frame" then
       multi.keys[3].frame = #sprite.frames
     elseif mode == "fractional_rectangle" then
-      multi.keys[1].bounds.x = 1.5
+      multi.keys[2].bounds.x = 1.5
     elseif mode == "negative_dimensions" then
-      multi.keys[1].bounds.w = -1
+      multi.keys[2].bounds.w = -1
     elseif mode == "fractional_pivot" then
-      multi.keys[1].pivot.y = 1.5
+      multi.keys[2].pivot.y = 1.5
     elseif mode == "rectangle_array" then
       multi.keys[1].bounds = { 1, 2, 3, 4 }
     elseif mode == "keys_object" then

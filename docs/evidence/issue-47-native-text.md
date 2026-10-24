@@ -26,14 +26,11 @@ Relevant native source files are `src/app/commands/cmd_paste_text.cpp`,
 
 ## Existing checks
 
-- `tests/paint/test_e2e_text_discovery.py` checks installed `info` and `schema`,
-  the public reason, selected runtime identity, and the absence of callable text.
-- `tests/paint/test_integration_text_discovery.py` checks that the Gap describes
-  SPA's boundary independently of selected-version identity and preserves usable Paint.
+- `tests/paint/test_integration_text_discovery.py` checks `info` and `schema`, the
+  public reason, the selected runtime identity, the absence of callable text, and
+  usable Paint. The Gap does not depend on Aseprite, so these checks use a controlled
+  runtime in the fast tier.
 - `tests/paint/fixtures/native_text_probe.lua` is a manual investigation fixture.
   It seeds font preferences, measures pixels, and checks save/reopen with a rectangle
   control. It is not called by pytest or production discovery and does not repeat
   the unsafe fresh-preference path.
-
-Use `SPA_TEST_ASEPRITE` as described in [Testing](../testing.md). For an installed
-wheel check, `SPA_TEST_INSTALLED_CLI` selects that installation's `spa` executable.

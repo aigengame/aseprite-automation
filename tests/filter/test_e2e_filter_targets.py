@@ -1,11 +1,17 @@
 """Filter target and palette basis behavior through persisted native Sprites."""
 
-import json
-
 import pytest
 
-from tests.filter.support import apply, native_script, observe_images, pixels
-from tests.support import inject_palette_change
+from tests.filter.support import (
+    FIXTURES,
+    apply,
+    observe_images,
+    palette_observation,
+    palette_source,
+    pixels,
+)
+from tests.native_invocation import run_lua
+from tests.support import process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
@@ -14,7 +20,10 @@ def test_selected_target_reports_cartesian_absences_without_creating_cels(
     tmp_path, runtime
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "target_scene.lua", source=source, mode="cartesian")
+    lua = run_lua(
+        FIXTURES / "target_scene.lua", runtime, source=source, mode="cartesian"
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
     before = observe_images(runtime, source)
     chosen = {
         "kind": "selected",
@@ -45,7 +54,10 @@ def test_all_reports_noneditable_layers_and_changes_only_editable_cels(
     tmp_path, runtime
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "target_scene.lua", source=source, mode="exclusions")
+    lua = run_lua(
+        FIXTURES / "target_scene.lua", runtime, source=source, mode="exclusions"
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
     before = observe_images(runtime, source)
 
     code, result = apply(source, target, pixels(cels_target={"kind": "all"}))
@@ -70,7 +82,10 @@ def test_explicit_noneditable_layer_rejects_whole_operation_before_commit(
     tmp_path, runtime
 ):
     source, all_target = tmp_path / "source.aseprite", tmp_path / "all.aseprite"
-    native_script(runtime, "target_scene.lua", source=source, mode="exclusions")
+    lua = run_lua(
+        FIXTURES / "target_scene.lua", runtime, source=source, mode="exclusions"
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
     source_bytes = source.read_bytes()
     code, all_result = apply(source, all_target, pixels(cels_target={"kind": "all"}))
     assert code == 0, all_result
@@ -101,7 +116,8 @@ def test_linked_image_is_filtered_once_and_reports_link_outside_range(
     tmp_path, runtime
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "target_scene.lua", source=source, mode="linked")
+    lua = run_lua(FIXTURES / "target_scene.lua", runtime, source=source, mode="linked")
+    assert lua.returncode == 0, process_diagnostics(lua)
     code, result = apply(source, target, pixels())
 
     assert code == 0, result
@@ -115,25 +131,9 @@ def test_linked_image_is_filtered_once_and_reports_link_outside_range(
     assert all((cel["pixels"][0] & 0xFF) == 150 for cel in after["cels"])
 
 
-def _palette_source(runtime, source, mode):
-    native_script(runtime, "target_palette_basis.lua", source=source, mode=mode)
-    colors = [(0, 0, 0, 0), (20, 0, 0, 255)]
-    if mode == "indexed":
-        colors.append((120, 0, 0, 255))
-    inject_palette_change(source, colors, frame_number=2)
-
-
-def _palette_observation(runtime, source):
-    response = source.with_suffix(".basis.json")
-    native_script(
-        runtime, "target_palette_observe.lua", source=source, response=response
-    )
-    return json.loads(response.read_text())
-
-
 def test_indexed_pixel_basis_frame_can_differ_from_target_frame(tmp_path, runtime):
     source = tmp_path / "source.aseprite"
-    _palette_source(runtime, source, "indexed")
+    palette_source(runtime, source, "indexed")
     chosen = {"kind": "selected", "layers": [{"layer_path": [1]}], "frame_numbers": [1]}
     observations = {}
     for basis in (1, 2):
@@ -151,7 +151,7 @@ def test_indexed_pixel_basis_frame_can_differ_from_target_frame(tmp_path, runtim
         assert code == 0, result
         assert result["palette_basis"]["frame_number"] == basis
         assert {cel["frame_number"] for cel in result["existing_target_cels"]} == {1}
-        observations[basis] = _palette_observation(runtime, target)
+        observations[basis] = palette_observation(runtime, target)
     assert observations[1]["target_pixel"] == 2
     assert observations[2]["target_pixel"] == 1
     assert observations[1]["anchor_pixel"] == observations[2]["anchor_pixel"] == 1
@@ -160,7 +160,7 @@ def test_indexed_pixel_basis_frame_can_differ_from_target_frame(tmp_path, runtim
 
 def test_rgb_palette_basis_frame_can_differ_from_target_frame(tmp_path, runtime):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    _palette_source(runtime, source, "rgb")
+    palette_source(runtime, source, "rgb")
     chosen = {"kind": "selected", "layers": [{"layer_path": [1]}], "frame_numbers": [1]}
     application = {
         "kind": "rgb-palette-colors",
@@ -176,7 +176,7 @@ def test_rgb_palette_basis_frame_can_differ_from_target_frame(tmp_path, runtime)
     assert result["palette_basis"]["frame_number"] == 2
     assert {cel["frame_number"] for cel in result["existing_target_cels"]} == {1}
     assert result["palette_indexes"] == [1]
-    after = _palette_observation(runtime, target)
+    after = palette_observation(runtime, target)
     assert (after["target_pixel"] & 0xFF) == 30
     assert (after["anchor_pixel"] & 0xFF) == 20
     assert after["palette_red"] == [80, 30]
@@ -186,7 +186,10 @@ def test_canvas_selection_uses_cel_offset_and_changes_only_selected_pixel(
     tmp_path, runtime
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "target_scene.lua", source=source, mode="selection")
+    lua = run_lua(
+        FIXTURES / "target_scene.lua", runtime, source=source, mode="selection"
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
     selection = {"kind": "all", "rectangle": {"x": 2, "y": 0, "width": 1, "height": 1}}
 
     code, result = apply(source, target, pixels(selection=selection))

@@ -12,28 +12,18 @@ from spa.adapters.files import LocalArtifactFiles, LocalTargetFiles
 from spa.adapters.png_input import decode_png_artifact
 from spa.application.dispatch import dispatch
 from spa.application.failure_registry import FAILURE_CODES
-from spa.application.surface import PROBE_RESOURCES
-from spa.contracts.ports import OperationServices
-from spa.contracts.public import RuntimeRequest
+from spa.contracts.ports import OperationServices, RuntimeObservation
 from spa.delivery.export import EXPORT_OPERATIONS
-from tests.export.support import export_image_request as _request
-from tests.export.support import source_sprite
+from tests.support import export_image_choices, source_sprite
 
 pytestmark = pytest.mark.e2e
 
 
-@pytest.fixture(scope="module")
-def runtime():
-    return aseprite.probe(
-        RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
-    )
-
-
 @pytest.mark.parametrize("fault", ["success", "after_palette", "encode"])
 def test_export_restores_editor_and_source_after_native_color_operations(
-    tmp_path: Path, runtime, monkeypatch, fault: str
+    tmp_path: Path, runtime: RuntimeObservation, monkeypatch, fault: str
 ) -> None:
-    source = source_sprite(tmp_path, "group_composition.lua")
+    source = source_sprite(runtime, tmp_path, "group_composition.lua")
     original = source.read_bytes()
     destination = tmp_path / "image.png"
     previous_artifact = b"existing destination must survive failure"
@@ -67,7 +57,10 @@ def test_export_restores_editor_and_source_after_native_color_operations(
         )
 
     monkeypatch.setattr(aseprite, "_run", context_launch)
-    request = _request(source, destination) | {
+    # dispatch runs in process, so the request keeps its Aseprite path.
+    request = export_image_choices(
+        source, destination, aseprite=os.environ["SPA_TEST_ASEPRITE"]
+    ) | {
         "destination": {"path": str(destination), "if_exists": "replace"},
         "layer_composition": {
             "mode": "include",

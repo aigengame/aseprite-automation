@@ -69,6 +69,20 @@ def test_entry_edit_capability_is_required_only_for_set() -> None:
     assert "aseprite_palette_entries" in gap.reason
 
 
+def test_lifecycle_gaps_explain_why_add_and_remove_are_absent() -> None:
+    services = operation_services(
+        lambda _: runtime_observation("aseprite_palette_entries")
+    )
+    result = info_result(RuntimeRequest(), services)
+    for command in ("spa palette add", "spa palette remove"):
+        assert command not in result.supported_capabilities
+        gap = next(gap for gap in result.capability_gaps if gap.capability == command)
+        assert gap.reason == (
+            "SPA does not provide Palette Change add/remove operations; "
+            "entry edits target existing changes."
+        )
+
+
 @pytest.mark.parametrize(
     "bad_evidence", ["wrong_entry", "missing_change", "wrong_range", "not_reopened"]
 )

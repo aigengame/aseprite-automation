@@ -2,13 +2,13 @@
 
 import json
 import os
-import re
 import subprocess
 import sys
-import textwrap
 from pathlib import Path
 
 import pytest
+
+from tests.support import workflow_step
 
 WORKFLOW = Path(__file__).resolve().parents[2] / ".github/workflows/native-e2e.yml"
 pytestmark = pytest.mark.skipif(
@@ -20,12 +20,8 @@ pytestmark = pytest.mark.skipif(
 def run_step(
     name: str, repository: Path, env: dict[str, str], workflow: Path = WORKFLOW
 ) -> subprocess.CompletedProcess[str]:
-    step = workflow.read_text().split(f"      - name: {name}\n", 1)[1]
-    body = re.split(
-        r"\n(?=\S| {1,8}\S)", step.split("        run: |\n", 1)[1], maxsplit=1
-    )[0]
     return subprocess.run(
-        ["bash", "-e", "-o", "pipefail", "-c", textwrap.dedent(body)],
+        ["bash", "-e", "-o", "pipefail", "-c", workflow_step(workflow, name)],
         cwd=repository,
         env=env,
         capture_output=True,
@@ -251,12 +247,14 @@ def test_api_failure_cannot_validate_previous_success(candidate) -> None:
     assert "this run cannot admit merge" in result.stderr
 
 
+@pytest.mark.parametrize("job", ["PREPARE", "SHARDS"])
 @pytest.mark.parametrize("state", ["success", "failure", "cancelled", "skipped"])
 def test_native_aggregate_requires_every_shard_to_succeed(
-    candidate, state: str
+    candidate, job: str, state: str
 ) -> None:
     repository, env, _ = candidate
-    env.update(SPA_PREPARE_RESULT="success", SPA_SHARDS_RESULT=state)
+    env.update(SPA_PREPARE_RESULT="success", SPA_SHARDS_RESULT="success")
+    env[f"SPA_{job}_RESULT"] = state
     result = run_step("Require successful preparation and every shard", repository, env)
     assert (result.returncode == 0) == (state == "success")
 

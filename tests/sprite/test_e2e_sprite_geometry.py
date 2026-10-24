@@ -1,94 +1,36 @@
 """Installed Sprite geometry operations against real Aseprite."""
 
 import json
-import os
-import subprocess
-import tempfile
 from pathlib import Path
 
 import pytest
 from jsonschema import validate
-from PIL import Image
 
-from spa.adapters.aseprite.aseprite import probe
-from spa.adapters.aseprite.invocation import prepare_invocation
-from spa.application.surface import PROBE_RESOURCES
-from spa.contracts.public import RuntimeRequest
+from spa.contracts.ports import RuntimeObservation
+from tests.native_invocation import expect_success, render_frame, run, run_lua
 from tests.support import process_diagnostics, spa
 
 pytestmark = pytest.mark.e2e
 
-
-def _fixture(tmp_path: Path, name: str = "geometry_sprite.lua") -> Path:
-    source = tmp_path / "source.aseprite"
-    observation = probe(
-        RuntimeRequest(aseprite=os.environ["SPA_TEST_ASEPRITE"]), PROBE_RESOURCES
-    )
-    with tempfile.TemporaryDirectory(prefix="spa-geometry-fixture-") as work:
-        prepared = prepare_invocation(
-            Path(observation.canonical_path),
-            Path(observation.resource_path),
-            Path(work),
-        )
-        run = subprocess.run(
-            [
-                str(prepared.executable),
-                "--batch",
-                "--script-param",
-                f"out={source}",
-                "--script",
-                str(Path(__file__).parent / "fixtures" / name),
-            ],
-            text=True,
-            capture_output=True,
-            check=False,
-            env=prepared.environment,
-        )
-    assert run.returncode == 0, process_diagnostics(run)
-    return source
+FIXTURES = Path(__file__).parent / "fixtures"
 
 
-def _run(
-    operation: str, request: dict[str, object]
-) -> tuple[subprocess.CompletedProcess[str], dict[str, object]]:
-    run = spa("sprite", operation, "--input-json", json.dumps(request))
-    return run, json.loads(run.stdout)
-
-
-def _pixels(sprite: Path, output: Path, frame_number: int) -> Image.Image:
-    run = spa(
-        "export",
-        "image",
-        "--input-json",
-        json.dumps(
-            {
-                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-                "source_sprite_file": str(sprite),
-                "destination": {"path": str(output), "if_exists": "fail"},
-                "frame_number": frame_number,
-                "export_image_area": {"kind": "canvas"},
-                "layer_composition": {"mode": "visible"},
-                "composition_color_mode": "preserve",
-                "color_mode": "preserve",
-                "color_profile": "preserve",
-                "transparency": "preserve",
-            }
-        ),
-    )
-    assert run.returncode == 0, run.stdout
-    with Image.open(output) as image:
-        return image.convert("RGBA")
+def _geometry_sprite(runtime: RuntimeObservation, target: Path) -> None:
+    """Write the Sprite of `geometry_sprite.lua` to target."""
+    lua = run_lua(FIXTURES / "geometry_sprite.lua", runtime, out=target)
+    assert lua.returncode == 0, process_diagnostics(lua)
 
 
 def test_resize_uses_fixed_nearest_neighbor_and_reports_persisted_geometry(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
-    source = _fixture(tmp_path)
+    source = tmp_path / "source.aseprite"
+    _geometry_sprite(runtime, source)
     target = tmp_path / "resized.aseprite"
-    run, result = _run(
-        "resize",
+    result = expect_success(
+        "sprite resize",
         {
-            "aseprite": os.environ["SPA_TEST_ASEPRITE"],
             "source_sprite_file": str(source),
             "target_sprite_file": str(target),
             "in_place": False,
@@ -97,7 +39,6 @@ def test_resize_uses_fixed_nearest_neighbor_and_reports_persisted_geometry(
             "height": 8,
         },
     )
-    assert run.returncode == 0, run.stdout
     validate(
         result, json.loads(spa("sprite", "resize", "--schema").stdout)["result_schema"]
     )
@@ -133,7 +74,7 @@ def test_resize_uses_fixed_nearest_neighbor_and_reports_persisted_geometry(
     }
     assert result["persisted_reopen_verified"] is True
     assert target.is_file()
-    pixels = _pixels(target, tmp_path / "resized.png", 1)
+    pixels = render_frame(target, 1)
     assert pixels.size == (8, 8)
     assert pixels.getpixel((2, 2)) == (255, 0, 0, 255)
     assert pixels.getpixel((3, 3)) == (255, 0, 0, 255)
@@ -142,14 +83,15 @@ def test_resize_uses_fixed_nearest_neighbor_and_reports_persisted_geometry(
 
 
 def test_crop_clips_content_to_explicit_half_open_canvas_rectangle(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
-    source = _fixture(tmp_path)
+    source = tmp_path / "source.aseprite"
+    _geometry_sprite(runtime, source)
     target = tmp_path / "cropped.aseprite"
-    run, result = _run(
-        "crop",
+    result = expect_success(
+        "sprite crop",
         {
-            "aseprite": os.environ["SPA_TEST_ASEPRITE"],
             "source_sprite_file": str(source),
             "target_sprite_file": str(target),
             "in_place": False,
@@ -158,7 +100,6 @@ def test_crop_clips_content_to_explicit_half_open_canvas_rectangle(
             "rectangle": {"x": 1, "y": 1, "width": 2, "height": 2},
         },
     )
-    assert run.returncode == 0, run.stdout
     validate(
         result, json.loads(spa("sprite", "crop", "--schema").stdout)["result_schema"]
     )
@@ -195,7 +136,7 @@ def test_crop_clips_content_to_explicit_half_open_canvas_rectangle(
     }
     assert result["persisted_reopen_verified"] is True
     assert target.is_file()
-    pixels = _pixels(target, tmp_path / "cropped.png", 2)
+    pixels = render_frame(target, 2)
     assert pixels.size == (2, 2)
     assert pixels.getpixel((0, 1)) == (0, 255, 0, 255)
     assert pixels.getpixel((1, 1))[3] == 0
@@ -204,9 +145,11 @@ def test_crop_clips_content_to_explicit_half_open_canvas_rectangle(
 @pytest.mark.parametrize("operation", ["resize", "crop"])
 @pytest.mark.parametrize("fixture", ["populated_sprite.lua", "tilemap_sprite.lua"])
 def test_geometry_rejects_tilesets_and_tilemap_content_before_mutation(
-    tmp_path: Path, operation: str, fixture: str
+    runtime: RuntimeObservation, tmp_path: Path, operation: str, fixture: str
 ) -> None:
-    source = _fixture(tmp_path, fixture)
+    source = tmp_path / "source.aseprite"
+    lua = run_lua(FIXTURES / fixture, runtime, out=source)
+    assert lua.returncode == 0, process_diagnostics(lua)
     original = source.read_bytes()
     target = tmp_path / "rejected.aseprite"
     geometry = (
@@ -217,10 +160,9 @@ def test_geometry_rejects_tilesets_and_tilemap_content_before_mutation(
             "rectangle": {"x": 0, "y": 0, "width": 2, "height": 2},
         }
     )
-    run, failure = _run(
-        operation,
+    outcome = run(
+        f"sprite {operation}",
         {
-            "aseprite": os.environ["SPA_TEST_ASEPRITE"],
             "source_sprite_file": str(source),
             "target_sprite_file": str(target),
             "in_place": False,
@@ -228,29 +170,38 @@ def test_geometry_rejects_tilesets_and_tilemap_content_before_mutation(
             **geometry,
         },
     )
-    assert run.returncode == 2, run.stdout
+    failure = outcome.envelope
+    assert outcome.returncode == 2, failure
     validate(
         failure,
         json.loads(spa("sprite", operation, "--schema").stdout)["failure_schema"],
     )
     assert failure["code"] == "sprite_geometry_unsupported_content"
-    assert failure["details"]["tileset_count"] > 0
-    if fixture == "tilemap_sprite.lua":
-        assert failure["details"]["tilemap_layer_count"] > 0
-        assert failure["details"]["tilemap_cel_count"] > 0
-        assert failure["details"]["tilemap_image_count"] > 0
+    # Each fixture authors one Tileset; only tilemap_sprite.lua paints one
+    # Tilemap Cel in one Tilemap Layer.
+    tilemap_content = 1 if fixture == "tilemap_sprite.lua" else 0
+    assert failure["details"] == {
+        "kind": "sprite_content",
+        "source_sprite_file": str(source),
+        "tileset_count": 1,
+        "tilemap_layer_count": tilemap_content,
+        "tilemap_cel_count": tilemap_content,
+        "tilemap_image_count": tilemap_content,
+    }
     assert "target_commit" not in failure
     assert not target.exists()
     assert source.read_bytes() == original
 
 
-def test_crop_refuses_rectangle_outside_current_canvas(tmp_path: Path) -> None:
-    source = _fixture(tmp_path)
+def test_crop_refuses_rectangle_outside_current_canvas(
+    runtime: RuntimeObservation, tmp_path: Path
+) -> None:
+    source = tmp_path / "source.aseprite"
+    _geometry_sprite(runtime, source)
     target = tmp_path / "rejected.aseprite"
-    run, failure = _run(
-        "crop",
+    outcome = run(
+        "sprite crop",
         {
-            "aseprite": os.environ["SPA_TEST_ASEPRITE"],
             "source_sprite_file": str(source),
             "target_sprite_file": str(target),
             "in_place": False,
@@ -259,21 +210,24 @@ def test_crop_refuses_rectangle_outside_current_canvas(tmp_path: Path) -> None:
             "rectangle": {"x": 3, "y": 1, "width": 2, "height": 2},
         },
     )
-    assert run.returncode == 2, run.stdout
+    failure = outcome.envelope
+    assert outcome.returncode == 2, failure
     assert failure["code"] == "sprite_crop_out_of_bounds"
     assert failure["details"]["canvas"] == {"width": 4, "height": 4}
     assert not target.exists()
 
 
 def test_crop_reports_transparent_cel_removed_by_native_trimming(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
-    source = _fixture(tmp_path, "transparent_geometry_sprite.lua")
+    source = tmp_path / "source.aseprite"
+    lua = run_lua(FIXTURES / "transparent_geometry_sprite.lua", runtime, out=source)
+    assert lua.returncode == 0, process_diagnostics(lua)
     target = tmp_path / "transparent-crop.aseprite"
-    run, result = _run(
-        "crop",
+    result = expect_success(
+        "sprite crop",
         {
-            "aseprite": os.environ["SPA_TEST_ASEPRITE"],
             "source_sprite_file": str(source),
             "target_sprite_file": str(target),
             "in_place": False,
@@ -282,7 +236,6 @@ def test_crop_reports_transparent_cel_removed_by_native_trimming(
             "rectangle": {"x": 0, "y": 0, "width": 2, "height": 2},
         },
     )
-    assert run.returncode == 0, run.stdout
     assert result["before_sprite"]["metadata"]["cel_count"] == 1
     assert result["sprite"]["metadata"]["cel_count"] == 0
     assert result["clipped_cels"] == [
@@ -298,14 +251,16 @@ def test_crop_reports_transparent_cel_removed_by_native_trimming(
 
 
 def test_crop_keeps_reference_image_content_while_moving_its_cel(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
-    source = _fixture(tmp_path, "reference_geometry_sprite.lua")
+    source = tmp_path / "source.aseprite"
+    lua = run_lua(FIXTURES / "reference_geometry_sprite.lua", runtime, out=source)
+    assert lua.returncode == 0, process_diagnostics(lua)
     target = tmp_path / "reference-crop.aseprite"
-    run, result = _run(
-        "crop",
+    result = expect_success(
+        "sprite crop",
         {
-            "aseprite": os.environ["SPA_TEST_ASEPRITE"],
             "source_sprite_file": str(source),
             "target_sprite_file": str(target),
             "in_place": False,
@@ -314,7 +269,6 @@ def test_crop_keeps_reference_image_content_while_moving_its_cel(
             "rectangle": {"x": 1, "y": 1, "width": 2, "height": 2},
         },
     )
-    assert run.returncode == 0, run.stdout
     assert result["before_sprite"]["cels"][0]["bounds"] == {
         "x": 0,
         "y": 0,

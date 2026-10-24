@@ -4,7 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from tests.palette.support import native_script, run_palette
+from tests.native_invocation import expect_success, run
+from tests.palette.support import quantization_sprite
 
 pytestmark = pytest.mark.e2e
 
@@ -23,19 +24,19 @@ def test_quantization_observes_all_frames_and_actual_size(
     tmp_path: Path, runtime
 ) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "quantization.lua", source=source, mode="rgb")
+    quantization_sprite(runtime, source, mode="rgb")
     original = source.read_bytes()
-    code, result = run_palette(
-        "palette",
-        "color-quantization",
-        source_sprite_file=str(source),
-        target_sprite_file=str(target),
-        in_place=False,
-        overwrite=False,
-        palette_frame_number=1,
-        **options(),
+    result = expect_success(
+        "palette color-quantization",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": False,
+            "overwrite": False,
+            "palette_frame_number": 1,
+            **options(),
+        },
     )
-    assert code == 0, result
     facts = result["quantization"]
     assert facts["rendered_frames"] == facts["affected_frames"] == [1, 2]
     assert facts["requested_max_colors"] == 8
@@ -52,25 +53,27 @@ def test_quantization_refuses_native_transparency_clamp(
     tmp_path: Path, runtime
 ) -> None:
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(
-        runtime, "quantization.lua", source=source, mode="indexed", unsafe="true"
-    )
+    quantization_sprite(runtime, source, mode="indexed", unsafe="true")
     original = source.read_bytes()
     target.write_bytes(b"keep target")
-    code, result = run_palette(
-        "palette",
-        "color-quantization",
-        source_sprite_file=str(source),
-        target_sprite_file=str(target),
-        in_place=False,
-        overwrite=True,
-        palette_frame_number=1,
-        max_colors=2,
-        with_alpha=True,
-        rgb_map_algorithm="default",
-        new_layer_blending_method=False,
+    outcome = run(
+        "palette color-quantization",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": False,
+            "overwrite": True,
+            "palette_frame_number": 1,
+            "max_colors": 2,
+            "with_alpha": True,
+            "rgb_map_algorithm": "default",
+            "new_layer_blending_method": False,
+        },
     )
-    assert code != 0 and result["code"] == "palette_quantization_rejected", result
+    result = outcome.envelope
+    assert (
+        outcome.returncode != 0 and result["code"] == "palette_quantization_rejected"
+    ), result
     assert result["details"]["reason"] == "transparent_index_changed"
     assert result["details"]["original_palette_size"] == 8
     assert result["details"]["candidate_palette_size"] == 2

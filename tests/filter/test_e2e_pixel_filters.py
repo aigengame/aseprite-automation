@@ -2,7 +2,15 @@
 
 import pytest
 
-from tests.filter.support import native_script, observe_images, pixels, run
+from tests.filter.support import (
+    FIXTURES,
+    observe_images,
+    palette_observation,
+    palette_source,
+    pixels,
+)
+from tests.native_invocation import run, run_lua
+from tests.support import process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
@@ -10,6 +18,11 @@ pytestmark = pytest.mark.e2e
 def apply_filter(
     name, source, target, *, mode="rgb", channel="red", value=0, **options
 ):
+    """Run `spa filter <name>` and return `(returncode, envelope)`.
+
+    This builds a one-Channel Color Curve or Replace Color request for mode
+    from channel and value, then adds options.
+    """
     fields = pixels(
         mode,
         channels={"kind": "index"}
@@ -35,15 +48,17 @@ def apply_filter(
             color = {"kind": "grayscale", "gray": value, "alpha": value}
         fields.update({"from": color, "to": color, "tolerance": 255})
     fields.update(options)
-    return run(
-        "filter",
-        name,
-        source_sprite_file=str(source),
-        target_sprite_file=str(target),
-        in_place=False,
-        overwrite=False,
-        **fields,
+    outcome = run(
+        f"filter {name}",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": False,
+            "overwrite": False,
+            **fields,
+        },
     )
+    return outcome.returncode, outcome.envelope
 
 
 @pytest.mark.parametrize("name", ["color-curve", "replace-color"])
@@ -51,7 +66,8 @@ def test_alpha_deletion_counts_one_linked_image_and_reports_all_consumers(
     tmp_path, runtime, name
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "target_scene.lua", source=source, mode="linked")
+    lua = run_lua(FIXTURES / "target_scene.lua", runtime, source=source, mode="linked")
+    assert lua.returncode == 0, process_diagnostics(lua)
     original = source.read_bytes()
     code, result = apply_filter(name, source, target, channel="alpha")
     assert code == 0, result
@@ -68,7 +84,10 @@ def test_alpha_deletion_counts_one_linked_image_and_reports_all_consumers(
 @pytest.mark.parametrize("name", ["color-curve", "replace-color"])
 def test_selection_coordinates_and_partial_alpha_trim(tmp_path, runtime, name):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "target_scene.lua", source=source, mode="selection")
+    lua = run_lua(
+        FIXTURES / "target_scene.lua", runtime, source=source, mode="selection"
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
     code, result = apply_filter(
         name,
         source,
@@ -90,7 +109,8 @@ def test_selection_coordinates_and_partial_alpha_trim(tmp_path, runtime, name):
 @pytest.mark.parametrize("name", ["color-curve", "replace-color"])
 def test_empty_selection_preserves_pixels_and_reports_noop(tmp_path, runtime, name):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "source.lua", source=source, mode="rgb")
+    lua = run_lua(FIXTURES / "source.lua", runtime, source=source, mode="rgb")
+    assert lua.returncode == 0, process_diagnostics(lua)
     before = observe_images(runtime, source)
     code, result = apply_filter(name, source, target, selection={"kind": "empty"})
     assert code == 0, result
@@ -101,58 +121,16 @@ def test_empty_selection_preserves_pixels_and_reports_noop(tmp_path, runtime, na
 
 
 @pytest.mark.parametrize("name", ["color-curve", "replace-color"])
-@pytest.mark.parametrize("target_kind", ["tilemap", "mixed", "all"])
-def test_any_resolved_tilemap_rejects_whole_operation(
-    tmp_path, runtime, name, target_kind
-):
+def test_background_color_channel_is_supported(tmp_path, runtime, name):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "tilemap.lua", source=source, mode="rgb")
-    original = source.read_bytes()
-    cels = (
-        {"kind": "all"}
-        if target_kind == "all"
-        else {
-            "kind": "selected",
-            "layers": [
-                {"layer_path": [n]}
-                for n in ([2] if target_kind == "tilemap" else [1, 2])
-            ],
-            "frame_numbers": [1],
-        }
+    lua = run_lua(
+        FIXTURES / "hue_source.lua",
+        runtime,
+        source=source,
+        mode="rgb",
+        background="true",
     )
-    code, result = apply_filter(name, source, target, cels_target=cels)
-    assert code != 0
-    assert result["code"] == "filter_unsupported_document"
-    assert not target.exists()
-    assert source.read_bytes() == original
-
-
-@pytest.mark.parametrize("name", ["color-curve", "replace-color"])
-def test_ordinary_pixels_preserve_unrelated_tilemap(tmp_path, runtime, name):
-    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "tilemap.lua", source=source, mode="rgb")
-    before = observe_images(runtime, source)
-    code, result = apply_filter(name, source, target)
-    assert code == 0, result
-    after = observe_images(runtime, target)
-    assert after["tiles"] == before["tiles"]
-    assert after["cels"][1] == before["cels"][1]
-
-
-@pytest.mark.parametrize("name", ["color-curve", "replace-color"])
-def test_background_alpha_refuses_and_background_color_is_supported(
-    tmp_path, runtime, name
-):
-    source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(
-        runtime, "hue_source.lua", source=source, mode="rgb", background="true"
-    )
-    original = source.read_bytes()
-    code, result = apply_filter(name, source, target, channel="alpha")
-    assert code != 0
-    assert result["code"] == "filter_unsupported_document"
-    assert not target.exists()
-    assert source.read_bytes() == original
+    assert lua.returncode == 0, process_diagnostics(lua)
     code, result = apply_filter(name, source, target, channel="red", value=42)
     assert code == 0, result
     assert all(
@@ -166,7 +144,10 @@ def test_cartesian_targets_include_empty_slots_without_inventing_cels(
     tmp_path, runtime, name
 ):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "target_scene.lua", source=source, mode="cartesian")
+    lua = run_lua(
+        FIXTURES / "target_scene.lua", runtime, source=source, mode="cartesian"
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
     code, result = apply_filter(
         name,
         source,
@@ -186,13 +167,8 @@ def test_cartesian_targets_include_empty_slots_without_inventing_cels(
 
 @pytest.mark.parametrize("name", ["color-curve", "replace-color"])
 def test_indexed_component_lookup_uses_explicit_palette_basis(tmp_path, runtime, name):
-    from tests.filter.test_e2e_filter_targets import (
-        _palette_observation,
-        _palette_source,
-    )
-
     source = tmp_path / "source.aseprite"
-    _palette_source(runtime, source, "indexed")
+    palette_source(runtime, source, "indexed")
     observed = {}
     for basis in (1, 2):
         target = tmp_path / f"basis-{basis}.aseprite"
@@ -214,7 +190,7 @@ def test_indexed_component_lookup_uses_explicit_palette_basis(tmp_path, runtime,
         assert code == 0, result
         assert result["palette_basis"]["frame_number"] == basis
         assert {cel["frame_number"] for cel in result["existing_target_cels"]} == {1}
-        observed[basis] = _palette_observation(runtime, target)
+        observed[basis] = palette_observation(runtime, target)
         assert observed[basis]["anchor_pixel"] == 1
     # Indexed Color Curve consumes the palette through native projection;
     # Replace Color resolves both input colors in the requested palette.
@@ -224,7 +200,8 @@ def test_indexed_component_lookup_uses_explicit_palette_basis(tmp_path, runtime,
 
 def test_replace_index_must_exist_in_requested_palette(tmp_path, runtime):
     source, target = tmp_path / "source.aseprite", tmp_path / "target.aseprite"
-    native_script(runtime, "source.lua", source=source, mode="indexed")
+    lua = run_lua(FIXTURES / "source.lua", runtime, source=source, mode="indexed")
+    assert lua.returncode == 0, process_diagnostics(lua)
     before = source.read_bytes()
     code, result = apply_filter(
         "replace-color", source, target, mode="indexed", channel="index", value=4

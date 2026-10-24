@@ -1,61 +1,30 @@
 """Frame operations against a real Aseprite Sprite."""
 
-import json
-import os
 import struct
-import subprocess
-import tempfile
 from pathlib import Path
 
 import pytest
-from PIL import Image
 
-from spa.adapters.aseprite.invocation import prepare_invocation
-from tests.support import process_diagnostics, spa
+from spa.contracts.ports import RuntimeObservation
+from tests.native_invocation import expect_success, render_frame, run, run_lua
+from tests.support import native_link_status, process_diagnostics
 
 pytestmark = pytest.mark.e2e
 
 
-def _run(*command: str, request: dict[str, object]) -> dict[str, object]:
-    payload = {**request, "aseprite": os.environ["SPA_TEST_ASEPRITE"]}
-    result = spa(*command, "--input-json", json.dumps(payload))
-    assert result.returncode == 0, result.stdout
-    return json.loads(result.stdout)
+FIXTURES = Path(__file__).parent / "fixtures"
 
 
-def _run_fixture(name: str, **params: str) -> None:
-    binary = Path(os.environ["SPA_TEST_ASEPRITE"])
-    resource = binary.parent.parent / "Resources" / "data" / "gui.xml"
-    fixture = Path(__file__).parent / "fixtures" / name
-    with tempfile.TemporaryDirectory(prefix="spa-frame-fixture-") as work:
-        prepared = prepare_invocation(binary, resource, Path(work))
-        arguments = [
-            item
-            for key, value in params.items()
-            for item in ("--script-param", f"{key}={value}")
-        ]
-        run = subprocess.run(
-            [
-                str(prepared.executable),
-                "--batch",
-                *arguments,
-                "--script",
-                str(fixture),
-            ],
-            text=True,
-            capture_output=True,
-            check=False,
-            env=prepared.environment,
-        )
-    assert run.returncode == 0, process_diagnostics(run)
+def _tagged_sprite(runtime: RuntimeObservation, target: Path) -> None:
+    """Write the tagged fixture Sprite to target."""
+    lua = run_lua(FIXTURES / "tagged.lua", runtime, out=target)
+    assert lua.returncode == 0, process_diagnostics(lua)
 
 
-def _tagged_sprite(target: Path) -> None:
-    _run_fixture("tagged.lua", out=str(target))
-
-
-def _timeline_sprite(target: Path) -> None:
-    _run_fixture("timeline.lua", out=str(target))
+def _timeline_sprite(runtime: RuntimeObservation, target: Path) -> None:
+    """Write the timeline fixture Sprite to target."""
+    lua = run_lua(FIXTURES / "timeline.lua", runtime, out=target)
+    assert lua.returncode == 0, process_diagnostics(lua)
 
 
 def _add_second_slice_key(sprite_file: Path, frame_number: int = 3) -> None:
@@ -82,29 +51,23 @@ def _add_second_slice_key(sprite_file: Path, frame_number: int = 3) -> None:
     raise AssertionError("fixture has no Slice chunk")
 
 
-def _native_link_status(target: Path, out: Path) -> bool:
-    _run_fixture("inspect_links.lua", source=str(target), out=str(out))
-    return json.loads(out.read_text(encoding="utf-8"))["linked"]
-
-
 def test_set_changes_only_one_frame_duration_and_reports_observed_facts(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "target.aseprite"
-    _timeline_sprite(source)
-    before = _run(
-        "sprite",
-        "get",
-        request={
+    _timeline_sprite(runtime, source)
+    before = expect_success(
+        "sprite get",
+        {
             "sprite_file": str(source),
             "inspection_scope": ["frames", "cels", "tags", "slices", "palettes"],
         },
     )
-    changed = _run(
-        "frame",
-        "set",
-        request={
+    changed = expect_success(
+        "frame set",
+        {
             "source_sprite_file": str(source),
             "target_sprite_file": str(target),
             "in_place": False,
@@ -125,7 +88,7 @@ def test_set_changes_only_one_frame_duration_and_reports_observed_facts(
     for section in ("cels", "tags", "slices", "palettes"):
         assert changed["before"][section] == changed["sprite"][section]
     assert (
-        _run("frame", "list", request={"sprite_file": str(target)})["frames"]
+        expect_success("frame list", {"sprite_file": str(target)})["frames"]
         == changed["sprite"]["frames"]
     )
 
@@ -157,6 +120,7 @@ def test_set_changes_only_one_frame_duration_and_reports_observed_facts(
     ],
 )
 def test_move_frame_preserves_timing_pixels_and_reports_native_references(
+    runtime: RuntimeObservation,
     tmp_path: Path,
     source_number: int,
     target_number: int,
@@ -166,19 +130,17 @@ def test_move_frame_preserves_timing_pixels_and_reports_native_references(
 ) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "target.aseprite"
-    _timeline_sprite(source)
-    before = _run(
-        "sprite",
-        "get",
-        request={
+    _timeline_sprite(runtime, source)
+    before = expect_success(
+        "sprite get",
+        {
             "sprite_file": str(source),
             "inspection_scope": ["frames", "cels", "tags", "slices", "palettes"],
         },
     )
-    moved = _run(
-        "frame",
-        "move",
-        request={
+    moved = expect_success(
+        "frame move",
+        {
             "source_sprite_file": str(source),
             "target_sprite_file": str(target),
             "in_place": False,
@@ -199,10 +161,9 @@ def test_move_frame_preserves_timing_pixels_and_reports_native_references(
         for old, new in expected_changes
     ]
     assert moved["sprite"]["tags"] != before["tags"]
-    reopened = _run(
-        "sprite",
-        "get",
-        request={
+    reopened = expect_success(
+        "sprite get",
+        {
             "sprite_file": str(target),
             "inspection_scope": ["frames", "cels", "tags", "slices", "palettes"],
         },
@@ -210,36 +171,20 @@ def test_move_frame_preserves_timing_pixels_and_reports_native_references(
     for section in ("frames", "cels", "tags", "slices", "palettes"):
         assert reopened[section] == moved["sprite"][section]
     for frame_number, color in enumerate(expected_colors, 1):
-        png = tmp_path / f"frame-{frame_number}.png"
-        _run(
-            "export",
-            "image",
-            request={
-                "source_sprite_file": str(target),
-                "destination": {"path": str(png), "if_exists": "fail"},
-                "frame_number": frame_number,
-                "export_image_area": {"kind": "canvas"},
-                "layer_composition": {"mode": "visible"},
-                "composition_color_mode": "preserve",
-                "color_mode": "preserve",
-                "color_profile": "preserve",
-                "transparency": "preserve",
-            },
-        )
-        with Image.open(png) as image:
-            assert image.convert("RGBA").getpixel((0, 0)) == (color, 0, 0, 255)
+        rendered = render_frame(target, frame_number)
+        assert rendered.getpixel((0, 0)) == (color, 0, 0, 255)
 
 
 def test_remove_frame_shifts_retained_content_and_rejects_final_frame(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "target.aseprite"
-    _timeline_sprite(source)
-    removed = _run(
-        "frame",
-        "remove",
-        request={
+    _timeline_sprite(runtime, source)
+    removed = expect_success(
+        "frame remove",
+        {
             "source_sprite_file": str(source),
             "target_sprite_file": str(target),
             "in_place": False,
@@ -261,10 +206,9 @@ def test_remove_frame_shifts_retained_content_and_rejects_final_frame(
     ]
     assert [cel["frame_number"] for cel in removed["sprite"]["cels"]] == [1, 2, 3]
     assert removed["before"]["tags"] != removed["sprite"]["tags"]
-    reopened = _run(
-        "sprite",
-        "get",
-        request={
+    reopened = expect_success(
+        "sprite get",
+        {
             "sprite_file": str(target),
             "inspection_scope": ["frames", "cels", "tags", "slices", "palettes"],
         },
@@ -274,10 +218,9 @@ def test_remove_frame_shifts_retained_content_and_rejects_final_frame(
 
     one = tmp_path / "single.aseprite"
     final_target = tmp_path / "unpublished.aseprite"
-    _run(
-        "sprite",
-        "create",
-        request={
+    expect_success(
+        "sprite create",
+        {
             "target_sprite_file": str(one),
             "width": 3,
             "height": 2,
@@ -286,48 +229,46 @@ def test_remove_frame_shifts_retained_content_and_rejects_final_frame(
             "overwrite": False,
         },
     )
-    failed = spa(
-        "frame",
-        "remove",
-        "--input-json",
-        json.dumps(
-            {
-                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-                "source_sprite_file": str(one),
-                "target_sprite_file": str(final_target),
-                "in_place": False,
-                "overwrite": False,
-                "frame_number": 1,
-            }
-        ),
+    failed = run(
+        "frame remove",
+        {
+            "source_sprite_file": str(one),
+            "target_sprite_file": str(final_target),
+            "in_place": False,
+            "overwrite": False,
+            "frame_number": 1,
+        },
     )
-    assert failed.returncode != 0
+    assert failed.returncode == 1, failed.envelope
+    assert failed.envelope["code"] == "kernel_execution_failed"
+    assert failed.envelope["details"]["reason"].endswith(
+        ": cannot remove the final Frame"
+    )
     assert not final_target.exists()
-    assert _run("frame", "list", request={"sprite_file": str(one)})["frames"] == [
+    assert expect_success("frame list", {"sprite_file": str(one)})["frames"] == [
         {"frame_number": 1, "duration_ms": 100}
     ]
 
 
-def test_move_and_remove_report_reopened_slice_keys(tmp_path: Path) -> None:
+def test_move_and_remove_report_reopened_slice_keys(
+    runtime: RuntimeObservation, tmp_path: Path
+) -> None:
     source = tmp_path / "source.aseprite"
     moved_file = tmp_path / "moved.aseprite"
     removed_file = tmp_path / "removed.aseprite"
-    _timeline_sprite(source)
+    _timeline_sprite(runtime, source)
     _add_second_slice_key(source)
-    before = _run(
-        "sprite",
-        "get",
-        request={"sprite_file": str(source), "inspection_scope": ["slices"]},
+    before = expect_success(
+        "sprite get", {"sprite_file": str(source), "inspection_scope": ["slices"]}
     )
     assert [key["frame_number"] for key in before["slices"][0]["keys"]] == [1, 3]
     for operation, target_file, extra in (
         ("move", moved_file, {"source_frame_number": 4, "target_frame_number": 1}),
         ("remove", removed_file, {"frame_number": 3}),
     ):
-        edited = _run(
-            "frame",
-            operation,
-            request={
+        edited = expect_success(
+            f"frame {operation}",
+            {
                 "source_sprite_file": str(source),
                 "target_sprite_file": str(target_file),
                 "in_place": False,
@@ -335,25 +276,25 @@ def test_move_and_remove_report_reopened_slice_keys(tmp_path: Path) -> None:
                 **extra,
             },
         )
-        reopened = _run(
-            "sprite",
-            "get",
-            request={"sprite_file": str(target_file), "inspection_scope": ["slices"]},
+        reopened = expect_success(
+            "sprite get",
+            {"sprite_file": str(target_file), "inspection_scope": ["slices"]},
         )
         assert edited["before"]["slices"] == before["slices"]
         assert edited["sprite"]["slices"] == reopened["slices"]
         assert edited["sprite"]["palettes"] is not None
 
 
-def test_remove_reports_slice_key_dropped_by_native_save(tmp_path: Path) -> None:
+def test_remove_reports_slice_key_dropped_by_native_save(
+    runtime: RuntimeObservation, tmp_path: Path
+) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "target.aseprite"
-    _timeline_sprite(source)
+    _timeline_sprite(runtime, source)
     _add_second_slice_key(source, frame_number=4)
-    removed = _run(
-        "frame",
-        "remove",
-        request={
+    removed = expect_success(
+        "frame remove",
+        {
             "source_sprite_file": str(source),
             "target_sprite_file": str(target),
             "in_place": False,
@@ -370,24 +311,22 @@ def test_remove_reports_slice_key_dropped_by_native_save(tmp_path: Path) -> None
     ]
     assert (
         removed["sprite"]["slices"]
-        == _run(
-            "sprite",
-            "get",
-            request={"sprite_file": str(target), "inspection_scope": ["slices"]},
+        == expect_success(
+            "sprite get", {"sprite_file": str(target), "inspection_scope": ["slices"]}
         )["slices"]
     )
 
 
 def test_move_same_frame_preserves_tag_and_does_not_report_renumbering(
+    runtime: RuntimeObservation,
     tmp_path: Path,
 ) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "target.aseprite"
-    _timeline_sprite(source)
-    moved = _run(
-        "frame",
-        "move",
-        request={
+    _timeline_sprite(runtime, source)
+    moved = expect_success(
+        "frame move",
+        {
             "source_sprite_file": str(source),
             "target_sprite_file": str(target),
             "in_place": False,
@@ -401,14 +340,15 @@ def test_move_same_frame_preserves_tag_and_does_not_report_renumbering(
     assert moved["before"]["slices"] == moved["sprite"]["slices"]
 
 
-def test_move_linked_cels_preserves_native_link(tmp_path: Path) -> None:
+def test_move_linked_cels_preserves_native_link(
+    runtime: RuntimeObservation, tmp_path: Path
+) -> None:
     source = tmp_path / "source.aseprite"
     linked = tmp_path / "linked.aseprite"
     target = tmp_path / "moved.aseprite"
-    _run(
-        "sprite",
-        "create",
-        request={
+    expect_success(
+        "sprite create",
+        {
             "target_sprite_file": str(source),
             "width": 3,
             "height": 2,
@@ -417,10 +357,9 @@ def test_move_linked_cels_preserves_native_link(tmp_path: Path) -> None:
             "overwrite": False,
         },
     )
-    _run(
-        "frame",
-        "duplicate",
-        request={
+    expect_success(
+        "frame duplicate",
+        {
             "source_sprite_file": str(source),
             "target_sprite_file": str(linked),
             "in_place": False,
@@ -429,10 +368,9 @@ def test_move_linked_cels_preserves_native_link(tmp_path: Path) -> None:
             "cel_mode": "link",
         },
     )
-    moved = _run(
-        "frame",
-        "move",
-        request={
+    moved = expect_success(
+        "frame move",
+        {
             "source_sprite_file": str(linked),
             "target_sprite_file": str(target),
             "in_place": False,
@@ -442,17 +380,19 @@ def test_move_linked_cels_preserves_native_link(tmp_path: Path) -> None:
         },
     )
     assert moved["cel_content_verified"] is True
-    assert _native_link_status(target, tmp_path / "link-status.json") is True
+    assert native_link_status(runtime, target, tmp_path / "link-status.json") is True
 
 
-def test_move_background_cel_preserves_opaque_content(tmp_path: Path) -> None:
+def test_move_background_cel_preserves_opaque_content(
+    runtime: RuntimeObservation, tmp_path: Path
+) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "target.aseprite"
-    _run_fixture("background_timeline.lua", out=str(source))
-    moved = _run(
-        "frame",
-        "move",
-        request={
+    lua = run_lua(FIXTURES / "background_timeline.lua", runtime, out=source)
+    assert lua.returncode == 0, process_diagnostics(lua)
+    moved = expect_success(
+        "frame move",
+        {
             "source_sprite_file": str(source),
             "target_sprite_file": str(target),
             "in_place": False,
@@ -464,62 +404,63 @@ def test_move_background_cel_preserves_opaque_content(tmp_path: Path) -> None:
     assert moved["cel_content_verified"] is True
     assert [cel["frame_number"] for cel in moved["sprite"]["cels"]] == [1, 2, 3]
     for frame_number, color in enumerate((90, 30, 60), 1):
-        png = tmp_path / f"background-{frame_number}.png"
-        _run(
-            "export",
-            "image",
-            request={
-                "source_sprite_file": str(target),
-                "destination": {"path": str(png), "if_exists": "fail"},
-                "frame_number": frame_number,
-                "export_image_area": {"kind": "canvas"},
-                "layer_composition": {"mode": "visible"},
-                "composition_color_mode": "preserve",
-                "color_mode": "preserve",
-                "color_profile": "preserve",
-                "transparency": "preserve",
-            },
-        )
-        with Image.open(png) as image:
-            assert image.convert("RGBA").getpixel((0, 0)) == (color, 0, 0, 255)
+        rendered = render_frame(target, frame_number)
+        assert rendered.getpixel((0, 0)) == (color, 0, 0, 255)
 
 
 @pytest.mark.parametrize(
-    ("operation", "fields"),
+    ("operation", "fields", "reason"),
     [
-        ("set", {"frame_number": 5, "duration_ms": 100}),
-        ("set", {"frame_number": 1, "duration_ms": 0}),
-        ("move", {"source_frame_number": 5, "target_frame_number": 1}),
-        ("move", {"source_frame_number": 1, "target_frame_number": 5}),
-        ("remove", {"frame_number": 5}),
+        (
+            "set",
+            {"frame_number": 5, "duration_ms": 100},
+            ": Frame Number is outside the Sprite timeline",
+        ),
+        (
+            "move",
+            {"source_frame_number": 5, "target_frame_number": 1},
+            ": Frame Number is outside the Sprite timeline",
+        ),
+        (
+            "move",
+            {"source_frame_number": 1, "target_frame_number": 5},
+            ": target Frame Number is outside the Sprite timeline",
+        ),
+        (
+            "remove",
+            {"frame_number": 5},
+            ": Frame Number is outside the Sprite timeline",
+        ),
     ],
+    ids=["set", "move-source", "move-target", "remove"],
 )
 def test_invalid_frame_edit_does_not_publish_target(
-    tmp_path: Path, operation: str, fields: dict[str, int]
+    runtime: RuntimeObservation,
+    tmp_path: Path,
+    operation: str,
+    fields: dict[str, int],
+    reason: str,
 ) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "unpublished.aseprite"
-    _timeline_sprite(source)
-    invocation = spa(
-        "frame",
-        operation,
-        "--input-json",
-        json.dumps(
-            {
-                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-                "source_sprite_file": str(source),
-                "target_sprite_file": str(target),
-                "in_place": False,
-                "overwrite": False,
-                **fields,
-            }
-        ),
+    _timeline_sprite(runtime, source)
+    invocation = run(
+        f"frame {operation}",
+        {
+            "source_sprite_file": str(source),
+            "target_sprite_file": str(target),
+            "in_place": False,
+            "overwrite": False,
+            **fields,
+        },
     )
-    assert invocation.returncode != 0
+    assert invocation.returncode == 1, invocation.envelope
+    assert invocation.envelope["code"] == "kernel_execution_failed"
+    assert invocation.envelope["details"]["reason"].endswith(reason)
     assert not target.exists()
     assert [
         frame["duration_ms"]
-        for frame in _run("frame", "list", request={"sprite_file": str(source)})[
+        for frame in expect_success("frame list", {"sprite_file": str(source)})[
             "frames"
         ]
     ] == [120, 300, 400, 500]
@@ -530,10 +471,9 @@ def test_add_empty_frame_persists_one_based_position_and_duration(
 ) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "target.aseprite"
-    _run(
-        "sprite",
-        "create",
-        request={
+    expect_success(
+        "sprite create",
+        {
             "target_sprite_file": str(source),
             "width": 3,
             "height": 2,
@@ -542,10 +482,9 @@ def test_add_empty_frame_persists_one_based_position_and_duration(
             "overwrite": False,
         },
     )
-    added = _run(
-        "frame",
-        "add",
-        request={
+    added = expect_success(
+        "frame add",
+        {
             "source_sprite_file": str(source),
             "target_sprite_file": str(target),
             "in_place": False,
@@ -564,22 +503,21 @@ def test_add_empty_frame_persists_one_based_position_and_duration(
         {"frame_number": 2, "duration_ms": 100},
     ]
     assert [cel["frame_number"] for cel in added["sprite"]["cels"]] == [2]
-    listed = _run("frame", "list", request={"sprite_file": str(target)})
+    listed = expect_success("frame list", {"sprite_file": str(target)})
     assert listed["frames"] == added["sprite"]["frames"]
-    got = _run("frame", "get", request={"sprite_file": str(target), "frame_number": 1})
+    got = expect_success("frame get", {"sprite_file": str(target), "frame_number": 1})
     assert got["frame"] == added["inserted_frame"]
 
 
 @pytest.mark.parametrize("cel_mode", ["copy", "link"])
 def test_duplicate_frame_uses_declared_cel_mode_and_persists(
-    tmp_path: Path, cel_mode: str
+    runtime: RuntimeObservation, tmp_path: Path, cel_mode: str
 ) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / f"{cel_mode}.aseprite"
-    _run(
-        "sprite",
-        "create",
-        request={
+    expect_success(
+        "sprite create",
+        {
             "target_sprite_file": str(source),
             "width": 3,
             "height": 2,
@@ -588,10 +526,9 @@ def test_duplicate_frame_uses_declared_cel_mode_and_persists(
             "overwrite": False,
         },
     )
-    duplicated = _run(
-        "frame",
-        "duplicate",
-        request={
+    duplicated = expect_success(
+        "frame duplicate",
+        {
             "source_sprite_file": str(source),
             "target_sprite_file": str(target),
             "in_place": False,
@@ -610,8 +547,10 @@ def test_duplicate_frame_uses_declared_cel_mode_and_persists(
         {"layer_path": [1], "source_frame_number": 1, "kind": cel_mode}
     ]
     assert duplicated["persisted_reopen_verified"] is True
-    assert _native_link_status(target, tmp_path / "links.json") is (cel_mode == "link")
-    assert _run("frame", "list", request={"sprite_file": str(source)})["frames"] == [
+    assert native_link_status(runtime, target, tmp_path / "links.json") is (
+        cel_mode == "link"
+    )
+    assert expect_success("frame list", {"sprite_file": str(source)})["frames"] == [
         {"frame_number": 1, "duration_ms": 100}
     ]
 
@@ -619,12 +558,10 @@ def test_duplicate_frame_uses_declared_cel_mode_and_persists(
 def test_add_background_frame_uses_explicit_color(tmp_path: Path) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "target.aseprite"
-    png = tmp_path / "frame.png"
     color = {"kind": "rgba", "red": 17, "green": 34, "blue": 51, "alpha": 255}
-    _run(
-        "sprite",
-        "create",
-        request={
+    expect_success(
+        "sprite create",
+        {
             "target_sprite_file": str(source),
             "width": 3,
             "height": 2,
@@ -638,10 +575,9 @@ def test_add_background_frame_uses_explicit_color(tmp_path: Path) -> None:
             "overwrite": False,
         },
     )
-    added = _run(
-        "frame",
-        "add",
-        request={
+    added = expect_success(
+        "frame add",
+        {
             "source_sprite_file": str(source),
             "target_sprite_file": str(target),
             "in_place": False,
@@ -654,28 +590,11 @@ def test_add_background_frame_uses_explicit_color(tmp_path: Path) -> None:
     assert added["inserted_cel_count"] == 1
     assert added["background_fill"] == color
     assert added["cel_relationships"] == []
-    _run(
-        "export",
-        "image",
-        request={
-            "source_sprite_file": str(target),
-            "destination": {"path": str(png), "if_exists": "fail"},
-            "frame_number": 1,
-            "export_image_area": {"kind": "canvas"},
-            "layer_composition": {"mode": "visible"},
-            "composition_color_mode": "preserve",
-            "color_mode": "preserve",
-            "color_profile": "preserve",
-            "transparency": "preserve",
-        },
-    )
-    with Image.open(png) as image:
-        assert image.convert("RGBA").getpixel((0, 0)) == (17, 34, 51, 255)
+    assert render_frame(target, 1).getpixel((0, 0)) == (17, 34, 51, 255)
     plan_target = tmp_path / "plan.aseprite"
-    plan = _run(
-        "plan",
-        "run",
-        request={
+    plan = expect_success(
+        "plan run",
+        {
             "plan": {
                 "source_sprite_file": str(source),
                 "target_sprite_file": str(plan_target),
@@ -702,14 +621,15 @@ def test_add_background_frame_uses_explicit_color(tmp_path: Path) -> None:
     assert plan["final_sprite"]["metadata"]["cel_count"] == 2
 
 
-def test_add_reports_native_tag_range_adjustment(tmp_path: Path) -> None:
+def test_add_reports_native_tag_range_adjustment(
+    runtime: RuntimeObservation, tmp_path: Path
+) -> None:
     source = tmp_path / "tagged.aseprite"
     target = tmp_path / "target.aseprite"
-    _tagged_sprite(source)
-    added = _run(
-        "frame",
-        "add",
-        request={
+    _tagged_sprite(runtime, source)
+    added = expect_success(
+        "frame add",
+        {
             "source_sprite_file": str(source),
             "target_sprite_file": str(target),
             "in_place": False,
@@ -732,12 +652,64 @@ def test_add_reports_native_tag_range_adjustment(tmp_path: Path) -> None:
     assert added["sprite"]["tags"][0]["to_frame"] == 3
 
 
+def _step_evidence(result: dict[str, object]) -> dict[str, object]:
+    """Return the Frame mutation evidence that a Step and a standalone run share."""
+    standalone_only = {"status", "operation", "target_commit"}
+    # Both results have these fields. A Step reports False and None because the
+    # Plan saves and reopens the Target only after its last Step.
+    completion = {"persisted_reopen_verified", "sprite"}
+    return {
+        key: value
+        for key, value in result.items()
+        if key not in standalone_only | completion
+    }
+
+
 def test_plan_frame_steps_match_standalone_semantics(tmp_path: Path) -> None:
+    created = tmp_path / "created.aseprite"
+    added = tmp_path / "added.aseprite"
+    duplicated = tmp_path / "duplicated.aseprite"
+    expect_success(
+        "sprite create",
+        {
+            "target_sprite_file": str(created),
+            "width": 3,
+            "height": 2,
+            "color_mode": "rgb",
+            "initial_layer": {"kind": "transparent"},
+            "overwrite": False,
+        },
+    )
+    files = {"in_place": False, "overwrite": False}
+    add = expect_success(
+        "frame add",
+        {
+            "source_sprite_file": str(created),
+            "target_sprite_file": str(added),
+            **files,
+            "frame_number": 2,
+            "duration_ms": 340,
+        },
+    )
+    listed = expect_success("frame list", {"sprite_file": str(added)})
+    duplicate = expect_success(
+        "frame duplicate",
+        {
+            "source_sprite_file": str(added),
+            "target_sprite_file": str(duplicated),
+            **files,
+            "source_frame_number": 1,
+            "cel_mode": "link",
+        },
+    )
+    got = expect_success(
+        "frame get", {"sprite_file": str(duplicated), "frame_number": 2}
+    )
+
     target = tmp_path / "plan.aseprite"
-    result = _run(
-        "plan",
-        "run",
-        request={
+    result = expect_success(
+        "plan run",
+        {
             "plan": {
                 "target_sprite_file": str(target),
                 "steps": [
@@ -765,21 +737,13 @@ def test_plan_frame_steps_match_standalone_semantics(tmp_path: Path) -> None:
             }
         },
     )
+    steps = [step["result"] for step in result["steps"]]
     assert result["persisted_reopen_verified"] is True
-    assert result["steps"][1]["result"]["inserted_frame"] == {
-        "frame_number": 2,
-        "duration_ms": 340,
-    }
-    assert len(result["steps"][2]["result"]["frames"]) == 2
-    assert result["steps"][3]["result"]["inserted_frame"] == {
-        "frame_number": 2,
-        "duration_ms": 100,
-    }
-    assert result["steps"][3]["result"]["cel_relationships"] == [
-        {"layer_path": [1], "source_frame_number": 1, "kind": "link"}
-    ]
-    assert result["steps"][4]["result"]["frame"]["duration_ms"] == 100
-    assert _run("frame", "list", request={"sprite_file": str(target)})["frames"] == [
+    assert _step_evidence(steps[1]) == _step_evidence(add)
+    assert steps[2]["frames"] == listed["frames"]
+    assert _step_evidence(steps[3]) == _step_evidence(duplicate)
+    assert steps[4]["frame"] == got["frame"]
+    assert expect_success("frame list", {"sprite_file": str(target)})["frames"] == [
         {"frame_number": 1, "duration_ms": 100},
         {"frame_number": 2, "duration_ms": 100},
         {"frame_number": 3, "duration_ms": 340},
@@ -791,10 +755,9 @@ def test_missing_frame_get_has_standalone_and_plan_failure_parity(
 ) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "unpublished.aseprite"
-    _run(
-        "sprite",
-        "create",
-        request={
+    expect_success(
+        "sprite create",
+        {
             "target_sprite_file": str(source),
             "width": 3,
             "height": 2,
@@ -803,43 +766,27 @@ def test_missing_frame_get_has_standalone_and_plan_failure_parity(
             "overwrite": False,
         },
     )
-    standalone = spa(
-        "frame",
-        "get",
-        "--input-json",
-        json.dumps(
-            {
-                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-                "sprite_file": str(source),
-                "frame_number": 2,
+    standalone = run("frame get", {"sprite_file": str(source), "frame_number": 2})
+    plan = run(
+        "plan run",
+        {
+            "plan": {
+                "source_sprite_file": str(source),
+                "target_sprite_file": str(target),
+                "steps": [
+                    {"operation": "frame get", "input": {"frame_number": 2}},
+                    {
+                        "operation": "frame add",
+                        "input": {"frame_number": 2, "duration_ms": 100},
+                    },
+                ],
             }
-        ),
-    )
-    plan = spa(
-        "plan",
-        "run",
-        "--input-json",
-        json.dumps(
-            {
-                "aseprite": os.environ["SPA_TEST_ASEPRITE"],
-                "plan": {
-                    "source_sprite_file": str(source),
-                    "target_sprite_file": str(target),
-                    "steps": [
-                        {"operation": "frame get", "input": {"frame_number": 2}},
-                        {
-                            "operation": "frame add",
-                            "input": {"frame_number": 2, "duration_ms": 100},
-                        },
-                    ],
-                },
-            }
-        ),
+        },
     )
     assert standalone.returncode != 0
     assert plan.returncode != 0
-    standalone_failure = json.loads(standalone.stdout)
-    plan_failure = json.loads(plan.stdout)
+    standalone_failure = standalone.envelope
+    plan_failure = plan.envelope
     assert standalone_failure["code"] == plan_failure["code"] == "invalid_request"
     assert standalone_failure["details"]["errors"][0]["code"] == "frame_not_found"
     assert plan_failure["details"]["errors"] == [
@@ -852,52 +799,42 @@ def test_missing_frame_get_has_standalone_and_plan_failure_parity(
     assert not target.exists()
 
 
-@pytest.mark.parametrize(
-    ("field", "value"),
-    [
-        ("frame_number", 0),
-        ("frame_number", 4),
-        ("duration_ms", 0),
-        ("duration_ms", 65536),
-    ],
-)
 def test_invalid_add_never_publishes_target(
-    tmp_path: Path, field: str, value: int
+    runtime: RuntimeObservation, tmp_path: Path
 ) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "target.aseprite"
-    _tagged_sprite(source)
+    _tagged_sprite(runtime, source)
     request = {
         "source_sprite_file": str(source),
         "target_sprite_file": str(target),
         "in_place": False,
         "overwrite": False,
-        "frame_number": 2,
+        "frame_number": 4,
         "duration_ms": 100,
     }
-    request[field] = value
-    result = spa(
-        "frame",
-        "add",
-        "--input-json",
-        json.dumps({**request, "aseprite": os.environ["SPA_TEST_ASEPRITE"]}),
+    result = run("frame add", request)
+    assert result.returncode == 1, result.envelope
+    assert result.envelope["code"] == "kernel_execution_failed"
+    assert result.envelope["details"]["reason"].endswith(
+        ": Frame insertion position is out of range"
     )
-    assert result.returncode != 0
     assert not target.exists()
-    assert _run("frame", "list", request={"sprite_file": str(source)})["frames"] == [
+    assert expect_success("frame list", {"sprite_file": str(source)})["frames"] == [
         {"frame_number": 1, "duration_ms": 120},
         {"frame_number": 2, "duration_ms": 340},
     ]
 
 
-def test_duplicate_preserves_absent_cels(tmp_path: Path) -> None:
+def test_duplicate_preserves_absent_cels(
+    runtime: RuntimeObservation, tmp_path: Path
+) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "target.aseprite"
-    _tagged_sprite(source)
-    duplicated = _run(
-        "frame",
-        "duplicate",
-        request={
+    _tagged_sprite(runtime, source)
+    duplicated = expect_success(
+        "frame duplicate",
+        {
             "source_sprite_file": str(source),
             "target_sprite_file": str(target),
             "in_place": False,
@@ -914,14 +851,13 @@ def test_duplicate_preserves_absent_cels(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("cel_mode", ["copy", "link"])
 def test_duplicate_background_cel_preserves_declared_mode(
-    tmp_path: Path, cel_mode: str
+    runtime: RuntimeObservation, tmp_path: Path, cel_mode: str
 ) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "target.aseprite"
-    _run(
-        "sprite",
-        "create",
-        request={
+    expect_success(
+        "sprite create",
+        {
             "target_sprite_file": str(source),
             "width": 3,
             "height": 2,
@@ -933,10 +869,9 @@ def test_duplicate_background_cel_preserves_declared_mode(
             "overwrite": False,
         },
     )
-    duplicated = _run(
-        "frame",
-        "duplicate",
-        request={
+    duplicated = expect_success(
+        "frame duplicate",
+        {
             "source_sprite_file": str(source),
             "target_sprite_file": str(target),
             "in_place": False,
@@ -947,7 +882,9 @@ def test_duplicate_background_cel_preserves_declared_mode(
     )
     assert duplicated["source_cel_count"] == 1
     assert duplicated["inserted_cel_count"] == 1
-    assert _native_link_status(target, tmp_path / "links.json") is (cel_mode == "link")
+    assert native_link_status(runtime, target, tmp_path / "links.json") is (
+        cel_mode == "link"
+    )
 
 
 @pytest.mark.parametrize(
@@ -958,15 +895,15 @@ def test_duplicate_background_cel_preserves_declared_mode(
     ],
 )
 def test_add_background_frame_accepts_color_compatible_with_sprite_mode(
-    tmp_path: Path, mode: str, color: dict[str, object]
+    runtime: RuntimeObservation, tmp_path: Path, mode: str, color: dict[str, object]
 ) -> None:
     source = tmp_path / "source.aseprite"
     target = tmp_path / "target.aseprite"
-    _run_fixture("background_modes.lua", mode=mode, out=str(source))
-    added = _run(
-        "frame",
-        "add",
-        request={
+    lua = run_lua(FIXTURES / "background_modes.lua", runtime, mode=mode, out=source)
+    assert lua.returncode == 0, process_diagnostics(lua)
+    added = expect_success(
+        "frame add",
+        {
             "source_sprite_file": str(source),
             "target_sprite_file": str(target),
             "in_place": False,
@@ -983,13 +920,15 @@ def test_add_background_frame_accepts_color_compatible_with_sprite_mode(
 
 @pytest.mark.parametrize("index", [0, 200])
 def test_indexed_background_rejects_transparent_or_absent_palette_color(
-    tmp_path: Path, index: int
+    runtime: RuntimeObservation, tmp_path: Path, index: int
 ) -> None:
     source = tmp_path / "indexed.aseprite"
     target = tmp_path / "target.aseprite"
-    _run_fixture("background_modes.lua", mode="indexed", out=str(source))
+    lua = run_lua(
+        FIXTURES / "background_modes.lua", runtime, mode="indexed", out=source
+    )
+    assert lua.returncode == 0, process_diagnostics(lua)
     request = {
-        "aseprite": os.environ["SPA_TEST_ASEPRITE"],
         "source_sprite_file": str(source),
         "target_sprite_file": str(target),
         "in_place": False,
@@ -998,22 +937,24 @@ def test_indexed_background_rejects_transparent_or_absent_palette_color(
         "duration_ms": 100,
         "background_color": {"kind": "palette-index", "index": index},
     }
-    result = spa("frame", "add", "--input-json", json.dumps(request))
+    result = run("frame add", request)
     assert result.returncode != 0
-    failure = json.loads(result.stdout)
+    failure = result.envelope
     assert failure["code"] == "kernel_execution_failed"
     assert "Background Palette" in failure["details"]["reason"]
     assert not target.exists()
 
 
-def test_copy_mode_overrides_continuous_layer_policy(tmp_path: Path) -> None:
+def test_copy_mode_overrides_continuous_layer_policy(
+    runtime: RuntimeObservation, tmp_path: Path
+) -> None:
     source = tmp_path / "continuous.aseprite"
     target = tmp_path / "copy.aseprite"
-    _run_fixture("continuous.lua", out=str(source))
-    duplicated = _run(
-        "frame",
-        "duplicate",
-        request={
+    lua = run_lua(FIXTURES / "continuous.lua", runtime, out=source)
+    assert lua.returncode == 0, process_diagnostics(lua)
+    duplicated = expect_success(
+        "frame duplicate",
+        {
             "source_sprite_file": str(source),
             "target_sprite_file": str(target),
             "in_place": False,
@@ -1023,16 +964,17 @@ def test_copy_mode_overrides_continuous_layer_policy(tmp_path: Path) -> None:
         },
     )
     assert duplicated["sprite"]["layers"][0]["is_continuous"] is True
-    assert _native_link_status(target, tmp_path / "links.json") is False
+    assert native_link_status(runtime, target, tmp_path / "links.json") is False
 
 
-def test_in_place_add_commits_to_the_source_entry(tmp_path: Path) -> None:
+def test_in_place_add_commits_to_the_source_entry(
+    runtime: RuntimeObservation, tmp_path: Path
+) -> None:
     source = tmp_path / "source.aseprite"
-    _tagged_sprite(source)
-    added = _run(
-        "frame",
-        "add",
-        request={
+    _tagged_sprite(runtime, source)
+    added = expect_success(
+        "frame add",
+        {
             "source_sprite_file": str(source),
             "target_sprite_file": str(source),
             "in_place": True,
@@ -1042,7 +984,7 @@ def test_in_place_add_commits_to_the_source_entry(tmp_path: Path) -> None:
         },
     )
     assert added["target_commit"]["target_sprite_file"] == str(source)
-    assert _run("frame", "list", request={"sprite_file": str(source)})["frames"] == [
+    assert expect_success("frame list", {"sprite_file": str(source)})["frames"] == [
         {"frame_number": 1, "duration_ms": 120},
         {"frame_number": 2, "duration_ms": 340},
         {"frame_number": 3, "duration_ms": 200},
@@ -1051,15 +993,15 @@ def test_in_place_add_commits_to_the_source_entry(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("cel_mode", ["copy", "link"])
 def test_duplicate_uses_one_inserted_frame_for_multiple_source_cels(
-    tmp_path: Path, cel_mode: str
+    runtime: RuntimeObservation, tmp_path: Path, cel_mode: str
 ) -> None:
     source = tmp_path / "multi.aseprite"
     target = tmp_path / "target.aseprite"
-    _run_fixture("multi_cel.lua", out=str(source))
-    duplicated = _run(
-        "frame",
-        "duplicate",
-        request={
+    lua = run_lua(FIXTURES / "multi_cel.lua", runtime, out=source)
+    assert lua.returncode == 0, process_diagnostics(lua)
+    duplicated = expect_success(
+        "frame duplicate",
+        {
             "source_sprite_file": str(source),
             "target_sprite_file": str(target),
             "in_place": False,
@@ -1078,21 +1020,21 @@ def test_duplicate_uses_one_inserted_frame_for_multiple_source_cels(
     assert {item["kind"] for item in duplicated["cel_relationships"]} == {cel_mode}
 
 
-def test_frame_mutations_preserve_verified_layer_uuids(tmp_path: Path) -> None:
+def test_frame_mutations_preserve_verified_layer_uuids(
+    runtime: RuntimeObservation, tmp_path: Path
+) -> None:
     source = tmp_path / "uuid-source.aseprite"
     standalone_target = tmp_path / "standalone.aseprite"
     plan_target = tmp_path / "plan.aseprite"
-    _run_fixture("multi_cel.lua", out=str(source), uuids="true")
-    source_layers = _run(
-        "sprite",
-        "get",
-        request={"sprite_file": str(source), "inspection_scope": ["layers"]},
+    lua = run_lua(FIXTURES / "multi_cel.lua", runtime, out=source, uuids=True)
+    assert lua.returncode == 0, process_diagnostics(lua)
+    source_layers = expect_success(
+        "sprite get", {"sprite_file": str(source), "inspection_scope": ["layers"]}
     )["layers"]
     assert all(layer["layer_uuid"] is not None for layer in source_layers)
-    standalone = _run(
-        "frame",
-        "duplicate",
-        request={
+    standalone = expect_success(
+        "frame duplicate",
+        {
             "source_sprite_file": str(source),
             "target_sprite_file": str(standalone_target),
             "in_place": False,
@@ -1102,10 +1044,9 @@ def test_frame_mutations_preserve_verified_layer_uuids(tmp_path: Path) -> None:
         },
     )
     assert standalone["sprite"]["layers"] == source_layers
-    plan = _run(
-        "plan",
-        "run",
-        request={
+    plan = expect_success(
+        "plan run",
+        {
             "plan": {
                 "source_sprite_file": str(source),
                 "target_sprite_file": str(plan_target),
