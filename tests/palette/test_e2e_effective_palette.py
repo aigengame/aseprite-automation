@@ -1,4 +1,8 @@
-"""The shared Palette resolver observes native changes through its consumer Interface."""
+"""The shared Palette resolver observes native changes through its consumer Interface.
+
+These tests check the shared resolver only. The E2E tests of each Operation keep
+its caller-specific validation, resource loading, and publication.
+"""
 
 import json
 from importlib.resources import files
