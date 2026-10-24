@@ -696,3 +696,128 @@ persisted-data check. Cancel/no-op and repeated Apply are detected by the nonzer
 fixtures. Record the actual GUI Aseprite version and host; do not report these local
 results as Linux or automated CI coverage. Restore the prior Timeline visibility
 and Tileset mode after completing the local session if they were changed.
+
+## Test quality checks
+
+These checks get the evidence that the [test standards](test-standards.md) ask for.
+The commands are for a POSIX shell on macOS or Linux. Run them in the project
+environment ([routine commands](#routine-verification-commands)).
+
+### Mutant check
+
+A mutant is the code under test, made wrong on purpose. A test that passes against it
+cannot find that defect.
+
+1. Run `git status --short -- src`. If it shows a change, save a copy of the file first.
+2. Find the line in `src/` that the claim of the test depends on. For a Kernel rule, the
+   line can be in a Lua file under `src/spa/kernel/`.
+3. Change only that line to the wrong behavior that the test must find. Keep the path of
+   the result, and change only the fact that the test claims.
+4. Remove the bytecode cache:
+
+   ```sh
+   find src tests -name __pycache__ -prune -exec rm -rf {} +
+   ```
+
+   CPython uses a cached `.pyc` file when the source has the same size and the same
+   modification time in whole seconds. A mutant of the same length that you make in the
+   same second then does not run.
+5. Make sure that `SPA_TEST_INSTALLED_CLI` is not set. A wheel-installed CLI does not
+   run the code of your checkout.
+6. Run the test. It must fail. When the test replaces an old test, run the old test
+   against the same mutant too.
+7. Read the `E` line of the failure. It must be the assertion of the claim. These do not
+   show that the test finds the defect:
+   - an import error or a crash;
+   - a `runtime_incompatible` failure from the runtime probe. A mutant in a Lua module
+     that the probe loads stops the probe. Change the handler entry file instead;
+   - a failure that the old test and the new test both have. Such a mutant does not
+     show a difference between them. Choose a mutant that keeps the failure path.
+8. When the mutant does not change the result for the input of the test, it is an
+   equivalent mutant. Choose another mutant.
+9. Restore the file from Git or from your copy, and remove the cache again. Make sure
+   that `git status --short -- src` shows what it showed in step 1.
+10. Record each mutant, the result of the old test and the result of the new test in the
+    pull request description. When no mutant can isolate a check, write that under "Not
+    verified".
+
+### Stand-in Aseprite run
+
+The stand-in is an executable that forwards the runtime probe to the real Aseprite. It
+records the test that makes a Kernel call, and it fails that call with exit status 1. It
+runs every other call, for example a Lua fixture, with the real Aseprite. An e2e test
+that passes on the stand-in with no Kernel call did not need the Kernel.
+
+The stand-in tells the calls apart by their arguments. The probe runs the packaged
+`runtime/probe.lua`. The probe and each Kernel call pass a script parameter `request=`,
+so the stand-in checks for the probe first. A Lua fixture can pass `response=`, so that
+argument does not identify a Kernel call.
+
+1. Set `SPA_TEST_ASEPRITE` to your real Aseprite executable. Make the stand-in:
+
+   ```sh
+   standin_dir=$(mktemp -d)
+   real_aseprite=$(realpath "$SPA_TEST_ASEPRITE")
+   for resource_dir in "${real_aseprite%/*}/../Resources/data" \
+     "${real_aseprite%/*}/../data" "${real_aseprite%/*}/data"; do
+     if [ -f "$resource_dir/gui.xml" ]; then
+       ln -s "$(realpath "$resource_dir")" "$standin_dir/data"
+       break
+     fi
+   done
+   cat > "$standin_dir/aseprite" <<EOS
+   #!/bin/sh
+   case " \$* " in
+     */runtime/probe.lua*) exec "$real_aseprite" "\$@" ;;
+     *" request="*)
+       printf '%s\n' "\$PYTEST_CURRENT_TEST" >> "$standin_dir/calls.log"
+       exit 1 ;;
+     *) exec "$real_aseprite" "\$@" ;;
+   esac
+   EOS
+   chmod +x "$standin_dir/aseprite"
+   ```
+
+   The stand-in must be a regular file. Runtime discovery looks for `data/gui.xml`
+   next to it, so the loop links the `data` directory of the real Aseprite there.
+2. Run the e2e tier against the stand-in, with a summary line for each passed case:
+
+   ```sh
+   SPA_TEST_ASEPRITE="$standin_dir/aseprite" uv run --frozen --group test \
+     pytest -m "e2e and not slow" -n 0 -rp > "$standin_dir/run.txt"
+   ```
+
+   On macOS, an Aseprite launch can stop before its script runs. When a case stops,
+   run it again alone.
+3. Compare the passed cases with the cases that made a Kernel call:
+
+   ```sh
+   sed -n 's/^PASSED //p' "$standin_dir/run.txt" | LC_ALL=C sort -u \
+     > "$standin_dir/passed.txt"
+   sed 's/ ([a-z]*)$//' "$standin_dir/calls.log" | LC_ALL=C sort -u \
+     > "$standin_dir/called.txt"
+   # Passed, no Kernel call:
+   LC_ALL=C comm -23 "$standin_dir/passed.txt" "$standin_dir/called.txt"
+   # Passed, Kernel called:
+   LC_ALL=C comm -12 "$standin_dir/passed.txt" "$standin_dir/called.txt"
+   ```
+
+4. Examine each listed case:
+   - Passed with no Kernel call: the test did not need the Kernel. When its claim is
+     the runtime probe, a caller-owned Lua script or a behavior of Aseprite itself, it
+     stays in the e2e tier.
+     Otherwise delete it when a fast test holds its claim, or move it to the fast tier.
+     Read its Lua fixture first: a fixture that runs a Kernel handler with `dofile`
+     passes no `request=` argument, so the stand-in does not see that Kernel call.
+   - Passed with a Kernel call: the test does not check what the Kernel did. Assert a
+     fact that only a real run gives. A test that asserts that the Kernel call fails
+     passes here correctly.
+
+The run has limits:
+
+- A process that does not get `PYTEST_CURRENT_TEST` from pytest, for example an MCP
+  server process, writes an empty line to the log. The log does not name the case of
+  that Kernel call.
+- The run lists only cases that pass. A test that fails on the stand-in for an unrelated
+  reason, for example an error in a test helper, is not in the lists. Read why such a
+  case fails.
