@@ -5,7 +5,7 @@ import re
 import pytest
 
 from tests.native_invocation import expect_success, run, run_lua
-from tests.slice.support import FIXTURES, fixture, mutation
+from tests.slice.support import FIXTURES, UNESCAPED_LINE_BREAK, fixture, mutation
 from tests.support import process_diagnostics
 
 pytestmark = pytest.mark.e2e
@@ -290,10 +290,9 @@ def test_native_malformed_user_data_cannot_publish_target(tmp_path, runtime):
     assert outcome.returncode != 0 and failure["code"] == "kernel_execution_failed", (
         failure
     )
-    # Measured with Aseprite 1.3.18.5: the native export writes the line feed
-    # unescaped, so the Slice reader cannot decode the exported vendor data.
+    # The Slice reader cannot decode the native vendor data with the line break.
     assert re.fullmatch(
-        r".*slice_inspect\.lua:\d+: unescaped \(10\) in string",
+        rf".*slice_inspect\.lua:\d+: {re.escape(UNESCAPED_LINE_BREAK)}",
         failure["details"]["reason"],
     ), failure
     assert source.read_bytes() == original and target.read_bytes() == b"existing target"

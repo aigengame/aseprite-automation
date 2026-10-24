@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from tests.native_invocation import run_lua
-from tests.slice.support import FIXTURES, fixture
+from tests.slice.support import FIXTURES, UNESCAPED_LINE_BREAK, fixture
 from tests.support import process_diagnostics
 
 pytestmark = pytest.mark.e2e
@@ -71,7 +71,7 @@ VENDOR_FAULTS = [
     ("different_color", COLOR),
     ("missing_color", COLOR),
     ("no_write", "could not open Slice vendor data"),
-    ("native_line_feed", "unescaped (10) in string"),
+    ("native_line_feed", UNESCAPED_LINE_BREAK),
 ]
 
 

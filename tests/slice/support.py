@@ -1,5 +1,6 @@
 """Native Slice fixtures, including Keys unavailable through public Lua setters."""
 
+import os
 import struct
 from pathlib import Path
 
@@ -8,6 +9,11 @@ from tests.native_invocation import run_lua
 from tests.support import process_diagnostics
 
 FIXTURES = Path(__file__).parent / "fixtures"
+# Aseprite 1.3.18.5 writes Slice user data unescaped to its sprite sheet data
+# file, in text mode. On Windows, text mode writes a line feed as CR LF. The
+# Slice reader reads the file as bytes, so it first finds CR (13) on Windows
+# and LF (10) on other systems.
+UNESCAPED_LINE_BREAK = f"unescaped ({13 if os.name == 'nt' else 10}) in string"
 
 
 def fixture(runtime: RuntimeObservation, target: Path, *, animated=True) -> None:
