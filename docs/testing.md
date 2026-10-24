@@ -207,9 +207,10 @@ uv run --frozen --group test pytest -m "not e2e" \
 ```
 
 Set `SPA_FAST_TEST_WORKERS` to change the local worker count; `0` runs serially for
-diagnosis. Routine CI uses the same arguments in one job and reads the optional
-GitHub repository variable `SPA_FAST_TEST_WORKERS`, with a default of `4`. Each
-selected test runs once. Worker crashes fail the run, with automatic worker restart
+diagnosis. Routine CI and the Release quality job run the same arguments through
+one shared action, `.github/actions/run-fast-tests`. Both pass the optional GitHub
+repository variable `SPA_FAST_TEST_WORKERS`; the action uses `4` when it is not set.
+Each selected test runs once. Worker crashes fail the run, with automatic worker restart
 disabled.
 
 Run the complete routine real-runtime selection, including the small wizard probes,
@@ -392,7 +393,7 @@ do not set up Aseprite or run native E2E.
 | Job | Required evidence |
 | --- | --- |
 | Source quality | Ruff lint and formatting, Pyright for production source, and Luacheck plus StyLua for all tracked Lua. |
-| Fast tests | Unit and integration tests selected with `-m "not e2e"`, in one job with four pytest workers by default. |
+| Fast tests | Unit and integration tests selected with `-m "not e2e"`, in one job with four pytest workers by default. The Release quality job runs the same shared action. |
 | Build and smoke test distributions | One sdist and wheel, valid package metadata, and a successful `spa version` from a wheel-only environment populated from locked runtime dependencies. |
 
 A failure in any job fails routine CI. These three job names can be required checks
