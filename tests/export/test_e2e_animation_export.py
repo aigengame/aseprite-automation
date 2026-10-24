@@ -1,4 +1,12 @@
-"""Native animation delivery through the public CLI and independent decoders."""
+"""Native animation delivery through the public CLI and independent decoders.
+
+The `residual` GIF case plays opaque red, fully transparent, then opaque green.
+One bounded observation, on macOS arm64 with Aseprite 1.3.18.5-dev (API 41), found
+residual opaque pixels in the blank occurrence of the native GIF. Independent
+per-Frame alpha verification refuses that staged GIF and keeps the existing
+destination. The case shows the refusal for the observed encoding path. It does
+not show a limit of all releases, and SPA does not repair the GIF.
+"""
 
 import os
 from pathlib import Path

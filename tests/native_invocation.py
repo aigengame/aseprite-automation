@@ -4,6 +4,9 @@
 against the schema of its command, in process. `run_lua` runs one Lua fixture
 with the GUI resource that runtime discovery found. `render_frame` is the render
 oracle: it exports one Frame through `spa export image`.
+
+Only `run_lua` adds a deadline. `run` and `expect_success` add none: the product
+deadline (`timeout_seconds`) already bounds each Aseprite process that SPA starts.
 """
 
 import json

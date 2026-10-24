@@ -1,4 +1,8 @@
-"""Bounded animation delivery over retained wizard Sources; no recipe rebuild."""
+"""Bounded animation delivery over retained wizard Sources; no recipe rebuild.
+
+These tests check exported files and playback. They do not run Godot, and they do
+not accept the visual or play result.
+"""
 
 import hashlib
 from pathlib import Path
