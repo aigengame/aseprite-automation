@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.5.2](https://github.com/aigengame/aseprite-automation/compare/v0.5.1...v0.5.2) (2026-10-24)
+
+
+### Bug Fixes
+
+* **export:** check export gif destinations before the first Kernel invocation ([#286](https://github.com/aigengame/aseprite-automation/issues/286)) ([cca13c7](https://github.com/aigengame/aseprite-automation/commit/cca13c71315d0f288e7be099f43b5814ca3699e1)), closes [#279](https://github.com/aigengame/aseprite-automation/issues/279)
+* **mcp:** deepen the CLI invocation module that owns process-tree cleanup ([#274](https://github.com/aigengame/aseprite-automation/issues/274)) ([d000506](https://github.com/aigengame/aseprite-automation/commit/d0005064acb6749c76e5f31e5e4e2448f1c4bcd6)), closes [#269](https://github.com/aigengame/aseprite-automation/issues/269)
+* **release:** wait for PyPI file visibility ([#275](https://github.com/aigengame/aseprite-automation/issues/275)) ([58ec4b0](https://github.com/aigengame/aseprite-automation/commit/58ec4b04b14020766b38d3f0b19086f0351ae1dc))
+
 ## [0.5.1](https://github.com/aigengame/aseprite-automation/compare/v0.5.0...v0.5.1) (2026-10-17)
 
 

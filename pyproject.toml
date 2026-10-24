@@ -7,7 +7,7 @@ module-name = "spa"
 
 [project]
 name = "aseprite-automation"
-version = "0.5.1"
+version = "0.5.2"
 description = "Aseprite automation for AI agents. Simple. Stable. Congruent. Create, edit, verify, and export pixel art and sprite animations via CLI, Agent Skill, or MCP server."
 readme = "README.md"
 license = "MIT AND CC0-1.0"
