@@ -47,8 +47,9 @@ An expected value that the test builds from the code under test changes when the
 changes, so the test passes by construction. A round trip through a writer and a reader
 that change together cannot fail either. An observer that records only some facts passes
 a defect in a fact that it does not record. An observer that shares code with the
-subject cannot find a defect in that code. The assertions must depend on what the Kernel
-or Aseprite did. If they do not, the test passes when its subject did not run.
+subject cannot find a defect in that code. The assertions must depend on the behavior
+under test. In an e2e test, they must depend on what the Kernel or Aseprite did. If they
+do not, the test passes when its subject did not run.
 
 **Question:** Where does the expected value come from, and which fact that the subject
 can change does the test not observe?
