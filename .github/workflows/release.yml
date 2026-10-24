@@ -127,16 +127,29 @@ jobs:
     needs: prepare
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: release-source
     steps:
+      - name: Check out trusted verification tools
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          # Keep this workflow's actions separate from an older release's tested source.
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+
       - name: Check out the exact release commit
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ needs.prepare.outputs.release_sha }}
+          path: release-source
           lfs: true
           persist-credentials: false
 
       - name: Set up Python
         uses: ./.github/actions/setup-python-env
+        with:
+          working-directory: release-source
 
       - name: Set up Lua quality tools
         uses: ./.github/actions/setup-lua-quality
@@ -149,13 +162,18 @@ jobs:
           uv run --frozen python scripts/lua_quality.py
 
       - name: Run fast tests
-        run: uv run --frozen --group test pytest -m "not e2e"
+        uses: ./.github/actions/run-fast-tests
+        with:
+          working-directory: release-source
+          workers: ${{ vars.SPA_FAST_TEST_WORKERS }}
 
       - name: Validate reviewed release metadata
         run: uv run --frozen python scripts/verify_release_metadata.py
 
       - name: Build and verify distributions once
         uses: ./.github/actions/verify-python-distributions
+        with:
+          working-directory: release-source
 
       - name: Run the installed-wheel entry tests
         run: |
@@ -171,7 +189,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-distributions-${{ needs.prepare.outputs.release_sha }}
-          path: dist/
+          path: release-source/dist/
           if-no-files-found: error
           overwrite: true
           retention-days: 30

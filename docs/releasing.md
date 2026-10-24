@@ -177,8 +177,9 @@ replacement; old artifacts cannot be relabeled as the corrected output.
    exact commit. All read-only verification jobs test that commit. The quality
    job validates the reviewed release metadata and builds the wheel and sdist once;
    each native shard also prepares an isolated wheel installation for its CLI tests.
-   Native execution actions come from the trusted workflow commit, with the exact
-   release source in a separate directory; historical actions cannot select caches.
+   Quality and native execution actions come from the trusted workflow commit, with
+   the exact release source in a separate directory. Historical actions cannot select
+   caches or change the shared fast-test arguments.
    The final aggregate requires every quality gate and every selected native case.
    The PyPI job downloads those artifacts, checks any existing index files against
    their version, size and SHA-256, and uploads the missing files with Trusted

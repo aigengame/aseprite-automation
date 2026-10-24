@@ -1,0 +1,24 @@
+name: Run fast tests
+description: Run the unit and integration tiers with the shared pytest worker arguments.
+
+inputs:
+  working-directory:
+    description: Checked-out test source, separate from the trusted workflow actions.
+    required: false
+    default: .
+  workers:
+    description: Pytest worker count. An empty value uses the default of 4.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Run unit and integration tests
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        SPA_FAST_TEST_WORKERS: ${{ inputs.workers || '4' }}
+      run: >-
+        uv run --frozen --group test pytest -m "not e2e"
+        -n "$SPA_FAST_TEST_WORKERS" --dist=load --max-worker-restart=0

@@ -1,23 +1,33 @@
 name: Verify Python distributions
 description: Build and validate the SPA sdist and wheel against locked dependencies.
 
+inputs:
+  working-directory:
+    description: Checked-out release source, separate from the trusted workflow actions.
+    required: false
+    default: .
+
 runs:
   using: composite
   steps:
     - name: Build wheel and source distribution
       shell: bash
+      working-directory: ${{ inputs.working-directory }}
       run: uv build
 
     - name: Check distribution metadata
       shell: bash
+      working-directory: ${{ inputs.working-directory }}
       run: uv run --frozen twine check dist/*
 
     - name: Check public package contents
       shell: bash
+      working-directory: ${{ inputs.working-directory }}
       run: uv run --frozen python scripts/release_distributions.py dist
 
     - name: Install and smoke test the wheel
       shell: bash
+      working-directory: ${{ inputs.working-directory }}
       run: |
         wheel_path="$(find dist -maxdepth 1 -name '*.whl' -print -quit)"
         test -n "$wheel_path"
